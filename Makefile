@@ -483,9 +483,8 @@ bpf-bytecode:
 endif
 
 .PHONY: rdpclient
-rdpclient:
+rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
-	@rustup -q override unset
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
@@ -505,7 +504,6 @@ export ironrdp_package_json
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 build-ironrdp-wasm: ensure-wasm-deps
-	@rustup -q override unset
 	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
@@ -1868,7 +1866,7 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
@@ -1924,6 +1922,26 @@ rustup-set-version: ; # obsoleted by toolchain file
 .PHONY: rustup-install-target-toolchain
 rustup-install-target-toolchain:
 	rustup target add $(RUST_TARGET_ARCH)
+
+
+define rust_toolchain_warning
+  The active Rust toolchain version does not match the toolchain required
+  to build Teleport. This is likely caused by a directory override. You
+  can inspect your current overrides with 'rustup show active-toolchain'
+  and clear directory overrides with 'rustup override unset'
+endef
+export rust_toolchain_warning
+
+# inspect the current active toolchain and display a warning if it doesn't
+# match the version defined in our toolchain file.
+.PHONY: rustup-toolchain-warning
+rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
+rustup-toolchain-warning:
+	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
+		echo -en "\033[31m";\
+		echo  "$$rust_toolchain_warning";\
+		echo  -en "\033[0m";\
+	fi
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
