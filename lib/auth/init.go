@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -402,6 +403,9 @@ type InitConfig struct {
 	// It allows for late initialization of the summarizer in the enterprise
 	// plugin. The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+
+	// RecordingMetadataProvider provides recording metadata for session recordings.
+	RecordingMetadataProvider *recordingmetadata.Provider
 
 	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
 	// a locking operation for backend objects.
