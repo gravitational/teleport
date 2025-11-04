@@ -116,6 +116,16 @@ export default class MainProcess {
   private sharedProcessLastLogs: KeepLastChunks<string>;
   private appStateFileStorage: FileStorage;
   private configFileStorage: FileStorage;
+  /**
+   * Promise holding the resolution of child process addresses.
+   *
+   * Both the internal tshd client (in the main process) and the one in
+   * the renderer depend on this promise.
+   *
+   * If the promise rejects, the error will propagate to the renderer via the IPC
+   * handler (causing the renderer to stop initialization and show the error)
+   * and also surface when attempting to access `getTshdClients()`.
+   */
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
   private windowsManager: WindowsManager;
   // this function can be safely called concurrently
@@ -247,8 +257,8 @@ export default class MainProcess {
   /**
    * Returns the tshd client.
    *
-   * If the client setup fails, the resulting error will propagate
-   * to callers of this method.
+   * If the client setup fails, the error is surfaced to the UI during preload
+   * of the frontend app, and it will shut down its initialization.
    */
   private async getTshdClients(): Promise<{
     terminalService: TshdClient;
@@ -366,16 +376,6 @@ export default class MainProcess {
     );
   }
 
-  /**
-   * Initializes the resolution of child process addresses.
-   *
-   * Both the internal tshd client (in the main process) and the one in the renderer
-   * depend on this initialization promise.
-   *
-   * If the promise rejects, the error will propagate to the renderer via the IPC
-   * handler (causing the renderer to stop initialization and show the error)
-   * and also surface when attempting to access `getTshdClients()`.
-   */
   private initResolvingChildProcessAddresses(): void {
     this.resolvedChildProcessAddresses = Promise.all([
       resolveNetworkAddress(

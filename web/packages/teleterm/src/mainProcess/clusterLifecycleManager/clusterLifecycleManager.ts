@@ -40,6 +40,20 @@ export interface ProfileWatcherError {
   reason: 'processing-error' | 'exited';
 }
 
+/**
+ * Manages the lifecycle of clusters by handling both UI actions that update them
+ * (e.g., adding a cluster, logging out) and profile watcher events.
+ *
+ * When handling an action or event requires additional work on the renderer side
+ * (for example, cleaning up before logging out), a handler registered
+ * in `rendererEventHandler` is invoked.
+ * Then, the cluster store is updated (the exact order of these steps depends
+ * on the specific case).
+ *
+ * It is important to always call a method of `ClusterLifecycleManager` rather
+ * than interacting directly with `ClusterStore` whenever the action involves
+ * additional work on the renderer side.
+ */
 export class ClusterLifecycleManager {
   private readonly logger = new Logger('ClusterLifecycleManager');
   private rendererEventHandler:
@@ -87,7 +101,8 @@ export class ClusterLifecycleManager {
     // This method is currently only called from the renderer.
     // Because of that, if this.rendererEventHandler.send() throws, we return the error.
     // This is different from error handling in the profile watcher,
-    // where renderer errors don't prevent updating the cluster store.
+    // where renderer errors don't prevent updating the cluster store,
+    // because the action already happened (the user logged out).
     await this.rendererEventHandler.send({ op: 'will-logout-and-remove', uri });
     await this.clusterStore.logoutAndRemove(uri);
   }
@@ -101,21 +116,24 @@ export class ClusterLifecycleManager {
   }
 
   private onBeforeLogout(uri: RootClusterUri): void {
-    // This function checks for updates, do not wait for it.
+    // Do not wait for this promise to finish as we don't want to block logout
+    // on checking app updates.
     this.appUpdater.maybeRemoveManagingCluster(uri).catch(error => {
       this.logger.error('Failed to remove managing cluster', error);
     });
   }
 
   /**
-   * If the cluster is connected, try to sync it to get details.
-   * Otherwise, only update profile properties.
+   * If the cluster is connected, try to sync it to get the full profile with details.
+   * Otherwise, update the cluster with the profile read from disk.
    */
   private async syncOrUpdateCluster(cluster: Cluster): Promise<void> {
     if (cluster.connected) {
       try {
         return this.clusterStore.sync(cluster.uri);
       } catch (e) {
+        // Theoretically, the cert could just expire.
+        // In that case, only update the store.
         if (!(isTshdRpcError(e) && e.isResolvableWithRelogin)) {
           throw e;
         }
