@@ -23,6 +23,7 @@
  * The regex checks for alphanumerics and select few characters.
  */
 const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
+const ROLES_ANYWHERE_NAME_REGEX = /^[ a-zA-Z0-9-_]{1,255}$/;
 
 /**
  * The result of validating a field.
@@ -107,9 +108,15 @@ const requiredConfirmedPassword =
     };
   };
 
-const isIamRoleNameValid = roleName => {
+const isIamRoleNameValid = (roleName: string) => {
   return (
     roleName && roleName.length <= 64 && roleName.match(IAM_ROLE_NAME_REGEX)
+  );
+};
+
+const isRaResourceNameValid = (resourceName: string) => {
+  return (
+    resourceName && resourceName.match(ROLES_ANYWHERE_NAME_REGEX)
   );
 };
 
@@ -137,6 +144,25 @@ const validAwsIAMRoleName = (name: string): ValidationResult => {
   };
 };
 
+const validAwsRaResourceName = (name: string): ValidationResult => {
+  if (name.length > 255) {
+    return {
+      valid: false,
+      message: 'name should be <= 255 characters',
+    };
+  }
+
+  if (!isRaResourceNameValid(name)) {
+    return {
+      valid: false,
+      message: 'name can only contain characters [space] - _ and alphanumerics',
+    };
+  }
+  return {
+    valid: true,
+  };
+};
+
 /**
  * requiredIamRoleName is a required field and checks for a
  * value which should also be a valid AWS IAM role name.
@@ -152,6 +178,24 @@ const requiredIamRoleName: Rule = name => (): ValidationResult => {
   }
 
   return validAwsIAMRoleName(name);
+};
+
+/**
+ * requiredRaResourceName is a required field and checks for a
+ * value which should also be a valid AWS IAM Roles Anywhere resource name.
+ * This includes AWS IAM Roles Anywhere Trust Anchor names and Profile names.
+ * @param name is a Roles Anywhere resource name.
+ * @returns ValidationResult
+ */
+const requiredRaResourceName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'Name is required',
+    };
+  }
+
+  return validAwsRaResourceName(name);
 };
 
 /**
@@ -402,11 +446,13 @@ export {
   requiredField,
   requiredRoleArn,
   requiredIamRoleName,
+  requiredRaResourceName,
   requiredEmailLike,
   requiredMaxLength,
   requiredAll,
   requiredMatchingRoleNameAndRoleArn,
   validAwsIAMRoleName,
+  validAwsRaResourceName,
   requiredPort,
   arrayOf,
   precomputed,
