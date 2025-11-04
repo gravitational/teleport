@@ -31,6 +31,76 @@ func replaceBackticks(source string) string {
 	return strings.ReplaceAll(source, "BACKTICK", "`")
 }
 
+func TestGetCollectionTypeCases(t *testing.T) {
+	cases := []struct {
+		description string
+		source      string
+		expected    []TypeInfo
+	}{
+		{
+			description: "switch statement after other blocks",
+			source: `package mypkg
+
+func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient.Client) (resources.Collection, error) {
+	if rc.ref.Kind == "" {
+		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
+	}
+
+	// Looking if the resource has been converted to the handler format.
+	if coll, found := resources.Handlers()[rc.ref.Kind]; found {
+		return coll, nil
+	}
+	// The resource hasn't been migrated yet, falling back to the old logic.
+
+	switch rc.ref.Kind {
+	case types.KindSAMLConnector:
+		connectors, err := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &samlCollection{connectors}, nil
+	case types.KindOIDCConnector:
+		connectors, err := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &oidcCollection{connectors}, nil
+	}
+
+	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+}
+`,
+			expected: []TypeInfo{
+				{
+					Package: "types",
+					Name:    "KindSAMLConnector",
+				},
+				{
+					Package: "types",
+					Name:    "KindOIDCConnector",
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
+			fset := token.NewFileSet()
+			d, err := parser.ParseFile(fset,
+				"myfile.go",
+				replaceBackticks(c.source),
+				parser.ParseComments,
+			)
+			if err != nil {
+				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
+			}
+
+			actual, err := getCollectionTypeCases(d.Decls, "getCollection")
+			assert.NoError(t, err)
+			assert.Equal(t, c.expected, actual)
+		})
+	}
+}
 func TestExtractHandlersKeys(t *testing.T) {
 	cases := []struct {
 		description string

@@ -29,6 +29,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// TODO: getCollectionTypeCases
+func getCollectionTypeCases(decls []ast.Decl, targetFuncName string) ([]TypeInfo, error) {
+	return []TypeInfo{}, nil
+}
+
 // extractHandlersKeys TODO
 func extractHandlersKeys(decls []ast.Decl, targetFuncName string) ([]TypeInfo, error) {
 	var handlerKeys []TypeInfo
