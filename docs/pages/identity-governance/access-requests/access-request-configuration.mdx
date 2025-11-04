@@ -353,7 +353,7 @@ with `spec.options.request_prompt` set to non-empty string. This global prompt w
 all Access Requests made by the user.
 
 If multiple global prompts and scoped prompts apply to the same Access Request, all
-prompts will be listed in order within the request reason form.
+prompts will be listed in alphabetical order within the request reason form.
 
 Example:
 
@@ -368,6 +368,8 @@ spec:
       search_as_roles:
         - 'k8s-viewer'
       reason:
+        # If a user is assigned this role, the prompt below will be displayed
+        # when any resource allowed by k8s-viewer role is requested.
         prompt: 'Please give a reason for accessing kubernetes resources'
 ```
 
@@ -377,18 +379,17 @@ version: v7
 metadata:
   name: employee
 spec:
-  allow:
-    request:
-      roles:
-        - 'dba'
+  allow: {}
   options:
+    # If a user is assigned this role, the prompt below will be displayed for
+    # all access requests made by this user.
     request_prompt: 'Please provide your ticket ID'
 ```
 
 If a user assigned with `k8s-requester` and `employee` roles makes an Access Request
 for resources searchable as `k8s-viewer`, they will be prompted with the text
 "Please give a reason for accessing kubernetes resources" on the first line and
-"Please provide your ticket ID" on the second line, in order.
+"Please provide your ticket ID" on the second line, in alphabetical order.
 
 ## Review thresholds
 
