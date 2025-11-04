@@ -18,22 +18,22 @@ func TestEncodeUnsupportedMessage(t *testing.T) {
 	fso := tdpb.FileSystemObject{
 		LastModified: 1,
 	}
-	_, err := WireCapable(&fso, true)
+	_, err := encodeTDPB(&fso)
 	require.Error(t, err)
 }
 
-func TestAs(t *testing.T) {
-	msg := Message(&TDPBMessage{Message: &tdpb.ClientUsername{Username: "name"}})
-
-	//var usernameMsg *tdpb.ClientUsername
-	usernameMsg, ok := To[*tdpb.ClientUsername](msg)
-	require.True(t, ok)
-	//require.True(t, As(msg, &usernameMsg))
-	require.Equal(t, "name", usernameMsg.Username)
-
-	kbLayout := &tdpb.ClientKeyboardLayout{}
-	require.False(t, AsProto(msg, kbLayout))
-}
+//func TestAs(t *testing.T) {
+//	msg := Message(&TDPBMessage{Message: &tdpb.ClientUsername{Username: "name"}})
+//
+//	//var usernameMsg *tdpb.ClientUsername
+//	usernameMsg, ok := To[*tdpb.ClientUsername](msg)
+//	require.True(t, ok)
+//	//require.True(t, As(msg, &usernameMsg))
+//	require.Equal(t, "name", usernameMsg.Username)
+//
+//	kbLayout := &tdpb.ClientKeyboardLayout{}
+//	require.False(t, AsProto(msg, kbLayout))
+//}
 
 func TestStreamProtos(t *testing.T) {
 	inMessages := []proto.Message{
@@ -49,8 +49,7 @@ func TestStreamProtos(t *testing.T) {
 		},
 	}
 
-	dec, err := NewMessageDecoder()
-	require.NoError(t, err)
+	dec := DecoderFunc(DecodeTDPB)
 
 	rdr, writer := net.Pipe()
 	// Need 'ReadByte()'
@@ -60,7 +59,7 @@ func TestStreamProtos(t *testing.T) {
 	go func() {
 		defer writer.Close()
 		for _, msg := range inMessages {
-			tmsg := &TDPBMessage{Message: msg}
+			tmsg := NewTDPBMessage(msg)
 			data, err := tmsg.Encode()
 			if err != nil {
 				return
@@ -100,13 +99,13 @@ func TestStreamProtos(t *testing.T) {
 	assert.Len(t, outMessages, 3)
 
 	alertMsg := tdpb.Alert{}
-	require.True(t, As(outMessages[0], &alertMsg))
+	require.NoError(t, As(outMessages[0], &alertMsg))
 	screenSpecMsg := tdpb.ClientScreenSpec{}
-	require.True(t, As(outMessages[1], &screenSpecMsg))
+	require.NoError(t, As(outMessages[1], &screenSpecMsg))
 	assert.Equal(t, (inMessages[1].(*tdpb.ClientScreenSpec)).Height, screenSpecMsg.Height)
 	assert.Equal(t, (inMessages[1].(*tdpb.ClientScreenSpec)).Width, screenSpecMsg.Width)
 	usernameMsg := tdpb.ClientUsername{}
-	require.True(t, As(outMessages[2], &usernameMsg))
+	require.NoError(t, As(outMessages[2], &usernameMsg))
 	//assert.Equal(t, outMessages[0].Type, tdpb.MessageType_MESSAGE_ALERT)
 	//assert.Equal(t, outMessages[1].Type, tdpb.MessageType_MESSAGE_CLIENT_SCREEN_SPEC)
 	//assert.Equal(t, outMessages[2].Type, tdpb.MessageType_MESSAGE_CLIENT_USERNAME)

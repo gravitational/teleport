@@ -102,10 +102,7 @@ type clientInitdata struct {
 
 func (c *clientInitdata) tdpb() []tdp.Message {
 	return []tdp.Message{
-		&tdp.TDPBMessage{
-			// TODO
-			Message: &tdpb.ClientHello{},
-		},
+		tdp.NewTDPBMessage(&tdpb.ClientHello{}),
 	}
 }
 
@@ -186,7 +183,7 @@ func (c *clientInitExchange) sendTDPAlert(err error) error {
 	var msg tdp.Message
 	switch c.dialect {
 	case "tdpb/1.0":
-		msg = &tdp.TDPBMessage{Message: &tdpb.Alert{Message: err.Error(), Severseverity: tdpb.AlertSeverity_ALERT_SEVERITY_ERROR}}
+		msg = tdp.NewTDPBMessage(&tdpb.Alert{Message: err.Error(), Severseverity: tdpb.AlertSeverity_ALERT_SEVERITY_ERROR})
 	default:
 		msg = tdp.Alert{Message: err.Error(), Severity: tdp.SeverityError}
 	}
@@ -198,7 +195,7 @@ func (c *clientInitExchange) sendTDPError(err error) error {
 	switch c.dialect {
 	case "tdpb/1.0":
 		slog.Warn("sending error in TDPB")
-		msg = &tdp.TDPBMessage{Message: &tdpb.Error{Message: err.Error()}}
+		msg = tdp.NewTDPBMessage(&tdpb.Error{Message: err.Error()})
 	default:
 		slog.Warn("sending error in TDP")
 		msg = tdp.Error{Message: err.Error()}
@@ -270,10 +267,10 @@ func (c *clientInitExchange) handleClientHandshakeTDPB(ctx context.Context, read
 		return nil, trace.Wrap(err)
 	}
 	screenSpec := &tdpb.ClientScreenSpec{}
-	ok := tdp.As(msg, screenSpec)
-	if !ok {
-		return nil, trace.Errorf("client sent unexpected message %T", msg) //sendTDPError(trace.BadParameter("client sent unexpected message %T", msg))
+	if err = tdp.As(msg, screenSpec); err != nil {
+		return nil, trace.WrapWithMessage(err, "client sent unexpected message - wanted client screen spec")
 	}
+
 	slog.Warn("client screen spec recieved during handshake", "height", screenSpec.Height, "width", screenSpec.Width)
 
 	width, height := screenSpec.Width, screenSpec.Height
@@ -289,9 +286,18 @@ func (c *clientInitExchange) handleClientHandshakeTDPB(ctx context.Context, read
 	}
 
 	keyboardLayout := &tdpb.ClientKeyboardLayout{}
-	gotKeyboardLayout := tdp.As(msg, keyboardLayout)
-	//keyboardLayout, gotKeyboardLayout := msg.(*tdp.ClientKeyboardLayout)
-	if !gotKeyboardLayout {
+	kbErr := tdp.As(msg, keyboardLayout)
+	gotKeyboard := true
+	if kbErr != nil {
+		if errors.Is(kbErr, tdp.ErrUnexpectedMessageType) {
+			gotKeyboard = false
+			c.withheld = append(c.withheld, msg)
+		} else {
+			return nil, kbErr
+		}
+	}
+
+	if gotKeyboard {
 		slog.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
 		c.withheld = append(c.withheld, msg)
 	}
@@ -332,11 +338,7 @@ func (h *Handler) createDesktopConnection(
 	dialect := "tdpb/1.0"
 	switch dialect {
 	case "tdpb/1.0":
-		var err error
-		dec, err = tdp.NewMessageDecoder()
-		if err != nil {
-			return trace.Wrap(err, "error creating TDPB decoder")
-		}
+		dec = tdp.DecoderFunc(tdp.DecodeTDPB)
 	default:
 		dec = tdp.DecoderFunc(tdp.DecodeTDP)
 	}
@@ -465,12 +467,10 @@ func (h *Handler) createDesktopConnection(
 		if err != nil {
 			exchangeHandler.sendTDPError(err)
 		}
-		tdpbMsg, ok := msg.(*tdp.TDPBMessage)
-		if ok {
-			serverHello, ok = tdpbMsg.Proto().(*tdpb.ServerHello)
-		}
 
-		if !ok {
+		serverHello := &tdpb.ServerHello{}
+		err = tdp.As(msg, serverHello)
+		if err != nil {
 			exchangeHandler.sendTDPError(errors.New("expected server hello message"))
 		}
 	}
@@ -809,21 +809,19 @@ type TDPBPinger struct{}
 
 func (t *TDPBPinger) NewPing() (uuid.UUID, tdp.Message) {
 	id := uuid.New()
-	return id, &tdp.TDPBMessage{
-		Message: &tdpb.Ping{
-			UUID: id[:],
-		},
-	}
+	return id, tdp.NewTDPBMessage(&tdpb.Ping{
+		UUID: id[:],
+	})
 }
 
 func (t *TDPBPinger) IsPing(msg tdp.Message) (uuid.UUID, bool) {
-	if msg, ok := msg.(*tdp.TDPBMessage); ok {
-		if p, ok := msg.Proto().(*tdpb.Ping); ok {
-			id, _ := uuid.FromBytes(p.UUID)
-			return id, true
-		}
+	p := &tdpb.Ping{}
+	err := tdp.As(msg, p)
+	if err != nil {
+		return uuid.Nil, false
 	}
-	return uuid.Nil, false
+	id, _ := uuid.FromBytes(p.UUID)
+	return id, true
 }
 
 type TDPPinger struct{}
@@ -872,10 +870,11 @@ func intoTDPB(message tdp.Message) ([]tdp.Message, error) {
 
 func intoTDP(message tdp.Message) ([]tdp.Message, error) {
 	// Write interceptor translates messages from the client from TDPB to TDP
-	if msg, ok := message.(*tdp.TDPBMessage); ok {
-		return tdp.TranslateToLegacy(msg.Proto()), nil
+	mproto, err := tdp.AsTDPBProto(message)
+	if err != nil {
+		return nil, trace.BadParameter("Message is not a protocol buffer. Cannot translate from TDPB to TDP")
 	}
-	return nil, trace.BadParameter("Message is not a protocol buffer. Cannot translate from TDPB to TDP")
+	return tdp.TranslateToLegacy(mproto), nil
 }
 
 // proxyWebsocketConn does a bidrectional copy between the websocket
@@ -899,10 +898,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 	// TODO(rhammonds): We need some input from the caller informing us which TDP dialect is in used
 	// by the client. For now, assume that the client always speaks TDPB.
-	decoder, err := tdp.NewMessageDecoder()
-	if err != nil {
-		return err
-	}
+	decoder := tdp.DecoderFunc(tdp.DecodeTDPB)
 
 	serverConn := tdp.MessageReadWriteCloser(tdp.NewConn(wds, tdp.DecoderFunc(tdp.DecodeTDP)))
 	if clientDialect != serverDialect {
@@ -958,7 +954,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 					ServerLatency: uint32(stats.Server),
 				}
 
-				_ = clientConn.WriteMessage(&tdp.TDPBMessage{Message: &lstats})
+				_ = clientConn.WriteMessage(tdp.NewTDPBMessage(&lstats))
 				return nil
 			}),
 		)
