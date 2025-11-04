@@ -31,7 +31,39 @@ import (
 
 // TODO: getCollectionTypeCases
 func getCollectionTypeCases(decls []ast.Decl, targetFuncName string) ([]TypeInfo, error) {
-	return []TypeInfo{}, nil
+	var typeCases []TypeInfo
+	var kindSwitch *ast.SwitchStmt // TODO: return an error if there's another
+
+	for _, d := range decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+
+		if fd.Name.Name != targetFuncName {
+			continue
+		}
+
+		for _, b := range fd.Body.List {
+			s, ok := b.(*ast.SwitchStmt)
+			if !ok {
+				continue
+			}
+
+			// TODO: only allow switch statements with the right
+			// condition
+			// TODO: throw an error if there's another kindswitch
+			kindSwitch = s
+		}
+	}
+
+	if kindSwitch == nil {
+		return nil, trace.Errorf("function %v does not switch on a resource kind", targetFuncName)
+	}
+
+	// TODO: extract cases
+
+	return typeCases, nil
 }
 
 // extractHandlersKeys TODO

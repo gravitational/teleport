@@ -89,7 +89,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			d, err := parser.ParseFile(fset,
 				"myfile.go",
 				replaceBackticks(c.source),
-				parser.ParseComments,
+				parser.ParseComments|parser.SkipObjectResolution,
 			)
 			if err != nil {
 				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
@@ -145,7 +145,7 @@ func Handlers() map[string]Handler {
 			d, err := parser.ParseFile(fset,
 				"myfile.go",
 				replaceBackticks(c.source),
-				parser.ParseComments,
+				parser.ParseComments|parser.SkipObjectResolution,
 			)
 			if err != nil {
 				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
