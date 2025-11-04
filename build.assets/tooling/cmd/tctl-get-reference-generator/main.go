@@ -276,6 +276,12 @@ func NamedImports(file *ast.File) map[string]string {
 			continue
 		}
 		s := strings.Trim(i.Path.Value, "\"")
+		p := strings.Split(s, "/")
+		// Consumers check the named imports map against the final path
+		// segment of a package path.
+		if len(p) > 1 {
+			s = p[len(p)-1]
+		}
 		m[i.Name.Name] = s
 	}
 	return m
@@ -385,15 +391,15 @@ func getPackageInfoFromExpr(expr ast.Expr) PackageInfo {
 func Generate() error {
 	// TODO: have this select the correct path.
 	// TODO: use the resulting sourceData
-	_, err := NewSourceData(".")
+	sourceData, err := NewSourceData(".")
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	//	kindConsts := append(
-	//		getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection"),
-	//		extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")...,
-	//	)
+	kindConsts := append(
+		getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection"),
+		extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")...,
+	)
 
 	return nil
 }
