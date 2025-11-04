@@ -57,6 +57,7 @@ func Handlers() map[string]Handler {
 		types.KindRole:                               roleHandler(),
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
 		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
+		types.KindToken:                              tokenHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
