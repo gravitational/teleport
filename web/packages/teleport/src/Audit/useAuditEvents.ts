@@ -16,97 +16,161 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
+import { endOfDay, startOfDay } from 'date-fns';
+import { useCallback, useMemo } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
-import useAttempt from 'shared/hooks/useAttemptNext';
+import type { SortDir, SortType } from 'design/DataTable/types';
 
-import {
-  EventRange,
-  getRangeOptions,
-} from 'teleport/components/EventRangePicker';
-import { Event, EventCode, formatters } from 'teleport/services/audit';
+import { EventRange } from 'teleport/components/EventRangePicker';
+import { EventCode, formatters } from 'teleport/services/audit';
 import Ctx from 'teleport/teleportContext';
+
+const PAGE_SIZE = 50;
 
 export default function useAuditEvents(
   ctx: Ctx,
   clusterId: string,
   eventCode?: EventCode
 ) {
-  const rangeOptions = useMemo(() => getRangeOptions(), []);
-  const [range, setRange] = useState<EventRange>(rangeOptions[0]);
-  const { attempt, setAttempt, run } = useAttempt('processing');
-  const [results, setResults] = useState<EventResult>({
-    events: [],
-    fetchStartKey: '',
-    fetchStatus: '',
-  });
+  const history = useHistory();
+  const location = useLocation();
+
+  const queryParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
+
+  const fromParam = queryParams.get('from');
+  const toParam = queryParams.get('to');
+  const search = queryParams.get('search') || '';
+  const orderParam = queryParams.get('order');
+  const sortDir: SortDir = orderParam?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
   const filterBy = eventCode ? formatters[eventCode].type : '';
 
-  useEffect(() => {
-    fetch();
-  }, [clusterId, range]);
-
-  // fetchMore gets events from last position from
-  // last fetch, indicated by startKey. The response is
-  // appended to existing events list.
-  function fetchMore() {
-    setResults({
-      ...results,
-      fetchStatus: 'loading',
-    });
-    ctx.auditService
-      .fetchEvents(clusterId, {
-        ...range,
-        filterBy,
-        startKey: results.fetchStartKey,
-      })
-      .then(res =>
-        setResults({
-          events: [...results.events, ...res.events],
-          fetchStartKey: res.startKey,
-          fetchStatus: res.startKey ? '' : 'disabled',
-        })
-      )
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  }
-
-  // fetch gets events from beginning of range and
-  // replaces existing events list.
-  function fetch() {
-    run(() =>
-      ctx.auditService
-        .fetchEvents(clusterId, {
-          ...range,
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isSuccess,
+    refetch,
+    isError,
+  } = useInfiniteQuery({
+    queryKey: [
+      'audit_events',
+      clusterId,
+      fromParam,
+      toParam,
+      filterBy,
+      search,
+      sortDir,
+    ],
+    queryFn: ({ pageParam, signal }) =>
+      ctx.auditService.fetchEventsV2(
+        clusterId,
+        {
+          from: fromParam ? startOfDay(new Date(fromParam)) : undefined,
+          to: toParam ? endOfDay(new Date(toParam)) : undefined,
           filterBy,
-        })
-        .then(res =>
-          setResults({
-            events: res.events,
-            fetchStartKey: res.startKey,
-            fetchStatus: res.startKey ? '' : 'disabled',
-          })
-        )
-    );
-  }
+          startKey: pageParam,
+          limit: PAGE_SIZE,
+          search,
+          order: sortDir,
+        },
+        signal
+      ),
+    initialPageParam: '',
+    getNextPageParam: lastPage => lastPage.startKey || undefined,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+
+  // Flatten all pages into a single array for infinite scroll
+  const events = useMemo(() => {
+    if (!data || data.pages.length === 0) {
+      return [];
+    }
+    return data.pages.flatMap(page => page.events);
+  }, [data]);
+
+  const setRange = useCallback(
+    (newRange: EventRange) => {
+      const params = new URLSearchParams(location.search);
+      params.set('from', newRange.from.toISOString());
+      params.set('to', newRange.to.toISOString());
+
+      history.push({
+        pathname: location.pathname,
+        search: params.toString(),
+      });
+    },
+    [history, location]
+  );
+
+  const setSearch = useCallback(
+    (newSearch: string) => {
+      const params = new URLSearchParams(location.search);
+      if (newSearch) {
+        params.set('search', newSearch);
+      } else {
+        params.delete('search');
+      }
+
+      history.push({
+        pathname: location.pathname,
+        search: params.toString(),
+      });
+    },
+    [history, location]
+  );
+
+  const setSort = useCallback(
+    (nextSort: SortType) => {
+      const params = new URLSearchParams(location.search);
+      const nextDir: SortDir = nextSort.dir === 'ASC' ? 'ASC' : 'DESC';
+      params.set('order', nextDir);
+
+      history.replace({
+        pathname: location.pathname,
+        search: params.toString(),
+      });
+    },
+    [history, location]
+  );
+
+  const sort: SortType = { fieldName: 'time', dir: sortDir };
 
   return {
-    ...results,
-    fetchMore,
+    events,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    error,
+    isSuccess,
+    refetch,
+    isError,
     clusterId,
-    attempt,
-    range,
+    range:
+      fromParam && toParam
+        ? {
+            from: new Date(fromParam),
+            to: new Date(toParam),
+            isCustom: true,
+          }
+        : undefined,
     setRange,
-    rangeOptions,
+    search,
+    setSearch,
+    sort,
+    setSort,
     ctx,
   };
 }
-
-type EventResult = {
-  events: Event[];
-  fetchStatus: 'loading' | 'disabled' | '';
-  fetchStartKey: string;
-};
 
 export type State = ReturnType<typeof useAuditEvents>;
