@@ -1747,7 +1747,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow": {
 						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							"instances": {
-								Description: "Instances is a list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed.",
+								Description: "Instances is a list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 							},

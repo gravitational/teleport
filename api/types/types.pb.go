@@ -6464,6 +6464,7 @@ type ProvisionTokenSpecV2Oracle_Rule struct {
 	Regions []string `protobuf:"bytes,3,rep,name=Regions,proto3" json:"regions,omitempty"`
 	// Instances is a list of the OCIDs of specific instances that are allowed
 	// to join. If empty, any instance matching the other fields in the rule is allowed.
+	// Limited to 100 instance OCIDs per rule.
 	Instances            []string `protobuf:"bytes,4,rep,name=Instances,proto3" json:"instances,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

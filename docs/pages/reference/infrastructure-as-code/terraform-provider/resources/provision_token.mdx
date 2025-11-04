@@ -342,7 +342,7 @@ Optional:
 
 Optional:
 
-- `instances` (List of String) Instances is a list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed.
+- `instances` (List of String) Instances is a list of the OCIDs of specific instances that are allowed to join. If empty, any instance matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.
 - `parent_compartments` (List of String) ParentCompartments is a list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
 - `regions` (List of String) Regions is a list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1") and abbreviations ("phx") are allowed. If empty, any region is allowed.
 - `tenancy` (String) Tenancy is the OCID of the instance's tenancy. Required.

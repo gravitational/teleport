@@ -2042,6 +2042,7 @@ message ProvisionTokenSpecV2Oracle {
     repeated string Regions = 3 [(gogoproto.jsontag) = "regions,omitempty"];
     // Instances is a list of the OCIDs of specific instances that are allowed
     // to join. If empty, any instance matching the other fields in the rule is allowed.
+    // Limited to 100 instance OCIDs per rule.
     repeated string Instances = 4 [(gogoproto.jsontag) = "instances,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
