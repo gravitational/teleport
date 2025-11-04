@@ -57,7 +57,7 @@ afterAll(() => server.close());
 describe('InstancesPanel', () => {
   it('should show a fetch error state', async () => {
     withFetchError();
-    render(<InstancesPanel botName="test-bot" />, {
+    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
       wrapper: makeWrapper(),
     });
     await waitForLoading();
@@ -67,7 +67,7 @@ describe('InstancesPanel', () => {
 
   it('should show a no permissions state', async () => {
     withFetchError();
-    render(<InstancesPanel botName="test-bot" />, {
+    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
       wrapper: makeWrapper({
         customAcl: makeAcl({
           botInstances: {
@@ -88,7 +88,7 @@ describe('InstancesPanel', () => {
   it('renders instance items', async () => {
     withFetchSuccess();
 
-    render(<InstancesPanel botName="test-bot" />, {
+    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
       wrapper: makeWrapper(),
     });
     await waitForLoading();
