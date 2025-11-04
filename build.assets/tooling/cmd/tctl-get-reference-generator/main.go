@@ -26,6 +26,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -407,13 +408,22 @@ func Generate(w io.Writer) error {
 		return err
 	}
 
-	for _, p := range append(typeCases, handlers...) {
+	result := make([]string, len(typeCases)+len(handlers))
+	for i, p := range append(typeCases, handlers...) {
 		c, ok := sourceData.StringAssignments[p]
 		if !ok {
-			continue
+			return trace.Errorf(
+				"could not find a string assignment for constant %v.%v",
+				p.PackageName,
+				p.DeclName,
+			)
 		}
+		result[i] = c
+	}
 
-		fmt.Fprintf(w, "- `%v`\n", c)
+	sort.Strings(result)
+	for _, r := range result {
+		fmt.Fprintf(w, "- `%v`\n", r)
 	}
 
 	return nil
