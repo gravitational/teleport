@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -31,8 +32,8 @@ import (
 )
 
 // TODO: getCollectionTypeCases
-func getCollectionTypeCases(decls []DeclarationInfo, targetFuncName string) ([]TypeInfo, error) {
-	var typeCases []TypeInfo
+func getCollectionTypeCases(decls []DeclarationInfo, targetFuncName string) ([]PackageInfo, error) {
+	var typeCases []PackageInfo
 	var kindSwitch *ast.SwitchStmt
 
 	for _, decl := range decls {
@@ -85,10 +86,7 @@ func getCollectionTypeCases(decls []DeclarationInfo, targetFuncName string) ([]T
 
 			}
 
-			typeCases = append(typeCases, TypeInfo{
-				Package: sel.X.(*ast.Ident).Name,
-				Name:    sel.Sel.Name,
-			})
+			typeCases = append(typeCases, getPackageInfoFromExpr(sel))
 		}
 	}
 
@@ -100,8 +98,8 @@ func getCollectionTypeCases(decls []DeclarationInfo, targetFuncName string) ([]T
 }
 
 // extractHandlersKeys TODO
-func extractHandlersKeys(decls []DeclarationInfo, targetFuncName string) ([]TypeInfo, error) {
-	var handlerKeys []TypeInfo
+func extractHandlersKeys(decls []DeclarationInfo, targetFuncName string) ([]PackageInfo, error) {
+	var handlerKeys []PackageInfo
 
 	for _, decl := range decls {
 		d := decl.Decl
@@ -145,12 +143,7 @@ func extractHandlersKeys(decls []DeclarationInfo, targetFuncName string) ([]Type
 		for _, e := range m.Elts {
 			kv := e.(*ast.KeyValueExpr)
 			key := kv.Key.(*ast.SelectorExpr)
-			pkg := key.X.(*ast.Ident).Name
-			typ := key.Sel.Name
-			handlerKeys = append(handlerKeys, TypeInfo{
-				Package: pkg,
-				Name:    typ,
-			})
+			handlerKeys = append(handlerKeys, getPackageInfoFromExpr(key))
 		}
 	}
 
@@ -370,16 +363,6 @@ func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo
 	return result, nil
 }
 
-// TypeInfo represents the name and package name of an exported Go type. It
-// makes no guarantees about whether the type was actually declared within the
-// package.
-type TypeInfo struct {
-	// Go package path (not a file path)
-	Package string `yaml:"package"`
-	// Name of the type, e.g., Metadata
-	Name string `yaml:"name"`
-}
-
 // getPackageInfoFromExpr extracts a package name and declaration name from an
 // arbitrary expression. If the expression is not an expected kind,
 // getPackageInfoFromExpr returns an empty PackageInfo.
@@ -407,33 +390,42 @@ func getPackageInfoFromExpr(expr ast.Expr) PackageInfo {
 	}
 }
 
-// Generate uses the provided user-facing configuration to write the resource
-// reference to fs.
-func Generate() error {
-	// TODO: have this select the correct path.
-	// TODO: use the resulting sourceData
+// Generate writes the resource reference to w.
+func Generate(w io.Writer) error {
 	sourceData, err := NewSourceData(".")
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	_, err = getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection")
+	typeCases, err := getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection")
 	if err != nil {
 		return err
 	}
 
-	_, err = extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")
+	handlers, err := extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")
 	if err != nil {
 		return err
+	}
+
+	for _, p := range append(typeCases, handlers...) {
+		c, ok := sourceData.StringAssignments[p]
+		if !ok {
+			continue
+		}
+
+		fmt.Fprintf(w, "- `%v`\n", c)
 	}
 
 	return nil
 }
 
 func main() {
-	err := Generate()
+	var buf bytes.Buffer
+	err := Generate(&buf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not generate the `tctl get` reference: %v\n", err)
 		os.Exit(1)
 	}
+
+	io.Copy(os.Stdout, &buf)
 }

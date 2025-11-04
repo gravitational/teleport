@@ -36,7 +36,7 @@ func TestGetCollectionTypeCases(t *testing.T) {
 	cases := []struct {
 		description string
 		source      string
-		expected    []TypeInfo
+		expected    []PackageInfo
 	}{
 		{
 			description: "switch statement after other blocks",
@@ -71,14 +71,14 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
 `,
-			expected: []TypeInfo{
+			expected: []PackageInfo{
 				{
-					Package: "types",
-					Name:    "KindSAMLConnector",
+					PackageName: "types",
+					DeclName:    "KindSAMLConnector",
 				},
 				{
-					Package: "types",
-					Name:    "KindOIDCConnector",
+					PackageName: "types",
+					DeclName:    "KindOIDCConnector",
 				},
 			},
 		},
@@ -98,7 +98,7 @@ func TestExtractHandlersKeys(t *testing.T) {
 	cases := []struct {
 		description string
 		source      string
-		expected    []TypeInfo
+		expected    []PackageInfo
 	}{
 		{
 			description: "three handlers",
@@ -115,18 +115,18 @@ func Handlers() map[string]Handler {
 		types.KindAppServer:                          appServerHandler(),
 	}
 }`,
-			expected: []TypeInfo{
+			expected: []PackageInfo{
 				{
-					Package: "types",
-					Name:    "KindAccessGraphSettings",
+					PackageName: "types",
+					DeclName:    "KindAccessGraphSettings",
 				},
 				{
-					Package: "types",
-					Name:    "KindApp",
+					PackageName: "types",
+					DeclName:    "KindApp",
 				},
 				{
-					Package: "types",
-					Name:    "KindAppServer",
+					PackageName: "types",
+					DeclName:    "KindAppServer",
 				},
 			},
 		},
