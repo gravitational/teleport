@@ -35,13 +35,22 @@ type UploadHandler interface {
 	Download(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
 	// UploadPendingSummary uploads a pending session summary and returns a URL
 	// with uploaded file in case of success. This function can be called
-	// multiple times for a given sessionID to update the state.
+	// multiple times for a given sessionID to update the state. A pending
+	// session summary is any summary state that can still be later overwritten.
 	UploadPendingSummary(ctx context.Context, sesisonID session.ID, readCloser io.Reader) (string, error)
 	// UploadSummary uploads a final session summary and returns a URL with
 	// uploaded file in case of success. This function can be called only once
 	// for a given sessionID; subsequent calls will return an error.
 	UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
-	// DownloadSummary downloads a session summary and writes it to a writer.
+	// DownloadPendingSummary downloads a pending session summary and writes it
+	// to a writer. Since pending summaries are not deleted, this function can be
+	// safely called after DownloadSummary returned a "not found" error without
+	// introducing a race condition between creating a final summary and deleting
+	// the pending one. Returns a "not found" error if there's no such summary.
+	DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
+	// DownloadSummary downloads a final session summary and writes it to a
+	// writer. Returns a "not found" error if there's no such summary or the
+	// summary is not final.
 	DownloadSummary(ctx context.Context, sessionID session.ID, writer RandomAccessWriter) error
 	// UploadMetadata uploads session metadata and returns a URL with the uploaded
 	// file in case of success. Session metadata is a file with a [recordingmetadatav1.SessionRecordingMetadata]

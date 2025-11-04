@@ -49,12 +49,13 @@ type MemoryUploaderConfig struct {
 // upload
 func NewMemoryUploader(cfg ...MemoryUploaderConfig) *MemoryUploader {
 	up := &MemoryUploader{
-		mtx:        &sync.RWMutex{},
-		uploads:    make(map[string]*MemoryUpload),
-		sessions:   make(map[session.ID][]byte),
-		summaries:  make(map[session.ID][]byte),
-		metadata:   make(map[session.ID][]byte),
-		thumbnails: make(map[session.ID][]byte),
+		mtx:              &sync.RWMutex{},
+		uploads:          make(map[string]*MemoryUpload),
+		sessions:         make(map[session.ID][]byte),
+		summaries:        make(map[session.ID][]byte),
+		pendingSummaries: make(map[session.ID][]byte),
+		metadata:         make(map[session.ID][]byte),
+		thumbnails:       make(map[session.ID][]byte),
 	}
 	if len(cfg) != 0 {
 		up.cfg = cfg[0]
@@ -117,6 +118,7 @@ func (m *MemoryUploader) Reset() {
 	m.uploads = make(map[string]*MemoryUpload)
 	m.sessions = make(map[session.ID][]byte)
 	m.summaries = make(map[session.ID][]byte)
+	m.pendingSummaries = make(map[session.ID][]byte)
 	m.metadata = make(map[session.ID][]byte)
 	m.thumbnails = make(map[session.ID][]byte)
 }
@@ -369,14 +371,26 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	return nil
 }
 
+func (m *MemoryUploader) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.pendingSummaries[sessionID]
+	if !ok {
+		return trace.NotFound("summary %q is not found", sessionID)
+	}
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
 func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	data, ok := m.summaries[sessionID]
-	if !ok {
-		data, ok = m.pendingSummaries[sessionID]
-	}
 	if !ok {
 		return trace.NotFound("summary %q is not found", sessionID)
 	}

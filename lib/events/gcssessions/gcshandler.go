@@ -325,15 +325,18 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 	return trace.Wrap(h.downloadFile(ctx, h.recordingPath(sessionID), writer))
 }
 
+// DownloadPendingSummary downloads a pending session summary from a GCS bucket
+// and writes the result into a writer. Returns trace.NotFound error if the
+// recording is not found.
+func (h *Handler) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return trace.Wrap(h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer))
+}
+
 // DownloadSummary downloads a session summary from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	err := h.downloadFile(ctx, h.summaryPath(sessionID), writer)
-	if trace.IsNotFound(err) {
-		return trace.Wrap(h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer))
-	}
-	return trace.Wrap(err)
+	return trace.Wrap(h.downloadFile(ctx, h.summaryPath(sessionID), writer))
 }
 
 // DownloadMetadata downloads a session's metadata from a GCS bucket and writes the

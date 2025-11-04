@@ -408,15 +408,18 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 	return trace.Wrap(h.downloadOriginalFile(ctx, h.recordingPath(sessionID), writer))
 }
 
-// DownloadSummary downloads a session summary from an S3 bucket and writes the
-// results into a writer. Returns trace.NotFound error if the summary is not
-// found.
+// DownloadPendingSummary downloads a pending session summary from an S3 bucket
+// and writes the results into a writer. Returns trace.NotFound error if the
+// summary is not found or is not final.
+func (h *Handler) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return trace.Wrap(h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer, nil /* versionID */))
+}
+
+// DownloadSummary downloads a final session summary from an S3 bucket and
+// writes the results into a writer. Returns trace.NotFound error if the
+// summary is not found or is not final.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	err := h.downloadFile(ctx, h.summaryPath(sessionID), writer, nil /* versionID */)
-	if trace.IsNotFound(err) {
-		return trace.Wrap(h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer, nil /* versionID */))
-	}
-	return trace.Wrap(err)
+	return trace.Wrap(h.downloadFile(ctx, h.summaryPath(sessionID), writer, nil /* versionID */))
 }
 
 // DownloadMetadata downloads a session's metadata from an S3 bucket and writes the

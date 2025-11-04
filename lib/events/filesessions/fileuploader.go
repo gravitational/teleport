@@ -121,13 +121,15 @@ func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 	return trace.Wrap(downloadFile(l.recordingPath(sessionID), writer))
 }
 
-// DownloadSummary reads a session summary from a local directory.
+// DownloadPendingSummary reads a pending session summary from a local
+// directory.
+func (l *Handler) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return trace.Wrap(downloadFile(l.pendingSummaryPath(sessionID), writer))
+}
+
+// DownloadSummary reads a final session summary from a local directory.
 func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	err := downloadFile(l.summaryPath(sessionID), writer)
-	if trace.IsNotFound(err) {
-		return trace.Wrap(downloadFile(l.pendingSummaryPath(sessionID), writer))
-	}
-	return trace.Wrap(err)
+	return trace.Wrap(downloadFile(l.summaryPath(sessionID), writer))
 }
 
 // DownloadMetadata reads session metadata from a local directory.

@@ -375,13 +375,16 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.sessionBlob(sessionID), writer))
 }
 
-// DownloadSummary implements [events.UploadHandler] and downloads a session summary.
+// DownloadPendingSummary implements [events.UploadHandler] and downloads a
+// pending session summary.
+func (h *Handler) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), writer))
+}
+
+// DownloadSummary implements [events.UploadHandler] and downloads a final
+// session summary.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	err := h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
-	if trace.IsNotFound(err) {
-		return h.downloadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), writer)
-	}
-	return trace.Wrap(err)
+	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer))
 }
 
 // DownloadMetadata implements [events.UploadHandler] and downloads a session's metadata.

@@ -83,9 +83,15 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	require.NoError(t, err)
 
 	var pendingBuf events.MemBuffer
-	err = handler.DownloadSummary(ctx, id, &pendingBuf)
+	err = handler.DownloadPendingSummary(ctx, id, &pendingBuf)
 	require.NoError(t, err)
 	assert.Equal(t, "pending summary", string(pendingBuf.Bytes()))
+
+	// No final version expected just yet.
+	var finalBuf events.MemBuffer
+	err = handler.DownloadSummary(ctx, id, &finalBuf)
+	require.Error(t, err)
+	assert.True(t, trace.IsNotFound(err))
 
 	// Override previous pending state.
 	_, err = handler.UploadPendingSummary(ctx, id, strings.NewReader("updated pending summary"))
@@ -93,9 +99,15 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 
 	// Download the pending version.
 	var pendingBuf2 events.MemBuffer
-	err = handler.DownloadSummary(ctx, id, &pendingBuf2)
+	err = handler.DownloadPendingSummary(ctx, id, &pendingBuf2)
 	require.NoError(t, err)
 	assert.Equal(t, "updated pending summary", string(pendingBuf2.Bytes()))
+
+	// Still no final version expected.
+	var finalBuf2 events.MemBuffer
+	err = handler.DownloadSummary(ctx, id, &finalBuf2)
+	require.Error(t, err)
+	assert.True(t, trace.IsNotFound(err))
 
 	// Upload the final version.
 	_, err = handler.UploadSummary(ctx, id, strings.NewReader("final summary"))
@@ -106,10 +118,18 @@ func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
 	require.Error(t, err)
 
 	// Download the final version.
-	var finalBuf events.MemBuffer
-	err = handler.DownloadSummary(ctx, id, &finalBuf)
+	var finalBuf3 events.MemBuffer
+	err = handler.DownloadSummary(ctx, id, &finalBuf3)
 	require.NoError(t, err)
-	assert.Equal(t, "final summary", string(finalBuf.Bytes()))
+	assert.Equal(t, "final summary", string(finalBuf3.Bytes()))
+
+	// The pending version should still be there. This allows to checking the
+	// final version first, and the pending one second, without introducing a
+	// race condition.
+	var pendingBuf3 events.MemBuffer
+	err = handler.DownloadPendingSummary(ctx, id, &pendingBuf3)
+	require.NoError(t, err)
+	assert.Equal(t, "updated pending summary", string(pendingBuf3.Bytes()))
 }
 
 // UploadDownloadMetadata tests metadata uploads and downloads

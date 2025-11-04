@@ -39,7 +39,7 @@ func TestStreams(t *testing.T) {
 	handler, err := NewHandler(context.Background(), Config{
 		Region: "us-west-1",
 		Path:   "/test/",
-		Bucket: "bartosz-teleport-unit-tests",
+		Bucket: "teleport-unit-tests",
 	})
 	require.NoError(t, err)
 
