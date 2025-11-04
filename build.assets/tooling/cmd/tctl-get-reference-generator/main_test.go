@@ -40,7 +40,9 @@ func TestGetCollectionTypeCases(t *testing.T) {
 	}{
 		{
 			description: "switch statement after other blocks",
-			source: `package mypkg
+			source: `package teleport
+
+import types "path/to/mypkg"
 
 func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient.Client) (resources.Collection, error) {
 	if rc.ref.Kind == "" {
@@ -73,11 +75,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 `,
 			expected: []PackageInfo{
 				{
-					PackageName: "types",
+					PackageName: "mypkg",
 					DeclName:    "KindSAMLConnector",
 				},
 				{
-					PackageName: "types",
+					PackageName: "mypkg",
 					DeclName:    "KindOIDCConnector",
 				},
 			},
@@ -102,7 +104,9 @@ func TestExtractHandlersKeys(t *testing.T) {
 	}{
 		{
 			description: "three handlers",
-			source: `package mypkg
+			source: `package teleport
+
+import types "path/to/mypkg"
 
 // Handlers returns a map of Handler per kind.
 // This map will be filled as we convert existing resources
@@ -117,15 +121,15 @@ func Handlers() map[string]Handler {
 }`,
 			expected: []PackageInfo{
 				{
-					PackageName: "types",
+					PackageName: "mypkg",
 					DeclName:    "KindAccessGraphSettings",
 				},
 				{
-					PackageName: "types",
+					PackageName: "mypkg",
 					DeclName:    "KindApp",
 				},
 				{
-					PackageName: "types",
+					PackageName: "mypkg",
 					DeclName:    "KindAppServer",
 				},
 			},

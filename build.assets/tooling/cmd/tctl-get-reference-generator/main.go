@@ -36,6 +36,7 @@ import (
 func getCollectionTypeCases(decls []DeclarationInfo, targetFuncName string) ([]PackageInfo, error) {
 	var typeCases []PackageInfo
 	var kindSwitch *ast.SwitchStmt
+	var funcDecl DeclarationInfo
 
 	for _, decl := range decls {
 		d := decl.Decl
@@ -47,6 +48,10 @@ func getCollectionTypeCases(decls []DeclarationInfo, targetFuncName string) ([]P
 		if fd.Name.Name != targetFuncName {
 			continue
 		}
+
+		// Collect context about the declaration so we can use it when
+		// we extract case clauses.
+		funcDecl = decl
 
 		// Find the switch statement that evaluates the kind of the
 		// input resource.
@@ -87,7 +92,7 @@ func getCollectionTypeCases(decls []DeclarationInfo, targetFuncName string) ([]P
 
 			}
 
-			typeCases = append(typeCases, getPackageInfoFromExpr(sel))
+			typeCases = append(typeCases, getPackageInfoFromExpr(sel, funcDecl.NamedImports))
 		}
 	}
 
@@ -144,7 +149,7 @@ func extractHandlersKeys(decls []DeclarationInfo, targetFuncName string) ([]Pack
 		for _, e := range m.Elts {
 			kv := e.(*ast.KeyValueExpr)
 			key := kv.Key.(*ast.SelectorExpr)
-			handlerKeys = append(handlerKeys, getPackageInfoFromExpr(key))
+			handlerKeys = append(handlerKeys, getPackageInfoFromExpr(key, decl.NamedImports))
 		}
 	}
 
@@ -367,11 +372,11 @@ func GetTopLevelStringAssignments(decls []ast.Decl, pkg string) (map[PackageInfo
 // getPackageInfoFromExpr extracts a package name and declaration name from an
 // arbitrary expression. If the expression is not an expected kind,
 // getPackageInfoFromExpr returns an empty PackageInfo.
-func getPackageInfoFromExpr(expr ast.Expr) PackageInfo {
+func getPackageInfoFromExpr(expr ast.Expr, namedImports map[string]string) PackageInfo {
 	var gopkg, fldname string
 	switch t := expr.(type) {
 	case *ast.StarExpr:
-		return getPackageInfoFromExpr(t.X)
+		return getPackageInfoFromExpr(t.X, namedImports)
 	case *ast.SelectorExpr:
 		// If the type of the field is an *ast.SelectorExpr,
 		// it's of the form <package>.<type name>.
@@ -384,6 +389,11 @@ func getPackageInfoFromExpr(expr ast.Expr) PackageInfo {
 	// There's no package, so only assign a name.
 	case *ast.Ident:
 		fldname = t.Name
+	}
+
+	a, ok := namedImports[gopkg]
+	if ok {
+		gopkg = a
 	}
 	return PackageInfo{
 		DeclName:    fldname,
