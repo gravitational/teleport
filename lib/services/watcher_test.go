@@ -399,7 +399,7 @@ func TestLockWatcherStale(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		clock := clockwork.NewRealClock()
 
 		bk, err := memory.New(memory.Config{
