@@ -392,7 +392,7 @@ func getPackageInfoFromExpr(expr ast.Expr) PackageInfo {
 
 // Generate writes the resource reference to w.
 func Generate(w io.Writer) error {
-	sourceData, err := NewSourceData(".")
+	sourceData, err := NewSourceData(filepath.Join("..", "..", "..", ".."))
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
