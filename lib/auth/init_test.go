@@ -1367,7 +1367,7 @@ func TestDashboardMode(t *testing.T) {
 	})
 
 	conf := setupConfig(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
