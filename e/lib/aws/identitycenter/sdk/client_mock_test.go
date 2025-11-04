@@ -146,6 +146,39 @@ func TestAccountAssignmentMock(t *testing.T) {
 		}
 		assertUsersAssignments(t, c, want)
 	})
+
+	t.Run("account assignment failures", func(t *testing.T) {
+		func(subtestT *testing.T, client *ClientMock) {
+			client.MonkeyPatch.WaitForCreateAccountAssignmentResult = func(_ context.Context, _ string) error {
+				return trace.Errorf("account assignment creation failed: some error")
+			}
+			client.MonkeyPatch.WaitForDeleteAccountAssignmentResult = func(_ context.Context, _ string) error {
+				return trace.Errorf("account assignment deletion failed: some error")
+			}
+			subtestT.Cleanup(func() {
+				client.MonkeyPatch.WaitForCreateAccountAssignmentResult = nil
+				client.MonkeyPatch.WaitForDeleteAccountAssignmentResult = nil
+			})
+		}(t, c.(*ClientMock))
+
+		createResp, err := c.CreateAccountAssignment(ctx, &CreateAccountAssignmentRequest{
+			PrincipalID:      "user333333345",
+			PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
+			PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+			AccountID:        "1111111111",
+		})
+		require.NoError(t, err)
+		require.Error(t, c.WaitForCreateAccountAssignmentResult(ctx, createResp.RequestID))
+
+		deleteResp, err := c.DeleteAccountAssignment(ctx, &DeleteAccountAssignmentRequest{
+			PrincipalID:      "user333333345",
+			PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
+			PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+			AccountID:        "1111111111",
+		})
+		require.NoError(t, err)
+		require.Error(t, c.WaitForDeleteAccountAssignmentResult(ctx, deleteResp.RequestID))
+	})
 }
 
 func assertUsersAssignments(t *testing.T, c Client, want []*UserWithAssignment) {

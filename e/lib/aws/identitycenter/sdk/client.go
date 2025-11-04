@@ -462,10 +462,16 @@ func (c *client) WaitForCreateAccountAssignmentResult(ctx context.Context, reque
 		if resp.AccountAssignmentCreationStatus == nil {
 			return trace.BadParameter("missing account assignment creation status")
 		}
-		status := resp.AccountAssignmentCreationStatus.Status
-		if status != ssoadmintypes.StatusValuesInProgress {
+
+		switch resp.AccountAssignmentCreationStatus.Status {
+		case ssoadmintypes.StatusValuesSucceeded:
 			return nil
+		case ssoadmintypes.StatusValuesFailed:
+			return trace.Errorf("account assignment creation failed: %s", aws.ToString(resp.AccountAssignmentCreationStatus.FailureReason))
+		case ssoadmintypes.StatusValuesInProgress:
+			// continue waiting
 		}
+
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
@@ -488,10 +494,16 @@ func (c *client) WaitForDeleteAccountAssignmentResult(ctx context.Context, reque
 		if resp.AccountAssignmentDeletionStatus == nil {
 			return trace.BadParameter("missing account assignment deletion status")
 		}
-		status := resp.AccountAssignmentDeletionStatus.Status
-		if status != ssoadmintypes.StatusValuesInProgress {
+
+		switch resp.AccountAssignmentDeletionStatus.Status {
+		case ssoadmintypes.StatusValuesSucceeded:
 			return nil
+		case ssoadmintypes.StatusValuesFailed:
+			return trace.Errorf("account assignment deletion failed: %s", aws.ToString(resp.AccountAssignmentDeletionStatus.FailureReason))
+		case ssoadmintypes.StatusValuesInProgress:
+			// continue waiting
 		}
+
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())

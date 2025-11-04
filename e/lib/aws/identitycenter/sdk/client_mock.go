@@ -32,12 +32,14 @@ type ClientMock struct {
 	// MonkeyPatch allows tests to override the default behavior of a mock
 	// instance.
 	MonkeyPatch struct {
-		DescribeInstance               func(context.Context) (*InstanceInfo, error)
-		ListPermissionSets             func(context.Context) ([]*PermissionSet, error)
-		CreateAccountAssignment        func(context.Context, *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error)
-		DeleteAccountAssignment        func(context.Context, *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error)
-		CreateAccountAssignmentCounter func()
-		DeleteAccountAssignmentCounter func()
+		DescribeInstance                     func(context.Context) (*InstanceInfo, error)
+		ListPermissionSets                   func(context.Context) ([]*PermissionSet, error)
+		CreateAccountAssignment              func(context.Context, *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error)
+		DeleteAccountAssignment              func(context.Context, *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error)
+		CreateAccountAssignmentCounter       func()
+		DeleteAccountAssignmentCounter       func()
+		WaitForCreateAccountAssignmentResult func(context.Context, string) error
+		WaitForDeleteAccountAssignmentResult func(context.Context, string) error
 	}
 }
 
@@ -376,9 +378,13 @@ func (c *ClientMock) ListGroupsAssignments(_ context.Context, groupID string) ([
 }
 
 // WaitForDeleteAccountAssignmentResult waits until the account assignment creation reaches a terminal state.
-func (c *ClientMock) WaitForCreateAccountAssignmentResult(_ context.Context, requestID string) error {
+func (c *ClientMock) WaitForCreateAccountAssignmentResult(ctx context.Context, requestID string) error {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.WaitForCreateAccountAssignmentResult != nil {
+		return c.MonkeyPatch.WaitForCreateAccountAssignmentResult(ctx, requestID)
+	}
 	return nil
 }
 
@@ -454,9 +460,13 @@ func (c *ClientMock) DeleteAccountAssignment(_ context.Context, req *DeleteAccou
 }
 
 // WaitForDeleteAccountAssignmentResult waits until the account assignment deletion reaches a terminal state.
-func (c *ClientMock) WaitForDeleteAccountAssignmentResult(_ context.Context, requestID string) error {
+func (c *ClientMock) WaitForDeleteAccountAssignmentResult(ctx context.Context, requestID string) error {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.WaitForDeleteAccountAssignmentResult != nil {
+		return c.MonkeyPatch.WaitForDeleteAccountAssignmentResult(ctx, requestID)
+	}
 	return nil
 }
 
