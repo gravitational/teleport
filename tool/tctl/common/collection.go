@@ -623,27 +623,6 @@ func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) e
 	return trace.Wrap(err)
 }
 
-type tokenCollection struct {
-	tokens []types.ProvisionToken
-}
-
-func (c *tokenCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.tokens {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *tokenCollection) WriteText(w io.Writer, verbose bool) error {
-	for _, token := range c.tokens {
-		_, err := w.Write([]byte(token.String()))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 type kubeServerCollection struct {
 	servers []types.KubeServer
 }
