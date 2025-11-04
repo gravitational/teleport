@@ -1,5 +1,23 @@
 # Changelog
 
+## 18.3.1 (11/04/25)
+
+* Fixed an issue MCP session end event is not being sent sometimes. [#61009](https://github.com/gravitational/teleport/pull/61009)
+* Teleport's Windows Desktop service can now discover the KDC server address via DNS. [#60988](https://github.com/gravitational/teleport/pull/60988)
+* Fixed Kubernetes metrics API unmarshaling errors causing kubectl top commands to fail in certain scenarios. [#60971](https://github.com/gravitational/teleport/pull/60971)
+* Fixed an issue which could lead to session recordings saved on disk being truncated. [#60964](https://github.com/gravitational/teleport/pull/60964)
+* Fixed a bug causing unencrypted session recordings to be deleted 24 hours after being created while using `node` and `proxy` recording modes. [#60948](https://github.com/gravitational/teleport/pull/60948)
+* Enabled summarization and metadata generation for encrypted session recordings, storing metadata and summaries in encrypted form. [#60945](https://github.com/gravitational/teleport/pull/60945)
+* Fixed a bug where encrypted sessions recordings could not be uploaded to S3. [#60895](https://github.com/gravitational/teleport/pull/60895)
+* Added "tsh mcp config/connect" support for custom headers for streamable-HTTP MCP servers. [#60843](https://github.com/gravitational/teleport/pull/60843)
+* Fixed the session recording player that was unable to play SSH sessions captured prior to v18.1.6. [#60832](https://github.com/gravitational/teleport/pull/60832)
+* Fixed an issue in the web UI where a bot with zero tokens would show a validation error. [#60760](https://github.com/gravitational/teleport/pull/60760)
+* Added the ability to set OIDC Integration credentials in the tctl AWS Identity Center plugin installer. [#60712](https://github.com/gravitational/teleport/pull/60712)
+* Kubernetes OIDC responses are now cached to improve performance and reliability when joining bots and nodes. [#60711](https://github.com/gravitational/teleport/pull/60711)
+* Fixed MongoDB topology monitoring connection leak in the Teleport Database Service. [#60692](https://github.com/gravitational/teleport/pull/60692)
+* Added support for topologySpreadConstraints to the teleport-kube-agent Helm chart. [#58012](https://github.com/gravitational/teleport/pull/58012)
+* The teleport-kube-agent Helm chart now tries to spread pods across hosts and zones. [#58012](https://github.com/gravitational/teleport/pull/58012)
+
 ## 18.3.0 (10/28/25)
 
 ### Web UI Workload ID
