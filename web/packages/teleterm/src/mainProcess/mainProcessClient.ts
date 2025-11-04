@@ -314,25 +314,20 @@ function startAwaitableSenderListener<T>(
 } {
   const { port1: localPort, port2: transferablePort } = new MessageChannel();
 
-  // Queue chain ensures sequential processing.
-  let processingQueue = Promise.resolve();
-  localPort.onmessage = (event: MessageEvent<Message>) => {
+  localPort.onmessage = async (event: MessageEvent<Message>) => {
     const msg = event.data;
     if (msg.type !== 'data') {
       return;
     }
     const ack: MessageAck = { type: 'ack', id: msg.id };
 
-    // Append this message to the queue.
-    processingQueue = processingQueue.then(async () => {
-      try {
-        await listener(msg.payload as T);
-      } catch (e) {
-        ack.error = e;
-      }
+    try {
+      await listener(msg.payload as T);
+    } catch (e) {
+      ack.error = e;
+    }
 
-      localPort.postMessage(ack);
-    });
+    localPort.postMessage(ack);
   };
 
   localPort.start();

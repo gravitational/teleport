@@ -202,8 +202,12 @@ export default class AppContext implements IAppContext {
   }
 
   private registerClusterLifecycleHandler(): void {
-    this.mainProcessClient.registerClusterLifecycleHandler(
-      async ({ uri, op }) => {
+    // Queue chain ensures sequential processing.
+    let processingQueue = Promise.resolve();
+
+    this.mainProcessClient.registerClusterLifecycleHandler(({ uri, op }) => {
+      // Chain onto the queue and catch errors so it keeps processing
+      const task = processingQueue.then(async () => {
         switch (op) {
           case 'did-add-cluster':
             return this.workspacesService.addWorkspace(uri);
@@ -211,9 +215,17 @@ export default class AppContext implements IAppContext {
             return logoutWithCleanup(this, uri, { removeWorkspace: false });
           case 'will-logout-and-remove':
             return logoutWithCleanup(this, uri, { removeWorkspace: true });
+          default:
+            op satisfies never;
         }
-      }
-    );
+      });
+
+      // Update the queue so the next event waits for this one.
+      // Catch errors, they will be returned below.
+      processingQueue = task.catch(() => {});
+
+      return task;
+    });
   }
 
   private subscribeToProfileWatcherErrors(): void {
