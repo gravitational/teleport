@@ -55,6 +55,8 @@ type AuthPreference interface {
 	Clone() types.AuthPreference
 }
 
+var _ AuthPreference = types.AuthPreference(nil)
+
 type sealedAuthPreference struct {
 	AuthPreference
 }
@@ -78,6 +80,8 @@ type ClusterNetworkingConfig interface {
 	Clone() types.ClusterNetworkingConfig
 }
 
+var _ ClusterNetworkingConfig = types.ClusterNetworkingConfig(nil)
+
 type sealedClusterNetworkingConfig struct {
 	ClusterNetworkingConfig
 }
@@ -99,6 +103,8 @@ type SessionRecordingConfig interface {
 	GetProxyChecksHostKeys() bool
 	Clone() types.SessionRecordingConfig
 }
+
+var _ SessionRecordingConfig = types.SessionRecordingConfig(nil)
 
 type sealedSessionRecordingConfig struct {
 	SessionRecordingConfig
@@ -122,7 +128,7 @@ type AccessGraphSettings interface {
 }
 
 type sealedAccessGraphSettings struct {
-	*clusterconfigpb.AccessGraphSettings
+	settings *clusterconfigpb.AccessGraphSettings
 }
 
 // sealAccessGraphSettings returns a read-only version of the SessionRecordingConfig.
@@ -135,11 +141,11 @@ func sealAccessGraphSettings(c *clusterconfigpb.AccessGraphSettings) AccessGraph
 }
 
 func (a sealedAccessGraphSettings) SecretsScanConfig() clusterconfigpb.AccessGraphSecretsScanConfig {
-	return a.GetSpec().GetSecretsScanConfig()
+	return a.settings.GetSpec().GetSecretsScanConfig()
 }
 
 func (a sealedAccessGraphSettings) Clone() *clusterconfigpb.AccessGraphSettings {
-	return protobuf.Clone(a.AccessGraphSettings).(*clusterconfigpb.AccessGraphSettings)
+	return protobuf.CloneOf(a.settings)
 }
 
 // Resource is a read only variant of [types.Resource].
@@ -160,12 +166,16 @@ type Resource interface {
 	GetRevision() string
 }
 
+var _ Resource = types.Resource(nil)
+
 // ResourceWithOrigin is a read only variant of [types.ResourceWithOrigin].
 type ResourceWithOrigin interface {
 	Resource
 	// Origin returns the origin value of the resource.
 	Origin() string
 }
+
+var _ ResourceWithOrigin = types.ResourceWithOrigin(nil)
 
 // ResourceWithLabels is a read only variant of [types.ResourceWithLabels].
 type ResourceWithLabels interface {
@@ -180,6 +190,8 @@ type ResourceWithLabels interface {
 	// and tries to match against the list of search values.
 	MatchSearch(searchValues []string) bool
 }
+
+var _ ResourceWithLabels = types.ResourceWithLabels(nil)
 
 // Application is a read only variant of [types.Application].
 type Application interface {
@@ -234,6 +246,8 @@ type Application interface {
 	GetCORS() *types.CORSPolicy
 }
 
+var _ Application = types.Application(nil)
+
 // KubeServer is a read only variant of [types.KubeServer].
 type KubeServer interface {
 	// ResourceWithLabels provides common resource methods.
@@ -259,6 +273,8 @@ type KubeServer interface {
 	// GetProxyIDs returns a list of proxy ids this service is connected to.
 	GetProxyIDs() []string
 }
+
+var _ KubeServer = types.KubeServer(nil)
 
 // KubeCluster is a read only variant of [types.KubeCluster].
 type KubeCluster interface {
@@ -291,11 +307,13 @@ type KubeCluster interface {
 	// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
 	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
-	Copy() *types.KubernetesClusterV3
+	Copy() types.KubeCluster
 	// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
 	// isn't running on a cloud provider.
 	GetCloud() string
 }
+
+var _ KubeCluster = types.KubeCluster(nil)
 
 // Database is a read only variant of [types.Database].
 type Database interface {
@@ -385,6 +403,8 @@ type Database interface {
 	IsUsernameCaseInsensitive() bool
 }
 
+var _ Database = types.Database(nil)
+
 // Server is a read only variant of [types.Server].
 type Server interface {
 	// ResourceWithLabels provides common resource headers
@@ -444,6 +464,8 @@ type Server interface {
 	GetGitHub() *types.GitHubServerMetadata
 }
 
+var _ Server = types.Server(nil)
+
 // DynamicWindowsDesktop represents a Windows desktop host that is automatically discovered by Windows Desktop Service.
 type DynamicWindowsDesktop interface {
 	// ResourceWithLabels provides common resource methods.
@@ -460,5 +482,7 @@ type DynamicWindowsDesktop interface {
 	// use the size passed by the client over TDP.
 	GetScreenSize() (width, height uint32)
 	// Copy returns a copy of this dynamic Windows desktop
-	Copy() *types.DynamicWindowsDesktopV1
+	Copy() types.DynamicWindowsDesktop
 }
+
+var _ DynamicWindowsDesktop = types.DynamicWindowsDesktop(nil)

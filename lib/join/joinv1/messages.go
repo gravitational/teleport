@@ -40,6 +40,8 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 		return ec2InitToMessage(msg.Ec2Init)
 	case *joinv1.JoinRequest_OidcInit:
 		return oidcInitToMessage(msg.OidcInit)
+	case *joinv1.JoinRequest_OracleInit:
+		return oracleInitToMessage(msg.OracleInit)
 	case *joinv1.JoinRequest_Solution:
 		return challengeSolutionToMessage(msg.Solution)
 	case *joinv1.JoinRequest_GivingUp:
@@ -109,9 +111,20 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 				OidcInit: oidcInit,
 			},
 		}, nil
+	case *messages.OracleInit:
+		oracleInit, err := oracleInitFromMessage(typedMsg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_OracleInit{
+				OracleInit: oracleInit,
+			},
+		}, nil
 	case *messages.BoundKeypairChallengeSolution,
 		*messages.BoundKeypairRotationResponse,
-		*messages.IAMChallengeSolution:
+		*messages.IAMChallengeSolution,
+		*messages.OracleChallengeSolution:
 		solution, err := challengeSolutionFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -275,6 +288,8 @@ func challengeSolutionToMessage(req *joinv1.ChallengeSolution) (messages.Request
 		return boundKeypairRotationResponseToMessage(payload.BoundKeypairRotationResponse), nil
 	case *joinv1.ChallengeSolution_IamChallengeSolution:
 		return iamChallengeSolutionToMessage(payload.IamChallengeSolution), nil
+	case *joinv1.ChallengeSolution_OracleChallengeSolution:
+		return oracleChallengeSolutionToMessage(payload.OracleChallengeSolution), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge solution message type %T", payload)
 	}
@@ -298,6 +313,12 @@ func challengeSolutionFromMessage(msg messages.Request) (*joinv1.ChallengeSoluti
 		return &joinv1.ChallengeSolution{
 			Payload: &joinv1.ChallengeSolution_IamChallengeSolution{
 				IamChallengeSolution: iamChallengeSolutionFromMessage(typedMsg),
+			},
+		}, nil
+	case *messages.OracleChallengeSolution:
+		return &joinv1.ChallengeSolution{
+			Payload: &joinv1.ChallengeSolution_OracleChallengeSolution{
+				OracleChallengeSolution: oracleChallengeSolutionFromMessage(typedMsg),
 			},
 		}, nil
 	default:
@@ -331,7 +352,8 @@ func responseFromMessage(msg messages.Response) (*joinv1.JoinResponse, error) {
 		}, nil
 	case *messages.BoundKeypairChallenge,
 		*messages.BoundKeypairRotationRequest,
-		*messages.IAMChallenge:
+		*messages.IAMChallenge,
+		*messages.OracleChallenge:
 		challenge, err := challengeFromMessage(msg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -392,6 +414,8 @@ func challengeToMessage(resp *joinv1.Challenge) (messages.Response, error) {
 		return boundKeypairRotationRequestToMessage(payload.BoundKeypairRotationRequest), nil
 	case *joinv1.Challenge_IamChallenge:
 		return iamChallengeToMessage(payload.IamChallenge), nil
+	case *joinv1.Challenge_OracleChallenge:
+		return oracleChallengeToMessage(payload.OracleChallenge), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge payload type %T", payload)
 	}
@@ -415,6 +439,12 @@ func challengeFromMessage(resp messages.Response) (*joinv1.Challenge, error) {
 		return &joinv1.Challenge{
 			Payload: &joinv1.Challenge_IamChallenge{
 				IamChallenge: iamChallengeFromMessage(msg),
+			},
+		}, nil
+	case *messages.OracleChallenge:
+		return &joinv1.Challenge{
+			Payload: &joinv1.Challenge_OracleChallenge{
+				OracleChallenge: oracleChallengeFromMessage(msg),
 			},
 		}, nil
 	default:
