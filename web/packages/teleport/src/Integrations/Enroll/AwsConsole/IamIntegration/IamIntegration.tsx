@@ -42,7 +42,7 @@ import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import { requiredField, requiredIamRoleName, requiredRaResourceName } from 'shared/components/Validation/rules';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
@@ -283,6 +283,7 @@ export function IamIntegration() {
                   <FieldInput
                     label="IAM Roles Anywhere Trust Anchor Name"
                     placeholder=""
+                    rule={requiredRaResourceName}
                     value={formState.trustAnchorName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
                       return setFormState(prev => ({
@@ -294,6 +295,7 @@ export function IamIntegration() {
                   <FieldInput
                     label="IAM Role Name (used for profile synchronization)"
                     placeholder=""
+                    rule={requiredIamRoleName}
                     value={formState.syncRoleName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
                       return setFormState(prev => ({
@@ -305,6 +307,7 @@ export function IamIntegration() {
                   <FieldInput
                     label="IAM Roles Anywhere Profile Name (used for profile synchronization)"
                     placeholder=""
+                    rule={requiredRaResourceName}
                     value={formState.syncProfileName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
                       return setFormState(prev => ({
