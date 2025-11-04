@@ -107,12 +107,9 @@ func Validate(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	validated.EKPubHash, err = hashEKPub(ekPubPKIX)
-	if err != nil {
-		return validated, trace.Wrap(err, "hashing EK public key")
-	}
+	validated.EKPubHash = HashEKPub(ekPubPKIX)
 	if ekCert != nil {
-		validated.EKCertSerial = serialString(ekCert.SerialNumber)
+		validated.EKCertSerial = SerialString(ekCert.SerialNumber)
 	}
 
 	if params.AllowedCAs != nil {
