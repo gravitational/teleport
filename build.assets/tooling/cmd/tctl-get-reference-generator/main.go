@@ -416,10 +416,15 @@ func getPackageInfoFromExpr(expr ast.Expr) PackageInfo {
 func Generate() error {
 	// TODO: have this select the correct path.
 	// TODO: use the resulting sourceData
-	_, err := NewSourceData(".")
+	sourceData, err := NewSourceData(".")
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
+
+	kindConsts := append(
+		getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection"),
+		extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")...,
+	)
 
 	return nil
 }
