@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // replaceBackticks replaces the "BACKTICK" placeholder text with backticks so
@@ -85,17 +86,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			fset := token.NewFileSet()
-			d, err := parser.ParseFile(fset,
-				"myfile.go",
-				replaceBackticks(c.source),
-				parser.ParseComments|parser.SkipObjectResolution,
-			)
-			if err != nil {
-				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
-			}
-
-			actual, err := getCollectionTypeCases(d.Decls, "getCollection")
+			decls, _, err := parseDeclsFromFile(strings.NewReader(replaceBackticks(c.source)), ".", "myfile.go")
+			require.NoError(t, err)
+			actual, err := getCollectionTypeCases(decls, "getCollection")
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, actual)
 		})
@@ -141,17 +134,9 @@ func Handlers() map[string]Handler {
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			fset := token.NewFileSet()
-			d, err := parser.ParseFile(fset,
-				"myfile.go",
-				replaceBackticks(c.source),
-				parser.ParseComments|parser.SkipObjectResolution,
-			)
-			if err != nil {
-				t.Fatalf("test fixture contains invalid Go source: %v\n", err)
-			}
-
-			actual, err := extractHandlersKeys(d.Decls, "Handlers")
+			decls, _, err := parseDeclsFromFile(strings.NewReader(replaceBackticks(c.source)), ".", "myfile.go")
+			require.NoError(t, err)
+			actual, err := extractHandlersKeys(decls, "Handlers")
 			assert.NoError(t, err)
 			assert.Equal(t, c.expected, actual)
 		})

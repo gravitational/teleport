@@ -21,6 +21,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -30,11 +31,12 @@ import (
 )
 
 // TODO: getCollectionTypeCases
-func getCollectionTypeCases(decls []ast.Decl, targetFuncName string) ([]TypeInfo, error) {
+func getCollectionTypeCases(decls []DeclarationInfo, targetFuncName string) ([]TypeInfo, error) {
 	var typeCases []TypeInfo
 	var kindSwitch *ast.SwitchStmt
 
-	for _, d := range decls {
+	for _, decl := range decls {
+		d := decl.Decl
 		fd, ok := d.(*ast.FuncDecl)
 		if !ok {
 			continue
@@ -98,10 +100,11 @@ func getCollectionTypeCases(decls []ast.Decl, targetFuncName string) ([]TypeInfo
 }
 
 // extractHandlersKeys TODO
-func extractHandlersKeys(decls []ast.Decl, targetFuncName string) ([]TypeInfo, error) {
+func extractHandlersKeys(decls []DeclarationInfo, targetFuncName string) ([]TypeInfo, error) {
 	var handlerKeys []TypeInfo
 
-	for _, d := range decls {
+	for _, decl := range decls {
+		d := decl.Decl
 		fd, ok := d.(*ast.FuncDecl)
 		if !ok {
 			continue
@@ -181,6 +184,54 @@ type SourceData struct {
 	StringAssignments map[PackageInfo]string
 }
 
+func parseDeclsFromFile(f io.Reader, rootPath, currentPath string) ([]DeclarationInfo, map[PackageInfo]string, error) {
+	var possibleFuncDecls []DeclarationInfo
+	stringAssignments := make(map[PackageInfo]string)
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, currentPath, f, parser.ParseComments|parser.SkipObjectResolution)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	str, err := GetTopLevelStringAssignments(file.Decls, file.Name.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for k, v := range str {
+		stringAssignments[k] = v
+	}
+
+	// Use a relative path from the source directory for cleaner
+	// paths
+	relDeclPath, err := filepath.Rel(rootPath, currentPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Collect information from each file:
+	// - Imported packages and their aliases
+	// - Possible function declarations (for identifying relevant
+	//   methods later)
+	// - Type declarations
+	pn := NamedImports(file)
+	for _, decl := range file.Decls {
+		di := DeclarationInfo{
+			Decl:         decl,
+			FilePath:     relDeclPath,
+			PackageName:  file.Name.Name,
+			NamedImports: pn,
+		}
+		_, ok := decl.(*ast.GenDecl)
+		if !ok {
+			possibleFuncDecls = append(possibleFuncDecls, di)
+		}
+	}
+
+	return possibleFuncDecls, stringAssignments, nil
+}
+
 func NewSourceData(rootPath string) (SourceData, error) {
 	possibleFuncDecls := []DeclarationInfo{}
 	stringAssignments := make(map[PackageInfo]string)
@@ -209,47 +260,17 @@ func NewSourceData(rootPath string) (SourceData, error) {
 			return err
 		}
 		defer f.Close()
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, currentPath, f, parser.ParseComments)
+
+		fileDecls, fileAssignments, err := parseDeclsFromFile(f, rootPath, currentPath)
 		if err != nil {
 			return err
 		}
 
-		str, err := GetTopLevelStringAssignments(file.Decls, file.Name.Name)
-		if err != nil {
-			return err
-		}
-
-		for k, v := range str {
+		possibleFuncDecls = append(possibleFuncDecls, fileDecls...)
+		for k, v := range fileAssignments {
 			stringAssignments[k] = v
 		}
 
-		// Use a relative path from the source directory for cleaner
-		// paths
-		relDeclPath, err := filepath.Rel(rootPath, currentPath)
-		if err != nil {
-			return err
-		}
-
-		// Collect information from each file:
-		// - Imported packages and their aliases
-		// - Possible function declarations (for identifying relevant
-		//   methods later)
-		// - Type declarations
-		pn := NamedImports(file)
-		for _, decl := range file.Decls {
-			di := DeclarationInfo{
-				Decl:         decl,
-				FilePath:     relDeclPath,
-				PackageName:  file.Name.Name,
-				NamedImports: pn,
-			}
-			_, ok := decl.(*ast.GenDecl)
-			if !ok {
-				possibleFuncDecls = append(possibleFuncDecls, di)
-				continue
-			}
-		}
 		return nil
 	})
 	if err != nil {
@@ -396,10 +417,15 @@ func Generate() error {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	kindConsts := append(
-		getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection"),
-		extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")...,
-	)
+	_, err = getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection")
+	if err != nil {
+		return err
+	}
+
+	_, err = extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
