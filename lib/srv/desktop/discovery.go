@@ -35,6 +35,8 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -366,6 +368,35 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 	return desktop, nil
 }
 
+// dynamicDesktops returns the WindowsDesktop resources that were registered
+// by _this_ desktop service.
+func (s *WindowsService) dynamicDesktops(ctx context.Context) map[string]types.WindowsDesktop {
+	result := make(map[string]types.WindowsDesktop)
+
+	for desktop, err := range clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			// We're looking for desktops that were both:
+			// 1. Registered with our HostUUID.
+			// 2. Dynamically registered
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID},
+				Labels:               map[string]string{types.OriginLabel: types.OriginDynamic},
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return resp.Desktops, resp.NextKey, nil
+		}) {
+		if err != nil {
+			return result
+		}
+		result[desktop.GetName()] = desktop
+	}
+
+	return result
+}
+
 // startDynamicReconciler starts resource watcher and reconciler that registers/unregisters Windows desktops
 // according to the up-to-date list of dynamic Windows desktop resources. The reconciler runs until the
 // provided context expires.
@@ -385,6 +416,7 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: teleport.ComponentWindowsDesktop,
 				Client:    s.cfg.AccessPoint,
+				Logger:    s.cfg.Logger,
 			},
 		})
 		if err != nil {
@@ -395,14 +427,14 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 		defer watcher.Close()
 		defer s.cfg.Logger.DebugContext(ctx, "DynamicWindowsDesktop resource watcher done.")
 
-		currentResources := make(map[string]types.WindowsDesktop)
 		var newResources map[string]types.WindowsDesktop
 
 		reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
+			Logger: s.cfg.Logger,
 			Matcher: func(desktop types.WindowsDesktop) bool {
 				return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
 			},
-			GetCurrentResources: func() map[string]types.WindowsDesktop { return currentResources },
+			GetCurrentResources: func() map[string]types.WindowsDesktop { return s.dynamicDesktops(ctx) },
 			GetNewResources:     func() map[string]types.WindowsDesktop { return newResources },
 			OnCreate:            s.upsertDesktop,
 			OnUpdate:            s.updateDesktop,
@@ -416,45 +448,40 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) error {
 		// If we got here, the reconciler is running.
 		errCh <- nil
 
-		tickDuration := 5 * time.Minute
-		expiryDuration := tickDuration + 2*time.Minute
-
-		tick := s.cfg.Clock.NewTicker(tickDuration)
-		defer tick.Stop()
-
 		for {
 			select {
 			case desktops := <-watcher.ResourcesC:
 				start := s.cfg.Clock.Now()
 				newResources = make(map[string]types.WindowsDesktop)
 				for _, dynamicDesktop := range desktops {
+					// TODO: the reconciler's default comparison func is going to mark new resources
+					// different just because the expiry timestamp differs.
 					desktop, err := s.toWindowsDesktop(dynamicDesktop)
 					if err != nil {
 						s.cfg.Logger.WarnContext(ctx, "Can't create desktop resource", "error", err)
 						continue
 					}
-					desktop.SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
+					// TODO: use a longer expiry here once the desktop agent deletes desktops on shtudown
+					desktop.SetExpiry(s.cfg.Clock.Now().Add(apidefaults.ServerAnnounceTTL))
+					s.cfg.Logger.DebugContext(ctx, "reconciler discovered new resource from watcher", "name", dynamicDesktop.GetName())
 					newResources[dynamicDesktop.GetName()] = desktop
 				}
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
 					continue
 				}
-				currentResources = newResources
+
 				s.cfg.Logger.DebugContext(ctx, "completed dynamic desktop reconciliation", "duration", s.cfg.Clock.Since(start), "count", len(newResources))
-			case <-tick.Chan():
-				start := s.cfg.Clock.Now()
-				newResources = make(map[string]types.WindowsDesktop)
-				for k, v := range currentResources {
-					newResources[k] = v.Copy()
-					newResources[k].SetExpiry(s.cfg.Clock.Now().Add(expiryDuration))
-				}
+			case <-s.cfg.Clock.After(retryutils.SeventhJitter(apidefaults.ServerAnnounceTTL / 2)):
+				// We currently use a relatively short expiration period so that desktops associated with
+				// an agent that terminates will expire shortly after the agent stops heartbeating them.
+				//
+				// As a result, we must also run the reconciler periodically to "renew" the desktop
+				// heartbeat and prevent it from expiring while the agent is healthy.
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
 					continue
 				}
-				currentResources = newResources
-				s.cfg.Logger.DebugContext(ctx, "completed dynamic desktop reconciliation", "duration", s.cfg.Clock.Since(start), "count", len(newResources))
 			case <-watcher.Done():
 				return
 			case <-ctx.Done():
