@@ -21,6 +21,7 @@ package join_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockIDTokenValidator struct {
@@ -52,6 +52,7 @@ func (m *mockIDTokenValidator) Validate(
 	_ context.Context, ghes, enterpriseSlug, token string,
 ) (*githubactions.IDTokenClaims, error) {
 	m.lastCalledGHESHost = ghes
+	fmt.Printf("!! Validate(): lastCalledEnterpriseSlug: %s\n", enterpriseSlug)
 	m.lastCalledEnterpriseSlug = enterpriseSlug
 	claims, ok := m.tokens[token]
 	if !ok {
@@ -62,6 +63,7 @@ func (m *mockIDTokenValidator) Validate(
 }
 
 func (m *mockIDTokenValidator) reset() {
+	fmt.Printf("!! reset()\n")
 	m.lastCalledGHESHost = ""
 	m.lastCalledEnterpriseSlug = ""
 	m.lastCalledJWKS = ""
@@ -70,6 +72,8 @@ func (m *mockIDTokenValidator) reset() {
 func (m *mockIDTokenValidator) ValidateJWKS(
 	_ time.Time, jwks []byte, token string,
 ) (*githubactions.IDTokenClaims, error) {
+	fmt.Printf("!! ValidateJWKS(): %s\n", token)
+
 	m.lastCalledJWKS = string(jwks)
 	claims, ok := m.tokens[token]
 	if !ok {
@@ -239,7 +243,9 @@ func TestJoinGHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, services.ErrRequiresEnterprise)
+				// Note: testing over the network does not perfectly map errors
+				// so we can't use require.ErrorIs(..., services.ErrRequiresEnterprise)
+				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
 			}),
 		},
 		{
@@ -256,7 +262,9 @@ func TestJoinGHA(t *testing.T) {
 			},
 			request: newRequest(validIDToken),
 			assertError: require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, services.ErrRequiresEnterprise)
+				// Note: testing over the network does not perfectly map errors
+				// so we can't use require.ErrorIs(..., services.ErrRequiresEnterprise)
+				require.ErrorContains(t, err, "this feature requires Teleport Enterprise")
 			}),
 		},
 		{
@@ -424,8 +432,6 @@ func TestJoinGHA(t *testing.T) {
 			nopClient, err := authServer.NewClient(authtest.TestNop())
 			require.NoError(t, err)
 
-			// TODO: https://github.com/gravitational/teleport/pull/60385/files?w=1#diff-6490bbab33f45b14b50f7de20e737e504bf87c3389000bbe9cdfbe2a2505e7c9R790
-			// Probably want to convert newRequest() to create a joinclient.JoinParams
 			t.Run("legacy joinclient", func(t *testing.T) {
 				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
 					Token:      tt.request.Token,
@@ -439,6 +445,9 @@ func TestJoinGHA(t *testing.T) {
 					AuthClient: nopClient,
 				})
 				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
 
 				require.Equal(
 					t,
@@ -469,6 +478,9 @@ func TestJoinGHA(t *testing.T) {
 					AuthClient: nopClient,
 				})
 				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
 
 				require.Equal(
 					t,
