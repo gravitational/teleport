@@ -7374,7 +7374,7 @@ func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(ctx context.Contex
 
 // samlAppLabelFriendlyMsg returns a user friendly RBAC message to be displayed
 // in the Web UI or tctl when creating or updating a service provider resource.
-// It is only processed for errors that may have occured due to missing
+// It is only processed for errors that may have occurred due to missing
 // app_labels in role version 8.
 func samlAppLabelFriendlyMsg(err error, action string, emptyLabel bool) string {
 	if err == nil {
@@ -7533,7 +7533,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.WrapWithMessage(err, samlAppLabelFriendlyMsg(err, "Updating", len(sp.GetAllLabels()) == 0))
 	}
 	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, samlAppLabelFriendlyMsg(err, "Updating", len(sp.GetAllLabels()) == 0))
 	}
 
 	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
