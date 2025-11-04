@@ -1,7 +1,6 @@
 ---
 title: Certificate Authority Rotation
 description: Describes how to rotate Teleport's certificate authorities.
-tocDepth: 3
 tags:
  - how-to
  - platform-wide
@@ -86,6 +85,8 @@ during the migration.
 |[`saml_idp`](#saml_idp)|The Teleport SAML IdP.|
 |[`spiffe`](#spiffe)|Workload Identity (SPIFFE) clients.|
 |[`oidc_idp`](#oidc_idp)|The Teleport OIDC IdP integration.|
+|[`awsra`](#awsra)|The Teleport AWS IAM Roles Anywhere integration.|
+|[`bound_keypair`](#bound_keypair)|Bound Keypair JWT verification.|
 
 ### `host`
 
@@ -356,6 +357,43 @@ the `/.well-known/openid-configuration` path of the Web UI and reading the
 $ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_uri'
 "https://example.teleport.sh/.well-known-jwks-oidc"
 ```
+
+### `awsra`
+
+The `awsra` CA signs X.509 certificates which are sent to AWS in exchange for AWS temporary sessions.
+AWS must be configured to trust the `awsra` CA by adding it as trust anchor.
+This integration allows for AWS CLI and Console access.
+
+After starting the rotation, you will need to add the new CA to the same AWS IAM Roles Anywhere trust anchor.
+
+During this period, AWS will trust both the old and the new CA.
+All new sessions will use the new CA.
+
+After the rotation is complete, make sure to remove the old CA from the AWS IAM Roles Anywhere trust anchor.
+
+### `bound_keypair`
+
+The `bound_keypair` CA signs JWTs issued for [Bound Keypair join state
+verification](../../../reference/machine-workload-identity/bound-keypair/concepts.mdx#join-state-verification).
+This is an additional document stored by clients that join your Teleport cluster
+using the `bound_keypair` join method that uniquely identifies each join
+attempt, and is additionally verified by Teleport during subsequent joins.
+
+During rotation, clients can continue to join as expected so long as the CA used
+to sign their join state JWT is either active or trusted, which remains true
+through the `update_servers` phase.
+
+Machine & Workload ID bots, if active, should detect the rotation event and
+renew their certificates, which will automatically fetch a new join state JWT
+signed with the new CA. Bots that are not currently running will need to be
+started once and allowed to fetch new certificates, which will also refresh the
+join state JWT.
+
+If join state verification fails after a CA rotation, you can allow clients to
+join again by [temporarily disabling join state
+verification](../../../reference/machine-workload-identity/bound-keypair/admin-guide.mdx#recovery-after-a-cluster-rollback).
+They will be issued a new join state JWT on their next join, after which
+join state verification can be safely reenabled.
 
 ## Step 2/4. Start a manual rotation
 

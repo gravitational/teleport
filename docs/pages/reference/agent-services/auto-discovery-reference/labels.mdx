@@ -1,0 +1,139 @@
+---
+title: Labels
+sidebar_label: Labels
+description: Learn about resource labels applied during auto-discovery
+---
+
+Cloud resources such as AWS EC2 instances, EKS clusters, RDS databases and similar
+resources in Azure and Google Cloud enrolled in a Teleport cluster during
+auto-discovery get a set of default labels applied to them which can then be
+used in RBAC.
+
+## AWS
+
+### EC2 instances
+
+See the AWS EC2 auto-discovery [guide](../../../enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery.mdx).
+
+| Label                      | Description                                          |
+|----------------------------|------------------------------------------------------|
+| `teleport.dev/account-id`  | AWS account ID where the the EC2 instance is running |
+| `teleport.dev/instance-id` | AWS EC2 instance ID                                  |
+
+### Databases
+
+See the AWS Databases auto-discovery [guide](../../../enroll-resources/auto-discovery/databases/aws.mdx).
+
+| Label                                          | Description                                                                                                       |
+|------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `account-id`                                   | ID of the AWS account the resource resides in.                                                                    |
+| `endpoint-type`                                | Type of the endpoint. See [`endpoint-type`](../database-access-reference/labels.mdx#endpoint-type) for more details. |
+| `engine-version`                               | Database engine version, if available.                                                                            |
+| `engine`                                       | Amazon RDS: engine type of the RDS instance.<br/>Amazon RDS Proxy: engine family of the proxy.                    |
+| `namespace`                                    | Amazon Redshift Serverless namespace name.                                                                        |
+| `region`                                       | AWS region.                                                                                                       |
+| `vpc-id`                                       | ID of the Amazon VPC the resource resides in, if available.                                                       |
+| `workgroup`                                    | Amazon Redshift Serverless workgroup name.                                                                        |
+| `teleport.dev/cloud`                           | Always `AWS`.                                                                                                     |
+| `teleport.dev/discovery-type`                  | Specifies the type of resource matched by the Teleport Discovery Service, e.g. "rds", "redshift", etc.            |
+| `teleport.dev/origin`                          | Always `cloud`.                                                                                                   |
+| `teleport.internal/discovered-name`            | Original Database name.                                                                                           |
+| `teleport.internal/discovery-config-name`      | Name of the discovery config name. Absent when using matchers defined in Discovery Service configuration.         |
+| `teleport.internal/discovery-group-name`       | The name of the discovery group present in the Discovery Service configuration                                    |
+| `teleport.internal/discovery-integration-name` | Integration name used to fetch the Database. Absent when using ambient credentials.                               |
+
+### Kubernetes clusters
+
+See the AWS EKS auto-discovery [guide](../../../enroll-resources/auto-discovery/kubernetes/aws.mdx).
+
+| Label                                          | Description                                                                                               |
+|------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `account-id`                                   | ID of the AWS account the resource resides in.                                                            |
+| `region`                                       | AWS region.                                                                                               |
+| `teleport.dev/cloud`                           | Always `AWS`.                                                                                             |
+| `teleport.dev/discovery-type`                  | Always `eks`.                                                                                             |
+| `teleport.dev/origin`                          | Always `cloud`.                                                                                           |
+| `teleport.internal/aws-arn`                    | Contains the AWS ARN for the resource.                                                                    |
+| `teleport.internal/discovered-name`            | Original EKS Cluster name.                                                                                |
+| `teleport.internal/discovery-config-name`      | Name of the discovery config name. Absent when using matchers defined in Discovery Service configuration. |
+| `teleport.internal/discovery-group-name`       | The name of the discovery group present in the Discovery Service configuration                            |
+| `teleport.internal/discovery-integration-name` | Integration name used to fetch the Kubernetes cluster. Absent when using ambient credentials.             |
+
+## Azure
+
+### VMs
+
+See the Azure VM auto-discovery [guide](../../../enroll-resources/auto-discovery/servers/azure-discovery.mdx).
+
+| Label                               | Description                                   |
+|-------------------------------------|-----------------------------------------------|
+| `teleport.internal/region`          | Azure region where the VM is running          |
+| `teleport.internal/resource-group`  | Azure resource group the VM belongs to        |
+| `teleport.internal/subscription-id` | Azure subscription ID where the VM is running |
+| `teleport.internal/vm-id`           | Azure VM ID                                   |
+
+
+### Databases
+
+See the Azure Databases auto-discovery [guide](../../../enroll-resources/database-access/enroll-azure-databases/enroll-azure-databases.mdx).
+
+| Label                                     | Description                                                                                                   |
+|-------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| `endpoint-type`                           | For Azure Redis Enterprise, one of `EnterpriseCluster`, `OSSCluster`.                                         |
+| `engine-version`                          | Database engine version, if available.                                                                        |
+| `engine`                                  | Resource type of the resource ID.                                                                             |
+| `region`                                  | Azure location.                                                                                               |
+| `replication-role`                        | The replication role of an Azure DB Flexible server, e.g. "Source" or "Replica".                              |
+| `resource-group`                          | Azure resource group.                                                                                         |
+| `source-server`                           | The source server for replica Azure DB Flexible servers. This is the source (primary) database resource name. |
+| `subscription-id`                         | Azure subscription ID.                                                                                        |
+| `teleport.dev/cloud`                      | Always `Azure`.                                                                                               |
+| `teleport.dev/discovery-type`             | Specifies the type of resource matched by the Teleport Discovery Service, e.g. "mysql", "postgres", etc.      |
+| `teleport.dev/origin`                     | Always `cloud`.                                                                                               |
+| `teleport.internal/discovered-name`       | Original Database name.                                                                                       |
+| `teleport.internal/discovery-config-name` | Name of the discovery config name. Absent when using matchers defined in Discovery Service configuration.     |
+| `teleport.internal/discovery-group-name`  | The name of the discovery group present in the Discovery Service configuration                                |
+
+### Kubernetes clusters
+
+See the Azure AKS auto-discovery [guide](../../../enroll-resources/auto-discovery/kubernetes/azure.mdx).
+
+| Label                                     | Description                                                                                               |
+|-------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `region`                                  | Azure location.                                                                                           |
+| `resource-group`                          | Azure resource group.                                                                                     |
+| `subscription-id`                         | Azure subscription ID.                                                                                    |
+| `teleport.dev/cloud`                      | Always `Azure`.                                                                                           |
+| `teleport.dev/discovery-type`             | Always `aks`.                                                                                             |
+| `teleport.dev/origin`                     | Always `cloud`.                                                                                           |
+| `teleport.internal/discovered-name`       | Original AKS Cluster name.                                                                                |
+| `teleport.internal/discovery-config-name` | Name of the discovery config name. Absent when using matchers defined in Discovery Service configuration. |
+| `teleport.internal/discovery-group-name`  | The name of the discovery group present in the Discovery Service configuration                            |
+
+## Google Cloud
+
+### VMs
+
+See the GCP VM auto-discovery [guide](../../../enroll-resources/auto-discovery/servers/gcp-discovery.mdx).
+
+| Label                          | Description                         |
+|--------------------------------|-------------------------------------|
+| `teleport.dev/project-id`      | GCP project ID the VM is running in |
+| `teleport.internal/name`       | GCP VM name                         |
+| `teleport.internal/project-id` | GCP project ID the VM is running in |
+| `teleport.internal/zone`       | GCP zone where the VM is running    |
+
+### Kubernetes clusters
+
+See the Azure AKS auto-discovery [guide](../../../enroll-resources/auto-discovery/kubernetes/google-cloud.mdx).
+
+| Label                                     | Description                                                                                               |
+|-------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `location`                                | GCP location where the GKE is running in.                                                                 |
+| `project-id`                              | GCP project ID where the GKE is running in.                                                               |
+| `teleport.dev/cloud`                      | Always `GCP`.                                                                                             |
+| `teleport.dev/discovery-type`             | Always `gke`.                                                                                             |
+| `teleport.dev/origin`                     | Always `cloud`.                                                                                           |
+| `teleport.internal/discovered-name`       | Original GKE Cluster name.                                                                                |
+| `teleport.internal/discovery-config-name` | Name of the discovery config name. Absent when using matchers defined in Discovery Service configuration. |
+| `teleport.internal/discovery-group-name`  | The name of the discovery group present in the Discovery Service configuration                            |

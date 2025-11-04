@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.2.0",
+      "version": "18.2.8",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -222,12 +222,12 @@
     },
     {
       "source": "/machine-id/reference/telemetry/",
-      "destination": "/reference/machine-workload-identity/machine-id/telemetry/",
+      "destination": "/reference/machine-workload-identity/telemetry/",
       "permanent": true
     },
     {
       "source": "/machine-id/reference/v16-upgrade-guide/",
-      "destination": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
+      "destination": "/reference/machine-workload-identity/",
       "permanent": true
     },
     {
@@ -752,7 +752,7 @@
     },
     {
       "source": "/machine-workload-identity/machine-id/deployment/bound-keypair/",
-      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/getting-started/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/getting-started/",
       "permanent": true
     },
     {
@@ -768,6 +768,66 @@
     {
       "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
       "destination": "/machine-workload-identity/mwi-ci-cd/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/gitlab/",
+      "destination": "/reference/deployment/join-methods/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/github-actions/",
+      "destination": "/reference/deployment/join-methods/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/",
+      "destination": "/reference/machine-workload-identity/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/configuration/",
+      "destination": "/reference/machine-workload-identity/configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/diagnostics-service/",
+      "destination": "/reference/machine-workload-identity/diagnostics-service/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/telemetry/",
+      "destination": "/reference/machine-workload-identity/telemetry/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/admin-guide/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/admin-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/concepts/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/concepts/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/getting-started/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/bound-keypair/static-keys/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/static-keys/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
+      "destination": "/reference/machine-workload-identity/",
       "permanent": true
     },
     {
@@ -1717,57 +1777,57 @@
     },
     {
       "source": "/reference/machine-id/bound-keypair/admin-guide/",
-      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/admin-guide/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/admin-guide/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/bound-keypair/",
-      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/bound-keypair/concepts/",
-      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/concepts/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/concepts/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/bound-keypair/getting-started/",
-      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/getting-started/",
+      "destination": "/reference/machine-workload-identity/bound-keypair/getting-started/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/configuration/",
-      "destination": "/reference/machine-workload-identity/machine-id/configuration/",
+      "destination": "/reference/machine-workload-identity/configuration/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/diagnostics-service/",
-      "destination": "/reference/machine-workload-identity/machine-id/diagnostics-service/",
+      "destination": "/reference/machine-workload-identity/diagnostics-service/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/github-actions/",
-      "destination": "/reference/machine-workload-identity/machine-id/github-actions/",
+      "destination": "/reference/deployment/join-methods/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/gitlab/",
-      "destination": "/reference/machine-workload-identity/machine-id/gitlab/",
+      "destination": "/reference/deployment/join-methods/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/",
-      "destination": "/reference/machine-workload-identity/machine-id/",
+      "destination": "/reference/machine-workload-identity/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/telemetry/",
-      "destination": "/reference/machine-workload-identity/machine-id/telemetry/",
+      "destination": "/reference/machine-workload-identity/telemetry/",
       "permanent": true
     },
     {
       "source": "/reference/machine-id/v16-upgrade-guide/",
-      "destination": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
+      "destination": "/reference/machine-workload-identity/",
       "permanent": true
     },
     {

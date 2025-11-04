@@ -194,6 +194,22 @@ func (k *PublicKeys) check() error {
 	return nil
 }
 
+// OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
+//
+// The join flow for all OIDC-based join methods is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: OIDCInit
+// 4. server->client: Result
+type OIDCInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+	// IDToken is the OIDC identity token.
+	IDToken []byte
+}
+
 // BoundKeypairInit is sent from the client in response to the ServerInit
 // message for the bound keypair join method.
 // The server is expected to respond with a BoundKeypairChallenge.
@@ -340,6 +356,51 @@ type EC2Init struct {
 	// Document is a signed EC2 Instance Identity Document used to prove the
 	// identity of a joining EC2 instance.
 	Document []byte
+}
+
+// OracleInit is sent from the client in response to the ServerInit message for
+// the Oracle join method.
+//
+// The Oracle method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: OracleInit
+// 4. client<-server: OracleChallenge
+// 5. client->server: OracleChallengeSolution
+// 6. client<-server: Result
+type OracleInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// OracleChallenge is from the server in response to the OracleInit message from the client.
+// The client is expected to respond with a OracleChallengeSolution.
+type OracleChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be signed by the
+	// client and included in the OracleChallengeSolution message.
+	Challenge string
+}
+
+// OracleChallengeSolution must be sent from the client in response to the
+// OracleChallenge message.
+type OracleChallengeSolution struct {
+	embedRequest
+
+	// Cert is the OCI instance identity certificate, an X509 certificate in PEM format.
+	Cert []byte
+	// Intermediate encodes the intermediate CAs that issued the instance
+	// identity certificate, in PEM format.
+	Intermediate []byte
+	// Signature is a signature over the challenge, signed by the private key
+	// matching the instance identity certificate.
+	Signature []byte
+	// SignedRootCaReq is a signed request to the Oracle API for retreiving the
+	// root CAs that issued the instance identity certificate.
+	SignedRootCAReq []byte
 }
 
 // Response is implemented by all join response messages.

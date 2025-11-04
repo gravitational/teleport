@@ -2,7 +2,6 @@
 title: Configure access for Active Directory manually
 description: Explains how to manually connect Teleport to an Active Directory domain.
 videoBanner: YvMqgcq0MTQ
-tocDepth: 3
 tags:
  - how-to
  - zero-trust
@@ -841,27 +840,47 @@ In order to perform NLA, Teleport's `windows_desktop_service` needs to be able
 to make an outbound Kerberos connection to a key distribution center (KDC). This
 is most commonly performed on TCP port 88.
 
-By default, Teleport will assume that a KDC is available on the same host that
-is specified in the `ldap` configuration's `addr` field, using the default
-Kerberos port.
+Teleport determines the address of the KDC by checking the following (in order of priority):
 
-For example, with the following configuration, Teleport will attempt to perform
-NLA against `example.com:88`.
+1. If `kdc_address` is set, Teleport will use this address.
+1. If `locate_server` is enabled and `kdc_address` is not set, Teleport will
+   attempt to discover the KDC address via DNS SRV records.
+1. If neither `locate_server` or `kdc_address` is specified, Teleport will
+   assume that a KDC is available on the same host that is specified in the
+   `ldap` configuration's `addr` field.
 
-```yaml
-windows_desktop_service:
-    enabled: true
-    ldap:
-      addr: example.com:636
-```
-
-Alternatively, you can override the KDC address by specifying the `kdc_address`
+For example, you can set the KDC address by specifying the `kdc_address`
 in your Teleport configuration file.
 
 ```yaml
 windows_desktop_service:
     enabled: true
     kdc_address: kdc.example.com   # defaults to port 88 if unspecified
+```
+
+If you're using the `locate_server` option, Teleport will perform a DNS
+SRV lookup on the provided `domain` (e.g. `_kerberos._tcp.my-site._sites.example.com`).
+NLA will be performed against the highest-priority and reachable KDC.
+
+```yaml
+windows_desktop_service:
+   enabled: true
+    
+   locate_server: 
+      enabled: true
+      site: "my-site" # optional
+   domain: example.com
+```
+
+If server location is disabled and `kdc_address` isn't specified, with the following configuration, 
+Teleport will attempt to perform NLA against `example.com:88`.
+
+```yaml
+windows_desktop_service:
+    enabled: true
+
+    ldap:
+      addr: example.com:636
 ```
 
 To enable NLA, set the `TELEPORT_ENABLE_RDP_NLA` environment variable to `yes`

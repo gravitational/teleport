@@ -27,8 +27,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	sessionpostprocessing "github.com/gravitational/teleport/lib/events/sessionpostprocessing"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -46,6 +49,14 @@ type ServiceConfig struct {
 	Logger     *slog.Logger
 	Uploader   events.MultipartUploader
 	KeyRotater KeyRotater
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
+	// SessionStreamer is a streamer for session events.
+	SessionStreamer events.SessionStreamer
 }
 
 // NewService returns a new [Service] based on the given [ServiceConfig].
@@ -57,6 +68,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("uploader is required")
 	case cfg.KeyRotater == nil:
 		return nil, trace.BadParameter("key rotater is required")
+	case cfg.SessionStreamer == nil:
+		return nil, trace.BadParameter("session streamer is required")
+	case cfg.RecordingMetadataProvider == nil:
+		return nil, trace.BadParameter("recording metadata provider is required")
+	case cfg.SessionSummarizerProvider == nil:
+		return nil, trace.BadParameter("session summarizer provider is required")
 	}
 
 	if cfg.Logger == nil {
@@ -64,10 +81,13 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:   cfg.Logger,
-		uploader: cfg.Uploader,
-		auth:     cfg.Authorizer,
-		rotater:  cfg.KeyRotater,
+		logger:                    cfg.Logger,
+		uploader:                  cfg.Uploader,
+		auth:                      cfg.Authorizer,
+		rotater:                   cfg.KeyRotater,
+		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
+		recordingMetadataProvider: cfg.RecordingMetadataProvider,
+		streamer:                  cfg.SessionStreamer,
 	}, nil
 }
 
@@ -79,6 +99,13 @@ type Service struct {
 	logger   *slog.Logger
 	uploader events.MultipartUploader
 	rotater  KeyRotater
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	recordingMetadataProvider *recordingmetadata.Provider
+	streamer                  events.SessionStreamer
 }
 
 func streamUploadAsProto(upload events.StreamUpload) *recordingencryptionv1.Upload {
@@ -156,8 +183,14 @@ func (s *Service) UploadPart(ctx context.Context, req *recordingencryptionv1.Upl
 		return nil, trace.Wrap(err)
 	}
 
-	part := bytes.NewReader(req.Part)
-	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, part)
+	// If upload part is not at least the minimum upload part size, append an empty part
+	// to pad up to the minimum upload size.
+	part := req.Part
+	if !req.IsLast && len(part) < events.MinUploadPartSizeBytes {
+		part = events.PadUploadPart(part, events.MinUploadPartSizeBytes)
+	}
+
+	streamPart, err := s.uploader.UploadPart(ctx, upload, req.PartNumber, bytes.NewReader(part))
 	if err != nil {
 		return nil, trace.Wrap(err, "uploading encrypted recording part")
 	}
@@ -193,6 +226,23 @@ func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1
 
 	if err := s.uploader.CompleteUpload(ctx, upload, parts); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	sessionEnd, err := events.FindSessionEndEvent(ctx, s.streamer, upload.SessionID)
+	if err != nil || sessionEnd == nil {
+		return &recordingencryptionv1.CompleteUploadResponse{}, nil
+	}
+
+	if err := sessionpostprocessing.Process(
+		ctx,
+		sessionpostprocessing.Config{
+			SessionEnd:                sessionEnd,
+			SessionID:                 upload.SessionID,
+			SessionSummarizerProvider: s.sessionSummarizerProvider,
+			RecordingMetadataProvider: s.recordingMetadataProvider,
+		},
+	); err != nil {
+		s.logger.WarnContext(ctx, "session post-processing failed", "error", err)
 	}
 
 	return &recordingencryptionv1.CompleteUploadResponse{}, nil

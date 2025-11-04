@@ -235,6 +235,42 @@ spec:
                   organization_id:
                     type: string
                 type: object
+              env0:
+                description: Env0 allows the configuration of options specific to
+                  the "env0" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, jobs using this token must
+                      match at least one allow rule to use this token.
+                    items:
+                      properties:
+                        deployer_email:
+                          type: string
+                        deployment_type:
+                          type: string
+                        env0_tag:
+                          type: string
+                        environment_id:
+                          type: string
+                        environment_name:
+                          type: string
+                        organization_id:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        template_id:
+                          type: string
+                        template_name:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
               gcp:
                 description: GCP allows the configuration of options specific to the
                   "gcp" join method.

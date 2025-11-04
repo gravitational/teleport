@@ -1090,7 +1090,11 @@ type MultipartUploader interface {
 	// ReserveUploadPart reserves an upload part. Reserve is used to identify
 	// upload errors beforehand.
 	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error
-	// UploadPart uploads part and returns the part
+	// UploadPart uploads part and returns the part.
+	//
+	// The part must be greater than [MinUploadPartSizeBytes]. It is the responsibility
+	// of the caller to add padding if needed, or else the upload may fail depending on
+	// storage provider.
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
 	ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error)
@@ -1184,6 +1188,8 @@ type SearchEventsRequest struct {
 	// If the previous response had LastKey set then this should be
 	// set to its value. Otherwise leave empty.
 	StartKey string
+	// Search is an optional search query to filter events.
+	Search string
 }
 
 type SearchSessionEventsRequest struct {

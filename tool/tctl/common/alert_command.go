@@ -185,11 +185,6 @@ func (c *AlertCommand) Ack(ctx context.Context, client *authclient.Client) error
 	case teleport.Text:
 		fmt.Fprintf(c.stdout, "Successfully acknowledged alert %q. Alerts with this ID won't be pushed for %s.\n", c.alertID, c.ttl)
 	case teleport.JSON:
-		// // out, err := json.MarshalIndent(ack, "", "  ")
-		// if err != nil {
-		// 	return trace.Wrap(err, "failed to marshal alert ack")
-		// }
-		// fmt.Fprint(c.stdout, string(out))
 		return trace.Wrap(utils.WriteJSON(c.stdout, ack), "failed to marshal alert ack")
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(c.stdout, ack), "failed to marshal alert ack")

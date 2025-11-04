@@ -56,6 +56,7 @@ import { ResourceLockIndicator } from 'teleport/lib/locks/ResourceLockIndicator'
 import { ResourceUnlockDialog } from 'teleport/lib/locks/ResourceUnlockDialog';
 import { useResourceLock } from 'teleport/lib/locks/useResourceLock';
 import { isAdminActionRequiresMfaError } from 'teleport/services/api/api';
+import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { DeleteDialog } from '../Delete/DeleteDialog';
@@ -138,6 +139,17 @@ export function BotDetails() {
   const handleDeleteComplete = () => {
     setShowDeleteConfirmation(false);
     history.replace(cfg.getBotsRoute());
+  };
+
+  const handleInstanceSelected = (instance: BotInstanceSummary) => {
+    const path = cfg.getBotInstancesRoute({
+      selectedItemId: `${instance.bot_name}/${instance.instance_id}`,
+      isAdvancedQuery: true,
+      query: `spec.bot_name == "${instance.bot_name}"`,
+      sortField: 'active_at_latest',
+      sortDir: 'DESC',
+    });
+    history.push(path);
   };
 
   return (
@@ -314,7 +326,10 @@ export function BotDetails() {
             />
           </ColumnContainer>
           <ColumnContainer maxWidth={400}>
-            <InstancesPanel botName={params.botName} />
+            <InstancesPanel
+              botName={params.botName}
+              onItemSelected={handleInstanceSelected}
+            />
           </ColumnContainer>
 
           {isEditing ? (
@@ -522,7 +537,7 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
 
         {isSuccess ? (
           <>
-            {data.items.length ? (
+            {data.items?.length ? (
               <LabelsContainer>
                 {data.items
                   .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
