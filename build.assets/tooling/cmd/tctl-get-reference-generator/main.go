@@ -32,7 +32,7 @@ import (
 // TODO: getCollectionTypeCases
 func getCollectionTypeCases(decls []ast.Decl, targetFuncName string) ([]TypeInfo, error) {
 	var typeCases []TypeInfo
-	var kindSwitch *ast.SwitchStmt // TODO: return an error if there's another
+	var kindSwitch *ast.SwitchStmt
 
 	for _, d := range decls {
 		fd, ok := d.(*ast.FuncDecl)
@@ -44,24 +44,55 @@ func getCollectionTypeCases(decls []ast.Decl, targetFuncName string) ([]TypeInfo
 			continue
 		}
 
+		// Find the switch statement that evaluates the kind of the
+		// input resource.
 		for _, b := range fd.Body.List {
 			s, ok := b.(*ast.SwitchStmt)
 			if !ok {
 				continue
 			}
 
-			// TODO: only allow switch statements with the right
-			// condition
-			// TODO: throw an error if there's another kindswitch
+			sel, ok := s.Tag.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+
+			if sel.Sel.Name != "Kind" {
+				continue
+			}
+
+			if kindSwitch != nil {
+				return nil, trace.Errorf(
+					"expected one switch statement that evaluates resource kinds in %v, but got multiple",
+					targetFuncName,
+				)
+			}
 			kindSwitch = s
+		}
+	}
+
+	for _, c := range kindSwitch.Body.List {
+		clause := c.(*ast.CaseClause)
+		for _, l := range clause.List {
+			sel, ok := l.(*ast.SelectorExpr)
+			if !ok {
+				return nil, trace.Errorf(
+					"in %v, all case clauses in the kind switch statement must be selector expressions",
+					targetFuncName,
+				)
+
+			}
+
+			typeCases = append(typeCases, TypeInfo{
+				Package: sel.X.(*ast.Ident).Name,
+				Name:    sel.Sel.Name,
+			})
 		}
 	}
 
 	if kindSwitch == nil {
 		return nil, trace.Errorf("function %v does not switch on a resource kind", targetFuncName)
 	}
-
-	// TODO: extract cases
 
 	return typeCases, nil
 }
