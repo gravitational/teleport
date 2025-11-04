@@ -36,6 +36,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -243,6 +244,12 @@ func TestAuthGetTLSConfig(t *testing.T) {
 			expectServerName: "my-postgres.postgres.database.azure.com",
 			expectRootCAs:    systemCertPoolWithCA,
 		},
+		{
+			name:                     "MongoDB Atlas with downloaded CA",
+			sessionDatabase:          newMongoAtlasDatabaseWithCA(t, fixtures.TLSCACertPEM),
+			expectClientCertificates: true,
+			expectRootCAs:            systemCertPoolWithCA,
+		},
 	}
 
 	for _, test := range tests {
@@ -253,20 +260,20 @@ func TestAuthGetTLSConfig(t *testing.T) {
 				"defaultUser")
 			require.NoError(t, err)
 
-			require.Equal(t, test.expectServerName, tlsConfig.ServerName)
-			require.Equal(t, test.expectInsecureSkipVerify, tlsConfig.InsecureSkipVerify)
-			require.True(t, test.expectRootCAs.Equal(tlsConfig.RootCAs))
+			assert.Equal(t, test.expectServerName, tlsConfig.ServerName)
+			assert.Equal(t, test.expectInsecureSkipVerify, tlsConfig.InsecureSkipVerify)
+			assert.True(t, test.expectRootCAs.Equal(tlsConfig.RootCAs))
 
 			if test.expectClientCertificates {
-				require.Len(t, tlsConfig.Certificates, 1)
+				assert.Len(t, tlsConfig.Certificates, 1)
 			} else {
-				require.Empty(t, tlsConfig.Certificates)
+				assert.Empty(t, tlsConfig.Certificates)
 			}
 
 			if test.expectVerifyConnection {
-				require.NotNil(t, tlsConfig.VerifyConnection)
+				assert.NotNil(t, tlsConfig.VerifyConnection)
 			} else {
-				require.Nil(t, tlsConfig.VerifyConnection)
+				assert.Nil(t, tlsConfig.VerifyConnection)
 			}
 		})
 	}
@@ -897,6 +904,20 @@ func newMongoAtlasDatabase(t *testing.T, aws types.AWS) types.Database {
 		AWS: aws,
 	})
 	require.NoError(t, err)
+	return database
+}
+
+func newMongoAtlasDatabaseWithCA(t *testing.T, ca string) types.Database {
+	t.Helper()
+
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "test.xxxxxxx.mongodb.net",
+	})
+	require.NoError(t, err)
+	database.SetStatusCA(ca)
 	return database
 }
 
