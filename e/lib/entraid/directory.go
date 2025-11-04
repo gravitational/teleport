@@ -10,6 +10,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -134,6 +135,16 @@ func (cfg *DirectoryReconcilerConfig) Validate() error {
 
 	if cfg.EntraAppID == "" {
 		return trace.BadParameter("EntraAppID is required")
+	}
+
+	for i, v := range cfg.DefaultOwners {
+		if !v.IsMembershipKindUser() {
+			continue
+		}
+		// Set IneligibleStatus to ELIGIBLE for user owners.
+		// This optimizes the reconciler by skipping ineligibility checks,
+		// since Entra ID access lists do not have owner eligibility requirements.
+		cfg.DefaultOwners[i].IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()
 	}
 
 	return nil

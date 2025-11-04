@@ -284,6 +284,11 @@ func convertGroupMember(ctx context.Context,
 				Joined:         time.Now().UTC(),
 				AddedBy:        teleport.UserSystem,
 				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+				// Users imported from Entra ID are always eligible since Entra ID access lists
+				// do not have membership expiration or eligibility requirements.
+				// Setting IneligibleStatus to ELIGIBLE allows the reconciler to skip
+				// unnecessary ineligibility updates, improving performance.
+				IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
 			},
 		)
 		if err != nil {
