@@ -173,9 +173,6 @@ type DeclarationInfo struct {
 }
 
 type SourceData struct {
-	// TypeDecls maps package and declaration names to data that the generator
-	// uses to format documentation for dynamic resource fields.
-	TypeDecls map[PackageInfo]DeclarationInfo
 	// PossibleFuncDecls are declarations that are not import, constant,
 	// type or variable declarations.
 	PossibleFuncDecls []DeclarationInfo
@@ -185,10 +182,6 @@ type SourceData struct {
 }
 
 func NewSourceData(rootPath string) (SourceData, error) {
-	// All declarations within the source tree. We use this to extract
-	// information about dynamic resource fields, which we can look up by
-	// package and declaration name.
-	typeDecls := make(map[PackageInfo]DeclarationInfo)
 	possibleFuncDecls := []DeclarationInfo{}
 	stringAssignments := make(map[PackageInfo]string)
 
@@ -251,27 +244,10 @@ func NewSourceData(rootPath string) (SourceData, error) {
 				PackageName:  file.Name.Name,
 				NamedImports: pn,
 			}
-			l, ok := decl.(*ast.GenDecl)
+			_, ok := decl.(*ast.GenDecl)
 			if !ok {
 				possibleFuncDecls = append(possibleFuncDecls, di)
 				continue
-			}
-			if len(l.Specs) != 1 {
-				continue
-			}
-			spec, ok := l.Specs[0].(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-
-			typeDecls[PackageInfo{
-				DeclName:    spec.Name.Name,
-				PackageName: file.Name.Name,
-			}] = DeclarationInfo{
-				Decl:         l,
-				FilePath:     relDeclPath,
-				PackageName:  file.Name.Name,
-				NamedImports: pn,
 			}
 		}
 		return nil
@@ -280,7 +256,6 @@ func NewSourceData(rootPath string) (SourceData, error) {
 		return SourceData{}, fmt.Errorf("loading Go source files: %w", err)
 	}
 	return SourceData{
-		TypeDecls:         typeDecls,
 		PossibleFuncDecls: possibleFuncDecls,
 		StringAssignments: stringAssignments,
 	}, nil
@@ -301,12 +276,6 @@ func NamedImports(file *ast.File) map[string]string {
 			continue
 		}
 		s := strings.Trim(i.Path.Value, "\"")
-		p := strings.Split(s, "/")
-		// Consumers check the named imports map against the final path
-		// segment of a package path.
-		if len(p) > 1 {
-			s = p[len(p)-1]
-		}
 		m[i.Name.Name] = s
 	}
 	return m
@@ -416,15 +385,15 @@ func getPackageInfoFromExpr(expr ast.Expr) PackageInfo {
 func Generate() error {
 	// TODO: have this select the correct path.
 	// TODO: use the resulting sourceData
-	sourceData, err := NewSourceData(".")
+	_, err := NewSourceData(".")
 	if err != nil {
 		return fmt.Errorf("loading Go source files: %w", err)
 	}
 
-	kindConsts := append(
-		getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection"),
-		extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")...,
-	)
+	//	kindConsts := append(
+	//		getCollectionTypeCases(sourceData.PossibleFuncDecls, "getCollection"),
+	//		extractHandlersKeys(sourceData.PossibleFuncDecls, "Handlers")...,
+	//	)
 
 	return nil
 }

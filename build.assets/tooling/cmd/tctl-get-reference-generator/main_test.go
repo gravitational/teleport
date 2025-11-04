@@ -187,12 +187,21 @@ import (
 			},
 		},
 		{
-			description: "multi-segment package path",
+			description: "aliased multi-segment package path",
 			input: `package mypkg
 import alias "my/multi/segment/package"
 `,
 			expected: map[string]string{
-				"alias": "package",
+				"alias": "my/multi/segment/package",
+			},
+		},
+		{
+			description: "no-alias multi-segment package path",
+			input: `package mypkg
+import "my/multi/segment/mypkg"
+`,
+			expected: map[string]string{
+				"mypkg": "my/multi/segment/mypkg",
 			},
 		},
 	}
