@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -66,6 +67,14 @@ type UploaderConfig struct {
 	Component string
 	// EncryptedRecordingUploader uploads encrypted session recordings
 	EncryptedRecordingUploader events.EncryptedRecordingUploader
+	// EncryptedRecordingUploadTargetSize is the target size used when aggregating
+	// encrypted recording parts before sending them to EncryptedRecordingUploader.
+	// Encrypted uploads should slightly exceed this target size unless limited by the maximum.
+	EncryptedRecordingUploadTargetSize int
+	// EncryptedRecordingUploadTargetSize is the maximum size used when aggregating
+	// encrypted recording parts before sending them to EncryptedRecordingUploader.
+	// If set to 0, then no maximum is enforced.
+	EncryptedRecordingUploadMaxSize int
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -90,6 +99,9 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentUpload
+	}
+	if cfg.EncryptedRecordingUploadTargetSize == 0 {
+		cfg.EncryptedRecordingUploadTargetSize = events.MinUploadPartSizeBytes
 	}
 	return nil
 }
@@ -380,53 +392,31 @@ func (u *upload) removeFiles() error {
 
 var errSkipEncryptedUpload = errors.New("skip encrypted upload")
 
-func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID string, in io.Reader) error {
+func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID string, in io.ReadSeeker) error {
 	if u.cfg.EncryptedRecordingUploader == nil {
 		return trace.Wrap(errSkipEncryptedUpload, "no encrypted uploader configured")
 	}
 
-	partIter := func(yield func([]byte, error) bool) {
-		var buf bytes.Buffer
-		for {
-			buf.Reset()
-			header, err := events.ParsePartHeader(in)
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
-				yield(nil, trace.Wrap(errSkipEncryptedUpload, "recording not encrypted"))
-				return
-			}
-
-			if _, err := buf.Write(header.Bytes()); err != nil {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			totalPartSize := int64(header.PartSize + header.PaddingSize)
-			reader := io.LimitReader(in, totalPartSize)
-			copied, err := io.Copy(&buf, reader)
-			if err != nil && !errors.Is(err, io.EOF) {
-				yield(nil, trace.Wrap(err))
-				return
-			}
-
-			if copied != totalPartSize {
-				yield(nil, trace.Errorf("copied %d bytes of recording part instead of expected %d", copied, totalPartSize))
-				return
-			}
-
-			if !yield(buf.Bytes(), nil) {
-				return
-			}
-		}
+	header, err := events.ParsePartHeader(in)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
+		return trace.Wrap(errSkipEncryptedUpload, "recording not encrypted")
+	}
+
+	if _, err := in.Seek(0, 0); err != nil {
+		return trace.Wrap(err, "resetting recording for plaintext upload")
+	}
+
+	// The upload parts in the given reader are each ~128KB. Usually these parts are consumed and reconstructed
+	// by Auth in 5MB chunks to meet the minimum upload size of upload providers like S3. Since these uploads
+	// are proxied directly to the uploader from the agent here (see link below), this agent needs to combine
+	// these upload parts into larger, aggregated upload parts.
+	//
+	// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
+	partIter := encryptedUploadAggregateIter(in, u.cfg.EncryptedRecordingUploadTargetSize, u.cfg.EncryptedRecordingUploadMaxSize)
 
 	u.log.DebugContext(ctx, "uploading encrypted recording", "session_id", sessionID)
 	if err := u.cfg.EncryptedRecordingUploader.UploadEncryptedRecording(ctx, sessionID, partIter); err != nil {
@@ -434,6 +424,112 @@ func (u *Uploader) uploadEncryptedRecording(ctx context.Context, sessionID strin
 	}
 
 	return nil
+}
+
+// encryptedUploadAggregateIter returns an iterator that aggregates upload parts from the given reader
+// into larger upload with size greater than targetSize, or as near targetSize as possible without exceeding
+// the maxSize.
+func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) iter.Seq2[[]byte, error] {
+	// buf holds aggregated upload parts that will be uploaded as a single upload part.
+	var buf bytes.Buffer
+
+	readNextPartHeader := func() (events.PartHeader, error) {
+		header, err := events.ParsePartHeader(in)
+		if err != nil {
+			return events.PartHeader{}, trace.Wrap(err)
+		}
+
+		if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
+			return events.PartHeader{}, trace.Wrap(errSkipEncryptedUpload, "recording not encrypted")
+		}
+
+		// Ensure that the individual file upload parts are not larger than the max size allowed here (e.g. 4MB gRPC max message size).
+		// This error case should never be hit outside of tests, but we want to ensure we fail fast in case a bug ever arises here.
+		totalPartSize := len(header.Bytes()) + int(header.PartSize)
+		if maxSize != 0 && totalPartSize > maxSize {
+			return events.PartHeader{}, trace.BadParameter("encrypted upload part is larger than the maximum size, so it cannot be uploaded. This is a bug.")
+		}
+
+		return header, nil
+	}
+
+	writePartToBuffer := func(header events.PartHeader) error {
+		// We are going to discard any padding as it isn't necessary within the individual parts.
+		originalPaddingSize := header.PaddingSize
+		header.PaddingSize = 0
+
+		if _, err := buf.Write(header.Bytes()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Copy the part into the buffer.
+		reader := io.LimitReader(in, int64(header.PartSize))
+		copied, err := io.Copy(&buf, reader)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
+
+		if copied != int64(header.PartSize) {
+			return trace.Errorf("copied %d bytes from recording part instead of expected %d", copied, int64(header.PartSize))
+		}
+
+		// Discard the padding.
+		discarded, err := io.Copy(io.Discard, io.LimitReader(in, int64(originalPaddingSize)))
+		if err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
+
+		if discarded != int64(originalPaddingSize) {
+			return trace.Errorf("discarded %d padding bytes from recording part instead of expected %d", copied, int64(originalPaddingSize))
+		}
+
+		return nil
+	}
+
+	return func(yield func([]byte, error) bool) {
+		// yield the current aggregated upload part and reset the buffer.
+		yieldCurrent := func() bool {
+			// Copy the buffer to a new []byte so that the next
+			// iteration doesn't wipe the previous yielded bytes.
+			bytes := make([]byte, buf.Len())
+			copy(bytes, buf.Bytes())
+			buf.Reset()
+			return yield(bytes, nil)
+		}
+
+		for {
+			partHeader, err := readNextPartHeader()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					// No parts remaining, yield the current part and return.
+					yieldCurrent()
+					return
+				}
+
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			// If a max size is configured and the aggregate buffer is not empty, check if there is
+			// room to add this upload part. If not, yield the current aggregate before continuing.
+			totalPartSize := len(partHeader.Bytes()) + int(partHeader.PartSize)
+			if maxSize != 0 && buf.Len() > 0 && buf.Len()+totalPartSize > maxSize {
+				if !yieldCurrent() {
+					return
+				}
+			}
+
+			writePartToBuffer(partHeader)
+
+			// If we've reached the target upload size, yield the current
+			// aggregated upload part before continuing.
+			if buf.Len() > targetSize {
+				if !yieldCurrent() {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error) {
@@ -502,6 +598,13 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 
 	if err := u.uploadEncryptedRecording(ctx, sessionID.String(), sessionFile); !errors.Is(err, errSkipEncryptedUpload) {
 		if err != nil {
+			log.WarnContext(ctx, "Encrypted upload failed.", "error", err)
+			u.emitEvent(events.UploadEvent{
+				SessionID: sessionID.String(),
+				Error:     sessionError{err},
+				Created:   u.cfg.Clock.Now().UTC(),
+			})
+
 			return trace.Wrap(err)
 		}
 

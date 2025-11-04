@@ -2751,11 +2751,22 @@ func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string,
 		return trace.Wrap(err)
 	}
 
+	next, stop := iter.Pull2(parts)
+	defer stop()
+
+	part, err, ok := next()
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.BadParameter("unexpected empty upload")
+	}
+
 	var uploadedParts []*recordingencryptionv1pb.Part
 	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
 	// configured for the auth service
 	var partNumber int64 = 1
-	for part, err := range parts {
+	for {
+		nextPart, err, hasNext := next()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2764,11 +2775,18 @@ func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string,
 			Upload:     createRes.Upload,
 			PartNumber: partNumber,
 			Part:       part,
+			IsLast:     !hasNext,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		uploadedParts = append(uploadedParts, uploadRes.Part)
+
+		if !hasNext {
+			break
+		}
+
+		part = nextPart
 		partNumber++
 	}
 
@@ -2783,7 +2801,7 @@ func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string,
 }
 
 // SearchEvents allows searching for events with a full pagination support.
-func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, search string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetEventsRequest{
 		Namespace:  namespace,
 		StartDate:  fromUTC,
@@ -2792,6 +2810,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		Limit:      int32(limit),
 		StartKey:   startKey,
 		Order:      proto.Order(order),
+		Search:     search,
 	}
 
 	response, err := c.grpc.GetEvents(ctx, request)

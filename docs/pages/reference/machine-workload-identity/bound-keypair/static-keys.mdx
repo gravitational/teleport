@@ -1,6 +1,6 @@
 ---
-title: Deploying Machine ID with Bound Keypair Static Keys
-description: "How to install and configure Machine ID with Bound Keypair static keys"
+title: Deploying tbot with Bound Keypair Static Keys
+description: "How to install and configure tbot with Bound Keypair static keys"
 tags:
  - mwi
  - how-to
@@ -10,7 +10,7 @@ tags:
 In this guide, you will install Machine and Workload Identity's agent, `tbot`,
 on an arbitrary stateless environment using Bound Keypair static keys. This
 might be a CI/CD job on a provider not yet supported by one of Teleport's
-[dedicated join methods](../../../deployment/join-methods.mdx), an ephemeral
+[dedicated join methods](../../deployment/join-methods.mdx), an ephemeral
 bare-metal node, or any other environment without writable persistent storage.
 
 Bound Keypair Joining is a more flexible alternative to [secret-based join
@@ -39,7 +39,7 @@ your static private key instead of managing it automatically.
 Static key joining relaxes certain security checks otherwise performed when
 client-side storage is available. This is designed to be used where no other
 join methods are possible. Before continuing, consider:
-- Using a [dedicated join method](../../../deployment/join-methods.mdx) for your
+- Using a [dedicated join method](../../deployment/join-methods.mdx) for your
   platform if available.
 - Using [standard Bound Keypair joining](./getting-started.mdx) if your
   environment has writable persistent storage.
@@ -63,8 +63,8 @@ environment.
 
 **This step is completed on the bot host.**
 
-First, `tbot` needs to be installed on the host that you wish to use Machine ID
-on.
+First, `tbot` needs to be installed on the host that you wish to use Machine &
+Workload Identity on.
 
 Download and install the appropriate Teleport package for your platform:
 
@@ -288,11 +288,11 @@ longer-running jobs, otherwise the certificates issued will expire eventually
 - Read about [static key rotation](./admin-guide.mdx#manually-rotating-static-keys)
 - Read the [Bound Keypair Joining Reference][reference]
   for more details about the join method and the available configuration options.
-- Follow the [access guides](../../../../machine-workload-identity/machine-id/access-guides/access-guides.mdx)
+- Follow the [access guides](../../../machine-workload-identity/machine-id/access-guides/access-guides.mdx)
   to finish configuring `tbot` for your environment.
 - Read the [configuration reference](../configuration.mdx) to explore
   all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../telemetry.mdx)
 
-[secret]: ../../../deployment/join-methods.mdx#secret-vs-delegated
+[secret]: ../../deployment/join-methods.mdx#secret-vs-delegated
 [reference]: ./bound-keypair.mdx

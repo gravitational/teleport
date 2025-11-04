@@ -46,7 +46,7 @@ func setupInstallSystemdCmd(rootCmd *kingpin.Application) (
 	string,
 	onInstallSystemdCmdFunc,
 ) {
-	installCmd := rootCmd.Command("install", "Helper commands for installing Machine ID.")
+	installCmd := rootCmd.Command("install", "Helper commands for installing tbot.")
 	installSystemdCmd := installCmd.Command("systemd", "Generates and installs a systemd unit file for a specified tbot configuration file.")
 	unitName := installSystemdCmd.Flag("name", "Name for the systemd unit. Defaults to 'tbot'.").Default("tbot").String()
 	group := installSystemdCmd.Flag("group", "The group that the service should run as. Defaults to 'teleport'.").Default("teleport").String()
