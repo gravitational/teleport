@@ -142,6 +142,7 @@ RUN apt-get -y update && \
         gnupg \
         gzip \
         jq \
+        libbpf-dev \
         libc6-dev \
         libelf-dev \
         libpam-dev \
