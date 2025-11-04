@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -175,27 +176,22 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, authServer.Close())
-	})
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	tlsServer, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, tlsServer.Close())
-	})
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
 	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, client.Close())
-	})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
 
 	dynamicWindowsClient := client.DynamicDesktopClient()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	for _, testCase := range []struct {
@@ -253,6 +249,7 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 			}
 
 			require.NoError(t, s.startDynamicReconciler(t.Context()))
+
 			t.Cleanup(func() {
 				require.NoError(t, authServer.AuthServer.DeleteAllWindowsDesktops(ctx))
 				var key string
@@ -269,6 +266,7 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 				}
 			})
 
+			// Create a dynamic desktop and then check whether a corresponding desktop resource was created.
 			desktop, err := types.NewDynamicWindowsDesktopV1("test", testCase.labels, types.DynamicWindowsDesktopSpecV1{
 				Addr: "addr",
 			})
@@ -288,6 +286,8 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 				}
 			}, 5*time.Second, 50*time.Millisecond)
 
+			// Make an update to the dynamic desktop and ensure it is reflected
+			// in the corresponding desktop resource.
 			desktop.Spec.Addr = "addr2"
 			_, err = dynamicWindowsClient.UpsertDynamicWindowsDesktop(ctx, desktop)
 			require.NoError(t, err)
@@ -302,6 +302,8 @@ func TestDynamicWindowsDiscovery(t *testing.T) {
 				}
 			}, 5*time.Second, 50*time.Millisecond)
 
+			// Delete the dynamic desktop and ensure that the corresponding desktop
+			// resource is also removed.
 			require.NoError(t, dynamicWindowsClient.DeleteDynamicWindowsDesktop(ctx, "test"))
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -317,6 +319,7 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -331,7 +334,7 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 
 	dynamicWindowsClient := client.DynamicDesktopClient()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	clock := clockwork.NewFakeClock()
@@ -367,6 +370,8 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Create the dynamic desktop and verify that a corresponding desktop
+	// resource is created.
 	_, err = dynamicWindowsClient.CreateDynamicWindowsDesktop(ctx, desktop)
 	require.NoError(t, err)
 
@@ -377,6 +382,8 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 		require.Equal(t, "test", desktops[0].GetName())
 	}, 5*time.Second, 50*time.Millisecond)
 
+	// Delete the desktop resource, advance the clock, and verify that
+	// the reconciler re-created the desktop resource.
 	err = client.DeleteWindowsDesktop(ctx, s.cfg.Heartbeat.HostUUID, "test")
 	require.NoError(t, err)
 
@@ -392,6 +399,25 @@ func TestDynamicWindowsDiscoveryExpiry(t *testing.T) {
 		require.Len(t, desktops, 1)
 		require.Equal(t, "test", desktops[0].GetName())
 	}, 5*time.Second, 50*time.Millisecond)
+
+	// Ensure that the reconciler is advancing the expiry.
+	desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.Len(t, desktops, 1)
+
+	start := desktops[0].GetMetadata().Expires
+	require.NotNil(t, start)
+
+	clock.Advance(5 * time.Minute)
+	clock.BlockUntilContext(t.Context(), 1)
+
+	desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.Len(t, desktops, 1)
+
+	end := desktops[0].GetMetadata().Expires
+	require.NotNil(t, start)
+	require.Equal(t, start.Add(5*time.Minute), *end)
 }
 
 func TestCurrentDesktops(t *testing.T) {
@@ -399,6 +425,7 @@ func TestCurrentDesktops(t *testing.T) {
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -502,6 +529,7 @@ func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "test",
 		Dir:         t.TempDir(),
+		AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })

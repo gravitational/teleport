@@ -223,7 +223,7 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 }
 
 // processRegisteredResource checks the specified registered resource against the
-// new list of resources.
+// new list of resources, deleting the resource if should no longer exist.
 func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context, newResources map[K]T, key K, registered T) error {
 	// See if this registered resource is still present among "new" resources.
 	if _, ok := newResources[key]; ok {
@@ -268,7 +268,10 @@ func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context,
 }
 
 // processNewResource checks the provided new resource against currently
-// registered resources.
+// registered resources. It may:
+// - create a new resource if one does not already exist
+// - update an existing resource
+// - delete a resource that no longer matches the reconciler's label matchers
 func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, currentResources map[K]T, key K, newT T) error {
 	// First see if the resource is already registered and if not, whether it
 	// matches the selector labels and should be registered.
