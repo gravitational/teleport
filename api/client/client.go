@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -163,6 +164,11 @@ type Client struct {
 	closedFlag *int32
 }
 
+var clientLogger = func() *slog.Logger {
+	return slog.Default().
+		With(teleport.ComponentKey, "APICLIENT")
+}
+
 // New creates a new Client with an open connection to a Teleport server.
 //
 // New will try to open a connection with all combinations of addresses and credentials.
@@ -182,9 +188,11 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	// This option is primarily meant for internal use where the client has
 	// direct access to server values that guarantee a successful connection.
 	if cfg.DialInBackground {
+		clientLogger().DebugContext(ctx, "Using dial in background")
 		return connectInBackground(ctx, cfg)
 	}
 
+	clientLogger().DebugContext(ctx, "Using connect")
 	return connect(ctx, cfg)
 }
 
@@ -236,16 +244,24 @@ func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Dialer != nil {
+		clientLogger().DebugContext(ctx, "Dial in background - using dialerConnect",
+			"server_name", tlsConfig.ServerName,
+		)
 		return dialerConnect(ctx, connectParams{
 			cfg:       cfg,
 			tlsConfig: tlsConfig,
 			dialer:    cfg.Dialer,
 		})
 	} else if len(cfg.Addrs) != 0 {
+		addr := cfg.Addrs[0]
+		clientLogger().DebugContext(ctx, "Dial in background - using authConnect",
+			"server_name", tlsConfig.ServerName,
+			"addr", addr,
+		)
 		return authConnect(ctx, connectParams{
 			cfg:       cfg,
 			tlsConfig: tlsConfig,
-			addr:      cfg.Addrs[0],
+			addr:      addr,
 		})
 	}
 	return nil, trace.BadParameter("must provide Dialer or Addrs in config")
@@ -272,10 +288,21 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	// The first successful client to be sent to cltChan will be returned.
 	cltChan := make(chan *Client)
 	syncConnect := func(ctx context.Context, connect connectFunc, params connectParams) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			clt, err := connect(ctx, params)
+			clientLogger().DebugContext(ctx, "syncConnect outcome",
+				"error", err,
+				"dialer_name", params.dialerName,
+				"has_ssh", params.sshConfig != nil,
+				"server_name", func() string {
+					tls := params.tlsConfig
+					if tls == nil {
+						return "<nil TLS>"
+					}
+					return tls.ServerName
+				}(),
+				"success", err == nil,
+			)
 			if err != nil {
 				sendError(trace.Wrap(err))
 				return
@@ -285,13 +312,10 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			case <-ctx.Done():
 				clt.Close()
 			}
-		}()
+		})
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		// Connect with provided credentials.
 		for _, creds := range cfg.Credentials {
 			tlsConfig, err := creds.TLSConfig()
@@ -309,8 +333,9 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			// Connect with dialer provided in config.
 			if cfg.Dialer != nil {
 				syncConnect(ctx, dialerConnect, connectParams{
-					cfg:       cfg,
-					tlsConfig: tlsConfig,
+					dialerName: "credentials dialerConnect",
+					cfg:        cfg,
+					tlsConfig:  tlsConfig,
 				})
 			}
 
@@ -332,23 +357,25 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
 			for _, addr := range addrs {
 				syncConnect(ctx, authConnect, connectParams{
-					cfg:       cfg,
-					tlsConfig: tlsConfig,
-					addr:      addr,
+					dialerName: "default addr authConnect (" + addr + ")",
+					cfg:        cfg,
+					tlsConfig:  tlsConfig,
+					addr:       addr,
 				})
 				if sshConfig != nil {
 					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
-							cfg:       cfg,
-							tlsConfig: tlsConfig,
-							sshConfig: sshConfig,
-							addr:      addr,
+							dialerName: "default addr authConnect with SSH (" + addr + ")",
+							cfg:        cfg,
+							tlsConfig:  tlsConfig,
+							sshConfig:  sshConfig,
+							addr:       addr,
 						})
 					}
 				}
 			}
 		}
-	}()
+	})
 
 	// Start goroutine to wait for wait group.
 	go func() {
@@ -395,6 +422,8 @@ Outer:
 type (
 	connectFunc   func(ctx context.Context, params connectParams) (*Client, error)
 	connectParams struct {
+		dialerName string // for logging!
+
 		cfg       Config
 		addr      string
 		tlsConfig *tls.Config
