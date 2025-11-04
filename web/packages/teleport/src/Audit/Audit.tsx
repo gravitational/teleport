@@ -21,6 +21,7 @@ import styled from 'styled-components';
 
 import { Box, ButtonSecondary, Flex } from 'design';
 import { Danger } from 'design/Alert';
+import { SearchPanel } from 'shared/components/Search';
 import { useInfiniteScroll } from 'shared/hooks';
 
 import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
@@ -113,20 +114,25 @@ export function Audit(props: State) {
         />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
-      {isLoading && events.length === 0 && (
-        <Box mt={2}>
-          <EventListSkeleton />
-        </Box>
-      )}
       <Box mt={2}>
-        <EventList
-          events={events}
-          search={search}
-          setSearch={setSearch}
-          sort={sort}
-          setSort={setSort}
+        <SearchPanel
+          updateSearch={setSearch}
+          updateQuery={null}
+          hideAdvancedSearch={true}
+          filter={{ search }}
         />
-        {isFetchingNextPage && <EventListSkeleton />}
+        {!isLoading && (
+          <EventList
+            events={events}
+            search={search}
+            setSearch={setSearch}
+            sort={sort}
+            setSort={setSort}
+          />
+        )}
+        {((isLoading && events.length === 0) || isFetchingNextPage) && (
+          <EventListSkeleton />
+        )}
         <div ref={setTrigger} />
         {isError && events.length > 0 && !isLoading && (
           <Box mt={2} textAlign="center">
