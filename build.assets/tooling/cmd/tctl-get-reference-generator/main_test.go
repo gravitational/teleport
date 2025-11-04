@@ -309,6 +309,39 @@ var (
 				}: "This is a string",
 			},
 		},
+		{
+			description: "mixed const types",
+			source: `package access
+const (
+	// MaxRolesPerAssignment is the maximum number of roles@scope assignments that a given scoped role assignment
+	// resource may contain. This value is so low because our backend limits the number of keys that can be associated
+	// with a single atomic operation. Any significant increase to this value would necessitate a change to the
+	// scoped role backend model.
+	MaxRolesPerAssignment = 16
+
+	// KindScopedRole is the kind of a scoped role resource.
+	KindScopedRole = "scoped_role"
+
+	// KindScopedRoleAssignment is the kind of a scoped role assignment resource.
+	KindScopedRoleAssignment = "scoped_role_assignment"
+
+	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
+	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
+	// to avoid excess resource size and to keep our options open for the future.
+	maxAssignableScopes = 16
+)
+`,
+			expected: map[PackageInfo]string{
+				PackageInfo{
+					DeclName:    "KindScopedRole",
+					PackageName: "access",
+				}: "scoped_role",
+				PackageInfo{
+					DeclName:    "KindScopedRoleAssignment",
+					PackageName: "access",
+				}: "scoped_role_assignment",
+			},
+		},
 	}
 
 	for _, c := range cases {
