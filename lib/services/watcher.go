@@ -402,17 +402,21 @@ func NewProxyWatcher(ctx context.Context, cfg ProxyWatcherConfig) (*GenericWatch
 		cfg.ProxyDiffer = func(old, new types.Server) bool { return true }
 	}
 
+	proxyGetter := cfg.ProxyGetter
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Server, readonly.Server]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindProxy,
 		ResourceKey:           types.Server.GetName,
 		ResourceGetter: func(ctx context.Context) ([]types.Server, error) {
-			return cfg.ProxyGetter.GetProxies()
+			return proxyGetter.GetProxies()
 		},
 		ResourcesC:                          cfg.ProxiesC,
 		ResourceDiffer:                      cfg.ProxyDiffer,
 		RequireResourcesForInitialBroadcast: true,
 		CloneFunc:                           types.Server.DeepCopy,
+		ReadOnlyFunc: func(resource types.Server) readonly.Server {
+			return resource
+		},
 	})
 	return w, trace.Wrap(err)
 }
@@ -437,12 +441,13 @@ func NewDatabaseWatcher(ctx context.Context, cfg DatabaseWatcherConfig) (*Generi
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindDatabase,
 		ResourceKey:           types.Database.GetName,
-		ResourceGetter: func(ctx context.Context) ([]types.Database, error) {
-			return cfg.DatabaseGetter.GetDatabases(ctx)
-		},
-		ResourcesC: cfg.DatabasesC,
+		ResourceGetter:        cfg.DatabaseGetter.GetDatabases,
+		ResourcesC:            cfg.DatabasesC,
 		CloneFunc: func(resource types.Database) types.Database {
 			return resource.Copy()
+		},
+		ReadOnlyFunc: func(resource types.Database) readonly.Database {
+			return resource
 		},
 	})
 	return w, trace.Wrap(err)
@@ -468,12 +473,13 @@ func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[t
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindApp,
 		ResourceKey:           types.Application.GetName,
-		ResourceGetter: func(ctx context.Context) ([]types.Application, error) {
-			return cfg.AppGetter.GetApps(ctx)
-		},
-		ResourcesC: cfg.AppsC,
+		ResourceGetter:        cfg.AppGetter.GetApps,
+		ResourcesC:            cfg.AppsC,
 		CloneFunc: func(resource types.Application) types.Application {
 			return resource.Copy()
+		},
+		ReadOnlyFunc: func(resource types.Application) readonly.Application {
+			return resource
 		},
 	})
 
@@ -497,14 +503,15 @@ func NewKubeServerWatcher(ctx context.Context, cfg KubeServerWatcherConfig) (*Ge
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeServer, readonly.KubeServer]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubeServer,
-		ResourceGetter: func(ctx context.Context) ([]types.KubeServer, error) {
-			return cfg.KubernetesServerGetter.GetKubernetesServers(ctx)
-		},
+		ResourceGetter:        cfg.KubernetesServerGetter.GetKubernetesServers,
 		ResourceKey: func(resource types.KubeServer) string {
 			return resource.GetHostID() + resource.GetName()
 		},
 		DisableUpdateBroadcast: true,
 		CloneFunc:              types.KubeServer.Copy,
+		ReadOnlyFunc: func(resource types.KubeServer) readonly.KubeServer {
+			return resource
+		},
 	})
 	return w, trace.Wrap(err)
 }
@@ -525,16 +532,20 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		return nil, trace.BadParameter("KubernetesClusterGetter must be provided")
 	}
 
+	getter := cfg.KubernetesClusterGetter
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeCluster, readonly.KubeCluster]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return iterstream.Collect(cfg.KubernetesClusterGetter.RangeKubernetesClusters(ctx, "", ""))
+			return iterstream.Collect(getter.RangeKubernetesClusters(ctx, "", ""))
 		},
 		ResourceKey: types.KubeCluster.GetName,
 		ResourcesC:  cfg.KubeClustersC,
 		CloneFunc: func(resource types.KubeCluster) types.KubeCluster {
 			return resource.Copy()
+		},
+		ReadOnlyFunc: func(resource types.KubeCluster) readonly.KubeCluster {
+			return resource
 		},
 	})
 	return w, trace.Wrap(err)
@@ -559,17 +570,18 @@ func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesk
 	if cfg.DynamicWindowsDesktopGetter == nil {
 		return nil, trace.BadParameter("DynamicWindowsDesktopGetter must be provided")
 	}
-
+	getter := cfg.DynamicWindowsDesktopGetter
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindDynamicWindowsDesktop,
 		ResourceGetter: pagerFn[types.DynamicWindowsDesktop](
-			cfg.DynamicWindowsDesktopGetter.ListDynamicWindowsDesktops,
+			getter.ListDynamicWindowsDesktops,
 		).getAll,
 		ResourceKey: types.DynamicWindowsDesktop.GetName,
 		ResourcesC:  cfg.DynamicWindowsDesktopsC,
-		CloneFunc: func(resource types.DynamicWindowsDesktop) types.DynamicWindowsDesktop {
-			return resource.Copy()
+		CloneFunc:   types.DynamicWindowsDesktop.Copy,
+		ReadOnlyFunc: func(resource types.DynamicWindowsDesktop) readonly.DynamicWindowsDesktop {
+			return resource
 		},
 	})
 	return w, trace.Wrap(err)
@@ -593,6 +605,11 @@ type GenericWatcherConfig[T any, R any] struct {
 	// or [GenericWatcher.CurrentResourcesWithFilter] will be cloned by this
 	// mechanism before being provided to callers.
 	CloneFunc func(resource T) T
+	// ReadOnlyFunc returns the read-only view of a resource. Ideally this will
+	// be a type conversion (but we can't statically express that as constraints
+	// on T and R) but it's also possible to wrapper the original resource.
+	// Making the read-only view should be much cheaper than CloneFunc.
+	ReadOnlyFunc func(resource T) R
 	ResourceWatcherConfig
 	// ResourceKind specifies the kind of resource the watcher is monitoring.
 	ResourceKind string
@@ -622,6 +639,13 @@ func (cfg *GenericWatcherConfig[T, R]) CheckAndSetDefaults() error {
 
 	if cfg.ResourceKey == nil {
 		return trace.BadParameter("ResourceKey not provided to generic resource watcher")
+	}
+
+	if cfg.CloneFunc == nil {
+		return trace.BadParameter("CloneFunc not provided to generic resource watcher")
+	}
+	if cfg.ReadOnlyFunc == nil {
+		return trace.BadParameter("ReadOnlyFunc not provided to generic resource watcher")
 	}
 
 	if cfg.ResourceDiffer == nil {
@@ -698,13 +722,9 @@ func (g *GenericWatcher[T, R]) CurrentResourcesWithFilter(ctx context.Context, f
 	g.rw.RLock()
 	defer g.rw.RUnlock()
 
-	r := func(a any) R {
-		return a.(R)
-	}
-
 	var out []T
 	for _, resource := range g.current {
-		if filter(r(resource)) {
+		if filter(g.ReadOnlyFunc(resource)) {
 			out = append(out, g.CloneFunc(resource))
 		}
 	}
@@ -712,7 +732,8 @@ func (g *GenericWatcher[T, R]) CurrentResourcesWithFilter(ctx context.Context, f
 	return out, nil
 }
 
-// genericCollector accompanies resourceWatcher when monitoring proxies.
+// genericCollector accompanies resourceWatcher when monitoring proxies. T is
+// the resource type, R is a read-only view over T.
 type genericCollector[T any, R any] struct {
 	GenericWatcherConfig[T, R]
 	// current holds a map of the currently known resources (keyed by server name,
@@ -1373,6 +1394,9 @@ func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*GenericWatcher
 		ResourceKey:            types.Server.GetName,
 		DisableUpdateBroadcast: true,
 		CloneFunc:              types.Server.DeepCopy,
+		ReadOnlyFunc: func(resource types.Server) readonly.Server {
+			return resource
+		},
 	})
 	return w, trace.Wrap(err)
 }
@@ -1724,6 +1748,9 @@ func NewGitServerWatcher(ctx context.Context, cfg GitServerWatcherConfig) (*Gene
 		ResourceKey:            types.Server.GetName,
 		DisableUpdateBroadcast: !cfg.EnableUpdateBroadcast,
 		CloneFunc:              types.Server.DeepCopy,
+		ReadOnlyFunc: func(resource types.Server) readonly.Server {
+			return resource
+		},
 	})
 	return w, trace.Wrap(err)
 }
@@ -1769,6 +1796,9 @@ func NewHealthCheckConfigWatcher(
 		},
 		ResourcesC: cfg.ResourcesC,
 		CloneFunc:  apiutils.CloneProtoMsg[*healthcheckconfigv1.HealthCheckConfig],
+		ReadOnlyFunc: func(resource *healthcheckconfigv1.HealthCheckConfig) *healthcheckconfigv1.HealthCheckConfig {
+			return resource
+		},
 	})
 	return w, trace.Wrap(err)
 }

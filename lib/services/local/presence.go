@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"sort"
 	"time"
@@ -787,6 +788,60 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.Semaph
 	}
 
 	return sems, nil
+}
+
+func (s *PresenceService) rangeSemaphores(ctx context.Context, start string, filter *types.SemaphoreFilter) iter.Seq2[types.Semaphore, error] {
+	mapFn := func(item backend.Item) (types.Semaphore, bool) {
+		sem, err := services.UnmarshalSemaphore(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal semaphore",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
+		}
+
+		return sem, filter.Match(sem)
+	}
+
+	startKey := backend.NewKey(semaphoresPrefix).AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(backend.NewKey(semaphoresPrefix))
+
+	filterKind := filter.GetSemaphoreKind()
+	filterName := filter.GetSemaphoreName()
+
+	// If the filter is set we optimize the ranges to avoid fetching items that will be filtered.
+	if filterKind != "" && filterName != "" {
+		// Special case when both kind and name are set the result should yield only a single item.
+		startKey = backend.NewKey(semaphoresPrefix, filterKind, filterName)
+		endKey = startKey
+	} else if filterKind != "" {
+		// Terminate range early as we know the only kind requested.
+		endKey = backend.RangeEnd(backend.NewKey(semaphoresPrefix, filterKind))
+		if start == "" {
+			// We are not resuming previous list, skip to the start of the correct kind range
+			startKey = backend.NewKey(semaphoresPrefix, filterKind)
+		}
+	}
+
+	return stream.FilterMap(
+		s.Backend.Items(ctx, backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   endKey,
+		}),
+		mapFn,
+	)
+}
+
+func semaphoreToPageToken(sem types.Semaphore) string {
+	return sem.GetSubKind() + backend.SeparatorString + sem.GetName()
+}
+
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (s *PresenceService) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	return generic.CollectPageAndCursor(s.rangeSemaphores(ctx, start, filter), limit, semaphoreToPageToken)
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter

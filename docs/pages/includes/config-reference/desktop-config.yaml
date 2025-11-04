@@ -76,8 +76,9 @@ windows_desktop_service:
   pki_domain: root.example.com
 
   # (optional) Configures the address of the Kerberos Key Distribution Center,
-  # which is used to support RDP Network Level Authentication (NLA).
-  # If empty, the LDAP address will be used instead.
+  # which is used to support RDP Network Level Authentication (NLA). When set,
+  # this field takes priority over locate_server. If empty and locate_server
+  # is disabled, the LDAP address will be used instead.
   #
   # example: kdc.example.com:88.
   # The port is optional and defaults to port 88 if unspecified.

@@ -6,7 +6,10 @@
   "scripts": {
     "start": "pnpm build-wasm && vite",
     "build": "pnpm build-wasm && vite build",
-    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
+    "event-reference": "pnpm event-reference:build && pnpm event-reference:gen",
+    "event-reference:build": "vite --config ../build/vite/gen-event-reference-config.mts build",
+    "event-reference:gen": "node ./src/services/audit/gen-event-reference/dist/gen-event-reference.js ../../../docs/pages/reference/audit-events.mdx"
   },
   "author": "Gravitational, Inc.",
   "license": "Apache-2.0",
