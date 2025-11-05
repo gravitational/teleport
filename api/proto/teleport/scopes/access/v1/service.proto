@@ -158,6 +158,12 @@ message ListScopedRoleAssignmentsRequest {
 
   // Role optionally limits the list to assignments for a specific role.
   string role = 6;
+
+  // AllCallerAssignments, if set to true, overrides the default behavior in favor of returning all
+  // assignments that apply to the caller, including those assigned in parent/orthogonal scopes. This flag
+  // is specifically used to support users discovering where they have been granted privileges across scopes,
+  // and is not intended for general use.
+  bool all_caller_assignments = 7;
 }
 
 // ListScopedRoleAssignmentsResponse is the response to list scoped role assignments.
