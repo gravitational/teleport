@@ -1,30 +1,106 @@
 ---
 title: Windows Desktops
-description: Guides to protecting Windows desktops with Teleport
+description: Protect Windows Resources with Teleport's passwordless access and other features.
+template: doc-page
 tags:
  - zero-trust
  - infrastructure-identity
 ---
 
-The guides in this section explain how to protect Windows desktops with
-Teleport.
+import DocHero from "@site/src/components/Pages/Landing/DocHero";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
 
-## Getting started
+import userCheckSvg from "@site/src/components/Icon/svg/user-check.svg";
+import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+import slidersHorizontalSvg from "@site/src/components/Icon/svg/sliders-horizontal.svg";
+import keyholeSvg from "@site/src/components/Icon/svg/keyhole.svg";
+import activeDirectorySvg from "@site/src/components/Icon/svg/active-directory.svg";
+import windowsSvg from "@site/src/components/Icon/svg/windows2.svg";
+import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
+import folderNotchOpenSvg from "@site/src/components/Icon/svg/folder-notch-open.svg";
 
-- [Manage Access to Windows Resources](./introduction.mdx): Demonstrates how you can manage access to Windows desktops with Teleport.
-
-## Guides
-
-- [Configure access for local Windows users](./getting-started.mdx): Use Teleport to configure passwordless access for local Windows users.
-- [Configure access for Active Directory manually](./active-directory.mdx): Explains how to manually connect Teleport to an Active Directory domain.
-- [Directory Sharing](./directory-sharing.mdx): Teleport desktop Directory Sharing lets you easily send files to a remote desktop.
-- [Dynamic Windows Desktop Registration](./dynamic-registration.mdx): Register/unregister Windows desktops without restarting Teleport.
-
-## Configuration & management
-
-- [Role-Based Access Control for Desktops](./rbac.mdx): Role-based access control (RBAC) for desktops protected by Teleport.
-
-## Troubleshooting & support
-
-- [Troubleshooting](./troubleshooting.mdx): Common issues and resolutions for
-  protecting Windows desktops with Teleport.
+<DocHero
+  title="Configure access for local Windows users"
+  youtubeVideoId={
+    // cspell:disable-next-line
+    "n2h0GisWdss"
+  }
+  ctaLinks={[
+    {
+      title: "Get started with Windows access",
+      href: "./getting-started/",
+      variant: "secondary",
+      arrow: true,
+    },
+  ]}
+  linksDesktopColumnCount={3}
+  links={[
+    {
+      title: "Windows desktop RBAC",
+      description: "Set up granular access policies for Windows desktops connected to Teleport.",
+      href: "./rbac/",
+      icon: userCheckSvg,
+    }, 
+    {
+      title: "Desktop config options",
+      description: "Configure access, audit events, sessions recordings, user creation and more.",
+      href: "../../reference/agent-services/desktop-access-reference/",
+      icon: slidersHorizontalSvg,
+    },
+    {
+      title: "Troubleshooting",
+      description: "Common Windows desktop access issues with Teleport and their solutions.",
+      href: "./troubleshooting/",
+      icon: questionSvg,
+    },
+  ]}
+>
+Provide secure, passwordless access to Microsoft Windows desktops and servers, backed by short-lived certificates, role-based access controls, clipboard and directory sharing, session recordings, and detailed audit logs.
+</DocHero>
+{/*vale messaging.protocol-products = NO*/}
+<Resources
+  title="Access guides"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Intro to Windows desktop access",
+      description: "Windows desktop and server access with clipboard and file sharing, session recording, and audit logs.",
+      iconComponent: keyholeSvg,
+      href: "./introduction/"
+    },
+    {
+      title: "Active Directory",
+      description: "Connect an Active Directory domain and log into a Windows Desktop from the connected domain.",
+      iconComponent: activeDirectorySvg,
+      href: "./active-directory/"
+    },
+    {
+      title: "Local Windows users",
+      description: "Provide secure, passwordless access to Microsoft Windows desktops for local Windows users.",
+      iconComponent: windowsSvg,
+      href: "./getting-started/"
+    },
+  ]}
+/>
+{/*vale messaging.protocol-products = YES*/}
+<Resources
+  title="Common tasks and config settings"
+  variant="doc"
+  desktopColumnsCount={2}
+  resources={[
+    {
+      title: "Dynamic Windows desktop registration",
+      description: "Add, update or remove desktops without changing the static configuration files used for Teleport Windows Desktop Service instances.",
+      iconComponent: windowsDesktopsSvg,
+      href: "./dynamic-registration/"
+    },
+    {
+      title: "Directory sharing",
+      description: "Securely move files between your local machine and a remote desktop, and apply file changes without extra steps and without compromising security.",
+      iconComponent: folderNotchOpenSvg,
+      href: "./directory-sharing/"
+    },
+  ]}
+/>
