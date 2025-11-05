@@ -49,6 +49,21 @@ func envVarsFromInstallerParams(params *types.InstallerParams) []string {
 		envVars = append(envVars, "TELEPORT_UPDATE_GROUP="+safeUpdateGroup)
 	}
 
+	if params.HTTPProxySettings != nil {
+		if params.HTTPProxySettings.HTTPProxy != "" {
+			safeHTTPProxy := shsprintf.EscapeDefaultContext(params.HTTPProxySettings.HTTPProxy)
+			envVars = append(envVars, "HTTP_PROXY="+safeHTTPProxy)
+		}
+		if params.HTTPProxySettings.HTTPSProxy != "" {
+			safeHTTPSProxy := shsprintf.EscapeDefaultContext(params.HTTPProxySettings.HTTPSProxy)
+			envVars = append(envVars, "HTTPS_PROXY="+safeHTTPSProxy)
+		}
+		if params.HTTPProxySettings.NoProxy != "" {
+			safeNoProxy := shsprintf.EscapeDefaultContext(params.HTTPProxySettings.NoProxy)
+			envVars = append(envVars, "NO_PROXY="+safeNoProxy)
+		}
+	}
+
 	return envVars
 }
 

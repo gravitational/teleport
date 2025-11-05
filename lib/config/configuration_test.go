@@ -4997,6 +4997,51 @@ func TestDiscoveryConfig(t *testing.T) {
 			}},
 		},
 		{
+			desc:          "AWS section is filled custom HTTP Proxy Settings",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-west-1"},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+							"http_proxy_settings": cfgMap{
+								"http_proxy":  "http://squid-local:8080",
+								"https_proxy": "http://squid-local:8081",
+								"no_proxy":    "intranet.local,localhost",
+							},
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types: []string{"ec2"},
+				SSM: &types.AWSSSM{
+					DocumentName: types.AWSInstallerDocument,
+				},
+				Regions: []string{"eu-west-1"},
+				Tags:    map[string]apiutils.Strings{"*": {"*"}},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					HTTPProxySettings: &types.HTTPProxySettings{
+						HTTPProxy:  "http://squid-local:8080",
+						HTTPSProxy: "http://squid-local:8081",
+						NoProxy:    "intranet.local,localhost",
+					},
+				},
+			}},
+		},
+		{
 			desc:          "Azure section is filled with defaults (vm)",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
