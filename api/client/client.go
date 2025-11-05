@@ -27,6 +27,7 @@ import (
 	"iter"
 	"log/slog"
 	"net"
+	"net/url"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -498,13 +499,6 @@ func dialerConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
-var serviceConfig = `{
-	"loadBalancingConfig": [{"teleport_pick_healthy":{}}],
-	"healthCheckConfig": {
-		"serviceName": ""
-	}
-}`
-
 // dialGRPC dials a connection between server and client.
 func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialContext, cancel := context.WithTimeout(ctx, c.c.DialTimeout)
@@ -514,11 +508,17 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	pingURL, err := url.JoinPath(addr, "/webapi/ping")
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
-		grpc.WithDefaultServiceConfig(serviceConfig),
+		grpc.WithResolvers(teleportResolverBuilder{
+			PingURL: pingURL,
+		}),
 		grpc.WithChainUnaryInterceptor(
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
