@@ -552,6 +552,30 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
 	require.NotEqual(t, secondCallForClient, thirdCallForClient)
+
+	// Test closing stale clients.
+	fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	err = daemonService.ClearCachedStaleClientsForRoot(cluster.URI)
+	require.NoError(t, err)
+	// Ensure the client wasn't closed.
+	fifthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.Equal(t, fourthCallForClient, fifthCallForClient)
+	// Reissue user certs by assuming a role with a bogus ID in DropAccessRequests.
+	accessRequest := &api.AssumeRoleRequest{
+		RootClusterUri: cluster.URI.String(),
+		DropRequestIds: []string{"does-not-matter"},
+	}
+	err = cluster.AssumeRole(ctx, fourthCallForClient, accessRequest)
+	require.NoError(t, err)
+	// The cert has changed, so after clearing stale clients,
+	// GetCachedClient should return a new client.
+	err = daemonService.ClearCachedStaleClientsForRoot(cluster.URI)
+	require.NoError(t, err)
+	sixthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.NotEqual(t, fifthCallForClient, sixthCallForClient)
 }
 
 func testLogout(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {

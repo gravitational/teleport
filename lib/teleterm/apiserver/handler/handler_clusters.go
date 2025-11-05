@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -81,6 +82,17 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 	apiRootClusterWithDetails, err := newAPIRootClusterWithDetails(cluster)
 
 	return apiRootClusterWithDetails, trace.Wrap(err)
+}
+
+// ClearStaleClusterClients closes root and leaf cluster clients that use outdated TLS certificates.
+func (s *Handler) ClearStaleClusterClients(_ context.Context, req *api.ClearStaleClusterClientsRequest) (*api.ClearStaleClusterClientsResponse, error) {
+	parsed, err := uri.Parse(req.RootClusterUri)
+	if err != nil {
+		return &api.ClearStaleClusterClientsResponse{}, trace.Wrap(err)
+	}
+
+	err = s.DaemonService.ClearCachedStaleClientsForRoot(parsed)
+	return &api.ClearStaleClusterClientsResponse{}, trace.Wrap(err)
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
