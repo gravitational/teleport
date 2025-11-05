@@ -692,10 +692,8 @@ export function AppAccessSection({
           tooltipContent={
             <>
               List of Azure managed identities allowed to assume when accessing
-              Azure CLIs and APIs. Example format:{' '}
-              <Mark>
-                /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.ManagedIdentity/userAssignedIdentities/IDENTITY_NAME
-              </Mark>
+              Azure CLIs and APIs. Example format:
+              /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.ManagedIdentity/userAssignedIdentities/IDENTITY_NAME
             </>
           }
         />
@@ -714,6 +712,12 @@ export function AppAccessSection({
               ? undefined
               : precomputed(validation.fields.gcpServiceAccounts)
           }
+          tooltipContent={
+            <>
+              List of Google Cloud Platform service accounts allowed to assume
+              when accessing Google Cloud APIs.
+            </>
+          }
         />
       )}
       {show.mcpTools && (
@@ -724,6 +728,15 @@ export function AppAccessSection({
           onChange={mcpTools => onChange?.({ ...value, mcpTools: mcpTools })}
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.mcpTools)}
+          tooltipContent={
+            <>
+              List of Modern Content Protocol (MCP) tools allowed to access.
+              Each entry can be a literal string (e.g. search-files), a glob
+              pattern (e.g. slack_*), or a regular expression that must start
+              with &apos;^&apos; and end with &apos;$&apos; (e.g.
+              ^(get|list).*$). A wildcard &apos;*&apos; allows all tools.
+            </>
+          }
         />
       )}
     </Flex>
