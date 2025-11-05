@@ -36,6 +36,11 @@ func FormatErrorResponse(statusCode int, detail string) ([]byte, error) {
 }
 
 func decodeError(resp *http.Response) error {
+	switch resp.StatusCode {
+	case http.StatusPreconditionFailed:
+		return trace.CompareFailed("Resource version mismatch")
+	}
+
 	var errResp ErrorResponse
 	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 		return trace.BadParameter("unexpected status code: %v", resp.StatusCode)

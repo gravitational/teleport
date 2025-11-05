@@ -111,6 +111,9 @@ func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, htt
 		case trace.IsNotImplemented(err):
 			statusCode = http.StatusNotImplemented
 
+		case trace.IsCompareFailed(err):
+			statusCode = http.StatusPreconditionFailed
+
 		default:
 			statusCode = http.StatusInternalServerError
 		}
@@ -201,6 +204,7 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 		"resource_type", resourceType,
 		"resource_id", resourceID,
 	)
+	log.InfoContext(r.Context(), "SCIM Get resource")
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
 	resource, err := scimClient.GetSCIMResource(r.Context(), &scimpb.GetSCIMResourceRequest{
@@ -220,7 +224,8 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	writeSCIMResponse(w, http.StatusOK, body)
+	writeSCIMResponse(w, http.StatusOK, body,
+		withETag(resource.GetMeta().GetVersion()))
 	return nil
 }
 
@@ -245,7 +250,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	log.DebugContext(r.Context(), "Creating new resource")
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	updated, err := scimClient.CreateSCIMResource(r.Context(), &scimpb.CreateSCIMResourceRequest{
+	created, err := scimClient.CreateSCIMResource(r.Context(), &scimpb.CreateSCIMResourceRequest{
 		Target: &scimpb.RequestTarget{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
@@ -258,7 +263,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 		return trace.Wrap(err)
 	}
 
-	body, err := scimsdk.MarshalResource(updated)
+	body, err := scimsdk.MarshalResource(created)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -272,7 +277,8 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	// This is consistent with Okta behavior
 	// https://developer.okta.com/docs/api/openapi/okta-scim/guides/scim-20/#create-the-user
 	// when 201 is returned when a new user is created.
-	writeSCIMResponse(w, http.StatusCreated, body)
+	writeSCIMResponse(w, http.StatusCreated, body,
+		withETag(created.GetMeta().GetVersion()))
 	return nil
 }
 
@@ -318,7 +324,8 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	writeSCIMResponse(w, http.StatusOK, body)
+	writeSCIMResponse(w, http.StatusOK, body,
+		withETag(updated.GetMeta().GetVersion()))
 	return nil
 }
 
@@ -376,7 +383,7 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 }
 
 func (p *Plugin) scimLogRequest(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
-	p.Logger.InfoContext(r.Context(), "Unexpected SCIM request",
+	p.Logger.WarnContext(r.Context(), "Unexpected SCIM request",
 		"method", r.Method,
 		"path", r.URL.Path,
 		"query", r.URL.Query(),
@@ -409,7 +416,30 @@ func (p *Plugin) getToken(w http.ResponseWriter, r *http.Request, params httprou
 	return uiResp, nil
 }
 
-func writeSCIMResponse(w http.ResponseWriter, statusCode int, body []byte) {
+type scimResponseOptions struct {
+	etag string
+}
+
+type scimResponseOption func(*scimResponseOptions)
+
+func withETag(etag string) scimResponseOption {
+	return func(opts *scimResponseOptions) {
+		opts.etag = etag
+	}
+}
+
+func writeSCIMResponse(w http.ResponseWriter, statusCode int, body []byte, options ...scimResponseOption) {
+	opts := scimResponseOptions{}
+	for _, applyOption := range options {
+		applyOption(&opts)
+	}
+
+	// for versioned resources, the server must supply an ETag header which is
+	// identical to the SCIM resource version.
+	// See https://datatracker.ietf.org/doc/html/rfc7644#section-3.14
+	if opts.etag != "" {
+		w.Header().Set("ETag", opts.etag)
+	}
 	if len(body) > 0 {
 		w.Header().Set(scimsdk.ContentTypeHeader, scimsdk.ContentType)
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))

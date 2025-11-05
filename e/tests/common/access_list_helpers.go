@@ -1,15 +1,19 @@
 package common
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // AccessListConfig holds the configurable fields for creating an AccessList.
@@ -164,4 +168,18 @@ func CreateAccessListMember(t *testing.T, sut *SUT, aclName, memberName string, 
 	member, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.UpsertAccessListMember(ctx, member)
 	require.NoError(t, err)
 	return member
+}
+
+func GetAccessListMembers(t *testing.T, sut *SUT, aclName string) []*accesslist.AccessListMember {
+	getPage := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+		page, nextToken, err := sut.Teleport.Process.GetAuthServer().AccessListsInternal.ListAccessListMembers(ctx, aclName, pageSize, pageToken)
+		return page, nextToken, trace.Wrap(err)
+	}
+	results, err := stream.Collect(clientutils.Resources(t.Context(), getPage))
+	require.NoError(t, err)
+	return results
+}
+
+func GetAccessListMemberName(m *accesslist.AccessListMember) string {
+	return m.GetName()
 }

@@ -204,7 +204,7 @@ func TestGroupGet(t *testing.T) {
 				require.ElementsMatch(t, []string{schema.GroupSchema}, r.Schemas)
 				require.Equal(t, "Group", r.Meta.ResourceType)
 				require.Equal(t, "/Groups/"+expectedName, r.Meta.Location)
-				require.Equal(t, "revision-Access-List-000", r.Meta.Version)
+				require.Equal(t, `W/"revision-Access-List-000"`, r.Meta.Version)
 
 				attributes := r.Attributes.AsMap()
 				require.Equal(t,

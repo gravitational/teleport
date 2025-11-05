@@ -179,12 +179,42 @@ func (h schemaHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRe
 	}, nil
 }
 
-// GroupAttribute is the group resource SCIM schema definition.
-var GroupAttribute = Schema{
-	Name:        "Group",
-	Description: "Group Schema",
+// commonSchema defines the schema attributes common to all SCIM resource schemata.
+var commonSchema = Schema{
+	Name:        "Resource",
+	Description: "Generic Resource Schema",
 	Attributes: []Attribute{
 		{
+			Name:        "meta",
+			Type:        "complex",
+			Required:    true,
+			Description: "Resource Metadata",
+			MultiValued: false,
+			Mutability:  "readOnly",
+			Returned:    "default",
+			SubAttributes: []Attribute{
+				{
+					Name:        "version",
+					Type:        "string",
+					Description: "The resource version",
+					Required:    false,
+					MultiValued: false,
+					Mutability:  "readOnly",
+					Returned:    "default",
+					CaseExact:   true,
+				},
+			},
+		},
+	},
+}
+
+// GroupSchema is the group resource SCIM schema definition.
+var GroupSchema = Schema{
+	Name:        "Group",
+	Description: "Group Schema",
+	Attributes: append(
+		commonSchema.Attributes,
+		Attribute{
 			Name:        "displayName",
 			Type:        "string",
 			MultiValued: false,
@@ -195,7 +225,7 @@ var GroupAttribute = Schema{
 			Returned:    "default",
 			Uniqueness:  "none",
 		},
-		{
+		Attribute{
 			Name:        "members",
 			Type:        "complex",
 			MultiValued: true,
@@ -217,11 +247,10 @@ var GroupAttribute = Schema{
 				},
 			},
 		},
-	},
-}
+	)}
 
 func buildGroupSchemaResource() *scimpb.Resource {
-	groupAttrs, err := structToPB(GroupAttribute)
+	groupAttrs, err := structToPB(GroupSchema)
 	if err != nil {
 		return nil
 	}
@@ -236,12 +265,13 @@ func buildGroupSchemaResource() *scimpb.Resource {
 	}
 }
 
-// UserAttribute is the user resource SCIM schema definition.
-var UserAttribute = Schema{
+// UserSchema is SCIM user resource schema definition.
+var UserSchema = Schema{
 	Name:        "User",
 	Description: "User Schema",
-	Attributes: []Attribute{
-		{
+	Attributes: append(
+		commonSchema.Attributes,
+		Attribute{
 			Name:        "userName",
 			Type:        "string",
 			MultiValued: false,
@@ -252,7 +282,7 @@ var UserAttribute = Schema{
 			Returned:    "default",
 			Uniqueness:  "server",
 		},
-		{
+		Attribute{
 			Name:        "active",
 			Type:        "boolean",
 			MultiValued: false,
@@ -261,7 +291,7 @@ var UserAttribute = Schema{
 			Mutability:  "readWrite",
 			Returned:    "default",
 		},
-		{
+		Attribute{
 			Name:        "groups",
 			Type:        "complex",
 			MultiValued: true,
@@ -283,12 +313,12 @@ var UserAttribute = Schema{
 				},
 			},
 		},
-	},
+	),
 }
 
 // buildUserSchemaResource builds the SCIM schema resource for Users.
 func buildUserSchemaResource() *scimpb.Resource {
-	userAttrs, err := structToPB(UserAttribute)
+	userAttrs, err := structToPB(UserSchema)
 	if err != nil {
 		return nil
 	}

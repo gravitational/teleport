@@ -57,7 +57,8 @@ func (h *userHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIM
 		return nil, trace.Wrap(err)
 	}
 
-	return conv.UserToResource(teleportUser, conv.WithExternalIDFunc(userExternalID))
+	return conv.UserToResource(teleportUser,
+		conv.WithExternalIDFunc(userExternalID))
 }
 
 func (h *userHandler) createOrUpdateUser(ctx context.Context, scimUser types.User) (types.User, error) {

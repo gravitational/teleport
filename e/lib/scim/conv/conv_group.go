@@ -37,7 +37,7 @@ func AccessListToResource(accessList *accesslist.AccessList, members []*accessli
 		Id: accessList.GetName(),
 		Meta: &scimpb.Meta{
 			ResourceType: common.ResourceTypeGroup,
-			Version:      accessList.GetRevision(),
+			Version:      VersionAsETag(accessList.GetRevision()),
 		},
 		Attributes: attrs,
 	}
@@ -98,7 +98,7 @@ func AccessListFromResource(r *scimpb.Resource, opts ...AccessListToResourceFunc
 			Metadata: header.Metadata{
 				Name:     options.accessListName,
 				Labels:   maps.Clone(options.accessListLabels),
-				Revision: r.GetMeta().GetVersion(),
+				Revision: ResourceVersion(r),
 			},
 		},
 		Spec: accesslist.Spec{

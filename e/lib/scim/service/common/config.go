@@ -182,6 +182,10 @@ type AccessListsService interface {
 	// UpsertAccessListWithMembers creates or updates an entire access list at
 	// once
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+	// UpdateAccessListAndOverwriteMembers conditionally updates the access list,
+	// overwriting the list's members if successful.
+	UpdateAccessListAndOverwriteMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
 	// ListAccessListMembers pages over the known members of a given AccessList
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// DeleteAccessListMember deletes a specific AccessList membership

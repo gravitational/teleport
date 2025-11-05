@@ -7,6 +7,7 @@ import (
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/lister"
 )
@@ -63,7 +64,7 @@ func (h *UserHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 		return nil, trace.NotFound("%s", req.GetResource().GetId())
 	}
 
-	if user.GetRevision() != req.GetResource().GetMeta().GetVersion() {
+	if user.GetRevision() != conv.ResourceVersion(req.GetResource()) {
 		return nil, trace.CompareFailed("invalid revision: %q != %q", user.GetRevision(), req.GetResource().GetMeta().GetVersion())
 	}
 

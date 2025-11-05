@@ -5,6 +5,7 @@ import (
 	"io"
 	"maps"
 	"reflect"
+	"strconv"
 	"time"
 
 	scimSchema "github.com/elimity-com/scim/schema"
@@ -16,6 +17,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	scimconv "github.com/gravitational/teleport/e/lib/scim/conv"
 )
 
 const (
@@ -276,6 +278,7 @@ func ToUser(user types.User, options ...userOption) *User {
 		Schemas: []string{scimSchema.UserSchema},
 		Meta: &Metadata{
 			ResourceType: ResourceTypeUser,
+			Version:      scimconv.VersionAsETag(user.GetVersion()),
 		},
 		ExternalID:  user.GetName(),
 		UserName:    user.GetName(),
@@ -317,6 +320,7 @@ func ToGroup(acl *accesslist.AccessList, options ...groupOption) *Group {
 	g := &Group{
 		Meta: &Metadata{
 			ResourceType: ResourceTypeGroup,
+			Version:      strconv.Quote(acl.Version),
 		},
 		Schemas:     []string{scimSchema.GroupSchema},
 		DisplayName: acl.Spec.Title,

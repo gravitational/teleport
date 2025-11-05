@@ -2,9 +2,12 @@ package scim
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,7 +17,12 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
+
+func getSCIMUserName(u *scimsdk.User) string {
+	return u.UserName
+}
 
 func TestSCIMGeneric(t *testing.T) {
 	sut := common.InitSUT(t,
@@ -74,41 +82,40 @@ func TestSCIMGeneric(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, acls, 1)
 
-	t.Run("Add single member to group", func(t *testing.T) {
-		group, err := scimClient.GetGroup(t.Context(), createdGroup.ID)
-		require.NoError(t, err)
+	t.Run("Add members to group", func(t *testing.T) {
+		users := []*scimsdk.User{scimUser1, scimUser2}
 
-		group.Members = append(group.Members, &scimsdk.GroupMember{
-			ExternalID: scimUser1.UserName,
-		})
-		group, err = scimClient.UpdateGroup(t.Context(), group)
-		require.NoError(t, err)
+		for i, user := range users {
+			t.Run(strconv.Itoa(i+1), func(t *testing.T) {
+				group, err := scimClient.GetGroup(t.Context(), createdGroup.ID)
+				require.NoError(t, err)
 
-		members, _, err := aclClient.ListAccessListMembers(t.Context(), group.ID, 0, "")
-		require.NoError(t, err)
-		require.Len(t, members, 1)
-		require.Equal(t, scimUser1.UserName, members[0].GetName())
-		require.Equal(t, "SCIM", members[0].Spec.AddedBy)
-	})
+				group.Members = append(group.Members, &scimsdk.GroupMember{
+					ExternalID: user.UserName,
+				})
+				group, err = scimClient.UpdateGroup(t.Context(), group)
+				require.NoError(t, err)
 
-	t.Run("Add second member to group", func(t *testing.T) {
-		createdGroup.Members = []*scimsdk.GroupMember{
-			{ExternalID: scimUser1.UserName},
-			{ExternalID: scimUser2.UserName},
+				accessListMembers := common.GetAccessListMembers(t, sut, group.ID)
+				require.Len(t, accessListMembers, i+1)
+				require.ElementsMatch(t,
+					sliceutils.Map(accessListMembers, common.GetAccessListMemberName),
+					sliceutils.Map(users[:i+1], getSCIMUserName))
+
+				for _, m := range accessListMembers {
+					require.Equal(t, "SCIM", m.Spec.AddedBy)
+				}
+			})
 		}
-		_, err := scimClient.UpdateGroup(t.Context(), createdGroup)
-		require.NoError(t, err)
-
-		members, _, err := aclClient.ListAccessListMembers(t.Context(), createdGroup.ID, 0, "")
-		require.NoError(t, err)
-		require.Len(t, members, 2)
 	})
 
 	t.Run("Remove first member from group", func(t *testing.T) {
-		createdGroup.Members = []*scimsdk.GroupMember{
+		group, err := scimClient.GetGroup(t.Context(), createdGroup.ID)
+		require.NoError(t, err)
+		group.Members = []*scimsdk.GroupMember{
 			{ExternalID: scimUser2.UserName},
 		}
-		_, err := scimClient.UpdateGroup(t.Context(), createdGroup)
+		_, err = scimClient.UpdateGroup(t.Context(), group)
 		require.NoError(t, err)
 
 		members, _, err := aclClient.ListAccessListMembers(t.Context(), createdGroup.ID, 0, "")
@@ -228,6 +235,198 @@ func TestOIDCConnector(t *testing.T) {
 			Identity: user.ExternalID,
 		}, u.GetCreatedBy().Connector)
 	}
+}
+
+func copy[T any](value *T) *T {
+	copy := *value
+	return &copy
+}
+
+func asMember(user *scimsdk.User) *scimsdk.GroupMember {
+	return &scimsdk.GroupMember{ExternalID: user.ID}
+}
+
+// TestOverlappedGroupUpdates asserts that updates based on an old revision of a
+// Group are considered and error.
+func TestOverlappedGroupUpdates(t *testing.T) {
+	const groupName = "test-group-001"
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	scimToken := createGenericSCIMPlugin(t, sut)
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+
+	// GIVEN some users in the cluster...
+	var users []*scimsdk.User
+	for i := range 10 {
+		user, err := scimClient.CreateUser(t.Context(), newSCIMUser(fmt.Sprintf("scim-user-%03d", i)))
+		require.NoError(t, err)
+		users = append(users, user)
+	}
+
+	// GIVEN an Access List...
+	common.CreateAccessList(t, sut,
+		common.WithName(groupName),
+		common.WithAccessListType(accesslist.SCIM),
+		common.WithOwners("alice-admin"),
+		common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+	)
+	originalGroup, err := scimClient.GetGroup(t.Context(), groupName)
+	require.NoError(t, err)
+
+	// GIVEN a SCIM Group update that will change the underlying resource's
+	// version string
+	updatedGroup := copy(originalGroup)
+	updatedGroup.Members = sliceutils.Map(users, asMember)
+	updatedGroup, err = scimClient.UpdateGroup(t.Context(), updatedGroup)
+	require.NoError(t, err)
+	require.NotEqual(t, updatedGroup.Meta.Version, originalGroup.Meta.Version,
+		"Expected resource version to change")
+
+	// WHEN I attempt to update the Access List based on the original, unmodified
+	// group...
+	overlappedGroup := copy(originalGroup)
+	overlappedGroup.Members = sliceutils.Map(users[2:], asMember)
+	_, err = scimClient.UpdateGroup(t.Context(), overlappedGroup)
+
+	// EXPECT the update to fail
+	var conflictErr *trace.CompareFailedError
+	require.ErrorAs(t, err, &conflictErr)
+
+	// EXPECT that the remote group members still match the first update
+	finalGroup, err := scimClient.GetGroup(t.Context(), groupName)
+	require.NoError(t, err)
+	require.ElementsMatch(t, updatedGroup.Members, finalGroup.Members)
+}
+
+// TestUnversionedOverlappedGroupUpdates asserts that group updates with no
+// version specified still succeed. This behavior is for backwards
+// compatibility with previous releases of Teleport.
+func TestUnversionedOverlappedGroupUpdates(t *testing.T) {
+	const groupName = "test-group-001"
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	scimToken := createGenericSCIMPlugin(t, sut)
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+
+	// GIVEN some users in the cluster...
+	var users []*scimsdk.User
+	for i := range 10 {
+		user, err := scimClient.CreateUser(t.Context(), newSCIMUser(fmt.Sprintf("scim-user-%03d", i)))
+		require.NoError(t, err)
+		users = append(users, user)
+	}
+
+	// GIVEN an Access List...
+	common.CreateAccessList(t, sut,
+		common.WithName(groupName),
+		common.WithAccessListType(accesslist.SCIM),
+		common.WithOwners("alice-admin"),
+		common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+	)
+	originalGroup, err := scimClient.GetGroup(t.Context(), groupName)
+	require.NoError(t, err)
+
+	// GIVEN a SCIM Group update that will change the underlying resource's
+	// version string
+	updatedGroup := copy(originalGroup)
+	updatedGroup.Members = sliceutils.Map(users, asMember)
+	updatedGroup, err = scimClient.UpdateGroup(t.Context(), updatedGroup)
+	require.NoError(t, err)
+	require.NotEqual(t, updatedGroup.Meta.Version, originalGroup.Meta.Version,
+		"Expected resource version to change")
+
+	// WHEN I attempt to update the Access List based on the original, unmodified
+	// group, WITHOUT specifying a base revision...
+	overlappedGroup := copy(originalGroup)
+	overlappedGroup.Meta.Version = ""
+	overlappedGroup.Members = sliceutils.Map(users[2:], asMember)
+	overlappedGroup, err = scimClient.UpdateGroup(t.Context(), overlappedGroup)
+
+	// EXPECT the update to succeed and that the remote group members have been
+	// updated
+	require.NoError(t, err)
+	finalGroup, err := scimClient.GetGroup(t.Context(), groupName)
+	require.NoError(t, err)
+	require.ElementsMatch(t, overlappedGroup.Members, finalGroup.Members)
+}
+
+// TestOverlappedGroupUpdates asserts that updates based on an old revision of a
+// User are considered and error.
+func TestOverlappedUserUpdates(t *testing.T) {
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	scimToken := createGenericSCIMPlugin(t, sut)
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+
+	// GIVEN a SCIM-created user in the cluster
+	originalUser, err := scimClient.CreateUser(t.Context(), newSCIMUser("scim-user-001"))
+	require.NoError(t, err)
+
+	// GIVEN a SCIM User update that will change the underlying resource's
+	// version string
+	updatedUser := copy(originalUser)
+	updatedUser.DisplayName = "Updated!"
+	updatedUser, err = scimClient.UpdateUser(t.Context(), updatedUser)
+	require.NoError(t, err)
+	require.NotEqual(t, updatedUser.Meta.Version, originalUser.Meta.Version,
+		"Expected resource version to change")
+
+	// WHEN I attempt to update the User based on the original, unmodified
+	// group...
+	overlappedUser := copy(originalUser)
+	overlappedUser.DisplayName = "Overlapped Update!"
+	_, err = scimClient.UpdateUser(t.Context(), overlappedUser)
+
+	// EXPECT the update to fail
+	var conflictErr *trace.CompareFailedError
+	require.ErrorAs(t, err, &conflictErr)
+}
+
+// TestUnversionedOverlappedUserUpdates asserts that user updates with no
+// version specified still succeed. This behavior is for backwards
+// compatibility with previous releases of Teleport.
+func TestUnversionedOverlappedUserUpdates(t *testing.T) {
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	scimToken := createGenericSCIMPlugin(t, sut)
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+
+	// GIVEN a SCIM-created user in the cluster
+	originalUser, err := scimClient.CreateUser(t.Context(), newSCIMUser("scim-user-001"))
+	require.NoError(t, err)
+
+	// GIVEN a SCIM User update that will change the underlying resource's
+	// version string
+	updatedUser := copy(originalUser)
+	updatedUser.DisplayName = "Updated!"
+	updatedUser, err = scimClient.UpdateUser(t.Context(), updatedUser)
+	require.NoError(t, err)
+	require.NotEqual(t, updatedUser.Meta.Version, originalUser.Meta.Version,
+		"Expected resource version to change")
+
+	// WHEN I attempt to update the User based on the original, unmodified
+	// group...
+	overlappedUser := copy(originalUser)
+	overlappedUser.Meta.Version = ""
+	overlappedUser.DisplayName = "Overlapped Update!"
+	_, err = scimClient.UpdateUser(t.Context(), overlappedUser)
+
+	// EXPECT the update to succeed
+	require.NoError(t, err)
 }
 
 func newTeleportUser(t *testing.T, userName string, connRef types.ConnectorRef) types.User {

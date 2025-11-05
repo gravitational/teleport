@@ -78,7 +78,8 @@ func UserFromResource(r *scimpb.Resource, opts ...UserResourceOption) (types.Use
 		Time:      options.clock.Now().UTC(),
 		Connector: options.connectorRef,
 	})
-	user.SetRevision(r.GetMeta().GetVersion())
+
+	user.SetRevision(ResourceVersion(r))
 	addLabel(user, options.labels)
 	return user, nil
 }
@@ -100,7 +101,7 @@ func UserToResource(user types.User, opts ...UserResourceOption) (*scimpb.Resour
 		ExternalId: externalID,
 		Meta: &scimpb.Meta{
 			Created:      timestamppb.New(user.GetCreatedBy().Time),
-			Version:      user.GetRevision(),
+			Version:      VersionAsETag(user.GetRevision()),
 			ResourceType: common.ResourceTypeUser,
 		},
 	}

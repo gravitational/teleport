@@ -128,11 +128,11 @@ func (g groupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 
 	// Update title; fallback to current revision if missing
 	acl.Spec.Title = updatedACL.Spec.Title
-	if acl.GetRevision() == "" {
-		acl.SetRevision(acl.GetRevision())
+	if updatedACL.GetRevision() != "" {
+		acl.SetRevision(updatedACL.GetRevision())
 	}
 
-	newACL, newMembers, err := g.AccessListsService.UpsertAccessListWithMembers(ctx, acl, members)
+	newACL, newMembers, err := g.AccessListsService.UpdateAccessListAndOverwriteMembers(ctx, acl, members)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -106,7 +106,7 @@ func TestSCIMDiscovery(t *testing.T) {
 						},
 						"description": "User Schema",
 						"name":        "User",
-						"attributes":  generic.UserAttribute.Attributes,
+						"attributes":  generic.UserSchema.Attributes,
 					},
 					{
 						"id": "urn:ietf:params:scim:schemas:core:2.0:Group",
@@ -119,7 +119,7 @@ func TestSCIMDiscovery(t *testing.T) {
 						},
 						"name":        "Group",
 						"description": "Group Schema",
-						"attributes":  generic.GroupAttribute.Attributes,
+						"attributes":  generic.GroupSchema.Attributes,
 					},
 				},
 			},
@@ -137,7 +137,7 @@ func TestSCIMDiscovery(t *testing.T) {
 				"schemas": []string{
 					"urn:ietf:params:scim:schemas:core:2.0:User",
 				},
-				"attributes": generic.UserAttribute.Attributes,
+				"attributes": generic.UserSchema.Attributes,
 			},
 		},
 		{
@@ -153,7 +153,7 @@ func TestSCIMDiscovery(t *testing.T) {
 				"schemas": []string{
 					"urn:ietf:params:scim:schemas:core:2.0:Group",
 				},
-				"attributes": generic.GroupAttribute.Attributes,
+				"attributes": generic.GroupSchema.Attributes,
 			},
 		},
 		{

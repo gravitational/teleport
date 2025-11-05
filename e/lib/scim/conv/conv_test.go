@@ -20,7 +20,7 @@ func TestUserConv(t *testing.T) {
 	want := &scimpb.Resource{
 		Id: "alice@example.com",
 		Meta: &scimpb.Meta{
-			Version:      "version1",
+			Version:      `W/"version1"`,
 			ResourceType: common.ResourceTypeUser,
 		},
 		ExternalId: "external-id",
@@ -33,7 +33,7 @@ func TestUserConv(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "alice@example.com", u.GetName())
-	require.Equal(t, "version1", u.GetRevision())
+	require.Equal(t, `version1`, u.GetRevision())
 
 	got, err := UserToResource(u, WithExternalIDFunc(func(u types.User) string {
 		v, _ := u.GetLabel("external-id")
@@ -62,7 +62,7 @@ func TestGroupConv(t *testing.T) {
 	require.NoError(t, err)
 	want := &scimpb.Resource{
 		Meta: &scimpb.Meta{
-			Version:      "version1",
+			Version:      `W/"version1"`,
 			ResourceType: common.ResourceTypeGroup,
 		},
 		Attributes: attrs,
