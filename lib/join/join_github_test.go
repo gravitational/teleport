@@ -77,6 +77,26 @@ func (m *mockIDTokenValidator) ValidateJWKS(
 	return &claims, nil
 }
 
+func checkMockGithubValidatorState(t *testing.T, validator *mockIDTokenValidator, spec types.ProvisionTokenSpecV2) {
+	t.Helper()
+
+	require.Equal(
+		t,
+		spec.GitHub.EnterpriseServerHost,
+		validator.lastCalledGHESHost,
+	)
+	require.Equal(
+		t,
+		spec.GitHub.EnterpriseSlug,
+		validator.lastCalledEnterpriseSlug,
+	)
+	require.Equal(
+		t,
+		spec.GitHub.StaticJWKS,
+		validator.lastCalledJWKS,
+	)
+}
+
 func TestJoinGHA(t *testing.T) {
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockIDTokenValidator{
@@ -444,21 +464,7 @@ func TestJoinGHA(t *testing.T) {
 					return
 				}
 
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.EnterpriseServerHost,
-					idTokenValidator.lastCalledGHESHost,
-				)
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.EnterpriseSlug,
-					idTokenValidator.lastCalledEnterpriseSlug,
-				)
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.StaticJWKS,
-					idTokenValidator.lastCalledJWKS,
-				)
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
 			})
 
 			t.Run("new joinclient", func(t *testing.T) {
@@ -477,21 +483,7 @@ func TestJoinGHA(t *testing.T) {
 					return
 				}
 
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.EnterpriseServerHost,
-					idTokenValidator.lastCalledGHESHost,
-				)
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.EnterpriseSlug,
-					idTokenValidator.lastCalledEnterpriseSlug,
-				)
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.StaticJWKS,
-					idTokenValidator.lastCalledJWKS,
-				)
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
 			})
 
 			t.Run("legacy", func(t *testing.T) {
@@ -501,21 +493,7 @@ func TestJoinGHA(t *testing.T) {
 					return
 				}
 
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.EnterpriseServerHost,
-					idTokenValidator.lastCalledGHESHost,
-				)
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.EnterpriseSlug,
-					idTokenValidator.lastCalledEnterpriseSlug,
-				)
-				require.Equal(
-					t,
-					tt.tokenSpec.GitHub.StaticJWKS,
-					idTokenValidator.lastCalledJWKS,
-				)
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
 			})
 		})
 	}

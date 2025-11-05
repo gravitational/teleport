@@ -20,7 +20,6 @@ package githubactions
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -187,9 +186,6 @@ func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
 
-	if len(params.IDToken) == 0 {
-		return nil, trace.BadParameter("IDToken not provided for Github join request")
-	}
 	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
@@ -201,10 +197,7 @@ func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (
 	enterpriseSlug := token.Spec.GitHub.EnterpriseSlug
 	if enterpriseOverride != "" || enterpriseSlug != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, fmt.Errorf(
-				"github enterprise server joining: %w",
-				services.ErrRequiresEnterprise,
-			)
+			return nil, trace.Wrap(services.ErrRequiresEnterprise, "github enterprise server joining")
 		}
 	}
 

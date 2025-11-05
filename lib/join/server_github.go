@@ -40,6 +40,10 @@ func (a *Server) validateGithubToken(
 		JWKSValidator:  a.cfg.AuthService.GetGHAIDTokenJWKSValidator(),
 		Clock:          a.cfg.AuthService.GetClock(),
 	})
+
+	// If possible, attach claims and workload ID attrs regardless of the error
+	// return. If the token fails to validate, these claims will ensure audit
+	// events remain useful.
 	var workloadIDAttrs *workloadidentityv1.JoinAttrs
 	if claims != nil {
 		workloadIDAttrs = &workloadidentityv1.JoinAttrs{
