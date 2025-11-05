@@ -121,7 +121,7 @@ test('flows through roles anywhere IAM setup', async () => {
     }
   );
   fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
-  expect(screen.getAllByText(/name can only contain characters/i)).toHaveLength(
+  expect(screen.getAllByText(/Name can only contain characters/i)).toHaveLength(
     3
   );
 

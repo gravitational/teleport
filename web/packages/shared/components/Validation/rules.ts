@@ -115,9 +115,7 @@ const isIamRoleNameValid = (roleName: string) => {
 };
 
 const isRaResourceNameValid = (resourceName: string) => {
-  return (
-    resourceName && resourceName.match(ROLES_ANYWHERE_NAME_REGEX)
-  );
+  return resourceName && resourceName.match(ROLES_ANYWHERE_NAME_REGEX);
 };
 
 /**
@@ -128,14 +126,14 @@ const validAwsIAMRoleName = (name: string): ValidationResult => {
   if (name.length > 64) {
     return {
       valid: false,
-      message: 'name should be <= 64 characters',
+      message: 'Name should be <= 64 characters',
     };
   }
 
   if (!isIamRoleNameValid(name)) {
     return {
       valid: false,
-      message: 'name can only contain characters @ = , . + - and alphanumerics',
+      message: 'Name can only contain characters @ = , . + - and alphanumerics',
     };
   }
 
@@ -148,14 +146,14 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
   if (name.length > 255) {
     return {
       valid: false,
-      message: 'name should be <= 255 characters',
+      message: 'Name should be <= 255 characters',
     };
   }
 
   if (!isRaResourceNameValid(name)) {
     return {
       valid: false,
-      message: 'name can only contain characters [space] - _ and alphanumerics',
+      message: 'Name can only contain characters [space] - _ and alphanumerics',
     };
   }
   return {
@@ -165,7 +163,7 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
 
 /**
  * requiredIamRoleName is a required field and checks for a
- * value which should also be a valid AWS IAM role name.
+ * value which should also be a valid AWS IAM Role name.
  * @param name is a role name.
  * @returns ValidationResult
  */
@@ -173,7 +171,7 @@ const requiredIamRoleName: Rule = name => (): ValidationResult => {
   if (!name) {
     return {
       valid: false,
-      message: 'IAM role name required',
+      message: 'IAM Role name is required',
     };
   }
 
@@ -181,17 +179,33 @@ const requiredIamRoleName: Rule = name => (): ValidationResult => {
 };
 
 /**
- * requiredRaResourceName is a required field and checks for a
- * value which should also be a valid AWS IAM Roles Anywhere resource name.
- * This includes AWS IAM Roles Anywhere Trust Anchor names and Profile names.
- * @param name is a Roles Anywhere resource name.
+ * requiredIamTrustAnchorName is a required field and checks for a
+ * value which should also be a valid AWS IAM Roles Anywhere Trust Anchor name.
+ * @param name is a trust anchor name.
  * @returns ValidationResult
  */
-const requiredRaResourceName: Rule = name => (): ValidationResult => {
+const requiredIamTrustAnchorName: Rule = name => (): ValidationResult => {
   if (!name) {
     return {
       valid: false,
-      message: 'Name is required',
+      message: 'IAM Trust Anchor name is required',
+    };
+  }
+
+  return validAwsRaResourceName(name);
+};
+
+/**
+ * requiredIamProfileName is a required field and checks for a
+ * value which should also be a valid AWS IAM Roles Anywhere Profile name.
+ * @param name is a profile name.
+ * @returns ValidationResult
+ */
+const requiredIamProfileName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'IAM Profile name is required',
     };
   }
 
@@ -446,7 +460,8 @@ export {
   requiredField,
   requiredRoleArn,
   requiredIamRoleName,
-  requiredRaResourceName,
+  requiredIamTrustAnchorName,
+  requiredIamProfileName,
   requiredEmailLike,
   requiredMaxLength,
   requiredAll,
