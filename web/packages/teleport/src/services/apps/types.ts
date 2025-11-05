@@ -22,6 +22,18 @@ import { AwsRole } from 'shared/services/apps';
 import { ResourceLabel } from 'teleport/services/agents';
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
+/**
+ * Describes what cloud instance the app was discovered from.
+ *
+ * Values are same consts used in backend and letter casing matters:
+ * https://github.com/gravitational/teleport/blob/095e8e7b12d7be546c34eb15e4e562693cc81338/api/types/constants.go#L947
+ */
+export enum CloudInstance {
+  Azure = 'Azure',
+  Gcp = 'GCP',
+  Aws = 'AWS',
+}
+
 export interface App {
   kind: 'app';
   id: string;
@@ -38,6 +50,11 @@ export interface App {
   awsConsole: boolean;
   requiresRequest?: boolean;
   isTcp?: boolean;
+  /**
+   * This field is equivalent to `isCloud` field but this field
+   * specifies what cloud instance is used.
+   */
+  cloudInstance?: CloudInstance;
   isCloud?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
@@ -90,11 +107,21 @@ export {
  * is available to an App.
  */
 export type PermissionSet = {
-  /** name is a permission set name */
+  /*
+   * name is a friendly permission set name
+   * eg: AdministratorAccess
+   */
   name: string;
-  /** arn is a permission set ARN */
+  /*
+   * arn is a permission set ARN
+   * starts with "arn:aws:sso:::"
+   */
   arn: string;
-  /** assignmentId is an account assignment ID. */
+  /*
+   * assignmentId is an account assignment ID.
+   * It is found in the format <awsAccountID>--<friendly-name>
+   * eg: 1234--AdministratorAccess
+   */
   assignmentId: string;
 };
 

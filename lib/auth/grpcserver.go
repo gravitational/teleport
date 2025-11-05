@@ -3913,6 +3913,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		Limit:      int(req.Limit),
 		Order:      types.EventOrder(req.Order),
 		StartKey:   req.StartKey,
+		Search:     req.Search,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6100,6 +6101,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		AuthService:        cfg.AuthServer,
 		FIPS:               cfg.AuthServer.fips,
 		ScopedTokenService: cfg.AuthServer.Services,
+		OracleHTTPClient:   cfg.OracleHTTPClient,
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{

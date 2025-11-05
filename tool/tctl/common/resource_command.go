@@ -132,7 +132,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
-		types.KindToken:                       rc.createToken,
 		types.KindOIDCConnector:               rc.createOIDCConnector,
 		types.KindSAMLConnector:               rc.createSAMLConnector,
 		types.KindLoginRule:                   rc.createLoginRule,
@@ -264,7 +263,7 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
 	// Some resources require MFA to list with secrets. Check if we are trying to
 	// get any such resources so we can prompt for MFA preemptively.
-	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
+	mfaKinds := []string{types.KindCertAuthority}
 	for kind, handler := range resources.Handlers() {
 		if handler.MFARequired() {
 			mfaKinds = append(mfaKinds, kind)
@@ -928,20 +927,6 @@ func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	token, err := services.UnmarshalProvisionToken(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = client.UpsertToken(ctx, token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("provision_token %q has been created\n", token.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1323,11 +1308,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 	}
 
 	switch rc.ref.Kind {
-	case types.KindToken:
-		if err = client.DeleteToken(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("token %q has been deleted\n", rc.ref.Name)
 	case types.KindSAMLConnector:
 		if err = client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2064,18 +2044,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
-		if rc.ref.Name == "" {
-			tokens, err := getAllTokens(ctx, client)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &tokenCollection{tokens: tokens}, nil
-		}
-		token, err := client.GetToken(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name
 		listReq := proto.ListResourcesRequest{
@@ -2350,9 +2318,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
-	case types.KindAccessRequest:
-		resource, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
-		return &accessRequestCollection{accessRequests: resource}, trace.Wrap(err)
 	case types.KindPlugin:
 		if rc.ref.Name != "" {
 			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
