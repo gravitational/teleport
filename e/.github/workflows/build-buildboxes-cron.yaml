@@ -44,16 +44,6 @@ jobs:
       contents: read
       packages: write
 
-  build-branch-latest-minus-2:
-    needs: [build-branch-latest-minus-1]
-    if: always()
-    uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v16
-    with:
-      branch: branch/v16
-    permissions:
-      contents: read
-      packages: write
-
   # build-branch-latest-prerelease is to build the buildboxes for a freshly cut
   # teleport version that is still alpha, beta or rc. Once released, this job
   # should be updated to the next branch number and disabled.

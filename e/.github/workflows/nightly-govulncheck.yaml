@@ -44,7 +44,6 @@ jobs:
           MAJOR_VERSIONS_TO_CHECK=(
             "${LATEST_RELEASE_VERSION}"
             "$(( LATEST_RELEASE_VERSION - 1 ))"
-            "$(( LATEST_RELEASE_VERSION - 2 ))"
           )
 
           # Check if a new branch has been cut, but not released yet
