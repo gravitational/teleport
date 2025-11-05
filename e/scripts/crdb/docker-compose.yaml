@@ -1,0 +1,30 @@
+services:
+  crdb:
+    image: cockroachdb/cockroach:v24.3.22
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - --output
+        - /dev/null
+        - --max-time
+        - "3"
+        - http://localhost:8080/health?ready=1
+      timeout: 5s
+      interval: 5s
+      start_period: 10s
+      start_interval: 1s
+      retries: 3
+    ports:
+      - "127.0.0.1:26257:26257"
+      - "127.0.0.1:8080:8080"
+    command: start-single-node --insecure
+    environment:
+      - COCKROACH_DATABASE=teleport
+      - COCKROACH_USER=root
+      - COCKROACH_PASSWORD=teleport
+    cap_drop:
+    - ALL

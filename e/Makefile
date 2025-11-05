@@ -585,6 +585,11 @@ test-operator: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VE
 test-operator:
 	gotestsum ./lib/operatortest -race -shuffle on
 
+# test-crdb runs crdb backend tests.
+.PHONY: test-crdb
+test-crdb:
+	make -C scripts/crdb test
+
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries
 docker-binaries: clean
