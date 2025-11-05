@@ -70,10 +70,14 @@ the Discovery Service:
 }
 ```
 
-## Step 3/7. Create SSM Documents
+## Step 3/7. [Optional] Create SSM Documents
 
-In each region you plan to discover instances in, create the following SSM document
-in the AWS Systems Manager and name it `TeleportDiscoveryInstaller`:
+When executing the installation script on discovered EC2 instances, the Discovery Service uses an SSM document.
+You can use the pre-defined SSM document `AWS-RunShellScript` or create your own if you need further customization.
+
+If using the pre-defined document, skip this step and set the SSM Document to `AWS-RunShellScript` in step 5.
+
+If you need to customize the installation process, create the following SSM document in each region using AWS Systems Manager and name it `TeleportDiscoveryInstaller`:
 
 ```yaml
 schemaVersion: '2.2'
@@ -207,10 +211,14 @@ to the Discovery Service's role, adding the <Var name="new role ARN" />:
 }
 ```
 
-### Step 3/5. Create SSM Documents
+### Step 3/5. [Optional] Create SSM Documents
 
-In each region you plan to discover instances in, create the following SSM document
-in the AWS Systems Manager and name it `TeleportDiscoveryInstaller`:
+When executing the installation script on discovered EC2 instances, the Discovery Service uses an SSM document.
+You can use the pre-defined SSM document `AWS-RunShellScript` or create your own if you need further customization.
+
+If using the pre-defined document, skip this step and set the SSM Document to `AWS-RunShellScript` in step 4.
+
+If you need to customize the installation process, create the following SSM document in each region using AWS Systems Manager and name it `TeleportDiscoveryInstaller`:
 
 ```yaml
 schemaVersion: '2.2'

@@ -17,6 +17,10 @@ discovery_service:
       join_params:
         token_name: aws-discovery-iam-token
         method: iam
+    ssm:
+      # Use the pre-defined SSM document "AWS-RunShellScript" or a custom one.
+      # When using a custom document, ensure it is created in each region you plan to discover instances in.
+      document_name: "AWS-RunShellScript"
     tags:
       "env": "prod" # Match EC2 instances where tag:env=prod
     assume_role_arn: "<Var name="role ARN" />"
