@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,6 +21,7 @@ package utils
 import (
 	"bytes"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -294,4 +295,34 @@ func TestFilterArguments(t *testing.T) {
 	for i, tt := range tests {
 		require.Equal(t, tt.expected, FilterArguments(tt.args, app.Model()), fmt.Sprintf("test case %v", i))
 	}
+}
+
+// TestFormatCertError tests the formatCertError function for various x509 error types and messages.
+func TestFormatCertError(t *testing.T) {
+	t.Run("UnknownAuthorityError", func(t *testing.T) {
+		err := x509.UnknownAuthorityError{}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The proxy you are connecting to has presented a certificate signed by a")
+	})
+
+	t.Run("HostnameError", func(t *testing.T) {
+		cert := &x509.Certificate{Raw: []byte("dummy")}
+		err := x509.HostnameError{Certificate: cert, Host: "example.com"}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The certificate does not match the address \"example.com\"")
+		require.Contains(t, msg, "Proxy Environment Variables")
+		require.Contains(t, msg, "Server Certificate Details")
+	})
+
+	t.Run("CertificateInvalidError", func(t *testing.T) {
+		err := x509.CertificateInvalidError{Reason: x509.Expired, Cert: &x509.Certificate{}}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The certificate presented by the proxy is invalid")
+	})
+
+	t.Run("NoMatch", func(t *testing.T) {
+		err := errors.New("some other error")
+		msg := formatCertError(err)
+		require.Empty(t, msg)
+	})
 }
