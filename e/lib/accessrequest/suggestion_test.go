@@ -2,6 +2,7 @@ package accessrequest
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"slices"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -713,6 +715,14 @@ func (g *mockAccessResourcesGetter) GetLock(_ context.Context, name string) (typ
 
 func (g *mockAccessResourcesGetter) GetLocks(_ context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	return nil, trace.NotImplemented("mockAccessResourcesGetter.GetLocks")
+}
+
+func (g *mockAccessResourcesGetter) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	return nil, "", trace.NotImplemented("mockAccessResourcesGetter.ListLocks")
+}
+
+func (g *mockAccessResourcesGetter) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
+	return stream.Fail[types.Lock](trace.NotImplemented("mockAccessResourcesGetter.RangeLocks"))
 }
 
 func getMockValue[T any](k string, m map[string]T) (v T, err error) {
