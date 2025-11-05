@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "githubactions")
@@ -183,6 +183,10 @@ func (p *CheckGithubIDTokenParams) checkAndSetDefaults() error {
 // If the token is valid and its claims match at least one allow rule, the
 // claims are returned.
 func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (*IDTokenClaims, error) {
+	if err := params.checkAndSetDefaults(); err != nil {
+		return nil, trace.AccessDenied("%s", err.Error())
+	}
+
 	if len(params.IDToken) == 0 {
 		return nil, trace.BadParameter("IDToken not provided for Github join request")
 	}
