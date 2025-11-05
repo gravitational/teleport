@@ -58,6 +58,19 @@ func TestInstallerScript(t *testing.T) {
 			expectedScriptContains: "curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName | bash -s my-token # ",
 		},
 		{
+			name: "with azure clientid",
+			req: func() *types.InstallerParams {
+				req := basicParams()
+				req.Azure = &types.AzureInstallerParams{
+					ClientID: "my-id",
+				}
+				return req
+			},
+			withOptions:            []scriptOption{withNonceComment()},
+			errCheck:               require.NoError,
+			expectedScriptContains: "curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName?azure-client-id=my-id | bash -s my-token # ",
+		},
+		{
 			name: "with suffix installation",
 			req: func() *types.InstallerParams {
 				req := basicParams()
@@ -144,7 +157,7 @@ func TestInstallerScript(t *testing.T) {
 				return req
 			},
 			errCheck:       require.NoError,
-			expectedScript: `curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName\$%28sh%29 | bash -s my-token`,
+			expectedScript: `curl -s -L https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName%5C$%5C%28sh%5C%29 | bash -s my-token`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

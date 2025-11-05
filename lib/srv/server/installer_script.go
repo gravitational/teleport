@@ -58,6 +58,11 @@ type scriptOptions struct {
 	proxyAddr       proxyGetter
 }
 
+// Azure treats scripts with the same content as the same invocation and
+// won't run them more than once. This is fine when the installer script
+// succeeds, but it makes troubleshooting much harder when it fails. To
+// work around this, we generate a random string and append it as a comment
+// to the script, forcing Azure to see each invocation as unique.
 func withNonceComment() scriptOption {
 	return func(opts *scriptOptions) *scriptOptions {
 		opts.addNonceComment = true
@@ -103,21 +108,19 @@ func installerScript(ctx context.Context, params *types.InstallerParams, opts ..
 
 	scriptURLQuery := url.Values{}
 	if params.Azure != nil && params.Azure.ClientID != "" {
-		scriptURLQuery.Set("azure-client-id", params.Azure.ClientID)
+		scriptURLQuery.Set("azure-client-id", shsprintf.EscapeDefaultContext(params.Azure.ClientID))
 	}
 
 	scriptURL := url.URL{
 		Scheme:   "https",
 		Host:     proxyAddr,
-		Path:     path.Join("v1", "webapi", "scripts", "installer", params.ScriptName),
+		Path:     path.Join("v1", "webapi", "scripts", "installer", shsprintf.EscapeDefaultContext(params.ScriptName)),
 		RawQuery: scriptURLQuery.Encode(),
 	}
 
-	safeScriptURL := shsprintf.EscapeDefaultContext(scriptURL.String())
-	safeJoinToken := shsprintf.EscapeDefaultContext(params.JoinToken)
 	installationScript := fmt.Sprintf("curl -s -L %s | bash -s %s",
-		safeScriptURL,
-		safeJoinToken,
+		scriptURL.String(),
+		shsprintf.EscapeDefaultContext(params.JoinToken),
 	)
 
 	envVars := envVarsFromInstallerParams(params)
