@@ -55,7 +55,12 @@ PutRolePolicy: {
                     "iam:ListSAMLProviders",
                     "iam:GetSAMLProvider",
                     "iam:ListOpenIDConnectProviders",
-                    "iam:GetOpenIDConnectProvider"
+                    "iam:GetOpenIDConnectProvider",
+                    "kms:ListKeys",
+                    "kms:DescribeKey",
+                    "kms:GetKeyPolicy",
+                    "kms:ListAliases",
+                    "kms:ListResourceTags"
                 ],
                 "Resource": "*"
             },

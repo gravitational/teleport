@@ -40,7 +40,7 @@ import (
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -48,7 +48,7 @@ import (
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter teleagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (net.Conn, error)
 	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error)
 }
 
@@ -76,7 +76,7 @@ type ServerConfig struct {
 	LocalAddr net.Addr
 
 	// agentGetterFn used by tests to serve the agent directly
-	agentGetterFn func(rw io.ReadWriter) teleagent.Getter
+	agentGetterFn func(rw io.ReadWriter) sshagent.ClientGetter
 
 	// authzContextFn used by tests to inject an access checker
 	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
@@ -98,10 +98,8 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.agentGetterFn == nil {
-		c.agentGetterFn = func(rw io.ReadWriter) teleagent.Getter {
-			return func() (teleagent.Agent, error) {
-				return teleagent.NopCloser(agent.NewClient(rw)), nil
-			}
+		c.agentGetterFn = func(rw io.ReadWriter) sshagent.ClientGetter {
+			return sshagent.NewStaticClientGetter(agent.NewClient(rw))
 		}
 	}
 
@@ -272,19 +270,19 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	// create a reader/writer for SSH Agent protocol
 	agentStreamRW, err := streamutils.NewReadWriter(agentStream)
 	if err != nil {
-		return trace.Wrap(err, "failed constructing ssh agent streamer")
+		return trace.Wrap(err, "creating ssh agent stream")
 	}
 	defer agentStreamRW.Close()
 
 	// create a reader/writer for SSH protocol
 	sshStreamRW, err := streamutils.NewReadWriter(sshStream)
 	if err != nil {
-		return trace.Wrap(err, "failed constructing ssh streamer")
+		return trace.Wrap(err, "creating ssh stream")
 	}
 
 	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
 	if err != nil {
-		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+		return trace.Wrap(err, "retrieving destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
@@ -294,7 +292,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(err, "failed to dial target host")
+		return trace.Wrap(err)
 	}
 
 	// ensure the connection to the target host

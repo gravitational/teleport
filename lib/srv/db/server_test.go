@@ -472,15 +472,9 @@ func TestShutdown(t *testing.T) {
 			// the configured databases exist in the inventory.
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, dbServers, 1) {
-					return
-				}
-				if !assert.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
-					return
-				}
+				require.NoError(t, err)
+				require.Len(t, dbServers, 1)
+				require.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 			}, 10*time.Second, 100*time.Millisecond)
 
 			require.NoError(t, server.Shutdown(ctx))
@@ -500,12 +494,8 @@ func TestShutdown(t *testing.T) {
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-					if !assert.NoError(t, err) {
-						return
-					}
-					if !assert.Empty(t, dbServersAfterShutdown) {
-						return
-					}
+					require.NoError(t, err)
+					require.Empty(t, dbServersAfterShutdown)
 				}, 10*time.Second, 100*time.Millisecond)
 			}
 		})
@@ -606,7 +596,7 @@ func TestCloseWithActiveConnections(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		select {
 		case err := <-connErrCh:
-			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+			require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 		default:
 		}
 	}, time.Second, 100*time.Millisecond)
@@ -676,7 +666,7 @@ func TestHealthCheck(t *testing.T) {
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := testCtx.authServer.GetHealthCheckConfig(ctx, "match-all")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}, time.Second, time.Millisecond*100, "waiting for health check config")
 
 	// Generate ephemeral cert returned from mock GCP API.
@@ -708,11 +698,16 @@ func TestHealthCheck(t *testing.T) {
 		withSQLServer("sqlserver")(t, ctx, testCtx),
 		withAzureRedis("redis-azure", azureRedisToken)(t, ctx, testCtx),
 		withElastiCacheRedis("redis-elasticache", elastiCacheRedisToken, "7.0.0")(t, ctx, testCtx),
+		withElastiCacheServerlessRedis("redis-serverless-elasticache", elastiCacheServerlessRedisToken, "8.0.0")(t, ctx, testCtx),
 		withMemoryDBRedis("redis-memorydb", memorydbToken, "7.0")(t, ctx, testCtx),
 		withSelfHostedRedis("redis-self-hosted")(t, ctx, testCtx),
 		withSnowflake("snowflake")(t, ctx, testCtx),
 	}
 	for _, db := range databases {
+		if db.GetProtocol() == defaults.ProtocolMySQL {
+			require.False(t, endpoints.IsRegistered(db), "health checks for MySQL protocol should be disabled")
+			continue
+		}
 		require.True(t, endpoints.IsRegistered(db), "database %v does not have a registered endpoint resolver", db.GetName())
 	}
 	dynamoListenAddr := net.JoinHostPort("localhost", testCtx.dynamodb["dynamodb"].db.Port())
@@ -755,8 +750,14 @@ func TestHealthCheck(t *testing.T) {
 			t.Parallel()
 			dbServer, err := testCtx.server.getServerInfo(ctx, db)
 			require.NoError(t, err)
+			if db.GetProtocol() == defaults.ProtocolMySQL {
+				require.Equal(t, "unknown", dbServer.GetTargetHealth().Status)
+				require.Equal(t, "disabled", dbServer.GetTargetHealth().TransitionReason)
+				require.Equal(t, `endpoint health checks for database protocol "mysql" are not supported`, dbServer.GetTargetHealth().Message)
+				return
+			}
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				assert.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
+				require.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
 			}, 30*time.Second, time.Millisecond*250, "waiting for database %s to become healthy", db.GetName())
 		})
 	}

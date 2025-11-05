@@ -44,6 +44,7 @@ const (
 	PluginService_SetPluginStatus_FullMethodName               = "/teleport.plugins.v1.PluginService/SetPluginStatus"
 	PluginService_GetAvailablePluginTypes_FullMethodName       = "/teleport.plugins.v1.PluginService/GetAvailablePluginTypes"
 	PluginService_SearchPluginStaticCredentials_FullMethodName = "/teleport.plugins.v1.PluginService/SearchPluginStaticCredentials"
+	PluginService_UpdatePluginStaticCredentials_FullMethodName = "/teleport.plugins.v1.PluginService/UpdatePluginStaticCredentials"
 	PluginService_NeedsCleanup_FullMethodName                  = "/teleport.plugins.v1.PluginService/NeedsCleanup"
 	PluginService_Cleanup_FullMethodName                       = "/teleport.plugins.v1.PluginService/Cleanup"
 	PluginService_CreatePluginOauthToken_FullMethodName        = "/teleport.plugins.v1.PluginService/CreatePluginOauthToken"
@@ -76,6 +77,8 @@ type PluginServiceClient interface {
 	// for. Only accessible by RoleAdmin and, in the case of Teleport Assist,
 	// RoleProxy.
 	SearchPluginStaticCredentials(ctx context.Context, in *SearchPluginStaticCredentialsRequest, opts ...grpc.CallOption) (*SearchPluginStaticCredentialsResponse, error)
+	// UpdatePluginStaticCredentials
+	UpdatePluginStaticCredentials(ctx context.Context, in *UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*UpdatePluginStaticCredentialsResponse, error)
 	// NeedsCleanup will indicate whether a plugin of the given type needs cleanup
 	// before it can be created.
 	NeedsCleanup(ctx context.Context, in *NeedsCleanupRequest, opts ...grpc.CallOption) (*NeedsCleanupResponse, error)
@@ -186,6 +189,16 @@ func (c *pluginServiceClient) SearchPluginStaticCredentials(ctx context.Context,
 	return out, nil
 }
 
+func (c *pluginServiceClient) UpdatePluginStaticCredentials(ctx context.Context, in *UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*UpdatePluginStaticCredentialsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdatePluginStaticCredentialsResponse)
+	err := c.cc.Invoke(ctx, PluginService_UpdatePluginStaticCredentials_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *pluginServiceClient) NeedsCleanup(ctx context.Context, in *NeedsCleanupRequest, opts ...grpc.CallOption) (*NeedsCleanupResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(NeedsCleanupResponse)
@@ -243,6 +256,8 @@ type PluginServiceServer interface {
 	// for. Only accessible by RoleAdmin and, in the case of Teleport Assist,
 	// RoleProxy.
 	SearchPluginStaticCredentials(context.Context, *SearchPluginStaticCredentialsRequest) (*SearchPluginStaticCredentialsResponse, error)
+	// UpdatePluginStaticCredentials
+	UpdatePluginStaticCredentials(context.Context, *UpdatePluginStaticCredentialsRequest) (*UpdatePluginStaticCredentialsResponse, error)
 	// NeedsCleanup will indicate whether a plugin of the given type needs cleanup
 	// before it can be created.
 	NeedsCleanup(context.Context, *NeedsCleanupRequest) (*NeedsCleanupResponse, error)
@@ -289,6 +304,9 @@ func (UnimplementedPluginServiceServer) GetAvailablePluginTypes(context.Context,
 }
 func (UnimplementedPluginServiceServer) SearchPluginStaticCredentials(context.Context, *SearchPluginStaticCredentialsRequest) (*SearchPluginStaticCredentialsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SearchPluginStaticCredentials not implemented")
+}
+func (UnimplementedPluginServiceServer) UpdatePluginStaticCredentials(context.Context, *UpdatePluginStaticCredentialsRequest) (*UpdatePluginStaticCredentialsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdatePluginStaticCredentials not implemented")
 }
 func (UnimplementedPluginServiceServer) NeedsCleanup(context.Context, *NeedsCleanupRequest) (*NeedsCleanupResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method NeedsCleanup not implemented")
@@ -482,6 +500,24 @@ func _PluginService_SearchPluginStaticCredentials_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PluginService_UpdatePluginStaticCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdatePluginStaticCredentialsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginServiceServer).UpdatePluginStaticCredentials(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PluginService_UpdatePluginStaticCredentials_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginServiceServer).UpdatePluginStaticCredentials(ctx, req.(*UpdatePluginStaticCredentialsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _PluginService_NeedsCleanup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(NeedsCleanupRequest)
 	if err := dec(in); err != nil {
@@ -578,6 +614,10 @@ var PluginService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SearchPluginStaticCredentials",
 			Handler:    _PluginService_SearchPluginStaticCredentials_Handler,
+		},
+		{
+			MethodName: "UpdatePluginStaticCredentials",
+			Handler:    _PluginService_UpdatePluginStaticCredentials_Handler,
 		},
 		{
 			MethodName: "NeedsCleanup",

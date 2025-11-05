@@ -40,6 +40,7 @@ export const Create: StoryObj = {
       isNew: true,
       name: '',
       fetchRoles: async () => [],
+      modifyFetchedData: () => null,
       selectedRoles: [],
       user: {
         name: '',
@@ -125,6 +126,7 @@ const props = {
     name: 'lester',
     roles: ['editor'],
   },
+  modifyFetchedData: () => null,
   isNew: false,
   onChangeName() {},
   onChangeRoles() {},

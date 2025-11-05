@@ -60,16 +60,19 @@ export type IntegrationLike =
   | Plugin
   | ExternalAuditStorageIntegration;
 
+// statusKinds are the integration types with status pages; we enable clicking on the row directly to route to the view
+const statusKinds = ['okta', IntegrationKind.AwsOidc, IntegrationKind.AwsRa];
+
 export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    if (!statusKinds.includes(row.kind)) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    if (!statusKinds.includes(row.kind)) return;
     return { cursor: 'pointer' };
   }
 
@@ -118,8 +121,12 @@ export function IntegrationList(props: Props) {
         {
           altKey: 'options-btn',
           render: item => {
-            if (item.kind === IntegrationKind.AwsOidc) {
-              // do not show any action menu for aws oidc; settings are available on the dashboard
+            if (
+              item.kind === IntegrationKind.AwsOidc ||
+              item.kind === IntegrationKind.AwsRa
+            ) {
+              // do not show any action menu for aws oidc or roles anywhere;
+              // settings are available on the dashboard
               return;
             }
 
@@ -355,6 +362,13 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'SCIM';
         icon = <IconContainer name="scim" />;
         break;
+      case 'intune':
+        formattedText = 'Microsoft Intune';
+        icon = <IconContainer name="intune" />;
+        break;
+      default:
+        // TODO(ravicious): Remove openai exemption from here once a branch is added for it.
+        item.kind satisfies never | 'openai';
     }
   } else {
     // Default is integration.
@@ -363,6 +377,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;
         icon = <IconContainer name="aws" />;
+        break;
+      case IntegrationKind.AwsRa:
+        formattedText = item.name;
+        icon = <IconContainer name="awsidentityandaccessmanagementiam" />;
         break;
       case IntegrationKind.AzureOidc:
         formattedText = 'Azure OIDC';

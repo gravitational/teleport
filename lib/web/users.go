@@ -27,10 +27,12 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -53,6 +55,7 @@ func (h *Handler) createUserHandle(w http.ResponseWriter, r *http.Request, param
 	return createUser(r, clt, ctx.GetUser())
 }
 
+// TODO(rudream): DELETE IN V21.0.0
 func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -60,6 +63,47 @@ func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params 
 	}
 
 	return getUsers(r.Context(), clt)
+}
+
+// listUsersHandle returns a paginated list of users.
+func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := r.URL.Query()
+
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.ListUsers(r.Context(), &userspb.ListUsersRequest{
+		PageSize:  limit,
+		PageToken: values.Get("startKey"),
+		Filter: &types.UserFilter{
+			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
+			SkipSystemUsers: true,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var uiUsers []ui.UserListEntry
+	for _, u := range resp.GetUsers() {
+		uiuser, err := ui.NewUserListEntry(u)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uiUsers = append(uiUsers, *uiuser)
+	}
+
+	return &listUsersResponse{
+		Items:    uiUsers,
+		StartKey: resp.GetNextPageToken(),
+	}, nil
 }
 
 func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
@@ -220,6 +264,14 @@ func getUsers(ctx context.Context, m userAPIGetter) ([]ui.UserListEntry, error) 
 	return uiUsers, nil
 }
 
+// listUsersResponse is the response for the list users request.
+type listUsersResponse struct {
+	// Items is the list of users retrieved.
+	Items []ui.UserListEntry `json:"items"`
+	// StartKey is the position from which to resume search.
+	StartKey string `json:"startKey"`
+}
+
 func getUser(ctx context.Context, username string, m userAPIGetter) (*ui.User, error) {
 	user, err := m.GetUser(ctx, username, false)
 	if err != nil {
@@ -311,8 +363,11 @@ type userAPIGetter interface {
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	// UpdateUser updates a user
 	UpdateUser(ctx context.Context, user types.User) (types.User, error)
-	// GetUsers returns a list of users
+	// GetUsers returns a list of all users
+	// TODO(rudream): DELETE IN V21.0.0
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+	// ListUsers returns a paginated list of users.
+	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	// DeleteUser deletes a user by name.
 	DeleteUser(ctx context.Context, user string) error
 }

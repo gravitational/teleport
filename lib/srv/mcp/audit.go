@@ -21,6 +21,7 @@ package mcp
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -28,7 +29,10 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
@@ -74,6 +78,38 @@ func newSessionAuditor(cfg sessionAuditorConfig) (*sessionAuditor, error) {
 	}, nil
 }
 
+type eventOptions struct {
+	err    error
+	header http.Header
+}
+
+type eventOptionFunc func(*eventOptions)
+
+func newEventOptions(options ...eventOptionFunc) (opt eventOptions) {
+	for _, fn := range options {
+		if fn != nil {
+			fn(&opt)
+		}
+	}
+	return
+}
+
+func eventWithError(err error) eventOptionFunc {
+	return func(o *eventOptions) {
+		o.err = err
+	}
+}
+
+func eventWithHTTPResponseError(resp *http.Response, err error) eventOptionFunc {
+	return eventWithError(convertHTTPResponseErrorForAudit(resp, err))
+}
+
+func eventWithHeader(r *http.Request) eventOptionFunc {
+	return func(o *eventOptions) {
+		o.header = headersForAudit(r.Header)
+	}
+}
+
 func (a *sessionAuditor) shouldEmitEvent(method mcp.MCPMethod) bool {
 	// Do not record discovery, ping calls.
 	switch method {
@@ -99,11 +135,14 @@ func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
 		UserMetadata:       a.makeUserMetadata(),
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
+		McpSessionId:       a.sessionCtx.mcpSessionID.String(),
 	})
 }
 
-func (a *sessionAuditor) emitEndEvent(ctx context.Context) {
-	a.emitEvent(ctx, &apievents.MCPSessionEnd{
+func (a *sessionAuditor) emitEndEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+
+	event := &apievents.MCPSessionEnd{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionEndEvent,
 			events.MCPSessionEndCode,
@@ -113,14 +152,26 @@ func (a *sessionAuditor) emitEndEvent(ctx context.Context) {
 		UserMetadata:       a.makeUserMetadata(),
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
-	})
+		Status: apievents.Status{
+			Success: true,
+		},
+		Headers: wrappers.Traits(opts.header),
+	}
+
+	if opts.err != nil {
+		event.Metadata.Code = events.MCPSessionEndFailureCode
+		event.Status.Success = false
+		event.Status.Error = opts.err.Error()
+	}
+	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification) {
-	if !a.shouldEmitEvent(msg.Method) {
+func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
-	a.emitEvent(ctx, &apievents.MCPSessionNotification{
+	event := &apievents.MCPSessionNotification{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionNotificationEvent,
 			events.MCPSessionNotificationCode,
@@ -133,11 +184,22 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 			Method:  string(msg.Method),
 			Params:  msg.Params.GetEventParams(),
 		},
-	})
+		Status: apievents.Status{
+			Success: true,
+		},
+		Headers: wrappers.Traits(opts.header),
+	}
+	if opts.err != nil {
+		event.Metadata.Code = events.MCPSessionNotificationFailureCode
+		event.Status.Success = false
+		event.Status.Error = opts.err.Error()
+	}
+	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, err error) {
-	if err == nil && !a.shouldEmitEvent(msg.Method) {
+func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
 	event := &apievents.MCPSessionRequest{
@@ -157,12 +219,55 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 			ID:      msg.ID.String(),
 			Params:  msg.Params.GetEventParams(),
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
 
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionRequestFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
+	}
+	a.emitEvent(ctx, event)
+}
+
+func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	event := &apievents.MCPSessionListenSSEStream{
+		Metadata: a.makeEventMetadata(
+			events.MCPSessionListenSSEStream,
+			events.MCPSessionListenSSEStreamCode,
+		),
+		SessionMetadata: a.makeSessionMetadata(),
+		UserMetadata:    a.makeUserMetadata(),
+		AppMetadata:     a.makeAppMetadata(),
+		Status: apievents.Status{
+			Success: true,
+		},
+		Headers: wrappers.Traits(opts.header),
+	}
+	if opts.err != nil {
+		event.Metadata.Code = events.MCPSessionListenSSEStreamFailureCode
+		event.Status.Success = false
+		event.Status.Error = opts.err.Error()
+	}
+	a.emitEvent(ctx, event)
+}
+
+func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Request) {
+	body, _ := utils.GetAndReplaceRequestBody(r)
+	event := &apievents.MCPSessionInvalidHTTPRequest{
+		Metadata: a.makeEventMetadata(
+			events.MCPSessionInvalidHTTPRequest,
+			events.MCPSessionInvalidHTTPRequestCode,
+		),
+		SessionMetadata: a.makeSessionMetadata(),
+		UserMetadata:    a.makeUserMetadata(),
+		AppMetadata:     a.makeAppMetadata(),
+		Path:            r.URL.Path,
+		Method:          r.Method,
+		Body:            body,
+		RawQuery:        r.URL.RawQuery,
+		Headers:         wrappers.Traits(r.Header),
 	}
 	a.emitEvent(ctx, event)
 }
@@ -225,4 +330,25 @@ func (a *sessionAuditor) makeSessionMetadata() apievents.SessionMetadata {
 
 func (a *sessionAuditor) makeUserMetadata() apievents.UserMetadata {
 	return a.sessionCtx.Identity.GetUserMetadata()
+}
+
+var headersWithSecret = []string{
+	"Authorization",
+	"X-API-Key",
+}
+
+func headersForAudit(h http.Header) http.Header {
+	if h == nil {
+		return nil
+	}
+	ret := h.Clone()
+	for _, key := range appcommon.ReservedHeaders {
+		ret.Del(key)
+	}
+	for _, key := range headersWithSecret {
+		if len(ret.Values(key)) > 0 {
+			ret.Set(key, "<REDACTED>")
+		}
+	}
+	return ret
 }

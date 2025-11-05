@@ -23,13 +23,12 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	
-	"github.com/gravitational/teleport/integrations/lib/backoff"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -108,19 +107,31 @@ func (r resourceTeleportTrustedCluster) Create(ctx context.Context, req tfsdk.Cr
 		
 	// Not really an inferface, just using the same name for easier templating.
 	var trustedClusterI apitypes.TrustedCluster
+	// Try getting the resource until it exists.
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		trustedClusterI, err = r.p.Client.GetTrustedCluster(ctx, id)
 		if trace.IsNotFound(err) {
-			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(bErr), "trusted_cluster"))
+		    select {
+			case <-ctx.Done():
+			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(ctx.Err()), "trusted_cluster"))
 				return
+			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading TrustedCluster (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "trusted_cluster")
+				return
 			}
 			continue
 		}
@@ -240,7 +251,15 @@ func (r resourceTeleportTrustedCluster) Update(ctx context.Context, req tfsdk.Up
 	var trustedClusterI apitypes.TrustedCluster
 
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		trustedClusterI, err = r.p.Client.GetTrustedCluster(ctx, name)
@@ -252,9 +271,11 @@ func (r resourceTeleportTrustedCluster) Update(ctx context.Context, req tfsdk.Up
 			break
 		}
 
-		if err := backoff.Do(ctx); err != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(err), "trusted_cluster"))
+		select {
+		case <-ctx.Done():
+		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Wrap(ctx.Err()), "trusted_cluster"))
 			return
+		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading TrustedCluster (tried %d times) - state outdated, please import resource", tries)

@@ -22,17 +22,17 @@ import useTeleport from 'teleport/useTeleport';
 
 /**
  * **useClusterVersion** returns the cluster (auth) version and a comparison
- * utility (`check`). The check utility can be used to compare the provided
- * client version to the cluster/control-plane version. An indication of
- * cluster compatibility is returned.
+ * utility (`checkCompatibility`). The check utility can be used to compare the
+ * providedclient version to the cluster/control-plane version. An indication
+ * of cluster compatibility is returned.
  *
  * @returns the cluster (auth) version and a comparison utility (diff)
  */
 export function useClusterVersion(): {
   clusterVersion: string;
   /**
-   * **check** compares the provided client version to the cluster/control-
-   * plane version. An indication of cluster compatibility is returned.
+   * **checkCompatibility** compares the provided client version to the cluster/
+   * control-plane version. An indication of cluster compatibility is returned.
    * @param version the compare version as string.
    * @returns an indication of cluster compatibility
    */
@@ -59,7 +59,8 @@ export type ClientCompatibility =
       /**
        * match - versions are the same.
        * upgrade-major - the client is one version behind.
-       * upgrade-minor - the major version is the same, but older on minor or patch.
+       * upgrade-minor - the major version is the same, but older on minor or
+       * patch.
        */
       reason: 'match' | 'upgrade-major' | 'upgrade-minor';
     }
@@ -72,20 +73,32 @@ export function checkClientCompatibility(
   const client = parse(clientVersion);
   const cluster = parse(clusterVersion);
   if (!client || !cluster) return null;
+  if (client.compare(cluster) === 0) {
+    return {
+      isCompatible: true,
+      reason: 'match',
+    };
+  }
+  if (client.compare(cluster) === 1) {
+    return {
+      isCompatible: false,
+      reason: 'too-new',
+    };
+  }
   if (client.major === cluster.major) {
     return {
       isCompatible: true,
-      reason: client.compare(cluster) === -1 ? 'upgrade-minor' : 'match',
+      reason: 'upgrade-minor',
     };
   }
-  if (Math.abs(client.major - cluster.major) == 1) {
+  if (client.major === cluster.major - 1) {
     return {
       isCompatible: true,
-      reason: client.major > cluster.major ? 'match' : 'upgrade-major',
+      reason: 'upgrade-major',
     };
   }
   return {
     isCompatible: false,
-    reason: client.major > cluster.major ? 'too-new' : 'too-old',
+    reason: 'too-old',
   };
 }

@@ -28,9 +28,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -66,6 +68,11 @@ type Identity struct {
 
 	// Username is teleport username
 	Username string
+
+	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+	// set, the Roles field must not be set.
+	ScopePin *scopesv1.Pin
+
 	// Impersonator is set when a user requests certificate for another user
 	Impersonator string
 	// PermitX11Forwarding permits X11 forwarding for this cert
@@ -137,6 +144,8 @@ type Identity struct {
 	// GitHubUsername indicates the GitHub username identified by the GitHub
 	// connector.
 	GitHubUsername string
+	// AgentScope is the scope this identity belongs to.
+	AgentScope string
 }
 
 // Encode encodes the identity into an ssh certificate. Note that the returned certificate is incomplete
@@ -180,7 +189,19 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		cert.Permissions.Extensions[utils.CertExtensionAuthority] = i.ClusterName
 	}
 
+	if i.AgentScope != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionAgentScope] = i.AgentScope
+	}
+
 	// --- user extensions ---
+
+	if i.ScopePin != nil {
+		pin, err := protojson.Marshal(i.ScopePin)
+		if err != nil {
+			return nil, trace.Errorf("failed to marshal scope pin for ssh cert encoding: %w", err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = string(pin)
+	}
 
 	if i.PermitX11Forwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitX11Forwarding] = ""
@@ -388,6 +409,15 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	// --- user extensions ---
 
+	if v, ok := takeExtension(teleport.CertExtensionScopePin); ok {
+		var pin scopesv1.Pin
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(v), &pin); err != nil {
+			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
+		}
+		ident.ScopePin = &pin
+	}
+
+	ident.AgentScope = takeValue(teleport.CertExtensionAgentScope)
 	ident.PermitX11Forwarding = takeBool(teleport.CertExtensionPermitX11Forwarding)
 	ident.PermitAgentForwarding = takeBool(teleport.CertExtensionPermitAgentForwarding)
 	ident.PermitPortForwarding = takeBool(teleport.CertExtensionPermitPortForwarding)

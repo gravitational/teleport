@@ -42,6 +42,12 @@ export type Kind =
 /** Teleport role in a resource format. */
 export type RoleResource = Resource<KindRole>;
 
+/** Teleport role with only the role name and description, used for displaying requestable roles. */
+export type RequestableRole = {
+  name: string;
+  description?: string;
+};
+
 /**
  * Teleport role in full format, as returned from Teleport API.
  * TODO(bl-nero): Add all fields supported on the UI side.
@@ -297,6 +303,7 @@ export enum ResourceKind {
   WebToken = 'web_token',
   WindowsDesktop = 'windows_desktop',
   WindowsDesktopService = 'windows_desktop_service',
+  WorkloadIdentity = 'workload_identity',
 
   // Resources that have no actual data representation, but serve for checking
   // access to various features.

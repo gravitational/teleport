@@ -42,7 +42,7 @@ CreateDocument: {
                 "action": "aws:runShellScript",
                 "inputs": {
                     "runCommand": [
-                        "/bin/sh /tmp/installTeleport.sh \"{{ token }}\""
+                        "export {{ env }}; /bin/sh /tmp/installTeleport.sh \"{{ token }}\""
                     ],
                     "timeoutSeconds": "300"
                 },
@@ -50,6 +50,11 @@ CreateDocument: {
             }
         ],
         "parameters": {
+            "env": {
+                "default": "X=$X",
+                "description": "Environment variables exported to the script. Format 'ENV=var FOO=bar'",
+                "type": "String"
+            },
             "scriptName": {
                 "description": "(Required) The Teleport installer script to use when joining the cluster.",
                 "type": "String"

@@ -1,0 +1,111 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// SessionRecordingEvent is an event that occurred during a session recording.
+
+syntax = "proto3";
+
+package teleport.recordingmetadata.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1";
+
+// SessionRecordingEvent represents an event that occurred during a session recording.
+message SessionRecordingEvent {
+  // StartOffset is the start time of the event, relative to the start of the session.
+  google.protobuf.Duration start_offset = 1;
+  // EndOffset is the end time of the event, relative to the start of the session.
+  google.protobuf.Duration end_offset = 2;
+
+  oneof event {
+    // Inactivity is an event that indicates inactivity during the session.
+    SessionRecordingInactivityEvent inactivity = 3;
+    // Join is an event that indicates a user joined the session.
+    SessionRecordingJoinEvent join = 4;
+    // Resize is an event that indicates the terminal was resized.
+    SessionRecordingResizeEvent resize = 5;
+  }
+}
+
+// SessionRecordingInactivityEvent is an event that indicates inactivity during the session.
+message SessionRecordingInactivityEvent {}
+
+// SessionRecordingJoinEvent is an event that indicates a user joined the session.
+message SessionRecordingJoinEvent {
+  // User is the name of the user who joined the session.
+  string user = 1;
+}
+
+// SessionRecordingResizeEvent is an event that indicates the terminal was resized.
+message SessionRecordingResizeEvent {
+  // Cols is the number of columns in the terminal.
+  int32 cols = 1;
+  // Rows is the number of rows in the terminal.
+  int32 rows = 2;
+}
+
+// SessionRecordingType is the type of session recording.
+enum SessionRecordingType {
+  // SessionRecordingTypeUnspecified is the default value for session recording type.
+  SESSION_RECORDING_TYPE_UNSPECIFIED = 0;
+  // SessionRecordingTypeSsh is an interactive SSH session recording.
+  SESSION_RECORDING_TYPE_SSH = 1;
+  // SessionRecordingTypeKubernetes is an interactive Kubernetes session recording.
+  SESSION_RECORDING_TYPE_KUBERNETES = 2;
+}
+
+// SessionRecordingMetadata contains metadata for a session recording.
+message SessionRecordingMetadata {
+  // Duration is the duration of the session recording.
+  google.protobuf.Duration duration = 1;
+  // Events is the events that occurred during the session.
+  repeated SessionRecordingEvent events = 2;
+  // StartCols is the number of columns in the terminal at the start of the session.
+  int32 start_cols = 3;
+  // StartRows is the number of rows in the terminal at the start of the session.
+  int32 start_rows = 4;
+  // StartTime is the start time of the session recording.
+  google.protobuf.Timestamp start_time = 5;
+  // EndTime is the end time of the session recording.
+  google.protobuf.Timestamp end_time = 6;
+  // ClusterName is the name of the cluster where the session recording took place.
+  string cluster_name = 7;
+  // User is the user whose session is being recorded.
+  string user = 8;
+  // ResourceName is the name of the resource that was connected to.
+  string resource_name = 9;
+  // Type is the type of session recording.
+  SessionRecordingType type = 10;
+}
+
+// SessionRecordingThumbnail is a thumbnail of a session recording.
+message SessionRecordingThumbnail {
+  // SVG is the SVG image of the thumbnail.
+  bytes svg = 1;
+  // Cols is the number of columns in the terminal.
+  int32 cols = 2;
+  // Rows is the number of rows in the terminal.
+  int32 rows = 3;
+  // CursorX is the X coordinate of the cursor.
+  int32 cursor_x = 4;
+  // CursorY is the Y coordinate of the cursor.
+  int32 cursor_y = 5;
+  // StartOffset is the start time of the thumbnail, relative to the start of the session.
+  google.protobuf.Duration start_offset = 6;
+  // EndOffset is the end time of the thumbnail, relative to the start of the session.
+  google.protobuf.Duration end_offset = 7;
+  // CursorVisible indicates whether the cursor is visible.
+  bool cursor_visible = 8;
+}

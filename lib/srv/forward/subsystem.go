@@ -164,7 +164,7 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 			RemoteAddr: r.serverContext.RemoteClient.RemoteAddr().String(),
 		},
 		Name:           r.subsystemName,
-		ServerMetadata: r.serverContext.GetServer().TargetMetadata(),
+		ServerMetadata: r.serverContext.GetServer().EventMetadata(),
 	}
 
 	if err != nil {
@@ -236,6 +236,14 @@ func (r *remoteSFTPSubsystem) Wait() error {
 	case <-r.subsystem.ctx.Done():
 		err = trace.ConnectionProblem(nil, "context is closing")
 	}
+
+	var exitStatus int
+	if err != nil {
+		exitStatus = 1
+	}
+	r.subsystem.serverContext.SendExecResult(r.subsystem.ctx, srv.ExecResult{
+		Code: exitStatus,
+	})
 
 	// emit an event to the audit log with the result of execution
 	r.subsystem.emitAuditEvent(r.subsystem.ctx, err)

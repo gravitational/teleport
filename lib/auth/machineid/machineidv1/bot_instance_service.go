@@ -21,6 +21,8 @@ package machineidv1
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -46,6 +48,12 @@ const (
 	// ensure the instance remains accessible until shortly after the last
 	// issued certificate expires.
 	ExpiryMargin = time.Minute * 5
+
+	// serviceNameLimit is the maximum length in bytes of a bot service name.
+	serviceNameLimit = 64
+
+	// statusReasonLimit is the maximum length in bytes of a service status reason.
+	statusReasonLimit = 256
 )
 
 // BotInstancesCache is the subset of the cached resources that the Service queries.
@@ -54,7 +62,7 @@ type BotInstancesCache interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*pb.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*pb.BotInstance, string, error)
 }
 
 // BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
@@ -148,6 +156,26 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 
 // ListBotInstances returns a list of bot instances matching the criteria in the request
 func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListBotInstancesRequest) (*pb.ListBotInstancesResponse, error) {
+	var sortField string
+	var sortDesc bool
+	if req.GetSort() != nil {
+		sortField = req.GetSort().Field
+		sortDesc = req.GetSort().IsDesc
+	}
+	return b.ListBotInstancesV2(ctx, &pb.ListBotInstancesV2Request{
+		PageSize:  req.GetPageSize(),
+		PageToken: req.GetPageToken(),
+		SortField: sortField,
+		SortDesc:  sortDesc,
+		Filter: &pb.ListBotInstancesV2Request_Filters{
+			BotName:    req.GetFilterBotName(),
+			SearchTerm: req.GetFilterSearchTerm(),
+		},
+	})
+}
+
+// ListBotInstancesV2 returns a list of bot instances matching the criteria in the request
+func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.ListBotInstancesV2Request) (*pb.ListBotInstancesResponse, error) {
 	authCtx, err := b.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -157,7 +185,13 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		return nil, trace.Wrap(err)
 	}
 
-	res, nextToken, err := b.cache.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken, req.FilterSearchTerm, req.Sort)
+	res, nextToken, err := b.cache.ListBotInstances(ctx, int(req.PageSize), req.PageToken, &services.ListBotInstancesRequestOptions{
+		SortField:        req.GetSortField(),
+		SortDesc:         req.GetSortDesc(),
+		FilterBotName:    req.GetFilter().GetBotName(),
+		FilterSearchTerm: req.GetFilter().GetSearchTerm(),
+		FilterQuery:      req.GetFilter().GetQuery(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,6 +210,17 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	}
 	if req.Heartbeat == nil {
 		return nil, trace.BadParameter("heartbeat: must be non-nil")
+	}
+
+	for _, svcHealth := range req.GetServiceHealth() {
+		name := svcHealth.GetService().GetName()
+		if len(name) > serviceNameLimit {
+			return nil, trace.BadParameter("service name %q is longer than %d bytes", name, serviceNameLimit)
+		}
+		reason := svcHealth.GetReason()
+		if len(reason) > statusReasonLimit {
+			return nil, trace.BadParameter("service %q has a status reason longer than %d bytes", name, statusReasonLimit)
+		}
 	}
 
 	// Enforce that the connecting client is a bot and has a bot instance ID.
@@ -212,6 +257,11 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		// Append the new heartbeat to the end.
 		instance.Status.LatestHeartbeats = append(instance.Status.LatestHeartbeats, req.Heartbeat)
 
+		if storeHeartbeatExtras() {
+			// Overwrite the service health.
+			instance.Status.ServiceHealth = req.ServiceHealth
+		}
+
 		return instance, nil
 	})
 	if err != nil {
@@ -219,4 +269,16 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	}
 
 	return &pb.SubmitHeartbeatResponse{}, nil
+}
+
+// storeHeartbeatExtras returns whether we should store "extra" data submitted
+// with tbot heartbeats, such as the service health. Defaults to true unless the
+// TELEPORT_DISABLE_TBOT_HEARTBEAT_EXTRAS environment variable is set to true on
+// the auth server.
+func storeHeartbeatExtras() bool {
+	disabled, err := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_TBOT_HEARTBEAT_EXTRAS"))
+	if err != nil {
+		return true
+	}
+	return !disabled
 }

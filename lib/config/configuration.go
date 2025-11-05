@@ -30,7 +30,9 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"math"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -51,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	gcputils "github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
@@ -173,6 +176,8 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSClusterID string
 	// DatabaseAWSElastiCacheGroupID is the ElastiCache replication group identifier.
 	DatabaseAWSElastiCacheGroupID string
+	// DatabaseAWSElastiCacheServerlessCacheName is the ElastiCache Serverless cache name.
+	DatabaseAWSElastiCacheServerlessCacheName string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
 	// DatabaseAWSSessionTags is the AWS STS session tags.
@@ -181,6 +186,8 @@ type CommandLineFlags struct {
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
 	DatabaseGCPInstanceID string
+	// DatabaseGCPAlloyDBEndpointType is the AlloyDB database endpoint type to use.
+	DatabaseGCPAlloyDBEndpointType string
 	// DatabaseADKeytabFile is the path to Kerberos keytab file.
 	DatabaseADKeytabFile string
 	// DatabaseADKrb5File is the path to krb5.conf file.
@@ -277,6 +284,13 @@ type CommandLineFlags struct {
 	// is not set to enforcing mode or the global SELinux mode is not set to
 	// enforcing.
 	EnsureSELinuxEnforcing bool
+
+	// BackendKey is the backend key to use for various `teleport backend` commands.
+	BackendKey string
+	// BackendPrefix limits `teleport backend ls` to only output keys matching the prefix.
+	BackendPrefix string
+	// Format is used to change the format of output.
+	Format string
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -564,6 +578,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if err := applyAuthOrProxyAddress(fc, cfg); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if fc.RelayServer != "" {
+		addr, err := utils.ParseHostPortAddr(fc.RelayServer, -1)
+		if err != nil {
+			return trace.Wrap(err, "parsing teleport.relay_server")
+		}
+
+		cfg.RelayServer = addr.Addr
 	}
 
 	if err := applyTokenConfig(fc, cfg); err != nil {
@@ -956,17 +979,24 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override session recording configuration if either field is
 	// specified in file configuration.
 	if fc.Auth.hasCustomSessionRecording() {
-		var encryption *types.SessionRecordingEncryptionConfig
-		if fc.Auth.SessionRecordingEncryption != nil && fc.Auth.SessionRecordingEncryption.Value {
-			encryption = &types.SessionRecordingEncryptionConfig{
-				Enabled: true,
-			}
-		}
-		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		src := types.SessionRecordingConfigSpecV2{
 			Mode:                fc.Auth.SessionRecording,
 			ProxyChecksHostKeys: fc.Auth.ProxyChecksHostKeys,
-			Encryption:          encryption,
-		})
+		}
+
+		if fc.Auth.SessionRecordingConfig != nil {
+			if src.Mode != "" {
+				return trace.BadParameter("cannot set both session_recording and session_recording_config at the same time, prefer session_recording_config.mode")
+			}
+
+			if src.ProxyChecksHostKeys != nil {
+				return trace.BadParameter("cannot set both proxy_checks_host_keys and session_recording_config at the same time, prefer session_recording_config.proxy_checks_host_keys")
+			}
+
+			src = fc.Auth.SessionRecordingConfig.toSpec()
+		}
+
+		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(src)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1501,11 +1531,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
-func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
-	// Explicit proxy address.
-	if installParams != nil && installParams.PublicProxyAddr != "" {
-		return installParams.PublicProxyAddr
-	}
+func getInstallerProxyAddr(fc *FileConfig) string {
 	// Proxy address from config.
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
@@ -1525,11 +1551,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
+
+	defaultProxyAddr := getInstallerProxyAddr(fc)
+
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		var err error
 		var installParams *types.InstallerParams
 		if matcher.InstallParams != nil {
-			installParams, err = matcher.InstallParams.parse()
+			installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1573,21 +1602,27 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		var installerParams *types.InstallerParams
+		var installParams *types.InstallerParams
+		var err error
 		if slices.Contains(matcher.Types, types.AzureMatcherVM) {
-			installerParams = &types.InstallerParams{
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
-			}
-			if matcher.InstallParams != nil {
-				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
-				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
-				installerParams.ScriptName = matcher.InstallParams.ScriptName
-				if matcher.InstallParams.Azure != nil {
-					installerParams.Azure = &types.AzureInstallerParams{
-						ClientID: matcher.InstallParams.Azure.ClientID,
-					}
+			// Backwards compatibility for Azure VM matcher:
+			// If install_teleport param is not set, default to false.
+			if matcher.InstallParams == nil {
+				installParams = &types.InstallerParams{
+					PublicProxyAddr: defaultProxyAddr,
 				}
 			}
+
+			if matcher.InstallParams != nil {
+				installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if matcher.InstallParams.InstallTeleport == "" {
+					installParams.InstallTeleport = false
+				}
+			}
+
 		}
 
 		serviceMatcher := types.AzureMatcher{
@@ -1596,7 +1631,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Types:          matcher.Types,
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
-			Params:         installerParams,
+			Params:         installParams,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1606,15 +1641,24 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
-		var installerParams *types.InstallerParams
-		if slices.Contains(matcher.Types, types.GCPMatcherCompute) {
-			installerParams = &types.InstallerParams{
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+		var installParams *types.InstallerParams
+		var err error
+		if slices.Contains(matcher.Types, types.GCPMatcherCompute) { // Backwards compatibility for GCP VM matcher:
+			// If install_teleport param is not set, default to false.
+			if matcher.InstallParams == nil {
+				installParams = &types.InstallerParams{
+					PublicProxyAddr: defaultProxyAddr,
+				}
 			}
+
 			if matcher.InstallParams != nil {
-				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
-				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
-				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if matcher.InstallParams.InstallTeleport == "" {
+					installParams.InstallTeleport = false
+				}
 			}
 		}
 
@@ -1625,7 +1669,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Tags:            matcher.Tags,
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,
-			Params:          installerParams,
+			Params:          installParams,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1805,6 +1849,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
+		if err = gcputils.ValidateAlloyDBEndpointType(database.GCP.AlloyDB.EndpointType); err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := servicecfg.Database{
 			Name:          database.Name,
 			Description:   database.Description,
@@ -1846,6 +1894,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ElastiCache: servicecfg.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
+				ElastiCacheServerless: servicecfg.DatabaseAWSElastiCacheServerless{
+					CacheName: database.AWS.ElastiCacheServerless.CacheName,
+				},
 				MemoryDB: servicecfg.DatabaseAWSMemoryDB{
 					ClusterName: database.AWS.MemoryDB.ClusterName,
 				},
@@ -1857,6 +1908,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			GCP: servicecfg.DatabaseGCP{
 				ProjectID:  database.GCP.ProjectID,
 				InstanceID: database.GCP.InstanceID,
+				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+					EndpointType:     database.GCP.AlloyDB.EndpointType,
+					EndpointOverride: database.GCP.AlloyDB.EndpointOverride,
+				},
 			},
 			AD: servicecfg.DatabaseAD{
 				KeytabFile:             database.AD.KeytabFile,
@@ -1883,7 +1938,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 func convOracleOptions(o DatabaseOracle) servicecfg.OracleOptions {
 	return servicecfg.OracleOptions{
-		AuditUser: o.AuditUser,
+		AuditUser:        o.AuditUser,
+		RetryCount:       o.RetryCount,
+		ShuffleHostnames: o.ShuffleHostnames,
 	}
 }
 
@@ -2166,6 +2223,11 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.WindowsDesktop.DiscoveryInterval = fc.WindowsDesktop.DiscoveryInterval
 	if cfg.WindowsDesktop.DiscoveryInterval < 0 {
 		return trace.BadParameter("desktop discovery interval must not be negative (%v)", fc.WindowsDesktop.DiscoveryInterval.String())
+	}
+
+	cfg.WindowsDesktop.PublishCRLInterval = fc.WindowsDesktop.PublishCRLInterval
+	if cfg.WindowsDesktop.PublishCRLInterval < 0 {
+		return trace.BadParameter("publish CRL interval must not be negative (%v)", fc.WindowsDesktop.PublishCRLInterval.String())
 	}
 
 	var err error
@@ -2493,6 +2555,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
+
+		if err = gcputils.ValidateAlloyDBEndpointType(clf.DatabaseGCPAlloyDBEndpointType); err != nil {
+			return trace.Wrap(err)
+		}
+
 		db := servicecfg.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
@@ -2522,6 +2589,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				ElastiCache: servicecfg.DatabaseAWSElastiCache{
 					ReplicationGroupID: clf.DatabaseAWSElastiCacheGroupID,
 				},
+				ElastiCacheServerless: servicecfg.DatabaseAWSElastiCacheServerless{
+					CacheName: clf.DatabaseAWSElastiCacheServerlessCacheName,
+				},
 				MemoryDB: servicecfg.DatabaseAWSMemoryDB{
 					ClusterName: clf.DatabaseAWSMemoryDBClusterName,
 				},
@@ -2529,6 +2599,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			GCP: servicecfg.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
 				InstanceID: clf.DatabaseGCPInstanceID,
+				AlloyDB: servicecfg.DatabaseGCPAlloyDB{
+					EndpointType: clf.DatabaseGCPAlloyDBEndpointType,
+				},
 			},
 			AD: servicecfg.DatabaseAD{
 				KeytabFile: clf.DatabaseADKeytabFile,
@@ -2584,6 +2657,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			if services.IsRecordAtProxy(cfg.Auth.SessionRecordingConfig.GetMode()) &&
 				!cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys() {
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
+			}
+
+			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, modules.GetModules().Features().Cloud); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 	}
@@ -3064,13 +3141,55 @@ func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.Relay.RelayGroup = fc.Relay.RelayGroup
 
-	if len(fc.Relay.APIPublicHostnames) < 1 {
-		return trace.BadParameter("missing relay_service.api_public_hostnames")
+	if fc.Relay.TargetConnectionCount < 1 || fc.Relay.TargetConnectionCount > math.MaxInt32 {
+		return trace.BadParameter("missing or invalid relay_service.target_connection_count")
 	}
-	if slices.Contains(fc.Relay.APIPublicHostnames, "") {
-		return trace.BadParameter("empty string in relay_service.api_public_hostnames")
+	cfg.Relay.TargetConnectionCount = int32(fc.Relay.TargetConnectionCount)
+
+	if len(fc.Relay.PublicHostnames) < 1 {
+		return trace.BadParameter("missing relay_service.public_hostnames")
 	}
-	cfg.Relay.APIPublicHostnames = slices.Clone(fc.Relay.APIPublicHostnames)
+	if slices.Contains(fc.Relay.PublicHostnames, "") {
+		return trace.BadParameter("empty string in relay_service.public_hostnames")
+	}
+	cfg.Relay.PublicHostnames = slices.Clone(fc.Relay.PublicHostnames)
+
+	if fc.Relay.TransportListenAddr == "" {
+		return trace.BadParameter("missing relay_service.transport_listen_addr")
+	}
+	transportListenAddr, err := netip.ParseAddrPort(fc.Relay.TransportListenAddr)
+	if err != nil {
+		return trace.Wrap(err, "parsing relay_service.transport_listen_addr")
+	}
+	cfg.Relay.TransportListenAddr = transportListenAddr
+	cfg.Relay.TransportPROXYProtocol = fc.Relay.TransportPROXYProtocol
+
+	if fc.Relay.PeerListenAddr == "" {
+		return trace.BadParameter("missing relay_service.peer_listen_addr")
+	}
+	peerListenAddr, err := netip.ParseAddrPort(fc.Relay.PeerListenAddr)
+	if err != nil {
+		return trace.Wrap(err, "parsing relay_service.peer_listen_addr")
+	}
+	cfg.Relay.PeerListenAddr = peerListenAddr
+
+	if fc.Relay.PeerPublicAddr != "" {
+		_, _, err := net.SplitHostPort(fc.Relay.PeerPublicAddr)
+		if err != nil {
+			return trace.Wrap(err, "parsing relay_service.peer_public_addr")
+		}
+		cfg.Relay.PeerPublicAddr = fc.Relay.PeerPublicAddr
+	}
+
+	if fc.Relay.TunnelListenAddr == "" {
+		return trace.BadParameter("missing relay_service.tunnel_listen_addr")
+	}
+	tunnelListenAddr, err := netip.ParseAddrPort(fc.Relay.TunnelListenAddr)
+	if err != nil {
+		return trace.Wrap(err, "parsing relay_service.tunnel_listen_addr")
+	}
+	cfg.Relay.TunnelListenAddr = tunnelListenAddr
+	cfg.Relay.TunnelPROXYProtocol = fc.Relay.TunnelPROXYProtocol
 
 	return nil
 }

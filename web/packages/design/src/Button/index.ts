@@ -19,6 +19,7 @@
 export {
   Button,
   ButtonPrimary,
+  ButtonPrimaryBorder,
   ButtonWarning,
   ButtonSecondary,
   ButtonBorder,

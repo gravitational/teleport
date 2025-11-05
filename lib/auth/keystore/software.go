@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"crypto/x509"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -38,7 +39,7 @@ type softwareKeyStore struct {
 }
 
 // RSAKeyPairSource is a function type which returns new RSA keypairs.
-type RSAKeyPairSource func() (priv []byte, pub []byte, err error)
+type RSAKeyPairSource func(algo cryptosuites.Algorithm) (priv []byte, pub []byte, err error)
 
 type softwareConfig struct {
 	rsaKeyPairSource RSAKeyPairSource
@@ -65,7 +66,7 @@ func (s *softwareKeyStore) keyTypeDescription() string {
 // an equivalent crypto.Signer.
 func (s *softwareKeyStore) generateSigner(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	if alg == cryptosuites.RSA2048 && s.rsaKeyPairSource != nil {
-		privateKeyPEM, _, err := s.rsaKeyPairSource()
+		privateKeyPEM, _, err := s.rsaKeyPairSource(alg)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -110,17 +111,41 @@ func (d oaepDecrypter) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.De
 // identifier for softwareKeyStore is a pem-encoded private key, and can be passed to getDecrypter later to get
 // an equivalent crypto.Decrypter.
 func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
+	if alg == cryptosuites.RSA4096 && s.rsaKeyPairSource != nil {
+		privateKeyPEM, _, err := s.rsaKeyPairSource(alg)
+		if err != nil {
+			return nil, nil, softwareHash, trace.Wrap(err)
+		}
+
+		privateKey, err := keys.ParsePrivateKey(privateKeyPEM)
+		if err != nil {
+			return nil, nil, softwareHash, trace.Wrap(err)
+		}
+
+		decrypter, ok := privateKey.Signer.(crypto.Decrypter)
+		if !ok {
+			return nil, nil, softwareHash, trace.Errorf("could not type assert crypto.Decrypter")
+		}
+
+		privateKeyDER, err := x509.MarshalPKCS8PrivateKey(privateKey.Signer)
+		if err != nil {
+			return nil, nil, softwareHash, trace.Wrap(err)
+		}
+
+		return privateKeyDER, newOAEPDecrypter(softwareHash, decrypter), softwareHash, trace.Wrap(err)
+	}
+
 	key, err := cryptosuites.GenerateDecrypterWithAlgorithm(alg)
 	if err != nil {
 		return nil, nil, softwareHash, trace.Wrap(err)
 	}
 
-	privateKeyPEM, err := keys.MarshalDecrypter(key)
+	privateKey, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
 		return nil, nil, softwareHash, trace.Wrap(err)
 	}
 
-	return privateKeyPEM, newOAEPDecrypter(softwareHash, key), softwareHash, trace.Wrap(err)
+	return privateKey, newOAEPDecrypter(softwareHash, key), softwareHash, trace.Wrap(err)
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
@@ -130,17 +155,21 @@ func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicK
 
 // getDecrypter returns a crypto.Decrypter for the given pem-encoded private key.
 func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
-	privateKey, err := keys.ParsePrivateKey(rawKey)
+	privateKey, err := x509.ParsePKCS8PrivateKey(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	decrypter, ok := privateKey.Signer.(crypto.Decrypter)
+	decrypter, ok := privateKey.(crypto.Decrypter)
 	if !ok {
-		return nil, trace.Errorf("unsupported encryption key type %T", privateKey.Signer)
+		return nil, trace.Errorf("unsupported encryption key type %T", privateKey)
 	}
 
 	return newOAEPDecrypter(softwareHash, decrypter), nil
+}
+
+func (s *softwareKeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	return nil, trace.NotImplemented("software decryption keys do not support lookup by label")
 }
 
 // canUseKey returns true if the given key is a raw key.

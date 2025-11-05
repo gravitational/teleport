@@ -96,6 +96,7 @@ func TestForwardServer(t *testing.T) {
 				require.True(t, ok)
 				assert.Equal(t, libevents.GitCommandEvent, gitEvent.Metadata.Type)
 				assert.Equal(t, libevents.GitCommandCode, gitEvent.Metadata.Code)
+				assert.NotEmpty(t, gitEvent.SessionID)
 				assert.Equal(t, "alice", gitEvent.User)
 				assert.Equal(t, "0", gitEvent.CommandMetadata.ExitCode)
 				assert.Equal(t, "git-upload-pack", gitEvent.Service)
@@ -270,7 +271,7 @@ func TestForwardServer(t *testing.T) {
 			if test.verifyEvent != nil {
 				// Server emits exec event after sending result to client.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					assert.NotNil(t, mockEmitter.LastEvent())
+					require.NotNil(t, mockEmitter.LastEvent())
 				}, time.Second*2, time.Millisecond*100, "Timeout waiting for audit event.")
 				test.verifyEvent(t, mockEmitter.LastEvent())
 			}

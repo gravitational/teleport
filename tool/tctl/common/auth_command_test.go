@@ -964,7 +964,7 @@ func TestGenerateAndSignKeys(t *testing.T) {
 	}
 }
 
-func TestGenerateCRLForCA(t *testing.T) {
+func TestExportCRL(t *testing.T) {
 	ctx := context.Background()
 	name, err := types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "name", ClusterID: "clusterID"})
 	require.NoError(t, err)
@@ -986,12 +986,12 @@ func TestGenerateCRLForCA(t *testing.T) {
 	for _, caType := range allowedCRLCertificateTypes {
 		t.Run(caType, func(t *testing.T) {
 			ac := AuthCommand{caType: caType}
-			require.NoError(t, ac.GenerateCRLForCA(ctx, authClient))
+			require.NoError(t, ac.ExportCRL(ctx, authClient))
 		})
 	}
 
 	t.Run("InvalidCAType", func(t *testing.T) {
 		ac := AuthCommand{caType: "wrong-ca"}
-		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
+		require.Error(t, ac.ExportCRL(ctx, authClient))
 	})
 }

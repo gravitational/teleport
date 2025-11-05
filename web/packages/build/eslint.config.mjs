@@ -27,6 +27,21 @@ import unusedImportsPlugin from 'eslint-plugin-unused-imports';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const commonNoRestrictedImportsPaths = [
+  {
+    name: 'usehooks-ts',
+    importNames: ['useResizeObserver'],
+    message:
+      "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead.",
+  },
+  {
+    name: 'usehooks-ts',
+    importNames: ['useCopyToClipboard'],
+    message:
+      "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead.",
+  },
+];
+
 export default tseslint.config(
   {
     // Citing from the ESLint docs:
@@ -42,6 +57,7 @@ export default tseslint.config(
     // And just to be future-proof we specify other non-default extensions used in the project.
     files: ['**/*.ts', '**/*.mts', '**/*.tsx', '**/*.jsx'],
   },
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   {
     ignores: [
       '**/dist/**',
@@ -85,7 +101,6 @@ export default tseslint.config(
       'unused-imports': unusedImportsPlugin,
     },
     rules: {
-      ...reactHooksPlugin.configs.recommended.rules,
       '@typescript-eslint/no-unused-expressions': [
         'error',
         { allowShortCircuit: true, allowTernary: true, enforceForJSX: true },
@@ -135,10 +150,18 @@ export default tseslint.config(
       'react/no-unescaped-entities': 'warn',
       'react/jsx-key': 'warn',
       'react/jsx-no-target-blank': 'warn',
-
-      'react-hooks/rules-of-hooks': 'warn',
-      'react-hooks/exhaustive-deps': 'warn',
-      'react-hooks/react-compiler': 'warn',
+      // Enable recommended react-hooks rules as warnings.
+      ...Object.fromEntries(
+        Object.entries(reactHooksPlugin.configs.recommended.rules).map(
+          ([ruleName]) => [ruleName, 'warn']
+        )
+      ),
+      // This rule is noisy, its message does not explain how to address the issue and in the
+      // release candidate version it seems to report false positives. Turn it back on once those
+      // concerns are addressed.
+      // https://github.com/facebook/react/issues/34289
+      // https://github.com/facebook/react/issues/34313
+      'react-hooks/preserve-manual-memoization': 'off',
     },
   },
   {
@@ -194,6 +217,7 @@ export default tseslint.config(
               group: ['teleport/*', 'e-teleport/*', 'teleterm/*'],
             },
           ],
+          paths: commonNoRestrictedImportsPaths,
         },
       ],
     },
@@ -209,6 +233,7 @@ export default tseslint.config(
               group: ['e-teleport/*', 'teleterm/*'],
             },
           ],
+          paths: commonNoRestrictedImportsPaths,
         },
       ],
     },
@@ -224,6 +249,7 @@ export default tseslint.config(
               group: ['teleterm/*'],
             },
           ],
+          paths: commonNoRestrictedImportsPaths,
         },
       ],
     },
@@ -239,6 +265,20 @@ export default tseslint.config(
               group: ['teleport/*', 'e-teleport/*'],
             },
           ],
+          paths: commonNoRestrictedImportsPaths,
+        },
+      ],
+    },
+  },
+
+  {
+    // Anything but the packages which have more specific patterns written out above.
+    files: ['web/packages/!(teleterm|teleport|shared)/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: commonNoRestrictedImportsPaths,
         },
       ],
     },

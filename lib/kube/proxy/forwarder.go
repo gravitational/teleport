@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -477,12 +478,12 @@ func (c *authContext) key() string {
 func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesClusterMetadata {
 	var kubeUsers, kubeGroups []string
 
-	if impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, req.Header); err == nil {
+	if impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, c.User.GetName(), req.Header); err == nil {
 		kubeUsers = []string{impersonateUser}
 		kubeGroups = impersonateGroups
 	} else {
-		kubeUsers = utils.StringsSliceFromSet(c.kubeUsers)
-		kubeGroups = utils.StringsSliceFromSet(c.kubeGroups)
+		kubeUsers = slices.Collect(maps.Keys(c.kubeUsers))
+		kubeGroups = slices.Collect(maps.Keys(c.kubeGroups))
 	}
 
 	return apievents.KubernetesClusterMetadata{
@@ -1115,8 +1116,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, actx.User.GetName())
-	actx.kubeUsers = utils.StringsSet(kubeUsers)
-	actx.kubeGroups = utils.StringsSet(kubeGroups)
+	actx.kubeUsers = set.New(kubeUsers...)
+	actx.kubeGroups = set.New(kubeGroups...)
 
 	// Check authz against the first match.
 	//
@@ -1813,11 +1814,22 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 	}
 
 	auditSent := map[string]bool{} // Set of `addr`. Can be multiple ports on single call. Using bool to simplify the check.
+	var auditSentMu sync.Mutex
 	onPortForward := func(addr string, success bool) {
-		if !sess.isLocalKubernetesCluster || auditSent[addr] {
+		if !sess.isLocalKubernetesCluster {
 			return
 		}
-		auditSent[addr] = true
+
+		auditSentMu.Lock()
+		isAuditSent := auditSent[addr]
+		if !isAuditSent {
+			auditSent[addr] = true
+		}
+		auditSentMu.Unlock()
+		if isAuditSent {
+			return
+		}
+
 		portForward := &apievents.PortForward{
 			Metadata: apievents.Metadata{
 				Type: events.PortForwardEvent,
@@ -1956,7 +1968,7 @@ func setupImpersonationHeaders(sess *clusterSession, headers http.Header) error 
 		return nil
 	}
 
-	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, headers)
+	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(sess.kubeUsers, sess.kubeGroups, sess.User.GetName(), headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1995,7 +2007,9 @@ func copyImpersonationHeaders(dst, src http.Header) {
 // received in the `Impersonate-User` and `Impersonate-Groups` headers and the
 // allowed values. If the user didn't specify any user and groups to impersonate,
 // Teleport will use every group the user is allowed to impersonate.
-func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
+func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, username string, headers http.Header) (string, []string, error) {
+	_, hasUserWildcard := kubeUsers[types.Wildcard]
+
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -2020,7 +2034,7 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, he
 			}
 			impersonateUser = values[0]
 
-			if _, ok := kubeUsers[impersonateUser]; !ok {
+			if _, ok := kubeUsers[impersonateUser]; !ok && !hasUserWildcard {
 				return "", nil, trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
 			}
 		case ImpersonateGroupHeader:
@@ -2054,20 +2068,24 @@ func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, he
 	// link the user identity with the IAM role, for example `IAM#{{external.email}}`
 	//
 	if impersonateUser == "" {
-		switch len(kubeUsers) {
-		// this is currently not possible as kube users have at least one
-		// user (user name), but in case if someone breaks it, catch here
-		case 0:
-			return "", nil, trace.AccessDenied("assumed at least one user to be present")
-		// if there is deterministic choice, make it to improve user experience
-		case 1:
-			for user := range kubeUsers {
-				impersonateUser = user
-				break
+		if hasUserWildcard {
+			impersonateUser = username
+		} else {
+			switch len(kubeUsers) {
+			// this is currently not possible as kube users have at least one
+			// user (user name), but in case if someone breaks it, catch here
+			case 0:
+				return "", nil, trace.AccessDenied("assumed at least one user to be present")
+			// if there is deterministic choice, make it to improve user experience
+			case 1:
+				for user := range kubeUsers {
+					impersonateUser = user
+					break
+				}
+			default:
+				return "", nil, trace.AccessDenied(
+					"please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
 			}
-		default:
-			return "", nil, trace.AccessDenied(
-				"please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
 		}
 	}
 
@@ -2218,13 +2236,10 @@ func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remote
 		spdyExec,
 		func(err error) bool {
 			// If the error is a known upgrade failure, we can retry with the other protocol.
-			result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
-			if result {
-				// If the error is a known upgrade failure, we can retry with the other protocol.
-				// To do that, we need to reset the connection monitor context.
-				sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
-			}
-			return result
+			return httpstream.IsUpgradeFailure(err) ||
+				httpstream.IsHTTPSProxyError(err) ||
+				kubeerrors.IsForbidden(err) ||
+				isTeleportUpgradeFailure(err)
 		})
 }
 
@@ -2274,12 +2289,11 @@ func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request
 	}
 
 	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
-		result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
-		if result {
-			// If the error is a known upgrade failure, we can retry with the other protocol.
-			sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
-		}
-		return result
+		// If the error is a known upgrade failure, we can retry with the other protocol.
+		return httpstream.IsUpgradeFailure(err) ||
+			httpstream.IsHTTPSProxyError(err) ||
+			kubeerrors.IsForbidden(err) ||
+			isTeleportUpgradeFailure(err)
 	}), nil
 }
 
@@ -2375,19 +2389,17 @@ type clusterSession struct {
 	// rbacSupportedResources is the list of resources that support RBAC for the
 	// current cluster.
 	rbacSupportedResources rbacSupportedResources
-	// connCtx is the context used to monitor the connection.
-	connCtx context.Context
-	// connMonitorCancel is the conn monitor connMonitorCancel function.
-	connMonitorCancel context.CancelCauseFunc
+	// sessionCtx is used with one or more connection contexts.
+	sessionCtx context.Context
+	// sessionCancel cancels the session context and related connection contexts.
+	sessionCancel context.CancelCauseFunc
 	// sendErrStatus is a function that sends an error status to the client.
 	sendErrStatus func(status *kubeerrors.StatusError) error
 }
 
-// close cancels the connection monitor context if available.
+// close cancels the session context and related connection contexts.
 func (s *clusterSession) close() {
-	if s.connMonitorCancel != nil {
-		s.connMonitorCancel(io.EOF)
-	}
+	s.sessionCancel(io.EOF)
 }
 
 func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (net.Conn, error) {
@@ -2395,14 +2407,20 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		return nil, trace.Wrap(err)
 	}
 
+	// Create a connection context from the session context.
+	// This separates session lifecycle from the connection attempt lifecycle.
+	// There may be multiple connection attempts within a session using FallbackExecutor/FallbackDialer.
+	// The approach avoids a potential race condition for s.sessionCancel.
+	connCtx, connCancel := context.WithCancelCause(s.sessionCtx)
+
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.parent.cfg.Clock,
-		Context: s.connCtx,
-		Cancel:  s.connMonitorCancel,
+		Context: connCtx,
+		Cancel:  connCancel,
 	})
 	if err != nil {
-		s.connMonitorCancel(err)
+		connCancel(err)
 		return nil, trace.Wrap(err)
 	}
 	lockTargets := s.LockTargets()
@@ -2423,8 +2441,9 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Clock:                 s.parent.cfg.Clock,
 		Tracker:               tc,
 		Conn:                  tc,
-		Context:               s.connCtx,
+		Context:               connCtx,
 		TeleportUser:          s.User.GetName(),
+		UserOriginClusterName: s.Identity.GetIdentity().OriginClusterName,
 		ServerID:              s.parent.cfg.HostID,
 		Logger:                s.parent.log,
 		Emitter:               s.parent.cfg.AuthClient,
@@ -2507,7 +2526,7 @@ func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) 
 
 func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	f.log.DebugContext(ctx, "Forwarding kubernetes session to remote cluster", "auth_context", logutils.StringerAttr(authCtx))
-	connCtx, cancel := context.WithCancelCause(ctx)
+	sessionCtx, sessionCancel := context.WithCancelCause(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,
@@ -2515,10 +2534,10 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx 
 		// and the targetKubernetes cluster endpoint is determined from the identity
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-		targetAddr:        reversetunnelclient.LocalKubernetes,
-		requestContext:    ctx,
-		connCtx:           connCtx,
-		connMonitorCancel: cancel,
+		targetAddr:     reversetunnelclient.LocalKubernetes,
+		requestContext: ctx,
+		sessionCtx:     sessionCtx,
+		sessionCancel:  sessionCancel,
 	}, nil
 }
 
@@ -2554,7 +2573,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connCtx, cancel := context.WithCancelCause(ctx)
+	sessionCtx, sessionCancel := context.WithCancelCause(ctx)
 	f.log.DebugContext(ctx, "Handling kubernetes session using local credentials", "auth_context", logutils.StringerAttr(authCtx))
 	return &clusterSession{
 		parent:                 f,
@@ -2564,19 +2583,19 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 		requestContext:         ctx,
 		codecFactory:           codecFactory,
 		rbacSupportedResources: rbacSupportedResources,
-		connCtx:                connCtx,
-		connMonitorCancel:      cancel,
+		sessionCtx:             sessionCtx,
+		sessionCancel:          sessionCancel,
 	}, nil
 }
 
 func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authContext) (*clusterSession, error) {
-	connCtx, cancel := context.WithCancelCause(ctx)
+	sessionCtx, sessionCancel := context.WithCancelCause(ctx)
 	return &clusterSession{
-		parent:            f,
-		authContext:       authCtx,
-		requestContext:    ctx,
-		connCtx:           connCtx,
-		connMonitorCancel: cancel,
+		parent:         f,
+		authContext:    authCtx,
+		requestContext: ctx,
+		sessionCtx:     sessionCtx,
+		sessionCancel:  sessionCancel,
 	}, nil
 }
 

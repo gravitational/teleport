@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -54,9 +55,18 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 	t.Cleanup(cancel)
 
 	log := logtest.NewLogger()
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
 	setWorkloadIdentityX509CAOverride(ctx, t, process)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	role, err := types.NewRole("issue-foo", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -121,14 +131,19 @@ func TestBotWorkloadIdentityAPI(t *testing.T) {
 		Logger:     log,
 		Onboarding: *onboarding,
 		Services: []bot.ServiceBuilder{
-			trustBundleCache.BuildService,
-			crlCache.BuildService,
+			trustBundleCache.Builder(),
+			crlCache.Builder(),
 			WorkloadAPIServiceBuilder(
 				&WorkloadAPIConfig{
 					Selector: bot.WorkloadIdentitySelector{
 						Name: workloadIdentity.GetMetadata().GetName(),
 					},
 					Listen: listenAddr.String(),
+					Attestors: workloadattest.Config{
+						Unix: workloadattest.UnixAttestorConfig{
+							BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
+						},
+					},
 				},
 				trustBundleCache,
 				crlCache,

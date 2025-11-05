@@ -52,19 +52,23 @@ func validateAccessList(a *accesslist.AccessList) error {
 		return trace.BadParameter("owners are missing")
 	}
 
-	if a.IsReviewable() {
+	if a.IsReviewable() || a.Spec.Audit.Recurrence.Frequency != 0 {
 		switch a.Spec.Audit.Recurrence.Frequency {
 		case accesslist.OneMonth, accesslist.ThreeMonths, accesslist.SixMonths, accesslist.OneYear:
 		default:
 			return trace.BadParameter("audit recurrence frequency is an invalid value")
 		}
+	}
 
+	if a.IsReviewable() || a.Spec.Audit.Recurrence.DayOfMonth != 0 {
 		switch a.Spec.Audit.Recurrence.DayOfMonth {
 		case accesslist.FirstDayOfMonth, accesslist.FifteenthDayOfMonth, accesslist.LastDayOfMonth:
 		default:
 			return trace.BadParameter("audit recurrence day of month is an invalid value")
 		}
+	}
 
+	if a.IsReviewable() {
 		if a.Spec.Audit.NextAuditDate.IsZero() {
 			return trace.BadParameter("next audit date is not set")
 

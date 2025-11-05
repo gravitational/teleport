@@ -19,9 +19,21 @@
 package aws
 
 import (
+	"crypto/tls"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestExtractCredFromAuthHeader test the extractCredFromAuthHeader function logic.
@@ -513,6 +525,104 @@ func TestResourceARN(t *testing.T) {
 			case "policy":
 				require.Equal(t, tt.expected, PolicyARN(tt.partition, tt.accountID, tt.resourceName))
 			}
+		})
+	}
+}
+
+func TestVerifyAWSSignature(t *testing.T) {
+	creds1 := credentials.NewStaticCredentialsProvider("sameid", "secret1", "")
+	creds2 := credentials.NewStaticCredentialsProvider("sameid", "secret2", "")
+	creds3 := credentials.NewStaticCredentialsProvider("otherid", "secret1", "")
+	tests := []struct {
+		desc              string
+		clientCreds       aws.CredentialsProvider
+		serverCreds       aws.CredentialsProvider
+		checksumAlgorithm s3types.ChecksumAlgorithm
+		noTLS             bool
+		wantSha256Header  string
+		wantError         string
+	}{
+		{
+			desc:             "unsigned payload",
+			clientCreds:      creds1,
+			serverCreds:      creds1,
+			wantSha256Header: "UNSIGNED-PAYLOAD",
+		},
+		{
+			desc:        "signed payload",
+			clientCreds: creds1,
+			serverCreds: creds1,
+			// echo -n 'llama' | sha256sum
+			wantSha256Header: "fc5a1047f5919892fcdf8aa79ea5d6bb6531b5c176939ef0110906cb225941c1",
+			noTLS:            true,
+		},
+		{
+			desc:              "streaming unsigned payload trailer",
+			clientCreds:       creds1,
+			serverCreds:       creds1,
+			checksumAlgorithm: s3types.ChecksumAlgorithmCrc32,
+			wantSha256Header:  "STREAMING-UNSIGNED-PAYLOAD-TRAILER",
+		},
+		{
+			desc:             "different credential ID",
+			clientCreds:      creds3,
+			serverCreds:      creds1,
+			wantSha256Header: "UNSIGNED-PAYLOAD",
+			wantError:        "AccessKeyID does not match",
+		},
+		{
+			desc:             "different credential secret",
+			clientCreds:      creds2,
+			serverCreds:      creds1,
+			wantSha256Header: "UNSIGNED-PAYLOAD",
+			wantError:        "signature verification failed",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				assert.Equal(t, test.wantSha256Header, req.Header.Get("x-amz-content-sha256"))
+				bodyBefore, err := utils.GetAndReplaceRequestBody(req)
+				assert.NoError(t, err)
+				err = VerifyAWSSignature(req, test.serverCreds)
+				if test.wantError != "" {
+					assert.ErrorContains(t, err, test.wantError)
+				} else {
+					assert.NoError(t, err)
+				}
+				bodyAfter, err := io.ReadAll(req.Body)
+				assert.NoError(t, err)
+				assert.Equal(t, string(bodyBefore), string(bodyAfter),
+					"checking a signature should not modify the request contents",
+				)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+			if test.noTLS {
+				srv.Start()
+			} else {
+				srv.StartTLS()
+			}
+			tr := http.DefaultTransport.(*http.Transport).Clone()
+			tr.TLSClientConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
+			clt := s3.New(s3.Options{
+				Credentials:      test.clientCreds,
+				BaseEndpoint:     aws.String(srv.URL),
+				Region:           "us-west-2",
+				RetryMaxAttempts: 1,
+				HTTPClient: &http.Client{
+					Transport: tr,
+				},
+			})
+			_, err := clt.PutObject(t.Context(), &s3.PutObjectInput{
+				ChecksumAlgorithm: test.checksumAlgorithm,
+				Bucket:            aws.String("bucket"),
+				Key:               aws.String("key"),
+				Body:              strings.NewReader("llama"),
+			})
+			require.NoError(t, err)
 		})
 	}
 }

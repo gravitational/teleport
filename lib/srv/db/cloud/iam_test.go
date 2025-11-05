@@ -120,6 +120,20 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	elasticacheServerlessDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache-serverless",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "example.serverless.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			ElastiCacheServerless: types.ElastiCacheServerless{
+				CacheName: "example",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	memDB, err := types.NewDatabaseV3(types.Metadata{
 		Name: "aws-memorydb",
 	}, types.DatabaseSpecV3{
@@ -215,6 +229,13 @@ func TestAWSIAM(t *testing.T) {
 		"ElastiCache": {
 			database:           elasticacheDB,
 			wantPolicyContains: elasticacheDB.GetAWS().ElastiCache.ReplicationGroupID,
+			getIAMAuthEnabled: func() bool {
+				return true // it always is for ElastiCache.
+			},
+		},
+		"ElastiCache Serverless": {
+			database:           elasticacheServerlessDB,
+			wantPolicyContains: elasticacheServerlessDB.GetAWS().ElastiCacheServerless.CacheName,
 			getIAMAuthEnabled: func() bool {
 				return true // it always is for ElastiCache.
 			},

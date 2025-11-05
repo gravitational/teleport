@@ -277,6 +277,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateAgentRollout, nil
 	case types.KindAutoUpdateAgentReport:
 		return types.KindAutoUpdateAgentReport, nil
+	case types.KindAutoUpdateBotInstanceReport:
+		return types.KindAutoUpdateBotInstanceReport, nil
 	case types.KindGitServer, types.KindGitServer + "s":
 		return types.KindGitServer, nil
 	case types.KindWorkloadIdentityX509Revocation, types.KindWorkloadIdentityX509Revocation + "s":
@@ -297,6 +299,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindInferenceSecret, nil
 	case types.KindInferencePolicy, "inference_policies":
 		return types.KindInferencePolicy, nil
+	case types.KindRelayServer, types.KindRelayServer + "s":
+		return types.KindRelayServer, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

@@ -31,12 +31,11 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
@@ -193,7 +192,16 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 }
 
 func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (GetAlertRequestResult, error) {
-	backoff := backoff.NewDecorr(ResolveAlertRequestRetryInterval, ResolveAlertRequestRetryTimeout, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(ResolveAlertRequestRetryInterval),
+		First:  ResolveAlertRequestRetryInterval,
+		Max:    ResolveAlertRequestRetryTimeout,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return GetAlertRequestResult{}, trace.Wrap(err)
+	}
+
 	for {
 		alertRequestResult, err := og.getAlertRequestResult(ctx, reqID)
 		if err == nil {
@@ -201,8 +209,10 @@ func (og Client) tryGetAlertRequestResult(ctx context.Context, reqID string) (Ge
 			return alertRequestResult, nil
 		}
 		logger.Get(ctx).DebugContext(ctx, "Failed to get alert request result", "error", err)
-		if err := backoff.Do(ctx); err != nil {
+		select {
+		case <-ctx.Done():
 			return GetAlertRequestResult{}, trace.Wrap(err)
+		case <-retry.After():
 		}
 	}
 }

@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -382,10 +382,12 @@ func TestGetServers(t *testing.T) {
 		serverAssertion func(t *testing.T, srv types.Server)
 	}{
 		{
-			name:         "no matches for hostname",
-			site:         testSite{cfg: &unambiguousCfg},
-			host:         "test",
-			errAssertion: require.NoError,
+			name: "no matches for hostname",
+			site: testSite{cfg: &unambiguousCfg},
+			host: "test",
+			errAssertion: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsConnectionProblem(err), "Expected connection error but got %v", err)
+			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
 			},
@@ -541,7 +543,7 @@ func TestGetServers(t *testing.T) {
 }
 
 func serverResolver(srv types.Server, err error) serverResolverFn {
-	return func(ctx context.Context, host, port string, site site) (types.Server, error) {
+	return func(ctx context.Context, host, port string, site cluster) (types.Server, error) {
 		return srv, err
 	}
 }
@@ -627,19 +629,18 @@ func TestCheckedPrefixWriter(t *testing.T) {
 	})
 }
 
-type tunnel struct {
-	reversetunnelclient.Tunnel
-
-	site reversetunnelclient.RemoteSite
-	err  error
+type fakeClusterGetter struct {
+	ClusterGetter
+	cluster reversetunnelclient.Cluster
+	err     error
 }
 
-func (t tunnel) GetSite(cluster string) (reversetunnelclient.RemoteSite, error) {
-	return t.site, t.err
+func (t fakeClusterGetter) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return t.cluster, t.err
 }
 
 type testRemoteSite struct {
-	reversetunnelclient.RemoteSite
+	reversetunnelclient.Cluster
 
 	params reversetunnelclient.DialParams
 
@@ -662,14 +663,6 @@ func (r testRemoteSite) GetClient() (authclient.ClientI, error) {
 
 func (r testRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return nil, nil
-}
-
-type testSiteGetter struct {
-	site reversetunnelclient.RemoteSite
-}
-
-func (s testSiteGetter) GetSite(clusterName string) (reversetunnelclient.RemoteSite, error) {
-	return s.site, nil
 }
 
 type fakeConn struct {
@@ -716,7 +709,7 @@ func TestRouter_DialHost(t *testing.T) {
 		},
 	}
 
-	agentGetter := func() (teleagent.Agent, error) {
+	agentGetter := func() (sshagent.Client, error) {
 		return nil, nil
 	}
 	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
@@ -747,9 +740,9 @@ func TestRouter_DialHost(t *testing.T) {
 		{
 			name: "failure looking up cluster",
 			router: Router{
-				clusterName: "leaf",
-				siteGetter:  tunnel{err: trace.NotFound("unknown cluster")},
-				tracer:      tracing.NoopTracer("test"),
+				clusterName:   "leaf",
+				clusterGetter: fakeClusterGetter{err: trace.NotFound("unknown cluster")},
+				tracer:        tracing.NoopTracer("test"),
 			},
 			assertion: func(t *testing.T, params reversetunnelclient.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -761,7 +754,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial failure",
 			router: Router{
 				clusterName:    "test",
-				localSite:      &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
+				localCluster:   &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
 			},
@@ -775,7 +768,7 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success",
 			router: Router{
 				clusterName:    "test",
-				localSite:      &testRemoteSite{conn: fakeConn{}},
+				localCluster:   &testRemoteSite{conn: fakeConn{}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
 			},
@@ -793,8 +786,8 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success to agentless node",
 			router: Router{
 				clusterName:    "test",
-				localSite:      &testRemoteSite{conn: fakeConn{}},
-				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
+				localCluster:   &testRemoteSite{conn: fakeConn{}},
+				clusterGetter:  &fakeClusterGetter{cluster: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(agentlessSrv, nil),
 			},
@@ -803,7 +796,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.NotNil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 				require.Contains(t, params.Principals, "host")
 				require.Contains(t, params.Principals, "host.test")
@@ -813,8 +805,8 @@ func TestRouter_DialHost(t *testing.T) {
 			name: "dial success to agentless node using EC2 Instance Connect Endpoint",
 			router: Router{
 				clusterName:    "test",
-				localSite:      &testRemoteSite{conn: fakeConn{}},
-				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
+				localCluster:   &testRemoteSite{conn: fakeConn{}},
+				clusterGetter:  &fakeClusterGetter{cluster: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(agentlessEC2ICESrv, nil),
 			},
@@ -823,7 +815,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
 				require.Nil(t, params.AgentlessSigner)
-				require.True(t, params.IsAgentlessNode)
 				require.NotNil(t, conn)
 			},
 		},
@@ -836,8 +827,8 @@ func TestRouter_DialHost(t *testing.T) {
 			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
 
 			var params reversetunnelclient.DialParams
-			if tt.router.localSite != nil {
-				params = tt.router.localSite.(*testRemoteSite).params
+			if tt.router.localCluster != nil {
+				params = tt.router.localCluster.(*testRemoteSite).params
 			}
 
 			tt.assertion(t, params, conn, err)
@@ -854,7 +845,7 @@ func TestRouter_DialSite(t *testing.T) {
 		name      string
 		cluster   string
 		localSite testRemoteSite
-		tunnel    tunnel
+		tunnel    fakeClusterGetter
 		assertion func(t *testing.T, conn net.Conn, err error)
 	}{
 		{
@@ -888,8 +879,8 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "failure to dial remote site",
 			cluster: "leaf",
-			tunnel: tunnel{
-				site: &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
+			tunnel: fakeClusterGetter{
+				cluster: &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -900,7 +891,7 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "unknown cluster",
 			cluster: "fake",
-			tunnel: tunnel{
+			tunnel: fakeClusterGetter{
 				err: trace.NotFound("unknown cluster"),
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
@@ -912,8 +903,8 @@ func TestRouter_DialSite(t *testing.T) {
 		{
 			name:    "successfully  dial remote site",
 			cluster: "leaf",
-			tunnel: tunnel{
-				site: &testRemoteSite{conn: fakeConn{}},
+			tunnel: fakeClusterGetter{
+				cluster: &testRemoteSite{conn: fakeConn{}},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.NoError(t, err)
@@ -927,10 +918,10 @@ func TestRouter_DialSite(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			router := Router{
-				clusterName: cluster,
-				localSite:   &tt.localSite,
-				siteGetter:  tt.tunnel,
-				tracer:      tracing.NoopTracer(cluster),
+				clusterName:   cluster,
+				localCluster:  &tt.localSite,
+				clusterGetter: tt.tunnel,
+				tracer:        tracing.NoopTracer(cluster),
 			}
 
 			conn, err := router.DialSite(ctx, tt.cluster, nil, nil)
@@ -950,9 +941,9 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 		{
 			name: "failure looking up cluster",
 			router: Router{
-				clusterName: "leaf",
-				siteGetter:  tunnel{err: trace.NotFound("unknown cluster")},
-				tracer:      tracing.NoopTracer("test"),
+				clusterName:   "leaf",
+				clusterGetter: fakeClusterGetter{err: trace.NotFound("unknown cluster")},
+				tracer:        tracing.NoopTracer("test"),
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -963,9 +954,9 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 		{
 			name: "failure connecting to desktop service",
 			router: Router{
-				clusterName: "test",
-				tracer:      tracing.NoopTracer("test"),
-				localSite:   &testRemoteSite{},
+				clusterName:  "test",
+				tracer:       tracing.NoopTracer("test"),
+				localCluster: &testRemoteSite{},
 				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
 					return nil, "", trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")
 				},
@@ -979,9 +970,9 @@ func TestRouter_DialWindowsDesktop(t *testing.T) {
 		{
 			name: "dial success",
 			router: Router{
-				clusterName: "test",
-				localSite:   &testRemoteSite{conn: fakeConn{}},
-				tracer:      tracing.NoopTracer("test"),
+				clusterName:  "test",
+				localCluster: &testRemoteSite{conn: fakeConn{}},
+				tracer:       tracing.NoopTracer("test"),
 				windowsDesktopServiceConnector: func(ctx context.Context, c *desktop.ConnectionConfig) (net.Conn, string, error) {
 					return fakeConn{}, "18.0.0", nil
 				},

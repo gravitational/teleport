@@ -16,13 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ApiBot, BotResponse, FlatBot } from 'teleport/services/bot/types';
+import {
+  ApiBot,
+  BotResponse,
+  BotUiFlow,
+  FlatBot,
+} from 'teleport/services/bot/types';
 
 // nonDisplayedFields are not leveraged in the UI, so we don't explicitly set them
 const nonDisplayedFields = {
   namespace: '',
   description: '',
-  labels: null,
+  labels: new Map(),
   revision: '',
   traits: [],
   status: '',
@@ -37,6 +42,7 @@ export const botsFixture: FlatBot[] = [
     kind: 'GitHub Actions',
     name: 'bot-github-actions',
     roles: ['bot-bot-role'],
+    type: BotUiFlow.GitHubActionsSsh,
   },
   {
     ...nonDisplayedFields,
@@ -72,7 +78,7 @@ const getEmptyApiBot = (
   kind: kind,
   metadata: {
     description: '',
-    labels: null,
+    labels: new Map(),
     name: name,
     namespace: '',
     revision: '',

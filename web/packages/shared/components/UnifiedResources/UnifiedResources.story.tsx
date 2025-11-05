@@ -138,6 +138,10 @@ const story = ({
               kind: 'windows_desktop',
               disabled: false,
             },
+            {
+              kind: 'mcp',
+              disabled: false,
+            },
           ]}
           onShowStatusInfo={() => null}
           params={mergedParams}

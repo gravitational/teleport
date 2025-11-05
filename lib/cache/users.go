@@ -24,6 +24,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -31,8 +33,8 @@ type userIndex string
 
 const userNameIndex userIndex = "name"
 
-func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[types.User, userIndex], error) {
-	if u == nil {
+func newUserCollection(upstream services.UsersService, w types.WatchKind) (*collection[types.User, userIndex], error) {
+	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter UsersService")
 	}
 
@@ -44,7 +46,27 @@ func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[
 				userNameIndex: types.User.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.User, error) {
-			return u.GetUsers(ctx, loadSecrets)
+			fn := func(ctx context.Context, pageSize int, token string) ([]types.User, string, error) {
+				rsp, err := upstream.ListUsers(ctx, &userspb.ListUsersRequest{
+					WithSecrets: loadSecrets,
+					PageSize:    int32(pageSize),
+					PageToken:   token,
+				})
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+
+				out := make([]types.User, 0, len(rsp.Users))
+				for _, user := range rsp.Users {
+					out = append(out, user)
+				}
+
+				return out, rsp.NextPageToken, nil
+			}
+
+			// Use clientutils for auto pagesize backoff.
+			out, err := stream.Collect(clientutils.Resources(ctx, fn))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.User {
 			return &types.UserV2{

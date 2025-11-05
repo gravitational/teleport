@@ -99,7 +99,11 @@ export const CanvasRenderer = forwardRef<
   }, []);
 
   useEffect(() => {
-    if (!onResize) {
+    if (
+      !onResize ||
+      // Only send resize events when the canvas is visible (i.e. the connection is active).
+      props.hidden
+    ) {
       return;
     }
 
@@ -118,7 +122,7 @@ export const CanvasRenderer = forwardRef<
       debouncedOnResize.cancel();
       observer.disconnect();
     };
-  }, [onResize]);
+  }, [onResize, props.hidden]);
 
   // Wheel events must be registered on a ref because React's onWheel
   // uses a passive listener, so handlers are not able to call of e.preventDefault() on it.
@@ -227,21 +231,5 @@ function makeBitmapFrameRenderer(
 ): (frame: BitmapFrame) => void {
   const ctx = canvas.getContext('2d');
 
-  // Buffered rendering logic
-  let bitmapBuffer: BitmapFrame[] = [];
-  const renderBuffer = () => {
-    if (bitmapBuffer.length) {
-      for (let i = 0; i < bitmapBuffer.length; i++) {
-        if (bitmapBuffer[i].image_data.data.length != 0) {
-          const bmpFrame = bitmapBuffer[i];
-          ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
-        }
-      }
-      bitmapBuffer = [];
-    }
-    requestAnimationFrame(renderBuffer);
-  };
-  requestAnimationFrame(renderBuffer);
-
-  return frame => bitmapBuffer.push(frame);
+  return frame => ctx.putImageData(frame.image_data, frame.left, frame.top);
 }

@@ -85,7 +85,9 @@ func TestUserAdd(t *testing.T) {
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := testenv.MakeDefaultAuthClient(t, process)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	tests := []struct {
 		name string
@@ -196,6 +198,20 @@ func TestUserAdd(t *testing.T) {
 				constants.TraitMCPTools: {"aa", "bb", "get_*"},
 			},
 		},
+		{
+			name: "default relay addr set",
+			args: []string{"--default-relay-addr", "foo"},
+			wantTraits: map[string][]string{
+				constants.TraitDefaultRelayAddr: {"foo"},
+			},
+		},
+		{
+			name: "default relay addr blank",
+			args: []string{"--default-relay-addr", ""},
+			wantTraits: map[string][]string{
+				constants.TraitDefaultRelayAddr: nil,
+			},
+		},
 	}
 
 	for ix, tc := range tests {
@@ -244,7 +260,9 @@ func TestUserUpdate(t *testing.T) {
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := context.Background()
-	client := testenv.MakeDefaultAuthClient(t, process)
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 
 	baseUser, err := types.NewUser("test-user")
 	require.NoError(t, err)
@@ -364,6 +382,20 @@ func TestUserUpdate(t *testing.T) {
 			args: []string{"--set-mcp-tools", "aa,bb", "--set-mcp-tools", "get_*"},
 			wantTraits: map[string][]string{
 				constants.TraitMCPTools: {"aa", "bb", "get_*"},
+			},
+		},
+		{
+			name: "default relay addr set",
+			args: []string{"--set-default-relay-addr", "foo"},
+			wantTraits: map[string][]string{
+				constants.TraitDefaultRelayAddr: {"foo"},
+			},
+		},
+		{
+			name: "default relay addr reset",
+			args: []string{"--set-default-relay-addr", ""},
+			wantTraits: map[string][]string{
+				constants.TraitDefaultRelayAddr: nil,
 			},
 		},
 	}

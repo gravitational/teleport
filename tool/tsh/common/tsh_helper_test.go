@@ -481,13 +481,13 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 	}
 	require.NoError(t, wg.Wait())
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		gotNames := map[string]struct{}{}
 		for ks := range authSrv.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
 			gotNames[ks.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			assert.Contains(c, gotNames, name, "missing kube cluster")
+			require.Contains(t, gotNames, name, "missing kube cluster")
 		}
 	}, time.Second*10, time.Millisecond*500, "dynamically created kube clusters failed to register")
 }

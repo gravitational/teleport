@@ -51,6 +51,8 @@ const (
 	SummarizerService_UpsertInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpsertInferencePolicy"
 	SummarizerService_DeleteInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/DeleteInferencePolicy"
 	SummarizerService_ListInferencePolicies_FullMethodName = "/teleport.summarizer.v1.SummarizerService/ListInferencePolicies"
+	SummarizerService_GetSummary_FullMethodName            = "/teleport.summarizer.v1.SummarizerService/GetSummary"
+	SummarizerService_IsEnabled_FullMethodName             = "/teleport.summarizer.v1.SummarizerService/IsEnabled"
 )
 
 // SummarizerServiceClient is the client API for SummarizerService service.
@@ -100,6 +102,13 @@ type SummarizerServiceClient interface {
 	DeleteInferencePolicy(ctx context.Context, in *DeleteInferencePolicyRequest, opts ...grpc.CallOption) (*DeleteInferencePolicyResponse, error)
 	// ListInferencePolicies lists all InferencePolicies that match the request.
 	ListInferencePolicies(ctx context.Context, in *ListInferencePoliciesRequest, opts ...grpc.CallOption) (*ListInferencePoliciesResponse, error)
+	// GetSummary retrieves the inference result for a session, which
+	// contains the session summary.
+	GetSummary(ctx context.Context, in *GetSummaryRequest, opts ...grpc.CallOption) (*GetSummaryResponse, error)
+	// IsEnabled tells if the summarizer is enabled by the license and
+	// configured. (Note that this doesn't tell anything about actual correctness
+	// of the configuration or presence of recording summaries.)
+	IsEnabled(ctx context.Context, in *IsEnabledRequest, opts ...grpc.CallOption) (*IsEnabledResponse, error)
 }
 
 type summarizerServiceClient struct {
@@ -290,6 +299,26 @@ func (c *summarizerServiceClient) ListInferencePolicies(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *summarizerServiceClient) GetSummary(ctx context.Context, in *GetSummaryRequest, opts ...grpc.CallOption) (*GetSummaryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSummaryResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_GetSummary_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) IsEnabled(ctx context.Context, in *IsEnabledRequest, opts ...grpc.CallOption) (*IsEnabledResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IsEnabledResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_IsEnabled_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SummarizerServiceServer is the server API for SummarizerService service.
 // All implementations must embed UnimplementedSummarizerServiceServer
 // for forward compatibility.
@@ -337,6 +366,13 @@ type SummarizerServiceServer interface {
 	DeleteInferencePolicy(context.Context, *DeleteInferencePolicyRequest) (*DeleteInferencePolicyResponse, error)
 	// ListInferencePolicies lists all InferencePolicies that match the request.
 	ListInferencePolicies(context.Context, *ListInferencePoliciesRequest) (*ListInferencePoliciesResponse, error)
+	// GetSummary retrieves the inference result for a session, which
+	// contains the session summary.
+	GetSummary(context.Context, *GetSummaryRequest) (*GetSummaryResponse, error)
+	// IsEnabled tells if the summarizer is enabled by the license and
+	// configured. (Note that this doesn't tell anything about actual correctness
+	// of the configuration or presence of recording summaries.)
+	IsEnabled(context.Context, *IsEnabledRequest) (*IsEnabledResponse, error)
 	mustEmbedUnimplementedSummarizerServiceServer()
 }
 
@@ -400,6 +436,12 @@ func (UnimplementedSummarizerServiceServer) DeleteInferencePolicy(context.Contex
 }
 func (UnimplementedSummarizerServiceServer) ListInferencePolicies(context.Context, *ListInferencePoliciesRequest) (*ListInferencePoliciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListInferencePolicies not implemented")
+}
+func (UnimplementedSummarizerServiceServer) GetSummary(context.Context, *GetSummaryRequest) (*GetSummaryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSummary not implemented")
+}
+func (UnimplementedSummarizerServiceServer) IsEnabled(context.Context, *IsEnabledRequest) (*IsEnabledResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IsEnabled not implemented")
 }
 func (UnimplementedSummarizerServiceServer) mustEmbedUnimplementedSummarizerServiceServer() {}
 func (UnimplementedSummarizerServiceServer) testEmbeddedByValue()                           {}
@@ -746,6 +788,42 @@ func _SummarizerService_ListInferencePolicies_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SummarizerService_GetSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).GetSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_GetSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).GetSummary(ctx, req.(*GetSummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_IsEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IsEnabledRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).IsEnabled(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_IsEnabled_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).IsEnabled(ctx, req.(*IsEnabledRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SummarizerService_ServiceDesc is the grpc.ServiceDesc for SummarizerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -824,6 +902,14 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListInferencePolicies",
 			Handler:    _SummarizerService_ListInferencePolicies_Handler,
+		},
+		{
+			MethodName: "GetSummary",
+			Handler:    _SummarizerService_GetSummary_Handler,
+		},
+		{
+			MethodName: "IsEnabled",
+			Handler:    _SummarizerService_IsEnabled_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

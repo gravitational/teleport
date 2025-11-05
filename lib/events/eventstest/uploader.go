@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"iter"
 	"slices"
 	"sort"
 	"sync"
@@ -35,28 +36,42 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
+// MemoryUploaderConfig optional configuration for MemoryUploader.
+type MemoryUploaderConfig struct {
+	// EventsC is used by some tests to receive signal for completed uploads.
+	EventsC chan events.UploadEvent
+	// MinimumUploadBytes sets the minimum upload part size. The uploader will
+	// add padding to smaller uploads to reach this minimum size.
+	MinimumUploadBytes int
+}
+
 // NewMemoryUploader returns a new memory uploader implementing multipart
 // upload
-func NewMemoryUploader(eventsC ...chan events.UploadEvent) *MemoryUploader {
+func NewMemoryUploader(cfg ...MemoryUploaderConfig) *MemoryUploader {
 	up := &MemoryUploader{
-		mtx:       &sync.RWMutex{},
-		uploads:   make(map[string]*MemoryUpload),
-		sessions:  make(map[session.ID][]byte),
-		summaries: make(map[session.ID][]byte),
+		mtx:        &sync.RWMutex{},
+		uploads:    make(map[string]*MemoryUpload),
+		sessions:   make(map[session.ID][]byte),
+		summaries:  make(map[session.ID][]byte),
+		metadata:   make(map[session.ID][]byte),
+		thumbnails: make(map[session.ID][]byte),
 	}
-	if len(eventsC) != 0 {
-		up.eventsC = eventsC[0]
+	if len(cfg) != 0 {
+		up.cfg = cfg[0]
 	}
 	return up
 }
 
 // MemoryUploader uploads all bytes to memory, used in tests
 type MemoryUploader struct {
-	mtx       *sync.RWMutex
-	uploads   map[string]*MemoryUpload
-	sessions  map[session.ID][]byte
-	summaries map[session.ID][]byte
-	eventsC   chan events.UploadEvent
+	cfg MemoryUploaderConfig
+
+	mtx        *sync.RWMutex
+	uploads    map[string]*MemoryUpload
+	sessions   map[session.ID][]byte
+	summaries  map[session.ID][]byte
+	metadata   map[session.ID][]byte
+	thumbnails map[session.ID][]byte
 
 	// Clock is an optional [clockwork.Clock] to determine the time to associate
 	// with uploads and parts.
@@ -84,11 +99,11 @@ type part struct {
 }
 
 func (m *MemoryUploader) trySendEvent(event events.UploadEvent) {
-	if m.eventsC == nil {
+	if m.cfg.EventsC == nil {
 		return
 	}
 	select {
-	case m.eventsC <- event:
+	case m.cfg.EventsC <- event:
 	default:
 	}
 }
@@ -100,6 +115,8 @@ func (m *MemoryUploader) Reset() {
 	m.uploads = make(map[string]*MemoryUpload)
 	m.sessions = make(map[session.ID][]byte)
 	m.summaries = make(map[session.ID][]byte)
+	m.metadata = make(map[session.ID][]byte)
+	m.thumbnails = make(map[session.ID][]byte)
 }
 
 // CreateUpload creates a multipart upload
@@ -285,6 +302,40 @@ func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID
 	return string(sessionID), nil
 }
 
+// UploadMetadata uploads session metadata and returns URL with uploaded file in
+// case of success.
+func (m *MemoryUploader) UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	_, ok := m.metadata[sessionID]
+	if ok {
+		return "", trace.AlreadyExists("metadata %q already exists", sessionID)
+	}
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.metadata[sessionID] = data
+	return string(sessionID), nil
+}
+
+// UploadThumbnail uploads session thumbnail and returns URL with uploaded file in
+// case of success.
+func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	_, ok := m.thumbnails[sessionID]
+	if ok {
+		return "", trace.AlreadyExists("thumbnail %q already exists", sessionID)
+	}
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.thumbnails[sessionID] = data
+	return string(sessionID), nil
+}
+
 // Download downloads session tarball and writes it to writer
 func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	m.mtx.RLock()
@@ -316,6 +367,38 @@ func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.
 	return nil
 }
 
+// DownloadMetadata downloads session metadata and writes it to writer
+func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.metadata[sessionID]
+	if !ok {
+		return trace.NotFound("metadata %q is not found", sessionID)
+	}
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+// DownloadThumbnail downloads session thumbnail and writes it to writer
+func (m *MemoryUploader) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.thumbnails[sessionID]
+	if !ok {
+		return trace.NotFound("thumbnail %q is not found", sessionID)
+	}
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
 // GetUploadMetadata gets the session upload metadata
 func (m *MemoryUploader) GetUploadMetadata(sid session.ID) events.UploadMetadata {
 	return events.UploadMetadata{
@@ -327,6 +410,64 @@ func (m *MemoryUploader) GetUploadMetadata(sid session.ID) events.UploadMetadata
 // ReserveUploadPart reserves an upload part.
 func (m *MemoryUploader) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
 	return nil
+}
+
+// UploadEncryptedRecording uploads encrypted recordings.
+func (m *MemoryUploader) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	sessID, err := session.ParseID(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	upload, err := m.CreateUpload(ctx, *sessID)
+	if err != nil {
+		return trace.Wrap(err, "creating upload")
+	}
+
+	next, stop := iter.Pull2(parts)
+	defer stop()
+
+	part, err, ok := next()
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.BadParameter("unexpected empty upload")
+	}
+
+	var streamParts []events.StreamPart
+	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
+	// configured for the auth service
+	var partNumber int64 = 1
+	for {
+		if err := m.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
+			return trace.Wrap(err, "reserving upload part")
+		}
+
+		nextPart, err, hasNext := next()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If the upload part is not at least the minimum upload part size, and this isn't
+		// the last part, append an empty part to pad up to the minimum upload size.
+		if hasNext && len(part) < m.cfg.MinimumUploadBytes {
+			part = events.PadUploadPart(part, m.cfg.MinimumUploadBytes)
+		}
+
+		streamPart, err := m.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
+		if err != nil {
+			return trace.Wrap(err, "uploading part")
+		}
+		streamParts = append(streamParts, *streamPart)
+
+		if !hasNext {
+			break
+		}
+
+		part = nextPart
+		partNumber++
+	}
+
+	return trace.Wrap(m.CompleteUpload(ctx, *upload, streamParts), "completing upload")
 }
 
 // MockUploader is a limited implementation of [events.MultipartUploader] that

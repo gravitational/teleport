@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"sort"
 	"testing"
 
@@ -279,6 +280,28 @@ func TestAWSIAMDocuments(t *testing.T) {
 				},
 			},
 		},
+		"ElastiCache Serverless auto discovery": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Service: config.Service{EnabledFlag: "true"},
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{types.AWSMatcherElastiCacheServerless}, Regions: []string{"us-west-1"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+						"ec2:DescribeSubnets",
+						"elasticache:Connect",
+						"elasticache:DescribeServerlessCaches",
+						"elasticache:DescribeUsers",
+						"elasticache:ListTagsForResource",
+					},
+				},
+			},
+		},
 		"ElastiCache static database": {
 			target: roleTarget,
 			fileConfig: &config.FileConfig{
@@ -332,6 +355,32 @@ func TestAWSIAMDocuments(t *testing.T) {
 					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
 					Resources: []string{
 						"arn:aws:kms:*:123456789012:key/my-kms-id",
+					},
+				},
+			},
+		},
+		"ElastiCache Serverless static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Service: config.Service{EnabledFlag: "true"},
+					Databases: []*config.Database{
+						{
+							Name:     "serverless-redis",
+							Protocol: "redis",
+							URI:      "example-abc123.serverless.cac1.cache.amazonaws.com:6379",
+						},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+						"ec2:DescribeSubnets",
+						"elasticache:Connect",
+						"elasticache:DescribeServerlessCaches",
+						"elasticache:DescribeUsers",
+						"elasticache:ListTagsForResource",
 					},
 				},
 			},
@@ -829,6 +878,27 @@ func TestAWSIAMDocuments(t *testing.T) {
 					},
 				},
 			},
+			"ElastiCache Serverless": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						Service: config.Service{EnabledFlag: "true"},
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{types.AWSMatcherElastiCacheServerless}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions: awslib.SliceOrString{
+							"ec2:DescribeSubnets",
+							"elasticache:ListTagsForResource",
+							"elasticache:DescribeServerlessCaches",
+						},
+					},
+				},
+			},
 			"MemoryDB": {
 				fileConfig: &config.FileConfig{
 					Discovery: config.Discovery{
@@ -1029,6 +1099,27 @@ func TestAWSIAMDocuments(t *testing.T) {
 							"secretsmanager:TagResource",
 						},
 						Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
+					},
+				},
+			},
+			"ElastiCache Serverless": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						Service: config.Service{EnabledFlag: "true"},
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{types.AWSMatcherElastiCacheServerless}, Regions: []string{"us-east-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions: []string{
+							"elasticache:Connect",
+							"elasticache:DescribeServerlessCaches",
+							"elasticache:DescribeUsers",
+						},
 					},
 				},
 			},
@@ -1981,7 +2072,9 @@ func TestExtractTargetConfig(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.target, got.identity)
+
 			// for test convenience, use cmp.Diff to equate []Type(nil) and []Type{}.
+			slices.Sort(got.assumesAWSRoles)
 			diff := cmp.Diff(tt.want, got,
 				cmpopts.EquateEmpty(),
 				cmp.AllowUnexported(targetConfig{}),

@@ -21,7 +21,6 @@ package winpki
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base32"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -94,30 +93,33 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			subjectID := base32.HexEncoding.EncodeToString(cert.SubjectKeyId)
-			issuer := subjectID + "_" + c.cfg.ClusterName
-			if err := c.updateCRL(ctx, issuer, keyPair.CRL, caType, tc); err != nil {
+
+			if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	}
 
-	// All authorities are missing CRL, let's fall back to legacy behavior
-	// TODO(probakowski): DELETE IN v21.0.0
+	// All authorities are missing CRL, fall back to legacy behavior since some early v18 auth servers
+	// won't have set up CRLs yet.
+	// DELETE IN v19 (zmb3/probakowski): this is agent code, by the time agents are on v19 we won't
+	// need to worry about v18 auth servers.
 	if !hasCRL {
+		c.cfg.Logger.WarnContext(ctx, "No existing certificate authorities had an associated CRL. "+
+			"If you are using HSM or KMS for private key material, please update your auth server.")
 		crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
 		if err != nil {
 			return trace.Wrap(err, "generating CRL")
 		}
 
-		if err := c.updateCRL(ctx, c.cfg.ClusterName, crlDER, caType, tc); err != nil {
+		if err := c.updateCRL(ctx, c.cfg.ClusterName, nil, crlDER, caType, tc); err != nil {
 			return trace.Wrap(err, "updating CRL over LDAP")
 		}
 	}
 	return nil
 }
 
-func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, crlDER []byte, caType types.CertAuthType, tc *tls.Config) error {
+func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string, issuerSKID []byte, crlDER []byte, caType types.CertAuthType, tc *tls.Config) error {
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
@@ -132,7 +134,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, c
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
 	containerDN := crlContainerDN(c.cfg.Domain, caType)
-	crlDN := CRLDN(issuer, c.cfg.Domain, caType)
+	crlDN := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
 
 	ldapClient, err := DialLDAP(ctx, c.cfg.LC, tc)
 	if err != nil {
@@ -162,9 +164,9 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuer string, c
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		c.cfg.Logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP")
+		c.cfg.Logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP", "dn", crlDN)
 	} else {
-		c.cfg.Logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP")
+		c.cfg.Logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP", "dn", crlDN)
 	}
 	return nil
 }

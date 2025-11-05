@@ -27,13 +27,11 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -46,7 +44,10 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
-	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -56,40 +57,6 @@ const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
 )
-
-var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
-
-// ReservedServiceNames are the service names reserved for internal use.
-var ReservedServiceNames = []string{
-	"ca-rotation",
-	"crl-cache",
-	"heartbeat",
-	"identity",
-	"spiffe-trust-bundle-cache",
-}
-
-var reservedServiceNamesMap = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(ReservedServiceNames))
-	for _, k := range ReservedServiceNames {
-		m[k] = struct{}{}
-	}
-	return m
-}()
-
-var serviceNameRegex = regexp.MustCompile(`\A[a-z\d_\-+]+\z`)
-
-func validateServiceName(name string) error {
-	if name == "" {
-		return nil
-	}
-	if _, ok := reservedServiceNamesMap[name]; ok {
-		return trace.BadParameter("service name %q is reserved for internal use", name)
-	}
-	if !serviceNameRegex.MatchString(name) {
-		return trace.BadParameter("invalid service name: %q, may only contain lowercase letters, numbers, hyphens, underscores, or plus symbols", name)
-	}
-	return nil
-}
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
@@ -132,9 +99,20 @@ type BotConfig struct {
 	// If not set, no diagnostics listener is created.
 	DiagAddr string `yaml:"diag_addr,omitempty"`
 
+	// DiagSocketForUpdater specifies the path to the diagnostics http service socket that
+	// should be exposed to the updater.
+	DiagSocketForUpdater string `yaml:"-"`
+
+	// PIDFile is the path to the PID file that should be created by the bot.
+	PIDFile string `yaml:"-"`
+
 	// ReloadCh allows a channel to be injected into the bot to trigger a
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
+
+	// Testing is set in unit tests to attach a faux service which exposes the
+	// bot's underlying identity and client so we can make assertions on it.
+	Testing bool `yaml:"-"`
 
 	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
 	// Do not use in production.
@@ -218,9 +196,11 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// We've migrated Outputs to Services, so copy all Outputs to Services.
+	// We've migrated Outputs to Services, so move all Outputs to Services.
 	conf.Services = append(conf.Services, conf.Outputs...)
-	uniqueNames := make(map[string]struct{}, len(conf.Services))
+	conf.Outputs = nil
+
+	namer := newServiceNamer()
 	for i, service := range conf.Services {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
@@ -228,14 +208,13 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
-		if name := service.GetName(); name != "" {
-			if err := validateServiceName(name); err != nil {
-				return trace.Wrap(err, "validating service[%d]", i)
-			}
-			if _, seen := uniqueNames[name]; seen {
-				return trace.BadParameter("validating service[%d]: duplicate name: %q", i, name)
-			}
-			uniqueNames[name] = struct{}{}
+
+		name, err := namer.pickName(service.Type(), service.GetName())
+		switch {
+		case err != nil:
+			return trace.Wrap(err, "validating service[%d]", i)
+		case name != service.GetName():
+			service.SetName(name)
 		}
 	}
 
@@ -244,7 +223,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		switch d := d.(type) {
 		case *destination.Directory:
 			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
-		case *DestinationKubernetesSecret:
+		case *k8s.SecretDestination:
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
 	}
@@ -331,9 +310,14 @@ type ServiceConfig interface {
 	// support these options should return the zero value.
 	GetCredentialLifetime() bot.CredentialLifetime
 
-	// GetName returns the user-given name of the service, used for validation
-	// purposes.
+	// GetName returns the service's given name. Initially the name chosen by
+	// the user, but after BotConfig.CheckAndSetDefaults is called it may be
+	// our automatically generated name.
 	GetName() string
+
+	// SetName is called by BotConfig.CheckAndSetDefaults to assign the service
+	// a new name if the user didn't specify one.
+	SetName(string)
 }
 
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
@@ -351,14 +335,8 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		switch header.Type {
-		case ExampleServiceType:
-			v := &ExampleService{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case legacyspiffe.WorkloadAPIServiceType:
-			v := &legacyspiffe.WorkloadAPIConfig{}
+		case example.ServiceType:
+			v := &example.Config{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
@@ -369,33 +347,33 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SSHMultiplexerServiceType:
-			v := &SSHMultiplexerService{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case KubernetesOutputType:
-			v := &KubernetesOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case KubernetesV2OutputType:
-			v := &KubernetesV2Output{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case legacyspiffe.SVIDOutputServiceType:
-			v := &legacyspiffe.SVIDOutputConfig{}
+		case ssh.MultiplexerServiceType:
+			v := &ssh.MultiplexerConfig{}
 			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SSHHostOutputType:
-			v := &SSHHostOutput{}
+		case k8s.OutputV1ServiceType:
+			v := &k8s.OutputV1Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case k8s.OutputV2ServiceType:
+			v := &k8s.OutputV2Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case k8s.ArgoCDOutputServiceType:
+			v := &k8s.ArgoCDOutputConfig{}
 			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case ssh.HostOutputServiceType:
+			v := &ssh.HostOutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -411,9 +389,9 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case IdentityOutputType:
-			v := &IdentityOutput{}
-			if err := node.Decode(v); err != nil {
+		case identity.OutputServiceType:
+			v := &identity.OutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -447,6 +425,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case application.ProxyServiceType:
+			v := &application.ProxyServiceConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
 			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
@@ -469,8 +453,8 @@ func (ctx unmarshalConfigContext) UnmarshalDestination(node *yaml.Node) (destina
 	}
 
 	switch header.Type {
-	case DestinationKubernetesSecretType:
-		v := &DestinationKubernetesSecret{}
+	case k8s.SecretDestinationType:
+		v := &k8s.SecretDestination{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -525,25 +509,19 @@ func DestinationFromURI(uriString string) (destination.Destination, error) {
 		}
 		return &destination.Memory{}, nil
 	case "kubernetes-secret":
-		if uri.Host != "" {
-			return nil, trace.BadParameter(
-				"kubernetes-secret scheme should not be specified with host",
-			)
-		}
 		if uri.Path == "" {
 			return nil, trace.BadParameter(
 				"kubernetes-secret scheme should have a path specified",
 			)
 		}
 		// kubernetes-secret:///my-secret
-		// TODO(noah): Eventually we'll support namespace in the host part of
-		// the URI. For now, we'll default to the namespace tbot is running in.
 
 		// Path will be prefixed with '/' so we'll strip it off.
 		secretName := strings.TrimPrefix(uri.Path, "/")
 
-		return &DestinationKubernetesSecret{
-			Name: secretName,
+		return &k8s.SecretDestination{
+			Name:      secretName,
+			Namespace: uri.Host,
 		}, nil
 	default:
 		return nil, trace.BadParameter(
@@ -598,22 +576,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 
 	switch version.Version {
 	case V1, "":
-		if !manualMigration {
-			log.WarnContext(
-				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/")
-		}
-		config := &configV1{}
-		if err := decoder.Decode(config); err != nil {
-			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
-		}
-		latestConfig, err := config.migrate()
-		if err != nil {
-			return nil, trace.WithUserMessage(
-				trace.Wrap(err, "migrating v1 config"),
-				"Failed to migrate. See https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/",
-			)
-		}
-		return latestConfig, nil
+		return nil, trace.BadParameter("configuration version v1 is no longer supported")
 	case V2:
 		if manualMigration {
 			return nil, trace.BadParameter("configuration already the latest version. nothing to migrate.")

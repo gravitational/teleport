@@ -43,7 +43,7 @@ func TestMain(m *testing.M) {
 func TestSelfSignedCert(t *testing.T) {
 	t.Parallel()
 
-	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil)
+	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil, nil, time.Now)
 	require.NoError(t, err)
 	signer, err := keys.ParsePrivateKey(creds.PrivateKey)
 	require.NoError(t, err)
@@ -522,15 +522,6 @@ func TestTryReadValueAsFile(t *testing.T) {
 	tok, err = TryReadValueAsFile(tokenPath)
 	require.NoError(t, err)
 	require.Equal(t, "shmoken", tok)
-}
-
-// TestStringsSet makes sure that nil slice returns empty set (less error prone)
-func TestStringsSet(t *testing.T) {
-	t.Parallel()
-
-	out := StringsSet(nil)
-	require.Empty(t, out)
-	require.NotNil(t, out)
 }
 
 func TestReadAtMost(t *testing.T) {

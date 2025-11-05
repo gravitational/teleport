@@ -51,6 +51,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
@@ -240,6 +241,10 @@ func handleReexec() {
 }
 
 type cliModules struct{}
+
+func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return &types.LongTermResourceGrouping{}, nil
+}
 
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
@@ -1244,19 +1249,23 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	stage1Hostname := "test-stage-1"
 	node := makeTestSSHNode(t, rootAuthAddr, withHostname(stage1Hostname), withSSHLabel("env", "stage"))
-	sshHostID := node.Config.HostUUID
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	stage2Hostname := "test-stage-2"
 	node2 := makeTestSSHNode(t, rootAuthAddr, withHostname(stage2Hostname), withSSHLabel("env", "stage"))
-	sshHostID2 := node2.Config.HostUUID
+	sshHostID2, err := node2.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	prodHostname := "test-prod-1"
 	nodeProd := makeTestSSHNode(t, rootAuthAddr, withHostname(prodHostname), withSSHLabel("env", "prod"))
-	sshHostID3 := nodeProd.Config.HostUUID
+	sshHostID3, err := nodeProd.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	leafHostname := "leaf-node"
 	leafNode := makeTestSSHNode(t, leafAuthAddr, withHostname(leafHostname), withSSHLabel("animal", "llama"))
-	sshLeafHostID := leafNode.Config.HostUUID
+	sshLeafHostID, err := leafNode.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	hasNodes := func(asrv *auth.Server, hostIDs ...string) func() bool {
 		return func() bool {
@@ -2029,15 +2038,18 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	sshHostname := "test-ssh-server"
 	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	sshHostID := node.Config.HostUUID
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	sshHostname2 := "test-ssh-server-2"
 	node2 := makeTestSSHNode(t, authAddr, withHostname(sshHostname2), withSSHLabel("access", "true"))
-	sshHostID2 := node2.Config.HostUUID
+	sshHostID2, err := node2.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	sshHostnameNoAccess := "test-ssh-server-no-access"
 	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
-	sshHostIDNoAccess := nodeNoAccess.Config.HostUUID
+	sshHostIDNoAccess, err := nodeNoAccess.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	hasNodes := func(hostIDs ...string) func() bool {
 		return func() bool {
@@ -2430,7 +2442,7 @@ func TestSSHCommands(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname(sshHostname),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithSSHLabel(accessRoleName, "true"),
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
@@ -2439,16 +2451,21 @@ func TestSSHCommands(t *testing.T) {
 			cfg.SSH.DisableCreateHostUser = true
 		}),
 	}
-	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
 
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
+
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -2673,15 +2690,12 @@ func TestKubeCredentialsLock(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			gotNames := map[string]struct{}{}
 			for ks, err := range authServer.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				if !assert.NoError(t, err) {
-					return
-				}
+				require.NoError(t, err)
 
 				gotNames[ks.GetCluster().GetName()] = struct{}{}
-
 			}
 
-			assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+			require.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
 		}, 15*time.Second, 100*time.Millisecond)
 
 		var ssoCalls atomic.Int32
@@ -2948,7 +2962,7 @@ func TestSSHHeadless(t *testing.T) {
 	bob.SetRoles([]string{"requester"})
 
 	sshHostname := "test-ssh-host"
-	server := testserver.MakeTestServer(t,
+	server, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Hostname = sshHostname
 			cfg.Auth.Enabled = true
@@ -2972,11 +2986,16 @@ func TestSSHHeadless(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Wait())
+	})
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
-		assert.Len(t, found, 1)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	go func() {
@@ -3067,7 +3086,7 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 
 	sshHostname := "test-ssh-host"
 
-	server := testserver.MakeTestServer(t,
+	server, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Hostname = sshHostname
 			cfg.Auth.Enabled = true
@@ -3089,11 +3108,16 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 				},
 			}
 		}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Wait())
+	})
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
-		assert.Len(t, found, 1)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	proxyAddr, err := server.ProxyWebAddr()
@@ -3895,7 +3919,7 @@ func withSSHLabel(key, value string) testServerOptFunc {
 	})
 }
 
-// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
+// deprecated: Use `tools/teleport/testenv.NewTeleportProcess` instead.
 func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOptFunc) *service.TeleportProcess {
 	var options testServersOpts
 	for _, opt := range opts {
@@ -3928,7 +3952,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	return runTeleport(t, cfg)
 }
 
-// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
+// deprecated: Use `tools/teleport/testenv.NewTeleportProcess` instead.
 func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.TeleportProcess, proxy *service.TeleportProcess) {
 	t.Helper()
 
@@ -4325,6 +4349,7 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
+        "elasticache_serverless": {},
         "secret_store": {},
         "memorydb": {},
         "opensearch": {},
@@ -4333,10 +4358,10 @@ func TestSerializeDatabases(t *testing.T) {
         "docdb": {}
       },
       "mysql": {},
-      "oracle": {
-        "audit_user": ""
+      "oracle": {},
+      "gcp": {
+        "alloydb": {}
       },
-      "gcp": {},
       "azure": {
 	    "redis": {}
 	  },
@@ -4358,6 +4383,7 @@ func TestSerializeDatabases(t *testing.T) {
         },
         "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
+        "elasticache_serverless": {},
         "secret_store": {},
         "memorydb": {},
         "opensearch": {},
@@ -5331,7 +5357,7 @@ func TestForwardingTraces(t *testing.T) {
 			proxyAddr, err := proxyProcess.ProxyWebAddr()
 			require.NoError(t, err)
 
-			// --trace should have no impact on login, since login is ignored
+			// --trace should cause the login to be traced.
 			err = Run(context.Background(), []string{
 				"login",
 				"--insecure",
@@ -5340,12 +5366,13 @@ func TestForwardingTraces(t *testing.T) {
 			}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 			require.NoError(t, err)
 
-			if traceCfg.Enabled && traceCfg.SamplingRate > 0 {
+			if traceCfg.Enabled {
 				collector.WaitForExport()
 			}
 
-			// ensure login doesn't generate any spans from tsh if spans are being sampled
-			loginAssertion := spanAssertion(false, !traceCfg.Enabled || traceCfg.SamplingRate <= 0)
+			// Ensure login spans from tsh are forwarded to the exporter if
+			// tracing is enabled on the auth service.
+			loginAssertion := spanAssertion(true, !traceCfg.Enabled)
 			loginAssertion(t, collector.Spans())
 
 			err = Run(context.Background(), []string{
@@ -5545,7 +5572,8 @@ func TestShowSessions(t *testing.T) {
 		"db_protocol": "postgres",
 		"db_uri": "",
 		"session_start": "0001-01-01T00:00:00Z",
-		"session_stop": "0001-01-01T00:00:00Z"
+		"session_stop": "0001-01-01T00:00:00Z",
+		"participants": ["someParticipant"]
     } ]`
 	sessions := []events.AuditEvent{
 		&events.SessionEnd{
@@ -5582,8 +5610,9 @@ func TestShowSessions(t *testing.T) {
 			DatabaseMetadata: events.DatabaseMetadata{
 				DatabaseProtocol: "postgres",
 			},
-			StartTime: time.Time{},
-			EndTime:   time.Time{},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
 		},
 	}
 	var buf bytes.Buffer
@@ -5640,8 +5669,8 @@ func TestBenchmarkPostgres(t *testing.T) {
 	alice.SetDatabaseNames([]string{"*"})
 	alice.SetRoles([]string{"access"})
 
-	authProcess := testserver.MakeTestServer(
-		t,
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -5660,6 +5689,11 @@ func TestBenchmarkPostgres(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -5761,8 +5795,8 @@ func TestBenchmarkMySQL(t *testing.T) {
 	alice.SetDatabaseNames([]string{"*"})
 	alice.SetRoles([]string{"access"})
 
-	authProcess := testserver.MakeTestServer(
-		t,
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -5781,6 +5815,11 @@ func TestBenchmarkMySQL(t *testing.T) {
 			}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -6099,7 +6138,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node01"),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
@@ -6113,12 +6152,17 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 			}
 		}),
 	}
-	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
 
 	leafServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node02"),
-		testserver.WithClusterName(t, "leaf"),
+		testserver.WithClusterName("leaf"),
 		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
@@ -6132,8 +6176,13 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 			}
 		}),
 	}
-	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+	leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, leafServer.Close())
+		require.NoError(t, leafServer.Wait())
+	})
+	SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 	var (
 		rootNode, leafNode *types.ServerV2
@@ -6142,34 +6191,28 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
 
 		leafNodes, err := leafServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafNodes, 1)
 
 		rootDatabases, err := rootServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootDatabases, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootDatabases, 1)
 
 		leafDatabases, err := leafServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafDatabases, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafDatabases, 1)
 
 		rootApps, err := rootServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootApps, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootApps, 1)
 
 		leafApps, err := leafServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafApps, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafApps, 1)
 
 		rootNode = rootNodes[0].(*types.ServerV2)
 		leafNode = leafNodes[0].(*types.ServerV2)
@@ -6662,7 +6705,7 @@ func TestResolve(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname(sshHostname),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
@@ -6674,9 +6717,14 @@ func TestResolve(t *testing.T) {
 			}
 		}),
 	}
-	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
 
-	node := testserver.MakeTestServer(t,
+	node, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SetAuthServerAddresses(rootServer.Config.AuthServerAddresses())
 			cfg.Hostname = "second-node"
@@ -6689,15 +6737,19 @@ func TestResolve(t *testing.T) {
 				"env":    "dev",
 			}
 		}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, node.Close())
+		require.NoError(t, node.Wait())
+	})
 
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, found, 2) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, found, 2)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -6952,7 +7004,7 @@ func TestSCP(t *testing.T) {
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname(sshHostname),
-		testserver.WithClusterName(t, "root"),
+		testserver.WithClusterName("root"),
 		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
@@ -6964,13 +7016,19 @@ func TestSCP(t *testing.T) {
 			}
 		}),
 	}
-	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
 
 	// Create a second server to test ambiguous matching.
-	testserver.MakeTestServer(t,
+	const secondServerHostname = "second-node"
+	server, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SetAuthServerAddresses(rootServer.Config.AuthServerAddresses())
-			cfg.Hostname = "second-node"
+			cfg.Hostname = secondServerHostname
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.SSH.Enabled = true
@@ -6980,15 +7038,19 @@ func TestSCP(t *testing.T) {
 				"env":    "dev",
 			}
 		}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+		require.NoError(t, server.Wait())
+	})
 
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, found, 2) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, found, 2)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -7160,6 +7222,42 @@ func TestSCP(t *testing.T) {
 			expected: map[string][]byte{
 				filepath.Base(sourceFile1): expectedFile1,
 				filepath.Base(sourceFile2): expectedFile2,
+			},
+		},
+		{
+			name:   "two hosts without templates",
+			source: []string{sshHostname + ":" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return secondServerHostname + ":" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "two hosts with templates",
+			source: []string{"shark.example.com:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "2.3.4.5:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: require.NoError,
+			expected: map[string][]byte{
+				targetFile1: expectedFile1,
+			},
+		},
+		{
+			name:   "two hosts, one no matching host",
+			source: []string{"2.3.4.5:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "asdf.example.com:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "no matching hosts", i...)
 			},
 		},
 	}
@@ -7517,10 +7615,15 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{accessRole.GetName()})
 
-	tsrv := testserver.MakeTestServer(t,
+	tsrv, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithSSHLabel("foo", "bar"),
 		testserver.WithBootstrap(connector, accessRole, alice),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tsrv.Close())
+		require.NoError(t, tsrv.Wait())
+	})
 	t.Cleanup(func() { require.NoError(t, tsrv.Close()) })
 	// We don't need a real second node for multi-node exec, tsh ssh should fail before that.
 	fakeNode, err := types.NewNode("fake", types.SubKindTeleportNode, types.ServerSpecV2{}, map[string]string{"foo": "bar"})
@@ -7554,8 +7657,8 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 			command:   []string{"echo", "hello", ">", "test.txt"},
 			assertRun: assert.NoError,
 			assertCommandEffect: func(t *testing.T, testFile string) bool {
-				return assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-					assert.FileExists(collect, testFile)
+				return assert.EventuallyWithT(t, func(t *assert.CollectT) {
+					assert.FileExists(t, testFile)
 				}, 3*time.Second, 100*time.Millisecond)
 			},
 		},
@@ -7605,5 +7708,62 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 				tc.assertCommandEffect(t, testFile)
 			}
 		})
+	}
+}
+
+func Test_humanFriendlyValidUntilDuration(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	tests := []struct {
+		name   string
+		input  time.Time
+		expect string
+	}{
+		{
+			name:   "expired",
+			input:  clock.Now().Add(-time.Minute),
+			expect: "EXPIRED",
+		},
+		{
+			name:   "less than one minute",
+			input:  clock.Now().Add(time.Second * 30),
+			expect: "valid for <1m",
+		},
+		{
+			name:   "truncate",
+			input:  clock.Now().Add(time.Minute*5 + time.Second*50),
+			expect: "valid for 5m",
+		},
+		{
+			name:   "hours",
+			input:  clock.Now().Add(time.Hour*12 + time.Minute*34 + time.Second*10),
+			expect: "valid for 12h34m",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := humanFriendlyValidUntilDuration(test.input, clock)
+			require.Equal(t, test.expect, actual)
+		})
+	}
+}
+
+func TestDebugVersionOutput(t *testing.T) {
+	t.Setenv(tshBinMainTestEnv, "1")
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+
+	output, err := exec.Command(testExecutable, "logout", "--debug").CombinedOutput()
+	require.NoError(t, err)
+
+	vers := []string{
+		teleport.Version,
+		teleport.Gitref,
+		runtime.Version(),
+	}
+
+	require.Contains(t, string(output), "Initializing tsh version")
+	for _, v := range vers {
+		require.Contains(t, string(output), v)
 	}
 }

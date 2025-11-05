@@ -23,6 +23,7 @@ import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/client/proto/inventory.proto";
+import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
@@ -371,6 +372,24 @@ message ChangePasswordRequest {
   webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
 }
 
+message ListSemaphoresRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // filter encodes semaphore filtering params.
+  types.SemaphoreFilter filter = 3;
+}
+
+message ListSemaphoresResponse {
+  // a list of semaphores.
+  repeated types.SemaphoreV3 semaphores = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // PluginDataSeq is a sequence of plugin data.
 message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
@@ -430,6 +449,24 @@ message CreateResetPasswordTokenRequest {
     (gogoproto.jsontag) = "ttl",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// ListResetPasswordTokenRequest is a request for a page of user tokens.
+message ListResetPasswordTokenRequest {
+  // PageSize is the maximum amount of resources to retrieve.
+  int32 page_size = 1;
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string page_token = 2;
+}
+
+// ListResetPasswordTokenResponse contains a page of user tokens.
+message ListResetPasswordTokenResponse {
+  // UserTokens is a list of user tokens.
+  repeated types.UserTokenV3 user_tokens = 1;
+  // NextKey is the key for the next page of user tokens.
+  string next_page_token = 2;
 }
 
 // RenewableCertsRequest is a request to generate a first set of renewable
@@ -597,6 +634,8 @@ message Features {
   reserved "CloudAnonymizationKey";
   // AccessGraphDemoMode enables the ability to opt-in to a demo mode of Access Graph with limited features.
   bool AccessGraphDemoMode = 38 [(gogoproto.jsontag) = "access_graph_demo_mode,omitempty"];
+  // ClientIPRestrictions allows Cloud users to setup a client IP allowlist
+  bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -974,6 +1013,24 @@ message GetWebTokenResponse {
 message GetWebTokensResponse {
   // Tokens is a list of web tokens.
   repeated types.WebTokenV3 Tokens = 1 [(gogoproto.jsontag) = "tokens"];
+}
+
+// ListWebTokensRequest contains all the requested web tokens.
+message ListWebTokensRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// ListWebTokensResponse contains all the requested web tokens.
+message ListWebTokensResponse {
+  // Tokens is a list of web tokens.
+  repeated types.WebTokenV3 tokens = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // UpsertKubernetesServerRequest are the parameters used to add or update a
@@ -1533,6 +1590,8 @@ message GetEventsRequest {
   // Order specifies an ascending or descending order of events.
   // A value of 0 means a descending order and a value of 1 means an ascending order.
   Order Order = 7;
+  // Search is an optional search term to filter events by (case-insensitive substring match).
+  string Search = 8;
 }
 
 message GetSessionEventsRequest {
@@ -1612,6 +1671,22 @@ message ListAppsResponse {
   repeated types.AppV3 applications = 1;
   // NextKey is the key for the next page of applications.
   string next_key = 2;
+}
+
+message ListDatabasesRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListDatabasesResponse {
+  // a list of databases.
+  repeated types.DatabaseV3 databases = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
@@ -2063,6 +2138,22 @@ message IdentityCenterAccountAssignment {
   IdentityCenterPermissionSet PermissionSet = 7;
 }
 
+message ListInstallersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListInstallersResponse {
+  // Installers is a list of installer resources.
+  repeated types.InstallerV1 installers = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
   // Resource is the resource itself.
@@ -2388,6 +2479,24 @@ message GetGithubAuthRequestRequest {
   string StateToken = 1 [(gogoproto.jsontag) = "state_token"];
 }
 
+message ListOIDCConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+}
+
+message ListOIDCConnectorsResponse {
+  // Connectors is a list of OIDC connectors.
+  repeated types.OIDCConnectorV3 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // CreateOIDCConnectorRequest is a request for CreateOIDCConnector.
 message CreateOIDCConnectorRequest {
   // Connector to be created.
@@ -2422,6 +2531,45 @@ message UpdateSAMLConnectorRequest {
 message UpsertSAMLConnectorRequest {
   // Connector to be created or updated.
   types.SAMLConnectorV2 Connector = 1 [(gogoproto.jsontag) = "connector"];
+}
+
+message ListSAMLConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+  // NoFollowURLs specifies whether to skip following URLs when
+  // validating SAML connector resources.
+  bool no_follow_urls = 4;
+}
+
+message ListSAMLConnectorsResponse {
+  // Connectors is a list of SAML connectors.
+  repeated types.SAMLConnectorV2 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+message ListGithubConnectorsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
+}
+
+message ListGithubConnectorsResponse {
+  // Connectors is a list of Github connectors.
+  repeated types.GithubConnectorV3 connectors = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 // CreateGithubConnectorRequest is a request for CreateGithubConnector.
@@ -2725,6 +2873,59 @@ message ListProvisionTokensResponse {
   string NextKey = 2;
 }
 
+// ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterRequest {
+  // Token is the join token to use to join.
+  string Token = 1;
+  // CertAuthorities are the certificate authorities submitted from the leaf to
+  // the root as part of the join process.
+  repeated types.CertAuthorityV2 CertAuthorities = 2;
+  // TeleportVersion is the version of Teleport that the leaf cluster is
+  // running.
+  string TeleportVersion = 3;
+}
+
+// ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterResponse {
+  // CertAuthorities are the certificate authorities of the root cluster that
+  // should be trusted by the leaf cluster.
+  repeated types.CertAuthorityV2 CertAuthorities = 1;
+}
+
+message ListKubernetesClustersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListKubernetesClustersResponse {
+  // KubernetesClusters is a list of kubernetes cluster resources.
+  repeated types.KubernetesClusterV3 kubernetes_clusters = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+message ListSnowflakeSessionsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListSnowflakeSessionsResponse {
+  // Sessions is a list of Snowflake web sessions.
+  repeated types.WebSessionV2 sessions = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2825,6 +3026,8 @@ service AuthService {
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
   // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+  // GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+  rpc GetRemoteAccessCapabilities(types.RemoteAccessCapabilitiesRequest) returns (types.RemoteAccessCapabilities);
 
   // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
   rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
@@ -2845,6 +3048,9 @@ service AuthService {
   //
   // Only local users may be reset.
   rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
+
+  // ListResetPasswordTokens returns a page of user tokens.
+  rpc ListResetPasswordTokens(ListResetPasswordTokenRequest) returns (ListResetPasswordTokenResponse);
 
   // GetUser gets a user resource by name.
   //
@@ -2897,7 +3103,11 @@ service AuthService {
   // CancelSemaphoreLease cancels semaphore lease early.
   rpc CancelSemaphoreLease(types.SemaphoreLease) returns (google.protobuf.Empty);
   // GetSemaphores returns a list of all semaphores matching the supplied filter.
-  rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores);
+  rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores) {
+    option deprecated = true;
+  }
+  // ListSemaphores returns a page of all semaphores matching the supplied filter.
+  rpc ListSemaphores(ListSemaphoresRequest) returns (ListSemaphoresResponse);
   // DeleteSemaphore deletes a semaphore matching the supplied filter.
   rpc DeleteSemaphore(types.SemaphoreFilter) returns (google.protobuf.Empty);
 
@@ -2936,7 +3146,14 @@ service AuthService {
   // GetSnowflakeSession returns a web session with sub kind Snowflake.
   rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
   // GetSnowflakeSessions gets all Snowflake web sessions.
-  rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse);
+  // Deprecated: Use [ListSnowflakeSessions] instead.
+  // TODO(okraport): DELETE IN 21.0.0
+  rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse) {
+    option deprecated = true;
+  }
+  // ListSnowflakeSessions returns a page of Snowflake web sessions.
+  rpc ListSnowflakeSessions(ListSnowflakeSessionsRequest) returns (ListSnowflakeSessionsResponse);
+
   // DeleteSnowflakeSession removes a Snowflake web session.
   rpc DeleteSnowflakeSession(DeleteSnowflakeSessionRequest) returns (google.protobuf.Empty);
   // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -2983,7 +3200,11 @@ service AuthService {
   // GetWebToken gets a web token.
   rpc GetWebToken(types.GetWebTokenRequest) returns (GetWebTokenResponse);
   // GetWebTokens gets all web tokens.
-  rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse);
+  rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse) {
+    option deprecated = true;
+  }
+  // ListWebTokens returns a page of web tokens.
+  rpc ListWebTokens(ListWebTokensRequest) returns (ListWebTokensResponse);
   // DeleteWebToken deletes a web token.
   rpc DeleteWebToken(types.DeleteWebTokenRequest) returns (google.protobuf.Empty);
   // DeleteAllWebTokens deletes all web tokens.
@@ -3028,6 +3249,8 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // ListRoles is a paginated role getter.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  // ListRequestableRoles is a paginated requestable role getter.
+  rpc ListRequestableRoles(ListRequestableRolesRequest) returns (ListRequestableRolesResponse);
   // CreateRole creates a new role.
   rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
   // UpdateRole updates an existing role.
@@ -3102,7 +3325,13 @@ service AuthService {
   // GetOIDCConnector gets an OIDC connector resource by name.
   rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
   // GetOIDCConnectors gets all current OIDC connector resources.
-  rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
+  //
+  // Deprecated: Use ListOIDCConnectors instead.
+  rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List) {
+    option deprecated = true;
+  }
+  // ListOIDCConnectors returns a page of current OIDC connector resources.
+  rpc ListOIDCConnectors(ListOIDCConnectorsRequest) returns (ListOIDCConnectorsResponse);
   // UpsertOIDCConnector creates a new OIDC connector in the backend.
   rpc CreateOIDCConnector(CreateOIDCConnectorRequest) returns (types.OIDCConnectorV3);
   // UpsertOIDCConnector updates an existing OIDC connector in the backend.
@@ -3125,7 +3354,13 @@ service AuthService {
   // GetSAMLConnector gets a SAML connector resource by name.
   rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
   // GetSAMLConnectors gets all current SAML connector resources.
-  rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
+  //
+  // Deprecated: Use ListSAMLConnectors instead.
+  rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List) {
+    option deprecated = true;
+  }
+  // ListSAMLConnectors returns a page of current SAML connector resources.
+  rpc ListSAMLConnectors(ListSAMLConnectorsRequest) returns (ListSAMLConnectorsResponse);
   // CreateSAMLConnector creates a new SAML connector in the backend.
   rpc CreateSAMLConnector(CreateSAMLConnectorRequest) returns (types.SAMLConnectorV2);
   // UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -3148,7 +3383,13 @@ service AuthService {
   // GetGithubConnector gets a Github connector resource by name.
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
   // GetGithubConnectors gets all current Github connector resources.
-  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List);
+  //
+  // Deprecated: Use ListGithubConnectors instead.
+  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List) {
+    option deprecated = true;
+  }
+  // ListGithubConnectors returns a page of current Github connector resources.
+  rpc ListGithubConnectors(ListGithubConnectorsRequest) returns (ListGithubConnectorsResponse);
   // CreateGithubConnector creates a new Github connector in the backend.
   rpc CreateGithubConnector(CreateGithubConnectorRequest) returns (types.GithubConnectorV3);
   // UpdateGithubConnector updates an existing Github connector in the backend.
@@ -3185,7 +3426,11 @@ service AuthService {
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
-  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
+  // Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+  // TODO(okraport): DELETE IN 21.0.0
+  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List) {
+    option deprecated = true;
+  }
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
   //
   // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
@@ -3198,7 +3443,13 @@ service AuthService {
   // GetToken retrieves a token described by the given request.
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
-  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // Deprecated: Use [ListProvisionTokens], [GetStaticTokens], and [ListResetPasswordTokens] instead.
+  // TODO(hugoShaka): DELETE IN 21.0.0
+  rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List) {
+    option deprecated = true;
+  }
+  // GetStaticTokens retrieves all static tokens.
+  rpc GetStaticTokens(google.protobuf.Empty) returns (types.StaticTokensV2);
   // ListToken retrieves a paginated list of filtered provision tokens.
   rpc ListProvisionTokens(ListProvisionTokensRequest) returns (ListProvisionTokensResponse);
   // CreateTokenV2 creates a token in a backend.
@@ -3293,7 +3544,9 @@ service AuthService {
   rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetApps returns all registered applications.
-  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
+  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List) {
+    option deprecated = true;
+  }
   // ListApps returns a page of registered applications.
   rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // GetApp returns an application by name.
@@ -3308,7 +3561,11 @@ service AuthService {
   rpc DeleteAllApps(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetDatabases returns all registered databases.
-  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
+  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List) {
+    option deprecated = true;
+  }
+  // ListDatabases returns a page of registered databases.
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
   // GetDatabase returns a database by name.
   rpc GetDatabase(types.ResourceRequest) returns (types.DatabaseV3);
   // CreateDatabase creates a new database resource.
@@ -3321,7 +3578,11 @@ service AuthService {
   rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetKubernetesClusters returns all registered kubernetes clusters.
-  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List);
+  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List) {
+    option deprecated = true;
+  }
+  // ListKubernetesClusters returns a page of registered kubernetes clusters.
+  rpc ListKubernetesClusters(ListKubernetesClustersRequest) returns (ListKubernetesClustersResponse);
   // GetKubernetesCluster returns a kubernetes cluster by name.
   rpc GetKubernetesCluster(types.ResourceRequest) returns (types.KubernetesClusterV3);
   // CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -3450,7 +3711,11 @@ service AuthService {
   // GetInstaller retrieves the installer script resource
   rpc GetInstaller(types.ResourceRequest) returns (types.InstallerV1);
   // GetInstallers retrieves all of installer script resources.
-  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List);
+  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List) {
+    option deprecated = true;
+  }
+  // ListInstallers returns a page of installer script resources.
+  rpc ListInstallers(ListInstallersRequest) returns (ListInstallersResponse);
 
   // SetInstaller sets the installer script resource
   rpc SetInstaller(types.InstallerV1) returns (google.protobuf.Empty);
@@ -3554,4 +3819,9 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
+  // by the proxy on behalf of a cluster that wishes to join to this one as a
+  // leaf cluster.
+  rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
 }

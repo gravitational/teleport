@@ -452,6 +452,30 @@ var (
 		PropagatedFields:       []string{"Spec.Audit.NextAuditDate"},
 	}
 
+	accessListMember = payload{
+		Name:                   "Member",
+		TypeName:               "Member",
+		VarName:                "accessListMember",
+		GetMethod:              "AccessListClient().GetStaticAccessListMember",
+		CreateMethod:           "AccessListClient().UpsertStaticAccessListMember",
+		UpsertMethodArity:      2,
+		UpdateMethod:           "AccessListClient().UpsertStaticAccessListMember",
+		DeleteMethod:           "AccessListClient().DeleteStaticAccessListMember",
+		IDPrefix:               "accessListMember.Spec.AccessList",
+		ID:                     "accessListMember.Header.Metadata.Name",
+		Kind:                   "access_list_member",
+		HasStaticID:            false,
+		SchemaPackage:          "schemav1",
+		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
+		ProtoPackage:           "accesslist",
+		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
+		TerraformResourceType:  "teleport_access_list_member",
+		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
+		ConvertToProtoFunc:     "ToMemberProto",
+		ConvertFromProtoFunc:   "FromMemberProto",
+		HasCheckAndSetDefaults: true,
+	}
+
 	server = payload{
 		Name:                   "Server",
 		TypeName:               "ServerV2",
@@ -684,6 +708,8 @@ func genTFSchema() {
 	generateDataSource(oktaImportRule, pluralDataSource)
 	generateResource(accessList, pluralResource)
 	generateDataSource(accessList, pluralDataSource)
+	generateResource(accessListMember, pluralResource)
+	generateDataSource(accessListMember, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
 	generateResource(installer, pluralResource)

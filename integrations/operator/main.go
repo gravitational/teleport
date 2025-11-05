@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
-	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -70,8 +70,7 @@ func main() {
 
 	config := &operatorConfig{}
 	config.BindFlags(flag.CommandLine)
-	botConfig := &embeddedtbot.BotConfig{}
-	botConfig.AuthServerAddressMode = connection.AllowProxyAsAuthServer
+	botConfig := &embeddedtbot.BotConfig{Kind: bot.KindKubernetesOperator}
 	botConfig.BindFlags(flag.CommandLine)
 	flag.Parse()
 

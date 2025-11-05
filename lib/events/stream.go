@@ -37,6 +37,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
@@ -67,8 +68,14 @@ const (
 	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
 	MaxProtoMessageSizeBytes = 64 * 1024
 
-	// MinUploadPartSizeBytes is the minimum allowed part size when uploading a part to
-	// Amazon S3.
+	// MinUploadPartSizeBytes is the minimum upload part size when uploading session recordings
+	// through a [MultipartUploader]. All uploaded parts are expected to meet this minimum size.
+	// The actual minimum enforced by th external audit storage depends on the provider:
+	// - S3 (AWS):    5MiB
+	// - GCloud:      5MiB
+	// - Azure:       None
+	// - File:        None
+	// - Mem (tests): Configurable
 	MinUploadPartSizeBytes = 1024 * 1024 * 5
 
 	// ProtoStreamV1 is a version of the binary protocol
@@ -131,6 +138,8 @@ type ProtoStreamerConfig struct {
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -183,6 +192,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		RetryConfig:               s.cfg.RetryConfig,
 		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
 	})
 }
 
@@ -214,6 +224,7 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		RetryConfig:               s.cfg.RetryConfig,
 		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
 	})
 }
 
@@ -252,6 +263,8 @@ type ProtoStreamConfig struct {
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -556,6 +569,14 @@ type sliceWriter struct {
 	retryConfig retryutils.LinearConfig
 	// encrypter wraps writes with encryption
 	encrypter EncryptionWrapper
+	// sessionStartTime is the time of the first event in the session
+	sessionStartTime time.Time
+	// sessionEndTime is the time of the last event in the session
+	sessionEndTime time.Time
+	// shouldProcessSession is set to true if the session should be processed
+	// by the recording metadata service (currently, this is true if the session
+	// is a SSH session).
+	shouldProcessSession bool
 	// sshSessionEndEvent is an event that marked the end of this session if it was
 	// an SSH one. It may be nil if the stream hasn't ended yet, and it may also
 	// be nil if the stream picked up after an auth server start from a point
@@ -671,10 +692,22 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 				continue
 			}
-			// Capture the session end event.
+			// Capture the session start time and the last relevant end event time, and the actual end event.
 			switch e := event.oneof.GetEvent().(type) {
+			case *apievents.OneOf_SessionStart:
+				w.sessionStartTime = e.SessionStart.Time
+				w.shouldProcessSession = true
+
+			case *apievents.OneOf_SessionPrint:
+				w.sessionEndTime = e.SessionPrint.Time
+
+			case *apievents.OneOf_Resize:
+				w.sessionEndTime = e.Resize.Time
+
 			case *apievents.OneOf_SessionEnd:
 				w.sshSessionEndEvent = e.SessionEnd
+				w.sessionEndTime = e.SessionEnd.Time
+
 			case *apievents.OneOf_DatabaseSessionEnd:
 				w.dbSessionEndEvent = e.DatabaseSessionEnd
 			}
@@ -803,6 +836,22 @@ func (w *sliceWriter) completeStream() {
 		if err != nil {
 			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
 			return
+		}
+
+		if w.proto.cfg.RecordingMetadataProvider != nil {
+			recordingMetadata := w.proto.cfg.RecordingMetadataProvider.Service()
+
+			if w.shouldProcessSession {
+				if !w.sessionStartTime.IsZero() && !w.sessionEndTime.IsZero() {
+					duration := w.sessionEndTime.Sub(w.sessionStartTime)
+
+					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, duration); err != nil {
+						slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
+					}
+				} else {
+					slog.WarnContext(w.proto.cancelCtx, "Session start or end time is not set, skipping recording metadata processing")
+				}
+			}
 		}
 
 		summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
@@ -1254,6 +1303,21 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 					return nil, err
 				}
 				return nil, r.setError(trace.ConvertSystemError(err))
+			}
+
+			// Empty parts may be created for padding. Just skip them and discard any padding.
+			if header.PartSize == 0 {
+				if header.PaddingSize != 0 {
+					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, int64(header.PaddingSize)), r.messageBytes[:])
+					if err != nil {
+						return nil, r.setError(trace.ConvertSystemError(err))
+					}
+					if skipped != int64(header.PaddingSize) {
+						return nil, r.setError(trace.BadParameter(
+							"data truncated, expected to read %v bytes, but got %v", r.padding, skipped))
+					}
+				}
+				continue
 			}
 
 			r.padding = int64(header.PaddingSize)

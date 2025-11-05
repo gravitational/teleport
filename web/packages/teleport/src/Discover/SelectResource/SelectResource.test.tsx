@@ -57,6 +57,7 @@ import {
   kindBasedList,
   l_DesktopAzure,
   l_Saml,
+  m_MCP,
   makeResourceSpec,
   NoAccessList,
 } from './testUtils';
@@ -154,6 +155,7 @@ describe('preferred resources', () => {
         l_Saml,
         l_DesktopAzure,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -176,6 +178,7 @@ describe('preferred resources', () => {
         l_Saml,
         l_DesktopAzure,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -198,6 +201,7 @@ describe('preferred resources', () => {
         k_Database,
         l_Saml,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -209,6 +213,7 @@ describe('preferred resources', () => {
         // preferred first
         c_ApplicationGcp,
         g_Application,
+        m_MCP,
         // alpha; guided before unguided
         a_DatabaseAws,
         d_Saml,
@@ -242,6 +247,7 @@ describe('preferred resources', () => {
         k_Database,
         l_Saml,
         l_DesktopAzure,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -297,6 +303,7 @@ describe('marketing params', () => {
         k_Database,
         l_Saml,
         l_DesktopAzure,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -327,6 +334,7 @@ describe('marketing params', () => {
         l_Saml,
         l_DesktopAzure,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -357,6 +365,7 @@ describe('marketing params', () => {
         l_Saml,
         l_DesktopAzure,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -387,6 +396,7 @@ describe('marketing params', () => {
         k_Database,
         l_Saml,
         e_KubernetesSelfHosted_unguided,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],
@@ -406,6 +416,7 @@ describe('marketing params', () => {
         // preferred first
         c_ApplicationGcp,
         g_Application,
+        m_MCP,
         // alpha; guided before unguided
         a_DatabaseAws,
         d_Saml,
@@ -447,6 +458,7 @@ describe('marketing params', () => {
         k_Database,
         l_Saml,
         l_DesktopAzure,
+        m_MCP,
         // no access is last
         ...NoAccessList,
       ],

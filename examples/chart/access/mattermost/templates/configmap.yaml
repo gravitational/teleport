@@ -11,8 +11,8 @@ metadata:
 data:
   teleport-mattermost.toml: |
     [teleport]
-    addr = "{{ .Values.teleport.address }}"
-    identity = "/var/lib/teleport/plugins/mattermost/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
+    identity = "/var/lib/teleport/plugins/mattermost/teleport-identity/{{ include "mattermost.identitySecretPath" . }}"
     refresh_identity = true
 
     [mattermost]

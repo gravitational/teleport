@@ -17,13 +17,10 @@
 package cache
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
@@ -45,14 +42,10 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 					EntityID:         "IAMShowcase" + name,
 				})
 		},
-		create: p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
-		list: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.samlIDPServiceProviders.ListSAMLIdPServiceProviders))
-		},
-		cacheGet: p.cache.GetSAMLIdPServiceProvider,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.SAMLIdPServiceProvider, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListSAMLIdPServiceProviders, pageSize))
-		},
+		create:    p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
+		list:      p.samlIDPServiceProviders.ListSAMLIdPServiceProviders,
+		cacheGet:  p.cache.GetSAMLIdPServiceProvider,
+		cacheList: p.cache.ListSAMLIdPServiceProviders,
 		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
 		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
 	})

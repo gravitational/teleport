@@ -204,7 +204,9 @@ func TestDatabaseServerResource(t *testing.T) {
 	require.NoError(t, err)
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// get all database servers
 	buff, err := runResourceCommand(t, clt, []string{"get", types.KindDatabaseServer, "--format=json"})
@@ -269,7 +271,9 @@ func TestDatabaseServiceResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Add a lot of DatabaseServices to test pagination
 	dbS, err := types.NewDatabaseServiceV1(
@@ -368,13 +372,15 @@ version: v1
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	scopedRoleYAMLPath := filepath.Join(t.TempDir(), "some-role.yaml")
 	require.NoError(t, os.WriteFile(scopedRoleYAMLPath, []byte(scopedRoleYAML), 0644))
 
 	// Create the scoped role
-	_, err := runResourceCommand(t, clt, []string{"create", scopedRoleYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleYAMLPath})
 	require.NoError(t, err)
 
 	// wait for cache propagation
@@ -546,7 +552,9 @@ func TestIntegrationResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("get", func(t *testing.T) {
 
@@ -659,7 +667,9 @@ func TestDiscoveryConfigResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("get", func(t *testing.T) {
 		// Add a lot of DiscoveryConfigs to test pagination
@@ -772,9 +782,11 @@ func TestCreateLock(t *testing.T) {
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
-	_, err := types.NewLock("test-lock", types.LockSpecV2{
+	_, err = types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
 			User: "bad@actor",
 		},
@@ -844,13 +856,15 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
 	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 
-	_, err := runResourceCommand(t, clt, []string{"create", dbYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 }
 
@@ -985,7 +999,9 @@ func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		desc               string
@@ -1070,7 +1086,9 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		desc           string
@@ -1237,7 +1255,9 @@ func (test *dynamicResourceTest[T]) setup(t *testing.T) *authclient.Client {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 	return clt
 }
 
@@ -1355,7 +1375,6 @@ func TestDatabaseResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	test := dynamicResourceTest[*types.DatabaseV3]{
 		kind:                    types.KindDatabase,
 		resourceYAML:            dbYAML,
@@ -1434,113 +1453,6 @@ func TestAppResource(t *testing.T) {
 	test.run(t)
 }
 
-func TestGetOneResourceNameToDelete(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks", "host-foo1", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks", "host-foo2", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-1", "host-foo-bar1", "foo-bar", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	tests := []struct {
-		desc            string
-		refName         string
-		wantErrContains string
-		resources       []types.KubeServer
-		wantName        string
-	}{
-		{
-			desc:      "one resource is ok",
-			refName:   "foo-bar-eks-us-west-1",
-			resources: []types.KubeServer{fooBar1},
-			wantName:  "foo-bar-eks-us-west-1",
-		},
-		{
-			desc:      "multiple resources with same name is ok",
-			refName:   "foo",
-			resources: []types.KubeServer{foo1, foo2},
-			wantName:  "foo-eks",
-		},
-		{
-			desc:            "zero resources is an error",
-			refName:         "xxx",
-			wantErrContains: `kubernetes server "xxx" not found`,
-		},
-		{
-			desc:            "multiple resources with different names is an error",
-			refName:         "foo-bar",
-			resources:       []types.KubeServer{fooBar1, fooBar2},
-			wantErrContains: "matches multiple",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			ref := services.Ref{Kind: types.KindKubeServer, Name: test.refName}
-			resDesc := "kubernetes server"
-			name, err := getOneResourceNameToDelete(test.resources, ref, resDesc)
-			if test.wantErrContains != "" {
-				require.ErrorContains(t, err, test.wantErrContains)
-				return
-			}
-			require.Equal(t, test.wantName, name)
-		})
-	}
-}
-
-func TestFilterByNameOrDiscoveredName(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks-us-west-1", "host-foo", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks-us-west-2", "host-foo", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar1", "", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	resources := []types.KubeServer{
-		foo1, foo2, fooBar1, fooBar2,
-	}
-	hostNameGetter := func(ks types.KubeServer) string { return ks.GetHostname() }
-	tests := []struct {
-		desc           string
-		filter         string
-		altNameGetters []altNameFn[types.KubeServer]
-		want           []types.KubeServer
-	}{
-		{
-			desc:   "filters by exact name",
-			filter: "foo-eks-us-west-1",
-			want:   []types.KubeServer{foo1},
-		},
-		{
-			desc:   "filters by exact name over discovered names",
-			filter: "foo-bar",
-			want:   []types.KubeServer{fooBar1},
-		},
-		{
-			desc:   "filters by discovered name",
-			filter: "foo",
-			want:   []types.KubeServer{foo1, foo2},
-		},
-		{
-			desc:           "checks alt names for exact matches",
-			filter:         "host-foo",
-			altNameGetters: []altNameFn[types.KubeServer]{hostNameGetter},
-			want:           []types.KubeServer{foo1, foo2},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := filterByNameOrDiscoveredName(resources, test.filter, test.altNameGetters...)
-			require.Empty(t, cmp.Diff(test.want, got))
-		})
-	}
-}
-
-func TestFormatAmbiguousDeleteMessage(t *testing.T) {
-	ref := services.Ref{Kind: types.KindDatabase, Name: "x"}
-	resDesc := "database"
-	names := []string{"xbbb", "xaaa", "xccc", "xb"}
-	got := formatAmbiguousDeleteMessage(ref, resDesc, names)
-	require.Contains(t, got, "db/x matches multiple auto-discovered databases",
-		"should have formatted the ref used and pluralized the resource description")
-	wantSortedNames := strings.Join([]string{"xaaa", "xb", "xbbb", "xccc"}, "\n")
-	require.Contains(t, got, wantSortedNames, "should have sorted the matching names")
-	require.Contains(t, got, "$ tctl rm db/xaaa", "should have contained an example command")
-}
-
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
 func requireEqual(expected any) require.ValueAssertionFunc {
@@ -1569,8 +1481,15 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(logtest.NewLogger()))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// tctlGetAllValidations allows tests to register post-test validations to validate
 	// that their resource is present in "tctl get all" output.
@@ -2325,8 +2244,15 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		},
 	})
 
-	process := testenv.MakeTestServer(t)
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		kind   string

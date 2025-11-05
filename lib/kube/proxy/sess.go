@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/services"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -519,14 +520,14 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 // It is used to properly handle client disconnections.
 func (s *session) disconnectPartyOnErr(idString string, err error) {
 	if idString == sessionRecorderID {
-		s.log.ErrorContext(s.sess.connCtx, "Failed to write to session recorder, closing session")
+		s.log.ErrorContext(s.sess.sessionCtx, "Failed to write to session recorder, closing session")
 		s.Close()
 		return
 	}
 
 	id, uuidParseErr := uuid.Parse(idString)
 	if uuidParseErr != nil {
-		s.log.ErrorContext(s.sess.connCtx, "Unable to decode party id",
+		s.log.ErrorContext(s.sess.sessionCtx, "Unable to decode party id",
 			"party_id", idString,
 			"error", uuidParseErr,
 		)
@@ -535,14 +536,14 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 
 	wasActive, leaveErr := s.leave(id)
 	if leaveErr != nil {
-		s.log.ErrorContext(s.sess.connCtx, "Failed to disconnect party from the session",
+		s.log.ErrorContext(s.sess.sessionCtx, "Failed to disconnect party from the session",
 			"party_id", idString,
 			"error", leaveErr,
 		)
 	}
 	if wasActive {
 		// log the error only if it was the reason for the user disconnection.
-		s.log.ErrorContext(s.sess.connCtx, "Encountered error with party, disconnecting them from the session",
+		s.log.ErrorContext(s.sess.sessionCtx, "Encountered error with party, disconnecting them from the session",
 			"error", err,
 			"party_id", idString,
 		)
@@ -561,11 +562,11 @@ func (s *session) checkPresence() error {
 		}
 
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
-			s.log.DebugContext(s.sess.connCtx, "Participant is not active, kicking", "participant_id", participant.ID)
+			s.log.DebugContext(s.sess.sessionCtx, "Participant is not active, kicking", "participant_id", participant.ID)
 			id, _ := uuid.Parse(participant.ID)
 			_, err := s.unlockedLeave(id)
 			if err != nil {
-				s.log.WarnContext(s.sess.connCtx, "Failed to kick participant for inactivity",
+				s.log.WarnContext(s.sess.sessionCtx, "Failed to kick participant for inactivity",
 					"participant_id", participant.ID,
 					"error", err,
 				)
@@ -993,7 +994,8 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	s.log.DebugContext(s.forwarder.ctx, "Tracking participant", "participant_id", p.ID)
 	participant := &types.Participant{
 		ID:         p.ID.String(),
-		User:       p.Ctx.User.GetName(),
+		User:       p.Ctx.Identity.GetIdentity().Username,
+		Cluster:    p.Ctx.Identity.GetIdentity().OriginClusterName,
 		Mode:       string(p.Mode),
 		LastActive: time.Now().UTC(),
 	}
@@ -1322,7 +1324,14 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 func (s *session) allParticipants() []string {
 	var participants []string
 	for _, p := range s.partiesHistorical {
-		participants = append(participants, p.Ctx.User.GetName())
+		username := services.UsernameForCluster(
+			services.UsernameForClusterConfig{
+				User:              p.Ctx.Identity.GetIdentity().Username,
+				OriginClusterName: p.Ctx.Identity.GetIdentity().OriginClusterName,
+				LocalClusterName:  p.Ctx.Identity.GetIdentity().TeleportCluster,
+			},
+		)
+		participants = append(participants, username)
 	}
 
 	return participants

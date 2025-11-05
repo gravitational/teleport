@@ -59,7 +59,7 @@ describe('withholder', () => {
       state: ButtonState.DOWN,
       cli: new TdpClient(() => null, selectDirectoryInBrowser),
     };
-    withholder.handleKeyboardEvent(params, mockHandleKeyboardEvent);
+    withholder.handleInputEvent(params, mockHandleKeyboardEvent);
     expect(mockHandleKeyboardEvent).toHaveBeenCalledWith(params);
   });
 
@@ -82,12 +82,12 @@ describe('withholder', () => {
       cli: new TdpClient(() => null, selectDirectoryInBrowser),
     };
 
-    withholder.handleKeyboardEvent(metaDown, mockHandleKeyboardEvent);
-    withholder.handleKeyboardEvent(metaUp, mockHandleKeyboardEvent);
+    withholder.handleInputEvent(metaDown, mockHandleKeyboardEvent);
+    withholder.handleInputEvent(metaUp, mockHandleKeyboardEvent);
 
     expect(mockHandleKeyboardEvent).not.toHaveBeenCalled();
 
-    withholder.handleKeyboardEvent(enterDown, mockHandleKeyboardEvent);
+    withholder.handleInputEvent(enterDown, mockHandleKeyboardEvent);
 
     expect(mockHandleKeyboardEvent).toHaveBeenCalledTimes(3);
     expect(mockHandleKeyboardEvent).toHaveBeenNthCalledWith(1, metaDown);
@@ -107,8 +107,8 @@ describe('withholder', () => {
       cli: new TdpClient(() => null, selectDirectoryInBrowser),
     };
 
-    withholder.handleKeyboardEvent(metaParams, mockHandleKeyboardEvent);
-    withholder.handleKeyboardEvent(altParams, mockHandleKeyboardEvent);
+    withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
+    withholder.handleInputEvent(altParams, mockHandleKeyboardEvent);
 
     expect(mockHandleKeyboardEvent).not.toHaveBeenCalled();
 
@@ -125,13 +125,32 @@ describe('withholder', () => {
       state: ButtonState.UP,
       cli: new TdpClient(() => null, selectDirectoryInBrowser),
     };
-    withholder.handleKeyboardEvent(metaParams, mockHandleKeyboardEvent);
-    expect((withholder as any).withheldKeys).toHaveLength(1);
+    withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
+    expect((withholder as any).withheldInputs).toHaveLength(1);
 
     withholder.cancel();
     jest.advanceTimersByTime(10);
 
     expect(mockHandleKeyboardEvent).not.toHaveBeenCalled();
-    expect((withholder as any).withheldKeys).toHaveLength(0);
+    expect((withholder as any).withheldInputs).toHaveLength(0);
+  });
+
+  it('flushes keys on mouse event', () => {
+    const metaParams = {
+      e: { key: 'Meta' } as KeyboardEvent,
+      state: ButtonState.DOWN,
+      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+    };
+    withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
+
+    const mouseEvent = {
+      e: { button: 0 } as MouseEvent,
+      state: ButtonState.DOWN,
+      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+    };
+    withholder.handleInputEvent(mouseEvent, mockHandleKeyboardEvent);
+
+    expect(mockHandleKeyboardEvent).toHaveBeenCalledWith(metaParams);
+    expect(mockHandleKeyboardEvent).toHaveBeenCalledWith(mouseEvent);
   });
 });

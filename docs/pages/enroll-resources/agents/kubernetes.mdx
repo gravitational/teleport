@@ -1,9 +1,10 @@
 ---
 title: Joining Services via Kubernetes ServiceAccount Token
 description: Use Kubernetes ServiceAccount tokens to join services running in the same Kubernetes cluster as the Auth Service.
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 This guide will explain how to use the **Kubernetes join method** to configure
@@ -32,7 +33,7 @@ as the Auth Service.
 ## Prerequisites
 
 - A running Teleport cluster in Kubernetes. For details on how to set this up,
-  see [Guides for running Teleport using Helm](../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
+  see [Guides for running Teleport using Helm](../../zero-trust-access/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
 - Editor access to the Kubernetes cluster running the Teleport cluster.
   You must be able to create Namespaces and Deployments.
 - A Teleport user with `access` role, or any other role that allows access to

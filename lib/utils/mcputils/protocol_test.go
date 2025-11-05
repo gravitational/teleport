@@ -81,13 +81,13 @@ var (
 )
 
 func TestJSONRPCNotification(t *testing.T) {
-	var base baseJSONRPCMessage
+	var base BaseJSONRPCMessage
 	require.NoError(t, json.Unmarshal(sampleNotificationJSON, &base))
-	assert.True(t, base.isNotification())
-	assert.False(t, base.isRequest())
-	assert.False(t, base.isResponse())
+	assert.True(t, base.IsNotification())
+	assert.False(t, base.IsRequest())
+	assert.False(t, base.IsResponse())
 
-	m := base.makeNotification()
+	m := base.MakeNotification()
 	require.NotNil(t, m)
 	assert.Equal(t, mcp.MCPMethod("notifications/message"), m.Method)
 	assert.Len(t, base.Params, 3)
@@ -98,13 +98,13 @@ func TestJSONRPCNotification(t *testing.T) {
 }
 
 func TestJSONRPCRequest(t *testing.T) {
-	var base baseJSONRPCMessage
+	var base BaseJSONRPCMessage
 	require.NoError(t, json.Unmarshal(sampleRequestJSON, &base))
-	assert.False(t, base.isNotification())
-	assert.True(t, base.isRequest())
-	assert.False(t, base.isResponse())
+	assert.False(t, base.IsNotification())
+	assert.True(t, base.IsRequest())
+	assert.False(t, base.IsResponse())
 
-	m := base.makeRequest()
+	m := base.MakeRequest()
 	require.NotNil(t, m)
 	assert.Equal(t, mcp.MethodToolsCall, m.Method)
 	assert.Equal(t, "int64:2", m.ID.String())
@@ -118,13 +118,13 @@ func TestJSONRPCRequest(t *testing.T) {
 }
 
 func TestJSONRPCResponse(t *testing.T) {
-	var base baseJSONRPCMessage
+	var base BaseJSONRPCMessage
 	require.NoError(t, json.Unmarshal(sampleResponseJSON, &base))
-	assert.False(t, base.isNotification())
-	assert.False(t, base.isRequest())
-	assert.True(t, base.isResponse())
+	assert.False(t, base.IsNotification())
+	assert.False(t, base.IsRequest())
+	assert.True(t, base.IsResponse())
 
-	m := base.makeResponse()
+	m := base.MakeResponse()
 	require.NotNil(t, m)
 	assert.Equal(t, "int64:2", m.ID.String())
 

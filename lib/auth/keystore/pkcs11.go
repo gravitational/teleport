@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/elliptic"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -42,6 +43,10 @@ import (
 )
 
 var pkcs11Prefix = []byte("pkcs11:")
+
+const (
+	recordingEncryptionHostID = "teleport_recording_encryption"
+)
 
 type pkcs11KeyStore struct {
 	ctx       *crypto11.Context
@@ -197,6 +202,7 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 		return nil, nil, p.oaepHash, trace.Wrap(err)
 	}
 
+	id.HostID = recordingEncryptionHostID
 	rawTeleportID, err := id.marshal()
 	if err != nil {
 		return nil, nil, p.oaepHash, trace.Wrap(err)
@@ -209,7 +215,7 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 
 	p.log.InfoContext(ctx, "Creating new HSM keypair.", "id", id, "algorithm", logutils.StringerAttr(alg))
 
-	label := []byte(p.hostUUID)
+	label := []byte(id.HostID)
 	switch alg {
 	case cryptosuites.RSA4096:
 		decrypter, err := p.generateRSA4096(rawPKCS11ID, label)
@@ -253,6 +259,72 @@ func (p *pkcs11KeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return nil, trace.BadParameter("pkcs11 key does not support decryption")
 }
 
+func attrValToUint(value []byte) uint64 {
+	if len(value) == 4 {
+		return uint64(binary.BigEndian.Uint32(value))
+	}
+
+	if len(value) == 8 {
+		return binary.BigEndian.Uint64(value)
+	}
+
+	return 0
+}
+
+func (p *pkcs11KeyStore) validateKeyForDecryption(signer crypto.Signer) error {
+	keyTypeAttr, err := p.ctx.GetAttribute(signer, crypto11.CkaKeyType)
+	if err != nil {
+		return trace.Wrap(err, "looking up key type")
+	}
+
+	if attrValToUint(keyTypeAttr.Value) != pkcs11.CKK_RSA {
+		return trace.Errorf("invalid key algorithm, expected RSA")
+	}
+
+	modAttr, err := p.ctx.GetAttribute(signer, crypto11.CkaModulus)
+	if err != nil {
+		return trace.Wrap(err, "looking up modulus")
+	}
+
+	bitLen := len(modAttr.Value) * 8
+	if bitLen != 4096 {
+		return trace.Errorf("expected 4096-bit key, found %d-bit key", bitLen)
+	}
+
+	return nil
+}
+
+func (p *pkcs11KeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
+	if label == nil || label.Type != storePKCS11 {
+		return nil, nil
+	}
+
+	signers, err := p.ctx.FindKeyPairs(nil, []byte(label.Label))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var decrypters []crypto.Decrypter
+	for _, signer := range signers {
+		if err := p.validateKeyForDecryption(signer); err != nil {
+			p.log.DebugContext(ctx, "key found but could not be used for decryption", "label_type", label.Type, "label", label.Label, "error", err)
+			continue
+		}
+
+		decrypter, ok := signer.(crypto.Decrypter)
+		if !ok {
+			continue
+		}
+		decrypters = append(decrypters, decrypter)
+	}
+
+	return decrypters, nil
+}
+
+func (p *pkcs11KeyStore) checkAccessibleHostID(hostID string) bool {
+	return hostID == recordingEncryptionHostID || hostID == p.hostUUID
+}
+
 func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
 	if t := keyType(rawKey); t != types.PrivateKeyType_PKCS11 {
 		return nil, trace.BadParameter("pkcs11KeyStore cannot get signer for key type %s", t.String())
@@ -261,14 +333,14 @@ func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey [
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if keyID.HostID != p.hostUUID {
+	if !p.checkAccessibleHostID(keyID.HostID) {
 		return nil, trace.NotFound("given pkcs11 key is for host: %q, but this host is: %q", keyID.HostID, p.hostUUID)
 	}
 	pkcs11ID, err := keyID.pkcs11Key(p.isYubiHSM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer, err := p.ctx.FindKeyPair(pkcs11ID, []byte(p.hostUUID))
+	signer, err := p.ctx.FindKeyPair(pkcs11ID, []byte(keyID.HostID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -291,7 +363,7 @@ func (p *pkcs11KeyStore) canUseKey(ctx context.Context, raw []byte, keyType type
 		return false, trace.Wrap(err)
 	}
 
-	return keyID.HostID == p.hostUUID, nil
+	return p.checkAccessibleHostID(keyID.HostID), nil
 }
 
 // deleteKey deletes the given key from the HSM
@@ -300,7 +372,7 @@ func (p *pkcs11KeyStore) deleteKey(_ context.Context, rawKey []byte) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if keyID.HostID != p.hostUUID {
+	if !p.checkAccessibleHostID(keyID.HostID) {
 		return trace.NotFound("pkcs11 key is for different host")
 	}
 	pkcs11ID, err := keyID.pkcs11Key(p.isYubiHSM)
@@ -337,7 +409,7 @@ func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if keyID.HostID != p.hostUUID {
+		if !p.checkAccessibleHostID(keyID.HostID) {
 			// This key was labeled with a foreign host UUID, it is likely not
 			// present on the attached HSM and definitely will not be returned
 			// by FindKeyPairs below which queries by host UUID.

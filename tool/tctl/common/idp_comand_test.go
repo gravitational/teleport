@@ -44,7 +44,9 @@ func TestIdPSAMLCommand(t *testing.T) {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("test-attribute-mapping", func(t *testing.T) {
 		// Create user file

@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 )
 
 // ConnectedProxyGetter provides the ability to retrieve which proxy instances
@@ -52,11 +52,7 @@ type DialParams struct {
 
 	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
-	GetUserAgent teleagent.Getter
-
-	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
-	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.
-	IsAgentlessNode bool
+	GetUserAgent sshagent.ClientGetter
 
 	// AgentlessSigner is used for authenticating to the remote host when it is an
 	// agentless node.
@@ -105,58 +101,55 @@ func (params DialParams) String() string {
 	return fmt.Sprintf("from: %q to: %q", params.From, to)
 }
 
-// RemoteSite represents remote teleport site that can be accessed via
-// teleport tunnel or directly by proxy
-//
-// There are two implementations of this interface: local and remote sites.
-type RemoteSite interface {
-	// DialAuthServer returns a net.Conn to the Auth Server of a site.
+// Cluster represents a teleport cluster, either root or leaf,
+// that can be accessed via teleport tunnel or directly by proxy.
+type Cluster interface {
+	// DialAuthServer returns a net.Conn to the Auth Server of a cluster.
 	DialAuthServer(DialParams) (conn net.Conn, err error)
-	// Dial dials any address within the site network, in terminating
+	// Dial dials any address within the cluster network, in terminating
 	// mode it uses local instance of forwarding server to terminate
 	// and record the connection.
 	Dial(DialParams) (conn net.Conn, err error)
-	// DialTCP dials any address within the site network and
+	// DialTCP dials any address within the cluster network and
 	// ignores recording mode, used in components that need direct dialer.
 	DialTCP(DialParams) (conn net.Conn, err error)
-	// GetLastConnected returns last time the remote site was seen connected
+	// GetLastConnected returns last time the cluster was seen connected
 	GetLastConnected() time.Time
-	// GetName returns site name (identified by authority domain's name)
+	// GetName returns cluster name (identified by authority domain's name)
 	GetName() string
-	// GetStatus returns status of this site (either offline or connected)
+	// GetStatus returns status of this cluster (either offline or connected)
 	GetStatus() string
 	// GetClient returns client connected to remote auth server
 	GetClient() (authclient.ClientI, error)
 	// CachingAccessPoint returns access point that is lightweight
 	// but is resilient to auth server crashes
 	CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error)
-	// NodeWatcher returns the node watcher that maintains the node set for the site
+	// NodeWatcher returns the node watcher that maintains the node set for the cluster
 	NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
-	// GitServerWatcher returns the Git server watcher for the site
+	// GitServerWatcher returns the Git server watcher for the cluster
 	GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int
-	// IsClosed reports whether this RemoteSite has been closed and should no
+	// IsClosed reports whether this Cluster has been closed and should no
 	// longer be used.
 	IsClosed() bool
-	// Closer allows the site to be closed
+	// Closer allows the Cluster to be closed
 	io.Closer
 }
 
-// Tunnel provides access to connected local or remote clusters
-// using unified interface.
-type Tunnel interface {
-	// GetSites returns a list of connected remote sites
-	GetSites() ([]RemoteSite, error)
-	// GetSite returns remote site this node belongs to
-	GetSite(domainName string) (RemoteSite, error)
+// ClusterGetter allows retrieving connected [Cluster].
+type ClusterGetter interface {
+	// Clusters returns all connected clusters
+	Clusters(ctx context.Context) ([]Cluster, error)
+	// Cluster returns the cluster matching the provided name or a trace.NotFoundError.
+	Cluster(ctx context.Context, clusterName string) (Cluster, error)
 }
 
 // Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local
-// sites connect and register with it.
+// cluster connect and register with it.
 type Server interface {
-	Tunnel
+	ClusterGetter
 	// Start starts server
 	Start() error
 	// Close closes server's operations immediately

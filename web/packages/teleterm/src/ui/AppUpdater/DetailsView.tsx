@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useId } from 'react';
+import { useId, useState } from 'react';
 
 import {
   Alert,
@@ -34,11 +34,11 @@ import { Checks, Info } from 'design/Icon';
 
 import { Platform } from 'teleterm/mainProcess/types';
 import { AppUpdateEvent, UpdateInfo } from 'teleterm/services/appUpdater';
+import { UnsupportedVersionError } from 'teleterm/services/appUpdater/errors';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { AutoUpdatesManagement } from './AutoUpdatesManagement';
 import {
-  ClusterGetter,
   formatMB,
   iconMac,
   iconWinLinux,
@@ -54,7 +54,6 @@ import {
  */
 export function DetailsView({
   changeManagingCluster,
-  clusterGetter,
   updateEvent,
   platform,
   onCheckForUpdates,
@@ -64,7 +63,6 @@ export function DetailsView({
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
-  clusterGetter: ClusterGetter;
   onCheckForUpdates(): void;
   onInstall(): void;
   onDownload(): void;
@@ -75,7 +73,6 @@ export function DetailsView({
     <Stack gap={3} width="100%">
       {updateEvent.autoUpdatesStatus && (
         <AutoUpdatesManagement
-          clusterGetter={clusterGetter}
           status={updateEvent.autoUpdatesStatus}
           updateEventKind={updateEvent.kind}
           onCheckForUpdates={onCheckForUpdates}
@@ -89,6 +86,7 @@ export function DetailsView({
         onDownload={onDownload}
         onCancelDownload={onCancelDownload}
         onInstall={onInstall}
+        key={JSON.stringify(updateEvent)}
       />
     </Stack>
   );
@@ -109,6 +107,7 @@ function UpdaterState({
   onCancelDownload(): void;
   onInstall(): void;
 }) {
+  const [downloadStarted, setDownloadStarted] = useState(false);
   switch (event.kind) {
     case 'checking-for-update':
       return (
@@ -126,12 +125,18 @@ function UpdaterState({
       return (
         <Stack gap={3} width="100%">
           <AvailableUpdate update={event.update} platform={platform} />
-          {event.autoDownload ? (
+          {event.autoDownload || downloadStarted ? (
             <ButtonSecondary disabled block>
               Starting Download…
             </ButtonSecondary>
           ) : (
-            <ButtonSecondary block onClick={onDownload}>
+            <ButtonSecondary
+              block
+              onClick={() => {
+                setDownloadStarted(true);
+                onDownload();
+              }}
+            >
               Download
             </ButtonSecondary>
           )}
@@ -160,12 +165,16 @@ function UpdaterState({
     case 'error':
       return (
         <Stack gap={3} width="100%">
-          <Alert width="100%" mb={0} details={event.error.message}>
-            An error occurred
-          </Alert>
           {event.update && (
             <AvailableUpdate update={event.update} platform={platform} />
           )}
+          <Alert mb={1} details={event.error.message} width="100%">
+            {event.update
+              ? 'Update failed'
+              : event.error.name === UnsupportedVersionError.name
+                ? 'Incompatible managed update version'
+                : 'Unable to check for app updates'}
+          </Alert>
           <ButtonSecondary block onClick={onCheckForAppUpdates}>
             Try Again
           </ButtonSecondary>
@@ -211,6 +220,11 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
 
   return (
     <Stack>
+      <Text>
+        {props.update.updateKind === 'upgrade'
+          ? 'A new version is available.'
+          : 'The app needs to be downgraded to match the required version.'}
+      </Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
           <img alt="App icon" height="50px" src={iconMac} />

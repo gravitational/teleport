@@ -31,6 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // TestGetEnvForTSH ensures we generate a valid minimum subset of environment
@@ -43,9 +45,9 @@ func TestGetEnvForTSH(t *testing.T) {
 		client.VirtualPathEnvName(client.VirtualPathDatabase, nil): filepath.Join(p, identity.TLSCertKey),
 		client.VirtualPathEnvName(client.VirtualPathAppCert, nil):  filepath.Join(p, identity.TLSCertKey),
 
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, config.UserCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, config.HostCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)): filepath.Join(p, config.DatabaseCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, internal.UserCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, internal.HostCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)): filepath.Join(p, internal.DatabaseCAPath),
 	}
 
 	env, err := GetEnvForTSH(p)
@@ -59,7 +61,7 @@ func TestGetDestinationDirectory(t *testing.T) {
 	config := func(outputCount int) *config.BotConfig {
 		cfg := &config.BotConfig{}
 		for i := range outputCount {
-			cfg.Services = append(cfg.Services, &config.IdentityOutput{
+			cfg.Services = append(cfg.Services, &identitysvc.OutputConfig{
 				Destination: &destination.Directory{
 					Path: fmt.Sprintf("/from-bot-config%d", i),
 				},

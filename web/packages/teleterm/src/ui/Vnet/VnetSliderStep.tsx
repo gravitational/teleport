@@ -207,23 +207,24 @@ const VnetStatus = () => {
   const serviceInfo = serviceInfoAttempt.data;
 
   const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
-    <Flex>
-      <ConnectionStatusIndicator status={'warning'} inline mr={2} />
-      <Text>SSH clients are not configured to use VNet</Text>
-      <Box alignSelf={'center'}>
-        <ActionButton
-          fill="minimal"
-          intent="neutral"
-          inputAlignment
-          action={{
-            onClick: () =>
-              openSSHConfigurationModal({
-                vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
-              }),
-            content: 'Resolve',
-          }}
-        />
-      </Box>
+    <Flex justifyContent="space-between" alignItems="center">
+      <Flex>
+        <ConnectionStatusIndicator status={'warning'} inline mr={2} />
+        <Text>SSH clients are not configured to use VNet</Text>
+      </Flex>
+
+      <ActionButton
+        fill="filled"
+        intent="neutral"
+        inputAlignment
+        action={{
+          onClick: () =>
+            openSSHConfigurationModal({
+              vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+            }),
+          content: 'Resolve',
+        }}
+      />
     </Flex>
   );
 

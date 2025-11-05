@@ -158,9 +158,11 @@ func TestDBCertSigning(t *testing.T) {
 		name           string
 		requester      proto.DatabaseCertRequest_Requester
 		extensions     proto.DatabaseCertRequest_Extensions
+		crlDomain      string
 		wantCertSigner []byte
 		wantCACerts    [][]byte
 		wantKeyUsage   []x509.ExtKeyUsage
+		wantCDP        []string
 	}{
 		{
 			name:           "DB service request is signed by active db client CA and trusts db CAs",
@@ -190,6 +192,16 @@ func TestDBCertSigning(t *testing.T) {
 			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
 			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		},
+		{
+			name:           "tctl request for SQL Server database with CDPs",
+			requester:      proto.DatabaseCertRequest_TCTL,
+			extensions:     proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
+			crlDomain:      "example.com",
+			wantCertSigner: newDBCACert,
+			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
+			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			wantCDP:        []string{"ldap:///CN=local.me,CN=TeleportDB,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -200,25 +212,30 @@ func TestDBCertSigning(t *testing.T) {
 				TTL:                   proto.Duration(time.Hour),
 				RequesterName:         tt.requester,
 				CertificateExtensions: tt.extensions,
+				CRLDomain:             tt.crlDomain,
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantCACerts, certResp.CACerts)
 
 			// verify that the response cert is a DB CA cert.
-			mustVerifyCert(t, tt.wantCertSigner, certResp.Cert, tt.wantKeyUsage...)
+			mustVerifyCert(t, tt.wantCertSigner, certResp.Cert, tt.wantCDP, tt.wantKeyUsage...)
 		})
 	}
 }
 
 // mustVerifyCert is a helper func that verifies leaf cert with root cert.
-func mustVerifyCert(t *testing.T, rootPEM, leafPEM []byte, keyUsages ...x509.ExtKeyUsage) {
+func mustVerifyCert(t *testing.T, rootPEM, leafPEM []byte, cdps []string, keyUsages ...x509.ExtKeyUsage) {
 	t.Helper()
+
 	leafCert, err := tlsca.ParseCertificatePEM(leafPEM)
 	require.NoError(t, err)
 
 	certPool := x509.NewCertPool()
 	ok := certPool.AppendCertsFromPEM(rootPEM)
 	require.True(t, ok)
+
+	require.Equal(t, cdps, leafCert.CRLDistributionPoints)
+
 	opts := x509.VerifyOptions{
 		Roots:     certPool,
 		KeyUsages: keyUsages,

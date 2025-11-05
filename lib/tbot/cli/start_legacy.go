@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // LegacyDestinationDirArgs is an embeddable struct that provides legacy-style
@@ -74,7 +75,7 @@ func (a *LegacyDestinationDirArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 		// When using the CLI --destination-dir we configure an Identity type
 		// output for that directory.
 		cfg.Services = []config.ServiceConfig{
-			&config.IdentityOutput{
+			&identity.OutputConfig{
 				Destination: &destination.Directory{
 					Path: a.DestinationDir,
 				},
@@ -131,6 +132,13 @@ type LegacyCommand struct {
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
 
+	// DiagSocketForUpdater specifies the diagnostics http service address that
+	// should be exposed to the updater via UNIX domain socket.
+	DiagSocketForUpdater string
+
+	// PIDFile is the path to the PID file. If not set, no PID file will be created.
+	PIDFile string
+
 	oneshotSetByUser bool
 }
 
@@ -157,6 +165,8 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode C
 	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, onboarding.SupportedJoinMethods...)
 	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&c.oneshotSetByUser).BoolVar(&c.Oneshot)
 	c.cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&c.DiagAddr)
+	c.cmd.Flag("diag-socket-for-updater", "If set, run the diagnostics service on the specified socket path for teleport-update to consume.").Hidden().StringVar(&c.DiagSocketForUpdater)
+	c.cmd.Flag("pid-file", "Full path to the PID file. By default no PID file will be created.").StringVar(&c.PIDFile)
 
 	return c
 }
@@ -271,6 +281,9 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 		}
 		cfg.DiagAddr = c.DiagAddr
 	}
+
+	cfg.DiagSocketForUpdater = c.DiagSocketForUpdater
+	cfg.PIDFile = c.PIDFile
 
 	return nil
 }

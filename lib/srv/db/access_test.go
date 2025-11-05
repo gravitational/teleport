@@ -1475,19 +1475,19 @@ func TestRedisNil(t *testing.T) {
 }
 
 type testContext struct {
-	hostID         string
-	clusterName    string
-	tlsServer      *authtest.TLSServer
-	authServer     *auth.Server
-	authClient     *authclient.Client
-	proxyServer    *ProxyServer
-	mux            *multiplexer.Mux
-	mysqlListener  net.Listener
-	webListener    *multiplexer.WebListener
-	fakeRemoteSite *reversetunnelclient.FakeRemoteSite
-	server         *Server
-	emitter        *eventstest.ChannelEmitter
-	databaseCA     types.CertAuthority
+	hostID        string
+	clusterName   string
+	tlsServer     *authtest.TLSServer
+	authServer    *auth.Server
+	authClient    *authclient.Client
+	proxyServer   *ProxyServer
+	mux           *multiplexer.Mux
+	mysqlListener net.Listener
+	webListener   *multiplexer.WebListener
+	fakeCluster   *reversetunnelclient.FakeCluster
+	server        *Server
+	emitter       *eventstest.ChannelEmitter
+	databaseCA    types.CertAuthority
 	// postgres is a collection of Postgres databases the test uses.
 	postgres map[string]testPostgres
 	// mysql is a collection of MySQL databases the test uses.
@@ -1630,7 +1630,7 @@ func (c *testContext) startHandlingConnections() {
 	// Start all proxy services.
 	c.startProxy()
 	// Start handling database client connections on the database server.
-	for conn := range c.fakeRemoteSite.ProxyConn() {
+	for conn := range c.fakeCluster.ProxyConn() {
 		go c.server.HandleConnection(conn)
 	}
 }
@@ -2238,7 +2238,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userN
 
 // makeTLSConfig returns tls configuration for the test's tls listener.
 func (c *testContext) makeTLSConfig(t testing.TB) *tls.Config {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil)
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, nil, time.Now)
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
 	require.NoError(t, err)
@@ -2381,11 +2381,11 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
-	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
+	testCtx.fakeCluster = reversetunnelclient.NewFakeCluster(testCtx.clusterName, proxyAuthClient)
+	t.Cleanup(func() { require.NoError(t, testCtx.fakeCluster.Close()) })
 	tunnel := &reversetunnelclient.FakeServer{
-		Sites: []reversetunnelclient.RemoteSite{
-			testCtx.fakeRemoteSite,
+		FakeClusters: []reversetunnelclient.Cluster{
+			testCtx.fakeCluster,
 		},
 	}
 	// Empty config means no limit.
@@ -3343,6 +3343,46 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 				Region: "us-west-1",
 				ElastiCache: types.ElastiCache{
 					ReplicationGroupID: "example-cluster",
+				},
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withElastiCacheServerlessRedis(name string, token, engineVersion string) withDatabaseOption {
+	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			redisServer.Close()
+		})
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				"engine-version": engineVersion,
+			},
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				Region: "us-west-1",
+				ElastiCacheServerless: types.ElastiCacheServerless{
+					CacheName: "example-cache",
 				},
 			},
 			// Set CA cert to pass cert validation.

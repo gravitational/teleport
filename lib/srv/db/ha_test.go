@@ -60,7 +60,7 @@ func TestHA(t *testing.T) {
 		Databases: types.Databases{offlineDB},
 		HostID:    offlineHostID,
 	})
-	testCtx.fakeRemoteSite.OfflineTunnels = map[string]struct{}{
+	testCtx.fakeCluster.OfflineTunnels = map[string]struct{}{
 		fmt.Sprintf("%v.%v", offlineHostID, testCtx.clusterName): {},
 	}
 
@@ -78,7 +78,7 @@ func TestHA(t *testing.T) {
 		HostID:    onlineHostID,
 	})
 	go func() {
-		for conn := range testCtx.fakeRemoteSite.ProxyConn() {
+		for conn := range testCtx.fakeCluster.ProxyConn() {
 			go onlineServer.HandleConnection(conn)
 		}
 	}()

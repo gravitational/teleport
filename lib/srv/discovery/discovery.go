@@ -560,6 +560,25 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 	return nil
 }
 
+// publicProxyAddress returns the public proxy address to use for installation scripts.
+// This is only used if the matcher does not specify a ProxyAddress.
+// Example: proxy.example.com:3080 or proxy.example.com
+func (s *Server) publicProxyAddress(ctx context.Context) (string, error) {
+	proxies, err := s.AccessPoint.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, proxy := range proxies {
+		for _, proxyAddr := range proxy.GetPublicAddrs() {
+			if proxyAddr != "" {
+				return proxyAddr, nil
+			}
+		}
+	}
+
+	return "", trace.NotFound("could not find the public proxy address for server discovery")
+}
+
 // initAWSWatchers starts AWS resource watchers based on types provided.
 func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	var err error
@@ -568,7 +587,11 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.GetEC2Client, noDiscoveryConfig)
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
+		Matchers:              ec2Matchers,
+		EC2ClientGetter:       s.GetEC2Client,
+		PublicProxyAddrGetter: s.publicProxyAddress,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -687,7 +710,12 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.GetEC2Client, discoveryConfigName)
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherToEC2FetcherParams{
+		Matchers:              serverMatchers,
+		EC2ClientGetter:       s.GetEC2Client,
+		DiscoveryConfigName:   discoveryConfigName,
+		PublicProxyAddrGetter: s.publicProxyAddress,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1339,10 +1367,8 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		Instances:       instances.Instances,
 		Region:          instances.Region,
 		ResourceGroup:   instances.ResourceGroup,
-		Params:          instances.Parameters,
-		ScriptName:      instances.ScriptName,
-		PublicProxyAddr: instances.PublicProxyAddr,
-		ClientID:        instances.ClientID,
+		InstallerParams: instances.InstallerParams,
+		ProxyAddrGetter: s.publicProxyAddress,
 	}
 	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -1428,14 +1454,13 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(err, "finding algorithm for SSH key from ping response")
 	}
 	req := server.GCPRunRequest{
-		Client:          client,
-		Instances:       instances.Instances,
-		ProjectID:       instances.ProjectID,
-		Zone:            instances.Zone,
-		Params:          instances.Parameters,
-		ScriptName:      instances.ScriptName,
-		PublicProxyAddr: instances.PublicProxyAddr,
-		SSHKeyAlgo:      sshKeyAlgo,
+		Client:            client,
+		Instances:         instances.Instances,
+		ProjectID:         instances.ProjectID,
+		Zone:              instances.Zone,
+		InstallerParams:   instances.InstallerParams,
+		SSHKeyAlgo:        sshKeyAlgo,
+		PublicProxyGetter: s.publicProxyAddress,
 	}
 	if err := s.gcpInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)

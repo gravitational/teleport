@@ -82,6 +82,9 @@ type WebConfig struct {
 	// PlayableDatabaseProtocols is a list of database protocols which session
 	// recordings can be played.
 	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
+	// SessionSummarizerEnabled indicates whether the session recording
+	// summarizer is configured.
+	SessionSummarizerEnabled bool `json:"sessionSummarizerEnabled,omitempty"`
 	// entitlements define a customer’s access to a specific features
 	Entitlements map[string]EntitlementInfo `json:"entitlements,omitempty"`
 

@@ -68,7 +68,7 @@ import { useActionAttempts } from './useActionAttempts';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
-  const { clustersService, modalsService } = ctx;
+  const { clustersService, modalsService, mainProcessClient } = ctx;
   ctx.clustersService.useState();
 
   const {
@@ -92,12 +92,19 @@ export function ActionPicker(props: { input: ReactElement }) {
   const { isSupported: isVnetSupported } = useVnetContext();
   const totalCountOfClusters = clustersService.getClusters().length;
 
+  // Use memo because this value never changes during app's lifetime but the call to get it goes
+  // through the context bridge.
+  const isScoreDebugEnabled = useMemo(
+    () => mainProcessClient.configService.get('debug.searchResultsScore').value,
+    [mainProcessClient.configService]
+  );
+
   const getClusterName = useCallback(
     (resourceUri: uri.ClusterOrResourceUri) => {
       const clusterUri = uri.routing.ensureClusterUri(resourceUri);
       const cluster = clustersService.findCluster(clusterUri);
-
-      return cluster ? cluster.name : uri.routing.parseClusterName(resourceUri);
+      // Name is empty if the user hasn't logged into that cluster yet.
+      return cluster?.name || uri.routing.parseClusterName(resourceUri);
     },
     [clustersService]
   );
@@ -212,11 +219,17 @@ export function ActionPicker(props: { input: ReactElement }) {
           return {
             key: getKey(item.searchResult),
             Component: (
-              <Component
-                searchResult={item.searchResult}
-                getOptionalClusterName={getOptionalClusterName}
-                isVnetSupported={isVnetSupported}
-              />
+              <>
+                {isScoreDebugEnabled &&
+                item.searchResult.kind !== 'display-results'
+                  ? item.searchResult.score
+                  : undefined}
+                <Component
+                  searchResult={item.searchResult}
+                  getOptionalClusterName={getOptionalClusterName}
+                  isVnetSupported={isVnetSupported}
+                />
+              </>
             ),
           };
         }}

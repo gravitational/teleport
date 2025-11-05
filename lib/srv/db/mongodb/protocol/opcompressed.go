@@ -103,6 +103,7 @@ func readOpCompressed(header MessageHeader, payload []byte, maxMessageSize uint3
 		return nil, trace.BadParameter("malformed OP_COMPRESSED: missing compressor ID %v", payload)
 	}
 	compressedSize := header.MessageLength - 25 // header (16) + original opcode (4) + uncompressed size (4) + compressor ID (1)
+	//nolint:staticcheck // SA1019. This func is removed in the v2 driver.
 	compressedMessage, _, ok := wiremessage.ReadCompressedCompressedMessage(rem, compressedSize)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_COMPRESSED: missing compressed message %v", payload)

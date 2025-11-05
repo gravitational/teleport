@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import format from 'date-fns/format';
-import formatDistanceToNowStrict from 'date-fns/formatDistanceToNowStrict';
-import parseISO from 'date-fns/parseISO';
+import { format } from 'date-fns/format';
+import { formatDistanceToNowStrict } from 'date-fns/formatDistanceToNowStrict';
+import { parseISO } from 'date-fns/parseISO';
 import { ReactElement } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
 import { ArrowFatLinesUp } from 'design/Icon/Icons/ArrowFatLinesUp';
@@ -32,98 +32,197 @@ import {
 import { ResourceIcon } from 'design/ResourceIcon';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 
 import { useClusterVersion } from '../../useClusterVersion';
 import { JoinMethodIcon } from './JoinMethodIcon';
 
 export function Instance(props: {
-  id: string;
-  version?: string;
-  hostname?: string;
-  activeAt?: string;
-  method?: string;
-  os?: string;
+  data: {
+    id: string;
+    botName?: string;
+    version?: string;
+    hostname?: string;
+    activeAt?: string;
+    method?: string;
+    os?: string;
+  };
+  isSelectable?: boolean;
+  isSelected?: boolean;
+  onSelected?: () => void;
 }) {
-  const { id, version, hostname, activeAt, method, os } = props;
+  const {
+    data: { id, botName, version, hostname, activeAt, method, os },
+    isSelectable,
+    isSelected,
+    onSelected,
+  } = props;
+
+  const hasHeartbeatData = !!version || !!hostname || !!method || !!os;
 
   return (
-    <Container>
+    <Container
+      $isSelectable={!!isSelectable}
+      $isSelected={!!isSelected}
+      onClick={onSelected}
+      onKeyUp={
+        onSelected
+          ? event => {
+              if (event.key === 'Enter') {
+                onSelected();
+              }
+            }
+          : undefined
+      }
+      role="listitem"
+      tabIndex={0}
+      aria-label={`${botName}/${id}`}
+    >
       <TopRow>
-        <Text fontWeight={'light'}>{id}</Text>
+        {botName ? (
+          <BotNameContainer alignItems={'center'} gap={1}>
+            <BotNameText>
+              {botName}/{shortenId(id)}
+            </BotNameText>
+            <CopyButton value={`${botName}/${id}`} />
+          </BotNameContainer>
+        ) : (
+          <IdText typography="body2">{id}</IdText>
+        )}
         {activeAt ? (
           <HoverTooltip
             placement="top"
             tipContent={format(parseISO(activeAt), 'PP, p z')}
           >
-            <Text
-              fontSize={0}
-              fontWeight={'regular'}
-            >{`${formatDistanceToNowStrict(parseISO(activeAt))} ago`}</Text>
+            <TimeText>{`${formatDistanceToNowStrict(parseISO(activeAt))} ago`}</TimeText>
           </HoverTooltip>
         ) : undefined}
       </TopRow>
-      <BottomRow>
-        <Flex gap={2}>
-          <Version version={version} />
+      {hasHeartbeatData ? (
+        <BottomRow>
+          <Flex gap={2} flex={1} overflow={'hidden'} alignItems={'flex-end'}>
+            <Version version={version} />
 
-          {hostname ? (
-            <HoverTooltip placement="top" tipContent={'Hostname'}>
-              <SecondaryOutlined>
-                <Text>{hostname}</Text>
-              </SecondaryOutlined>
-            </HoverTooltip>
-          ) : undefined}
-        </Flex>
-        <Flex gap={2}>
-          {method ? (
-            <JoinMethodIcon method={method} size={'medium'} />
-          ) : undefined}
+            {hostname ? (
+              <HoverTooltip
+                placement="top"
+                tipContent={`Hostname: ${hostname}`}
+              >
+                <SecondaryOutlined borderRadius={2}>
+                  <HostnameText>{hostname}</HostnameText>
+                </SecondaryOutlined>
+              </HoverTooltip>
+            ) : undefined}
+          </Flex>
+          <Flex gap={2}>
+            {method ? (
+              <JoinMethodIcon method={method} size={'large'} />
+            ) : undefined}
 
-          {os ? (
-            <HoverTooltip placement="top" tipContent={os}>
-              <OsIconContainer>
+            {os ? (
+              <HoverTooltip placement="top" tipContent={os}>
                 {os === 'darwin' ? (
-                  <ResourceIcon name={'apple'} width={'16px'} />
+                  <ResourceIcon name={'apple'} size={'large'} />
                 ) : os === 'windows' ? (
-                  <ResourceIcon name={'windows'} width={'16px'} />
+                  <ResourceIcon name={'windows'} size={'large'} />
                 ) : os === 'linux' ? (
-                  <ResourceIcon name={'linux'} width={'16px'} />
+                  <ResourceIcon name={'linux'} size={'large'} />
                 ) : (
-                  <ResourceIcon name={'server'} width={'16px'} />
+                  <ResourceIcon name={'server'} size={'large'} />
                 )}
-              </OsIconContainer>
-            </HoverTooltip>
-          ) : undefined}
-        </Flex>
-      </BottomRow>
+              </HoverTooltip>
+            ) : undefined}
+          </Flex>
+        </BottomRow>
+      ) : (
+        <EmptyText>No heartbeat data</EmptyText>
+      )}
     </Container>
   );
 }
 
-const Container = styled(Flex)`
+const Container = styled(Flex)<{
+  $isSelectable: boolean;
+  $isSelected: boolean;
+}>`
   flex-direction: column;
   padding: ${props => props.theme.space[3]}px;
   padding-top: ${p => p.theme.space[2]}px;
   padding-bottom: ${p => p.theme.space[2]}px;
   background-color: ${p => p.theme.colors.levels.surface};
   gap: ${p => p.theme.space[1]}px;
+
+  ${p =>
+    p.$isSelected
+      ? css`
+          border-left: ${p.theme.space[1]}px solid
+            ${p.theme.colors.interactive.solid.primary.default};
+          padding-left: ${props => props.theme.space[3] - p.theme.space[1]}px;
+          background-color: ${p.theme.colors.levels.sunken};
+        `
+      : ''}
+
+  ${p =>
+    p.$isSelectable
+      ? css`
+          cursor: pointer;
+
+          &:hover {
+            background-color: ${p.theme.colors.levels.sunken};
+          }
+          &:active,
+          &:focus {
+            outline: none;
+            background-color: ${p.theme.colors.levels.deep};
+          }
+        `
+      : ''}
+
+  transition: background-color 200ms linear;
 `;
 
 const TopRow = styled(Flex)`
   justify-content: space-between;
   align-items: center;
+  overflow: hidden;
+  gap: ${p => p.theme.space[2]}px;
 `;
 
 const BottomRow = styled(Flex)`
   justify-content: space-between;
   align-items: flex-end;
+  gap: ${p => p.theme.space[2]}px;
+  overflow: hidden;
 `;
 
-const OsIconContainer = styled(Flex)`
-  width: 20px; // Intentionally not a theme value
-  height: 20px; // Intentionally not a theme value
-  align-items: center;
-  justify-content: center;
+const EmptyText = styled(Text)`
+  color: ${p => p.theme.colors.text.muted};
+`;
+
+const TimeText = styled(Text).attrs({
+  typography: 'body4',
+})`
+  white-space: nowrap;
+`;
+
+const IdText = styled(Text)`
+  flex: 1;
+  white-space: nowrap;
+`;
+
+const BotNameText = styled(Text)`
+  white-space: nowrap;
+`;
+
+const BotNameContainer = styled(Flex)`
+  flex: 1;
+  overflow: hidden;
+`;
+
+const HostnameText = styled(Text).attrs({
+  typography: 'body3',
+})`
+  white-space: nowrap;
 `;
 
 function Version(props: { version: string | undefined }) {
@@ -157,20 +256,29 @@ function Version(props: { version: string | undefined }) {
         break;
       case 'too-new':
         Wrapper = DangerOutlined;
-        tooltip =
-          'Version is one or more major versions ahead, and is not compatible.';
+        tooltip = 'Version is ahead, and is not compatible.';
         break;
     }
   }
 
   return version ? (
-    <HoverTooltip placement="top" tipContent={tooltip}>
-      <Wrapper>
-        <Flex gap={1}>
-          {icon}
-          <Text>v{version}</Text>
-        </Flex>
-      </Wrapper>
-    </HoverTooltip>
+    <VersionContainer>
+      <HoverTooltip placement="top" tipContent={tooltip}>
+        <Wrapper borderRadius={2}>
+          <Flex gap={1}>
+            {icon}
+            <Text typography="body3">v{version}</Text>
+          </Flex>
+        </Wrapper>
+      </HoverTooltip>
+    </VersionContainer>
   ) : undefined;
+}
+
+const VersionContainer = styled.div`
+  flex-shrink: 0;
+`;
+
+function shortenId(id: string) {
+  return id.substring(0, 7);
 }

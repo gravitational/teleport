@@ -24,12 +24,11 @@ import (
 
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1"
 )
@@ -99,11 +98,37 @@ func (r resourceTeleportAutoUpdateVersion) Create(ctx context.Context, req tfsdk
 	var autoUpdateVersionI *autoupdatev1.AutoUpdateVersion
 	
 
+	// Try getting the resource until it exists and is different than the previous ones.
+	// There are two types of singleton resources:
+	// - the ones who can deleted and return a trace.NotFoundErr
+	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		autoUpdateVersionI, err = r.p.Client.GetAutoUpdateVersion(ctx)
+		if trace.IsNotFound(err) {
+		    select {
+			case <-ctx.Done():
+			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(ctx.Err()), "autoupdate_version"))
+				return
+			case <-retry.After():
+			}
+			if tries >= r.p.RetryConfig.MaxTries {
+				diagMessage := fmt.Sprintf("Error reading AutoUpdateVersion (tried %d times) - state outdated, please import resource", tries)
+				resp.Diagnostics.AddError(diagMessage, "autoupdate_version")
+				return
+			}
+			continue
+		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(err), "autoupdate_version"))
 			return
@@ -114,9 +139,11 @@ func (r resourceTeleportAutoUpdateVersion) Create(ctx context.Context, req tfsdk
 		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
-		if bErr := backoff.Do(ctx); bErr != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(bErr), "autoupdate_version"))
+		select {
+		case <-ctx.Done():
+		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(ctx.Err()), "autoupdate_version"))
 			return
+		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading AutoUpdateVersion (tried %d times) - state outdated, please import resource", tries)
@@ -211,7 +238,15 @@ func (r resourceTeleportAutoUpdateVersion) Update(ctx context.Context, req tfsdk
 	var autoUpdateVersionI *autoupdatev1.AutoUpdateVersion
 
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		autoUpdateVersionI, err = r.p.Client.GetAutoUpdateVersion(ctx)
@@ -222,9 +257,11 @@ func (r resourceTeleportAutoUpdateVersion) Update(ctx context.Context, req tfsdk
 		if autoUpdateVersionBefore.GetMetadata().Revision != autoUpdateVersionI.GetMetadata().Revision || false {
 			break
 		}
-		if bErr := backoff.Do(ctx); bErr != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(bErr), "autoupdate_version"))
+		select {
+		case <-ctx.Done():
+		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(ctx.Err()), "autoupdate_version"))
 			return
+		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading AutoUpdateVersion (tried %d times) - state outdated, please import resource", tries)

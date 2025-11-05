@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -35,6 +36,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -61,7 +63,7 @@ func (id *IdentityID) String() string {
 
 // Identity is collection of certificates and signers that represent server identity
 type Identity struct {
-	// ID specifies server unique ID, name and role
+	// ID specifies server unique ID, name, role, and scope
 	ID IdentityID
 	// KeyBytes is a PEM encoded private key
 	KeyBytes []byte
@@ -84,6 +86,8 @@ type Identity struct {
 	ClusterName string
 	// SystemRoles is a list of additional system roles.
 	SystemRoles []string
+	// AgentScope is the scope an identity is constrained to.
+	AgentScope string
 }
 
 // HasSystemRole checks if this identity encompasses the supplied system role.
@@ -121,13 +125,7 @@ func (i *Identity) HasTLSConfig() bool {
 
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	set := utils.StringsSet(i.Cert.ValidPrincipals)
-	for _, principal := range additionalPrincipals {
-		if _, ok := set[principal]; !ok {
-			return false
-		}
-	}
-	return true
+	return libslices.ContainsAll(i.Cert.ValidPrincipals, additionalPrincipals) == nil
 }
 
 // HasDNSNames returns true if TLS certificate has required DNS names or IP
@@ -335,6 +333,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
 	}
 
+	agentScope := cert.Permissions.Extensions[teleport.CertExtensionAgentScope]
 	return &Identity{
 		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
 		ClusterName: clusterName,
@@ -342,5 +341,6 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		CertBytes:   certBytes,
 		KeySigner:   certSigner,
 		Cert:        cert,
+		AgentScope:  agentScope,
 	}, nil
 }

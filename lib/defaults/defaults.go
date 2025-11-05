@@ -339,6 +339,9 @@ const (
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
 
+	// RelayQueueSize is the watcher queue size for the relay cache.
+	RelayQueueSize = 8192
+
 	// UnifiedResourcesQueueSize is the unified resource watcher queue size
 	UnifiedResourcesQueueSize = 8192
 
@@ -813,12 +816,38 @@ var (
 	}
 )
 
+// HTTPClientOption is an option for configuring the HTTP client.
+type HTTPClientOption func(*httpClientOptions) *httpClientOptions
+
+type httpClientOptions struct {
+	useProxyFromEnvironment bool
+}
+
+// UseProxyFromEnvironment configures the HTTP client to use proxy
+// settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
+func UseProxyFromEnvironment() HTTPClientOption {
+	return func(opts *httpClientOptions) *httpClientOptions {
+		opts.useProxyFromEnvironment = true
+		return opts
+	}
+}
+
 // HTTPClient returns a new http.Client with sensible defaults.
-func HTTPClient() (*http.Client, error) {
+func HTTPClient(opts ...HTTPClientOption) (*http.Client, error) {
 	transport, err := Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	httpOpts := &httpClientOptions{}
+	for _, o := range opts {
+		httpOpts = o(httpOpts)
+	}
+
+	if httpOpts.useProxyFromEnvironment {
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+
 	return &http.Client{
 		Transport: transport,
 	}, nil

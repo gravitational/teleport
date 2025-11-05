@@ -52,4 +52,29 @@ describe('PtyProcess', () => {
       );
     });
   });
+
+  if (process.platform !== 'win32') {
+    test('including the last input in the exit event', async () => {
+      const pty = new PtyProcess({
+        path: 'sh',
+        env: {},
+        args: [],
+        useConpty: true,
+        ptyId: '1234',
+      });
+      await pty.start(80, 24);
+      const listener = jest.fn();
+      pty.onExit(listener);
+
+      pty.write('\x04');
+
+      await expect(() => listener.mock.calls.length > 0).toEventuallyBeTrue({
+        waitFor: 2000,
+        tick: 10,
+      });
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({ lastInput: '\x04' })
+      );
+    });
+  }
 });

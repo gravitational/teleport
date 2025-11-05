@@ -53,6 +53,7 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -236,6 +237,20 @@ var (
 			"elasticache:Connect",
 		},
 		requireSecretsManager: true,
+	}
+	elastiCacheServerlessActions = databaseActions{
+		discovery: []string{
+			"ec2:DescribeSubnets",
+			"elasticache:DescribeServerlessCaches",
+			"elasticache:ListTagsForResource",
+		},
+		metadata: []string{
+			"elasticache:DescribeServerlessCaches",
+		},
+		iamAuth: []string{
+			"elasticache:Connect",
+			"elasticache:DescribeUsers",
+		},
 	}
 	// memoryDBActions contains IAM actions for types.AWSMatcherMemoryDB.
 	memoryDBActions = databaseActions{
@@ -886,6 +901,9 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	if hasElastiCacheDatabases(flags, targetCfg) {
 		allActions = append(allActions, elastiCacheActions)
 	}
+	if hasElastiCacheServerlessDatabases(flags, targetCfg) {
+		allActions = append(allActions, elastiCacheServerlessActions)
+	}
 	if hasMemoryDBDatabases(flags, targetCfg) {
 		allActions = append(allActions, memoryDBActions)
 	}
@@ -1043,6 +1061,16 @@ func hasElastiCacheDatabases(flags configurators.BootstrapFlags, targetCfg targe
 	}
 	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherElastiCache, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsElastiCacheEndpoint)
+}
+
+// hasElastiCacheServerlessDatabases checks if the agent needs permission for
+// ElastiCache serverless databases.
+func hasElastiCacheServerlessDatabases(flags configurators.BootstrapFlags, targetCfg targetConfig) bool {
+	if flags.ForceElastiCacheServerlessPermissions {
+		return true
+	}
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherElastiCacheServerless, targetCfg.awsMatchers) ||
+		findEndpointIs(targetCfg.databases, apiawsutils.IsElastiCacheServerlessEndpoint)
 }
 
 // hasMemoryDBDatabases checks if the agent needs permission for
@@ -1539,14 +1567,11 @@ func isStubAccountIDError(target awslib.Identity, err error) bool {
 // rolesForTarget returns all AWS roles from cli flags, AWS matchers, and
 // databases that the target identity will need to be able to assume.
 func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases []*servicecfg.Database, resourceMatchers []services.ResourceMatcher, targetIsAssumeRole bool) []string {
-	roleSet := make(map[string]struct{})
-	for _, roleARN := range forcedRoles {
-		roleSet[roleARN] = struct{}{}
-	}
+	roleSet := set.New(forcedRoles...)
 	if targetIsAssumeRole {
 		// if target is the same as some assume_role_arn in matchers/databases
 		// config, then it shouldn't assume other roles from config.
-		return utils.StringsSliceFromSet(roleSet)
+		return roleSet.Elements()
 	}
 	for _, matcher := range matchers {
 		assumeRoleARN := ""
@@ -1571,5 +1596,5 @@ func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases
 		}
 		roleSet[resourceMatcher.AWS.AssumeRoleARN] = struct{}{}
 	}
-	return utils.StringsSliceFromSet(roleSet)
+	return roleSet.Elements()
 }

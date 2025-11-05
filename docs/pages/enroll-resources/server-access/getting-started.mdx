@@ -2,9 +2,10 @@
 title: Server Access Getting Started Guide
 description: Getting started with Teleport server access.
 videoBanner: LnaRP0xKWRI
-labels:
+tags:
  - get-started
  - zero-trust
+ - infrastructure-identity
 ---
 
 You can protect a server with Teleport by running the Teleport SSH Service on
@@ -39,8 +40,8 @@ that a user intends to access.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- One host running a Linux environment (such as Ubuntu 20.04, CentOS 8.0, or
-  Debian 10). This will serve as a Teleport Node.
+- One host running a Linux environment (such as Amazon Linux, Ubuntu, CentOS Stream, or
+  Debian). This will serve as a Teleport Node.
 - (!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/permission-warning.mdx!)
@@ -375,7 +376,7 @@ further Getting Started exercises.
   sign-on provider. Read the
   [documentation](../../zero-trust-access/sso/sso.mdx) to learn more.
 - Learn more about Teleport `tsh` through the [reference documentation](../../reference/cli/tsh.mdx#tsh-ssh).
-- For a complete list of ports used by Teleport, read the [Networking Guide](../../reference/networking.mdx).
+- For a complete list of ports used by Teleport, read the [Networking Guide](../../reference/deployment/networking.mdx).
 
 ## Resources
 
@@ -383,5 +384,5 @@ further Getting Started exercises.
 - [Announcing Teleport SSH Server](https://goteleport.com/blog/announcing-teleport-ssh-server/)
 - [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/)
 - Consider whether [OpenSSH or Teleport SSH](https://goteleport.com/blog/openssh-vs-teleport/) is right for you.
-- [Labels](../../admin-guides/management/admin/labels.mdx)
+- [Labels](../../zero-trust-access/rbac-get-started/labels.mdx)
 

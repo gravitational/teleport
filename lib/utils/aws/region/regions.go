@@ -85,6 +85,10 @@ var regions = sync.OnceValue(func() map[string]Region {
 			Name:        "ap-southeast-5",
 			Description: "Asia Pacific (Malaysia)",
 		},
+		"ap-southeast-6": {
+			Name:        "ap-southeast-6",
+			Description: "Asia Pacific (New Zealand)",
+		},
 		"ap-southeast-7": {
 			Name:        "ap-southeast-7",
 			Description: "Asia Pacific (Thailand)",
@@ -192,6 +196,10 @@ var regions = sync.OnceValue(func() map[string]Region {
 		"us-isob-east-1": {
 			Name:        "us-isob-east-1",
 			Description: "US ISOB East (Ohio)",
+		},
+		"us-isob-west-1": {
+			Name:        "us-isob-west-1",
+			Description: "US ISOB West",
 		},
 		"us-isof-east-1": {
 			Name:        "us-isof-east-1",

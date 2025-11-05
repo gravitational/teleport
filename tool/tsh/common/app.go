@@ -31,6 +31,7 @@ import (
 	"text/template"
 
 	"github.com/ghodss/yaml"
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -186,16 +187,18 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 	case app.IsAWSConsole():
 		if routeToApp.AWSCredentialProcessCredentials != "" {
 			return awsNamedProfileLoginTemplate.Execute(output, map[string]string{
-				"awsAppName": app.GetName(),
-				"awsCmd":     "s3 ls",
-				"awsRoleARN": routeToApp.AWSRoleARN,
+				"awsAppName":        app.GetName(),
+				"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
+				"awsCmd":            "s3 ls",
+				"awsRoleARN":        routeToApp.AWSRoleARN,
 			})
 		}
 
 		return awsLoginTemplate.Execute(output, map[string]string{
-			"awsAppName": app.GetName(),
-			"awsCmd":     "s3 ls",
-			"awsRoleARN": routeToApp.AWSRoleARN,
+			"awsAppName":        app.GetName(),
+			"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
+			"awsCmd":            "s3 ls",
+			"awsRoleARN":        routeToApp.AWSRoleARN,
 		})
 
 	case app.IsAzureCloud():
@@ -251,13 +254,14 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		}
 
 		return tcpAppLoginTemplate.Execute(output, map[string]string{
-			"appName":                       app.GetName(),
+			"appName":                       shsprintf.EscapeDefaultContext(app.GetName()),
 			"appNameWithOptionalTargetPort": appNameWithOptionalTargetPort,
 		})
 
 	case localProxyRequiredForApp(tc):
 		return webAppLoginProxyTemplate.Execute(output, map[string]any{
-			"appName": app.GetName(),
+			"appName":        app.GetName(),
+			"escapedAppName": shsprintf.EscapeDefaultContext(app.GetName()),
 		})
 
 	default:
@@ -303,7 +307,7 @@ WARNING: tsh was called with --insecure, so this curl command will be unable to 
 var webAppLoginProxyTemplate = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Start the local proxy for it:
 
-  tsh proxy app {{.appName}} -p 8080
+  tsh proxy app {{.escapedAppName}} -p 8080
 
 Then connect to the application through this proxy:
 
@@ -332,7 +336,7 @@ Example AWS CLI command:
   tsh aws {{.awsCmd}}
 
 Or start a local proxy:
-  tsh proxy aws --app {{.awsAppName}}
+  tsh proxy aws --app {{.escapedAWSAppName}}
 `))
 
 // awsNamedProfileLoginTemplate is the message that gets printed to a user upon successful login
@@ -527,7 +531,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		curlInsecureFlag,
 		certPath,
 		keyPath,
-		uri)
+		shsprintf.EscapeDefaultContext(uri))
 	format = strings.ToLower(format)
 	switch format {
 	case appFormatURI:

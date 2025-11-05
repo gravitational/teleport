@@ -16,28 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { useHistory, useParams } from 'react-router';
+import React, { useRef, useState } from 'react';
+import { useHistory, useLocation, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
-import { ButtonSecondary } from 'design/Button/Button';
+import { Button, ButtonSecondary } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import { CardTile } from 'design/CardTile/CardTile';
 import Flex, { Stack } from 'design/Flex/Flex';
 import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
 import { FingerprintSimple } from 'design/Icon/Icons/FingerprintSimple';
+import { LockKey } from 'design/Icon/Icons/LockKey';
+import { MoreVert } from 'design/Icon/Icons/MoreVert';
 import { NewTab } from 'design/Icon/Icons/NewTab';
 import { Pencil } from 'design/Icon/Icons/Pencil';
 import { Question } from 'design/Icon/Icons/Question';
+import { Trash } from 'design/Icon/Icons/Trash';
+import { Unlock } from 'design/Icon/Icons/Unlock';
 import { Indicator } from 'design/Indicator/Indicator';
 import { SecondaryOutlined } from 'design/Label/Label';
+import Menu from 'design/Menu/Menu';
+import MenuItem from 'design/Menu/MenuItem';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
-import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
+import { traitDescriptions } from 'shared/components/TraitsEditor/TraitsEditor';
 
 import {
   FeatureBox,
@@ -45,9 +51,15 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
 import cfg from 'teleport/config';
+import { ResourceLockDialog } from 'teleport/lib/locks/ResourceLockDialog';
+import { ResourceLockIndicator } from 'teleport/lib/locks/ResourceLockIndicator';
+import { ResourceUnlockDialog } from 'teleport/lib/locks/ResourceUnlockDialog';
+import { useResourceLock } from 'teleport/lib/locks/useResourceLock';
 import { isAdminActionRequiresMfaError } from 'teleport/services/api/api';
+import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
+import { DeleteDialog } from '../Delete/DeleteDialog';
 import { EditDialog } from '../Edit/EditDialog';
 import { formatDuration } from '../formatDuration';
 import { useGetBot, useListBotTokens } from '../hooks';
@@ -59,22 +71,45 @@ import { Panel } from './Panel';
 export function BotDetails() {
   const ctx = useTeleport();
   const history = useHistory();
+  const location = useLocation();
   const params = useParams<{
     botName: string;
   }>();
   const [isEditing, setEditing] = useState(false);
+  const [showLockConfirmation, setShowLockConfirmation] = useState(false);
+  const [showUnlockConfirmation, setShowUnlockConfirmation] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   const flags = ctx.getFeatureFlags();
   const hasReadPermission = flags.readBots;
   const hasEditPermission = flags.editBots;
+  const hasDeletePermission = flags.removeBots;
 
   const { data, error, isSuccess, isError, isLoading } = useGetBot(params, {
     enabled: hasReadPermission,
     staleTime: 30_000, // Keep data in the cache for 30 seconds
   });
 
+  const targetKind = 'user';
+  const targetName = `bot-${params.botName}`;
+
+  const {
+    isLocked,
+    error: lockError,
+    canLock,
+    canUnlock,
+  } = useResourceLock({
+    targetKind,
+    targetName,
+  });
+
   const handleBackPress = () => {
-    history.goBack();
+    // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+    if (!location.key || location.key === 'default') {
+      history.push(cfg.getBotsRoute());
+    } else {
+      history.goBack();
+    }
   };
 
   const handleEdit = () => {
@@ -89,6 +124,34 @@ export function BotDetails() {
     history.push(cfg.getJoinTokensRoute());
   };
 
+  const handleLock = () => {
+    setShowLockConfirmation(true);
+  };
+
+  const handleUnlock = () => {
+    setShowUnlockConfirmation(true);
+  };
+
+  const handleDelete = () => {
+    setShowDeleteConfirmation(true);
+  };
+
+  const handleDeleteComplete = () => {
+    setShowDeleteConfirmation(false);
+    history.replace(cfg.getBotsRoute());
+  };
+
+  const handleInstanceSelected = (instance: BotInstanceSummary) => {
+    const path = cfg.getBotInstancesRoute({
+      selectedItemId: `${instance.bot_name}/${instance.instance_id}`,
+      isAdvancedQuery: true,
+      query: `spec.bot_name == "${instance.bot_name}"`,
+      sortField: 'active_at_latest',
+      sortDir: 'DESC',
+    });
+    history.push(path);
+  };
+
   return (
     <FeatureBox>
       <FeatureHeader gap={2} data-testid="page-header">
@@ -97,14 +160,37 @@ export function BotDetails() {
             <ArrowLeft size="medium" />
           </ButtonIcon>
         </HoverTooltip>
-        <Flex flex={1} gap={2} justifyContent="space-between">
+        <Flex flex={1} gap={2} justifyContent="space-between" overflow="hidden">
           {isSuccess && data ? (
             <>
-              <FeatureHeaderTitle>{data.name}</FeatureHeaderTitle>
+              <Flex gap={3}>
+                <FeatureHeaderTitle>
+                  <TitleText>{data.name}</TitleText>
+                </FeatureHeaderTitle>
 
-              <EditButton onClick={handleEdit} disabled={!hasEditPermission}>
-                <Pencil size="medium" /> Edit Bot
-              </EditButton>
+                {isLocked ? (
+                  <ResourceLockIndicator
+                    targetKind={targetKind}
+                    targetName={targetName}
+                  />
+                ) : undefined}
+              </Flex>
+
+              <Flex gap={2}>
+                <EditButton onClick={handleEdit} disabled={!hasEditPermission}>
+                  <Pencil size="medium" /> Edit Bot
+                </EditButton>
+
+                <OverflowMenu
+                  isLocked={isLocked}
+                  canLock={canLock}
+                  onLock={handleLock}
+                  canUnlock={canUnlock}
+                  onUnlock={handleUnlock}
+                  canDelete={hasDeletePermission}
+                  onDelete={handleDelete}
+                />
+              </Flex>
             </>
           ) : (
             <FeatureHeaderTitle>Bot details</FeatureHeaderTitle>
@@ -122,6 +208,12 @@ export function BotDetails() {
       {isError ? (
         <Alert kind="danger" details={error.message}>
           Failed to fetch bot
+        </Alert>
+      ) : undefined}
+
+      {lockError ? (
+        <Alert kind="danger" details={lockError.message}>
+          Failed to get lock status
         </Alert>
       ) : undefined}
 
@@ -154,16 +246,25 @@ export function BotDetails() {
               <PanelContentContainer>
                 <Grid>
                   <GridLabel>Bot name</GridLabel>
-                  <Flex inline alignItems={'center'} gap={1}>
+                  <Flex
+                    inline
+                    alignItems={'center'}
+                    gap={1}
+                    overflow={'hidden'}
+                  >
                     <MonoText>{data.name}</MonoText>
-                    <CopyButton name={data.name} />
+                    <CopyButton value={data.name} />
                   </Flex>
+                  <GridLabel>Description</GridLabel>
+                  <span>{data.description || '-'}</span>
                   <GridLabel>Max session duration</GridLabel>
-                  {data.max_session_ttl
-                    ? formatDuration(data.max_session_ttl, {
-                        separator: ' ',
-                      })
-                    : '-'}
+                  <span>
+                    {data.max_session_ttl
+                      ? formatDuration(data.max_session_ttl, {
+                          separator: ' ',
+                        })
+                      : '-'}
+                  </span>
                 </Grid>
               </PanelContentContainer>
             </Panel>
@@ -173,15 +274,15 @@ export function BotDetails() {
             <Panel title="Roles" isSubPanel>
               <PanelContentContainer>
                 {data.roles.length ? (
-                  <RolesContainer>
+                  <LabelsContainer>
                     {data.roles.toSorted().map(r => (
-                      <SecondaryOutlined mr="1" key={r}>
-                        {r}
+                      <SecondaryOutlined key={r}>
+                        <LabelText>{r}</LabelText>
                       </SecondaryOutlined>
                     ))}
-                  </RolesContainer>
+                  </LabelsContainer>
                 ) : (
-                  'No roles assigned'
+                  <EmptyText>No roles assigned</EmptyText>
                 )}
               </PanelContentContainer>
             </Panel>
@@ -199,20 +300,20 @@ export function BotDetails() {
                           <GridLabel>
                             <Trait traitName={r.name} />
                           </GridLabel>
-                          <div>
+                          <LabelsContainer>
                             {r.values.length > 0
                               ? r.values.toSorted().map(v => (
-                                  <SecondaryOutlined mr="1" key={v}>
-                                    {v}
+                                  <SecondaryOutlined key={v}>
+                                    <LabelText>{v}</LabelText>
                                   </SecondaryOutlined>
                                 ))
                               : 'no values'}
-                          </div>
+                          </LabelsContainer>
                         </React.Fragment>
                       ))}
                   </Grid>
                 ) : (
-                  'No traits set'
+                  <EmptyText>No traits set</EmptyText>
                 )}
               </PanelContentContainer>
             </Panel>
@@ -225,7 +326,10 @@ export function BotDetails() {
             />
           </ColumnContainer>
           <ColumnContainer maxWidth={400}>
-            <InstancesPanel botName={params.botName} />
+            <InstancesPanel
+              botName={params.botName}
+              onItemSelected={handleInstanceSelected}
+            />
           </ColumnContainer>
 
           {isEditing ? (
@@ -233,6 +337,38 @@ export function BotDetails() {
               botName={data.name}
               onCancel={() => setEditing(false)}
               onSuccess={handleEditSuccess}
+            />
+          ) : undefined}
+
+          {showLockConfirmation ? (
+            <ResourceLockDialog
+              onCancel={() => setShowLockConfirmation(false)}
+              onComplete={() => setShowLockConfirmation(false)}
+              targetKind={targetKind}
+              targetName={targetName}
+            />
+          ) : undefined}
+
+          {showUnlockConfirmation ? (
+            <ResourceUnlockDialog
+              onCancel={() => setShowUnlockConfirmation(false)}
+              onComplete={() => setShowUnlockConfirmation(false)}
+              targetKind={targetKind}
+              targetName={targetName}
+            />
+          ) : undefined}
+
+          {showDeleteConfirmation ? (
+            <DeleteDialog
+              onCancel={() => setShowDeleteConfirmation(false)}
+              onComplete={handleDeleteComplete}
+              canLockBot={canLock}
+              onLockRequest={() => {
+                setShowLockConfirmation(true);
+                setShowDeleteConfirmation(false);
+              }}
+              botName={params.botName}
+              showLockAlternative={!isLocked}
             />
           ) : undefined}
         </Container>
@@ -260,7 +396,11 @@ const PanelContentContainer = styled(Flex)`
   padding-top: 0;
 `;
 
-const RolesContainer = styled.div``;
+const LabelsContainer = styled(Flex)`
+  flex-wrap: wrap;
+  overflow: hidden;
+  gap: ${props => props.theme.space[1]}px;
+`;
 
 const Divider = styled.div`
   height: 1px;
@@ -278,6 +418,7 @@ const Grid = styled(Box)`
   display: grid;
   grid-template-columns: repeat(2, auto);
   gap: ${({ theme }) => theme.space[2]}px;
+  overflow: hidden;
 `;
 
 const GridLabel = styled(Text)`
@@ -292,41 +433,36 @@ const MonoText = styled(Text)`
 
 const EditButton = styled(ButtonSecondary)`
   gap: ${props => props.theme.space[2]}px;
+  white-space: nowrap;
 `;
 
-const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
-  aws_role_arns: 'List of allowed AWS role ARNS',
-  azure_identities: 'List of Azure identities',
-  db_names: 'List of allowed database names',
-  db_roles: 'List of allowed database roles',
-  db_users: 'List of allowed database users',
-  gcp_service_accounts: 'List of GCP service accounts',
-  kubernetes_groups: 'List of allowed Kubernetes groups',
-  kubernetes_users: 'List of allowed Kubernetes users',
-  logins: 'List of allowed logins',
-  windows_logins: 'List of allowed Windows logins',
-  host_user_gid: 'The group ID to use for auto-host-users',
-  host_user_uid: 'The user ID to use for auto-host-users',
-  github_orgs: 'List of allowed GitHub organizations for git command proxy',
-};
+const TitleText = styled(Text)`
+  white-space: nowrap;
+`;
+
+const LabelText = styled(Text).attrs({
+  typography: 'body3',
+})`
+  white-space: nowrap;
+`;
+
+const EmptyText = styled(Text)`
+  color: ${p => p.theme.colors.text.muted};
+`;
 
 function Trait(props: { traitName: string }) {
   const theme = useTheme();
 
   const description = traitDescriptions[props.traitName];
 
-  const help = (
-    <Question
-      size={'small'}
-      color={theme.colors.interactive.tonal.neutral[3]}
-    />
-  );
-
   return description ? (
     <Flex gap={1}>
       {props.traitName}
       <HoverTooltip placement="top" tipContent={description}>
-        {help}
+        <Question
+          size={'small'}
+          color={theme.colors.interactive.tonal.neutral[3]}
+        />
       </HoverTooltip>
     </Flex>
   ) : (
@@ -401,29 +537,38 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
 
         {isSuccess ? (
           <>
-            {data.items.length ? (
-              <Flex gap={1} flexWrap={'wrap'}>
+            {data.items?.length ? (
+              <LabelsContainer>
                 {data.items
                   .toSorted((a, b) => a.safeName.localeCompare(b.safeName))
                   .map(t => {
                     return (
-                      <SecondaryOutlined key={t.id}>
-                        <HoverTooltip placement="top" tipContent={t.method}>
-                          <Flex alignItems={'center'} gap={1}>
+                      <HoverTooltip
+                        key={t.id}
+                        placement="top"
+                        tipContent={t.method}
+                      >
+                        <SecondaryOutlined padding={0}>
+                          <Flex
+                            alignItems={'center'}
+                            gap={1}
+                            padding={1}
+                            paddingRight={2}
+                          >
                             <JoinMethodIcon
                               method={t.method}
-                              size={'small'}
+                              size={'large'}
                               includeTooltip={false}
                             />
-                            {t.safeName}
+                            <LabelText>{t.safeName}</LabelText>
                           </Flex>
-                        </HoverTooltip>
-                      </SecondaryOutlined>
+                        </SecondaryOutlined>
+                      </HoverTooltip>
                     );
                   })}
-              </Flex>
+              </LabelsContainer>
             ) : (
-              'No join tokens'
+              <EmptyText>No join tokens</EmptyText>
             )}
           </>
         ) : undefined}
@@ -449,4 +594,109 @@ const MfaText = styled(Text)`
 
 const MfaVerifyButton = styled(ButtonSecondary)`
   gap: ${props => props.theme.space[2]}px;
+`;
+
+function OverflowMenu(props: {
+  isLocked: boolean;
+  canLock: boolean;
+  onLock: () => void;
+  canUnlock: boolean;
+  onUnlock: () => void;
+  canDelete: boolean;
+  onDelete: () => void;
+}) {
+  const {
+    isLocked,
+    canLock,
+    onLock,
+    canUnlock,
+    onUnlock,
+    canDelete,
+    onDelete,
+  } = props;
+  const [isOpen, setIsOpen] = useState(false);
+  const anchorElRef = useRef<HTMLButtonElement>(null);
+
+  const handleLock = () => {
+    // Disabled attribute on MenuItem is for styling only, so check if the user can lock the bot
+    if (!canLock) return;
+    onLock();
+    setIsOpen(false);
+  };
+
+  const handleUnlock = () => {
+    // Disabled attribute on MenuItem is for styling only, so check if the user can unlock the bot
+    if (!canUnlock) return;
+    onUnlock();
+    setIsOpen(false);
+  };
+
+  const handleDelete = () => {
+    // Disabled attribute on MenuItem is for styling only, so check if the user can delete the bot
+    if (!canDelete) return;
+    onDelete();
+    setIsOpen(false);
+  };
+
+  return (
+    <div>
+      <FilledButtonIcon
+        ref={anchorElRef}
+        intent="neutral"
+        onClick={() => {
+          setIsOpen(true);
+        }}
+        data-testid="overflow-btn-open"
+      >
+        <MoreVert size="medium" />
+      </FilledButtonIcon>
+
+      <Menu
+        anchorEl={anchorElRef.current}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+      >
+        {isLocked ? (
+          <MenuItem disabled={!canUnlock} onClick={handleUnlock}>
+            <Flex gap={2}>
+              <Unlock size="small" />
+              Unlock Bot...
+            </Flex>
+          </MenuItem>
+        ) : (
+          <MenuItem disabled={!canLock} onClick={handleLock}>
+            <Flex gap={2}>
+              <LockKey size="small" />
+              Lock Bot...
+            </Flex>
+          </MenuItem>
+        )}
+
+        <MenuItem disabled={!canDelete} onClick={handleDelete}>
+          <Flex gap={2}>
+            <StyledTrashIcon size="small" />
+            Delete Bot...
+          </Flex>
+        </MenuItem>
+      </Menu>
+    </div>
+  );
+}
+
+const StyledTrashIcon = styled(Trash)`
+  color: ${({ theme }) => theme.colors.interactive.solid.danger.default};
+`;
+
+const FilledButtonIcon = styled(Button)`
+  width: 32px;
+  height: 32px;
+  padding: 0;
 `;

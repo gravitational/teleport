@@ -68,8 +68,9 @@ type WorkloadIdentityCommand struct {
 	revocationReason string
 	revocationExpiry string
 
-	overridesSignCmd  *kingpin.CmdClause
-	overridesSignMode workloadidentityv1pb.CSRCreationMode
+	overridesSignCmd   *kingpin.CmdClause
+	overridesSignMode  workloadidentityv1pb.CSRCreationMode
+	overridesSignForce bool
 
 	overridesCreateCmd        *kingpin.CmdClause
 	overridesCreateName       string
@@ -175,6 +176,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 		)).
 		StringVar(&overridesSignMode)
 	c.overridesSignMode = workloadidentityv1pb.CSRCreationMode_CSR_CREATION_MODE_SAME
+	c.overridesSignCmd.
+		Flag("force", "Attempt to sign as many CSRs as possible even in the presence of errors.").
+		Short('f').
+		BoolVar(&c.overridesSignForce)
 
 	c.overridesCreateCmd = overridesCmd.Command("create", "Create an issuer override from the given certificate chains.")
 	c.overridesCreateCmd.
@@ -654,31 +659,55 @@ func (c *WorkloadIdentityCommand) runOverridesSignCSRs(ctx context.Context, clie
 	}
 
 	keypairs := ca.GetTrustedTLSKeyPairs()
-	csrs := make([]*x509.CertificateRequest, 0, len(keypairs))
+	type result struct {
+		issuer *x509.Certificate
+		csr    *x509.CertificateRequest
+		err    error
+	}
+	results := make([]result, 0, len(keypairs))
 	for _, kp := range keypairs {
-		block, _ := pem.Decode(kp.Cert)
-		if block == nil {
-			return trace.BadParameter("failed to decode PEM block in SPIFFE CA")
+		issuer, err := tlsca.ParseCertificatePEM(kp.Cert)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 		resp, err := oclt.SignX509IssuerCSR(ctx, &workloadidentityv1pb.SignX509IssuerCSRRequest{
-			Issuer:          block.Bytes,
+			Issuer:          issuer.Raw,
 			CsrCreationMode: c.overridesSignMode,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			if !c.overridesSignForce {
+				return trace.Wrap(err)
+			}
+			results = append(results, result{
+				issuer: issuer,
+				csr:    nil,
+				err:    err,
+			})
+			continue
 		}
 		csr, err := x509.ParseCertificateRequest(resp.GetCsr())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		csrs = append(csrs, csr)
-	}
-	for _, csr := range csrs {
-		fmt.Fprintln(c.stdout, csr.Subject)
-		_ = pem.Encode(c.stdout, &pem.Block{
-			Type:  "CERTIFICATE REQUEST",
-			Bytes: csr.Raw,
+		results = append(results, result{
+			issuer: issuer,
+			csr:    csr,
+			err:    nil,
 		})
 	}
-	return nil
+
+	var errs []error
+	for _, r := range results {
+		fmt.Fprintln(c.stdout, r.issuer.Subject)
+		if r.err != nil {
+			errs = append(errs, r.err)
+			fmt.Fprintln(c.stdout, r.err.Error())
+			continue
+		}
+		_ = pem.Encode(c.stdout, &pem.Block{
+			Type:  "CERTIFICATE REQUEST",
+			Bytes: r.csr.Raw,
+		})
+	}
+	return trace.Wrap(trace.NewAggregate(errs...), "some or all signature requests failed")
 }

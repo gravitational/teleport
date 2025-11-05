@@ -53,12 +53,12 @@ func main() {
 	}
 }
 
-const appHelp = `Teleport Machine ID
+const appHelp = `Teleport Machine & Workload Identity 
 
-Machine ID issues and renews short-lived certificates so your machines can
-access Teleport protected resources in the same way your engineers do!
+Machine & Workload Identity issues and renews short-lived certificates so your
+machines can access Teleport protected resources in the same way your engineers do!
 
-Find out more at https://goteleport.com/docs/machine-id/introduction/`
+Find out more at https://goteleport.com/docs/machine-workload-identity/`
 
 func Run(args []string, stdout io.Writer) error {
 	ctx := context.Background()
@@ -123,6 +123,10 @@ func Run(args []string, stdout io.Writer) error {
 			return onKeypairCreateCommand(ctx, globalCfg, keypairCreateCmd)
 		}),
 
+		cli.NewCopyBinariesCommand(app, func(cbc *cli.CopyBinariesCommand) error {
+			return onCopyBinariesCommand(ctx, cbc)
+		}),
+
 		// `start` and `configure` commands
 		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
@@ -148,9 +152,6 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewSPIFFESVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
-		cli.NewSPIFFESVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
-
 		cli.NewWorkloadIdentityX509Command(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewWorkloadIdentityX509Command(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
@@ -162,6 +163,12 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewWorkloadIdentityAWSRACommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewWorkloadIdentityAWSRACommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewApplicationProxyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewApplicationProxyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewSSHMultiplexerCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewSSHMultiplexerCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really

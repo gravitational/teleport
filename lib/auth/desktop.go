@@ -101,8 +101,8 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		cdp := winpki.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
 		certReq.CRLDistributionPoints = []string{cdp}
 	} else if req.CRLEndpoint != "" {
-		// legacy clients will specify CRL endpoint instead of CRL domain
-		// DELETE IN v21 (zmb3)
+		// Legacy clients will specify CRL endpoint instead of CRL domain.
+		// DELETE IN v20 (zmb3): v19 clients will no longer be setting CRLEndpoint
 		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
 		a.logger.DebugContext(ctx, "Generating Windows desktop cert with legacy CDP")
 	}

@@ -21,6 +21,8 @@ package local
 import (
 	"context"
 	"errors"
+	"iter"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,6 +31,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -131,8 +134,8 @@ func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) err
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, error) {
-	item, err := s.Get(context.TODO(), backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
+func (s *ClusterConfigurationService) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("static tokens not found")
@@ -599,6 +602,46 @@ func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]type
 		installers = append(installers, installer)
 	}
 	return installers, nil
+}
+
+// ListInstallers returns a page of installer script resources.
+func (s *ClusterConfigurationService) ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error) {
+	return generic.CollectPageAndCursor(s.RangeInstallers(ctx, start, ""), limit, types.Installer.GetName)
+}
+
+// RangeInstallers returns installer script resources from the backend within the range [start, end).
+func (s *ClusterConfigurationService) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	mapFn := func(item backend.Item) (types.Installer, bool) {
+		installer, err := services.UnmarshalInstaller(item.Value)
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to unmarshal installer",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
+		}
+		return installer, true
+	}
+
+	startKey := backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix))
+	if end != "" {
+		endKey = backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix, end).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(db types.Installer) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || db.GetName() < end
+		})
 }
 
 func (s *ClusterConfigurationService) GetUIConfig(ctx context.Context) (types.UIConfig, error) {

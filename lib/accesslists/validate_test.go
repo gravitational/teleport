@@ -370,3 +370,93 @@ func TestAccessListValidateWithMembers_members(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls2[0].Spec.Title, nestedAcls1[len(nestedAcls1)-1].Spec.Title, accesslist.MaxAllowedDepth))
 }
+
+func Test_ValidateAccessListWithMembers_audit(t *testing.T) {
+	ctx := context.Background()
+
+	accessListName := "test_list"
+	var accessList *accesslist.AccessList
+
+	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
+		members: map[string][]*accesslist.AccessListMember{},
+		accessLists: map[string]*accesslist.AccessList{
+			accessListName: accessList,
+		},
+	}
+
+	t.Run("audit frequency", func(t *testing.T) {
+		accessList = newAccessList(t, accessListName, clockwork.NewFakeClockAt(time.Now()))
+		t.Run("must be non-zero for reviewable access lists", func(t *testing.T) {
+			for _, typ := range []accesslist.Type{accesslist.Default} {
+				t.Run(string(typ), func(t *testing.T) {
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.Frequency = 0
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, accessListAndMembersGetter)
+					require.ErrorContains(t, err, "frequency")
+				})
+			}
+		})
+		t.Run("can be zero for non-reviewable access lists", func(t *testing.T) {
+			for _, typ := range []accesslist.Type{accesslist.SCIM, accesslist.Static} {
+				t.Run(string(typ), func(t *testing.T) {
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.Frequency = 0
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, accessListAndMembersGetter)
+					require.NoError(t, err)
+				})
+			}
+		})
+
+		t.Run("if set must be a valid value for all access list types", func(t *testing.T) {
+			for _, typ := range accesslist.AllTypes {
+				t.Run(string(typ), func(t *testing.T) {
+					if typ == accesslist.DeprecatedDynamic {
+						t.Skip("deprecated dynamic type is not handled here as it's supposed to be changed in CheckAndSetDefaults; see [validateType]")
+					}
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.Frequency = 399
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, accessListAndMembersGetter)
+					require.ErrorContains(t, err, "frequency")
+				})
+			}
+		})
+	})
+
+	t.Run("audit day_of_month", func(t *testing.T) {
+		accessList = newAccessList(t, accessListName, clockwork.NewFakeClockAt(time.Now()))
+		t.Run("must be non-zero for reviewable access lists", func(t *testing.T) {
+			for _, typ := range []accesslist.Type{accesslist.Default} {
+				t.Run(string(typ), func(t *testing.T) {
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.DayOfMonth = 0
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, accessListAndMembersGetter)
+					require.ErrorContains(t, err, "day of month")
+				})
+			}
+		})
+		t.Run("can be zero for non-reviewable access lists", func(t *testing.T) {
+			for _, typ := range []accesslist.Type{accesslist.SCIM, accesslist.Static} {
+				t.Run(string(typ), func(t *testing.T) {
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.DayOfMonth = 0
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, accessListAndMembersGetter)
+					require.NoError(t, err)
+				})
+			}
+		})
+
+		t.Run("if set must be a valid value for all access list types", func(t *testing.T) {
+			for _, typ := range accesslist.AllTypes {
+				t.Run(string(typ), func(t *testing.T) {
+					if typ == accesslist.DeprecatedDynamic {
+						t.Skip("deprecated dynamic type is not handled here as it's supposed to be changed in CheckAndSetDefaults; see [validateType]")
+					}
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.Recurrence.DayOfMonth = 40
+					err := ValidateAccessListWithMembers(ctx, nil, accessList, nil, accessListAndMembersGetter)
+					require.ErrorContains(t, err, "day of month")
+				})
+			}
+		})
+	})
+}

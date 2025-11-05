@@ -92,7 +92,7 @@ func (f *redshiftServerlessPlugin) GetDatabases(ctx context.Context, cfg *awsFet
 }
 
 func getDatabasesFromWorkgroups(ctx context.Context, client RSSClient, logger *slog.Logger) (types.Databases, []*workgroupWithTags, error) {
-	workgroups, err := getRSSWorkgroups(ctx, client)
+	workgroups, err := getRSSWorkgroups(ctx, client, logger)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -128,7 +128,7 @@ func getDatabasesFromWorkgroups(ctx context.Context, client RSSClient, logger *s
 }
 
 func getDatabasesFromVPCEndpoints(ctx context.Context, workgroups []*workgroupWithTags, client RSSClient, logger *slog.Logger) (types.Databases, error) {
-	endpoints, err := getRSSVPCEndpoints(ctx, client)
+	endpoints, err := getRSSVPCEndpoints(ctx, client, logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,7 +186,7 @@ func getRSSResourceTags(ctx context.Context, arn *string, client RSSClient, logg
 	return output.Tags
 }
 
-func getRSSWorkgroups(ctx context.Context, clt RSSClient) ([]rsstypes.Workgroup, error) {
+func getRSSWorkgroups(ctx context.Context, clt RSSClient, log *slog.Logger) ([]rsstypes.Workgroup, error) {
 	var out []rsstypes.Workgroup
 	pager := rss.NewListWorkgroupsPaginator(clt,
 		&rss.ListWorkgroupsInput{},
@@ -194,8 +194,7 @@ func getRSSWorkgroups(ctx context.Context, clt RSSClient) ([]rsstypes.Workgroup,
 			o.StopOnDuplicateToken = true
 		},
 	)
-	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, libcloudaws.ConvertRequestFailureError(err)
 		}
@@ -204,7 +203,7 @@ func getRSSWorkgroups(ctx context.Context, clt RSSClient) ([]rsstypes.Workgroup,
 	return out, nil
 }
 
-func getRSSVPCEndpoints(ctx context.Context, clt RSSClient) ([]rsstypes.EndpointAccess, error) {
+func getRSSVPCEndpoints(ctx context.Context, clt RSSClient, log *slog.Logger) ([]rsstypes.EndpointAccess, error) {
 	var out []rsstypes.EndpointAccess
 	pager := rss.NewListEndpointAccessPaginator(clt,
 		&rss.ListEndpointAccessInput{},
@@ -212,8 +211,7 @@ func getRSSVPCEndpoints(ctx context.Context, clt RSSClient) ([]rsstypes.Endpoint
 			o.StopOnDuplicateToken = true
 		},
 	)
-	for i := 0; i < maxAWSPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, libcloudaws.ConvertRequestFailureError(err)
 		}

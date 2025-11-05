@@ -206,8 +206,9 @@ class TeleportContext implements types.Context {
         userContext.getExternalAuditStorageAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
       locks: userContext.getLockAccess().list,
-      newLocks:
-        userContext.getLockAccess().create && userContext.getLockAccess().edit,
+      addLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit, // Presumably because this is an upsert operation so needs both create and edit permissions
+      removeLocks: userContext.getLockAccess().remove,
       accessMonitoring: hasAccessMonitoringAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
       accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
@@ -222,7 +223,9 @@ class TeleportContext implements types.Context {
       gitServers:
         userContext.getGitServersAccess().list &&
         userContext.getGitServersAccess().read,
+      readBotInstances: userContext.getBotInstancesAccess().read,
       listBotInstances: userContext.getBotInstancesAccess().list,
+      listWorkloadIdentities: userContext.getWorkloadIdentityAccess().list,
     };
   }
 }
@@ -254,7 +257,8 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   enrollIntegrationsOrPlugins: false,
   enrollIntegrations: false,
   locks: false,
-  newLocks: false,
+  addLocks: false,
+  removeLocks: false,
   accessMonitoring: false,
   accessGraph: false,
   accessGraphIntegrations: false,
@@ -265,7 +269,9 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   editBots: false,
   removeBots: false,
   gitServers: false,
+  readBotInstances: false,
   listBotInstances: false,
+  listWorkloadIdentities: false,
 };
 
 export default TeleportContext;

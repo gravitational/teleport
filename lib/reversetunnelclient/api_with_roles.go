@@ -28,48 +28,48 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ClusterGetter is an interface that defines GetRemoteCluster method
-type ClusterGetter interface {
+// RemoteClusterGetter is an interface that defines GetRemoteCluster method
+type RemoteClusterGetter interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
 
-// NewTunnelWithRoles returns new authorizing tunnel
-func NewTunnelWithRoles(tunnel Tunnel, localCluster string, clusterAccessChecker func(types.RemoteCluster) error, access ClusterGetter) *TunnelWithRoles {
-	return &TunnelWithRoles{
-		tunnel:               tunnel,
+// NewClusterGetterWithRoles returns new ClusterGetter wrapper that authorizes
+// access to queried clusters.
+func NewClusterGetterWithRoles(clusterGetter ClusterGetter, localCluster string, clusterAccessChecker func(types.RemoteCluster) error, remoteClusterGetter RemoteClusterGetter) *ClusterGetterWithRoles {
+	return &ClusterGetterWithRoles{
+		clusterGetter:        clusterGetter,
 		localCluster:         localCluster,
 		clusterAccessChecker: clusterAccessChecker,
-		access:               access,
+		remoteClusterGetter:  remoteClusterGetter,
 	}
 }
 
-// TunnelWithRoles authorizes requests
-type TunnelWithRoles struct {
-	tunnel Tunnel
+// ClusterGetterWithRoles authorizes requests
+type ClusterGetterWithRoles struct {
+	clusterGetter ClusterGetter
 
 	localCluster string
 
 	// clusterAccessChecker is used to check RBAC permissions.
 	clusterAccessChecker func(types.RemoteCluster) error
 
-	access ClusterGetter
+	remoteClusterGetter RemoteClusterGetter
 }
 
-// GetSites returns a list of connected remote sites
-func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
-	ctx := context.TODO()
-	clusters, err := t.tunnel.GetSites()
+// Clusters returns all connected Teleport clusters.
+func (t *ClusterGetterWithRoles) Clusters(ctx context.Context) ([]Cluster, error) {
+	clusters, err := t.clusterGetter.Clusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]RemoteSite, 0, len(clusters))
+	out := make([]Cluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		if t.localCluster == cluster.GetName() {
 			out = append(out, cluster)
 			continue
 		}
-		rc, err := t.access.GetRemoteCluster(ctx, cluster.GetName())
+		rc, err := t.remoteClusterGetter.GetRemoteCluster(ctx, cluster.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -88,17 +88,16 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 	return out, nil
 }
 
-// GetSite returns remote site this node belongs to
-func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
-	ctx := context.TODO()
-	cluster, err := t.tunnel.GetSite(clusterName)
+// Cluster returns a cluster matching the provided clusterName
+func (t *ClusterGetterWithRoles) Cluster(ctx context.Context, clusterName string) (Cluster, error) {
+	cluster, err := t.clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 	if t.localCluster == cluster.GetName() {
 		return cluster, nil
 	}
-	rc, err := t.access.GetRemoteCluster(ctx, clusterName)
+	rc, err := t.remoteClusterGetter.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}

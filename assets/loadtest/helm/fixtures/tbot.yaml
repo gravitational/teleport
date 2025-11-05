@@ -1,0 +1,54 @@
+kind: role
+version: v8
+metadata:
+  name: k8s-editor
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_groups:
+    - editor
+    kubernetes_resources:
+    - kind: "*"
+      namespace: "*"
+      name: "*"
+      verbs: ["*"]
+      api_group: "*"
+
+---
+kind: role
+version: v8
+metadata:
+  name: appsmith
+spec:
+  allow:
+    app_labels:
+      "*": "*"
+    rules:
+      - resources: [app]
+        verbs: ['list', 'read', 'create', 'update', 'delete']
+---
+kind: bot
+version: v1
+metadata:
+  # name is a unique identifier for the Bot in the cluster.
+  name: k8s-tbot
+spec:
+  roles: [k8s-editor, appsmith]
+---
+kind: token
+version: v2
+metadata:
+  name: tbot-token
+spec:
+  roles: [Bot]
+  bot_name: k8s-tbot
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: |
+       @@STATIC_JWKS@@
+    allow:
+    - service_account: "resources:tbot"
+

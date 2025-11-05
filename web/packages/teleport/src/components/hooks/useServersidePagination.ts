@@ -140,9 +140,17 @@ export function useServerSidePagination<T>({
 
 type Props<T> = {
   fetchFunc: (
+    /** @deprecated This field is not needed by `useServerSidePagination` and will be removed.
+     * Pass the cluster directly in the fetch function.
+     * */
+    // TODO(rudream): Remove this field
     clusterId: string,
     params: UrlResourcesParams
   ) => Promise<ResourcesResponse<T>>;
+  /** @deprecated This field is not needed by `useServerSidePagination` and will be removed.
+   * Pass the cluster directly in the fetch function.
+   * */
+  // TODO(rudream): Remove this field
   clusterId: string;
   params: ResourceFilter;
   pageSize?: number;

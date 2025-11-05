@@ -28,7 +28,7 @@ import type {
 } from 'shared/services';
 import { mergeDeep } from 'shared/utils/highbar';
 
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import type { SortType } from 'teleport/services/agents';
 import {
@@ -45,6 +45,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
+import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
 
@@ -94,6 +95,9 @@ const cfg = {
 
   // isPolicyEnabled refers to the Teleport Policy product
   isPolicyEnabled: false,
+
+  // sessionSummarizerEnabled refers to the AI session summary feature
+  sessionSummarizerEnabled: false,
 
   configDir: '$HOME/.config/teleport',
 
@@ -167,11 +171,9 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
-    manageCluster: '/web/clusters/:clusterId/manage',
 
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
@@ -186,8 +188,8 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
-    botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
+    workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -256,8 +258,10 @@ const cfg = {
     clustersPath: '/v1/webapi/sites',
     clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
+    // TODO (avatus): Delete in v21.0.0
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
-    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
+    clusterEventsPathV2: `/v2/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?&search=:search?&order=:order?`,
+    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
 
@@ -300,7 +304,8 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
-    ttyDbWsAddr: 'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws',
+    ttyDbWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws?params=:params',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -310,8 +315,14 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     kubernetesResourcesPath:
       '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
+    kubernetesServer: {
+      list: `/v1/webapi/sites/:clusterId/kubernetesservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
+    },
 
+    // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
+    usersPathV2:
+      '/v2/webapi/users?startKey=:startKey?&search=:search?&limit=:limit?',
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
@@ -325,6 +336,8 @@ const cfg = {
     },
 
     presetRolesPath: '/v1/webapi/presetroles',
+    listRequestableRolesPath:
+      '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
@@ -368,8 +381,13 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
-    locksPath: '/v1/webapi/sites/:clusterId/locks',
-    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
+    locks: {
+      create: '/v1/webapi/sites/:clusterId/locks',
+      delete: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      read: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      update: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      listV2: '/v2/webapi/sites/:clusterId/locks',
+    },
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
@@ -401,6 +419,16 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/usertask?integration=:name?&state=:state?',
     userTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name',
     resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
+
+    awsRolesAnywhere: {
+      validate:
+        '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/validate',
+      generate:
+        '/v1/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=:integrationName?&trustAnchor=:trustAnchor?&syncRole=:syncRole?&syncProfile=:syncProfile',
+      ping: '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/ping',
+      profiles:
+        '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/listprofiles',
+    },
 
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
@@ -471,12 +499,19 @@ const cfg = {
       create: '/v1/webapi/sites/:clusterId/machine-id/bot',
       update: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
       updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
+      updateV3: '/v3/webapi/sites/:clusterId/machine-id/bot/:botName',
       delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
     },
 
     botInstance: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+      listV2: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
+      metrics: '/v1/webapi/sites/:clusterId/machine-id/bot-instance/metrics',
+    },
+
+    workloadIdentity: {
+      list: '/v1/webapi/sites/:clusterId/workload-identity',
     },
 
     gcpWorkforceConfigurePath:
@@ -498,6 +533,14 @@ const cfg = {
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
+    },
+
+    sessionRecording: {
+      metadata:
+        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws',
+      playback:
+        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
+      thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
   },
 
@@ -543,7 +586,7 @@ const cfg = {
   },
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
-    return generatePath(cfg.api.clusterEventsPath, {
+    return generatePath(cfg.api.clusterEventsPathV2, {
       clusterId,
       ...params,
     });
@@ -553,10 +596,32 @@ const cfg = {
     clusterId: string,
     params: UrlSessionRecordingsParams
   ) {
-    return generatePath(cfg.api.clusterEventsRecordingsPath, {
+    const searchParams = new URLSearchParams();
+
+    if (params.start) {
+      searchParams.append('from', params.start);
+    }
+
+    if (params.end) {
+      searchParams.append('to', params.end);
+    }
+
+    if (params.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
+
+    if (params.startKey) {
+      searchParams.append('startKey', params.startKey);
+    }
+
+    const paramsString = searchParams.toString();
+    const queryString = paramsString ? `?${paramsString}` : '';
+
+    const path = generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
-      ...params,
     });
+
+    return `${path}${queryString}`;
   },
 
   getAuthProviders() {
@@ -630,6 +695,29 @@ const cfg = {
   },
 
   /**
+   * getIntegrationsEnrollRoute returns a path to the page which lists all integrations.
+   */
+  getIntegrationsEnrollRoute({
+    tags = [],
+    searchFilter = '',
+  }: {
+    tags?: IntegrationTag[];
+    searchFilter?: string;
+  } = {}) {
+    const searchParams = new URLSearchParams();
+    tags.forEach(tag => {
+      searchParams.append('tags', tag);
+    });
+    if (searchFilter) {
+      searchParams.set('search', searchFilter);
+    }
+    const queryString = searchParams.toString();
+    const path = generatePath(cfg.routes.integrationEnroll);
+
+    return queryString ? `${path}?${queryString}` : path;
+  },
+
+  /**
    * Generates a route for an Integration's enrolment page
    *
    * @param {string} [type] - The integration type (e.g. "okta", "aws-oidc")
@@ -678,10 +766,6 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
-  },
-
-  getManageClusterRoute(clusterId: string) {
-    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
@@ -760,16 +844,44 @@ const cfg = {
     return generatePath(cfg.routes.bots);
   },
 
-  getBotDetailsRoute(name: string) {
-    return generatePath(cfg.routes.bot, { name });
+  getBotDetailsRoute(botName: string) {
+    return generatePath(cfg.routes.bot, { botName });
   },
 
-  getBotInstancesRoute() {
-    return generatePath(cfg.routes.botInstances);
+  getBotInstancesRoute(
+    options?: Partial<{
+      query: string;
+      isAdvancedQuery: boolean;
+      sortField: string;
+      sortDir: 'ASC' | 'DESC';
+      selectedItemId: string;
+      activeTab: 'info' | 'health' | 'yaml';
+    }>
+  ) {
+    const search = new URLSearchParams(location.search);
+    if (options?.query) {
+      search.set('query', options.query);
+    }
+    if (options?.isAdvancedQuery) {
+      search.set('is_advanced', '1');
+    }
+    if (options?.sortField) {
+      search.set('sort_field', options.sortField);
+    }
+    if (options?.sortDir) {
+      search.set('sort_dir', options.sortDir);
+    }
+    if (options?.selectedItemId) {
+      search.set('selected', options.selectedItemId);
+    }
+    if (options?.activeTab) {
+      search.set('tab', options.activeTab);
+    }
+    return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
   },
 
-  getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
-    return generatePath(cfg.routes.botInstance, params);
+  getWorkloadIdentitiesRoute() {
+    return generatePath(cfg.routes.workloadIdentities);
   },
 
   getBotsNewRoute(type?: string) {
@@ -874,6 +986,32 @@ const cfg = {
     return route;
   },
 
+  getSessionRecordingMetadataUrl(
+    clusterId: string,
+    sessionId: string,
+    fqdn: string
+  ) {
+    return generatePath(cfg.api.sessionRecording.metadata, {
+      clusterId,
+      sessionId,
+      fqdn,
+    });
+  },
+
+  getSessionRecordingPlaybackUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.playback, {
+      clusterId,
+      sessionId,
+    });
+  },
+
+  getSessionRecordingThumbnailUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.thumbnail, {
+      clusterId,
+      sessionId,
+    });
+  },
+
   getConnectionDiagnosticUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
@@ -927,8 +1065,17 @@ const cfg = {
     return generatePath(cfg.routes.ssoConnector.create, { connectorType });
   },
 
+  // TODO(rudream): DELETE IN V21.0.0
   getUsersUrl() {
     return cfg.api.usersPath;
+  },
+
+  getUsersUrlV2(params?: UrlListUsersParams) {
+    return generatePath(cfg.api.usersPathV2, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getUserWithUsernameUrl(username: string) {
@@ -1025,16 +1172,41 @@ const cfg = {
     return cfg.routes.newLock;
   },
 
-  getLocksUrl() {
-    // Currently only support get/create locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPath, { clusterId });
-  },
-
-  getLocksUrlWithUuid(uuid: string) {
-    // Currently only support delete/lookup locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
+  getLockUrl(
+    req: (
+      | { action: 'list-v2' | 'create' }
+      | { action: 'read' | 'delete' | 'update'; uuid: string }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list-v2':
+        return generatePath(cfg.api.locks.listV2, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.locks.read, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'create':
+        return generatePath(cfg.api.locks.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.locks.update, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'delete':
+        return generatePath(cfg.api.locks.delete, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
   getDatabaseSignUrl(clusterId: string) {
@@ -1133,6 +1305,14 @@ const cfg = {
     }
   },
 
+  getListRequestableRolesUrl(params?: UrlListRolesParams) {
+    return generatePath(cfg.api.listRequestableRolesPath, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
+  },
+
   getDiscoveryConfigUrl(clusterId: string) {
     return generatePath(cfg.api.discoveryConfigPath, { clusterId });
   },
@@ -1154,6 +1334,13 @@ const cfg = {
 
   getKubernetesResourcesUrl(clusterId: string, params: UrlKubeResourcesParams) {
     return generateResourcePath(cfg.api.kubernetesResourcesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getKubernetesServerUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesServer.list, {
       clusterId,
       ...params,
     });
@@ -1267,6 +1454,14 @@ const cfg = {
     return generatePath(cfg.api.resolveUserTaskPath, {
       clusterId,
       name,
+    });
+  },
+
+  getValidateAWSRolesAnywhereIntegrationUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.awsRolesAnywhere.validate, {
+      clusterId,
+      integrationName,
     });
   },
 
@@ -1452,6 +1647,42 @@ const cfg = {
     );
   },
 
+  getAwsRolesAnywhereGenerateUrl(
+    integrationName: string,
+    trustAnchor: string,
+    syncRole: string,
+    syncProfile: string
+  ) {
+    const path = cfg.api.awsRolesAnywhere.generate;
+    return (
+      cfg.baseUrl +
+      generatePath(path, {
+        integrationName,
+        trustAnchor,
+        syncRole,
+        syncProfile,
+      })
+    );
+  },
+
+  getAwsRolesAnywherePingUrl(integrationName: string) {
+    const path = cfg.api.awsRolesAnywhere.ping;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+    });
+  },
+
+  getAwsRolesAnywhereProfilesUrl(integrationName: string) {
+    const path = cfg.api.awsRolesAnywhere.profiles;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+    });
+  },
+
   getBotTokenUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.botsTokenPath, { clusterId });
@@ -1460,7 +1691,10 @@ const cfg = {
   getBotUrl(
     req: (
       | { action: 'list' | 'create' }
-      | { action: 'read' | 'update' | 'update-v2' | 'delete'; botName: string }
+      | {
+          action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
+          botName: string;
+        }
     ) & { clusterId?: string }
   ) {
     const { clusterId = cfg.proxyCluster } = req;
@@ -1488,6 +1722,11 @@ const cfg = {
           clusterId,
           botName: req.botName,
         });
+      case 'update-v3':
+        return generatePath(cfg.api.bot.updateV3, {
+          clusterId,
+          botName: req.botName,
+        });
       case 'delete':
         return generatePath(cfg.api.bot.delete, {
           clusterId,
@@ -1505,9 +1744,15 @@ const cfg = {
           action: 'list';
         }
       | {
+          action: 'listV2';
+        }
+      | {
           action: 'read';
           botName: string;
           instanceId: string;
+        }
+      | {
+          action: 'metrics';
         }
     ) & { clusterId?: string }
   ) {
@@ -1517,14 +1762,39 @@ const cfg = {
         return generatePath(cfg.api.botInstance.list, {
           clusterId,
         });
+      case 'listV2':
+        return generatePath(cfg.api.botInstance.listV2, {
+          clusterId,
+        });
       case 'read':
         return generatePath(cfg.api.botInstance.read, {
           clusterId,
           botName: req.botName,
           instanceId: req.instanceId,
         });
+      case 'metrics':
+        return generatePath(cfg.api.botInstance.metrics, {
+          clusterId,
+        });
       default:
         req satisfies never;
+        return '';
+    }
+  },
+
+  getWorkloadIdentityUrl(
+    req: {
+      action: 'list';
+    } & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.workloadIdentity.list, {
+          clusterId,
+        });
+      default:
+        req.action satisfies never;
         return '';
     }
   },
@@ -1623,6 +1893,8 @@ export interface UrlClusterEventsParams {
   limit?: number;
   include?: string;
   startKey?: string;
+  search?: string;
+  order?: string;
 }
 
 export interface UrlLauncherParams {
@@ -1650,6 +1922,12 @@ export interface UrlDesktopParams {
 }
 
 export interface UrlListRolesParams {
+  search?: string;
+  limit?: number;
+  startKey?: string;
+}
+
+export interface UrlListUsersParams {
   search?: string;
   limit?: number;
   startKey?: string;
