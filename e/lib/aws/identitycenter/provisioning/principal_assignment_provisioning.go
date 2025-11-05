@@ -7,6 +7,7 @@ import (
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -15,14 +16,21 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
+// concurrentCreateAccountAssignmentLimit is the maximum number of concurrent
+// Create- and DeleteAccountAssignment calls that can be made. AWS currently has
+// a hard limit of 15 concurrent operations in flight, which cannot be changed.
+// See: https://docs.aws.amazon.com/singlesignon/latest/userguide/limits.html#ssothrottlelimits
+const concurrentCreateAccountAssignmentLimit = 15
+
 // NewAssignmentProvisioner creates a new AssignmentProvisioner.
 func NewAssignmentProvisioner(cfg ProvisionerConfig) (*AssignmentProvisioner, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &AssignmentProvisioner{
-		ProvisionerConfig: cfg,
-		knownAccounts:     set.New[services.IdentityCenterAccountID](),
+		ProvisionerConfig:         cfg,
+		knownAccounts:             set.New[services.IdentityCenterAccountID](),
+		createAssignmentSemaphore: semaphore.NewWeighted(concurrentCreateAccountAssignmentLimit),
 	}, nil
 }
 
@@ -32,6 +40,12 @@ type AssignmentProvisioner struct {
 
 	accountLock   sync.RWMutex
 	knownAccounts set.Set[services.IdentityCenterAccountID]
+
+	// createAssignmentSemaphore is a semaphore to control the number of concurrent
+	// Create- and DeleteAccountAssignment calls that can be made. In Teleport,
+	// both operations draw from the same pool of concurrent calls, but it's not
+	// definitively known if that is also how AWS enforces the limit.
+	createAssignmentSemaphore *semaphore.Weighted
 }
 
 func (a *AssignmentProvisioner) SetKnownAccounts(accts ...services.IdentityCenterAccountID) {
@@ -137,6 +151,12 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 func (a *AssignmentProvisioner) createAssignment(ctx context.Context, externalID, permissionSetARN, accountID string, principalType ssoadmintypes.PrincipalType) error {
 	ctx, cancel := context.WithTimeout(ctx, a.ProvisioningTimeout)
 	defer cancel()
+
+	if err := a.createAssignmentSemaphore.Acquire(ctx, 1); err != nil {
+		return trace.Wrap(err)
+	}
+	defer a.createAssignmentSemaphore.Release(1)
+
 	resp, err := a.SDKClient.CreateAccountAssignment(ctx, &icsdk.CreateAccountAssignmentRequest{
 		PrincipalID:      externalID,
 		PermissionSetARN: permissionSetARN,
@@ -158,6 +178,12 @@ func (a *AssignmentProvisioner) createAssignment(ctx context.Context, externalID
 func (a *AssignmentProvisioner) deleteAssignment(ctx context.Context, externalID, permissionSetARN, accountID string, principalType ssoadmintypes.PrincipalType) error {
 	ctx, cancel := context.WithTimeout(ctx, a.ProvisioningTimeout)
 	defer cancel()
+
+	if err := a.createAssignmentSemaphore.Acquire(ctx, 1); err != nil {
+		return trace.Wrap(err)
+	}
+	defer a.createAssignmentSemaphore.Release(1)
+
 	resp, err := a.SDKClient.DeleteAccountAssignment(ctx, &icsdk.DeleteAccountAssignmentRequest{
 		PrincipalID:      externalID,
 		PermissionSetARN: permissionSetARN,
