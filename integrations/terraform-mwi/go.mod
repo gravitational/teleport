@@ -522,6 +522,7 @@ require (
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	k8s.io/kubectl v0.33.3 // indirect
+	k8s.io/metrics v0.33.3 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect

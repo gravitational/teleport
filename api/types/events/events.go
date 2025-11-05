@@ -2729,3 +2729,7 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 
 	return trimmed
 }
+
+func (m *ClientIPRestrictionsUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
