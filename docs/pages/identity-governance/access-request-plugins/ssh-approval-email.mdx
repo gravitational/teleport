@@ -79,12 +79,12 @@ regularly.
 
 ## Step 1/7. Define RBAC resources
 
-Before you set up the Email plugin, you will need to enable Role Access Requests
+Before you set up the email plugin, you will need to enable Role Access Requests
 in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/7. Define Teleport Email plugin user
+## Step 2/7. Define a Teleport email plugin user
 
 The required permissions for the plugin are configured in the preset `access-plugin`
 role. To generate credentials for the plugin, define either a Machine ID bot user
@@ -115,7 +115,11 @@ longer-lived identity files with `tctl`:
 </TabItem>
 </Tabs>
 
-## Step 4/7. Install the Teleport Email plugin
+## Step 4/7. Install the Teleport email plugin
+
+In this step, you'll install the Teleport email plugin on a host that has network
+access to your SMTP server. This host can be any system capable of reaching both
+your Teleport cluster and the SMTP server used for sending emails.
 
 <details>
 <summary>Using a local SMTP server?</summary>
