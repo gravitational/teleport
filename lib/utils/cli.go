@@ -320,10 +320,20 @@ func formatCertError(err error) string {
 
 	var hostnameErr x509.HostnameError
 	if errors.As(err, &hostnameErr) {
-		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
-			hostnameErr.Host,
-			hostnameErr.Error(),
-			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
+		return fmt.Sprintf(`The certificate does not match the address %v you are connecting to.
+
+This usually happens if you are connecting using an internal address or a DNS name that is not present in the certificate's Subject Alternative Names (SANs).
+
+To fix this, make sure you use the public address as configured in Teleport, or ask your administrator to add the address you are using to the proxy's certificate SANs.
+
+If you know what you are doing, you can bypass this check by using the --insecure flag.
+
+DEBUG INFO:
+
+Environment Variables: %+v
+
+Presented Certificate: %+v
+`, hostnameErr.Host, os.Environ(), hostnameErr.Certificate)
 	}
 
 	var certInvalidErr x509.CertificateInvalidError
