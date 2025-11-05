@@ -21,6 +21,7 @@ package clusters
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -312,6 +313,7 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		SSHLogins:      c.status.Logins,
 		Roles:          c.status.Roles,
 		ActiveRequests: c.status.ActiveRequests,
+		ValidUntil:     c.status.ValidUntil,
 	}
 }
 
@@ -353,6 +355,8 @@ type LoggedInUser struct {
 	Roles []string
 	// ActiveRequests is the user active requests
 	ActiveRequests []string
+	// ValidUntil is expiration time of the certificate.
+	ValidUntil time.Time
 }
 
 // AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the

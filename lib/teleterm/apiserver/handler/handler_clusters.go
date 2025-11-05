@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/constants"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -95,6 +96,7 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 			Roles:           loggedInUser.Roles,
 			ActiveRequests:  loggedInUser.ActiveRequests,
 			IsDeviceTrusted: cluster.HasDeviceTrustExtensions(),
+			ValidUntil:      timestamppb.New(loggedInUser.ValidUntil),
 		},
 		SsoHost: cluster.SSOHost,
 	}
