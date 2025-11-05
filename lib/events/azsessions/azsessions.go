@@ -269,8 +269,8 @@ func (h *Handler) sessionBlob(sessionID session.ID) *blockblob.Client {
 	return h.session.NewBlockBlobClient(sessionName(sessionID))
 }
 
-// summaryBlob returns a BlockBlobClient for the blob of the a pending session
-// summary.
+// pendingSummaryBlob returns a BlockBlobClient for the blob of the a pending
+// session summary.
 func (h *Handler) pendingSummaryBlob(sessionID session.ID) *blockblob.Client {
 	return h.inprogress.NewBlockBlobClient(summaryName(sessionID))
 }

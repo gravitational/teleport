@@ -37,6 +37,8 @@ type UploadHandler interface {
 	// with uploaded file in case of success. This function can be called
 	// multiple times for a given sessionID to update the state. A pending
 	// session summary is any summary state that can still be later overwritten.
+	// It should still be contained in the same structure as the final one, but
+	// missing some data (in particular, the summary content itself).
 	UploadPendingSummary(ctx context.Context, sesisonID session.ID, readCloser io.Reader) (string, error)
 	// UploadSummary uploads a final session summary and returns a URL with
 	// uploaded file in case of success. This function can be called only once
