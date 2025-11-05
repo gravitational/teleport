@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1573,21 +1574,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &scopedRoleCollection{items: []*scopedaccessv1.ScopedRole{rsp.Role}}, nil
 		}
 
-		var items []*scopedaccessv1.ScopedRole
-		var cursor string
-		for {
-			rsp, err := client.ScopedAccessServiceClient().ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{
-				PageToken: cursor,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items = append(items, rsp.Roles...)
-			cursor = rsp.NextPageToken
-			if cursor == "" {
-				break
-			}
+		items, err := stream.Collect(scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
@@ -1602,21 +1591,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &scopedRoleAssignmentCollection{items: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
 		}
 
-		var items []*scopedaccessv1.ScopedRoleAssignment
-		var cursor string
-		for {
-			rsp, err := client.ScopedAccessServiceClient().ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{
-				PageToken: cursor,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items = append(items, rsp.Assignments...)
-			cursor = rsp.NextPageToken
-			if cursor == "" {
-				break
-			}
+		items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleAssignmentCollection{items: items}, nil
 	case types.KindRelayServer:
