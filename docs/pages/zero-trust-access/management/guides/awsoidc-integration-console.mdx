@@ -1,6 +1,6 @@
 ---
 title: AWS CLI/Console Access Wizard
-description: Access AWS CLI and Console using an enrollment wizard.
+description: Access AWS CLI and Console using AWS OIDC integration.
 tags:
  - how-to
  - zero-trust
@@ -8,15 +8,15 @@ tags:
  - aws
 ---
 
-The "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard is available in your Teleport cluster Web UI as part of the [AWS OIDC integration](./awsoidc-integration.mdx).
+The AWS OIDC integration allows Teleport users to access AWS CLI and Console using AWS IAM Roles.
 
-The enrollment wizard configures Teleport and AWS IAM resources to allow AWS Console and CLI access for your users.
+You can set up access using the "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard from the UI or you can follow this guide to set it up manually.
 
 ## How it works
 
 ### AWS OIDC Integration
 
-The "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard depends on the [AWS OIDC integration](./awsoidc-integration.mdx).
+Setting up access to AWS CLI and Console requires an [AWS OIDC integration](./awsoidc-integration.mdx).
 The AWS OIDC integration creates and configures an AWS IAM OpenID Connect Identity Provider (OIDC IdP) and an AWS IAM role that your Teleport cluster can assume.
 
 The enrollment wizard adds permissions to the AWS OIDC integration IAM role to assume other existing IAM Roles.
@@ -28,8 +28,7 @@ The enrollment wizard adds permissions to the AWS OIDC integration IAM role to a
 
 ## Step 1/2. Configure RBAC
 
-The "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard is a part of the AWS OIDC integration.
-You need access to the `editor` role in order to complete the configuration.
+Whether you use the enrollment wizard or set up access manually, you need access to the `editor` role.
 
 ## Step 2/2. Configure access using the wizard
 
