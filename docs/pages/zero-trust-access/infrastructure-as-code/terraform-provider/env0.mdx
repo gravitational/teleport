@@ -1,7 +1,7 @@
 ---
-title: Run the Teleport Terraform Provider on Env0
+title: Run the Teleport Terraform Provider on env zero
 sidebar_label: env zero
-description: How to manage dynamic resources using the Teleport Terraform provider on Env0.
+description: How to manage dynamic resources using the Teleport Terraform provider on env zero.
 tags:
  - ci-cd
  - infrastructure-as-code
@@ -23,12 +23,13 @@ dedicated guide:
 ## How it works
 
 When running the Teleport Terraform provider on env zero, you can use its
-built-in Machine ID support to dynamically authenticate to your Teleport cluster
-without any shared secrets. When run in this configuration, the Terraform
-provider proves its identity to the Teleport Auth Service using env zero's
-[OIDC Integration][oidc]. These are OIDC tokens provided to Terraform
-via an environment variable on the deployment runner, which the Teleport
-Terraform provider can use.
+built-in Machine & Workload ID support to dynamically authenticate to your
+Teleport cluster without any shared secrets.
+
+To do so, Teleport can make use of env zero's support for
+[General OIDC Integrations][oidc], which provides OIDC tokens to jobs run on
+env zero's platform. The Teleport Terraform provider can then use these tokens
+to prove its identity to your Teleport cluster.
 
 While following this guide, you'll configure your Teleport cluster to accept
 join requests from env zero deployments and configure the provider to
@@ -85,6 +86,8 @@ To start, the Teleport Auth Service needs to be configured to accept join
 requests from env zero runs. We'll do this by creating a bot named `terraform`
 which the Teleport Terraform provider will use in a later step.
 
+Write the following to `terraform_bot.yaml`:
+
 ```yaml
 kind: bot
 version: v1
@@ -96,7 +99,7 @@ spec:
   roles: ["terraform-provider"]
 ```
 
-Create the bot from the new YAML manifest:
+Then, create the bot from the new YAML manifest:
 
 ```code
 $ tctl create -f terraform_bot.yaml
@@ -216,8 +219,9 @@ $ tctl get role/test
   Terraform and env zero, read the [Terraform resource
   reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) so
   you can flesh out your configuration.
-- To find out more about env zero's OIDC implementation, which Machine ID uses
-  to authenticate to your Teleport cluster, read [env zero's documentation][oidc].
+- To find out more about env zero's OIDC implementation, which Machine &
+  Workload ID uses to authenticate to your Teleport cluster, read
+  [env zero's documentation][oidc].
 
 [env zero]: https://www.env0.com/
 [oidc]: https://docs.envzero.com/guides/integrations/oidc-integrations
