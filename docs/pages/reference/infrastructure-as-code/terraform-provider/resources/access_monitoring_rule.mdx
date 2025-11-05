@@ -36,6 +36,25 @@ resource "teleport_access_monitoring_rule" "test" {
       integration = "builtin"
       decision    = "APPROVED"
     }
+    schedules = {
+      default = {
+        time = {
+          timezone = "America/Los_Angeles"
+          shifts = [
+            {
+              weekday : "Monday"
+              start : "00:00"
+              end : "23:59"
+            },
+            {
+              weekday : "Tuesday"
+              start : "00:00"
+              end : "23:59"
+            },
+          ]
+        }
+      }
+    }
   }
 }
 ```
