@@ -147,17 +147,21 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 // RecipientsFromAccessMonitoringRules returns the recipients that result from the Access Monitoring Rules being applied to the given Access Request.
 func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) *common.RecipientSet {
 	log := logger.Get(ctx)
+	recipientSet := common.NewRecipientSet()
+
 	rawRecipients, err := amrh.recipients(ctx, req)
 	if err != nil {
 		log.WarnContext(ctx, "Failed to create expression env", "error", err)
-		return nil
+		return &recipientSet
 	}
 
-	recipientSet := common.NewRecipientSet()
 	for _, rawRecipient := range rawRecipients {
 		rec, err := amrh.fetchRecipientCallback(ctx, rawRecipient)
 		if err != nil {
-			log.WarnContext(ctx, "Failed to fetch plugin recipients based on Access monitoring rule recipients", "error", err)
+			log.WarnContext(ctx, "Failed to fetch plugin recipients based on Access monitoring rule recipients",
+				"recipient", rawRecipient,
+				"error", err,
+			)
 			continue
 		}
 		recipientSet.Add(*rec)

@@ -41,7 +41,7 @@ func EvaluateRules(
 		schedule := rule.GetSpec().GetSchedules()
 		isInSchedules, err := InSchedules(schedule, env.CreationTime)
 		if err != nil {
-			log.WarnContext(ctx, "Failed to evaluate access monitoring rule", "error", err)
+			log.WarnContext(ctx, "Failed to evaluate access monitoring rule schedules", "error", err)
 			continue
 		}
 		if len(schedule) != 0 && !isInSchedules {
@@ -52,7 +52,7 @@ func EvaluateRules(
 		// Check if environment matches rule conditions.
 		conditionMatch, err := EvaluateCondition(rule.GetSpec().GetCondition(), env)
 		if err != nil {
-			log.WarnContext(ctx, "Failed to evaluate access monitoring rule", "error", err)
+			log.WarnContext(ctx, "Failed to evaluate access monitoring rule condition", "error", err)
 			continue
 		}
 		if conditionMatch {
