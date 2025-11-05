@@ -148,10 +148,7 @@ The resulting expression uses AND across the intersection of labels. All request
 resources must have both labels `env: dev` and `service: demo`.
 
 The `Schedule` input is written to `spec.schedules` with the `default` schedule
-name. The condition is then appended with the expression
-`access_request.spec.creation_time.in_schedule(spec.schedules["default"])`, indicating
-that the this rule is applied only if the creation time of the access request is
-within the `default` schedule.
+name.
 
 The `User Traits` input is converted into a series of `contains_any` expressions.
 The resulting expression uses AND across traits, and OR logic within a trait.
@@ -178,11 +175,10 @@ spec:
     access_request.spec.resource_labels_intersection["service"].contains("demo") &&
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
-    contains_any(user.traits["location"], set("Seattle")) &&
-    access_request.spec.creation_time.in_schedule(spec.schedules["default"])
+    contains_any(user.traits["location"], set("Seattle"))
   schedules:
-    - name: default
-      inline:
+    default:
+      time:
         timezone: America/Los_Angeles
         shifts:
           - weekday: Sunday
@@ -231,10 +227,11 @@ the `builtin` value. This indicates that Teleport is responsible for monitoring
 the rule.
 - `spec.automatic_review.decision` field specifies the proposed state of the
 access request review. This can be either `APPROVED` or `DENIED`.
-- `spec.schedules` field specifies a list of schedules that can be referenced
-within the condition expression. Note that the `start` and `end` values are
-clock times represented as a 24-hour formatted string containing the hour and
-minute. For example, "17:15".
+- `spec.schedules` field specifies a map of schedules. All schedules are used
+during evaluation. If the creation time of the access request is within any of
+the configured schedules, the rule will apply. Note that the `start` and `end`
+values are clock times represented as a 24-hour formatted string containing the
+hour and minute. For example, "17:15".
 
 The `spec.condition` expression has been extended to support new functions and
 dynamic variables:
@@ -249,9 +246,6 @@ user is on-call or pre-approved for the access request.
 union of all requested resource labels.
 - `access_request.spec.resource_labels_intersection` variable is a map containing
 the intersection of all requested resource labels.
-- `in_schedule(time, schedule)` function returns `true` if the provided time is
-within the schedule. Note that this function will use the `start` and `end` times
-of a schedule shift inclusively.
 
 #### Examples
 ```yaml
@@ -307,11 +301,10 @@ spec:
     - access_request
   condition: |-
     contains_all(set("cloud-prod"), access_request.spec.roles) &&
-    user.traits["team"].contains("cloud") &&
-    access_request.spec.creation_time.in_schedule(spec.schedules["default"])
+    user.traits["team"].contains("cloud")
   schedules:
-    - name: default
-      inline:
+    default:
+      time:
         timezone: UTC
         shifts:
           - weekday: Sunday
@@ -551,13 +544,13 @@ with optional fields like `team` and `service` for more configuration options.
 # Example spec to import on-call services
 spec:
   schedules:
-    - name: pagerduty-teleport-cloud
+    pagerduty-teleport-cloud:
       source:
         integration: pagerduty
         schedule_id: teleport-cloud-on-call
         team: teleport-dev
         service: cloud
-    - name: datadog-teleport-cloud
+    datadog-teleport-cloud:
       source:
         integration: datadog
         schedule_id: teleport-cloud-on-call
