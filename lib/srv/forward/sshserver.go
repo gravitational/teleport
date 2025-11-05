@@ -1210,7 +1210,6 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 					}
 
 					newSessionIDFromServer <- *sid
-					close(newSessionIDFromServer)
 				})
 			})
 		} else {
