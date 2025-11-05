@@ -1,5 +1,25 @@
 # Changelog
 
+## 17.7.9 (11/05/25)
+
+* Fixed configuration files such as `.kube/config` referring to non-existent `tsh` binaries. [#60872](https://github.com/gravitational/teleport/pull/60872)
+* Fixed an issue in the web UI where a bot with zero tokens would show a validation error. [#60759](https://github.com/gravitational/teleport/pull/60759)
+* The browser window for SSO MFA is slightly taller in order to accommodate larger elements like QR codes. [#60702](https://github.com/gravitational/teleport/pull/60702)
+* Fixed MongoDB topology monitoring connection leak in the Teleport Database Service. [#60693](https://github.com/gravitational/teleport/pull/60693)
+* Okta-managed apps are now pinned correctly in the web UI. [#60677](https://github.com/gravitational/teleport/pull/60677)
+* Slack access plugin no longer crashes in the event access list is unsupported. [#60674](https://github.com/gravitational/teleport/pull/60674)
+* Fixed tsh scp failing on files that grow during transfer. [#60608](https://github.com/gravitational/teleport/pull/60608)
+* Allowed moderated session peers to perform file transfers. [#60605](https://github.com/gravitational/teleport/pull/60605)
+* Fixed a startup error `EADDRINUSE: address already in use` in Teleport Connect on macOS and Linux that could occur with long system usernames. [#60577](https://github.com/gravitational/teleport/pull/60577)
+* MWI: `tbot`'s auto-generated service names are now simpler and easier to use in the `/readyz` endpoint. [#60459](https://github.com/gravitational/teleport/pull/60459)
+* Client tools managed updates stores OS and ARCH in the configuration. This ensures compatibility when `TELEPORT_HOME` directory is shared with a virtual instance running a different OS or architecture. [#60413](https://github.com/gravitational/teleport/pull/60413)
+* Updated LDAP dial timeout from 15 seconds to 30 seconds. [#60392](https://github.com/gravitational/teleport/pull/60392)
+* Fixed a bug that prevented using database role names longer than 30 chars for MySQL auto user provisioning. Now role names as long as 32 chars, which is the MySQL limit, can be used. [#60378](https://github.com/gravitational/teleport/pull/60378)
+* Fixed a bug in Proxy Recording Mode that causes SSH sessions in the WebUI to fail. [#60368](https://github.com/gravitational/teleport/pull/60368)
+* Added `extraEnv` and `extraArgs` to the teleport-operator helm chart. [#60356](https://github.com/gravitational/teleport/pull/60356)
+* Fixed malformed audit events breaking the audit log. [#60335](https://github.com/gravitational/teleport/pull/60335)
+* Added editing bot description to the web UI. [#60213](https://github.com/gravitational/teleport/pull/60213)
+
 ## 17.7.8 (10/15/25)
 
 * Updated error messages displayed by `tsh ssh` when access to hosts is denied and when attempting to connect to a host that is offline or not enrolled in the cluster. [#60226](https://github.com/gravitational/teleport/pull/60226)
