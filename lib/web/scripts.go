@@ -133,12 +133,12 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	}
 
 	return scripts.InstallScriptOptions{
-		AutoupdateStyle: autoupdateStyle,
-		TeleportVersion: version,
-		CDNBaseURL:      cdnBaseURL,
-		ProxyAddr:       h.PublicProxyAddr(),
-		TeleportFlavor:  teleportFlavor,
-		FIPS:            modules.IsBoringBinary(),
+		AutoupdateStyle:  autoupdateStyle,
+		TeleportVersion:  version,
+		CDNBaseURL:       cdnBaseURL,
+		ProxyAddr:        h.PublicProxyAddr(),
+		TeleportArtifact: teleportFlavor,
+		FIPS:             modules.IsBoringBinary(),
 	}, nil
 }
 

@@ -216,6 +216,7 @@ func TestOneOffScript(t *testing.T) {
 			TeleportVersion: "v13.1.0",
 			EntrypointArgs:  "version",
 			SuccessMessage:  "Test was a success.",
+			SupportedOSes:   []string{"linux"},
 		})
 		require.NoError(t, err)
 
@@ -232,7 +233,7 @@ func TestOneOffScript(t *testing.T) {
 
 		// validate
 		require.Error(t, err, string(out))
-		require.Contains(t, string(out), "ERROR: This script works only for Linux.")
+		require.Contains(t, string(out), "ERROR: This script works only for: linux")
 	})
 
 	t.Run("MacOS + fips fails", func(t *testing.T) {
@@ -418,7 +419,7 @@ func TestOneOffScript(t *testing.T) {
 
 		// validate
 		require.Error(t, err, string(out))
-		require.Contains(t, string(out), "ERROR: This script works only for Linux.")
+		require.Contains(t, string(out), "ERROR: This script works only for: linux darwin")
 	})
 
 	t.Run("invalid Arch", func(t *testing.T) {
