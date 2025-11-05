@@ -29,7 +29,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	utils "github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
@@ -53,7 +55,9 @@ var (
 	oneoffScript string
 
 	// oneOffBashScript is a template that can generate oneoff scripts using the `oneoff.sh` shell script.
-	oneOffBashScript = template.Must(template.New("oneoff").Parse(oneoffScript))
+	oneOffBashScript = template.Must(template.New("oneoff").Funcs(template.FuncMap{
+		"join": strings.Join,
+	}).Parse(oneoffScript))
 )
 
 // OneOffScriptParams contains the required params to create a script that downloads and executes teleport binary.
@@ -86,25 +90,28 @@ type OneOffScriptParams struct {
 	// Eg, v13.1.0
 	TeleportVersion string
 
-	// TeleportFlavor is the teleport flavor to download.
+	// TeleportArtifact is the teleport flavor to download.
 	// Only OSS or Enterprise versions are allowed.
 	// Possible values:
 	// - teleport
 	// - teleport-ent
 	// - teleport-update
-	TeleportFlavor string
+	TeleportArtifact string
 
-	// TeleportPackage is the teleport package name.
+	// TeleportDirectory is the teleport package name.
 	// Possible values:
 	// - teleport
 	// - teleport-ent
-	TeleportPackage string
+	TeleportDirectory string
 
 	// TeleportFIPS represents if the script should install a FIPS build of Teleport.
 	TeleportFIPS bool
 
 	// SuccessMessage is a message shown to the user after the one off is completed.
 	SuccessMessage string
+
+	// SupportedOSes is a list of the supported operating systems.
+	SupportedOSes []string
 }
 
 // CheckAndSetDefaults checks if the required params ara present.
@@ -138,32 +145,37 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	}
 	p.CDNBaseURL = strings.TrimRight(p.CDNBaseURL, "/")
 
-	if p.TeleportPackage == "" {
-		p.TeleportPackage = types.PackageNameOSS
+	if p.SupportedOSes == nil {
+		p.SupportedOSes = []string{constants.LinuxOS, constants.DarwinOS}
+	}
+
+	if p.TeleportDirectory == "" {
+		p.TeleportDirectory = types.PackageNameOSS
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
-			p.TeleportPackage = types.PackageNameEnt
+			p.TeleportDirectory = types.PackageNameEnt
 		}
 	}
-	if p.TeleportFlavor == "" {
-		p.TeleportFlavor = types.PackageNameOSS
+	if p.TeleportArtifact == "" {
+		p.TeleportArtifact = types.PackageNameOSS
 		if modules.GetModules().BuildType() == modules.BuildEnterprise {
-			p.TeleportFlavor = types.PackageNameEnt
+			p.TeleportArtifact = types.PackageNameEnt
 		}
 	}
 	// TODO(vapopov): DELETE IN v21.0.0, `teleport-update` must be already added to all supported
 	// releases and version check must be omitted.
-	version, err := semver.NewVersion(strings.TrimPrefix(p.TeleportVersion, "v"))
+	version, err := utils.EnsureSemver(p.TeleportVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if version.Major == 17 && version.Compare(*semver.New("17.7.2")) >= 0 ||
-		version.Major == 18 && version.Compare(*semver.New("18.1.5")) >= 0 ||
+
+	if version.Major == 17 && version.Compare(semver.Version{Major: 17, Minor: 7, Patch: 2}) >= 0 ||
+		version.Major == 18 && version.Compare(semver.Version{Major: 18, Minor: 1, Patch: 5}) >= 0 ||
 		version.Major > 18 {
-		p.TeleportPackage = types.PackageNameOSS
-		p.TeleportFlavor = types.PackageNameUpdate
+		p.TeleportDirectory = types.PackageNameOSS
+		p.TeleportArtifact = types.PackageNameUpdate
 	}
 
-	if !slices.Contains(types.PackageNameKinds, p.TeleportFlavor) {
+	if !slices.Contains(types.PackageNameKinds, p.TeleportArtifact) {
 		return trace.BadParameter("invalid teleport flavor, only %v are supported", types.PackageNameKinds)
 	}
 

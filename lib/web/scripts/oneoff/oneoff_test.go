@@ -443,13 +443,13 @@ func TestOneOffScript(t *testing.T) {
 
 	t.Run("invalid flavor should return an error", func(t *testing.T) {
 		_, err := BuildScript(OneOffScriptParams{
-			BinUname:        unameMock.Path,
-			BinMktemp:       mktempMock.Path,
-			CDNBaseURL:      "dummyURL",
-			TeleportVersion: "v13.1.0",
-			EntrypointArgs:  "version",
-			SuccessMessage:  "Test was a success.",
-			TeleportFlavor:  "../not-teleport",
+			BinUname:         unameMock.Path,
+			BinMktemp:        mktempMock.Path,
+			CDNBaseURL:       "dummyURL",
+			TeleportVersion:  "v13.1.0",
+			EntrypointArgs:   "version",
+			SuccessMessage:   "Test was a success.",
+			TeleportArtifact: "../not-teleport",
 		})
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %+v", err)
 	})
@@ -462,7 +462,7 @@ func TestOneOffScript(t *testing.T) {
 			TeleportVersion:       "v13.1.0",
 			EntrypointArgs:        "version",
 			SuccessMessage:        "Test was a success.",
-			TeleportFlavor:        "teleport",
+			TeleportArtifact:      "teleport",
 			TeleportCommandPrefix: "rm -rf thing",
 		})
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %+v", err)

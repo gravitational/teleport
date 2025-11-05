@@ -30,6 +30,7 @@ import (
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
@@ -150,13 +151,14 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 	}
 
 	return oneoff.OneOffScriptParams{
-		Entrypoint:      "teleport-update",
-		EntrypointArgs:  strings.Join(args, " "),
-		CDNBaseURL:      o.CDNBaseURL,
-		TeleportVersion: "v" + o.TeleportVersion.String(),
-		TeleportFlavor:  o.TeleportFlavor,
-		SuccessMessage:  successMessage,
-		TeleportFIPS:    o.FIPS,
+		Entrypoint:       "teleport-update",
+		EntrypointArgs:   strings.Join(args, " "),
+		CDNBaseURL:       o.CDNBaseURL,
+		TeleportVersion:  "v" + o.TeleportVersion.String(),
+		TeleportArtifact: o.TeleportFlavor,
+		SuccessMessage:   successMessage,
+		TeleportFIPS:     o.FIPS,
+		SupportedOSes:    []string{constants.LinuxOS},
 	}
 }
 

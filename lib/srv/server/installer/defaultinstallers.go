@@ -72,7 +72,7 @@ sudo -E "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + " $@"
 	argsList = []string{
 		"install", "autodiscover-node",
 		"--public-proxy-addr={{.PublicProxyAddr}}",
-		"--teleport-package={{.TeleportPackage}}",
+		"--teleport-package={{.TeleportDirectory}}",
 		"--repo-channel={{.RepoChannel}}",
 		"--auto-upgrade={{.AutomaticUpgrades}}",
 		"--azure-client-id={{.AzureClientID}}",
