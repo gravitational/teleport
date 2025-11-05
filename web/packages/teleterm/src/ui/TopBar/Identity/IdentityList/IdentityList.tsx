@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { formatDistanceToNowStrict, isPast } from 'date-fns';
 import { JSX } from 'react';
 import styled from 'styled-components';
 
-import { ButtonText, Flex, Label, P3 } from 'design';
-import { Logout, Refresh, ShieldCheck, ShieldWarning } from 'design/Icon';
+import { ButtonText, Flex, Label, P3, Stack } from 'design';
+import { Clock, Logout, ShieldCheck, ShieldWarning } from 'design/Icon';
 import Link from 'design/Link';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
@@ -46,6 +48,10 @@ export function ActiveCluster(props: {
   onLogout(): void;
 }) {
   const clusterName = routing.parseClusterName(props.activeCluster.uri);
+  const validUntil =
+    props.activeCluster.loggedInUser?.validUntil &&
+    Timestamp.toDate(props.activeCluster.loggedInUser.validUntil);
+
   return (
     <>
       <Flex p={3} pb={2} flexWrap="nowrap" gap={2} flexDirection="column">
@@ -63,13 +69,6 @@ export function ActiveCluster(props: {
           </Flex>
 
           <Flex flexDirection="row" alignItems="flex-start" gap={1}>
-            <ButtonText
-              title={`Refresh session in ${clusterName}`}
-              size="small"
-              onClick={() => props.onRefresh()}
-            >
-              <Refresh size="small" />
-            </ButtonText>
             <ButtonText
               title={`Log out from ${clusterName}`}
               onClick={() => props.onLogout()}
@@ -103,7 +102,30 @@ export function ActiveCluster(props: {
             </Label>
           ))}
         </Flex>
-        <DeviceTrustMessage status={props.deviceTrustStatus} />
+        <Stack gap={0}>
+          {validUntil && (
+            <Flex gap={1} color="text.slightlyMuted">
+              <Clock size="small" />
+              <P3>
+                <span title={validUntil.toLocaleString()}>
+                  {isPast(validUntil)
+                    ? 'Session expired.'
+                    : `Session expires ${formatDistanceToNowStrict(validUntil, { addSuffix: true })}.`}
+                </span>
+                <Link
+                  onClick={() => props.onRefresh()}
+                  ml={1}
+                  css={`
+                    cursor: pointer;
+                  `}
+                >
+                  Refresh…
+                </Link>
+              </P3>
+            </Flex>
+          )}
+          <DeviceTrustMessage status={props.deviceTrustStatus} />
+        </Stack>
       </Flex>
       <Separator />
     </>
