@@ -337,7 +337,7 @@ const (
 	UserCertsRequest_TSH_DB_EXEC UserCertsRequest_Requester = 5
 	// TSH_APP_AWS_CREDENTIALPROCESS is set when tsh provides access to an AWS App which uses client side credentials.
 	// When using per-session MFA, this ensures the TTL of the certificate (and thus the AWS session) is the same as the Teleport identity session.
-	// AWS credentials are not written to disk when this requester is used.
+	// AWS credentials should not be written to disk when this requester is used, but may be exported as env variables through stdout.
 	UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS UserCertsRequest_Requester = 6
 )
 

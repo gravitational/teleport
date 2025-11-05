@@ -170,6 +170,26 @@ curl \
 <a href="/login">Found</a>.
 ```
 
+### `tsh app login` for AWS Access using AWS IAM Roles Anywhere integration credentials.
+
+When using the AWS IAM Roles Anywhere integration (see [RFD 204](./0204-aws-iam-roles-anywhere.md))
+users expect the access to be long lived and compatible with other AWS-SDK based tools.
+
+In this case, users must export the AWS credentials into the current shell session:
+```console
+> eval "$(tsh apps login myaws --aws-role arn:aws:iam::123456789012:role/MyRole --env)"
+MFA is required to access Application "myaws"
+Tap any security key
+Detected security key tap
+
+> aws sts get-caller-identity
+{
+    "UserId": "USERID:00id123",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/MyRole/00id123"
+}
+```
+
 #### `tsh proxy app`
 
 Users can use `tsh proxy app` to create a local proxy for the app. This command

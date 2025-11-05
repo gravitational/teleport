@@ -108,7 +108,7 @@ func onAppLogin(cf *CLIConf) error {
 
 	var singleUseCerts bool
 	if app.GetAWSRolesAnywhereProfileARN() != "" {
-		singleUseCerts, err = isMFARequireForAppAccess(cf.Context, tc, appInfo.RouteToApp)
+		singleUseCerts, err = isMFARequiredForAppAccess(cf.Context, tc, appInfo.RouteToApp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -156,9 +156,9 @@ Example:
 	return nil
 }
 
-// isMFARequireForAppAccess calls the IsMFARequired endpoint in order to get from user roles if access to the application
+// isMFARequiredForAppAccess calls the IsMFARequired endpoint in order to get from user roles if access to the application
 // requires MFA.
-func isMFARequireForAppAccess(ctx context.Context, tc *client.TeleportClient, routeToApp proto.RouteToApp) (bool, error) {
+func isMFARequiredForAppAccess(ctx context.Context, tc *client.TeleportClient, routeToApp proto.RouteToApp) (bool, error) {
 	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)

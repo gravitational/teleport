@@ -2704,11 +2704,10 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 }
 
 func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
-	if inMemoryFlowCertRequest(req) {
-		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
-		// because the certs will be kept in-memory by the client to protect
-		// against cert/key exfiltration. When MFA is required, cert expiration
-		// time is bounded by the lifetime of the local proxy process or the mfa verification interval.
+	if !isCertWrittenToDiskFlow(req) {
+		// Don't limit the cert expiry to 1 minute for certs that are not written to disk.
+		// When MFA is required, cert expiration time is bounded by the lifetime of the local proxy process
+		// or the mfa verification interval.
 		return
 	}
 
@@ -2718,16 +2717,31 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 	}
 }
 
-// inMemoryFlowCertRequest returns whether a cert request is for a flow where the credentials are kept in-memory in the client, and never written to disk.
+// isInMemoryCertRequest returns whether a cert request is for a flow where the credentials are kept in-memory in the client.
+// Credentials are not written to disk nor written to stdout.
 // For those scenarios, we can issue certs with longer TTLs even when they are single-use certs.
-// This is the case for cert requests made by tsh db/kube/app local proxy or tsh app aws credential process.
-func inMemoryFlowCertRequest(req *authpb.UserCertsRequest) bool {
+// This is the case for cert requests made by tsh db/kube/app local proxy.
+func isInMemoryCertRequest(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
 			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
-			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS)
+			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
+}
+
+// isCredentialsStdoutCertRequest returns whether a cert request is for a flow where the credentials are not written to disk, but are sent to stdout.
+// For those scenarios, we can issue certs with longer TTLs even when they are single-use certs.
+// This is the case for cert requests made by tsh for an AWS App access which writes the credentials to stdout.
+// Note: this is different from isInMemoryCertRequest because the credentials are written to stdout instead of being kept in-memory.
+func isCredentialsStdoutCertRequest(req *authpb.UserCertsRequest) bool {
+	return req.Usage == authpb.UserCertsRequest_App && req.RequesterName == authpb.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS
+}
+
+// isCertWrittenToDiskFlow returns whether a cert request is for a flow where the credentials are written to disk.
+// For those scenarios, we need to limit the cert TTL to avoid long-lived single-use certs.
+func isCertWrittenToDiskFlow(req *authpb.UserCertsRequest) bool {
+	return !isInMemoryCertRequest(req) && !isCredentialsStdoutCertRequest(req)
 }
 
 func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {

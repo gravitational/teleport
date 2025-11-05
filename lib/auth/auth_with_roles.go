@@ -3430,9 +3430,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
 				req.Expires = maxTime
 			}
-		} else if inMemoryFlowCertRequest(&req) {
-			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl
-			// or mfa_verification_interval or req.Expires.
+		} else if !isCertWrittenToDiskFlow(&req) {
+			// If requested certificate is for a flow that does not involve writing the credentials to disk
+			// (e.g. tsh proxy of DB, Kube and App, and AWS App Access using credential process)
+			// it is limited by max session ttl or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
 			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
