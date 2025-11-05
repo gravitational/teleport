@@ -55,14 +55,50 @@ type someErr struct {
 }
 
 func (e *someErr) Error() string {
+	if e.inner == nil {
+		return "inner: nil"
+	}
 	return "inner: " + e.inner.Error()
 }
 func (e *someErr) Unwrap() error {
 	return e.inner
 }
 
-func TestConvertErrorWrappedError(t *testing.T) {
-	nestedErr := &someErr{inner: trace.Wrap(fmt.Errorf("dummy error"))}
-	out := ConvertError(nestedErr)
-	require.ErrorContains(t, out, "dummy error")
+func TestConvertError(t *testing.T) {
+	tests := []struct {
+		name               string
+		input              error
+		checkError         require.ErrorAssertionFunc
+		checkErrorContains string
+	}{
+		{
+			name:       "nil",
+			input:      nil,
+			checkError: require.NoError,
+		},
+		{
+			name:               "wrapped",
+			input:              &someErr{inner: trace.Wrap(fmt.Errorf("dummy error"))},
+			checkError:         require.Error,
+			checkErrorContains: "dummy error",
+		},
+		{
+			name: "wrapped nil",
+			// Error in the middle layer has Error text but most inner layer is
+			// nil. In this case, we will return the non-nil error in the middle
+			// layer.
+			input:              &someErr{inner: &someErr{inner: nil}},
+			checkError:         require.Error,
+			checkErrorContains: "inner: nil",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := ConvertError(tt.input)
+			tt.checkError(t, output)
+			if output != nil {
+				require.ErrorContains(t, output, tt.checkErrorContains)
+			}
+		})
+	}
 }

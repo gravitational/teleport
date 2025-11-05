@@ -51,7 +51,9 @@ func ConvertError(err error) error {
 
 	var pgErr pgError
 	if errors.As(err, &pgErr) {
-		return ConvertError(pgErr.Unwrap())
+		if unwrapped := pgErr.Unwrap(); unwrapped != nil && unwrapped.Error() != "" {
+			return ConvertError(unwrapped)
+		}
 	}
 
 	var c causer
