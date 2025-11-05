@@ -53,6 +53,8 @@ type conn struct {
 
 	closed bool
 	mtx    sync.Mutex
+
+	lostCounter *Counter
 }
 
 func startConn(bufferSize int) (*conn, error) {
@@ -68,6 +70,11 @@ func startConn(bufferSize int) (*conn, error) {
 
 	var objs networkObjects
 	if err := loadNetworkObjects(&objs, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostNetworkEvents)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -134,10 +141,11 @@ func startConn(bufferSize int) (*conn, error) {
 	go sendEvents(bpfv6Events, eventBufV6)
 
 	return &conn{
-		objs:       &objs,
-		event4Chan: bpfv4Events,
-		event6Chan: bpfv6Events,
-		toClose:    toClose,
+		objs:        &objs,
+		event4Chan:  bpfv4Events,
+		event6Chan:  bpfv6Events,
+		toClose:     toClose,
+		lostCounter: lostCtr,
 	}, nil
 }
 
@@ -191,10 +199,14 @@ func (c *conn) close() {
 	}
 
 	if err := c.objs.Close(); err != nil {
-		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
+		logger.WarnContext(context.Background(), "failed to close network objects", "error", err)
 	}
 
-	logger.DebugContext(context.Background(), "Closed conn BPF module")
+	if err := c.lostCounter.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close network lost counter", "error", err)
+	}
+
+	logger.DebugContext(context.Background(), "Closed network BPF module")
 }
 
 // v4Events contains raw events off the perf buffer.

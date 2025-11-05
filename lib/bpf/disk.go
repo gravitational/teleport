@@ -53,6 +53,8 @@ type open struct {
 
 	closed bool
 	mtx    sync.Mutex
+
+	lostCounter *Counter
 }
 
 // startOpen will compile, load, start, and pull events off the perf buffer
@@ -72,6 +74,11 @@ func startOpen(bufferSize int) (*open, error) {
 	var objs diskObjects
 	if err := loadDiskObjects(&objs, nil); err != nil {
 		return nil, trace.Wrap(err, "loading disk objects: %v", err)
+	}
+
+	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostDiskEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	trs := []struct {
@@ -140,9 +147,10 @@ func startOpen(bufferSize int) (*open, error) {
 	go sendEvents(bpfEvents, eventBuf)
 
 	return &open{
-		objs:     objs,
-		eventBuf: bpfEvents,
-		toClose:  toClose,
+		objs:        objs,
+		eventBuf:    bpfEvents,
+		toClose:     toClose,
+		lostCounter: lostCtr,
 	}, nil
 }
 
@@ -195,10 +203,14 @@ func (o *open) close() {
 	}
 
 	if err := o.objs.Close(); err != nil {
-		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
+		logger.WarnContext(context.Background(), "failed to close disk objects", "error", err)
 	}
 
-	logger.DebugContext(context.Background(), "Closed open BPF module")
+	if err := o.lostCounter.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close disk lost counter", "error", err)
+	}
+
+	logger.DebugContext(context.Background(), "Closed disk BPF module")
 }
 
 // events contains raw events off the perf buffer.

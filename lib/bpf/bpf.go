@@ -147,11 +147,11 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	// Compile and start BPF programs (buffer size given).
 	s.exec, err = startExec(*config.CommandBufferSize)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to load command execution hooks")
+		return nil, trace.Wrap(err, "failed to load command hooks")
 	}
 	s.open, err = startOpen(*config.DiskBufferSize)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to load file I/O hooks")
+		return nil, trace.Wrap(err, "failed to load disk hooks")
 	}
 	s.conn, err = startConn(*config.NetworkBufferSize)
 	if err != nil {

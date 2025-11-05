@@ -55,7 +55,8 @@ type exec struct {
 	closed bool
 	mtx    sync.Mutex
 
-	bpfEvents chan []byte
+	bpfEvents   chan []byte
+	lostCounter *Counter
 }
 
 func (e *exec) startSession(cgroupID uint64) error {
@@ -106,6 +107,11 @@ func startExec(bufferSize int) (*exec, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostCommandEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	toClose := make([]io.Closer, 0)
 
 	tracePoints := []struct {
@@ -148,11 +154,12 @@ func startExec(bufferSize int) (*exec, error) {
 	go sendEvents(bpfEvents, eventBuf)
 
 	return &exec{
-		objs:      objs,
-		eventBuf:  eventBuf,
-		lost:      objs.LostCounter,
-		toClose:   toClose,
-		bpfEvents: bpfEvents,
+		objs:        objs,
+		eventBuf:    eventBuf,
+		lost:        objs.LostCounter,
+		toClose:     toClose,
+		bpfEvents:   bpfEvents,
+		lostCounter: lostCtr,
 	}, nil
 }
 
@@ -178,7 +185,11 @@ func (e *exec) close() {
 		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
 	}
 
-	logger.DebugContext(context.Background(), "Closed exec BPF module")
+	if err := e.lostCounter.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close command lost counter", "error", err)
+	}
+
+	logger.DebugContext(context.Background(), "Closed command BPF module")
 }
 
 // events contains raw events off the perf buffer.

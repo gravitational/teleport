@@ -21,6 +21,15 @@
 package bpf
 
 import (
+	"context"
+	"errors"
+	"sync"
+
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -43,3 +52,74 @@ const (
 	// eventRet holds the return value and other data about an event.
 	eventRet = 1
 )
+
+// Counter allows a BPF program to increment a Prometheus counter.
+// The counter value is stored in a one element BPF array (map).
+// When it's incremented, the BPF program also rings the doorbell
+// via a ring buffer.
+type Counter struct {
+	// doorbellBuf contains dummy bytes and is used for signaling the userspace
+	doorbellBuf *ringbuf.Reader
+
+	// arr is a one element array containing the value
+	arr *ebpf.Map
+	// lastCnt keeps the last read counter value
+	lastCnt uint64
+
+	// wg is used to wait for the loop goroutine to finish
+	wg sync.WaitGroup
+
+	// counter is the associated Prometheus counter to increment
+	counter prometheus.Counter
+}
+
+// NewCounter starts tracking the lost messages and updating the Prometheus counter.
+func NewCounter(counter, doorbell *ebpf.Map, promCounter prometheus.Counter) (*Counter, error) {
+	doorbellBuf, err := ringbuf.NewReader(doorbell)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c := &Counter{
+		doorbellBuf: doorbellBuf,
+		arr:         counter,
+		counter:     promCounter,
+	}
+
+	c.wg.Go(c.loop)
+
+	return c, nil
+}
+
+// Close will stop tracking and release the resources.
+func (c *Counter) Close() error {
+	err := c.doorbellBuf.Close()
+	// wait for lostLoop to finish
+	c.wg.Wait()
+	return err
+}
+
+func (c *Counter) loop() {
+	for {
+		_, err := c.doorbellBuf.Read()
+		if err != nil {
+			if errors.Is(err, ringbuf.ErrClosed) {
+				logger.DebugContext(context.Background(), "Received signal, exiting")
+				return
+			}
+			logger.ErrorContext(context.Background(), "Error reading from ring buffer", "error", err)
+			return
+		}
+
+		var key int32 = 0
+		var count uint64
+		if err := c.arr.Lookup(&key, &count); err != nil {
+			logger.ErrorContext(context.Background(), "Error reading array value at index 0", "error", err)
+			continue
+		}
+		if delta := count - c.lastCnt; delta > 0 {
+			c.counter.Add(float64(delta))
+		}
+		c.lastCnt = count
+	}
+}

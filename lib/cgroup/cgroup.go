@@ -37,7 +37,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -148,21 +147,7 @@ func (s *Service) Remove(sessionID string) error {
 		return trace.Wrap(err)
 	}
 
-	for i := 0; i < 10; i++ {
-		// The rmdir syscall is used to remove a cgroup.
-		if err = unix.Rmdir(filepath.Join(s.teleportRoot, sessionID)); err != nil {
-			// Retry on EBUSY errors.
-			if errors.Is(err, unix.EBUSY) {
-				// If the cgroup is busy, sleep for a bit and try again.
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return trace.Wrap(err)
-		}
-
-		break
-	}
-
+	err = unix.Rmdir(filepath.Join(s.teleportRoot, sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -393,15 +378,13 @@ func (s *Service) ID(sessionID string) (uint64, error) {
 	return fh.CgroupID, nil
 }
 
-var (
-	// pattern matches cgroup process files.
-	pattern = regexp.MustCompile(`cgroup\.procs$`)
-)
+// pattern matches cgroup process files.
+var pattern = regexp.MustCompile(`cgroup\.procs$`)
 
 const (
 	// fileMode is the mode files and directories are created in within the
 	// cgroup filesystem.
-	fileMode = 0555
+	fileMode = 0o555
 
 	// teleportRoot is the prefix of the root cgroup that holds all other
 	// Teleport cgroups.
