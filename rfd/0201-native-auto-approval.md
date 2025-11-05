@@ -531,7 +531,7 @@ services like PagerDuty, Datadog, and a few others. However, configuring these
 rules is not user-friendly, we rely on annotations embedded in a Teleport user's
 role to determine when to apply them.
 
-We'd like to improve this expereince by enabling users to configure automatic
+We'd like to improve this experience by enabling users to configure automatic
 reviews using access monitoring rules based on external on-call schedules. While
 this feature is outside the scope of this RFD, we should consider how the
 `spec.schedules` field could be extended to support externally sourced schedules.
