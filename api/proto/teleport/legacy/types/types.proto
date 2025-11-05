@@ -9031,6 +9031,22 @@ message InstallerParams {
   // Note: only supported for Amazon EC2.
   // Group name can only contain alphanumeric characters and hyphens.
   string UpdateGroup = 10 [(gogoproto.jsontag) = "update_group,omitempty"];
+  // HTTPProxySettings defines HTTP proxy settings for making HTTP requests.
+  // When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.
+  HTTPProxySettings HTTPProxySettings = 11 [(gogoproto.jsontag) = "http_proxy_settings,omitempty"];
+}
+
+// HTTPProxySettings defines HTTP proxy settings for making HTTP and HTTPS requests.
+message HTTPProxySettings {
+  // HTTPProxy is the URL for the HTTP proxy to use when making requests.
+  // When applied, this will set the HTTP_PROXY environment variable.
+  string HTTPProxy = 1 [(gogoproto.jsontag) = "http_proxy,omitempty"];
+  // HTTPSProxy is the URL for the HTTPS Proxy to use when making requests.
+  // When applied, this will set the HTTPS_PROXY environment variable.
+  string HTTPSProxy = 2 [(gogoproto.jsontag) = "https_proxy,omitempty"];
+  // NoProxy is a comma separated list of URLs that will be excluded from proxying.
+  // When applied, this will set the NO_PROXY environment variable.
+  string NoProxy = 3 [(gogoproto.jsontag) = "no_proxy,omitempty"];
 }
 
 // InstallParamEnrollMode is the mode used to enroll the node into the cluster.
