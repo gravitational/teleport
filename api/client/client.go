@@ -27,7 +27,6 @@ import (
 	"iter"
 	"log/slog"
 	"net"
-	"net/url"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -508,25 +507,13 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	parsedAddr, err := url.Parse(addr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	pingPath, err := url.JoinPath(parsedAddr.Path, "/webapi/ping")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	pingURL := url.URL{
-		Scheme: parsedAddr.Scheme,
-		Host:   parsedAddr.Host,
-		Path:   pingPath,
-	}
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithResolvers(teleportResolverBuilder{
-			PingURL: pingURL.String(),
+			// TODO(dustin.specker): do not merch this as-is
+			PingURL: addr + "/webapi/ping",
 		}),
 		grpc.WithChainUnaryInterceptor(
 			metadata.UnaryClientInterceptor,
