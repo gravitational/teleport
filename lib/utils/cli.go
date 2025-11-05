@@ -238,7 +238,18 @@ func formatCertError(err error) string {
 
 	var hostnameErr x509.HostnameError
 	if errors.As(err, &hostnameErr) {
-		return fmt.Sprintf(`The certificate does not match the address %v you are connecting to.
+		// Filter environment variables to only include those related to proxy settings.
+		proxyEnv := make(map[string]string)
+		for _, key := range []string{
+			"https_proxy", "http_proxy", "no_proxy",
+			"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
+		} {
+			if val, ok := os.LookupEnv(key); ok {
+				proxyEnv[key] = val
+			}
+		}
+
+		return fmt.Sprintf(`The certificate does not match the address %q you are attempting to connect to.
 
   This usually happens if you are connecting using an internal address or a DNS name that is not present in the
   certificate's Subject Alternative Names (SANs).
@@ -250,10 +261,10 @@ func formatCertError(err error) string {
 
 DEBUG INFO:
 
-  Environment Variables: %+v
+  Proxy Environment Variables: %v
 
-  Presented Certificate: %+v
-`, hostnameErr.Host, os.Environ(), hostnameErr.Certificate)
+  Server Certificate Details: %+v
+`, hostnameErr.Host, proxyEnv, hostnameErr.Certificate)
 	}
 
 	var certInvalidErr x509.CertificateInvalidError
