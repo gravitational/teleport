@@ -30,9 +30,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/webclient"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/serviceconfig"
+
+	"github.com/gravitational/teleport/api/client/webclient"
 )
 
 // teleportResolverBuilder is responsible for building a wrapped DNS resolver that polls the provided
@@ -75,7 +76,7 @@ func (r teleportResolverBuilder) Build(target resolver.Target, cc resolver.Clien
 			case <-time.After(30 * time.Second):
 				serviceConfig, err := poll(wr.ctx, wr.ClientConn, r.PingURL)
 				if err != nil {
-					log.Error("error polling", slog.String("err", err.Error()))
+					log.ErrorContext(wr.ctx, "error polling", slog.String("err", err.Error()))
 					continue
 				}
 
@@ -149,7 +150,7 @@ func poll(ctx context.Context, cc resolver.ClientConn, findURL string) (*service
 
 	serviceConfig, err := json.Marshal(pingResponse.GRPCClientLoadBalancerPolicy)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling service config: %w", err)
+		return nil, fmt.Errorf("error marshaling service config: %w", err)
 	}
 
 	return cc.ParseServiceConfig(string(serviceConfig)), nil
