@@ -508,16 +508,25 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	pingURL, err := url.JoinPath(addr, "/webapi/ping")
+	parsedAddr, err := url.Parse(addr)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	pingPath, err := url.JoinPath(parsedAddr.Path, "/webapi/ping")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pingURL := url.URL{
+		Scheme: parsedAddr.Scheme,
+		Host:   parsedAddr.Host,
+		Path:   pingPath,
 	}
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithResolvers(teleportResolverBuilder{
-			PingURL: pingURL,
+			PingURL: pingURL.String(),
 		}),
 		grpc.WithChainUnaryInterceptor(
 			metadata.UnaryClientInterceptor,
