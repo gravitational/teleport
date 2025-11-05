@@ -352,6 +352,8 @@ type testClient struct {
 	mockGetUpdatedLicense func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error)
 }
 
+func (t *testClient) Hostname() string { return "teleport.example.com" }
+
 func (t *testClient) GetUpdatedLicense(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest, opts ...grpc.CallOption) (*cloudapi.GetUpdatedLicenseResponse, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()

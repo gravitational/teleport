@@ -28,6 +28,8 @@ type testClient struct {
 	_ func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error)
 }
 
+func (t *testClient) Hostname() string { return "teleport.example.com" }
+
 // Close implements cloud.Client interface for mocked client
 func (t *testClient) Close() error { return nil }
 

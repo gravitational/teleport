@@ -31,6 +31,8 @@ type testClient struct {
 	mockGetFeatures func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error)
 }
 
+func (t *testClient) Hostname() string { return "test.example.com" }
+
 func (t *testClient) GetFeatures(ctx context.Context, in *cloudapi.EmptyRequest, opts ...grpc.CallOption) (*cloudapi.GetFeaturesResponse, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()

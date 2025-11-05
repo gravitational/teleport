@@ -14,6 +14,8 @@ import (
 	"github.com/gravitational/license/constants"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -180,6 +182,9 @@ func (s *licenseUpdateService) fetchAndUpdateLicense(ctx context.Context) error 
 		ServerId:    s.serverID,
 	})
 	if err != nil {
+		if code := status.Code(err); code == codes.Unavailable || code == codes.DeadlineExceeded {
+			return trace.ConnectionProblem(err, "could not fetch updated license, please ensure that Teleport has connectivity to %v", s.client.Hostname())
+		}
 		return trace.Wrap(err, "error fetching updated license")
 	}
 

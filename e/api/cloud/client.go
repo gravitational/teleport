@@ -113,6 +113,13 @@ type Client interface {
 	v1.TenantsServiceClient
 	// Close closes the Client connection to the auth server
 	io.Closer
+
+	// Hostname returns the hostname of the server the client connects to.
+	Hostname() string
+}
+
+func (c *cloudClient) Hostname() string {
+	return c.conn.Target()
 }
 
 // Close closes the Client connection to the auth server
