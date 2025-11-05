@@ -2648,6 +2648,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		additionalDeniedMessage = "Confirm Kubernetes user or group."
 	case types.KindWindowsDesktop:
 		additionalDeniedMessage = "Confirm Windows user."
+	case types.KindSAMLIdPServiceProvider:
+		additionalDeniedMessage = "Confirm app_labels."
 	}
 
 	// Check deny rules.

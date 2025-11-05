@@ -175,6 +175,11 @@ spec:
           start_hour: 16
 ```
 
+This example configures a single group named "default" for all agents.
+All agents will be placed in this group, as agents with missing
+or unknown groups are always placed in the last listed group.
+Currently, only the "regular" schedule is user-configurable.
+
 For example, a Teleport user with staging and production
 environments might create a custom schedule that looks like this:
 
@@ -258,8 +263,13 @@ spec:
 ```
 
 This resource is used to deploy new versions of Teleport to your agents.
-The cluster will update agents from `start_version` to `target_version`
-according to the update schedule specified in the `autoupdate_config`.
+The cluster will update agents to `target_version` according to the update
+schedule specified in the `autoupdate_config`.
+
+The `start_version` is only used to determine the version used for newly
+connected agents when their update window has not occurred yet.
+This is useful to prevent version drift within groups, but some users may
+prefer to set both version fields to the same version.
 
 Run the following command to create or update the resource:
 
@@ -315,6 +325,9 @@ Server ID                            Hostname      Services Version Upgrader
 
 Agents enrolled into Managed Updates v2 can be queried with the
 `--upgrader=binary` flag.
+
+Note that it may take several minutes for newly upgraded agents to be reflected
+in the inventory output.
 
 ### Enrolling unmanaged agents
 
@@ -520,7 +533,33 @@ Teleport Agents are not updated immediately when a new version of Teleport is
 released, and agent updates can lag behind the cluster by a few days.
 
 If the Teleport Agent has not been automatically updating for several weeks, you
-can consult the updater logs to help troubleshoot the problem:
+can consult the updater logs as described above to help troubleshoot the problem.
+
+The `teleport-update status` command provides the best UX for determining how an
+agent is being instructed to update. However, if `teleport-update is not available,
+this information can also be queried directly from the Teleport cluster using `curl`:
+
+```code
+$ curl -s https://teleport.example.com/webapi/find | jq .auto_update
+{
+  ...
+  "agent_version": "18.2.7",         # version that the agent should update to (also used for new agents)
+  "agent_auto_update": false,        # true if in window and the agent should update now
+  "agent_update_jitter_seconds": 60  # jitter to reduce load on the cluster and CDN
+}
+```
+
+This may be tuned for a specific agent using the `group` and `update_id` params:
+```code
+$ curl -s https://teleport.example.com/webapi/find?group=staging&update_id=$(</tmp/teleport-update.id) | jq .auto_update
+{
+  ...
+  "agent_version": "18.2.8",
+  "agent_auto_update": true,
+  "agent_update_jitter_seconds": 60
+}
+```
+
 
 ### Troubleshooting managed agent upgrades on Kubernetes
 
@@ -565,10 +604,6 @@ until the next reconciliation, you can trigger an event.
    Here, the local active version is 17.2.0. The cluster's target version is
    17.2.1, but we are not in an update window, so the agent is not immediately
    updated.
-
-```code
-$ journalctl -u teleport-update
-```
 
 1. If an agent is not automatically updated, you can invoke the updater
    manually and look at its logs:
