@@ -21,7 +21,6 @@ package join_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -52,7 +51,6 @@ func (m *mockIDTokenValidator) Validate(
 	_ context.Context, ghes, enterpriseSlug, token string,
 ) (*githubactions.IDTokenClaims, error) {
 	m.lastCalledGHESHost = ghes
-	fmt.Printf("!! Validate(): lastCalledEnterpriseSlug: %s\n", enterpriseSlug)
 	m.lastCalledEnterpriseSlug = enterpriseSlug
 	claims, ok := m.tokens[token]
 	if !ok {
@@ -63,7 +61,6 @@ func (m *mockIDTokenValidator) Validate(
 }
 
 func (m *mockIDTokenValidator) reset() {
-	fmt.Printf("!! reset()\n")
 	m.lastCalledGHESHost = ""
 	m.lastCalledEnterpriseSlug = ""
 	m.lastCalledJWKS = ""
@@ -72,8 +69,6 @@ func (m *mockIDTokenValidator) reset() {
 func (m *mockIDTokenValidator) ValidateJWKS(
 	_ time.Time, jwks []byte, token string,
 ) (*githubactions.IDTokenClaims, error) {
-	fmt.Printf("!! ValidateJWKS(): %s\n", token)
-
 	m.lastCalledJWKS = string(jwks)
 	claims, ok := m.tokens[token]
 	if !ok {

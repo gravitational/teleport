@@ -33,8 +33,8 @@ func (a *Server) GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator {
 	return a.ghaIDTokenValidator
 }
 
-// SetGHAIDTokenValidator returns the validator implementation for GitHub
-// OIDC tokens, used in tests.
+// SetGHAIDTokenValidator sets the validator implementation for GitHub OIDC
+// tokens, used in tests.
 func (a *Server) SetGHAIDTokenValidator(validator githubactions.GithubIDTokenValidator) {
 	// Note: Unfortunately tests now live in lib/join/ so exporting these
 	// test-only functions in exporter_test.go isn't sufficient.
@@ -48,7 +48,7 @@ func (a *Server) GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSVal
 	return a.ghaIDTokenJWKSValidator
 }
 
-// GetGHAIDTokenJWKSValidator returns the validator implementation for GitHub
+// SetGHAIDTokenJWKSValidator returns the validator implementation for GitHub
 // OIDC tokens. This validator is for static JWKS cases where OIDC endpoints are
 // not accessible to Teleport. Used in tests.
 func (a *Server) SetGHAIDTokenJWKSValidator(validator githubactions.GithubIDTokenJWKSValidator) {
