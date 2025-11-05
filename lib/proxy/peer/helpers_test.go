@@ -127,13 +127,17 @@ func (s *mockProxyService) defaultDialNode(stream clientapi.ProxyService_DialNod
 }
 
 // newSelfSignedCA creates a new CA for testing.
-func newSelfSignedCA(t *testing.T) *tlsca.CertAuthority {
+func newSelfSignedCA(t *testing.T, clock clockwork.Clock) *tlsca.CertAuthority {
 	rsaKey, err := ssh.ParseRawPrivateKey(fixtures.PEMBytes["rsa"])
 	require.NoError(t, err)
 
-	cert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		rsaKey.(*rsa.PrivateKey), pkix.Name{}, nil, defaults.CATTL,
-	)
+	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer:   rsaKey.(*rsa.PrivateKey),
+		Entity:   pkix.Name{},
+		DNSNames: nil,
+		TTL:      defaults.CATTL,
+		Clock:    clock,
+	})
 	require.NoError(t, err)
 
 	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
@@ -149,7 +153,7 @@ func newAtomicCA(ca *tlsca.CertAuthority) *atomic.Pointer[tlsca.CertAuthority] {
 }
 
 // certFromIdentity creates a tls config for a given CA and identity.
-func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identity) tls.Certificate {
+func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identity, clock clockwork.Clock) tls.Certificate {
 	if ident.Username == "" {
 		ident.Username = "test-user"
 	}
@@ -159,8 +163,6 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 
 	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-
-	clock := clockwork.NewRealClock()
 
 	request := tlsca.CertificateRequest{
 		Clock:     clock,
@@ -181,10 +183,15 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 }
 
 // setupClients return a Client object.
-func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.Pointer[tlsca.CertAuthority], role types.SystemRole) *Client {
-	tlsCert := certFromIdentity(t, clientCA, tlsca.Identity{
-		Groups: []string{string(role)},
-	})
+func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.Pointer[tlsca.CertAuthority], role types.SystemRole, clock clockwork.Clock) *Client {
+	tlsCert := certFromIdentity(
+		t,
+		clientCA,
+		tlsca.Identity{
+			Groups: []string{string(role)},
+		},
+		clock,
+	)
 
 	client, err := NewClient(ClientConfig{
 		ID:          "client-proxy",
@@ -200,7 +207,7 @@ func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.P
 			pool.AddCert(ca.Cert)
 			return pool, nil
 		},
-		Clock:                   clockwork.NewFakeClock(),
+		Clock:                   clock,
 		GracefulShutdownTimeout: time.Second,
 		sync:                    func() {},
 		connShuffler:            noopConnShuffler(),
@@ -216,11 +223,16 @@ func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.P
 type serverTestOption func(*ServerConfig)
 
 // setupServer return a Server object.
-func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole, options ...serverTestOption) (*Server, types.Server) {
-	tlsCert := certFromIdentity(t, serverCA, tlsca.Identity{
-		Username: name + ".test",
-		Groups:   []string{string(role)},
-	})
+func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole, clock clockwork.Clock, options ...serverTestOption) (*Server, types.Server) {
+	tlsCert := certFromIdentity(
+		t,
+		serverCA,
+		tlsca.Identity{
+			Username: name + ".test",
+			Groups:   []string{string(role)},
+		},
+		clock,
+	)
 	clientCAs := x509.NewCertPool()
 	clientCAs.AddCert(clientCA.Cert)
 
