@@ -499,7 +499,6 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 			SemaphoreKind: "gcp-mysql-token",
 			SemaphoreName: fmt.Sprintf("%v-%v", sessionCtx.Database.GetName(), sessionCtx.DatabaseUser),
 			MaxLeases:     1,
-			Expires:       e.Clock.Now().Add(time.Minute),
 		},
 		// If multiple connections are being established simultaneously to the
 		// same database as the same user, retry for a few seconds.
@@ -508,6 +507,8 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 			Max:   time.Second,
 			Clock: e.Clock,
 		},
+		TTL: time.Minute,
+		Now: e.Clock.Now,
 	}
 }
 

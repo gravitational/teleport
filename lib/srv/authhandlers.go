@@ -295,14 +295,6 @@ func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 	return trace.AccessDenied("x11 forwarding not permitted")
 }
 
-func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
-	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.SshFileCopy {
-		return nil
-	}
-
-	return trace.Wrap(errRoleFileCopyingNotPermitted)
-}
-
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode decisionpb.SSHPortForwardMode) error {
 	if ctx.Identity.AccessPermit == nil {
@@ -697,7 +689,7 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 	ctx := h.c.Server.Context()
 
 	// For SubKindOpenSSHEICENode we use SSH Keys (EC2 does not support Certificates in ec2.SendSSHPublicKey).
-	if h.c.Server.TargetMetadata().ServerSubKind == types.SubKindOpenSSHEICENode {
+	if h.c.Server.GetInfo().GetSubKind() == types.SubKindOpenSSHEICENode {
 		return nil
 	}
 
@@ -781,6 +773,7 @@ type proxyingPermit struct {
 	PrivateKeyPolicy      keys.PrivateKeyPolicy
 	LockTargets           []types.LockTarget
 	MaxConnections        int64
+	SSHFileCopy           bool
 	DisconnectExpiredCert time.Time
 	MappedRoles           []string
 	SessionRecordingMode  constants.SessionRecordingMode
@@ -826,6 +819,7 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		PrivateKeyPolicy:      privateKeyPolicy,
 		LockTargets:           lockTargets,
 		MaxConnections:        accessChecker.MaxConnections(),
+		SSHFileCopy:           accessChecker.CanCopyFiles(),
 		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
 		MappedRoles:           accessInfo.Roles,
 		SessionRecordingMode:  accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH),

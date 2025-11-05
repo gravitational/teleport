@@ -23,15 +23,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestReverseTunnels tests reverse tunnels caching
 func TestReverseTunnels(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
+	p, err := newPack(t, ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
@@ -43,17 +41,12 @@ func TestReverseTunnels(t *testing.T) {
 			_, err := p.presenceS.UpsertReverseTunnel(ctx, tunnel)
 			return err
 		},
-		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.presenceS.ListReverseTunnels))
-		},
+		list: p.presenceS.ListReverseTunnels,
 		update: func(ctx context.Context, tunnel types.ReverseTunnel) error {
 			_, err := p.presenceS.UpsertReverseTunnel(ctx, tunnel)
 			return err
 		},
 		deleteAll: p.presenceS.DeleteAllReverseTunnels,
-
-		cacheList: func(ctx context.Context, pageSize int) ([]types.ReverseTunnel, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListReverseTunnels, pageSize))
-		},
+		cacheList: p.cache.ListReverseTunnels,
 	})
 }

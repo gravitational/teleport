@@ -35,7 +35,8 @@ spec:
     schedules:
       regular:
 
-        # name of each group, configured locally via "teleport-update enable --group"
+        # name of each group, configured locally via "teleport-update enable --group".
+        # Agents presenting a missing or empty group are placed in the last group in the list.
         - name: staging
 
           # start_hour of the update, in UTC

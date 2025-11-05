@@ -57,13 +57,9 @@ func TestAccessList(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAccessLists))
-		},
-		cacheGet: p.cache.GetAccessList,
-		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListAccessLists, pageSize))
-		},
+		list:      p.accessLists.ListAccessLists,
+		cacheGet:  p.cache.GetAccessList,
+		cacheList: p.cache.ListAccessLists,
 		update: func(ctx context.Context, item *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
@@ -79,7 +75,7 @@ func TestAccessListMembers(t *testing.T) {
 
 	const numMembers = 32
 
-	p := newTestPack(t, ForAuth, memoryBackend(true))
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
 	clock := clockwork.NewFakeClock()
@@ -95,17 +91,13 @@ func TestAccessListMembers(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListMembers))
-		},
+		list: p.accessLists.ListAllAccessListMembers,
 		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
 			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
 		},
-		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessListMember, error) {
-			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
-				return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
-			}
-			return stream.Collect(clientutils.Resources(ctx, fn))
+		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
+			return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
+
 		},
 		update: func(ctx context.Context, item *accesslist.AccessListMember) error {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
@@ -140,6 +132,86 @@ func TestAccessListMembers(t *testing.T) {
 		case <-p.eventsC:
 		}
 	}
+}
+
+func TestAccessListMembers_suffixed_lists_members_bug(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+
+	al1, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "test-1", clock))
+	require.NoError(t, err)
+	al1Suffix, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, al1.GetName()+"-suffix", clock))
+	require.NoError(t, err)
+
+	al1SuffixM1, err := p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al1Suffix.GetName(), "member-1"))
+	require.NoError(t, err)
+
+	// Eventually, this should be reflected in the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		al1SuffixMembers, _, err := p.cache.ListAccessListMembers(ctx, al1Suffix.GetName(), 0, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, al1SuffixMembers)
+	}, time.Second*2, time.Millisecond*250)
+
+	al1Members, _, err := p.cache.ListAccessListMembers(ctx, al1.GetName(), 0, "")
+	require.NoError(t, err)
+	al1SuffixMembers, _, err := p.cache.ListAccessListMembers(ctx, al1Suffix.GetName(), 0, "")
+	require.NoError(t, err)
+
+	require.Empty(t, al1Members)
+	require.Len(t, al1SuffixMembers, 1)
+	require.Equal(t, al1SuffixMembers[0].GetName(), al1SuffixM1.GetName())
+}
+
+func TestAccessListMembers_pageToken_compatibility(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+
+	al1, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "test-1", clock))
+	require.NoError(t, err)
+
+	const membersCnt = 50
+
+	for i := range membersCnt {
+		_, err := p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al1.GetName(), "member-"+strconv.Itoa(i)))
+		require.NoError(t, err)
+	}
+
+	// Eventually, this should be reflected in the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		al1Members, _, err := p.cache.ListAccessListMembers(ctx, al1.GetName(), 0, "")
+		require.NoError(t, err)
+		require.Len(t, al1Members, membersCnt)
+	}, time.Second*2, time.Millisecond*250)
+
+	const pageSize = 2
+	calls := 0
+	var localNextToken, cacheNextToken string
+	for range membersCnt * 2 {
+		calls++
+
+		_, localNextToken, err = p.accessLists.ListAccessListMembers(ctx, al1.GetName(), pageSize, localNextToken)
+		require.NoError(t, err)
+		_, cacheNextToken, err = p.cache.ListAccessListMembers(ctx, al1.GetName(), pageSize, cacheNextToken)
+		require.NoError(t, err)
+
+		require.Equal(t, localNextToken, cacheNextToken)
+
+		if localNextToken == "" {
+			break
+		}
+	}
+	require.Equal(t, membersCnt/pageSize, calls)
 }
 
 // TestAccessListReviews tests that CRUD operations on access list review resources are
@@ -184,14 +256,9 @@ func TestAccessListReviews(t *testing.T) {
 			reviews[oldName].SetName(review.GetName())
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.Review, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListReviews))
-		},
-		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.Review, error) {
-			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
-				return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
-			}
-			return stream.Collect(clientutils.Resources(ctx, fn))
+		list: p.accessLists.ListAllAccessListReviews,
+		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
+			return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
 	}, withSkipPaginationTest()) // access list reviews resources have customer pagination test.
@@ -220,10 +287,10 @@ func TestAccessListReviews(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-1", 100, "")
 		require.NoError(t, err)
-		assert.Empty(t, next)
+		require.Empty(t, next)
 
-		assert.Len(t, out, 1)
-		assert.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
+		require.Len(t, out, 1)
+		require.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			protocmp.Transform()),
 		)
@@ -232,10 +299,10 @@ func TestAccessListReviews(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-2", 100, "")
 		require.NoError(t, err)
-		assert.Empty(t, next)
+		require.Empty(t, next)
 
-		assert.Len(t, out, 1)
-		assert.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
+		require.Len(t, out, 1)
+		require.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			protocmp.Transform()),
 		)
@@ -271,7 +338,7 @@ func TestAccessListReviews(t *testing.T) {
 			}
 			start = next
 		}
-		assert.Len(t, out, 10)
+		require.Len(t, out, 10)
 	}, 15*time.Second, 100*time.Millisecond)
 
 }
@@ -283,7 +350,8 @@ func TestListAccessListsV2(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
+	baseTime := time.Date(1984, 4, 4, 0, 0, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(baseTime)
 
 	names := []string{"apple-list", "banana-access", "cherry-management", "apple-admin", "zebra-test"}
 
@@ -293,6 +361,7 @@ func TestListAccessListsV2(t *testing.T) {
 		// add arbitrary date so we can make sure its not just sorted by name
 		if name == "banana-access" {
 			auditDate = clock.Now().Add(100 * (time.Hour) * 24)
+			al.Spec.Title = "bananatitle"
 		}
 		al.Spec.Audit.NextAuditDate = auditDate
 
@@ -322,6 +391,16 @@ func TestListAccessListsV2(t *testing.T) {
 			name:          "sort by audit date",
 			sortBy:        &types.SortBy{Field: "auditNextDate", IsDesc: false},
 			expectedNames: []string{"apple-list", "cherry-management", "apple-admin", "zebra-test", "banana-access"},
+		},
+		{
+			name:          "sort by title",
+			sortBy:        &types.SortBy{Field: "title", IsDesc: false},
+			expectedNames: []string{"banana-access", "apple-admin", "apple-list", "cherry-management", "zebra-test"},
+		},
+		{
+			name:          "sort by title reverse",
+			sortBy:        &types.SortBy{Field: "title", IsDesc: true},
+			expectedNames: []string{"zebra-test", "cherry-management", "apple-list", "apple-admin", "banana-access"},
 		},
 		{
 			name:          "sort by audit date reverse",
@@ -364,16 +443,16 @@ func TestListAccessListsV2(t *testing.T) {
 					},
 					SortBy: tc.sortBy,
 				})
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedNextKey, nextToken)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedNextKey, nextToken)
 
-				assert.Len(t, results, len(tc.expectedNames))
+				require.Len(t, results, len(tc.expectedNames))
 				actualNames := make([]string, len(results))
 				for i, al := range results {
 					actualNames[i] = al.GetName()
 				}
 
-				assert.Equal(t, tc.expectedNames, actualNames)
+				require.Equal(t, tc.expectedNames, actualNames)
 			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -382,7 +461,7 @@ func TestListAccessListsV2(t *testing.T) {
 func TestCountAccessListMembersScoping(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForAuth, memoryBackend(true))
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
 	ctx := context.Background()

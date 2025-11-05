@@ -21,6 +21,7 @@ import * as url from 'node:url';
 
 import {
   app,
+  autoUpdater,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -29,6 +30,8 @@ import {
   Rectangle,
   screen,
 } from 'electron';
+
+import { ensureError } from 'shared/utils/error';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
@@ -68,6 +71,7 @@ export class WindowsManager {
    * by the OS (e.g. Command+H).
    */
   private isInBackgroundMode: boolean;
+  private crashWindowPromise: Promise<void>;
 
   constructor(
     private fileStorage: FileStorage,
@@ -137,10 +141,23 @@ export class WindowsManager {
       },
     });
 
+    // Flag to track if the app tries to quit.
+    // When true, the window should close rather than enter the background mode,
+    // as that would block the quit process.
     let isAppQuitting = false;
-    // Triggered when the app itself initiates shutdown (e.g., via app.quit()),
-    // not when the user manually closes the window.
+    // Fired when the app initiates shutdown explicitly, via app.quit().
     app.on('before-quit', () => {
+      isAppQuitting = true;
+    });
+    // Fired when the app initiates shutdown due to an update.
+    //
+    // When using electron-updater's quitAndInstall, the windows close first,
+    // and then 'before-quit' is emitted. This sequence differs from the normal
+    // quit flow.
+    //
+    // Note: Although we use electron-updater (not Electron's native autoUpdater),
+    // this event is available because electron-updater emulates it.
+    autoUpdater.on('before-quit-for-update', () => {
       isAppQuitting = true;
     });
 
@@ -500,6 +517,39 @@ export class WindowsManager {
       this.configService.set('runInBackground', false);
     }
     return keepRunning;
+  }
+
+  /**
+   * Displays an error in a system dialog and offers reloading the window
+   * or quitting the app.
+   */
+  async crashWindow(error: unknown): Promise<void> {
+    if (this.crashWindowPromise) {
+      return this.crashWindowPromise;
+    }
+    this.crashWindowPromise = this.doCrashWindow(error);
+    try {
+      await this.crashWindowPromise;
+    } finally {
+      this.crashWindowPromise = undefined;
+    }
+  }
+
+  private async doCrashWindow(error: unknown): Promise<void> {
+    this.logger.error('Window crashed', error);
+    const { response } = await dialog.showMessageBox(this.window, {
+      type: 'error',
+      message: 'Teleport Connect has crashed',
+      detail: ensureError(error).message,
+      buttons: ['Reload Window', 'Quit'],
+      defaultId: 0,
+      noLink: true,
+    });
+    if (response === 0) {
+      this.window.reload();
+    } else {
+      app.quit();
+    }
   }
 
   private isWindowUsable(): boolean {

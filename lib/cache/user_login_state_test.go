@@ -41,11 +41,27 @@ func TestUserLoginStates(t *testing.T) {
 			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
 			return trace.Wrap(err)
 		},
-		list:     p.userLoginStates.GetUserLoginStates,
-		cacheGet: p.cache.GetUserLoginState,
-		cacheList: func(ctx context.Context, pageSize int) ([]*userloginstate.UserLoginState, error) {
-			return p.cache.GetUserLoginStates(ctx)
+		list:      getAllAdapter(p.userLoginStates.GetUserLoginStates),
+		cacheGet:  p.cache.GetUserLoginState,
+		cacheList: getAllAdapter(p.cache.GetUserLoginStates),
+		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
 		},
+		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
+	}, withSkipPaginationTest())
+
+	testResources(t, p, testFuncs[*userloginstate.UserLoginState]{
+		newResource: func(name string) (*userloginstate.UserLoginState, error) {
+			return newUserLoginState(t, name), nil
+		},
+		create: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		list:      p.userLoginStates.ListUserLoginStates,
+		cacheGet:  p.cache.GetUserLoginState,
+		cacheList: p.cache.ListUserLoginStates,
 		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
 			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
 			return trace.Wrap(err)

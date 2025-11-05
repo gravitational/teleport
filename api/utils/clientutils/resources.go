@@ -151,3 +151,32 @@ func RangeResources[T any](ctx context.Context, start, end string,
 		pageSize: defaults.DefaultChunkSize,
 	})
 }
+
+// CollectWithFallback collects all items in a collection using pageFunc, should the this be NotImplemented a fallbackFunc is attempted.
+// Example:
+//
+//	foos, err := clientutils.CollectWithFallback(ctx, client.ListFoos, client.GetFoos)
+func CollectWithFallback[T any](ctx context.Context,
+	pageFunc func(context.Context, int, string) ([]T, string, error),
+	fallbackFunc func(context.Context) ([]T, error)) ([]T, error) {
+
+	var out []T
+	for item, err := range Resources(ctx, pageFunc) {
+		if err == nil {
+			out = append(out, item)
+			continue
+		}
+
+		if trace.IsNotImplemented(err) {
+			fallbackOut, fallbackErr := fallbackFunc(ctx)
+			if fallbackErr != nil {
+				return nil, trace.Wrap(fallbackErr)
+			}
+			return fallbackOut, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}

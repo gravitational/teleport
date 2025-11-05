@@ -156,6 +156,12 @@ export default tseslint.config(
           ([ruleName]) => [ruleName, 'warn']
         )
       ),
+      // This rule is noisy, its message does not explain how to address the issue and in the
+      // release candidate version it seems to report false positives. Turn it back on once those
+      // concerns are addressed.
+      // https://github.com/facebook/react/issues/34289
+      // https://github.com/facebook/react/issues/34313
+      'react-hooks/preserve-manual-memoization': 'off',
     },
   },
   {

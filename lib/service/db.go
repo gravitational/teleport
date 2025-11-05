@@ -44,6 +44,7 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 
 func (process *TeleportProcess) initDatabases() {
 	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
+	process.ExpectService(teleport.ComponentDatabase)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -109,7 +110,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+	tlsConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

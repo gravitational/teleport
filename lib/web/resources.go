@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"iter"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,11 +34,13 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -264,7 +267,15 @@ func ProcessDefaultConnector(ctx context.Context, clt authclient.ClientI, connec
 }
 
 func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	connectors, err := clt.GetGithubConnectors(ctx, true)
+	// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+	connectors, err := clientutils.CollectWithFallback(ctx,
+		func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+			return clt.ListGithubConnectors(ctx, limit, start, true)
+		},
+		func(ctx context.Context) ([]types.GithubConnector, error) {
+			return clt.GetGithubConnectors(ctx, true)
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -336,9 +347,18 @@ func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Reques
 }
 
 func getTrustedClusters(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	trustedClusters, err := clt.GetTrustedClusters(ctx)
+
+	trustedClusters, err := stream.Collect(clientutils.Resources(ctx, clt.ListTrustedClusters))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// TODO(okraport) DELETE IN v21.0.0
+		if trace.IsNotImplemented(err) {
+			trustedClusters, err = clt.GetTrustedClusters(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return ui.NewTrustedClusters(trustedClusters)
@@ -667,6 +687,12 @@ type resourcesAPIGetter interface {
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 	// GetGithubConnector returns the specified Github connector
 	GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
@@ -677,6 +703,8 @@ type resourcesAPIGetter interface {
 	GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error)
 	// GetTrustedClusters returns all TrustedClusters in the backend.
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
+	// ListTrustedClusters returns a page of Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
 	// ListResources returns a paginated list of resources.

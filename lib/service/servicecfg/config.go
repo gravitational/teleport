@@ -33,7 +33,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -137,10 +136,6 @@ type Config struct {
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
-
-	// HostUUID is a unique UUID of this host (it will be known via this UUID within
-	// a teleport cluster). It's automatically generated on 1st start
-	HostUUID string
 
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
@@ -268,12 +263,6 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-
-	// MetricsRegistry is the prometheus metrics registry used by the Teleport process to register its metrics.
-	// As of today, not every Teleport metric is registered against this registry. Some Teleport services
-	// and Teleport dependencies are using the global registry.
-	// Both the MetricsRegistry and the default global registry are gathered by Teleport's metric service.
-	MetricsRegistry *prometheus.Registry
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token

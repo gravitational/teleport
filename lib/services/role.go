@@ -710,7 +710,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs, constants.TraitMCPTools:
+				constants.TraitGitHubOrgs, constants.TraitMCPTools,
+				constants.TraitDefaultRelayAddr:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -2647,6 +2648,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		additionalDeniedMessage = "Confirm Kubernetes user or group."
 	case types.KindWindowsDesktop:
 		additionalDeniedMessage = "Confirm Windows user."
+	case types.KindSAMLIdPServiceProvider:
+		additionalDeniedMessage = "Confirm app_labels."
 	}
 
 	// Check deny rules.

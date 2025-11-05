@@ -1053,6 +1053,15 @@
           },
           {
             "resources": [
+              "autoupdate_bot_instance_report"
+            ],
+            "verbs": [
+              "list",
+              "read"
+            ]
+          },
+          {
+            "resources": [
               "git_server"
             ],
             "verbs": [
@@ -1150,6 +1159,18 @@
           {
             "resources": [
               "inference_policy"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "client_ip_restriction"
             ],
             "verbs": [
               "list",

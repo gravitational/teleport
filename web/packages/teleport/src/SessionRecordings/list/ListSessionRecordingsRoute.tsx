@@ -125,7 +125,6 @@ export function ListSessionRecordings({
           <RangePicker
             ml="auto"
             range={state.range}
-            ranges={ranges}
             onChangeRange={handleSetRange}
           />
         </Flex>
@@ -154,7 +153,7 @@ export function ListSessionRecordings({
 
 function RecordingsListLoading() {
   return (
-    <Box textAlign="center" m={10}>
+    <Box textAlign="center" m={10} width="100%">
       <Indicator />
     </Box>
   );

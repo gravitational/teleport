@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const (
@@ -73,7 +74,8 @@ func Generate(ctx context.Context, joinMethod types.JoinMethod) (string, error) 
 		types.JoinMethodGCP,
 		types.JoinMethodTPM,
 		types.JoinMethodTerraformCloud,
-		types.JoinMethodOracle:
+		types.JoinMethodOracle,
+		types.JoinMethodEnv0:
 		// Checking error instead of the usual uuid.New() in case uuid generation
 		// fails due to not enough randomness. It's been known to happen happen when
 		// Teleport starts very early in the node initialization cycle and /dev/urandom
@@ -87,7 +89,7 @@ func Generate(ctx context.Context, joinMethod types.JoinMethod) (string, error) 
 		}
 		return rawID.String(), nil
 	case types.JoinMethodEC2:
-		hostUUID, err := utils.GetEC2NodeID(ctx)
+		hostUUID, err := aws.GetEC2NodeID(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

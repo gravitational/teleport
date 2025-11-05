@@ -1,8 +1,8 @@
 ---
 title: Configure Access Requests
 description: Describes the options available for configuring just-in-time access to roles and resources in your Teleport cluster.
-tocDepth: 3
 tags:
+ - access-requests
  - how-to
  - identity-governance
  - privileged-access
@@ -395,7 +395,7 @@ the request has met the criteria specified in one of the thresholds in
 `allow.request.thresholds` associated with that role.
 
 The value of `filter` is an expression that uses the Teleport [predicate
-language](../../reference/predicate-language.mdx).
+language](../../reference/access-controls/predicate-language.mdx).
 
 For example, the following configuration includes four thresholds, three of which
 have filters:
@@ -495,6 +495,17 @@ just the roles named in the same `role` resource as the suggested reviewers.
 While Teleport will accept a role with a nonempty
 `deny.request.suggested_reviewers` field, it only considers the
 `allow.request.suggested_reviewers` field when evaluating Access Requests.
+
+### Access List owners as suggested reviewers
+
+For resource-based Access Requests, owners of the Access Lists that grant access
+to the requested resources are automatically added as suggested reviewers.
+
+Note that those owners still need to have an appropriate Teleport role that
+allows them to review such Access Requests.
+
+You can learn more about this use-case in the [Reviewing Access Requests](../access-lists/reviewing-access-requests.mdx)
+guide.
 
 ## Roles that a reviewer can grant access to
 

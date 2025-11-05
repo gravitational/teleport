@@ -24,10 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"net"
 	"os"
+	goslices "slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -129,11 +132,15 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/joinserver"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -891,6 +898,14 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 func (g *GRPCServer) GetClusterAlerts(ctx context.Context, query *types.GetClusterAlertsRequest) (*authpb.GetClusterAlertsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
+		if errors.Is(err, authz.ErrScopedIdentity) {
+			// NOTE: scoped alerts do not currently exist. a lot of client logic wants to incidentally load cluster alerts
+			// as part of other operations. ordinarily we just return an access denied when a scoped identity is used to
+			// call an API that doesn't support scoping yet, but doing so here would complicate client logic a lot. it is
+			// therefore preferable to instead consider a scoped invocation a valid call that just happens to not match
+			// any alerts.
+			return &authpb.GetClusterAlertsResponse{}, nil
+		}
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -1143,6 +1158,18 @@ func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.Acces
 	return caps, nil
 }
 
+func (g *GRPCServer) GetRemoteAccessCapabilities(ctx context.Context, req *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := auth.ServerWithRoles.GetRemoteAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1260,7 +1287,7 @@ func (g *GRPCServer) UpdatePluginData(ctx context.Context, params *types.PluginD
 }
 
 func (g *GRPCServer) Ping(ctx context.Context, req *authpb.PingRequest) (*authpb.PingResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1333,6 +1360,34 @@ func (g *GRPCServer) GetSemaphores(ctx context.Context, req *types.SemaphoreFilt
 	return &authpb.Semaphores{
 		Semaphores: ss,
 	}, nil
+}
+
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (g *GRPCServer) ListSemaphores(ctx context.Context, req *authpb.ListSemaphoresRequest) (*authpb.ListSemaphoresResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	semaphores, next, err := auth.ListSemaphores(ctx, int(req.GetPageSize()), req.GetPageToken(), req.GetFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSemaphoresResponse{
+		Semaphores:    make([]*types.SemaphoreV3, 0, len(semaphores)),
+		NextPageToken: next,
+	}
+
+	for _, sem := range semaphores {
+		v3, ok := sem.(*types.SemaphoreV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected semaphore type: %T", sem)
+		}
+		resp.Semaphores = append(resp.Semaphores, v3)
+	}
+
+	return resp, nil
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
@@ -1618,6 +1673,34 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	}, nil
 }
 
+// ListSnowflakeSessions returns a page of Snowflake sessions.
+func (g *GRPCServer) ListSnowflakeSessions(ctx context.Context, req *authpb.ListSnowflakeSessionsRequest) (*authpb.ListSnowflakeSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, next, err := auth.ListSnowflakeSessions(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSnowflakeSessionsResponse{
+		Sessions:      make([]*types.WebSessionV2, 0, len(sessions)),
+		NextPageToken: next,
+	}
+
+	for _, session := range sessions {
+		webessionV2, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unsupported web session type %T", session)
+		}
+		resp.Sessions = append(resp.Sessions, webessionV2)
+	}
+
+	return resp, nil
+}
+
 func (g *GRPCServer) DeleteSnowflakeSession(ctx context.Context, req *authpb.DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1871,7 +1954,7 @@ func (g *GRPCServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequ
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := auth.WebTokens().Get(ctx, *req)
+	resp, err := auth.GetWebToken(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1892,7 +1975,7 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := auth.WebTokens().List(ctx)
+	tokens, err := auth.GetWebTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1911,6 +1994,34 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 	}, nil
 }
 
+// ListWebTokens returns a page of web tokens
+func (g *GRPCServer) ListWebTokens(ctx context.Context, req *authpb.ListWebTokensRequest) (*authpb.ListWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, next, err := auth.ListWebTokens(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListWebTokensResponse{
+		Tokens:        make([]*types.WebTokenV3, 0, len(tokens)),
+		NextPageToken: next,
+	}
+
+	for _, t := range tokens {
+		tokenV3, ok := t.(*types.WebTokenV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", t)
+		}
+		resp.Tokens = append(resp.Tokens, tokenV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteWebToken removes the web token given with req.
 func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1918,7 +2029,7 @@ func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTok
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().Delete(ctx, *req); err != nil {
+	if err := auth.DeleteWebToken(ctx, *req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1932,7 +2043,7 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().DeleteAll(ctx); err != nil {
+	if err := auth.DeleteAllWebTokens(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2707,6 +2818,31 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 	}, nil
 }
 
+// ListOIDCConnectors returns a page of valid registered connectors.
+func (g *GRPCServer) ListOIDCConnectors(ctx context.Context, req *authpb.ListOIDCConnectorsRequest) (*authpb.ListOIDCConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ocs, next, err := auth.ServerWithRoles.ListOIDCConnectors(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectors := make([]*types.OIDCConnectorV3, len(ocs))
+	for i, oc := range ocs {
+		var ok bool
+		if connectors[i], ok = oc.(*types.OIDCConnectorV3); !ok {
+			return nil, trace.Errorf("encountered unexpected OIDC connector type %T", oc)
+		}
+	}
+
+	return &authpb.ListOIDCConnectorsResponse{
+		Connectors:    connectors,
+		NextPageToken: next,
+	}, nil
+}
+
 // CreateOIDCConnector creates a new OIDC connector.
 func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
@@ -2849,6 +2985,40 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	return &types.SAMLConnectorV2List{
 		SAMLConnectors: samlConnectorsV2,
 	}, nil
+}
+
+// ListSAMLConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (g *GRPCServer) ListSAMLConnectors(ctx context.Context, req *authpb.ListSAMLConnectorsRequest) (*authpb.ListSAMLConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	scs, next, err := auth.ServerWithRoles.ListSAMLConnectorsWithOptions(
+		ctx,
+		int(req.PageSize),
+		req.PageToken,
+		req.WithSecrets,
+		types.SAMLConnectorValidationFollowURLs(!req.NoFollowUrls),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSAMLConnectorsResponse{
+		NextPageToken: next,
+		Connectors:    make([]*types.SAMLConnectorV2, 0, len(scs)),
+	}
+	for _, sc := range scs {
+		scpb, ok := sc.(*types.SAMLConnectorV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected SAML connector type: %T", sc)
+		}
+		resp.Connectors = append(resp.Connectors, scpb)
+	}
+
+	return resp, nil
 }
 
 // CreateSAMLConnector creates a new SAML connector.
@@ -2995,6 +3165,33 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	return &types.GithubConnectorV3List{
 		GithubConnectors: githubConnectorsV3,
 	}, nil
+}
+
+// ListGithubConnectors returns a page of valid registered Github connectors.
+func (g *GRPCServer) ListGithubConnectors(ctx context.Context, req *authpb.ListGithubConnectorsRequest) (*authpb.ListGithubConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors, next, err := auth.ServerWithRoles.ListGithubConnectors(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListGithubConnectorsResponse{
+		Connectors:    make([]*types.GithubConnectorV3, 0, len(connectors)),
+		NextPageToken: next,
+	}
+
+	for _, connector := range connectors {
+		if v3, ok := connector.(*types.GithubConnectorV3); ok {
+			resp.Connectors = append(resp.Connectors, v3)
+		} else {
+			return nil, trace.Errorf("encountered unexpected Github connector type %T", connector)
+		}
+	}
+
+	return resp, nil
 }
 
 // UpsertGithubConnectorV2 creates a new or replaces an existing Github connector.
@@ -3716,6 +3913,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		Limit:      int(req.Limit),
 		Order:      types.EventOrder(req.Order),
 		StartKey:   req.StartKey,
+		Search:     req.Search,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4463,10 +4661,43 @@ func (g *GRPCServer) GetAccountRecoveryCodes(ctx context.Context, req *authpb.Ge
 	return rc, nil
 }
 
+// isScopePinnedLocalUserCredential returns true if the credentials associated with a given context
+// are specifically for a local user with a scope pin. this is used to help determine if it is safe to
+// perform a fallback operation when an API that isn't ported to scopes gets called with a scoped identity.
+// In theory, this check is redundant as this is the only condition where Authorizer.Authorize currently
+// returns ErrScopedIdentity, but having this extra check here helps us better describe the *security model*
+// of the fallback, which may not be sane in potential future scenarios where scoped identity errors are produced
+// for system roles or non-local users.
+func isScopePinnedLocalUserCredential(ctx context.Context) bool {
+	userI, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return false
+	}
+
+	if user, ok := userI.(authz.LocalUser); ok && user.Identity.ScopePin != nil {
+		return true
+	}
+
+	return false
+}
+
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
 func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authpb.CreateAuthenticateChallengeRequest) (*authpb.MFAAuthenticateChallenge, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
+		if errors.Is(err, authz.ErrScopedIdentity) && isScopePinnedLocalUserCredential(ctx) && req.MFARequiredCheck != nil {
+			if _, ok := req.MFARequiredCheck.Target.(*authpb.IsMFARequiredRequest_AdminAction); ok {
+				// NOTE: scopes don't currently have a concept of admin action MFA. a lot of client logic wants to do a preemtive
+				// check to see if MFA is required. ordinarily we just return an access denied when a scoped identity is used to
+				// call an API that doesn't support scoping yet, but doing so here would complicate client logic a lot. it is
+				// therefore preferable to instead consider a scoped invocation a valid call that just happens to result in a
+				// no mfa required result.
+				return &authpb.MFAAuthenticateChallenge{
+					MFARequired: authpb.MFARequired_MFA_REQUIRED_NO,
+				}, nil
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -4894,6 +5125,91 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}, nil
 }
 
+// rangeDefaultInstallers returns implicit default installer scripts within the range [start, end).
+//
+// TODO(okraport): This should really belong in [services.ClusterConfigurationService], however moving
+// this to the service layer affects the event stream which may lead to inconsistencies when operating on implicit default keys.
+// Investigate the feasiablity of adding implicit builtin default keys to the service layer and refactor.
+func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
+	isInRange := func(value, start, end string) bool {
+		if start == "" && end == "" {
+			return true
+		}
+		if start == "" {
+			return value < end
+		}
+		if end == "" {
+			return value >= start
+		}
+		return value >= start && value < end
+	}
+
+	return func(yield func(types.Installer, error) bool) {
+		var defaultInstallers []types.Installer
+
+		if isInRange(installers.InstallerScriptNameAgentless, start, end) {
+			defaultInstallers = append(defaultInstallers, installers.DefaultAgentlessInstaller)
+		}
+
+		if isInRange(types.DefaultInstallerScriptName, start, end) {
+			defaultInstaller, err := g.defaultInstaller(ctx)
+			if err != nil {
+				if !yield(*new(types.Installer), err) {
+					return
+				}
+			}
+			defaultInstallers = append(defaultInstallers, defaultInstaller)
+		}
+
+		// Sort in case the names change in the future as the streams must be sorted.
+		goslices.SortFunc(defaultInstallers, func(a, b types.Installer) int {
+			return strings.Compare(a.GetName(), b.GetName())
+		})
+
+		for _, installer := range defaultInstallers {
+			if !yield(installer, nil) {
+				return
+			}
+		}
+	}
+}
+
+// ListInstallers returns a page of installer script resources.
+func (g *GRPCServer) ListInstallers(ctx context.Context, req *authpb.ListInstallersRequest) (*authpb.ListInstallersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, next, err := generic.CollectPageAndCursor(
+		iterstream.MergeStreamsWithPriority(
+			auth.RangeInstallers(ctx, req.PageToken, ""),
+			g.rangeDefaultInstallers(ctx, req.PageToken, ""),
+			func(a, b types.Installer) int { return strings.Compare(a.GetName(), b.GetName()) },
+		),
+		int(req.PageSize),
+		types.Installer.GetName,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListInstallersResponse{
+		Installers:    make([]*types.InstallerV1, 0, len(page)),
+		NextPageToken: next,
+	}
+
+	for _, inst := range page {
+		installersV1, ok := inst.(*types.InstallerV1)
+		if !ok {
+			return nil, trace.BadParameter("unsupported installer type %T", inst)
+		}
+		resp.Installers = append(resp.Installers, installersV1)
+	}
+
+	return resp, nil
+}
+
 // DeleteInstaller sets the installer script resource to its default
 func (g *GRPCServer) DeleteInstaller(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -5023,6 +5339,34 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 	return &types.KubernetesClusterV3List{
 		KubernetesClusters: kubeClusters,
 	}, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusters, next, err := auth.ListKubernetesClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListKubernetesClustersResponse{
+		KubernetesClusters: make([]*types.KubernetesClusterV3, 0, len(clusters)),
+		NextPageToken:      next,
+	}
+
+	for _, cluster := range clusters {
+		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported kubernetes cluster type %T", clusterV3)
+		}
+		resp.KubernetesClusters = append(resp.KubernetesClusters, clusterV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
@@ -5677,10 +6021,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	)
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
-		Authorizer: cfg.Authorizer,
-		Reader:     cfg.AuthServer.scopedAccessCache,
-		Writer:     cfg.AuthServer.scopedAccessBackend,
-		Logger:     logger,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Reader:           cfg.AuthServer.ScopedAccessCache,
+		Writer:           cfg.AuthServer.scopedAccessBackend,
+		Logger:           logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped access control service")
@@ -5689,6 +6033,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
 		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer,
+		Logger:     logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
@@ -5736,18 +6082,27 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		AuthServer: cfg.AuthServer,
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		AuthServer:       cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	trustv1pb.RegisterTrustServiceServer(server, trust)
 
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(cfg.AuthServer)
-	authpb.RegisterJoinServiceServer(server, joinServiceServer)
+	legacyJoinServiceServer := legacyjoin.NewJoinServiceGRPCServer(cfg.AuthServer)
+	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
+
+	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
+		Authorizer:         cfg.Authorizer,
+		AuthService:        cfg.AuthServer,
+		FIPS:               cfg.AuthServer.fips,
+		ScopedTokenService: cfg.AuthServer.Services,
+		OracleHTTPClient:   cfg.OracleHTTPClient,
+	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,
@@ -5766,7 +6121,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationAWSOIDCServiceServer, err := integrationv1.NewAWSOIDCService(&integrationv1.AWSOIDCServiceConfig{
 		Authorizer:            cfg.Authorizer,
 		IntegrationService:    integrationServiceServer,
-		Cache:                 cfg.AuthServer,
+		Cache:                 cfg.AuthServer.Cache,
+		TokenCreator:          cfg.AuthServer,
 		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
 		Clock:                 cfg.AuthServer.clock,
 	})
@@ -5848,10 +6204,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	userloginstatev1pb.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
 	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Uploader:   cfg.AuthServer.Services,
-		KeyRotater: cfg.AuthServer.Services,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+		Authorizer:                cfg.Authorizer,
+		Uploader:                  cfg.AuthServer.Services,
+		KeyRotater:                cfg.AuthServer.Services,
+		Logger:                    cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+		SessionSummarizerProvider: cfg.APIConfig.AuthServer.sessionSummarizerProvider,
+		RecordingMetadataProvider: cfg.AuthServer.recordingMetadataProvider,
+		SessionStreamer:           cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5982,6 +6341,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 		Streamer:        cfg.AuthServer,
 		DownloadHandler: cfg.AuthServer,
+		Decrypter:       cfg.AuthServer.EncryptedIO,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating recording metadata service")
@@ -6029,6 +6389,29 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			context:    *authContext,
 			alog:       g.AuthServer,
+		},
+	}, nil
+}
+
+// scopedGRPCContext servers the same role as [grpcContext] but for scoped identities. It is currently
+// a thin wrapper around [ServerWithRoles] since we don't have any need to embed an [authz.Context] yet,
+// but we may embed one in the future.
+type scopedGRPCContext struct {
+	*ServerWithRoles
+}
+
+// scopedAuthenticate functions similarly to authenticate but supports scoped identities. It returns an initialized auth server
+// that has been set up with a scoped access checker, which may be based off of either a scoped or unscoped identity.
+func (g *GRPCServer) scopedAuthenticate(ctx context.Context) (*scopedGRPCContext, error) {
+	authContext, err := g.ScopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &scopedGRPCContext{
+		ServerWithRoles: &ServerWithRoles{
+			authServer:    g.AuthServer,
+			scopedContext: authContext,
+			alog:          g.AuthServer,
 		},
 	}, nil
 }

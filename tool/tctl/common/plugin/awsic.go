@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"slices"
 
@@ -42,9 +43,10 @@ const (
 	awsicPluginNameHelp    = "Name of the AWS Identity Center integration instance to update. Defaults to " + apicommon.OriginAWSIdentityCenter + "."
 	awsicRolesSyncModeFlag = "roles-sync-mode"
 	awsicRolesSyncModeHelp = "Control account-assignment role creation. ALL creates roles for all possible account assignments. NONE creates no roles, and also implies a totally-exclusive group import filter."
+	notAWSICPluginMsg      = "%q is not an AWS Identity Center integration"
 )
 
-type awsICArgs struct {
+type awsICInstallArgs struct {
 	cmd                       *kingpin.CmdClause
 	defaultOwners             []string
 	scimToken                 string
@@ -53,6 +55,7 @@ type awsICArgs struct {
 	region                    string
 	arn                       string
 	useSystemCredentials      bool
+	oidcIntegration           string
 	assumeRoleARN             string
 	userOrigins               []string
 	userLabels                []string
@@ -65,7 +68,7 @@ type awsICArgs struct {
 	excludeAccountIDFilters   []string
 }
 
-func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
+func (a *awsICInstallArgs) validate(ctx context.Context, auth authClient, log *slog.Logger) error {
 	if !awsregion.IsKnownRegion(a.region) {
 		return trace.BadParameter("unknown AWS region: %s", a.region)
 	}
@@ -74,7 +77,7 @@ func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
 		return trace.BadParameter("SCIM token must not be empty")
 	}
 
-	if err := a.validateSystemCredentialInput(); err != nil {
+	if err := a.validateCredentialInput(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -85,28 +88,38 @@ func (a *awsICArgs) validate(ctx context.Context, log *slog.Logger) error {
 	return nil
 }
 
-func (a *awsICArgs) validateSystemCredentialInput() error {
-	if !a.useSystemCredentials {
-		return trace.BadParameter("--use-system-credentials must be set. The tctl-based AWS IAM Identity Center plugin installation only supports AWS local system credentials")
+func (a *awsICInstallArgs) validateCredentialInput() error {
+	if a.useSystemCredentials {
+		if a.assumeRoleARN == "" {
+			return trace.BadParameter("--assume-role-arn must be set when --use-system-credentials is configured")
+		}
+
+		if a.oidcIntegration != "" {
+			return trace.BadParameter("--oidc-integration must not be set when --use-system-credentials is configured")
+		}
+
+		if _, err := awsutils.ParseRoleARN(a.assumeRoleARN); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
-	if a.assumeRoleARN == "" {
-		return trace.BadParameter("--assume-role-arn must be set when --use-system-credentials is configured")
+	if a.oidcIntegration == "" {
+		return trace.BadParameter("--oidc-integration must be set when --no-use-system-credentials is configured")
 	}
 
-	if _, err := awsutils.ParseRoleARN(a.assumeRoleARN); err != nil {
-		return trace.Wrap(err)
+	if a.assumeRoleARN != "" {
+		return trace.BadParameter("--assume-role-arn must not be set when --no-use-system-credentials is configured")
 	}
 
 	return nil
 }
 
-func (a *awsICArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Logger) error {
+func (a *awsICInstallArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Logger) error {
 	validatedBaseUrl, err := icutils.EnsureSCIMEndpointURL(a.scimURL)
 	if err == nil {
 		a.scimURL = validatedBaseUrl
 		return nil
-
 	}
 
 	if a.forceSCIMURL {
@@ -117,7 +130,7 @@ func (a *awsICArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Logger) e
 	return trace.Wrap(err)
 }
 
-func (a *awsICArgs) parseGroupFilters() (icfilters.Filters, error) {
+func (a *awsICInstallArgs) parseGroupFilters() (icfilters.Filters, error) {
 	filters := make([]*types.AWSICResourceFilter, 0, len(a.groupNameFilters)+len(a.excludeGroupNameFilters))
 	for _, n := range a.groupNameFilters {
 		filters = append(filters, &types.AWSICResourceFilter{
@@ -132,7 +145,7 @@ func (a *awsICArgs) parseGroupFilters() (icfilters.Filters, error) {
 	return icfilters.New(filters)
 }
 
-func (a *awsICArgs) parseAccountFilters() (icfilters.Filters, error) {
+func (a *awsICInstallArgs) parseAccountFilters() (icfilters.Filters, error) {
 	filtersCap := len(a.accountNameFilters) + len(a.excludeAccountNameFilters) + len(a.accountIDFilters) + len(a.excludeAccountIDFilters)
 	filters := make([]*types.AWSICResourceFilter, 0, filtersCap)
 	for _, n := range a.accountNameFilters {
@@ -162,7 +175,7 @@ func (a *awsICArgs) parseAccountFilters() (icfilters.Filters, error) {
 	return icfilters.New(filters)
 }
 
-func (a *awsICArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, error) {
+func (a *awsICInstallArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, error) {
 	result := make([]*types.AWSICUserSyncFilter, 0, len(a.userOrigins)+len(a.userLabels))
 
 	if len(a.userOrigins) > 0 {
@@ -214,6 +227,8 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 		BoolVar(&p.install.awsIC.useSystemCredentials)
 	cmd.Flag("assume-role-arn", "ARN of a role that the system credential should assume.").
 		StringVar(&p.install.awsIC.assumeRoleARN)
+	cmd.Flag("oidc-integration", "Name of the Teleport OIDC integration to use when authenticating with AWS. Must be supplied when --no-use-system-credentials is set.").
+		StringVar(&p.install.awsIC.oidcIntegration)
 
 	cmd.Flag("user-origin", fmt.Sprintf(`Shorthand for "--user-label %s=ORIGIN"`, types.OriginLabel)).
 		PlaceHolder("ORIGIN").
@@ -242,9 +257,9 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 }
 
 // InstallAWSIC installs AWS Identity Center plugin.
-func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args pluginServices) error {
 	awsICArgs := p.install.awsIC
-	if err := awsICArgs.validate(ctx, p.config.Logger); err != nil {
+	if err := awsICArgs.validate(ctx, args.authClient, p.config.Logger); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -297,6 +312,14 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args installPluginArg
 		// Set the deprecated CredentialsSource to the legacy value to allow old
 		// versions of Teleport to handle the record. DELETE in Teleport 19
 		settings.CredentialsSource = types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+	} else {
+		settings.Credentials = &types.AWSICCredentials{
+			Source: &types.AWSICCredentials_Oidc{
+				Oidc: &types.AWSICCredentialSourceOIDC{
+					IntegrationName: awsICArgs.oidcIntegration,
+				},
+			},
+		}
 	}
 
 	req := &pluginspb.CreatePluginRequest{
@@ -357,7 +380,7 @@ func (p *PluginsCommand) initEditAWSIC(parent *kingpin.CmdClause) {
 		EnumVar(&p.edit.awsIC.rolesSyncMode, types.AWSICRolesSyncModeAll, types.AWSICRolesSyncModeNone)
 }
 
-func (p *PluginsCommand) EditAWSIC(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) EditAWSIC(ctx context.Context, args pluginServices) error {
 	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
 		Name: p.edit.awsIC.pluginName,
 	})
@@ -380,6 +403,119 @@ func (p *PluginsCommand) EditAWSIC(ctx context.Context, args installPluginArgs) 
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+type awsICRotateCredsArgs struct {
+	cmd               *kingpin.CmdClause
+	pluginName        string
+	payload           string
+	requireValidation bool
+}
+
+func (p *PluginsCommand) initRotateCredsAWSIC(parent *kingpin.CmdClause) {
+	p.rotateCreds.awsic.cmd = parent.Command("awsic", "Rotate the AWS Identity Center SCIM bearer token.")
+	cmd := p.rotateCreds.awsic.cmd
+	args := &p.rotateCreds.awsic
+
+	cmd.Flag("plugin-name", "Name of the AWSIC plugin instance to update. Defaults to "+apicommon.OriginAWSIdentityCenter+".").
+		Default(apicommon.OriginAWSIdentityCenter).
+		StringVar(&args.pluginName)
+
+	cmd.Arg("token", "The new SCIM bearer token.").
+		PlaceHolder("TOKEN").
+		Required().
+		StringVar(&p.rotateCreds.awsic.payload)
+
+	cmd.Flag("validate-token", "Validate that the supplied token is valid for the configured downstream SCIM service").
+		Default("true").
+		BoolVar(&args.requireValidation)
+}
+
+func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args pluginServices) error {
+	cliArgs := &p.rotateCreds.awsic
+
+	slog.InfoContext(ctx, "Fetching plugin...", "plugin_name", cliArgs.pluginName)
+	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
+		Name:        cliArgs.pluginName,
+		WithSecrets: true,
+	})
+	if err != nil {
+		return trace.Wrap(err, "fetching plugin %q", cliArgs.pluginName)
+	}
+
+	awsicSettings := plugin.Spec.GetAwsIc()
+	if awsicSettings == nil {
+		return trace.BadParameter(notAWSICPluginMsg, cliArgs.pluginName)
+	}
+
+	if p.rotateCreds.awsic.requireValidation {
+		if err := p.rotateCreds.awsic.validateToken(ctx, awsicSettings, args); err != nil {
+			return trace.Wrap(err, "validating SCIM bearer token")
+		}
+	}
+
+	staticCredsRef := plugin.Credentials.GetStaticCredentialsRef()
+	if staticCredsRef == nil {
+		return trace.BadParameter("plugin has no credentials reference")
+	}
+
+	req := pluginspb.UpdatePluginStaticCredentialsRequest{
+		Target: &pluginspb.UpdatePluginStaticCredentialsRequest_Query{
+			Query: &pluginspb.CredentialQuery{
+				Labels: staticCredsRef.Labels,
+			},
+		},
+		Credential: &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: p.rotateCreds.awsic.payload,
+			},
+		},
+	}
+
+	_, err = args.plugins.UpdatePluginStaticCredentials(ctx, &req)
+	if err != nil {
+		return trace.Wrap(err, "updating credentials")
+	}
+
+	return nil
+}
+
+func (args *awsICRotateCredsArgs) validateToken(ctx context.Context, awsicSettings *types.PluginAWSICSettings, env pluginServices) error {
+	provisioningSpec := awsicSettings.ProvisioningSpec
+	if provisioningSpec == nil {
+		return trace.BadParameter("plugin is missing provisioning spec")
+	}
+
+	slog.InfoContext(ctx, "Validating token", "scim_server", provisioningSpec.BaseUrl)
+
+	endPoint, err := url.JoinPath(provisioningSpec.BaseUrl, "ServiceProviderConfig")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endPoint, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", args.payload))
+	req.Header.Set("Accept", "application/scim+json")
+
+	resp, err := env.httpProvider.RoundTrip(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return trace.BadParameter("invalid token")
+	case http.StatusInternalServerError:
+		return trace.BadParameter("internal server error")
+	default:
+		return trace.BadParameter("unexpected status code %v", resp.StatusCode)
 	}
 	return nil
 }

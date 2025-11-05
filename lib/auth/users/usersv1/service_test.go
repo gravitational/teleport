@@ -23,6 +23,7 @@ import (
 	"encoding/base32"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -242,6 +243,18 @@ func TestCreateUser(t *testing.T) {
 	createEvent, ok = event.(*apievents.UserCreate)
 	require.True(t, ok, "expected a UserCreate event got %T", event)
 	assert.Equal(t, "alice", createEvent.UserMetadata.User)
+}
+
+func TestCreateUserMaxLength(t *testing.T) {
+	t.Parallel()
+	env, err := newTestEnv()
+	require.NoError(t, err, "creating test service")
+
+	user, err := types.NewUser(strings.Repeat("A", 1001))
+	require.NoError(t, err)
+	user.AddRole("access")
+	_, err = env.CreateUser(t.Context(), &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+	require.Error(t, err, "creating a user with a username too long should fail")
 }
 
 func TestDeleteUser(t *testing.T) {

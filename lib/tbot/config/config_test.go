@@ -268,6 +268,13 @@ func TestBotConfig_YAML(t *testing.T) {
 							RenewalInterval: 15 * time.Second,
 						},
 					},
+					&application.ProxyServiceConfig{
+						Listen: "tcp://127.0.0.1:8080",
+						CredentialLifetime: bot.CredentialLifetime{
+							TTL:             30 * time.Second,
+							RenewalInterval: 15 * time.Second,
+						},
+					},
 					&workloadidentity.X509OutputConfig{
 						Destination: &destination.Directory{
 							Path: "/an/output/path",
@@ -508,62 +515,6 @@ func TestBotConfig_Base64(t *testing.T) {
 			cfg, err := ReadConfigFromBase64String(tt.configBase64, false)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, *cfg)
-		})
-	}
-}
-
-func TestBotConfig_NameValidation(t *testing.T) {
-	t.Parallel()
-
-	testCases := map[string]struct {
-		cfg *BotConfig
-		err string
-	}{
-		"duplicate names": {
-			cfg: &BotConfig{
-				Version: V2,
-				Services: ServiceConfigs{
-					&identity.OutputConfig{
-						Name:        "foo",
-						Destination: &destination.Memory{},
-					},
-					&identity.OutputConfig{
-						Name:        "foo",
-						Destination: &destination.Memory{},
-					},
-				},
-			},
-			err: `duplicate name: "foo`,
-		},
-		"reserved name": {
-			cfg: &BotConfig{
-				Version: V2,
-				Services: ServiceConfigs{
-					&identity.OutputConfig{
-						Name:        "identity",
-						Destination: &destination.Memory{},
-					},
-				},
-			},
-			err: `service name "identity" is reserved for internal use`,
-		},
-		"invalid name": {
-			cfg: &BotConfig{
-				Version: V2,
-				Services: ServiceConfigs{
-					&identity.OutputConfig{
-						Name:        "hello, world!",
-						Destination: &destination.Memory{},
-					},
-				},
-			},
-			err: `may only contain lowercase letters`,
-		},
-	}
-	for desc, tc := range testCases {
-		t.Run(desc, func(t *testing.T) {
-			t.Parallel()
-			require.ErrorContains(t, tc.cfg.CheckAndSetDefaults(), tc.err)
 		})
 	}
 }

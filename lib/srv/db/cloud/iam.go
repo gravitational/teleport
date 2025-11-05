@@ -324,10 +324,6 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 			SemaphoreName: configurator.cfg.identity.GetName(),
 			MaxLeases:     1,
 			Holder:        c.cfg.HostID,
-
-			// If the semaphore fails to release for some reason, it will expire in a
-			// minute on its own.
-			Expires: c.cfg.Clock.Now().Add(time.Minute),
 		},
 
 		// Retry with some jitters up to twice of the semaphore expire time.
@@ -336,6 +332,11 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 			Max:    2 * time.Minute,
 			Jitter: retryutils.HalfJitter,
 		},
+
+		// If the semaphore fails to release for some reason, it will expire in a
+		// minute on its own.
+		TTL: time.Minute,
+		Now: c.cfg.Clock.Now,
 	})
 	if err != nil {
 		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)

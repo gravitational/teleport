@@ -4,6 +4,7 @@ description: In this getting started guide, learn how to connect an application 
 tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 This guide shows you how to enroll a web application with your Teleport cluster
@@ -157,6 +158,7 @@ header or move this page.
 */}
 
 An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
+It should also be unique across root and leaf clusters if you are deploying in a trusted clusters environment.
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
@@ -340,29 +342,7 @@ Controls Reference](../../../reference/access-controls/roles.mdx).
 
 ### Configuring the JWT token
 
-By default, Teleport includes a user's roles and traits in the JWT
-generated for application access. If your application doesn't care
-about these values, or you are encountering an error due to exceeding
-the size limit of HTTP headers, you can configure Teleport to omit
-this information from the token.
-
-```yaml
-- name: "dashboard"
-  uri: https://localhost:4321
-  public_addr: dashboard.example.com
-  rewrite:
-    # Specify whether to include roles or traits in the JWT.
-    # Options:
-    # - roles-and-traits: include both roles and traits
-    # - roles: include only roles
-    # - traits: include only traits
-    # - none: exclude both roles and traits from the JWT token
-    # Default: roles-and-traits
-    jwt_claims: roles-and-traits
-    headers:
-    # Inject header with Teleport-signed JWT token.
-    - "Authorization: Bearer {{internal.jwt}}"
-```
+(!docs/pages/includes/application-access/jwt-configure-claims.mdx!)
 
 ### Backends-for-Frontends support
 

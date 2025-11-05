@@ -22,12 +22,12 @@ import styled from 'styled-components';
 
 import {
   Box,
+  ButtonPrimary,
   ButtonSecondary,
   Flex,
   H1,
   H2,
   H3,
-  MenuItem,
   P1,
   P2,
   ResourceIcon,
@@ -46,7 +46,6 @@ import {
   FeatureContainer,
   FeatureSlider,
 } from 'shared/components/EmptyState/EmptyState';
-import { MenuButton } from 'shared/components/MenuAction';
 import { pluralize } from 'shared/utils/text';
 
 import {
@@ -91,7 +90,7 @@ export const EmptyList = ({
       <Box mb={3}>
         <H1 mb={3}>What are Trusted Devices?</H1>
         <Text css={{ maxWidth }}>
-          Device trust reduces the attack surface by enforcing that only
+          Device Trust reduces the attack surface by enforcing that only
           trusted, registered devices can access your Teleport cluster.
         </Text>
       </Box>
@@ -117,7 +116,7 @@ export const EmptyList = ({
             isSliding={!!intervalId}
             onClick={() => handleOnClick(2)}
             title="Tie audit events to the user AND machine accessing the system."
-            description="Device trust maps the device identity to every audit log event, so you always know which device was used for each action."
+            description="Device Trust maps the device identity to every audit log event, so you always know which device was used for each action."
           />
           <DetailsTab
             active={currIndex === 3}
@@ -199,26 +198,14 @@ export const EmptyList = ({
         >
           {isEnterprise ? (
             <>
-              <MenuButton
-                buttonText="Get Started with an MDM"
-                buttonProps={{
-                  size: 'large',
-                  intent: 'primary',
-                  fill: 'filled',
-                  color: 'text.primaryInverse',
-                  width: '280px',
-                }}
+              <ButtonPrimary
+                as={Link}
+                to={cfg.getIntegrationsEnrollRoute({ tags: ['devicetrust'] })}
+                width="280px"
+                size="large"
               >
-                <MenuItem as={Link} to={cfg.getIntegrationEnrollRoute('jamf')}>
-                  Jamf Pro
-                </MenuItem>
-                <MenuItem
-                  as={Link}
-                  to={cfg.getIntegrationEnrollRoute('intune')}
-                >
-                  Microsoft Intune
-                </MenuItem>
-              </MenuButton>
+                Get Started with an MDM
+              </ButtonPrimary>
 
               <ButtonSecondary
                 as="a"

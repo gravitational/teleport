@@ -189,6 +189,10 @@ type event struct {
 	data []byte
 }
 
+func (e event) marshal() []byte {
+	return fmt.Appendf(nil, "event: %s\ndata: %s\n\n", e.name, e.data)
+}
+
 // nextEvent reads one sse event from the wire.
 //
 // Logic is copied from golang internal mcp lib which might get released

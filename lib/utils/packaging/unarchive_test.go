@@ -54,7 +54,7 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 
 		archivePath := filepath.Join(toolsDir, "tsh.tar.gz")
-		err = archive.CompressDirToTarGzFile(ctx, sourceDir, archivePath)
+		err = archive.CompressDirToTarGzFile(ctx, sourceDir, archivePath, archive.WithNoCompress())
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
@@ -63,11 +63,10 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		for tool, path := range toolsMap {
 			assert.FileExists(t, filepath.Join(extractDir, path), fmt.Sprintf("script: %q not found", tool))
+			data, err := os.ReadFile(filepath.Join(extractDir, path))
+			require.NoError(t, err)
+			assert.Equal(t, script, string(data))
 		}
-
-		data, err := os.ReadFile(filepath.Join(extractDir, "tsh"))
-		require.NoError(t, err)
-		assert.Equal(t, script, string(data))
 	})
 
 	t.Run("pkg", func(t *testing.T) {
@@ -107,11 +106,10 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		for tool, path := range toolsMap {
 			assert.FileExists(t, filepath.Join(extractDir, path), fmt.Sprintf("script: %q not found", tool))
+			data, err := os.ReadFile(filepath.Join(extractDir, path))
+			require.NoError(t, err)
+			assert.Equal(t, script, string(data))
 		}
-
-		data, err := os.ReadFile(filepath.Join(extractDir, "tsh"))
-		require.NoError(t, err)
-		assert.Equal(t, script, string(data))
 	})
 }
 

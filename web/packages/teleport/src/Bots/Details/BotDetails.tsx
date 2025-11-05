@@ -41,9 +41,9 @@ import Menu from 'design/Menu/Menu';
 import MenuItem from 'design/Menu/MenuItem';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
-import { traitsPreset } from 'shared/components/TraitsEditor/TraitsEditor';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
+import { traitDescriptions } from 'shared/components/TraitsEditor/TraitsEditor';
 
 import {
   FeatureBox,
@@ -56,6 +56,7 @@ import { ResourceLockIndicator } from 'teleport/lib/locks/ResourceLockIndicator'
 import { ResourceUnlockDialog } from 'teleport/lib/locks/ResourceUnlockDialog';
 import { useResourceLock } from 'teleport/lib/locks/useResourceLock';
 import { isAdminActionRequiresMfaError } from 'teleport/services/api/api';
+import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { DeleteDialog } from '../Delete/DeleteDialog';
@@ -138,6 +139,17 @@ export function BotDetails() {
   const handleDeleteComplete = () => {
     setShowDeleteConfirmation(false);
     history.replace(cfg.getBotsRoute());
+  };
+
+  const handleInstanceSelected = (instance: BotInstanceSummary) => {
+    const path = cfg.getBotInstancesRoute({
+      selectedItemId: `${instance.bot_name}/${instance.instance_id}`,
+      isAdvancedQuery: true,
+      query: `spec.bot_name == "${instance.bot_name}"`,
+      sortField: 'active_at_latest',
+      sortDir: 'DESC',
+    });
+    history.push(path);
   };
 
   return (
@@ -241,14 +253,18 @@ export function BotDetails() {
                     overflow={'hidden'}
                   >
                     <MonoText>{data.name}</MonoText>
-                    <CopyButton name={data.name} />
+                    <CopyButton value={data.name} />
                   </Flex>
+                  <GridLabel>Description</GridLabel>
+                  <span>{data.description || '-'}</span>
                   <GridLabel>Max session duration</GridLabel>
-                  {data.max_session_ttl
-                    ? formatDuration(data.max_session_ttl, {
-                        separator: ' ',
-                      })
-                    : '-'}
+                  <span>
+                    {data.max_session_ttl
+                      ? formatDuration(data.max_session_ttl, {
+                          separator: ' ',
+                        })
+                      : '-'}
+                  </span>
                 </Grid>
               </PanelContentContainer>
             </Panel>
@@ -310,7 +326,10 @@ export function BotDetails() {
             />
           </ColumnContainer>
           <ColumnContainer maxWidth={400}>
-            <InstancesPanel botName={params.botName} />
+            <InstancesPanel
+              botName={params.botName}
+              onItemSelected={handleInstanceSelected}
+            />
           </ColumnContainer>
 
           {isEditing ? (
@@ -431,22 +450,6 @@ const EmptyText = styled(Text)`
   color: ${p => p.theme.colors.text.muted};
 `;
 
-const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
-  aws_role_arns: 'List of allowed AWS role ARNS',
-  azure_identities: 'List of Azure identities',
-  db_names: 'List of allowed database names',
-  db_roles: 'List of allowed database roles',
-  db_users: 'List of allowed database users',
-  gcp_service_accounts: 'List of GCP service accounts',
-  kubernetes_groups: 'List of allowed Kubernetes groups',
-  kubernetes_users: 'List of allowed Kubernetes users',
-  logins: 'List of allowed logins',
-  windows_logins: 'List of allowed Windows logins',
-  host_user_gid: 'The group ID to use for auto-host-users',
-  host_user_uid: 'The user ID to use for auto-host-users',
-  github_orgs: 'List of allowed GitHub organizations for git command proxy',
-};
-
 function Trait(props: { traitName: string }) {
   const theme = useTheme();
 
@@ -534,7 +537,7 @@ function JoinTokens(props: { botName: string; onViewAllClicked: () => void }) {
 
         {isSuccess ? (
           <>
-            {data.items.length ? (
+            {data.items?.length ? (
               <LabelsContainer>
                 {data.items
                   .toSorted((a, b) => a.safeName.localeCompare(b.safeName))

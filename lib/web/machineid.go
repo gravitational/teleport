@@ -17,21 +17,28 @@
 package web
 
 import (
+	"cmp"
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -221,66 +228,76 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
 // TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
 // MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
-func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	var request updateBotRequest
+func (h *Handler) updateBotV1(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	var request updateBotRequestV1
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	botName := p.ByName("name")
-	if botName == "" {
-		return nil, trace.BadParameter("empty name")
-	}
-
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	mask, err := fieldmaskpb.New(&machineidv1.Bot{}, "spec.roles")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
-		UpdateMask: mask,
-		Bot: &machineidv1.Bot{
-			Kind:    types.KindBot,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: botName,
-			},
-			Spec: &machineidv1.BotSpec{
-				Roles: request.Roles,
-			},
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to find existing bot")
-	}
-
-	return updated, nil
+	return updateBot(r.Context(), p.ByName("name"), updateBotRequestV3{
+		Roles: request.Roles,
+	}, sctx, cluster)
 }
 
-type updateBotRequest struct {
+type updateBotRequestV1 struct {
 	Roles []string `json:"roles"`
 }
 
 // updateBotV2 updates a bot with provided roles, traits and max_session_ttl.
+// TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV3
+// MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
 func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	var request updateBotRequestV2
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	botName := p.ByName("name")
-	if botName == "" {
-		return nil, trace.BadParameter("empty name")
+	return updateBot(r.Context(), p.ByName("name"), updateBotRequestV3{
+		Roles:         request.Roles,
+		Traits:        request.Traits,
+		MaxSessionTtl: request.MaxSessionTtl,
+	}, sctx, cluster)
+}
+
+type updateBotRequestV2 struct {
+	Roles         []string                `json:"roles"`
+	Traits        []updateBotRequestTrait `json:"traits"`
+	MaxSessionTtl string                  `json:"max_session_ttl"`
+}
+
+type updateBotRequestTrait struct {
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
+}
+
+// updateBot updates a bot with provided roles, traits, max_session_ttl and
+// description.
+func (h *Handler) updateBotV3(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	var request updateBotRequestV3
+	if err := httplib.ReadResourceJSON(r, &request); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	return updateBot(r.Context(), p.ByName("name"), request, sctx, cluster)
+}
+
+type updateBotRequestV3 struct {
+	Roles         []string                `json:"roles"`
+	Traits        []updateBotRequestTrait `json:"traits"`
+	MaxSessionTtl string                  `json:"max_session_ttl"`
+	Description   *string                 `json:"description"`
+}
+
+// updateBot updates a bot with provided roles, traits, max_session_ttl and
+// description.
+func updateBot(ctx context.Context, botName string, request updateBotRequestV3, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if botName == "" {
+		return nil, trace.BadParameter("empty name")
 	}
 
 	mask, err := fieldmaskpb.New(&machineidv1.Bot{})
@@ -288,6 +305,9 @@ func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 
+	metadata := headerv1.Metadata{
+		Name: botName,
+	}
 	spec := machineidv1.BotSpec{}
 
 	if request.Roles != nil {
@@ -321,15 +341,19 @@ func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprout
 		spec.MaxSessionTtl = durationpb.New(ttl)
 	}
 
-	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
+	if request.Description != nil {
+		mask.Append(&machineidv1.Bot{}, "metadata.description")
+
+		metadata.Description = *request.Description
+	}
+
+	updated, err := clt.BotServiceClient().UpdateBot(ctx, &machineidv1.UpdateBotRequest{
 		UpdateMask: mask,
 		Bot: &machineidv1.Bot{
-			Kind:    types.KindBot,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: botName,
-			},
-			Spec: &spec,
+			Kind:     types.KindBot,
+			Version:  types.V1,
+			Metadata: &metadata,
+			Spec:     &spec,
 		},
 	})
 	if err != nil {
@@ -337,17 +361,6 @@ func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprout
 	}
 
 	return updated, nil
-}
-
-type updateBotRequestV2 struct {
-	Roles         []string                `json:"roles"`
-	Traits        []updateBotRequestTrait `json:"traits"`
-	MaxSessionTtl string                  `json:"max_session_ttl"`
-}
-
-type updateBotRequestTrait struct {
-	Name   string   `json:"name"`
-	Values []string `json:"values"`
 }
 
 // getBotInstance retrieves a bot instance by id
@@ -411,6 +424,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 		sort = &s
 	}
 
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
 		FilterBotName:    r.URL.Query().Get("bot_name"),
 		PageSize:         int32(pageSize),
@@ -423,11 +437,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
-		latestHeartbeats := instance.GetStatus().GetLatestHeartbeats()
-		heartbeat := instance.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-		if len(latestHeartbeats) > 0 {
-			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
-		}
+		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
 
 		uiInstance := BotInstance{
 			InstanceId: instance.Spec.InstanceId,
@@ -440,6 +450,73 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 			uiInstance.VersionLatest = heartbeat.Version
 			uiInstance.ActiveAtLatest = heartbeat.RecordedAt.AsTime().Format(time.RFC3339)
 			uiInstance.OSLatest = heartbeat.Os
+		}
+
+		return uiInstance
+	})
+
+	return ListBotInstancesResponse{
+		BotInstances:  uiInstances,
+		NextPageToken: instances.NextPageToken,
+	}, nil
+}
+
+// listBotInstancesV2 returns a list of bot instances for a given cluster site.
+func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	request := &machineidv1.ListBotInstancesV2Request{
+		PageToken: r.URL.Query().Get("page_token"),
+		SortField: r.URL.Query().Get("sort_field"),
+		Filter: &machineidv1.ListBotInstancesV2Request_Filters{
+			BotName:    r.URL.Query().Get("bot_name"),
+			SearchTerm: r.URL.Query().Get("search"),
+			Query:      r.URL.Query().Get("query"),
+		},
+	}
+
+	if r.URL.Query().Has("page_size") {
+		pageSize, err := strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
+		if err != nil {
+			return nil, trace.BadParameter("invalid page size")
+		}
+		request.PageSize = int32(pageSize)
+	}
+
+	if r.URL.Query().Has("sort_dir") {
+		sortDir := r.URL.Query().Get("sort_dir")
+		request.SortDesc = strings.ToLower(sortDir) == "desc"
+	}
+
+	instances, err := clt.BotInstanceServiceClient().ListBotInstancesV2(r.Context(), request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
+		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
+		authentication := services.GetBotInstanceLatestAuthentication(instance)
+
+		uiInstance := BotInstance{
+			InstanceId: instance.GetSpec().GetInstanceId(),
+			BotName:    instance.GetSpec().GetBotName(),
+		}
+
+		if authentication != nil {
+			uiInstance.JoinMethodLatest = cmp.Or(
+				authentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
+				authentication.GetJoinMethod(),
+			)
+		}
+
+		if heartbeat != nil {
+			uiInstance.HostNameLatest = heartbeat.GetHostname()
+			uiInstance.VersionLatest = heartbeat.GetVersion()
+			uiInstance.ActiveAtLatest = heartbeat.GetRecordedAt().AsTime().Format(time.RFC3339)
+			uiInstance.OSLatest = heartbeat.GetOs()
 		}
 
 		return uiInstance
@@ -464,4 +541,162 @@ type BotInstance struct {
 	VersionLatest    string `json:"version_latest,omitempty"`
 	ActiveAtLatest   string `json:"active_at_latest,omitempty"`
 	OSLatest         string `json:"os_latest,omitempty"`
+}
+
+func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	ctx := r.Context()
+
+	clt, err := sctx.GetUserClient(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp := BotInstanceMetricsResponse{
+		RefreshAfterSeconds: int(constants.AutoUpdateBotInstanceReportPeriod.Seconds()),
+	}
+
+	// If no report is available yet, `UpgradeStatuses` will be nil.
+	report, err := clt.GetAutoUpdateBotInstanceReport(ctx)
+	switch {
+	case trace.IsNotFound(err):
+		return rsp, nil
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	// Our target version is the operator's selected auto-update tools version,
+	// or if there isn't one configured: the proxy version.
+	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	targetVersion, err := getToolsVersion(autoUpdateVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Returns the earliest possible version in a major release. It's based on:
+	// lib/utils.VersionBeforeAlpha.
+	lowerBound := func(major int64) semver.Version {
+		return semver.Version{Major: major, PreRelease: "aa"}
+	}
+
+	const versionField = "status.latest_heartbeat.version"
+
+	rsp.UpgradeStatuses = &BotInstanceUpgradeStatuses{
+		UpdatedAt: report.GetSpec().GetTimestamp().AsTime(),
+		UpToDate: BotInstanceUpgradeStatus{
+			Filter: fmt.Sprintf("%[1]s == %[2]q", versionField, targetVersion),
+		},
+		Unsupported: BotInstanceUpgradeStatus{
+			Filter: fmt.Sprintf(
+				"older_than(%[1]s, %[2]q) || %[1]s == %[3]q || newer_than(%[1]s, %[3]q)",
+				versionField,
+				lowerBound(targetVersion.Major-1),
+				lowerBound(targetVersion.Major+1),
+			),
+		},
+		PatchAvailable: BotInstanceUpgradeStatus{
+			Filter: fmt.Sprintf(
+				"between(%[1]s, %[2]q, %[3]q)",
+				versionField,
+				lowerBound(targetVersion.Major),
+				targetVersion,
+			),
+		},
+		RequiresUpgrade: BotInstanceUpgradeStatus{
+			Filter: fmt.Sprintf(
+				"between(%[1]s, %[2]q, %[3]q)",
+				versionField,
+				lowerBound(targetVersion.Major-1),
+				lowerBound(targetVersion.Major),
+			),
+		},
+	}
+
+	for _, groupMetrics := range report.GetSpec().GetGroups() {
+		for versionString, versionMetrics := range groupMetrics.GetVersions() {
+			version, err := semver.NewVersion(versionString)
+			if err != nil {
+				h.logger.ErrorContext(ctx,
+					"Failed to parse bot instance version string",
+					"version_string", versionString,
+					"error", err,
+				)
+				continue
+			}
+
+			switch {
+			case targetVersion.Equal(*version):
+				// Bot is up to date.
+				rsp.UpgradeStatuses.UpToDate.Count += int(versionMetrics.Count)
+
+			case targetVersion.LessThan(*version):
+				// Bot is running a newer version, we don't support this.
+				rsp.UpgradeStatuses.Unsupported.Count += int(versionMetrics.Count)
+
+			case targetVersion.Major == version.Major:
+				// Bot is running the right major version, but there's a minor
+				// or patch update available
+				rsp.UpgradeStatuses.PatchAvailable.Count += int(versionMetrics.Count)
+
+			case version.Major == targetVersion.Major-1:
+				// Bot is running the previous major version and should upgrade.
+				rsp.UpgradeStatuses.RequiresUpgrade.Count += int(versionMetrics.Count)
+
+			case version.Major < targetVersion.Major-1:
+				// Bot is running a version that is too old. In this case, the
+				// connection would be terminated so we shouldn't really see it.
+				rsp.UpgradeStatuses.Unsupported.Count += int(versionMetrics.Count)
+
+			default:
+				// The branches of this switch should be exhaustive, but just in case!
+				h.logger.DebugContext(ctx,
+					"Bot instance version comparison is missing a branch",
+					"bot_instance_version", version,
+					"target_version", targetVersion,
+				)
+			}
+		}
+	}
+	return rsp, nil
+}
+
+type BotInstanceMetricsResponse struct {
+	// RefreshAfterSeconds is the amount of time (in seconds) after receiving
+	// this response the client should poll for new metrics.
+	RefreshAfterSeconds int `json:"refresh_after_seconds"`
+
+	// UpgradeStatuses contains instance counts by "upgrade status".
+	UpgradeStatuses *BotInstanceUpgradeStatuses `json:"upgrade_statuses"`
+}
+
+type BotInstanceUpgradeStatuses struct {
+	// UpdatedAt is when these metrics were last updated.
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// UpToDate means the instance matches the desired version.
+	UpToDate BotInstanceUpgradeStatus `json:"up_to_date"`
+
+	// Unsupported means the instance is running a release that is too old or
+	// too new for us to support.
+	Unsupported BotInstanceUpgradeStatus `json:"unsupported"`
+
+	// RequiresUpgrade means the instance is running a release from the previous
+	// major series. We can support it for now, but the next major upgrade will
+	// break compatibility.
+	RequiresUpgrade BotInstanceUpgradeStatus `json:"requires_upgrade"`
+
+	// PatchAvailable means the instance is running a release from the desired
+	// major series, but they're behind on a minor or patch release.
+	PatchAvailable BotInstanceUpgradeStatus `json:"patch_available"`
+}
+
+type BotInstanceUpgradeStatus struct {
+	// Count is the number of bot instances.
+	Count int `json:"count"`
+
+	// Filter is a predicate language filter that can be applied to the bot
+	// instance list to find matching instances.
+	Filter string `json:"filter"`
 }

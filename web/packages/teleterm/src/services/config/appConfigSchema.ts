@@ -226,6 +226,10 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .boolean()
       .default(!settings.dev)
       .describe('Controls whether the hardware key agent will be started.'),
+    'debug.searchResultsScore': z
+      .boolean()
+      .default(false)
+      .describe('Enables display of scores for search results.'),
   });
 };
 

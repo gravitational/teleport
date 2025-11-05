@@ -82,11 +82,23 @@ Examples:
   Print sample configuration for a MCP server app
   $ tsh mcp config my-mcp-server-app
 
+  Print sample configuration for a streamable HTTP MCP server with custom headers
+  $ tsh mcp config my-mcp-server-app -H "Header1: value1" -H "Header2: value2"
+
   Add all MCP servers to Claude Desktop
   $ tsh mcp config --all --client-config=claude
 
   Add all MCP servers to Cursor
   $ tsh mcp config --all --client-config=cursor
+
+  Generate config for all MCP servers for VSCode
+  $ tsh mcp config --all --format=vscode
+
+  Add all MCP servers to VSCode project
+  $ tsh mcp config --all --client-config=<path-to-project>/.vscode/mcp.json
+
+  Add all MCP servers to Claude Code project
+  $ tsh mcp config --all --client-config=<path-to-project>/.mcp.json
 
   Search MCP servers with labels and add to the specified JSON file
   $ tsh mcp config --labels env=dev --client-config=my-config.json`
@@ -101,6 +113,15 @@ Examples:
 
   Add the database configuration to Cursor
   $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --client-config=cursor my-db-resource
+
+  Generate database configuration for VSCode
+  $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --format=vscode my-db-resource
+
+  Add the database configuration to VSCode project
+  $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --client-config=<path-to-project>/.vscode/.mcp.json my-db-resource
+
+  Add database configuration to Claude Code project
+  $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --client-config=<path-to-project>/.mcp.json my-db-resource
 
   Add the database configuration to the specified JSON file
   $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --client-config=my-config.json my-db-resource

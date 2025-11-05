@@ -56,15 +56,15 @@ workflow for using `tsh` to access an infrastructure resource.
 ### Log in to Teleport 
 
 Log in to your Teleport cluster, assigning <Var name="teleport.example.com" />
-to the domain name of the Teleport Proxy Service in your cluster and <Var
-name="myser" /> to your Teleport username:
+to the domain name of the Teleport Proxy Service in your cluster and 
+<Var name="myuser" /> to your Teleport username:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="myuser" />
 ```
 
-This command retrieves the user's certificates and saves them into `~/.tsh/<Var
-name="teleport.example.com" />`.
+This command retrieves the user's certificates and saves them into 
+`~/.tsh/<Var name="teleport.example.com" />`.
 
 ### List resources that you can access
 
@@ -310,6 +310,9 @@ $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 
 # Log in using GitHub as an SSO provider, assuming the GitHub connector is called "github"
 $ tsh --proxy=proxy.example.com --auth=github login
+
+# Don't open the system default browser when logging in
+$ tsh login --proxy=work.example.com --browser=none
 ```
 
 </TabItem>
@@ -333,14 +336,6 @@ system's default browser. If you wish to suppress this behavior, you can use the
 `--browser=none` flag:
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-# Don't open the system default browser when logging in
-$ tsh login --proxy=work.example.com --browser=none
-```
-
-</TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
@@ -1134,7 +1129,7 @@ proxy_templates:
 In the configuration above, `query` accepts an predicate expression.  This has
 priority over search but will be ignored if a host is provided.  See the
 [predicate language
-documentation](../reference/predicate-language.mdx#resource-filtering) for
+documentation](../reference/access-controls/predicate-language.mdx#resource-filtering) for
 predicate expression examples.
 
 `tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the

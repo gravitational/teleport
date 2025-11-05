@@ -167,7 +167,7 @@ func (h *sshHandler) initiateSSHConn(ctx context.Context, targetConn net.Conn, u
 	if err != nil {
 		return nil, trace.Wrap(err, "building SSH client config")
 	}
-	clientConn, clientChans, clientReqs, err := tracessh.NewClientConn(ctx, targetConn, target.addr, clientConfig)
+	clientConn, clientChans, clientReqs, err := tracessh.NewClientConnWithTimeout(ctx, targetConn, target.addr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "initiating SSH connection to %s@%s", user, target.addr)
 	}

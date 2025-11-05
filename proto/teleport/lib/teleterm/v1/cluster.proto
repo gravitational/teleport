@@ -34,7 +34,9 @@ message Cluster {
   // For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
   // leafClusterId is equal to the name property of the cluster.
   string uri = 1;
-  // name is used throughout the Teleport Connect codebase as the cluster name.
+  // name is the site name of Teleport cluster.
+  // Only present in root clusters if the user has logged in (the name comes from the certificate).
+  // Always available for leaf clusters.
   string name = 2;
   // proxy_host is address of the proxy used to connect to this cluster.
   // Always includes port number. Present only for root clusters.
@@ -83,8 +85,9 @@ message LoggedInUser {
   string name = 1;
   // roles is the user roles
   repeated string roles = 2;
-  // ssh_logins is the user ssh logins
-  repeated string ssh_logins = 3;
+
+  reserved "ssh_logins";
+  reserved 3;
   // acl is a user access control list.
   // It is available only after the cluster details are fetched, as it is not stored on disk.
   ACL acl = 4;

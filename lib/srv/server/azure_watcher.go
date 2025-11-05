@@ -46,24 +46,16 @@ type AzureInstances struct {
 	SubscriptionID string
 	// ResourceGroup is the resource group for the instances.
 	ResourceGroup string
-	// ScriptName is the name of the script to execute on the instances to
-	// install Teleport.
-	ScriptName string
-	// PublicProxyAddr is the address of the proxy the discovered node should use
-	// to connect to the cluster.
-	PublicProxyAddr string
-	// Parameters are the parameters passed to the installation script.
-	Parameters []string
+	// InstallerParams are the installer parameters used for installation.
+	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
-	// ClientID is the client ID of the managed identity to use for installation.
-	ClientID string
 }
 
 // MakeEvents generates MakeEvents for these instances.
 func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
-	if instances.ScriptName == installers.InstallerScriptNameAgentless {
+	if instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
@@ -131,20 +123,20 @@ type azureFetcherConfig struct {
 }
 
 type azureInstanceFetcher struct {
+	InstallerParams     *types.InstallerParams
 	AzureClientGetter   azureClientGetter
 	Regions             []string
 	Subscription        string
 	ResourceGroup       string
 	Labels              types.Labels
-	Parameters          map[string]string
-	ClientID            string
 	DiscoveryConfigName string
 	Integration         string
 	Logger              *slog.Logger
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
-	ret := &azureInstanceFetcher{
+	return &azureInstanceFetcher{
+		InstallerParams:     cfg.Matcher.Params,
 		AzureClientGetter:   cfg.AzureClientGetter,
 		Regions:             cfg.Matcher.Regions,
 		Subscription:        cfg.Subscription,
@@ -154,20 +146,9 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		Integration:         cfg.Integration,
 		Logger:              cfg.Logger,
 	}
-
-	if cfg.Matcher.Params != nil {
-		ret.Parameters = map[string]string{
-			"token":           cfg.Matcher.Params.JoinToken,
-			"scriptName":      cfg.Matcher.Params.ScriptName,
-			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
-		}
-		ret.ClientID = cfg.Matcher.Params.Azure.ClientID
-	}
-
-	return ret
 }
 
-func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
+func (*azureInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]Instances, error) {
 	return nil, trace.NotImplemented("not implemented for azure fetchers")
 }
 
@@ -250,10 +231,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 			Region:          batchGroup.location,
 			ResourceGroup:   batchGroup.resourceGroup,
 			Instances:       vms,
-			ScriptName:      f.Parameters["scriptName"],
-			PublicProxyAddr: f.Parameters["publicProxyAddr"],
-			Parameters:      []string{f.Parameters["token"]},
-			ClientID:        f.ClientID,
+			InstallerParams: f.InstallerParams,
 		}})
 	}
 

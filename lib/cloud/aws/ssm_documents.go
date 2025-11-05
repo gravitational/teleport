@@ -63,6 +63,10 @@ parameters:
   scriptName:
     type: String
     description: "(Required) The Teleport installer script to use when joining the cluster."
+  env:
+    type: String
+    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
+    default: "X=$X"
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent
@@ -76,7 +80,7 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh %s "{{ token }}"
+      - export {{ env }}; /bin/sh %s "{{ token }}"
 `, installTeleportPath, proxy, installTeleportPath)
 }
 

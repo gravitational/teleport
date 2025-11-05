@@ -44,12 +44,18 @@ export class TtyPlayer extends Player<TtyEvent> {
   private terminal: Terminal | null = null;
   private playing = false;
   private logger = new Logger('TtyPlayer');
+  private size: TerminalSize;
 
   constructor(
     private theme: DefaultTheme,
-    private size: TerminalSize
+    size: TerminalSize
   ) {
     super();
+
+    this.size = {
+      cols: size.cols ?? 80,
+      rows: size.rows ?? 24,
+    };
   }
 
   override init(element: HTMLElement) {

@@ -1531,11 +1531,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
-func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
-	// Explicit proxy address.
-	if installParams != nil && installParams.PublicProxyAddr != "" {
-		return installParams.PublicProxyAddr
-	}
+func getInstallerProxyAddr(fc *FileConfig) string {
 	// Proxy address from config.
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
@@ -1555,11 +1551,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
+
+	defaultProxyAddr := getInstallerProxyAddr(fc)
+
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		var err error
 		var installParams *types.InstallerParams
 		if matcher.InstallParams != nil {
-			installParams, err = matcher.InstallParams.parse()
+			installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1603,21 +1602,27 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		var installerParams *types.InstallerParams
+		var installParams *types.InstallerParams
+		var err error
 		if slices.Contains(matcher.Types, types.AzureMatcherVM) {
-			installerParams = &types.InstallerParams{
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
-			}
-			if matcher.InstallParams != nil {
-				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
-				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
-				installerParams.ScriptName = matcher.InstallParams.ScriptName
-				if matcher.InstallParams.Azure != nil {
-					installerParams.Azure = &types.AzureInstallerParams{
-						ClientID: matcher.InstallParams.Azure.ClientID,
-					}
+			// Backwards compatibility for Azure VM matcher:
+			// If install_teleport param is not set, default to false.
+			if matcher.InstallParams == nil {
+				installParams = &types.InstallerParams{
+					PublicProxyAddr: defaultProxyAddr,
 				}
 			}
+
+			if matcher.InstallParams != nil {
+				installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if matcher.InstallParams.InstallTeleport == "" {
+					installParams.InstallTeleport = false
+				}
+			}
+
 		}
 
 		serviceMatcher := types.AzureMatcher{
@@ -1626,7 +1631,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Types:          matcher.Types,
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
-			Params:         installerParams,
+			Params:         installParams,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1636,15 +1641,24 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
-		var installerParams *types.InstallerParams
-		if slices.Contains(matcher.Types, types.GCPMatcherCompute) {
-			installerParams = &types.InstallerParams{
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+		var installParams *types.InstallerParams
+		var err error
+		if slices.Contains(matcher.Types, types.GCPMatcherCompute) { // Backwards compatibility for GCP VM matcher:
+			// If install_teleport param is not set, default to false.
+			if matcher.InstallParams == nil {
+				installParams = &types.InstallerParams{
+					PublicProxyAddr: defaultProxyAddr,
+				}
 			}
+
 			if matcher.InstallParams != nil {
-				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
-				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
-				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if matcher.InstallParams.InstallTeleport == "" {
+					installParams.InstallTeleport = false
+				}
 			}
 		}
 
@@ -1655,7 +1669,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Tags:            matcher.Tags,
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,
-			Params:          installerParams,
+			Params:          installParams,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1924,7 +1938,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 func convOracleOptions(o DatabaseOracle) servicecfg.OracleOptions {
 	return servicecfg.OracleOptions{
-		AuditUser: o.AuditUser,
+		AuditUser:        o.AuditUser,
+		RetryCount:       o.RetryCount,
+		ShuffleHostnames: o.ShuffleHostnames,
 	}
 }
 
@@ -3156,6 +3172,14 @@ func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err, "parsing relay_service.peer_listen_addr")
 	}
 	cfg.Relay.PeerListenAddr = peerListenAddr
+
+	if fc.Relay.PeerPublicAddr != "" {
+		_, _, err := net.SplitHostPort(fc.Relay.PeerPublicAddr)
+		if err != nil {
+			return trace.Wrap(err, "parsing relay_service.peer_public_addr")
+		}
+		cfg.Relay.PeerPublicAddr = fc.Relay.PeerPublicAddr
+	}
 
 	if fc.Relay.TunnelListenAddr == "" {
 		return trace.BadParameter("missing relay_service.tunnel_listen_addr")

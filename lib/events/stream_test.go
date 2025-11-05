@@ -197,7 +197,7 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 	ctx := context.Background()
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader: eventstest.NewMemoryUploader(nil),
+		Uploader: eventstest.NewMemoryUploader(),
 	})
 	require.NoError(t, err)
 

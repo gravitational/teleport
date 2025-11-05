@@ -185,11 +185,11 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	// If there are multiple options and we chose one without it being specifically
 	// requested by the user, notify the user about it and how to request a specific method.
 	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
+		availableMethodsString := strings.ToLower(strings.Join(availableMethods, ","))
 		const msg = "" +
 			"Available MFA methods [%v]. Continuing with %v.\n" +
-			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v>.\n\n"
-
-		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "), strings.ToLower(strings.Join(availableMethods, ",")))
+			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v> or environment variable TELEPORT_MFA_MODE=<%v>.\n\n"
+		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "), availableMethodsString, availableMethodsString)
 	}
 
 	// We should never prompt for OTP when per-session MFA is enabled. As long as other MFA methods are available,

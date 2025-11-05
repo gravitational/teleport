@@ -4,6 +4,7 @@ description: Provides guidance for planning a strategy for restoring a self-host
 tags:
  - how-to
  - platform-wide
+ - aws
 ---
 
 In case of an outage in your cloud provider region, you need to ensure that you
@@ -40,7 +41,7 @@ for the Teleport Proxy Service.
 - You are using Amazon DynamoDB for the cluster state backend and audit event
   backend, and using Amazon S3 for your session recording backend. For
   information on selecting Teleport backends, see [Storage
-  Backends](../../../reference/backends.mdx).
+  Backends](../../../reference/deployment/backends.mdx).
 
 <Admonition type="danger">
 

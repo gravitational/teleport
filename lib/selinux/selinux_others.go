@@ -34,7 +34,7 @@ func ModuleSource() string {
 }
 
 // FileContexts returns file contexts for the SELinux SSH module.
-func FileContexts(dataDir, configPath string) (string, error) {
+func FileContexts(dataDir, configPath, execPathOverride string) (string, error) {
 	return "", trace.Errorf(errPlatformNotSupportedMsg)
 }
 

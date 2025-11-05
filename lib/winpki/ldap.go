@@ -37,12 +37,13 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/dns"
 )
 
 const (
 	// ldapDialTimeout is the timeout for dialing the LDAP server
 	// when making an initial connection
-	ldapDialTimeout = 15 * time.Second
+	ldapDialTimeout = 30 * time.Second
 
 	// ldapRequestTimeout is the timeout for making LDAP requests.
 	// It is larger than the dial timeout because LDAP queries in large
@@ -407,7 +408,7 @@ func crlContainerDN(domain string, caType types.CertAuthType) string {
 func CRLCN(issuerCN string, issuerSKID []byte) string {
 	name := issuerCN
 	if len(issuerSKID) > 0 {
-		id := base32.HexEncoding.EncodeToString(issuerSKID)
+		id := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(issuerSKID)
 		name = id + "_" + name
 	}
 	// The limit on the CN attribute should be 64 characters, but in practice
@@ -452,35 +453,14 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 	dialer := net.Dialer{Timeout: ldapDialTimeout}
 
 	if c.LocateServer.Enabled {
-		dial := func(dialCtx context.Context, network, address string) (net.Conn, error) {
-			return dialer.DialContext(dialCtx, network, address)
-		}
-
 		// In development environments, the system's default resolver is unlikely to be
 		// able to resolve the Active Directory SRV records needed for server location,
-		// so we allow overriding the resolver.
-		if resolverAddr := os.Getenv("TELEPORT_LDAP_RESOLVER"); resolverAddr != "" {
-			c.Logger.DebugContext(ctx, "Using custom DNS resolver address", "address", resolverAddr)
-			// Check if resolver address has a port
-			host, port, err := net.SplitHostPort(resolverAddr)
-			if err != nil {
-				host = resolverAddr
-				port = "53"
-			}
-
-			customResolverAddr := net.JoinHostPort(host, port)
-			dial = func(ctx context.Context, network, address string) (net.Conn, error) {
-				return dialer.DialContext(ctx, network, customResolverAddr)
-			}
-		}
-
-		resolver := &net.Resolver{
-			PreferGo: true,
-			Dial:     dial,
-		}
+		// so we allow overriding the resolver. If the TELEPORT_LDAP_RESOLVER paramater
+		// is not set, the default resolver will be used.
+		resolver := dns.NewResolver(ctx, os.Getenv("TELEPORT_LDAP_RESOLVER"), c.Logger)
 
 		var err error
-		if servers, err = locateLDAPServer(ctx, c.Domain, c.LocateServer.Site, resolver); err != nil {
+		if servers, err = dns.LocateServerBySRV(ctx, c.Domain, c.LocateServer.Site, resolver, "ldap", "636"); err != nil {
 			return nil, trace.Wrap(err, "locating LDAP server")
 		}
 	}
@@ -489,6 +469,7 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 		return nil, trace.NotFound("no LDAP servers found for domain %q", c.Domain)
 	}
 
+	var lastErr error
 	for _, server := range servers {
 		conn, err := ldap.DialURL(
 			"ldaps://"+server,
@@ -501,6 +482,7 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 			conn.SetTimeout(ldapRequestTimeout)
 			return conn, nil
 		}
+		lastErr = err
 
 		if c.LocateServer.Enabled {
 			// If the connection fails and we're using LocateServer, log that a server failed.
@@ -508,5 +490,5 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 		}
 	}
 
-	return nil, trace.NotFound("no LDAP servers responded successfully for domain %q", c.Domain)
+	return nil, trace.NotFound("no LDAP servers responded successfully for domain %q: %v", c.Domain, lastErr)
 }

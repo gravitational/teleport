@@ -66,7 +66,7 @@ func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
 
 // InstallSCIM implements `tctl plugins install scim`, installing a SCIM integration
 // plugin into the teleport cluster
-func (p *PluginsCommand) InstallSCIM(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) InstallSCIM(ctx context.Context, args pluginServices) error {
 	scimArgs := p.install.scim
 
 	pluginName := types.PluginTypeSCIM

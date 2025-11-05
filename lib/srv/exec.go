@@ -259,12 +259,12 @@ func (e *localExec) transformSecureCopy() error {
 	if err != nil {
 		e.Ctx.GetServer().EmitAuditEvent(e.Ctx.CancelContext(), &apievents.SFTP{
 			Metadata: apievents.Metadata{
-				Code: events.SCPDisallowedCode,
-				Type: events.SCPEvent,
+				Code: events.SFTPDisallowedCode,
+				Type: events.SFTPEvent,
 				Time: time.Now(),
 			},
 			UserMetadata:   e.Ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.Ctx.GetServer().TargetMetadata(),
+			ServerMetadata: e.Ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
 		return trace.Wrap(err)
@@ -364,12 +364,12 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
 		e.ctx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 			Metadata: apievents.Metadata{
-				Code: events.SCPDisallowedCode,
-				Type: events.SCPEvent,
+				Code: events.SFTPDisallowedCode,
+				Type: events.SFTPEvent,
 				Time: time.Now(),
 			},
 			UserMetadata:   e.ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.ctx.GetServer().TargetMetadata(),
+			ServerMetadata: e.ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
 		return nil, trace.Wrap(err)
@@ -435,7 +435,7 @@ func (e *remoteExec) PID() int {
 // instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
-	serverMeta := ctx.GetServer().TargetMetadata()
+	serverMeta := ctx.GetServer().EventMetadata()
 	sessionMeta := ctx.GetSessionMetadata()
 	userMeta := ctx.Identity.GetUserMetadata()
 

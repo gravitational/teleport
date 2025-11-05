@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -82,6 +83,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -103,10 +105,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -140,10 +140,6 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
-	// cmcCacheTTL is the cache TTL for the clusterMaintenanceConfig resource.
-	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
-	// cluster configuration changes.
-	cmcCacheTTL = time.Minute
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
@@ -187,8 +183,7 @@ type Handler struct {
 	// caller specified its Automatic Updates UUID or group.
 	findEndpointCache *utils.FnCache
 
-	// clusterMaintenanceConfig is used to cache the cluster maintenance config from the AUth Service.
-	clusterMaintenanceConfigCache *utils.FnCache
+	autoUpdateResolver *autoupdatelookup.Resolver
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -344,6 +339,10 @@ func (c *Config) SetDefaults() {
 		c.PresenceChecker = client.RunPresenceTask
 	}
 
+	if c.AutomaticUpgradesChannels == nil {
+		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
 
@@ -494,18 +493,21 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 	h.findEndpointCache = findCache
 
-	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
-	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         cmcCacheTTL,
-		Clock:       h.clock,
-		Context:     cfg.Context,
-		ReloadOnErr: false,
-	})
+	autoUpdateResolver, err := autoupdatelookup.NewResolver(
+		autoupdatelookup.Config{
+			RolloutGetter: cfg.AccessPoint,
+			CMCGetter:     cfg.ProxyClient,
+			Channels:      h.cfg.AutomaticUpgradesChannels,
+			Log:           h.logger,
+			Clock:         h.clock,
+			Context:       h.cfg.Context,
+		})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating cluster maintenance config cache")
+		return nil, trace.Wrap(err, "creating autoupdate resolver")
 	}
-	h.clusterMaintenanceConfigCache = cmcCache
+	h.autoUpdateResolver = autoUpdateResolver
 
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
 		sessionLingeringThreshold = *cfg.CachedSessionLingeringThreshold
@@ -652,7 +654,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// request is going to the web UI
 		if cfg.StaticFS == nil {
-			w.WriteHeader(http.StatusNotImplemented)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 
@@ -870,7 +872,16 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
+	// TODO (avatus): delete in v21
+	// Deprecated: Use the v2 endpoint instead.
+	//
+	// clusterSearchEvents handles audit event retrieval for a given site.
+	// This legacy endpoint returns event listings without advanced search capabilities.
+	// Prefer using /v2/webapi/sites/:site/events/search for full query-based filtering.
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents)) // search site events
+	// clusterSearchEventsV2 handles audit event retrieval for a given site with support for
+	// advanced search filters and query parameters.
+	h.GET("/v2/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEventsV2))            // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
@@ -885,7 +896,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Returns the CA Certs
 	// Deprecated, use the `webapi/auth/export` endpoint.
-	// Returning other clusters (trusted cluster) CA certs would leak wether the TrustedCluster exists or not.
+	// Returning other clusters (trusted cluster) CA certs would leak whether the TrustedCluster exists or not.
 	// Given that this is a public/unauthorized endpoint, we should refrain from exposing that kind of information.
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)
@@ -941,6 +952,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
+	h.GET("/webapi/sites/:site/kubernetesservers", h.WithClusterAuth(h.clusterKubeServersList))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -1155,16 +1167,29 @@ func (h *Handler) bindDefaultEndpoints() {
 	// PUT Machine ID bot by name
 	// TODO(nicholasmarais1158) DELETE IN v20.0.0
 	// Replaced by `PUT /v2/webapi/sites/:site/machine-id/bot/:name` which allows editing more than just roles.
-	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBot))
+	h.PUT("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV1))
 	// PUT Machine ID bot by name
+	// TODO(nicholasmarais1158) DELETE IN v20.0.0
+	// Replaced by `PUT /v3/webapi/sites/:site/machine-id/bot/:name` which allows editing description.
 	h.PUT("/v2/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV2))
+	// PUT Machine ID bot by name
+	h.PUT("/v3/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.updateBotV3))
 	// Delete Machine ID bot
 	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 
 	// GET Machine ID instance for a bot by id
 	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
 	// GET Machine ID bot instances (paged)
+	// TODO(nicholasmarais1158) DELETE IN v20.0.0
+	// Replaced by `GET /v2/webapi/sites/:site/machine-id/bot-instance`.
 	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
+	// GET Machine ID bot instances (paged)
+	h.GET("/v2/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstancesV2))
+	// GET Machine ID bot instance metrics.
+	h.GET("/webapi/sites/:site/machine-id/bot-instance/metrics", h.WithClusterAuth(h.botInstanceMetrics))
+
+	// List workload identities
+	h.GET("/webapi/sites/:site/workload-identity", h.WithClusterAuth(h.listWorkloadIdentities))
 
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
@@ -1493,7 +1518,15 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 
 			as = oidcSettings(oidcConnector, authPreference)
 		} else {
-			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
+			// TODO(okraport): DELETE IN v21.0.0, remove GetOIDCConnectors
+			oidcConnectors, err := clientutils.CollectWithFallback(ctx,
+				func(ctx context.Context, limit int, start string) ([]types.OIDCConnector, string, error) {
+					return authClient.ListOIDCConnectors(ctx, limit, start, false)
+				},
+				func(ctx context.Context) ([]types.OIDCConnector, error) {
+					return authClient.GetOIDCConnectors(ctx, false)
+				},
+			)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1512,7 +1545,15 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 
 			as = samlSettings(samlConnector, authPreference)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
+			// TODO(okraport): DELETE IN v21.0.0, remove GetSAMLConnectorsWithValidationOptions
+			samlConnectors, err := clientutils.CollectWithFallback(ctx,
+				func(ctx context.Context, limit int, start string) ([]types.SAMLConnector, string, error) {
+					return authClient.ListSAMLConnectorsWithOptions(ctx, limit, start, false, types.SAMLConnectorValidationFollowURLs(false))
+				},
+				func(ctx context.Context) ([]types.SAMLConnector, error) {
+					return authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
+				},
+			)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1530,7 +1571,15 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 			}
 			as = githubSettings(githubConnector, authPreference)
 		} else {
-			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
+			// TODO(okraport): DELETE IN v21.0.0, remove GetGithubConnectors
+			githubConnectors, err := clientutils.CollectWithFallback(ctx,
+				func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+					return authClient.ListGithubConnectors(ctx, limit, start, false)
+				},
+				func(ctx context.Context) ([]types.GithubConnector, error) {
+					return authClient.GetGithubConnectors(ctx, false)
+				},
+			)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1912,7 +1961,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
 		const group, updaterUUID = "", ""
-		agentVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
+		agentVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
 		if err != nil {
 			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
 		} else {
@@ -2031,6 +2080,9 @@ func (h *Handler) getUserMatchedAuthConnectors(w http.ResponseWriter, r *http.Re
 	var req *getUserMatchedAuthConnectorsReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.Username != "" && len(req.Username) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
 	}
 
 	githubConns, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
@@ -2403,6 +2455,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 		FIPS:              h.cfg.FIPS,
+		ClientOptions:     response.ClientOptions,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error", err)
@@ -2448,7 +2501,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	const group, agentUUD = "", ""
-	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
+	targetVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, agentUUD)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
 		targetVersion = teleport.SemVer()
@@ -2515,6 +2568,9 @@ type AuthParams struct {
 	FIPS bool
 	// MFAToken is an SSO MFA token.
 	MFAToken string
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions authclient.ClientOptions
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
@@ -2525,11 +2581,12 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 	consoleResponse := authclient.SSHLoginResponse{
-		Username:    response.Username,
-		Cert:        response.Cert,
-		TLSCert:     response.TLSCert,
-		HostSigners: authclient.AuthoritiesToTrustedCerts(response.HostSigners),
-		MFAToken:    response.MFAToken,
+		Username:      response.Username,
+		Cert:          response.Cert,
+		TLSCert:       response.TLSCert,
+		HostSigners:   authclient.AuthoritiesToTrustedCerts(response.HostSigners),
+		MFAToken:      response.MFAToken,
+		ClientOptions: response.ClientOptions,
 	}
 	out, err := json.Marshal(consoleResponse)
 	if err != nil {
@@ -3227,6 +3284,12 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		}
 	}
 
+	// include KindSAMLIdPServiceProvider when requesting KindApp
+	if slices.Contains(kinds, types.KindApp) &&
+		!slices.Contains(kinds, types.KindSAMLIdPServiceProvider) {
+		kinds = append(kinds, types.KindSAMLIdPServiceProvider)
+	}
+
 	// set default kinds to be requested if none exist in the request
 	if len(kinds) == 0 {
 		kinds = []string{
@@ -3260,26 +3323,6 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 
 type loginGetter interface {
 	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
-}
-
-// calculateSSHLogins returns the subset of the allowedLogins that exist in
-// the principals of the identity. This is required because SSH authorization
-// only allows using a login that exists in the certificates valid principals.
-// When connecting to servers in a leaf cluster, the root certificate is used,
-// so we need to ensure that we only present the allowed logins that would
-// result in a successful connection, if any exists.
-func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
-	allowed := set.New(allowedLogins...)
-
-	var logins []string
-	for _, local := range identity.Principals {
-		if allowed.Contains(local) {
-			logins = append(logins, local)
-		}
-	}
-
-	slices.Sort(logins)
-	return logins, nil
 }
 
 // calculateAppLogins determines the app logins allowed for the provided
@@ -3362,7 +3405,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.Server:
 			switch enriched.GetKind() {
 			case types.KindNode:
-				logins, err := calculateSSHLogins(identity, enriched.Logins)
+				logins, err := client.CalculateSSHLogins(identity.Principals, enriched.Logins)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -3415,6 +3458,10 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			unifiedResources = append(unifiedResources, kube)
 		case types.KubeServer:
 			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker, enriched.RequiresRequest)
+			targetHealth := r.GetTargetHealth()
+			if targetHealth != nil {
+				kube.TargetHealth = *targetHealth
+			}
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", enriched)
@@ -3461,7 +3508,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			continue
 		}
 
-		logins, err := calculateSSHLogins(identity, resource.Logins)
+		logins, err := client.CalculateSSHLogins(identity.Principals, resource.Logins)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4332,6 +4379,47 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 	return el, nil
 }
 
+// clusterSearchEventsV2 returns all audit log events matching the provided criteria
+//
+// GET /v2/webapi/sites/:site/events/search
+//
+// Query parameters:
+//
+//	"from"    : date range from, encoded as RFC3339
+//	"to"      : date range to, encoded as RFC3339
+//	"limit"   : optional maximum number of events to return on each fetch
+//	"startKey": resume events search from the last event received,
+//	            empty string means start search from beginning
+//	"include" : optional comma-separated list of event names to return e.g.
+//	            include=session.start,session.end, all are returned if empty
+//	"order":    optional ordering of events. Can be either "asc" or "desc"
+//	            for ascending and descending respectively.
+//	            If no order is provided it defaults to descending.
+//	"search":   optional search term to filter events by (case-insensitive substring match)
+func (h *Handler) clusterSearchEventsV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	values := r.URL.Query()
+
+	var eventTypes []string
+	if include := values.Get("include"); include != "" {
+		eventTypes = strings.Split(include, ",")
+	}
+
+	search := values.Get("search")
+
+	searchEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
+			From:       from,
+			To:         to,
+			EventTypes: eventTypes,
+			Limit:      limit,
+			Order:      order,
+			StartKey:   startKey,
+			Search:     search,
+		})
+	}
+	return clusterEventsList(r.Context(), sctx, cluster, r.URL.Query(), searchEvents)
+}
+
 // clusterSearchEvents returns all audit log events matching the provided criteria
 //
 // GET /v1/webapi/sites/:site/events/search
@@ -4490,7 +4578,7 @@ func QueryLimitAsInt32(query url.Values, name string, def int32) (int32, error) 
 // queryOrder returns the order parameter with the specified name from the
 // query string or a default if the parameter is not provided.
 func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
-	value := query.Get(name)
+	value := strings.ToLower(query.Get(name))
 	switch value {
 	case "desc":
 		return types.EventOrderDescending, nil
@@ -5305,6 +5393,7 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Tracer:            apitracing.DefaultProvider().Tracer("webterminal"),
+		AddKeysToAgent:    client.AddKeysToAgentNo,
 	}
 
 	return config, nil

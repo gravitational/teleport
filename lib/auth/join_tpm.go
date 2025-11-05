@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tpm"
 )
@@ -49,6 +50,10 @@ func (a *Server) RegisterUsingTPMMethod(
 			)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	// First, check the specified token exists, and is a TPM-type join token.
 	if err := initReq.JoinRequest.CheckAndSetDefaults(); err != nil {
@@ -112,20 +117,14 @@ func (a *Server) RegisterUsingTPMMethod(
 	}
 
 	if initReq.JoinRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			ptv2,
-			initReq.JoinRequest,
-			validatedEK,
-			&workloadidentityv1pb.JoinAttrs{
-				Tpm: validatedEK.JoinAttrs(),
-			},
-		)
+		params := makeBotCertsParams(initReq.JoinRequest, validatedEK, &workloadidentityv1pb.JoinAttrs{
+			Tpm: validatedEK.JoinAttrs(),
+		})
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, ptv2, params)
 		return certs, trace.Wrap(err, "generating certs for bot")
 	}
-	certs, err := a.generateCerts(
-		ctx, ptv2, initReq.JoinRequest, validatedEK,
-	)
+	params := makeHostCertsParams(initReq.JoinRequest, validatedEK)
+	certs, err := a.GenerateHostCertsForJoin(ctx, ptv2, params)
 	return certs, trace.Wrap(err, "generating certs for host")
 }
 
