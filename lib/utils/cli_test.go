@@ -237,6 +237,12 @@ func TestFormatCertError(t *testing.T) {
 		require.Contains(t, msg, "The certificate presented by the proxy is invalid")
 	})
 
+	t.Run("CertificateNotTrustedError", func(t *testing.T) {
+		err := errors.New("certificate is not trusted")
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The proxy you are connecting to has presented a certificate signed by")
+	})
+
 	t.Run("NoMatch", func(t *testing.T) {
 		err := errors.New("some other error")
 		msg := formatCertError(err)
