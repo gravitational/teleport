@@ -5719,7 +5719,11 @@ func awaitRequestResolution(ctx context.Context, clt authclient.ClientI, req typ
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 			case types.OpDelete:
-				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				// Delete events are not filtered, only return if the deleted
+				// request matches the request we're waiting for.
+				if event.Resource.GetName() == req.GetName() {
+					return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				}
 			default:
 				logger.WarnContext(ctx, "Skipping unknown event type", "event_type", event.Type)
 			}
