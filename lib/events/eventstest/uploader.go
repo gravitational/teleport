@@ -74,7 +74,6 @@ type MemoryUploader struct {
 	pendingSummaries map[session.ID][]byte
 	metadata         map[session.ID][]byte
 	thumbnails       map[session.ID][]byte
-	eventsC          chan events.UploadEvent
 
 	// Clock is an optional [clockwork.Clock] to determine the time to associate
 	// with uploads and parts.
