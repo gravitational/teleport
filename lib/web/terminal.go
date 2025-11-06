@@ -861,6 +861,8 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		// wait in a new goroutine because the server won't set a
 		// session ID until we start the session.
 		go func() {
+			defer close(sessionDataSent)
+
 			ctx, cancel := context.WithTimeout(writeSessionCtx, 10*time.Second)
 			defer cancel()
 
