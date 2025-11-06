@@ -124,7 +124,7 @@ export default class MainProcess {
    *
    * If the promise rejects, the error will propagate to the renderer via the IPC
    * handler (causing the renderer to stop initialization and show the error)
-   * and also surface when attempting to access `getTshdClients()`.
+   * and also surface when attempting to access the tshdClients property.
    */
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
   private windowsManager: WindowsManager;
@@ -137,6 +137,13 @@ export default class MainProcess {
     )
   );
   private readonly agentRunner: AgentRunner;
+  /**
+   * A promise responsible for initializing clients for tshd gRPC services once the addresses of
+   * child processes are resolved. Set in the constructor.
+   *
+   * If the client setup fails, the resulting error will propagate to callsites which use
+   * tshdClients, including preload of the frontend app, causing its initialization to stop.
+   */
   private tshdClients: Promise<{
     terminalService: TshdClient;
     autoUpdateService: AutoUpdateClient;
@@ -182,16 +189,16 @@ export default class MainProcess {
     this.setAppMenu();
     this.initTshd();
     this.initSharedProcess();
-    this.initResolvingChildProcessAddresses();
+    this.initResolvingChildProcessAddressesAndTshdClients();
     this.initIpc();
 
     const getClusterVersions = async () => {
-      const { autoUpdateService } = await this.getTshdClients();
+      const { autoUpdateService } = await this.tshdClients;
       const { response } = await autoUpdateService.getClusterVersions({});
       return response;
     };
     const getDownloadBaseUrl = async () => {
-      const { autoUpdateService } = await this.getTshdClients();
+      const { autoUpdateService } = await this.tshdClients;
       const {
         response: { baseUrl },
       } = await autoUpdateService.getDownloadBaseUrl({});
@@ -212,14 +219,14 @@ export default class MainProcess {
       process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
     );
     this.clusterStore = new ClusterStore(
-      () => this.getTshdClients().then(c => c.terminalService),
+      () => this.tshdClients.then(c => c.terminalService),
       this.windowsManager
     );
     const watcher = watchProfiles({
       tshDirectory: this.settings.tshd.homeDir,
       tshClient: {
         listRootClusters: async () => {
-          const { terminalService } = await this.getTshdClients();
+          const { terminalService } = await this.tshdClients;
           const { response } = await terminalService.listRootClusters({});
           return response.clusters;
         },
@@ -229,7 +236,7 @@ export default class MainProcess {
     });
     this.clusterLifecycleManager = new ClusterLifecycleManager(
       this.clusterStore,
-      () => this.getTshdClients().then(c => c.terminalService),
+      () => this.tshdClients.then(c => c.terminalService),
       this.appUpdater,
       this.windowsManager,
       watcher
@@ -252,29 +259,6 @@ export default class MainProcess {
       ),
       this.agentRunner.killAll(),
     ]);
-  }
-
-  /**
-   * Returns the tshd client.
-   *
-   * If the client setup fails, the error is surfaced to the UI during preload
-   * of the frontend app, and it will shut down its initialization.
-   */
-  private async getTshdClients(): Promise<{
-    terminalService: TshdClient;
-    autoUpdateService: AutoUpdateClient;
-  }> {
-    if (!this.tshdClients) {
-      this.tshdClients = this.resolvedChildProcessAddresses.then(
-        ({ tsh: tshdAddress }) =>
-          setUpTshdClients({
-            runtimeSettings: this.settings,
-            tshdAddress,
-          })
-      );
-    }
-
-    return this.tshdClients;
   }
 
   private initTshd() {
@@ -376,7 +360,11 @@ export default class MainProcess {
     );
   }
 
-  private initResolvingChildProcessAddresses(): void {
+  /**
+   * Initializes the resolution of child process addresses and sets up tshd clients.
+   * On Windows, the setup of tshd clients also initialized the main process cert for mTLS.
+   */
+  private initResolvingChildProcessAddressesAndTshdClients(): void {
     this.resolvedChildProcessAddresses = Promise.all([
       resolveNetworkAddress(
         this.settings.tshd.requestedNetworkAddress,
@@ -403,6 +391,19 @@ export default class MainProcess {
         )
       ),
     ]).then(([tsh, shared]) => ({ tsh, shared }));
+
+    this.tshdClients = this.resolvedChildProcessAddresses.then(
+      ({ tsh: tshdAddress }) =>
+        setUpTshdClients({
+          runtimeSettings: this.settings,
+          tshdAddress,
+        })
+    );
+    // Log the error just to avoid unhandled promise rejection if setUpTshdClients fails before
+    // anything reads tshdClients.
+    this.tshdClients.catch(error => {
+      this.logger.error('Could not initialize tshd clients', error);
+    });
   }
 
   private initIpc() {
@@ -657,7 +658,7 @@ export default class MainProcess {
         }
 
         const [dirPath] = value.filePaths;
-        const { terminalService } = await this.getTshdClients();
+        const { terminalService } = await this.tshdClients;
         await terminalService.setSharedDirectoryForDesktopSession({
           desktopUri: args.desktopUri,
           login: args.login,
