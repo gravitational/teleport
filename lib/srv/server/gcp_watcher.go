@@ -43,22 +43,8 @@ type GCPInstances struct {
 	Zone string
 	// ProjectID is the instances' project ID.
 	ProjectID string
-	// ScriptName is the name of the script to execute on the instances to
-	// install Teleport.
-	ScriptName string
-	// InstallSuffix indicates the installation suffix for the teleport installation.
-	// Set this value if you want multiple installations of Teleport.
-	// See --install-suffix flag in teleport-update program.
-	InstallSuffix string
-	// UpdateGroup indicates the update group for the teleport installation.
-	// This value is used to group installations in order to update them in batches.
-	// See --group flag in teleport-update program.
-	UpdateGroup string
-	// PublicProxyAddr is the address of the proxy the discovered node should use
-	// to connect to the cluster.
-	PublicProxyAddr string
-	// Parameters are the parameters passed to the installation script
-	Parameters []string
+	// InstallerParams are the installer parameters used for installation.
+	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered GCP virtual machines.
 	Instances []*gcpimds.Instance
 }
@@ -66,7 +52,7 @@ type GCPInstances struct {
 // MakeEvents generates MakeEvents for these instances.
 func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
-	if instances.ScriptName == installers.InstallerScriptNameAgentless {
+	if instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
@@ -125,22 +111,21 @@ type gcpFetcherConfig struct {
 }
 
 type gcpInstanceFetcher struct {
+	InstallerParams     *types.InstallerParams
 	GCP                 gcp.InstancesClient
 	ProjectIDs          []string
 	Zones               []string
 	ProjectID           string
 	ServiceAccounts     []string
 	Labels              types.Labels
-	Parameters          map[string]string
 	projectsClient      gcp.ProjectsClient
 	DiscoveryConfigName string
 	Integration         string
-	InstallSuffix       string
-	UpdateGroup         string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
-	fetcher := &gcpInstanceFetcher{
+	return &gcpInstanceFetcher{
+		InstallerParams:     cfg.Matcher.Params,
 		GCP:                 cfg.GCPClient,
 		Zones:               cfg.Matcher.Locations,
 		ProjectIDs:          cfg.Matcher.ProjectIDs,
@@ -150,19 +135,9 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 		Integration:         cfg.Integration,
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
 	}
-	if cfg.Matcher.Params != nil {
-		fetcher.Parameters = map[string]string{
-			"token":           cfg.Matcher.Params.JoinToken,
-			"scriptName":      cfg.Matcher.Params.ScriptName,
-			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
-		}
-		fetcher.InstallSuffix = cfg.Matcher.Params.Suffix
-		fetcher.UpdateGroup = cfg.Matcher.Params.UpdateGroup
-	}
-	return fetcher
 }
 
-func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
+func (*gcpInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]Instances, error) {
 	return nil, trace.NotImplemented("not implemented for gcp fetchers")
 }
 
@@ -211,14 +186,10 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instan
 		for zone, vms := range vmsByZone {
 			if len(vms) > 0 {
 				instances = append(instances, Instances{GCP: &GCPInstances{
+					InstallerParams: f.InstallerParams,
 					ProjectID:       projectID,
 					Zone:            zone,
 					Instances:       vms,
-					ScriptName:      f.Parameters["scriptName"],
-					PublicProxyAddr: f.Parameters["publicProxyAddr"],
-					Parameters:      []string{f.Parameters["token"]},
-					InstallSuffix:   f.InstallSuffix,
-					UpdateGroup:     f.UpdateGroup,
 				}})
 			}
 		}
