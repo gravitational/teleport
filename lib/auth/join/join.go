@@ -54,8 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/jwt"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/spacelift"
@@ -196,6 +196,9 @@ type RegisterParams struct {
 	// GetInstanceIdentityDocumentFunc overrides the function used to get an
 	// EC2 Instance Identity Document for the host.
 	GetInstanceIdentityDocumentFunc func(ctx context.Context) ([]byte, error)
+	// OracleIMDSClient overrides the HTTP client used to make requests to the
+	// OCI Instance Metadata Service.
+	OracleIMDSClient utils.HTTPDoClient
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
@@ -217,6 +220,14 @@ func (r *RegisterParams) CheckAndSetDefaults() error {
 
 	if r.GetInstanceIdentityDocumentFunc == nil {
 		r.GetInstanceIdentityDocumentFunc = awsutils.GetRawEC2IdentityDocument
+	}
+
+	if r.OracleIMDSClient == nil {
+		var err error
+		r.OracleIMDSClient, err = defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -308,9 +319,12 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGitHub:
-		params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// Tests might specify an IDToken so don't overwrite it when present.
+		if params.IDToken == "" {
+			params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodGitLab:
 		params.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{

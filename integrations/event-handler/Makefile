@@ -96,7 +96,7 @@ install: build
 
 .PHONY: test
 test:
-	go test -coverprofile=cover.out
+	gotestsum 
 
 .PHONY: configure
 configure: build

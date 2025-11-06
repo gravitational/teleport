@@ -520,7 +520,7 @@ func (*Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUploa
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	partBlob := h.partBlob(upload, partNumber)
 
-	// our parts are just over 5 MiB (events.MinUploadPartSizeBytes) so we can
+	// our parts are just over 5 MiB [events.MinUploadPartSizeBytes] so we can
 	// upload them in one shot
 	response, err := cErr(partBlob.Upload(ctx, streaming.NopCloser(partBody), nil))
 	if err != nil {

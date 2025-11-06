@@ -15,10 +15,10 @@
   "dependencies": {
     "@gravitational/design": "workspace:*",
     "@xterm/addon-search": "^0.15.0",
-    "ace-builds": "1.43.3",
+    "ace-builds": "1.43.4",
     "events": "3.3.0",
     "highlight-words-core": "^1.2.3",
-    "semver": "^7.7.2"
+    "semver": "^7.7.3"
   },
   "devDependencies" : {
     "@types/semver": "^7.7.1"

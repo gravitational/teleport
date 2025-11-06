@@ -1367,12 +1367,8 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		Instances:       instances.Instances,
 		Region:          instances.Region,
 		ResourceGroup:   instances.ResourceGroup,
-		Params:          instances.Parameters,
-		ScriptName:      instances.ScriptName,
-		PublicProxyAddr: instances.PublicProxyAddr,
-		ClientID:        instances.ClientID,
-		InstallSuffix:   instances.InstallSuffix,
-		UpdateGroup:     instances.UpdateGroup,
+		InstallerParams: instances.InstallerParams,
+		ProxyAddrGetter: s.publicProxyAddress,
 	}
 	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -1458,16 +1454,13 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(err, "finding algorithm for SSH key from ping response")
 	}
 	req := server.GCPRunRequest{
-		Client:          client,
-		Instances:       instances.Instances,
-		ProjectID:       instances.ProjectID,
-		Zone:            instances.Zone,
-		Params:          instances.Parameters,
-		ScriptName:      instances.ScriptName,
-		PublicProxyAddr: instances.PublicProxyAddr,
-		SSHKeyAlgo:      sshKeyAlgo,
-		InstallSuffix:   instances.InstallSuffix,
-		UpdateGroup:     instances.UpdateGroup,
+		Client:            client,
+		Instances:         instances.Instances,
+		ProjectID:         instances.ProjectID,
+		Zone:              instances.Zone,
+		InstallerParams:   instances.InstallerParams,
+		SSHKeyAlgo:        sshKeyAlgo,
+		PublicProxyGetter: s.publicProxyAddress,
 	}
 	if err := s.gcpInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
