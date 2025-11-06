@@ -949,7 +949,7 @@ func TestTrackingSession(t *testing.T) {
 			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
-				require.Equal(t, 1, count)
+				require.Equal(t, 0, count)
 			},
 		},
 		{
@@ -963,23 +963,23 @@ func TestTrackingSession(t *testing.T) {
 			},
 		},
 		{
-			name:          "proxy with proxy recording mode",
+			name:          "forwarding node with proxy recording mode",
 			component:     teleport.ComponentForwardingNode,
 			recordingMode: types.RecordAtProxy,
 			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
-				require.Equal(t, 0, count)
+				require.Equal(t, 1, count)
 			},
 		},
 		{
-			name:          "proxy with node recording mode",
+			name:          "forwarding node with node recording mode (agentless)",
 			component:     teleport.ComponentForwardingNode,
 			recordingMode: types.RecordAtNode,
 			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
-				require.Equal(t, 0, count)
+				require.Equal(t, 1, count)
 			},
 		},
 		{

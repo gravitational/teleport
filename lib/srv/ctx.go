@@ -326,12 +326,6 @@ type ServerContext struct {
 	// the client of the to-be session ID.
 	newSessionID rsession.ID
 
-	// proxyShouldCreateSessionTracker indicates that a session tracker should be created
-	// for a proxy forwarded session because the node failed to report its session ID after
-	// a session channel request.
-	// TODO(Joerger): DELETE IN v21.0.0 - All v19+ nodes report session ID after session channel
-	proxyShouldCreateSessionTracker bool
-
 	// session holds the active session (if there's an active one).
 	session *session
 
@@ -705,16 +699,6 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	return sessionParams
 }
 
-// SetProxyShouldCreateSessionTracker indicates that a session tracker should be created
-// for a proxy forwarded session because the node failed to report its session ID after
-// a session channel request.
-// TODO(Joerger): DELETE IN v21.0.0 - All v19+ nodes report session ID after session channel
-func (c *ServerContext) SetProxyShouldCreateSessionTracker() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.proxyShouldCreateSessionTracker = true
-}
-
 // SetNewSessionID sets the ID for a new session in this server context.
 func (c *ServerContext) SetNewSessionID(ctx context.Context, sid rsession.ID, ch ssh.Channel) {
 	c.mu.Lock()
@@ -958,6 +942,15 @@ func (c *ServerContext) reportStats(conn *utils.TrackingConn) {
 	// Emit TX and RX bytes to their respective Prometheus counters.
 	serverTX.Add(float64(txBytes))
 	serverRX.Add(float64(rxBytes))
+}
+
+// shouldHandleRecording returns whether this server context is responsible for
+// recording session events, including session recording, audit events, and session tracking.
+func (c *ServerContext) ShouldHandleSessionRecording() bool {
+	// The only time this server is not responsible for recording the session is when this
+	// is a Teleport Node with Proxy recording mode turned on, where the forwarding node will
+	// handle the recording.
+	return c.srv.Component() != teleport.ComponentNode || !services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode())
 }
 
 func (c *ServerContext) Close() error {

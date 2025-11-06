@@ -1264,7 +1264,6 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		// outdated or an agentless node. Continue with a random session ID and ensure
 		// we create a new session tracker.
 		scx.SetNewSessionID(ctx, session.NewID(), ch)
-		scx.SetProxyShouldCreateSessionTracker()
 	}
 
 	ch = scx.TrackActivity(ch)
