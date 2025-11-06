@@ -1,5 +1,5 @@
 ---
-title: AWS CLI/Console Access Wizard
+title: Protect AWS CLI and Console access with Teleport
 description: Access AWS CLI and Console using AWS OIDC integration.
 tags:
  - how-to
@@ -8,29 +8,32 @@ tags:
  - aws
 ---
 
-The AWS OIDC integration allows Teleport users to access AWS CLI and Console using AWS IAM Roles.
+Teleport integrates with AWS IAM Identity Provider to provide AWS CLI and Console access.
+This allows you to take advantage of Teleport role-based access controls, just-in-time Access Requests and other Teleport Zero Trust Access and Identity Governance capabilities to manage access to your AWS infrastructure.
 
-You can set up access using the "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard from the UI or you can follow this guide to set it up manually.
+<Admonition type="tip">
+If you're using AWS IAM Roles Anywhere, see the [corresponding guide](../../../enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere.mdx) that provides
+the recommended way to manage access to AWS Console and CLI-based tooling.
+
+If you're looking to provide AWS CLI access to your users with audit capture by going through Teleport proxy but you don't have a public cluster, or Roles Anywhere are not adopted at your organization, take a look at the guide for [agent-based AWS access](../../../enroll-resources/application-access/cloud-apis/aws-console.mdx) instead.
+</Admonition>
+
+You can set up access using the "AWS CLI/Console Access via AWS OIDC IdP" enrollment wizard from the Teleport Web UI or you can follow this guide to set it up manually.
 
 ## How it works
-
-### AWS OIDC Integration
 
 Setting up access to AWS CLI and Console requires an [AWS OIDC integration](./awsoidc-integration.mdx).
 The AWS OIDC integration creates and configures an AWS IAM OpenID Connect Identity Provider (OIDC IdP) and an AWS IAM role that your Teleport cluster can assume.
 
-The enrollment wizard adds permissions to the AWS OIDC integration IAM role to assume other existing IAM Roles.
+The enrollment wizard adds permissions to the AWS OIDC integration IAM role, so that users can assume other existing IAM Roles.
 
 ## Prerequisites
 
 - A running Teleport cluster
+- A Teleport user with the preset `editor` role.
 - An AWS account and permissions to create IAM Identity Providers and roles
 
-## Step 1/2. Configure RBAC
-
-Whether you use the enrollment wizard or set up access manually, you need access to the `editor` role.
-
-## Step 2/2. Configure access using the wizard
+## Step 1/6. Create an AWS OIDC Integration
 
 The enrollment wizard is available in the "Add New Resource" panel of the Teleport Web UI:
 
@@ -40,10 +43,11 @@ The Teleport Web UI walks you through the steps to set up an AWS OIDC integratio
 
 Set the <Var name="integration-iam-role"/> field to the IAM Role name created by the AWS OIDC integration.
 
-### Allow Integration to assume other IAM Roles
+## Step 2/6. Allow the Integration to assume other IAM Roles
 
-The wizard instructs you to run a script, which will configure the necessary permissions for the AWS OIDC integration IAM role to assume other IAM Roles:
+The wizard instructs you to run a script, which will configure the necessary permissions for the AWS OIDC integration IAM role to assume other IAM Roles.
 
+The script adds the following Inline Policy to the integration's IAM Role:
 ```json
 {
     "Version": "2012-10-17",
@@ -62,7 +66,7 @@ The wizard instructs you to run a script, which will configure the necessary per
 }
 ```
 
-### Requirements for other IAM Roles to be accessible from Teleport
+## Step 3/6. Add the Trust Relationship to all IAM Roles
 
 Only AWS IAM Roles with the tag `teleport.dev/integration=true` and whose Trust Relationship allows the integration role to assume them, can be used by Teleport users to access AWS Console and CLI.
 
@@ -83,7 +87,7 @@ The Trust Relationship of all the target IAM Roles must include the following st
 }
 ```
 
-### Create AWS CLI/Console App in Teleport
+## Step 4/6. Create AWS CLI/Console App in Teleport
 
 The enrollment wizard creates an AWS App resource in Teleport which allows users to access the AWS Console and CLI.
 You can do it manually by creating the resource using `tctl`:
@@ -119,7 +123,7 @@ You can do it manually by creating the resource using `tctl`:
 
 You can add other labels in `spec.app.metadata.labels` in order to further customize access controls.
 
-### Set up access
+## Step 5/6. Set up access
 
 The next step will ask you to enter any AWS Role ARNs you would like to access using Teleport.
 
@@ -157,7 +161,7 @@ As an example, if you want to provide access to the AWS Role `<Var name="aws-iam
 
 Assign this role to users and they will be able to assume the <Var name="aws-iam-target-role"/> AWS IAM Role using the CLI or the Management Console.
 
-### Access AWS Console and CLI
+## Step 6/6. Access AWS Console and CLI
 
 You can now access the AWS Console using the Teleport Web UI by clicking on the AWS App created in the previous step.
 
@@ -175,7 +179,7 @@ This can happen when the target IAM Role (the role that you chose when accessing
 - it must have the tag `teleport.dev/integration=true`
 - its Trust Relationship must allow the AWS OIDC integration IAM Role to assume it
 
-See (Requirements for other IAM Roles to be accessible from Teleport)[#requirements-for-other-iam-roles-to-be-accessible-from-teleport] for more details.
+See step 3 for more details.
 
 ## Next steps
 
@@ -193,7 +197,7 @@ If you define a Teleport role to mention the `{{external.aws_role_arns}}` variab
     - {{external.aws_role_arns}}
 ```
 
-### Create Roles to grant access to a specific profile and IAM roles
+### Create Teleport Roles to grant access to a specific profile and IAM roles
 
 You can create multiple Teleport roles to grant access to the profiles and IAM roles for each Profile.
 
