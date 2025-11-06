@@ -100,9 +100,9 @@ export function isLegacySamlIdpRbac(roleVersion: RoleVersion): boolean {
  */
 export type AccountAssignment = {
   /* the AWS Account ID */
-  account: string;
+  account?: string;
   /* the ARN that starts with "arn:aws:sso:::" */
-  permission_set: string;
+  permission_set?: string;
 };
 
 /**

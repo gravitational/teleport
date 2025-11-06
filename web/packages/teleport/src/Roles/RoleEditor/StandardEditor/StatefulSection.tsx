@@ -32,7 +32,7 @@ export function StatefulSection<Model, ValidationResult, InputFields>({
   onChange,
   validatorRef,
   validate,
-  showInputFields,
+  visibleInputFields,
   readOnly = false,
 }: {
   defaultValue: Model;
@@ -44,7 +44,7 @@ export function StatefulSection<Model, ValidationResult, InputFields>({
     previousModel: Model,
     previousResult: ValidationResult
   ): ValidationResult;
-  showInputFields?: InputFields;
+  visibleInputFields?: InputFields;
   readOnly?: boolean;
 }) {
   const [{ model, validationResult }, dispatch] = useReducer(
@@ -73,7 +73,7 @@ export function StatefulSection<Model, ValidationResult, InputFields>({
               dispatch(newModel);
               onChange(newModel);
             }}
-            showInputField={showInputFields}
+            visibleInputFields={visibleInputFields}
             readOnly={readOnly}
           />
         );

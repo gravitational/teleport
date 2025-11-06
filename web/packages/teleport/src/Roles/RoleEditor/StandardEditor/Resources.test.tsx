@@ -55,7 +55,7 @@ import {
 } from './validation';
 
 describe('ServerAccessSection', () => {
-  const setup = (showInputFields?: ServerAccessInputFields) => {
+  const setup = (visibleInputFields?: ServerAccessInputFields) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
@@ -71,7 +71,7 @@ describe('ServerAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        showInputFields={showInputFields}
+        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -138,7 +138,7 @@ describe('ServerAccessSection', () => {
 describe('KubernetesAccessSection', () => {
   const setup = (
     roleVersion: RoleVersion = defaultRoleVersion,
-    showInputFields?: KubernetesAccessInputFields
+    visibleInputFields?: KubernetesAccessInputFields
   ) => {
     const onChange = jest.fn();
     let validator: Validator;
@@ -158,7 +158,7 @@ describe('KubernetesAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        showInputFields={showInputFields}
+        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -363,7 +363,7 @@ describe('KubernetesAccessSection', () => {
 describe('AppAccessSection', () => {
   const setup = (
     model: Partial<AppAccess> = {},
-    showInputFields?: AppAccessInputFields
+    visibleInputFields?: AppAccessInputFields
   ) => {
     const onChange = jest.fn();
     let validator: Validator;
@@ -383,7 +383,7 @@ describe('AppAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        showInputFields={showInputFields}
+        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -530,7 +530,7 @@ describe('AppAccessSection', () => {
 });
 
 describe('DatabaseAccessSection', () => {
-  const setup = (showInputFields?: DatabaseAccessInputFields) => {
+  const setup = (visibleInputFields?: DatabaseAccessInputFields) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
@@ -546,7 +546,7 @@ describe('DatabaseAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        showInputFields={showInputFields}
+        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -658,7 +658,7 @@ describe('DatabaseAccessSection', () => {
 });
 
 describe('WindowsDesktopAccessSection', () => {
-  const setup = (showInputFields?: WindowsDesktopAccessInputFields) => {
+  const setup = (visibleInputFields?: WindowsDesktopAccessInputFields) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
@@ -674,7 +674,7 @@ describe('WindowsDesktopAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        showInputFields={showInputFields}
+        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -725,7 +725,7 @@ describe('WindowsDesktopAccessSection', () => {
 });
 
 describe('GitHubOrganizationAccessSection', () => {
-  const setup = (showInputFields?: GitHubOrganizationAccessInputFields) => {
+  const setup = (visibleInputFields?: GitHubOrganizationAccessInputFields) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
@@ -741,7 +741,7 @@ describe('GitHubOrganizationAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        showInputFields={showInputFields}
+        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
