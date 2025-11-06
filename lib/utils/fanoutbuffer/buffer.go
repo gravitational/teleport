@@ -396,6 +396,10 @@ func (c *Cursor[T]) closeLocked() {
 	if c.closed {
 		return
 	}
+	// reset the finalizer that was set in (*Buffer).NewCursor, if it's still
+	// set - i.e. if this call is not the result of finalizeCursor but it's an
+	// explicit Close
+	runtime.SetFinalizer(c, nil)
 
 	c.closed = true
 
