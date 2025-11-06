@@ -247,7 +247,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Logger.DebugContext(p.ctx, "Starting watch.")
+		p.Logger.Log(p.ctx, logutils.TraceLevel, "Starting watch.")
 		err := p.watch()
 
 		select {
