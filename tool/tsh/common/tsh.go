@@ -1359,7 +1359,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).", strings.Join(types.RequestableResourceKinds, ", "))).Required().StringVar(&cf.ResourceKind)
-	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployements, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
+	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployments, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
 		// TODO(@creack): DELETE IN v20.0.0. Allow legacy kinds with a warning for now.
