@@ -320,14 +320,13 @@ func formatCertError(err error) string {
 
 	var hostnameErr x509.HostnameError
 	if errors.As(err, &hostnameErr) {
-		// Filter environment variables to only include those related to proxy settings.
-		proxyEnv := make(map[string]string)
+		var proxyEnvBuilder strings.Builder
 		for _, key := range []string{
 			"https_proxy", "http_proxy", "no_proxy",
 			"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
 		} {
 			if val, ok := os.LookupEnv(key); ok {
-				proxyEnv[key] = val
+				proxyEnvBuilder.WriteString(fmt.Sprintf("    %s: %s\n", key, val))
 			}
 		}
 
@@ -342,11 +341,24 @@ func formatCertError(err error) string {
   If you know what you are doing, you can bypass this check by using the --insecure flag.
 
 DEBUG INFO:
-
-  Proxy Environment Variables: %v
-
-  Server Certificate Details: %+v
-`, hostnameErr.Host, proxyEnv, hostnameErr.Certificate)
+  Proxy Environment Variables:
+%s
+  Server Certificate Details:
+    Subject: %s
+    Issuer: %s
+    Serial Number: %s
+    Expiration: %s
+    DNS Names: %v
+    IP Addresses: %v`,
+			hostnameErr.Host,
+			proxyEnvBuilder.String(),
+			hostnameErr.Certificate.Subject,
+			hostnameErr.Certificate.Issuer,
+			hostnameErr.Certificate.SerialNumber,
+			hostnameErr.Certificate.NotAfter,
+			hostnameErr.Certificate.DNSNames,
+			hostnameErr.Certificate.IPAddresses,
+		)
 	}
 
 	var certInvalidErr x509.CertificateInvalidError
