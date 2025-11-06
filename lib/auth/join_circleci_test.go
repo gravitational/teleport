@@ -20,6 +20,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -33,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/circleci"
 )
+
+var errMockInvalidToken = errors.New("invalid token")
 
 func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 	t.Parallel()
