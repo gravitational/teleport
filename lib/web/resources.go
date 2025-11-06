@@ -61,12 +61,17 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 		return nil, trace.Wrap(err)
 	}
 
+	skipSystemRoles := true
+	if values.Get("withSystemRoles") == "yes" {
+		skipSystemRoles = false
+	}
+
 	roles, err := clt.ListRoles(context.TODO(), &proto.ListRolesRequest{
 		Limit:    limit,
 		StartKey: values.Get("startKey"),
 		Filter: &types.RoleFilter{
 			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
-			SkipSystemRoles: true,
+			SkipSystemRoles: skipSystemRoles,
 		},
 	})
 	if err != nil {

@@ -331,7 +331,7 @@ const cfg = {
       get: '/v1/webapi/roles/:name',
       delete: '/v1/webapi/roles/:name',
       update: '/v1/webapi/roles/:name',
-      list: '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
+      list: '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?&withSystemRoles=:withSystemRoles?',
       listWithoutQueryParam: '/v1/webapi/roles',
     },
 
@@ -1925,6 +1925,10 @@ export interface UrlListRolesParams {
   search?: string;
   limit?: number;
   startKey?: string;
+  /**
+   * default is without system roles.
+   */
+  withSystemRoles?: 'yes' | '';
 }
 
 export interface UrlListUsersParams {

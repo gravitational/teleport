@@ -38,7 +38,10 @@ export function useRoles(ctx: TeleportContext) {
   }
 
   function fetch(params?: UrlListRolesParams) {
-    return ctx.resourceService.fetchRoles(params);
+    return ctx.resourceService.fetchRoles({
+      ...params,
+      withSystemRoles: 'yes',
+    });
   }
 
   return {
