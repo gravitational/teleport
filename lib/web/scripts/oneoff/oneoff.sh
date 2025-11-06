@@ -15,32 +15,40 @@ supportedOSes='{{join .SupportedOSes " "}}'
 # shellcheck disable=all
 # Use $HOME or / as base dir
 tempDir=$({{.BinMktemp}} -d -p ${HOME:-}/)
-OS=$({{.BinUname}} -s | tr '[:upper:]' '[:lower:]')
+OS=$({{.BinUname}} -s | {{.Tr}} '[:upper:]' '[:lower:]')
 ARCH=$({{.BinUname}} -m)
 # shellcheck enable=all
 
 trap 'rm -rf -- "$tempDir"' EXIT
 
 teleportTarballName() {
-    if [[ "${OS}" = "darwin" && " $supportedOSes " =~ " darwin " ]]; then
-        if [ "$fips" = "true" ]; then
-            echo "FIPS version of Teleport is not compatible with MacOS. Please run this script in a Linux machine."
-            return 1
-        fi
-        echo "${teleportArtifact}-${teleportVersion}-darwin-universal-${packageSuffix}"
-        return 0
+    if [ "${OS}" = "darwin" ]; then
+        case " $supportedOSes " in
+            *" darwin "*)
+                if [ "$fips" = "true" ]; then
+                    echo "FIPS version of Teleport is not compatible with MacOS. Please run this script in a Linux machine."
+                    return 1
+                fi
+                echo "${teleportArtifact}-${teleportVersion}-darwin-universal-${packageSuffix}"
+                return 0
+                ;;
+        esac
     fi
 
-    if [[ "${OS}" = "linux" && " $supportedOSes " =~ " linux " ]]; then
-        if [ ${ARCH} = "armv7l" ]; then echo "${teleportArtifact}-${teleportVersion}-linux-arm-${packageSuffix}"
-        elif [ ${ARCH} = "aarch64" ]; then echo "${teleportArtifact}-${teleportVersion}-linux-arm64-${packageSuffix}"
-        elif [ ${ARCH} = "x86_64" ]; then echo "${teleportArtifact}-${teleportVersion}-linux-amd64-${packageSuffix}"
-        elif [ ${ARCH} = "i686" ]; then echo "${teleportArtifact}-${teleportVersion}-linux-386-${packageSuffix}"
-        else
-            echo "Invalid Linux architecture ${ARCH}." >&2
-            return 1
-        fi;
-        return 0
+    if [ "${OS}" = "linux" ]; then
+        case " $supportedOSes " in
+            *" linux "*)
+                if [ ${ARCH} = "armv7l" ]; then echo "${teleportArtifact}-${teleportVersion}-linux-arm-${packageSuffix}"
+                elif [ ${ARCH} = "aarch64" ]; then echo "${teleportArtifact}-${teleportVersion}-linux-arm64-${packageSuffix}"
+                elif [ ${ARCH} = "x86_64" ]; then echo "${teleportArtifact}-${teleportVersion}-linux-amd64-${packageSuffix}"
+                elif [ ${ARCH} = "i686" ]; then echo "${teleportArtifact}-${teleportVersion}-linux-386-${packageSuffix}"
+                else
+                    echo "Invalid Linux architecture ${ARCH}." >&2
+                    return 1
+                fi;
+                return 0
+                ;;
+        esac
     fi;
 
     echo "ERROR: This script works only for: $supportedOSes. Please go to the downloads page to find the proper installation method for your operating system:" >&2

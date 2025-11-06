@@ -82,6 +82,9 @@ type OneOffScriptParams struct {
 	// BinUname is the binary used to create a temporary directory, used to download the files.
 	// Defaults to `mktemp`.
 	BinMktemp string
+	// TR is the POSIX-compliant binary used for translating string.
+	Tr string
+
 	// CDNBaseURL is the URL used to download the teleport tarball.
 	// Defaults to `https://cdn.teleport.dev`
 	CDNBaseURL string
@@ -134,6 +137,10 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 
 	if p.binSudo == "" {
 		p.binSudo = "sudo"
+	}
+
+	if p.Tr == "" {
+		p.Tr = "tr"
 	}
 
 	if p.TeleportVersion == "" {
