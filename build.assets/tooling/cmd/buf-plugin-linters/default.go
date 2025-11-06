@@ -130,7 +130,6 @@ func newDefaultConfig() *Config {
 			"proto.AuthService.GetAlertAcks":                                            {},
 			"proto.AuthService.GetClusterAlerts":                                        {},
 			"proto.AuthService.GetEvents":                                               {},
-			"proto.AuthService.GetLocks":                                                {},
 			"proto.AuthService.GetMFADevices":                                           {},
 			"proto.AuthService.GetPluginData":                                           {},
 			"proto.AuthService.GetSessionEvents":                                        {},
