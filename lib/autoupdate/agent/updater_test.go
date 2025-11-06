@@ -859,12 +859,12 @@ func TestUpdater_Update(t *testing.T) {
 					},
 				}
 				var restarted bool
-				updater.ReexecSetup = func(_ context.Context, path string, rev Revision, _, reload, _ bool) error {
+				updater.ReexecSetup = func(_ context.Context, path string, rev Revision, _ SetupFeatures, reload bool) error {
 					restarted = reload
 					setupCalls++
 					return tt.setupErr
 				}
-				updater.SetupNamespace = func(_ context.Context, path string, rev Revision, _ bool) error {
+				updater.SetupNamespace = func(_ context.Context, path string, rev Revision, _ SetupFeatures) error {
 					revertSetupCalls++
 					return nil
 				}
@@ -1951,17 +1951,17 @@ func TestUpdater_Install(t *testing.T) {
 					},
 				}
 				var restarted bool
-				updater.ReexecSetup = func(_ context.Context, path string, rev Revision, installSELinux, reload, tbot bool) error {
+				updater.ReexecSetup = func(_ context.Context, path string, rev Revision, f SetupFeatures, reload bool) error {
 					setupCalls++
-					if installSELinux {
+					if f.SELinuxSSH {
 						selinuxInstalls++
 					}
 					restarted = reload
 					return tt.setupErr
 				}
-				updater.SetupNamespace = func(_ context.Context, path string, rev Revision, installSELinux bool) error {
+				updater.SetupNamespace = func(_ context.Context, path string, rev Revision, f SetupFeatures) error {
 					revertSetupCalls++
-					if installSELinux {
+					if f.SELinuxSSH {
 						selinuxInstalls++
 					} else {
 						selinuxRemovals++
@@ -2224,9 +2224,9 @@ func TestUpdater_Setup(t *testing.T) {
 					return tt.present, tt.presentErr
 				},
 			}
-			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, installSELinux bool) error {
+			updater.SetupNamespace = func(_ context.Context, path string, rev Revision, f SetupFeatures) error {
 				require.Equal(t, "test", path)
-				require.Equal(t, tt.installSELinux, installSELinux)
+				require.Equal(t, tt.installSELinux, f.SELinuxSSH)
 				return tt.setupErr
 			}
 			updater.WriteTeleportService = func(_ context.Context, path string, rev Revision) error {
@@ -2252,7 +2252,7 @@ func TestUpdater_Setup(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			err = updater.Setup(ctx, "test", Revision{Version: "version"}, tt.installSELinux, tt.restart, true)
+			err = updater.Setup(ctx, "test", Revision{Version: "version"}, SetupFeatures{SELinuxSSH: tt.installSELinux, Tbot: true}, tt.restart)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)

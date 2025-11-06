@@ -184,7 +184,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		WriteTeleportService: ns.WriteTeleportService,
 		WriteTbotService:     ns.WriteTbotService,
 		HasCustomTbot:        ns.HasCustomTbot,
-		ReexecSetup: func(ctx context.Context, pathDir string, rev Revision, enableSELinux, reload, tbot bool) error {
+		ReexecSetup: func(ctx context.Context, pathDir string, rev Revision, f SetupFeatures, reload bool) error {
 			name := filepath.Join(pathDir, BinaryName)
 			if cfg.SelfSetup && runtime.GOOS == constants.LinuxOS {
 				name = "/proc/self/exe"
@@ -210,8 +210,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			cmd.Env = append(slices.Clone(os.Environ()),
 				SetupVersionEnvVar+"="+rev.Version,
 				SetupFlagsEnvVar+"="+strings.Join(rev.Flags.Strings(), "\n"),
-				SetupSELinuxSSHEnvVar+"="+strconv.FormatBool(enableSELinux),
-				SetupTbotEnvVar+"="+strconv.FormatBool(tbot),
+				SetupSELinuxSSHEnvVar+"="+strconv.FormatBool(f.SELinuxSSH),
+				SetupTbotEnvVar+"="+strconv.FormatBool(f.Tbot),
 			)
 			cfg.Log.InfoContext(ctx, "Executing new teleport-update binary to update configuration.")
 			defer cfg.Log.InfoContext(ctx, "Finished executing new teleport-update binary.")
@@ -284,10 +284,10 @@ type Updater struct {
 	// ReexecSetup re-execs teleport-update with the setup command.
 	// This configures an SELinux module, configures the updater service,
 	// verifies the installation, and optionally reloads Teleport.
-	ReexecSetup func(ctx context.Context, path string, rev Revision, installSELinux, reload, tbot bool) error
+	ReexecSetup func(ctx context.Context, path string, rev Revision, f SetupFeatures, reload bool) error
 	// SetupNamespace configures the Teleport updater service for the current Namespace
 	// and configures an SELinux module.
-	SetupNamespace func(ctx context.Context, path string, rev Revision, installSELinux bool) error
+	SetupNamespace func(ctx context.Context, path string, rev Revision, f SetupFeatures) error
 	// TeardownNamespace removes all traces of the updater service in the current Namespace, including Teleport.
 	TeardownNamespace func(ctx context.Context) error
 	// LogConfigWarnings logs warnings related to the configuration Namespace.
@@ -1098,7 +1098,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 			return false
 		}
 		// Note: this version may be inaccurate if the active installation was modified
-		if err := u.SetupNamespace(ctx, cfg.Spec.Path, cfg.Status.Active, cfg.Spec.SELinuxSSH); err != nil {
+		if err := u.SetupNamespace(ctx, cfg.Spec.Path, cfg.Status.Active, SetupFeatures{
+			SELinuxSSH: cfg.Spec.SELinuxSSH,
+			Tbot:       !ignoreTbot,
+		}); err != nil {
 			u.Log.ErrorContext(ctx, "Failed to revert configuration after failed restart.", errorKey, err)
 			return false
 		}
@@ -1108,7 +1111,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	// If re-linking the same version, do not attempt to restart services.
 
 	if cfg.Status.Active == target {
-		err := u.ReexecSetup(ctx, cfg.Spec.Path, target, cfg.Spec.SELinuxSSH, false, !ignoreTbot)
+		err := u.ReexecSetup(ctx, cfg.Spec.Path, target, SetupFeatures{
+			SELinuxSSH: cfg.Spec.SELinuxSSH,
+			Tbot:       !ignoreTbot,
+		}, false)
 		if errors.Is(err, context.Canceled) {
 			return trace.Errorf("check canceled")
 		}
@@ -1129,7 +1135,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 
 	// If a new version was linked, restart services (including on revert).
 
-	err = u.ReexecSetup(ctx, cfg.Spec.Path, target, cfg.Spec.SELinuxSSH, true, !ignoreTbot)
+	err = u.ReexecSetup(ctx, cfg.Spec.Path, target, SetupFeatures{
+		SELinuxSSH: cfg.Spec.SELinuxSSH,
+		Tbot:       !ignoreTbot,
+	}, true)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("check canceled")
 	}
@@ -1157,10 +1166,18 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	return nil
 }
 
+// SetupFeatures describes options for commands that setup the host to run Teleport.
+type SetupFeatures struct {
+	// SELinuxSSH controls whether SELinux is enabled for SSH service.
+	SELinuxSSH bool
+	// Tbot controls whether tbot service is installed.
+	Tbot bool
+}
+
 // Setup writes updater configuration and verifies the Teleport installation.
 // If restart is true, Setup also restarts Teleport.
 // Setup is safe to run concurrently with other Updater commands.
-func (u *Updater) Setup(ctx context.Context, path string, rev Revision, installSELinux, restart, tbot bool) error {
+func (u *Updater) Setup(ctx context.Context, path string, rev Revision, f SetupFeatures, restart bool) error {
 
 	// Write teleport systemd service.
 	if err := u.WriteTeleportService(ctx, path, rev); err != nil {
@@ -1168,14 +1185,14 @@ func (u *Updater) Setup(ctx context.Context, path string, rev Revision, installS
 	}
 
 	// Write tbot systemd service.
-	if tbot {
+	if f.Tbot {
 		if err := u.WriteTbotService(ctx, path, rev); err != nil {
 			return trace.Wrap(err, "failed to write teleport systemd service")
 		}
 	}
 
 	// Setup teleport-updater configuration and sync systemd.
-	err := u.SetupNamespace(ctx, path, rev, installSELinux)
+	err := u.SetupNamespace(ctx, path, rev, f)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("sync canceled")
 	}
@@ -1188,9 +1205,12 @@ func (u *Updater) Setup(ctx context.Context, path string, rev Revision, installS
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tbotPresent, err := u.validateProcess(ctx, u.TbotProcess)
-	if err != nil {
-		return trace.Wrap(err)
+	var tbotPresent bool
+	if f.Tbot {
+		tbotPresent, err = u.validateProcess(ctx, u.TbotProcess)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Restart Teleport only if necessary.
@@ -1198,7 +1218,7 @@ func (u *Updater) Setup(ctx context.Context, path string, rev Revision, installS
 		return nil
 	}
 
-	if !teleportPresent || !tbotPresent {
+	if !teleportPresent || (f.Tbot && !tbotPresent) {
 		u.Log.ErrorContext(ctx, "Missing services will not be restarted.")
 	}
 
@@ -1206,7 +1226,7 @@ func (u *Updater) Setup(ctx context.Context, path string, rev Revision, installS
 	if teleportPresent {
 		pg = append(pg, u.TeleportProcess)
 	}
-	if tbotPresent && tbot {
+	if tbotPresent {
 		pg = append(pg, u.TbotProcess)
 	}
 

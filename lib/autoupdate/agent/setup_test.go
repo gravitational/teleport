@@ -159,9 +159,9 @@ func TestNewNamespace(t *testing.T) {
 
 func TestWriteConfigFiles(t *testing.T) {
 	for _, p := range []struct {
-		name       string
-		namespace  string
-		customTbot bool
+		name      string
+		namespace string
+		noTbot    bool
 	}{
 		{
 			name: "no namespace",
@@ -171,12 +171,12 @@ func TestWriteConfigFiles(t *testing.T) {
 			namespace: "test",
 		},
 		{
-			name:       "test with custom tbot",
-			customTbot: true,
+			name:   "test with custom tbot",
+			noTbot: true,
 		},
 		{
-			name:       "test namespace with custom tbot",
-			customTbot: true,
+			name:   "test namespace with custom tbot",
+			noTbot: true,
 		},
 	} {
 		t.Run(p.name, func(t *testing.T) {
@@ -190,14 +190,7 @@ func TestWriteConfigFiles(t *testing.T) {
 			ns.teleportDropInFile = rebasePath(filepath.Join(linkDir, serviceDir, filepath.Base(filepath.Dir(ns.teleportDropInFile))), ns.teleportDropInFile)
 			ns.deprecatedDropInFile = rebasePath(filepath.Join(linkDir, serviceDir, filepath.Base(filepath.Dir(ns.deprecatedDropInFile))), ns.deprecatedDropInFile)
 			ns.needrestartConfigFile = rebasePath(linkDir, filepath.Base(ns.needrestartConfigFile))
-			if p.customTbot {
-				ns.tbotServiceFile = rebasePath(filepath.Join(linkDir, serviceDir), ns.tbotServiceFile)
-				err := os.MkdirAll(filepath.Dir(ns.tbotServiceFile), os.ModePerm)
-				require.NoError(t, err)
-				err = os.WriteFile(ns.tbotServiceFile, []byte("custom"), os.ModePerm)
-				require.NoError(t, err)
-			}
-			err = ns.writeConfigFiles(ctx, linkDir, NewRevision("version", 0))
+			err = ns.writeConfigFiles(ctx, linkDir, NewRevision("version", 0), SetupFeatures{Tbot: !p.noTbot})
 			require.NoError(t, err)
 
 			for _, tt := range []struct {

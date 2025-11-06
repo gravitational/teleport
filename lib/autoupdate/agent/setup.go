@@ -263,8 +263,8 @@ func (ns *Namespace) Init() (lockFile string, err error) {
 
 // Setup installs service and timer files for the teleport-update binary.
 // Afterwords, Setup reloads systemd and enables the timer with --now.
-func (ns *Namespace) Setup(ctx context.Context, path string, rev Revision, installSELinux bool) error {
-	if installSELinux {
+func (ns *Namespace) Setup(ctx context.Context, path string, rev Revision, f SetupFeatures) error {
+	if f.SELinuxSSH {
 		if err := ns.installSELinux(ctx, rev); err != nil {
 			ns.log.WarnContext(ctx, "Failed to install SELinux module.", errorKey, err)
 		}
@@ -279,7 +279,7 @@ func (ns *Namespace) Setup(ctx context.Context, path string, rev Revision, insta
 		return nil
 	}
 
-	err := ns.writeConfigFiles(ctx, path, rev)
+	err := ns.writeConfigFiles(ctx, path, rev, f)
 	if err != nil {
 		return trace.Wrap(err, "failed to write teleport-update systemd config files")
 	}
@@ -568,7 +568,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revision) error {
+func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revision, f SetupFeatures) error {
 	teleportService := filepath.Base(ns.teleportServiceFile)
 	tbotService := filepath.Base(ns.tbotServiceFile)
 	params := confParams{
@@ -600,9 +600,7 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revi
 	// Needrestart config is non-critical for updater functionality.
 
 	nrServices := []string{teleportService}
-	if ok, err := ns.HasCustomTbot(ctx); err != nil {
-		ns.log.ErrorContext(ctx, "Unable to determine if tbot is managed by the updater, skipping needrestart configuration.", errorKey, err)
-	} else if !ok {
+	if f.Tbot {
 		nrServices = append(nrServices, tbotService)
 	}
 

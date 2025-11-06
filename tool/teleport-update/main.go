@@ -492,7 +492,10 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	}
 	flags := common.NewInstallFlagsFromStrings(ccfg.ForceFlags)
 	rev := autoupdate.NewRevision(ccfg.ForceVersion, flags)
-	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload, ccfg.SetupTbot)
+	err = updater.Setup(ctx, ccfg.Path, rev, autoupdate.SetupFeatures{
+		SELinuxSSH: ccfg.SELinuxSSH,
+		Tbot:       ccfg.SetupTbot,
+	}, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)
 	}
