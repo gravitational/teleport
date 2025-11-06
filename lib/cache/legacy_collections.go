@@ -2212,7 +2212,17 @@ var _ executor[types.NetworkRestrictions, networkRestrictionGetter] = networkRes
 type lockExecutor struct{}
 
 func (lockExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Lock, error) {
-	return cache.Access.GetLocks(ctx, false)
+	return clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			var noFilter *types.LockFilter
+			return cache.accessCache.ListLocks(ctx, limit, start, noFilter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			const inForceOnlyFalse = false
+			return cache.accessCache.GetLocks(ctx, inForceOnlyFalse)
+		},
+	)
 }
 
 func (lockExecutor) upsert(ctx context.Context, cache *Cache, resource types.Lock) error {

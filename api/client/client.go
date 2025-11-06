@@ -3513,6 +3513,29 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 		locks = append(locks, lock)
 	}
 	return locks, nil
+
+}
+
+// ListLocks returns a page of locks matching a filter
+func (c *Client) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	resp, err := c.grpc.ListLocks(
+		ctx,
+		&proto.ListLocksRequest{
+			PageSize:  int32(limit),
+			PageToken: startKey,
+			Filter:    filter,
+		},
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	locks := make([]types.Lock, 0, len(resp.Locks))
+	for _, lock := range resp.Locks {
+		locks = append(locks, lock)
+	}
+
+	return locks, resp.NextPageToken, nil
 }
 
 // UpsertLock upserts a lock.
