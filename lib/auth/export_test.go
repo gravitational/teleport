@@ -233,14 +233,6 @@ func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.L
 	a.tpmValidator = validator
 }
 
-func (a *Server) SetGHAIDTokenValidator(validator ghaIDTokenValidator) {
-	a.ghaIDTokenValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenJWKSValidator(validator ghaIDTokenJWKSValidator) {
-	a.ghaIDTokenJWKSValidator = validator
-}
-
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
 	a.createBoundKeypairValidator = validator
 }
