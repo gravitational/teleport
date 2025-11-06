@@ -22,6 +22,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
+
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -77,19 +80,26 @@ func TestConvertError(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
+			name: "PgError",
+			input: trace.Wrap(&pgconn.PgError{
+				Code:    pgerrcode.CannotConnectNow,
+				Message: "CannotConnectNow",
+			}),
+			checkError:         require.Error,
+			checkErrorContains: "CannotConnectNow",
+		},
+		{
 			name:               "wrapped",
 			input:              &someErr{inner: trace.Wrap(fmt.Errorf("dummy error"))},
 			checkError:         require.Error,
 			checkErrorContains: "dummy error",
 		},
 		{
-			name: "wrapped nil",
-			// Error in the middle layer has Error text but most inner layer is
-			// nil. In this case, we will return the non-nil error in the middle
-			// layer.
-			input:              &someErr{inner: &someErr{inner: nil}},
+			name:  "wrapped nil",
+			input: &someErr{inner: &someErr{inner: nil}},
+			// We should NOT return `nil` by unwrapping.
 			checkError:         require.Error,
-			checkErrorContains: "inner: nil",
+			checkErrorContains: "inner: inner: nil",
 		},
 	}
 	for _, tt := range tests {
