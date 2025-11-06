@@ -1540,12 +1540,13 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 
 	// allocate a terminal or take the one previously allocated via a
 	// separate "allocate TTY" SSH request
-	var err error
 	if s.term = scx.GetTerm(); s.term != nil {
 		scx.SetTerm(nil)
-	} else if s.term, err = NewTerminal(scx); err != nil {
+	} else if term, err := NewTerminal(scx); err != nil {
 		s.logger.InfoContext(ctx, "Unable to allocate new terminal.", "error", err)
 		return trace.Wrap(err)
+	} else {
+		s.term = term
 	}
 
 	if err := s.term.Run(ctx); err != nil {

@@ -95,6 +95,9 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
+		// If proxy forwarding is being used (proxy recording, agentless), then remote session must be set.
+		// Otherwise, this field is ignored.
+		RemoteSession: mockSSHSession(t),
 	}
 
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
