@@ -172,8 +172,12 @@ curl \
 
 ### `tsh app login` for AWS Access using AWS IAM Roles Anywhere integration credentials.
 
-When using the AWS IAM Roles Anywhere integration (see [RFD 204](./0204-aws-iam-roles-anywhere.md))
-users expect the access to be long lived and compatible with other AWS-SDK based tools.
+In this case, the AWS credentials must be provided to the AWS client through conventional means (e.g.  `AWS_*` env vars or ~/.aws/config with credentials).
+In order to keep these credentials single-use with per-session MFA, the user is required to immediately export the credentials as `AWS_*` env vars in their current shell session.
+
+Note: unlike the local proxy flows where the cert is kept in-memory, we've determined that sharing the single-use AWS credentials through stdout / env vars cannot be avoided.
+However, since the credentials are still kept off disk where they could be more easily exfiltrated, these AWS creds will be still be permitted to exceed the common 1 minute per-session MFA TTL.
+The absolute minimum TTL permitted by AWS is 15 minutes, but these creds will be allowed to reach the user's max session TTL like the in-memory local proxy certs.
 
 In this case, users must export the AWS credentials into the current shell session:
 ```console

@@ -3431,8 +3431,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				req.Expires = maxTime
 			}
 		} else if !isCertWrittenToDiskFlow(&req) {
-			// If requested certificate is for a flow that does not involve writing the credentials to disk
-			// (e.g. tsh proxy of DB, Kube and App, and AWS App Access using credential process)
+			// If requested certificate is for a flow that does not involve writing the certificate to disk
+			// (e.g. tsh proxy of DB, Kube, App, and AWS App Access using credential process)
 			// it is limited by max session ttl or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.

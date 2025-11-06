@@ -113,7 +113,7 @@ func onAppLogin(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		// When using single use certs (aka per-session MFA), tsh cannot write credentials to disk.
+		// When using single use certs (aka per-session MFA), tsh cannot write the certificate or AWS credentials to disk.
 		// Instead, ask user to use the `--env` flag which only outputs the credentials, in an eval friendly format.
 		if singleUseCerts && !cf.AppLoginAWSEnvOutput {
 			return trace.BadParameter(`AWS access is configured to use per-session MFA and credentials are only available to a single session. Pass the --env flag to the previous command and export the credentials using eval.

@@ -2717,8 +2717,8 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 	}
 }
 
-// isInMemoryCertRequest returns whether a cert request is for a flow where the credentials are kept in-memory in the client.
-// Credentials are not written to disk nor written to stdout.
+// isInMemoryCertRequest returns whether a cert request is for a flow where the certificate is kept in-memory by the client.
+// The certificate should not be exposed through disk, stdout, a socket, etc.
 // For those scenarios, we can issue certs with longer TTLs even when they are single-use certs.
 // This is the case for cert requests made by tsh db/kube/app local proxy.
 func isInMemoryCertRequest(req *authpb.UserCertsRequest) bool {
@@ -2738,7 +2738,7 @@ func isCredentialsStdoutCertRequest(req *authpb.UserCertsRequest) bool {
 	return req.Usage == authpb.UserCertsRequest_App && req.RequesterName == authpb.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS
 }
 
-// isCertWrittenToDiskFlow returns whether a cert request is for a flow where the credentials are written to disk.
+// isCertWrittenToDiskFlow returns whether a cert request is for a flow where the certificate is written to disk.
 // For those scenarios, we need to limit the cert TTL to avoid long-lived single-use certs.
 func isCertWrittenToDiskFlow(req *authpb.UserCertsRequest) bool {
 	return !isInMemoryCertRequest(req) && !isCredentialsStdoutCertRequest(req)
