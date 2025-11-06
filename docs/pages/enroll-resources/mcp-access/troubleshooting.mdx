@@ -16,7 +16,7 @@ to MCP servers with Teleport and how to work around or resolve them.
 By default, no MCP tools are allowed by your Teleport roles. You can check if
 any tool is allowed by running `tsh mcp ls`:
 
-```bash
+```code
 $ tsh mcp ls
 Name              Description                                        Type  Allowed Tools Labels
 ----------------- -------------------------------------------------- ----- ------------- ------
@@ -93,6 +93,6 @@ Application Service is running — without using Teleport. Also, make sure the
 host user set for `mcp.run_as_host_user` exists on the host  and has the
 necessary permissions to execute the configured command.
 
-## `tsh` path errors in MCP client
+## `tsh` path errors in your MCP clients
 
 (!docs/pages/includes/mcp-access/troubleshoot-tsh-binary-enoent.mdx!)
