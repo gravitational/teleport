@@ -347,7 +347,8 @@ DEBUG INFO:
     Subject: %s
     Issuer: %s
     Serial Number: %s
-    Expiration: %s
+    Not Before: %s
+    Not After: %s
     DNS Names: %v
     IP Addresses: %v`,
 			hostnameErr.Host,
@@ -355,6 +356,7 @@ DEBUG INFO:
 			hostnameErr.Certificate.Subject,
 			hostnameErr.Certificate.Issuer,
 			hostnameErr.Certificate.SerialNumber,
+			hostnameErr.Certificate.NotBefore,
 			hostnameErr.Certificate.NotAfter,
 			hostnameErr.Certificate.DNSNames,
 			hostnameErr.Certificate.IPAddresses,
