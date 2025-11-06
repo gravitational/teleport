@@ -2417,6 +2417,144 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSSHAccessRequestWait tests that "tsh ssh" automatically creates an
+// access request when required and properly waits for it to be approved.
+func TestSSHAccessRequestWait(t *testing.T) {
+	// Access requests require enterprise.
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up a requester role the user will have.
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles:         []string{"node-access"},
+				SearchAsRoles: []string{"node-access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Set up an access role the user will automatically request.
+	user, err := user.Current()
+	require.NoError(t, err)
+	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"access": {"true"},
+			},
+			Logins: []string{user.Username},
+		},
+	})
+	require.NoError(t, err)
+
+	// Use a mock auth connector so the user can log in for the test.
+	connector := mockConnector(t)
+
+	// Create the test user with the requester role.
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"requester"})
+
+	// Create the cluster with our user and roles.
+	rootAuth, rootProxy := makeTestServers(t,
+		withBootstrap(requester, nodeAccessRole, connector, alice),
+	)
+
+	authAddr, err := rootAuth.AuthAddr()
+	require.NoError(t, err)
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Make the SSH node our test user will access.
+	sshHostname := "test-ssh-server"
+	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
+
+	tmpHomePath := t.TempDir()
+
+	// Log the user in.
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+	}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth.GetAuthServer(), alice, connector.GetName()))
+	require.NoError(t, err)
+
+	// Wait for the proxy to see the node so that future SSH attempts may
+	// succeed, the most reliable way seems to make an SSH attempt and look for
+	// an AccessDenied error.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var output strings.Builder
+		err = Run(ctx, []string{
+			"ssh", "--disable-access-request",
+			fmt.Sprintf("%s@%s", user.Username, sshHostID),
+		}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+			cf.overrideStderr = &output
+			return nil
+		})
+		require.Error(t, err)
+		require.Contains(t, output.String(), "access denied")
+	}, 10*time.Second, 100*time.Millisecond, "node never showed up")
+
+	// Initialize an access request watcher.
+	requestWatcher, err := rootAuth.GetAuthServer().NewWatcher(ctx, types.Watch{
+		Name:  types.KindAccessRequest,
+		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
+	})
+	require.NoError(t, err)
+	evt := <-requestWatcher.Events()
+	require.Equal(t, types.OpInit, evt.Type)
+
+	// In the background, start the SSH attempt. It should automatically create
+	// an access request, wait for it to be approved, and then run the echo
+	// command on the server.
+	sshErr := make(chan error, 1)
+	go func() {
+		sshErr <- Run(ctx, []string{
+			"ssh",
+			"--request-reason", "reason here to bypass prompt",
+			fmt.Sprintf("%s@%s", user.Username, sshHostID),
+			"echo", "test",
+		}, setHomePath(tmpHomePath))
+	}()
+
+	// Wait to see the new access request created.
+	evt = <-requestWatcher.Events()
+	require.Equal(t, types.OpPut, evt.Type)
+	originalRequestID := evt.Resource.GetName()
+
+	// Create, then delete, an extraneous access request, to validate that tsh
+	// does not stop waiting for request approval when a different access
+	// request gets deleted.
+	otherRequestID := uuid.NewString()
+	req, err := types.NewAccessRequest(otherRequestID, "alice", "node-access")
+	require.NoError(t, err)
+	err = rootAuth.GetAuthServer().CreateAccessRequest(ctx, req)
+	require.NoError(t, err)
+	err = rootAuth.GetAuthServer().DeleteAccessRequest(ctx, otherRequestID)
+	require.NoError(t, err)
+
+	// Approve the original access request.
+	err = rootAuth.GetAuthServer().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+		RequestID: originalRequestID,
+		State:     types.RequestState_APPROVED,
+	})
+	require.NoError(t, err)
+
+	// Wait for the SSH attempt to succeed.
+	select {
+	case <-time.After(10 * time.Second):
+		t.Error("SSH attempt with automatic access request timed out")
+	case err := <-sshErr:
+		assert.NoError(t, err, "SSH attempt with automatic access request failed")
+	}
+}
+
 // TestSSHCommand tests that a user can access a single SSH node and run commands.
 func TestSSHCommands(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
