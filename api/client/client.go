@@ -286,7 +286,10 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 	// The first successful client to be sent to cltChan will be returned.
 	cltChan := make(chan *Client)
 	syncConnect := func(ctx context.Context, connect connectFunc, params connectParams) {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
 			clt, err := connect(ctx, params)
 			clientLogger().DebugContext(ctx, "syncConnect outcome",
 				"error", err,
@@ -310,10 +313,13 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 			case <-ctx.Done():
 				clt.Close()
 			}
-		})
+		}()
 	}
 
-	wg.Go(func() {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
 		// Connect with provided credentials.
 		for _, creds := range cfg.Credentials {
 			tlsConfig, err := creds.TLSConfig()
@@ -373,7 +379,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				}
 			}
 		}
-	})
+	}()
 
 	// Start goroutine to wait for wait group.
 	go func() {
