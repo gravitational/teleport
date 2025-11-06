@@ -1176,6 +1176,7 @@ func timer() func() int64 {
 // optionally querying LDAP for the user's Security Identifier.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
+	var distinguishedName string
 	if !desktop.NonAD() {
 		tc, err := s.tlsConfigForLDAP()
 		if err != nil {
@@ -1189,7 +1190,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		defer ldapClient.Close()
 
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username)
-		activeDirectorySID, err = ldapClient.GetActiveDirectorySID(ctx, username)
+		activeDirectorySID, distinguishedName, err = ldapClient.GetActiveDirectorySIDAndDN(ctx, username)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1199,6 +1200,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
 		domain:             desktop.GetDomain(),
+		distinguishedName:  distinguishedName,
 		ad:                 !desktop.NonAD(),
 		ttl:                ttl,
 		activeDirectorySID: activeDirectorySID,
@@ -1211,6 +1213,8 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 type generateCredentialsRequest struct {
 	// username is the Windows username
 	username string
+	// distinguishedName is the distinguished name of user in AD
+	distinguishedName string
 	// domain is the Windows domain
 	domain string
 	// ad is true if we're connecting to a domain-joined desktop
@@ -1237,6 +1241,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 	return winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
 		Username:           request.username,
+		DistinguishedName:  request.distinguishedName,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,
 		AD:                 request.ad,
