@@ -33,28 +33,22 @@ import { ValidationResult } from 'shared/components/Validation/rules';
 import { StandardModelDispatcher } from './useStandardModel';
 
 /** Properties of a section that uses plain callbacks to change the model. */
-export type SectionProps<Model, ValidationResult, InputFields> = {
+export type SectionProps<Model, ValidationResult, VisibleInputFields> = {
   value: Model;
   isProcessing: boolean;
   validation?: ValidationResult;
   onChange(value: Model): void;
   /**
    * If true, input fields are not editable, control buttons
-   * (e.g. trash, add/delete) will be hidden, and input validations
+   * (e.g. trash, add/delete) are hidden, and input validations
    * are disabled.
    */
   readOnly?: boolean;
   /**
-   * Allows controlling which input fields should be rendered on the UI.
-   *
-   * If "showInputField" is undefined/null, the default will be to render
-   * all input fields.
-   *
-   * If "showInputField" is defined then fields with:
-   *  - "true" value will render
-   *  - "false" (or falsey values) will NOT render
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
    */
-  showInputField?: InputFields;
+  visibleInputFields?: VisibleInputFields;
 };
 
 /** Properties of a section that uses a dispatcher to change the model. */

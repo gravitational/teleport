@@ -263,14 +263,14 @@ export function ServerAccessSection({
   validation,
   onChange,
   readOnly = false,
-  showInputField,
+  visibleInputFields,
 }: SectionProps<
   ServerAccess,
   ServerAccessValidationResult,
   ServerAccessInputFields
 >) {
   // Flags to conditionally render input fields.
-  let show: ServerAccessInputFields = showInputField ?? {
+  let show: ServerAccessInputFields = visibleInputFields ?? {
     labels: true,
     logins: true,
   };
@@ -308,9 +308,10 @@ export function ServerAccessSection({
           menuPosition="fixed"
           toolTipContent={
             <>
-              OS/Unix user accounts that users are allowed to use when
-              connecting to servers e.g. <Mark>ec2-user</Mark>,{' '}
-              <Mark>ubuntu</Mark>, <Mark>centos</Mark>
+              System usernames that can be used to log in to servers, e.g.{' '}
+              <MarkInverse>ec2-user</MarkInverse>,{' '}
+              <MarkInverse>ubuntu</MarkInverse>,{' '}
+              <MarkInverse>centos</MarkInverse>.
             </>
           }
         />
@@ -325,14 +326,14 @@ export function KubernetesAccessSection({
   validation,
   onChange,
   readOnly = false,
-  showInputField,
+  visibleInputFields,
 }: SectionProps<
   KubernetesAccess,
   KubernetesAccessValidationResult,
   KubernetesAccessInputFields
 >) {
   // Flags to conditionally render input fields.
-  let show: KubernetesAccessInputFields = showInputField ?? {
+  let show: KubernetesAccessInputFields = visibleInputFields ?? {
     labels: true,
     groups: true,
     users: true,
@@ -632,10 +633,10 @@ export function AppAccessSection({
   isProcessing,
   onChange,
   readOnly = false,
-  showInputField,
+  visibleInputFields,
 }: SectionProps<AppAccess, AppAccessValidationResult, AppAccessInputFields>) {
   // Flags to conditionally render input fields.
-  let show: AppAccessInputFields = showInputField ?? {
+  let show: AppAccessInputFields = visibleInputFields ?? {
     labels: true,
     awsRoleARNs: true,
     azureIdentities: true,
@@ -670,9 +671,9 @@ export function AppAccessSection({
             <>
               List of AWS roles allowed to assume when accessing AWS console.
               Example format:{' '}
-              <Mark>
+              <MarkInverse>
                 arn:aws:iam::&lt;AWS_ACCOUNT&gt;:role/&lt;IAM_ROLE_NAME&gt;
-              </Mark>
+              </MarkInverse>
             </>
           }
         />
@@ -693,7 +694,11 @@ export function AppAccessSection({
             <>
               List of Azure managed identities allowed to assume when accessing
               Azure CLIs and APIs. Example format:
-              /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.ManagedIdentity/userAssignedIdentities/IDENTITY_NAME
+              <MarkInverse>
+                /subscriptions/00000000-0000-0000-0000-000000000000{''}
+                /resourceGroups/RESOURCE_GROUP_NAME /providers{''}
+                /Microsoft.ManagedIdentity /userAssignedIdentities/IDENTITY_NAME
+              </MarkInverse>
             </>
           }
         />
@@ -730,11 +735,13 @@ export function AppAccessSection({
           rule={readOnly ? undefined : precomputed(validation.fields.mcpTools)}
           tooltipContent={
             <>
-              List of Modern Content Protocol (MCP) tools allowed to access.
-              Each entry can be a literal string (e.g. search-files), a glob
-              pattern (e.g. slack_*), or a regular expression that must start
-              with &apos;^&apos; and end with &apos;$&apos; (e.g.
-              ^(get|list).*$). A wildcard &apos;*&apos; allows all tools.
+              List of MCP (Modern Content Protocol) tools allowed to access.
+              Each entry can be a literal string (e.g.{' '}
+              <MarkInverse>search-files</MarkInverse>
+              ), a glob pattern (e.g. <MarkInverse>slack_*</MarkInverse>), or a
+              regular expression that must start with &apos;^&apos; and end with
+              &apos;$&apos; (e.g. <MarkInverse>^(get|list).*$</MarkInverse>).
+              Special value <MarkInverse>*</MarkInverse> allows all tools.
             </>
           }
         />
@@ -749,14 +756,14 @@ export function DatabaseAccessSection({
   validation,
   onChange,
   readOnly = false,
-  showInputField,
+  visibleInputFields,
 }: SectionProps<
   DatabaseAccess,
   DatabaseAccessValidationResult,
   DatabaseAccessInputFields
 >) {
   // Flags to conditionally render input fields.
-  let show: DatabaseAccessInputFields = showInputField ?? {
+  let show: DatabaseAccessInputFields = visibleInputFields ?? {
     labels: true,
     names: true,
     users: true,
@@ -771,7 +778,7 @@ export function DatabaseAccessSection({
           <LabelsInput
             atLeastOneRow
             legend="Labels"
-            tooltipContent="Access to databases with these labels will be affected by this role"
+            tooltipContent="Access to databases with these labels will be affected by this role."
             disableBtns={isProcessing}
             labels={value.labels}
             setLabels={labels => onChange?.({ ...value, labels })}
@@ -787,8 +794,8 @@ export function DatabaseAccessSection({
           placeholder="Type a database name and press Enter"
           toolTipContent={
             <>
-              List of database names that this role is allowed to connect to.
-              Special value <MarkInverse>*</MarkInverse> means any name.
+              Database names allowed to connect to. Special value{' '}
+              <MarkInverse>*</MarkInverse> means any name.
             </>
           }
           isDisabled={isProcessing}
@@ -811,8 +818,8 @@ export function DatabaseAccessSection({
           placeholder="Type a user name and press Enter"
           toolTipContent={
             <>
-              List of database users that this role is allowed to connect as.
-              Special value <MarkInverse>*</MarkInverse> means any user.
+              Database account names allowed to connect as. Special value{' '}
+              <MarkInverse>*</MarkInverse> means any user.
             </>
           }
           isDisabled={isProcessing}
@@ -833,7 +840,7 @@ export function DatabaseAccessSection({
           isMulti
           label="Database Roles"
           placeholder="Type a role name and press Enter"
-          toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created"
+          toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created."
           isDisabled={isProcessing}
           formatCreateLabel={label => `Database Role: ${label}`}
           components={{
@@ -875,14 +882,14 @@ export function WindowsDesktopAccessSection({
   validation,
   onChange,
   readOnly = false,
-  showInputField,
+  visibleInputFields,
 }: SectionProps<
   WindowsDesktopAccess,
   WindowsDesktopAccessValidationResult,
   WindowsDesktopAccessInputFields
 >) {
   // Flags to conditionally render input fields.
-  const show: WindowsDesktopAccessInputFields = showInputField ?? {
+  const show: WindowsDesktopAccessInputFields = visibleInputFields ?? {
     labels: true,
     logins: true,
   };
@@ -907,7 +914,7 @@ export function WindowsDesktopAccessSection({
           isMulti
           label="Logins"
           placeholder="Type a login and press Enter"
-          toolTipContent="List of desktop logins that this role is allowed to use"
+          toolTipContent="List of Windows logins allowed to use for desktop sessions."
           isDisabled={isProcessing}
           formatCreateLabel={label => `Login: ${label}`}
           components={{
@@ -931,14 +938,14 @@ export function GitHubOrganizationAccessSection({
   validation,
   onChange,
   readOnly = false,
-  showInputField,
+  visibleInputFields,
 }: SectionProps<
   GitHubOrganizationAccess,
   GitHubOrganizationAccessValidationResult,
   GitHubOrganizationAccessInputFields
 >) {
   // Flags to conditionally render input fields.
-  const show: GitHubOrganizationAccessInputFields = showInputField ?? {
+  const show: GitHubOrganizationAccessInputFields = visibleInputFields ?? {
     organizations: true,
   };
 
@@ -948,7 +955,7 @@ export function GitHubOrganizationAccessSection({
         <FieldSelectCreatable
           isMulti
           label="Organization Names"
-          toolTipContent="A list of GitHub organization names that this role is allowed to use"
+          toolTipContent="A list of GitHub organization names allowed access to."
           placeholder="Type an organization name and press Enter"
           isDisabled={isProcessing}
           formatCreateLabel={label => `Organization: ${label}`}
