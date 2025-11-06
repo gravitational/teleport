@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.2.10-dev-codingllama.1"
+const Version = "18.2.10-dev-codingllama.2"
 
 const VersionMajor = 18
 const VersionMinor = 2
 const VersionPatch = 10
-const VersionPreRelease = "dev-codingllama.1"
+const VersionPreRelease = "dev-codingllama.2"
 const VersionMetadata = ""
