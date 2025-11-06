@@ -252,6 +252,10 @@ func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
 	// check if external files were set correctly
 	require.FileExists(t, awsConfigFile)
 
+	// check if certificate file was written
+	expectedCredentialFilePath := filepath.Join(tmpHomePath, "keys", proxyAddr.Host(), user.GetName()+"-app", "server01", profileName+".crt")
+	require.FileExists(t, expectedCredentialFilePath)
+
 	awsConfigContents, err := os.ReadFile(awsConfigFile)
 	require.NoError(t, err)
 
@@ -287,6 +291,9 @@ credential_process=tsh apps config --format aws-credential-process aws-profile
 
 func TestAWSRolesAnywhereBasedAccess_usingMFA(t *testing.T) {
 	tmpHomePath := t.TempDir()
+
+	awsConfigFile := filepath.Join(tmpHomePath, "aws_config")
+	t.Setenv("AWS_CONFIG_FILE", awsConfigFile)
 
 	connector := mockConnector(t)
 
@@ -404,6 +411,13 @@ export AWS_SECRET_ACCESS_KEY=sak
 export AWS_SESSION_TOKEN=st
 # Export the above variables in your current shell to start using the AWS credentials.
 `, output.String())
+
+	// Verify that the AWS config file was not created.
+	require.NoFileExists(t, awsConfigFile)
+
+	// Verify that the certificate file was not created.
+	expectedCredentialFilePath := filepath.Join(tmpHomePath, "keys", proxyAddr.Host(), user.GetName()+"-app", "server01", profileName+".crt")
+	require.NoFileExists(t, expectedCredentialFilePath)
 }
 
 // TestAWSConsoleLogins given a AWS console application, execute a app login

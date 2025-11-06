@@ -122,7 +122,7 @@ Example:
 
 You can now run the AWS CLI or other AWS SDK based tools as usual.
 Example:
-         aws sts get-caller-identity`,
+        aws sts get-caller-identity`,
 				shsprintf.EscapeDefaultContext(app.GetName()),
 				shsprintf.EscapeDefaultContext(appInfo.RouteToApp.AWSRoleARN),
 			)
@@ -136,8 +136,11 @@ Example:
 		return trace.Wrap(err)
 	}
 
-	if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
-		return trace.Wrap(err)
+	// Single use certs must not be written to local agent/disk.
+	if !singleUseCerts {
+		if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	appInfo, err = reloadAppInfoFromKeyring(app, appInfo, key)
