@@ -34,6 +34,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
@@ -1052,10 +1053,21 @@ func (p *lockCollector) initializationChan() <-chan struct{} {
 // getResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
 func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	locks, err := p.LockGetter.GetLocks(ctx, true)
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return p.LockGetter.ListLocks(ctx, limit, start, &types.LockFilter{InForceOnly: true})
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			const inForceOnlyTrue = true
+			return p.LockGetter.GetLocks(ctx, inForceOnlyTrue)
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	newCurrent := map[string]types.Lock{}
 	for _, lock := range locks {
 		newCurrent[lock.GetName()] = lock
