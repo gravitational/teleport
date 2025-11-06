@@ -19,11 +19,14 @@
 package services
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func FuzzParseRefs(f *testing.F) {
@@ -121,5 +124,40 @@ func FuzzParserEvalBoolPredicate(f *testing.F) {
 
 			parser.Evaluate(resource)
 		})
+	})
+}
+
+func FuzzValidateApp(f *testing.F) {
+	// seeds from unit tests
+	f.Add("http://localhost:8080", "web.example.com:443")               // Valid proxy
+	f.Add("http://localhost:8080", "app.example.com:443")               // Another valid proxy
+	f.Add("http://localhost:8080", "web.example.com:443,other.com:443") // Multiple proxies
+	f.Add("http://invalid-url", "web.example.com:443")                  // Invalid app URL
+	f.Add("http://localhost:8080", "xn--mnchen-3ya.de:443")             // IDN in Punycode
+	f.Add("http://localhost:8080", "münchen.de:443")                    // IDN in Unicode
+	f.Add("http://localhost:8080", "example.com:443,example.com:80")    // Multiple ports
+	f.Add("http://localhost:8080", "")                                  // Empty proxy address
+	f.Add("http://localhost:8080", "example.com")                       // Proxy without port
+
+	f.Fuzz(func(t *testing.T, appURI string, proxyAddrs string) {
+		app, err := types.NewAppV3(types.Metadata{Name: "fuzz-app"}, types.AppSpecV3{URI: appURI})
+		if err != nil {
+			// Skip invalid app URIs
+			return
+		}
+
+		proxyAddrList := strings.Split(proxyAddrs, ",")
+		mockProxyGetter := &mockProxyGetter{addrs: proxyAddrList}
+
+		for _, addr := range proxyAddrList {
+			if _, err := utils.ParseAddr(addr); err != nil {
+				// Skip invalid proxy addresses
+				return
+			}
+		}
+
+		if err = ValidateApp(app, mockProxyGetter); err != nil {
+			require.True(t, trace.IsBadParameter(err) || trace.IsAccessDenied(err))
+		}
 	})
 }

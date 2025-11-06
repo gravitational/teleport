@@ -28,12 +28,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/net/idna"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -72,39 +72,75 @@ type Applications interface {
 
 // ValidateApp validates the Application resource.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
+	// If no public address is set, no need to validate further.
+	if app.GetPublicAddr() == "" {
+		return nil
+	}
+
+	// Ensure the public address is a valid hostname. It cannot have a port or scheme or path.
+	appPublicAddrURL, err := utils.ParseAddr(app.GetPublicAddr())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if appPublicAddrURL.Port(0) != 0 || strings.Contains(app.GetPublicAddr(), "://") || appPublicAddrURL.Path != "" {
+		return trace.BadParameter(
+			"Application %q has an invalid public address %q. The public address must be a valid hostname e.g., 'app.example.com'. "+
+				"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.",
+			app.GetName(), app.GetPublicAddr())
+	}
+
 	// Prevent routing conflicts and session hijacking by ensuring the application's public address does not match the
 	// public address of any proxy. If an application shares a public address with a proxy, requests intended for the
 	// proxy could be misrouted to the application, compromising security.
-	if app.GetPublicAddr() != "" {
-		proxyServers, err := proxyGetter.GetProxies()
+	proxyServers, err := proxyGetter.GetProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, proxyServer := range proxyServers {
+		proxyAddrs, err := utils.ParseAddrs(proxyServer.GetPublicAddrs())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		for _, proxyServer := range proxyServers {
-			proxyAddrs, err := utils.ParseAddrs(proxyServer.GetPublicAddrs())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if slices.ContainsFunc(
-				proxyAddrs,
-				func(proxyAddr utils.NetAddr) bool {
-					return app.GetPublicAddr() == proxyAddr.Host()
-				},
-			) {
-				return trace.BadParameter(
-					"Application %q public address %q conflicts with the Teleport Proxy public address. "+
-						"Configure the application to use a unique public address that does not match the proxy's public addresses. "+
-						"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.",
-					app.GetName(),
-					app.GetPublicAddr(),
-				)
-			}
+		matches, err := containsHostname(proxyAddrs, appPublicAddrURL.Host())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matches {
+			return trace.BadParameter(
+				"Application %q public address %q conflicts with the Teleport Proxy public address. "+
+					"Configure the application to use a unique public address that does not match the proxy's public addresses. "+
+					"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.",
+				app.GetName(),
+				app.GetPublicAddr(),
+			)
 		}
 	}
 
 	return nil
+}
+
+// containsHostname returns true if the hostname is contained within the given list, taking into account IDNA encoding
+// and case sensitivity.
+func containsHostname(addresses []utils.NetAddr, targetHost string) (bool, error) {
+	asciiTargetHost, err := idna.ToASCII(targetHost)
+	if err != nil {
+		return false, trace.BadParameter("invalid IDNA hostname %q: %v", targetHost, err)
+	}
+
+	for _, addr := range addresses {
+		asciiAddrHost, err := idna.ToASCII(addr.Host())
+		if err != nil {
+			return false, trace.BadParameter("invalid IDNA hostname %q: %v", addr.Host(), err)
+		}
+
+		if strings.EqualFold(asciiAddrHost, asciiTargetHost) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // MarshalApp marshals Application resource to JSON.
