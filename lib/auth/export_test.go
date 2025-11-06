@@ -201,10 +201,6 @@ func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenVali
 	a.azureDevopsIDTokenValidator = validator
 }
 
-func (a *Server) SetBitbucketIDTokenValidator(validator bitbucketIDTokenValidator) {
-	a.bitbucketIDTokenValidator = validator
-}
-
 func (a *Server) SetCircleCITokenValidate(validator func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)) {
 	a.circleCITokenValidate = validator
 }
