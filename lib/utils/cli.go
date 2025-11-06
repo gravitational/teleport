@@ -250,11 +250,17 @@ func formatCertError(err error) string {
 
 		return fmt.Sprintf(`The certificate does not match the address %q you are attempting to connect to.
 
-  This usually happens if you are connecting using an internal address or a DNS name that is not present in the
-  certificate's Subject Alternative Names (SANs).
+  This usually happens for one or more of the following reasons:
 
-  To fix this, make sure you use the public address as configured in Teleport, or ask your administrator to add the
-  address you are using to the proxy's certificate SANs.
+    - You are connecting using an address that is not present in the certificate's Subject Alternative Names (SANs).
+    - The Teleport Proxy is misconfigured and is presenting a certificate that does not include its public address in the SANs.
+    - There is some network intermediary (like a proxy or VPN) that is modifying your connection that may alter how it is seen by the Teleport Proxy and routed.
+
+  To fix this, ensure the following:
+
+    - You are using the public address as configured in Teleport.
+    - The Teleport Proxy is configured to present a certificate that includes its public address in the SANs.
+    - Any network intermediaries are properly configured and not interfering with your connection.
 
   If you know what you are doing, you can bypass this check by using the --insecure flag.
 
