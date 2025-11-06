@@ -199,13 +199,13 @@ func tokenInitFromMessage(msg *messages.TokenInit) (*joinv1.TokenInit, error) {
 
 func clientParamsToMessage(req *joinv1.ClientParams) (messages.ClientParams, error) {
 	var msg messages.ClientParams
-	switch req.GetPayload().(type) {
+	switch payload := req.GetPayload().(type) {
 	case *joinv1.ClientParams_HostParams:
-		msg.HostParams = hostParamsToMessage(req.GetHostParams())
+		msg.HostParams = hostParamsToMessage(payload.HostParams)
 	case *joinv1.ClientParams_BotParams:
-		msg.BotParams = botParamsToMessage(req.GetBotParams())
+		msg.BotParams = botParamsToMessage(payload.BotParams)
 	default:
-		return msg, trace.BadParameter("unrecognized ClientParams payload type %T", req.Payload)
+		return msg, trace.BadParameter("unrecognized ClientParams payload type %T", payload)
 	}
 	return msg, nil
 }
@@ -267,6 +267,9 @@ func botParamsFromMessage(msg *messages.BotParams) *joinv1.BotParams {
 }
 
 func publicKeysToMessage(req *joinv1.PublicKeys) messages.PublicKeys {
+	if req == nil {
+		return messages.PublicKeys{}
+	}
 	return messages.PublicKeys{
 		PublicTLSKey: req.PublicTlsKey,
 		PublicSSHKey: req.PublicSshKey,
