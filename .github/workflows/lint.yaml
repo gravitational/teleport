@@ -66,8 +66,6 @@ jobs:
               - 'integrations/terraform/templates/**'
               - 'integrations/terraform/provider/**'
               # rendered doc changes
-              - 'docs/pages/admin-guides/**'
-              - 'docs/pages/enroll-resources/**'
               - 'docs/pages/reference/infrastructure-as-code/operator-resources/**'
               - 'docs/pages/reference/infrastructure-as-code/terraform-provider/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
@@ -80,6 +78,7 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
+              - 'docs/pages/reference/audit-events.mdx'
 
   lint-go:
     name: Lint (Go)
