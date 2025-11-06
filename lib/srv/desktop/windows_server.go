@@ -790,12 +790,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	log = log.With("computer_name", computerName)
 
-	kdcAddr, err := s.getKDCAddress(ctx)
-	if err != nil {
-		return trace.Wrap(err, "getting KDC address")
-	}
-
 	nla := s.enableNLA && !desktop.NonAD()
+
+	var kdcAddr string
+	if nla {
+		var err error
+		kdcAddr, err = s.getKDCAddress(ctx)
+		if err != nil {
+			return trace.Wrap(err, "getting KDC address")
+		}
+	}
 
 	log = log.With("kdc_addr", kdcAddr, "nla", nla)
 	log.InfoContext(context.Background(), "initiating RDP client")
