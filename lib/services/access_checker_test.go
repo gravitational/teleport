@@ -23,6 +23,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -195,7 +196,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -219,7 +220,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							Name:            prodKubeCluster.GetName(),
 							SubResourceName: "prod/test-2",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -247,7 +248,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			fields: fields{
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -271,7 +272,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							Name:            prodKubeCluster.GetName(),
 							SubResourceName: "prod/test-2",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -292,7 +293,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -303,7 +304,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							ClusterName: localCluster,
 							Name:        devKubeCluster.GetName(),
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -346,7 +347,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindKubernetesCluster,
 							ClusterName: localCluster,
@@ -358,7 +359,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							Name:            devKubeCluster.GetName(),
 							SubResourceName: "dev/dev",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -387,7 +388,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindKubernetesCluster,
 							ClusterName: localCluster,
@@ -399,7 +400,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 							Name:            devKubeCluster.GetName(),
 							SubResourceName: "dev/dev",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -435,14 +436,14 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: []types.ResourceID{
+					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:            "pods",
 							ClusterName:     localCluster,
 							Name:            prodKubeCluster.GetName(),
 							SubResourceName: "wrongNamespace/wrongPodName",
 						},
-					},
+					}),
 				},
 				resource: types.KubernetesResource{
 					Kind:      "pods",
@@ -599,6 +600,101 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 	// the first value for shell encountered while checking roles should be used, which means
 	// secondaryShell should never be the result here
 	require.Equal(t, expectedShell, hui.Shell)
+}
+
+func TestAccessCheckerDesktopGroups(t *testing.T) {
+	localCluster := "cluster"
+
+	allowCreateNoGroups := newRole(func(r *types.RoleV6) { r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true) })
+	denyUserCreation := newRole(func(r *types.RoleV6) { r.Spec.Options.CreateDesktopUser = types.NewBoolOption(false) })
+	allowGroupA := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"a"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupA"}
+	})
+	allowGroupB := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"b"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupB"}
+	})
+	allowABC := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"all"}}
+		r.Spec.Allow.DesktopGroups = []string{"groupA", "groupB", "groupC"}
+	})
+	denyGroupB := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"all"}}
+
+		r.Spec.Deny.WindowsDesktopLabels = types.Labels{"denygroup": []string{"b"}}
+		r.Spec.Deny.DesktopGroups = []string{"groupB"}
+	})
+	denyGroupC := newRole(func(r *types.RoleV6) {
+		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+
+		r.Spec.Deny.WindowsDesktopLabels = types.Labels{"denygroup": []string{"c"}}
+		r.Spec.Deny.DesktopGroups = []string{"groupC"}
+	})
+
+	for _, test := range []struct {
+		name          string
+		roles         RoleSet
+		desktopLabels map[string]string
+		wantGroups    []string
+		assert        require.ErrorAssertionFunc
+	}{
+		{
+			name:       "empty groups",
+			roles:      NewRoleSet(allowCreateNoGroups),
+			wantGroups: []string{},
+			assert:     require.NoError,
+		},
+		{
+			name:          "multiple groups",
+			roles:         NewRoleSet(allowABC),
+			desktopLabels: map[string]string{"group": "all"},
+			wantGroups:    []string{"groupA", "groupB", "groupC"},
+			assert:        require.NoError,
+		},
+		{
+			name:          "only considers matching labels",
+			roles:         NewRoleSet(allowGroupA, allowGroupB),
+			desktopLabels: map[string]string{"group": "a"},
+			wantGroups:    []string{"groupA"},
+			assert:        require.NoError,
+		},
+		{
+			name:          "denied groups are removed",
+			roles:         NewRoleSet(allowABC, denyGroupB, denyGroupC),
+			desktopLabels: map[string]string{"group": "all", "denygroup": "b"},
+			// B gets removed due to deny rule, but C doesn't since labels don't match
+			wantGroups: []string{"groupA", "groupC"},
+			assert:     require.NoError,
+		},
+		{
+			name:          "error if user creation is disabled",
+			roles:         NewRoleSet(allowCreateNoGroups, denyUserCreation),
+			desktopLabels: map[string]string{},
+			wantGroups:    nil,
+			assert:        require.Error,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			desktop, err := types.NewWindowsDesktopV3("test-desktop", test.desktopLabels, types.WindowsDesktopSpecV3{
+				Addr: "example.com:3389",
+			})
+			require.NoError(t, err)
+
+			ac := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, test.roles)
+			groups, err := ac.DesktopGroups(desktop)
+			require.ElementsMatch(t, test.wantGroups, groups)
+			test.assert(t, err)
+
+			if err == nil {
+				require.NotNil(t, groups, "desktop groups should never be nil, use an empty slice instead")
+			}
+		})
+	}
 }
 
 func TestSSHPortForwarding(t *testing.T) {
@@ -909,90 +1005,6 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 	}
 }
 
-func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
-	const localCluster = "cluster"
-
-	tests := []struct {
-		info         *AccessInfo
-		name         string
-		resource     types.AppServerV3
-		assertAccess require.ErrorAssertionFunc
-	}{
-		{
-			name: "matches kind and subkind",
-			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind:    types.KindApp,
-				SubKind: types.KindIdentityCenterAccount,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: require.NoError,
-		},
-		{
-			name: "unmatched subkind",
-			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind: types.KindApp,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
-				require.ErrorContains(t, err, "not in allowed resource IDs")
-			},
-		},
-		{
-			name: "unmatched kind",
-			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind:    types.KindAppSession,
-				SubKind: types.KindIdentityCenterAccount,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
-				require.ErrorContains(t, err, "not in allowed resource IDs")
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
-			tc.assertAccess(t, accessChecker.CheckAccess(
-				&tc.resource,
-				AccessState{MFARequired: MFARequiredNever},
-			))
-		})
-	}
-}
-
 func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
 	roleEmptyTools := newRole(func(rv *types.RoleV6) {
 		rv.SetName("empty")
@@ -1066,6 +1078,204 @@ func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
+	const localCluster = "cluster"
+
+	tests := []struct {
+		info         *AccessInfo
+		name         string
+		resource     types.AppServerV3
+		assertAccess require.ErrorAssertionFunc
+	}{
+		{
+			name: "matches kind and subkind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceAccessID{
+					{ID: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindApp,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: require.NoError,
+		},
+		{
+			name: "unmatched subkind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceAccessID{
+					{ID: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+		{
+			name: "unmatched kind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceAccessID{
+					{ID: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindAppSession,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
+			tc.assertAccess(t, accessChecker.CheckAccess(
+				&tc.resource,
+				AccessState{MFARequired: MFARequiredNever},
+			))
+		})
+	}
+}
+
+func TestAccessChecker_Constraints_AwsConsole(t *testing.T) {
+	const localCluster = "cluster"
+	const appName = "aws-console"
+
+	// Over-broad role that allows two ARNs
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+		rv.Spec.Allow.AWSRoleARNs = []string{
+			"arn:aws:iam::123456789012:role/Admin",
+			"arn:aws:iam::123456789012:role/ReadOnly",
+		}
+	})
+
+	app := types.AppServerV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: appName,
+		},
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: appName,
+				},
+				Spec: types.AppSpecV3{
+					URI: constants.AWSConsoleURL,
+				},
+			},
+		},
+	}
+
+	// Cert allows this specific app resource, but scoped to only ReadOnly ARN via Constraints
+	rid := types.ResourceAccessID{
+		ID: types.ResourceID{
+			ClusterName: localCluster,
+			Kind:        types.KindApp,
+			Name:        appName,
+		},
+		Constraints: &types.ResourceConstraints{
+			Domain: types.ResourceConstraintDomain_RESOURCE_CONSTRAINT_DOMAIN_AWS_CONSOLE,
+			Details: &types.ResourceConstraints_AWSConsole{
+				AWSConsole: &types.AWSConsoleResourceConstraints{
+					RoleARNs: []string{
+						"arn:aws:iam::123456789012:role/ReadOnly",
+					},
+				},
+			},
+		},
+	}
+
+	info := &AccessInfo{AllowedResourceIDs: []types.ResourceAccessID{rid}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+
+	// 1) Should fail: ARN is not present in Constraints.RoleArns
+	err := ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/Admin"),
+	)
+	require.Error(t, err)
+
+	// 2) Should pass: ARN is present in Constraints.RoleArns
+	err = ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		NewAppAWSLoginMatcher("arn:aws:iam::123456789012:role/ReadOnly"),
+	)
+	require.NoError(t, err)
+}
+
+func TestAccessChecker_Constraints_UnknownDomain(t *testing.T) {
+	const localCluster = "cluster"
+	const appName = "unknown-domain-app"
+
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+	})
+
+	app := types.AppServerV3{
+		Kind: types.KindApp,
+		Metadata: types.Metadata{
+			Name: appName,
+		},
+		Spec: types.AppServerSpecV3{
+			App: &types.AppV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: appName,
+				},
+				Spec: types.AppSpecV3{
+					URI: "https://example.com",
+				},
+			},
+		},
+	}
+
+	// Cert allows this specific app resource, but scoped to an unknown domain
+	rid := types.ResourceAccessID{
+		ID: types.ResourceID{
+			ClusterName: localCluster,
+			Kind:        types.KindApp,
+			Name:        appName,
+		},
+		Constraints: &types.ResourceConstraints{
+			Domain: types.ResourceConstraintDomain(999), // Unknown domain
+		},
+	}
+
+	info := &AccessInfo{AllowedResourceIDs: []types.ResourceAccessID{rid}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+
+	// Should error due to unknown domain
+	err := ac.CheckAccess(
+		&app,
+		AccessState{MFARequired: MFARequiredNever},
+		RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
+			return true, nil
+		}),
+	)
+	require.ErrorIs(t, err, trace.BadParameter("unsupported constraint domain %q", rid.Constraints.Domain))
 }
 
 // TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundErrorMsg when appropriate,

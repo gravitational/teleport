@@ -3417,7 +3417,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			// Calc all (granted ∪ requestable) logins
+			// Get all (granted ∪ requestable) logins
 			visibleAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -3426,13 +3426,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			var grantedAWSRoles []string
 
 			// If including requestable roles, compute w/ normal accessChecker to
-			// calc difference between requestable and already-granted logins.
+			// calc difference between sets of requestable and already-granted logins.
 			if req.IncludeRequestable {
-				grantedLogins, err := accessChecker.GetAllowedLoginsForResource(r.GetApp())
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				grantedAWSRoles, err = calculateAppLogins(accessChecker, r, grantedLogins)
+				grantedAWSRoles, err = accessChecker.GetAllowedLoginsForResource(r.GetApp())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
