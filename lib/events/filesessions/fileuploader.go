@@ -123,10 +123,15 @@ func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 
 // DownloadSummary reads a session summary from a local directory.
 func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	// Happy path: the final summary exists.
 	err := downloadFile(l.summaryPath(sessionID), writer)
 	if trace.IsNotFound(err) {
+		// Final summary doesn't exist, try the pending one.
 		err = downloadFile(l.pendingSummaryPath(sessionID), writer)
 		if trace.IsNotFound(err) {
+			// One more check for the final summary to prevent a race condition where
+			// the final one got created and the pending one got removed between the
+			// two checks above.
 			err = downloadFile(l.summaryPath(sessionID), writer)
 		}
 	}

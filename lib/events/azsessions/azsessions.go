@@ -387,10 +387,15 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 // DownloadSummary implements [events.UploadHandler] and downloads a final
 // session summary.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	// Happy path: the final summary exists.
 	err := h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
 	if trace.IsNotFound(err) {
+		// Final summary doesn't exist, try the pending one.
 		err = h.downloadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), writer)
 		if trace.IsNotFound(err) {
+			// One more check for the final summary to prevent a race condition where
+			// the final one got created and the pending one got removed between the
+			// two checks above.
 			err = h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
 		}
 	}
