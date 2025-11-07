@@ -244,7 +244,7 @@ func formatCertError(err error) string {
 			"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
 		} {
 			if val, ok := os.LookupEnv(key); ok {
-				proxyEnvBuilder.WriteString(fmt.Sprintf("    %s: %s\n", key, val))
+				fmt.Fprintf(proxyEnvBuilder, "    %s: %s\n", key, val)
 			}
 		}
 
