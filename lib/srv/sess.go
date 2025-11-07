@@ -911,7 +911,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	sess.recorder, err = newRecorder(sess, scx)
+	sess.recorder, err = newRecorder(sess, scx, sessType)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1559,7 +1559,7 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 
 // newRecorder creates a new [events.SessionPreparerRecorder] to be used as the recorder
 // of the passed in session.
-func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder, error) {
+func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.SessionPreparerRecorder, error) {
 	// determine session recording mode. in theory we could choose to only do this in the unhappy
 	// path since thats the only place we use it, but we do it here to ensure that any test coverage
 	// we have for this code will always enforce its permit requirements.
@@ -1580,7 +1580,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 	}
 
 	// Don't record non-interactive sessions when enhanced recording is disabled.
-	if ctx.GetTerm() == nil && !ctx.srv.GetBPF().Enabled() {
+	if sessType == sessionTypeNonInteractive && !ctx.srv.GetBPF().Enabled() {
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
 	}
 

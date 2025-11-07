@@ -203,29 +203,20 @@ func TestSession_newRecorder(t *testing.T) {
 	}
 
 	cases := []struct {
-		desc         string
-		sess         *session
-		sctx         *ServerContext
-		errAssertion require.ErrorAssertionFunc
-		recAssertion require.ValueAssertionFunc
+		desc           string
+		sctx           *ServerContext
+		noninteractive bool
+		errAssertion   require.ErrorAssertionFunc
+		recAssertion   require.ValueAssertionFunc
 	}{
 		{
 			desc: "discard-stream-when-proxy-recording",
-			sess: &session{
-				id:     "test",
-				logger: logger,
-				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
+
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecording,
-				term:                   &terminal{},
+				srv: &mockServer{
+					component: teleport.ComponentNode,
+				},
 				Identity: IdentityContext{
 					AccessPermit: &decisionpb.SSHAccessPermit{},
 				},
@@ -234,22 +225,27 @@ func TestSession_newRecorder(t *testing.T) {
 			recAssertion: isNotSessionWriter,
 		},
 		{
-			desc: "discard-stream--when-proxy-sync-recording",
-			sess: &session{
-				id:     "test",
-				logger: logger,
-				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
+			desc: "discard-stream-when-proxy-sync-recording",
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecordingSync,
-				term:                   &terminal{},
+				srv: &mockServer{
+					component: teleport.ComponentNode,
+				},
+				Identity: IdentityContext{
+					AccessPermit: &decisionpb.SSHAccessPermit{},
+				},
+			},
+			errAssertion: require.NoError,
+			recAssertion: isNotSessionWriter,
+		},
+		{
+			desc:           "discard-stream-when-non-interactive-non-bpf",
+			noninteractive: true,
+			sctx: &ServerContext{
+				SessionRecordingConfig: proxyRecordingSync,
+				srv: &mockServer{
+					component: teleport.ComponentNode,
+				},
 				Identity: IdentityContext{
 					AccessPermit: &decisionpb.SSHAccessPermit{},
 				},
@@ -259,24 +255,11 @@ func TestSession_newRecorder(t *testing.T) {
 		},
 		{
 			desc: "strict-err-new-audit-writer-fails",
-			sess: &session{
-				id:     "test",
-				logger: logger,
-				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: nodeRecordingSync,
 				srv: &mockServer{
 					component: teleport.ComponentNode,
 				},
-				term: &terminal{},
 				Identity: IdentityContext{
 					AccessPermit: &decisionpb.SSHAccessPermit{
 						SessionRecordingMode: string(constants.SessionRecordingModeStrict),
@@ -288,18 +271,6 @@ func TestSession_newRecorder(t *testing.T) {
 		},
 		{
 			desc: "best-effort-err-new-audit-writer-succeeds",
-			sess: &session{
-				id:     "test",
-				logger: logger,
-				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
 			sctx: &ServerContext{
 				ClusterName:            "test",
 				SessionRecordingConfig: nodeRecordingSync,
@@ -312,7 +283,6 @@ func TestSession_newRecorder(t *testing.T) {
 						SessionRecordingMode: string(constants.SessionRecordingModeBestEffort),
 					},
 				},
-				term: &terminal{},
 			},
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i any, _ ...any) {
@@ -324,29 +294,17 @@ func TestSession_newRecorder(t *testing.T) {
 		},
 		{
 			desc: "audit-writer",
-			sess: &session{
-				id:     "test",
-				logger: logger,
-				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
 			sctx: &ServerContext{
 				ClusterName:            "test",
 				SessionRecordingConfig: nodeRecordingSync,
 				srv: &mockServer{
 					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 					datadir:             t.TempDir(),
+					component:           teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
 					AccessPermit: &decisionpb.SSHAccessPermit{},
 				},
-				term: &terminal{},
 			},
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i any, i2 ...any) {
@@ -360,7 +318,24 @@ func TestSession_newRecorder(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.desc, func(t *testing.T) {
-			rec, err := newRecorder(tt.sess, tt.sctx)
+			sess := &session{
+				id:     "test",
+				logger: logger,
+				registry: &SessionRegistry{
+					logger: logtest.NewLogger(),
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: tt.sctx.srv,
+					},
+				},
+				scx: tt.sctx,
+			}
+
+			sessType := sessionTypeInteractive
+			if tt.noninteractive {
+				sessType = sessionTypeNonInteractive
+			}
+
+			rec, err := newRecorder(sess, tt.sctx, sessType)
 			tt.errAssertion(t, err)
 			tt.recAssertion(t, rec)
 		})
