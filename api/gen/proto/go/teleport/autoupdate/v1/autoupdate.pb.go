@@ -736,9 +736,9 @@ func (x *AutoUpdateVersionSpecTools) GetTargetVersion() string {
 // AutoUpdateVersionSpecAgents is the spec for the autoupdate version.
 type AutoUpdateVersionSpecAgents struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// start_version is the version to update from.
+	// start_version is the version used for newly installed agents before their update window.
 	StartVersion string `protobuf:"bytes,1,opt,name=start_version,json=startVersion,proto3" json:"start_version,omitempty"`
-	// target_version is the version to update to.
+	// target_version is the version that all agents will update to during their update window.
 	TargetVersion string `protobuf:"bytes,2,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
 	// schedule to use for the rollout
 	Schedule string `protobuf:"bytes,3,opt,name=schedule,proto3" json:"schedule,omitempty"`
@@ -898,9 +898,9 @@ func (x *AutoUpdateAgentRollout) GetStatus() *AutoUpdateAgentRolloutStatus {
 // AutoUpdateVersionSpecAgents.
 type AutoUpdateAgentRolloutSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// start_version is the version to update from.
+	// start_version is the version used for newly installed agents before their update window.
 	StartVersion string `protobuf:"bytes,1,opt,name=start_version,json=startVersion,proto3" json:"start_version,omitempty"`
-	// target_version is the version to update to.
+	// target_version is the version that all agents will update to during their update window.
 	TargetVersion string `protobuf:"bytes,2,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
 	// schedule to use for the rollout. Supported values are "regular" and "immediate".
 	// - "regular" follows the regular group schedule
