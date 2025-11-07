@@ -472,6 +472,29 @@ spec:
     # access monitoring rule is applied.
     recipients:
     - example@goteleport.com
+
+  # Optional: schedules defines a map of named schedules to apply to this rule.
+  schedules:
+    demo-schedule:
+      time:
+        # timezone specifies the schedule's time zone. This field is optional and
+        # defaults to "UTC". Accepted values follow the time zone identifiers defined in the
+        # IANA Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or
+        # "Asia/Singapore".
+        #
+        # For a list of supported values, see: https://data.iana.org/time-zones/tzdb/zone1970.tab
+        timezone: America/Los_Angeles
+
+        # shifts is a list of time blocks that make up the schedule.
+        # Each shift specifies a weekday, a start time, and an end time.
+        # Start and end times are inclusive.
+        shifts:
+        - weekday: Friday
+          start: 17:00
+          end: 23:59
+        - weekday: Saturday
+          start: 00:00
+          end: 23:59
 ```
 
 Accepted fields within the condition predicate expression:

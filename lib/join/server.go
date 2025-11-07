@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -82,20 +83,23 @@ type AuthService interface {
 
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
-	AuthService AuthService
-	Authorizer  authz.Authorizer
-	FIPS        bool
+	AuthService      AuthService
+	Authorizer       authz.Authorizer
+	FIPS             bool
+	OracleHTTPClient utils.HTTPDoClient
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
-	cfg *ServerConfig
+	cfg               *ServerConfig
+	oracleRootCACache *oraclejoin.RootCACache
 }
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
-		cfg: cfg,
+		cfg:               cfg,
+		oracleRootCACache: oraclejoin.NewRootCACache(),
 	}
 }
 
@@ -214,6 +218,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleEC2Join(stream, authCtx, clientInit, provisionToken)
 	case types.JoinMethodEnv0:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, provisionToken, s.validateEnv0Token)
+	case types.JoinMethodOracle:
+		return s.handleOracleJoin(stream, authCtx, clientInit, provisionToken)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
