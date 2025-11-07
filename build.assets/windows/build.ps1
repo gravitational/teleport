@@ -122,8 +122,10 @@ function Enable-Rust {
         $Env:CARGO_HOME = "$ToolchainDir/cargo"
         $Env:Path = "$ToolchainDir/cargo/bin;$Env:Path"
         rustup set default-host x86_64-pc-windows-gnu
-        $Env:Path
-        Get-ChildItem Env:
+        #$Env:Path
+        #Get-ChildItem Env:
+        $mingw = 'C:\Program Files\Git\mingw64\bin'
+        $env:Path = "$mingw;$($env:Path)"
     }
 }
 
