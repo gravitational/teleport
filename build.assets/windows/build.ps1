@@ -121,6 +121,8 @@ function Enable-Rust {
         $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
         $Env:CARGO_HOME = "$ToolchainDir/cargo"
         $Env:Path = "$ToolchainDir/cargo/bin;$Env:Path"
+        # Try setting an explicit override again
+        rustup override set 1.86.0-x86_64-pc-windows-gnu
     }
 }
 
