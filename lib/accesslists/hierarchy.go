@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -273,9 +274,23 @@ func IsAccessListOwner(
 	clock clockwork.Clock,
 ) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
-		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
-			User: user.GetName(),
-		})
+		locks, err := clientutils.CollectWithFallback(
+			ctx,
+			func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return lockGetter.ListLocks(ctx, limit, start, &types.LockFilter{
+					InForceOnly: true,
+					Targets:     []*types.LockTarget{{User: user.GetName()}},
+				})
+			},
+			func(ctx context.Context) ([]types.Lock, error) {
+				// TODO(okraport): DELETE IN v21
+				const inForceOnlyTrue = true
+				return lockGetter.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+					User: user.GetName(),
+				})
+			},
+		)
+
 		if err != nil {
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
@@ -334,9 +349,22 @@ func IsAccessListMember(
 	clock clockwork.Clock,
 ) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
-		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
-			User: user.GetName(),
-		})
+		locks, err := clientutils.CollectWithFallback(
+			ctx,
+			func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return lockGetter.ListLocks(ctx, limit, start, &types.LockFilter{
+					InForceOnly: true,
+					Targets:     []*types.LockTarget{{User: user.GetName()}},
+				})
+			},
+			func(ctx context.Context) ([]types.Lock, error) {
+				// TODO(okraport): DELETE IN v21
+				const inForceOnlyTrue = true
+				return lockGetter.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+					User: user.GetName(),
+				})
+			},
+		)
 		if err != nil {
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}

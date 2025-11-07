@@ -2772,7 +2772,18 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &recConfigCollection{recConfig}, nil
 	case types.KindLock:
 		if rc.ref.Name == "" {
-			locks, err := client.GetLocks(ctx, false)
+			locks, err := clientutils.CollectWithFallback(
+				ctx,
+				func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+					var noFilter *types.LockFilter
+					return client.ListLocks(ctx, limit, start, noFilter)
+				},
+				func(ctx context.Context) ([]types.Lock, error) {
+					// TODO(okraport): DELETE IN v21
+					const inForceOnlyFalse = false
+					return client.GetLocks(ctx, inForceOnlyFalse)
+				},
+			)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
