@@ -1,0 +1,79 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "pnpm": {
+    "config": [
+      ".pnpmfile.cjs"
+    ]
+  },
+  "ignoreExportsUsedInFile": true,
+  "storybook": false,
+  "vite": {
+    "config": [
+      "vite.config.{js,mjs,ts,cjs,mts,cts}"
+    ]
+  },
+  "ignore": [
+    "**/*.story.{tsx,jsx}",
+    "**/*.stories.{tsx,jsx}",
+    "**/storyHelper*.{tsx,jsx,ts,js}",
+    "**/*.story.{js,jsx}",
+    "**/**/fixtures.{ts,tsx,js,jsx}",
+    "**/**/fixture.{ts,tsx,js,jsx}",
+    "**/**/mock.{ts,tsx,js,jsx}",
+    "**/**/mocks/**",
+    "**/gen/proto/**",
+    "**/.storybook/**",
+    "**/babel.config.js",
+    "**/eslint.config.mjs",
+    "**/playwright.config.ts",
+    "e2e/**"
+  ],
+  "workspaces": {
+    "web/packages/design": {
+      "entry": ["src/**/*.{js,jsx,ts,tsx}"],
+      "ignore": ["**/*.story.{tsx,jsx,ts,js}", "**/*.test.{tsx,jsx,ts,js}"]
+    },
+    "web/packages/shared": {
+      "entry": ["**/*.{js,jsx,ts,tsx}"],
+      "ignore": ["**/*.story.{tsx,jsx,ts,js}", "**/*.test.{tsx,jsx,ts,js}"]
+    },
+    "web/packages/teleport": {
+      "entry": [
+        "src/boot.{js,ts,tsx}"
+      ],
+      "ignore": [
+        "**/*.story.tsx"
+      ]
+    },
+    "e/web/teleport": {
+      "entry": [
+        "src/boot.tsx",
+        "src/TeleportE.tsx"
+      ],
+      "ignore": [
+        "**/*.story.tsx"
+      ]
+    },
+    "web/packages/teleterm": {
+      "entry": [
+        "src/main.ts",
+        "src/tray.ts",
+        "src/ui/boot.tsx",
+        "src/preload.ts",
+        "src/mainProcess/**/*.ts",
+        "src/sharedProcess/**/*.ts",
+        "build_resources/**/*.js",
+        "electron-builder-config.js",
+        "csp.ts"
+      ],
+      "ignore": [
+        "**/*testProcess.mjs",
+        "**/*Test*.mjs",
+        "**/agentCleanupDaemon/**"
+      ]
+    },
+    "web/packages/build": {
+      "entry": ["src/**/*.{js,mjs,ts,mts}"]
+    }
+  }
+}
