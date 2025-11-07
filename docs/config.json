@@ -1257,7 +1257,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/aws-kms/",
-      "destination": "/zero-trust-access/deploy-a-cluster/aws-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/aws-kms/",
       "permanent": true
     },
     {
@@ -1292,7 +1292,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/gcp-kms/",
-      "destination": "/zero-trust-access/deploy-a-cluster/gcp-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/gcp-kms/",
       "permanent": true
     },
     {
@@ -1527,12 +1527,12 @@
     },
     {
       "source": "/admin-guides/management/guides/ec2-tags/",
-      "destination": "/zero-trust-access/management/guides/ec2-tags/",
+      "destination": "/enroll-resources/automatic-labels/ec2-tags/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/gcp-tags/",
-      "destination": "/zero-trust-access/management/guides/gcp-tags/",
+      "destination": "/enroll-resources/automatic-labels/gcp-tags/",
       "permanent": true
     },
     {
@@ -1547,7 +1547,7 @@
     },
     {
       "source": "/admin-guides/management/guides/oracle-tags/",
-      "destination": "/zero-trust-access/management/guides/oracle-tags/",
+      "destination": "/enroll-resources/automatic-labels/oracle-tags/",
       "permanent": true
     },
     {
@@ -2518,6 +2518,31 @@
     {
       "source": "/reference/infrastructure-as-code/resources/",
       "destination": "/reference/infrastructure-as-code/teleport-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/aws-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/aws-kms/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/gcp-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/gcp-kms/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/ec2-tags/",
+      "destination": "/enroll-resources/automatic-labels/ec2-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/gcp-tags/",
+      "destination": "/enroll-resources/automatic-labels/gcp-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/oracle-tags/",
+      "destination": "/enroll-resources/automatic-labels/oracle-tags/",
       "permanent": true
     }
   ]
