@@ -169,7 +169,7 @@ func TestKRBConfString(t *testing.T) {
 type mockConnector struct {
 }
 
-func (m *mockConnector) GetActiveDirectorySIDAndDN(ctx context.Context, username string) (sid string, err error) {
+func (m *mockConnector) GetActiveDirectorySID(ctx context.Context, username string) (sid string, err error) {
 	return "S-1-5-21-2191801808-3167526388-2669316733-1104", nil
 }
 
@@ -182,7 +182,7 @@ func TestGetCertificate(t *testing.T) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			require.Equal(t, "CN=alice@example.com", csr.Subject.String())
+			require.Equal(t, "CN=alice", csr.Subject.String())
 			require.Len(t, csr.Extensions, 3)
 			return generateDatabaseCert(ctx, request)
 		},

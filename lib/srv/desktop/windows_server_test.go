@@ -176,6 +176,7 @@ func TestGenerateCredentials(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
+				AD:                 true,
 				Username:           user,
 				Domain:             domain,
 				TTL:                5 * time.Minute,
