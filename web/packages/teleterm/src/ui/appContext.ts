@@ -229,6 +229,7 @@ export default class AppContext implements IAppContext {
   }
 
   private subscribeToProfileWatcherErrors(): void {
+    let notificationId: string | undefined;
     this.mainProcessClient.subscribeToProfileWatcherErrors(
       ({ error, reason }) => {
         let title: string;
@@ -243,7 +244,10 @@ export default class AppContext implements IAppContext {
             break;
         }
 
-        this.notificationsService.notifyError({
+        if (notificationId) {
+          this.notificationsService.removeNotification(notificationId);
+        }
+        notificationId = this.notificationsService.notifyError({
           title,
           description: getErrorMessage(error),
         });
