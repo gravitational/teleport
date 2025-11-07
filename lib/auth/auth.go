@@ -3779,7 +3779,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	var (
 		scopePin           *scopesv1.Pin
 		roleNames          []string
-		allowedResourceIDs []types.ResourceID
+		allowedResourceIDs []types.ResourceAccessID
 	)
 
 	if scopedChecker, ok := req.checker.Scoped(); ok {
@@ -3790,6 +3790,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		roleNames = unscopedChecker.RoleNames()
 		allowedResourceIDs = unscopedChecker.GetAllowedResourceIDs()
 	}
+
+	resourceIDs, resourceAccessIDs := types.UnwrapResourceAccessIDs(allowedResourceIDs)
 
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
@@ -3810,36 +3812,37 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			TTL:               sessionTTL,
 			CertificateFormat: certificateFormat,
 			Identity: sshca.Identity{
-				Username:                req.user.GetName(),
-				Impersonator:            req.impersonator,
-				Principals:              allowedLogins,
-				ScopePin:                scopePin,
-				Roles:                   roleNames,
-				PermitPortForwarding:    req.checker.Common().CanPortForward(),
-				PermitAgentForwarding:   req.checker.Common().CanForwardAgents(),
-				PermitX11Forwarding:     req.checker.Common().PermitX11Forwarding(),
-				RouteToCluster:          req.routeToCluster,
-				Traits:                  req.traits,
-				ActiveRequests:          req.activeRequests,
-				MFAVerified:             req.mfaVerified,
-				PreviousIdentityExpires: req.previousIdentityExpires,
-				LoginIP:                 req.loginIP,
-				PinnedIP:                pinnedIP,
-				DisallowReissue:         req.disallowReissue,
-				Renewable:               req.renewable,
-				Generation:              req.generation,
-				BotName:                 req.botName,
-				BotInstanceID:           req.botInstanceID,
-				JoinToken:               req.joinToken,
-				CertificateExtensions:   certificateExtensions,
-				AllowedResourceIDs:      allowedResourceIDs,
-				ConnectionDiagnosticID:  req.connectionDiagnosticID,
-				PrivateKeyPolicy:        attestedKeyPolicy,
-				DeviceID:                req.deviceExtensions.DeviceID,
-				DeviceAssetTag:          req.deviceExtensions.AssetTag,
-				DeviceCredentialID:      req.deviceExtensions.CredentialID,
-				GitHubUserID:            githubUserID,
-				GitHubUsername:          githubUsername,
+				Username:                 req.user.GetName(),
+				Impersonator:             req.impersonator,
+				Principals:               allowedLogins,
+				ScopePin:                 scopePin,
+				Roles:                    roleNames,
+				PermitPortForwarding:     req.checker.Common().CanPortForward(),
+				PermitAgentForwarding:    req.checker.Common().CanForwardAgents(),
+				PermitX11Forwarding:      req.checker.Common().PermitX11Forwarding(),
+				RouteToCluster:           req.routeToCluster,
+				Traits:                   req.traits,
+				ActiveRequests:           req.activeRequests,
+				MFAVerified:              req.mfaVerified,
+				PreviousIdentityExpires:  req.previousIdentityExpires,
+				LoginIP:                  req.loginIP,
+				PinnedIP:                 pinnedIP,
+				DisallowReissue:          req.disallowReissue,
+				Renewable:                req.renewable,
+				Generation:               req.generation,
+				BotName:                  req.botName,
+				BotInstanceID:            req.botInstanceID,
+				JoinToken:                req.joinToken,
+				CertificateExtensions:    certificateExtensions,
+				AllowedResourceIDs:       resourceIDs,
+				AllowedResourceAccessIDs: resourceAccessIDs,
+				ConnectionDiagnosticID:   req.connectionDiagnosticID,
+				PrivateKeyPolicy:         attestedKeyPolicy,
+				DeviceID:                 req.deviceExtensions.DeviceID,
+				DeviceAssetTag:           req.deviceExtensions.AssetTag,
+				DeviceCredentialID:       req.deviceExtensions.CredentialID,
+				GitHubUserID:             githubUserID,
+				GitHubUsername:           githubUsername,
 			},
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
@@ -3957,25 +3960,26 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			Database:    req.dbName,
 			Roles:       req.dbRoles,
 		},
-		DatabaseNames:           dbNames,
-		DatabaseUsers:           dbUsers,
-		MFAVerified:             req.mfaVerified,
-		PreviousIdentityExpires: req.previousIdentityExpires,
-		LoginIP:                 req.loginIP,
-		PinnedIP:                pinnedIP,
-		AWSRoleARNs:             roleARNs,
-		AzureIdentities:         azureIdentities,
-		GCPServiceAccounts:      gcpAccounts,
-		ActiveRequests:          req.activeRequests,
-		DisallowReissue:         req.disallowReissue,
-		Renewable:               req.renewable,
-		Generation:              req.generation,
-		BotName:                 req.botName,
-		BotInstanceID:           req.botInstanceID,
-		JoinToken:               req.joinToken,
-		AllowedResourceIDs:      allowedResourceIDs,
-		PrivateKeyPolicy:        attestedKeyPolicy,
-		ConnectionDiagnosticID:  req.connectionDiagnosticID,
+		DatabaseNames:            dbNames,
+		DatabaseUsers:            dbUsers,
+		MFAVerified:              req.mfaVerified,
+		PreviousIdentityExpires:  req.previousIdentityExpires,
+		LoginIP:                  req.loginIP,
+		PinnedIP:                 pinnedIP,
+		AWSRoleARNs:              roleARNs,
+		AzureIdentities:          azureIdentities,
+		GCPServiceAccounts:       gcpAccounts,
+		ActiveRequests:           req.activeRequests,
+		DisallowReissue:          req.disallowReissue,
+		Renewable:                req.renewable,
+		Generation:               req.generation,
+		BotName:                  req.botName,
+		BotInstanceID:            req.botInstanceID,
+		JoinToken:                req.joinToken,
+		AllowedResourceIDs:       resourceIDs,
+		AllowedResourceAccessIDs: resourceAccessIDs,
+		PrivateKeyPolicy:         attestedKeyPolicy,
+		ConnectionDiagnosticID:   req.connectionDiagnosticID,
 		DeviceExtensions: tlsca.DeviceExtensions{
 			DeviceID:     req.deviceExtensions.DeviceID,
 			AssetTag:     req.deviceExtensions.AssetTag,
@@ -5063,14 +5067,14 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		roles = apiutils.Deduplicate(roles)
 		accessRequests = apiutils.Deduplicate(append(accessRequests, req.AccessRequestID))
 
-		if len(accessRequest.GetRequestedResourceIDs()) > 0 {
+		if len(accessRequest.GetAllRequestedResourceIDs()) > 0 {
 			// There's not a consistent way to merge multiple resource access
 			// requests, a user may be able to request access to different resources
 			// with different roles which should not overlap.
 			if len(allowedResourceIDs) > 0 {
 				return nil, trace.BadParameter("user is already logged in with a resource access request, cannot assume another")
 			}
-			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
+			allowedResourceIDs = accessRequest.GetAllRequestedResourceIDs()
 		}
 
 		webSessionTTL := a.getWebSessionTTL(accessRequest)
@@ -5935,14 +5939,15 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
-		Roles:                req.GetRoles(),
-		RequestedResourceIDs: apievents.ResourceIDs(req.GetRequestedResourceIDs()),
-		ResourceNames:        resourceNames,
-		RequestID:            req.GetName(),
-		RequestState:         req.GetState().String(),
-		Reason:               req.GetRequestReason(),
-		MaxDuration:          req.GetMaxDuration(),
-		Annotations:          annotations,
+		Roles:                      req.GetRoles(),
+		RequestedResourceIDs:       apievents.ResourceIDs(req.GetRequestedResourceIDs()),
+		RequestedResourceAccessIDs: apievents.ToEventResourceAccessIDs(req.GetRequestedResourceAccessIDs()),
+		ResourceNames:              resourceNames,
+		RequestID:                  req.GetName(),
+		RequestState:               req.GetState().String(),
+		Reason:                     req.GetRequestReason(),
+		MaxDuration:                req.GetMaxDuration(),
+		Annotations:                annotations,
 	})
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
@@ -5952,8 +5957,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if len(req.GetRoles()) != 0 {
 		resources = append(resources, types.KindRole)
 	}
-	for _, resource := range req.GetRequestedResourceIDs() {
-		resources = append(resources, resource.Kind)
+	for _, resource := range req.GetAllRequestedResourceIDs() {
+		resources = append(resources, resource.GetResourceID().Kind)
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
@@ -5965,7 +5970,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	var notificationText string
 	// If this is a resource request.
 	if len(req.GetRequestedResourceIDs()) > 0 {
-		notificationText = fmt.Sprintf("%s requested access to %d resources.", req.GetUser(), len(req.GetRequestedResourceIDs()))
+		notificationText = fmt.Sprintf("%s requested access to %d resources.", req.GetUser(), len(req.GetAllRequestedResourceIDs()))
 		if len(req.GetRequestedResourceIDs()) == 1 {
 			notificationText = fmt.Sprintf("%s requested access to a resource.", req.GetUser())
 		}
@@ -6018,7 +6023,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	accessRequestsCreatedMetric.WithLabelValues(
 		strconv.Itoa(len(req.GetRoles())),
-		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
+		strconv.Itoa(len(req.GetAllRequestedResourceIDs()))).Inc()
 	return req, nil
 }
 

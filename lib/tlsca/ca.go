@@ -207,6 +207,9 @@ type Identity struct {
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with ResourceConstraints or additional information.
+	AllowedResourceAccessIDs []types.ResourceAccessID
 	// PrivateKeyPolicy is the private key policy supported by this identity.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
@@ -369,37 +372,38 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	}
 
 	return events.Identity{
-		User:                    id.Username,
-		ScopePin:                pinning.ToEventsPin(id.ScopePin),
-		Impersonator:            id.Impersonator,
-		Roles:                   id.Groups,
-		Usage:                   id.Usage,
-		Logins:                  id.Principals,
-		KubernetesGroups:        id.KubernetesGroups,
-		KubernetesUsers:         id.KubernetesUsers,
-		Expires:                 id.Expires,
-		RouteToCluster:          id.RouteToCluster,
-		KubernetesCluster:       id.KubernetesCluster,
-		Traits:                  id.Traits,
-		RouteToApp:              routeToApp,
-		TeleportCluster:         id.TeleportCluster,
-		RouteToDatabase:         routeToDatabase,
-		DatabaseNames:           id.DatabaseNames,
-		DatabaseUsers:           id.DatabaseUsers,
-		MFADeviceUUID:           id.MFAVerified,
-		PreviousIdentityExpires: id.PreviousIdentityExpires,
-		ClientIP:                id.LoginIP,
-		AWSRoleARNs:             id.AWSRoleARNs,
-		AzureIdentities:         id.AzureIdentities,
-		GCPServiceAccounts:      id.GCPServiceAccounts,
-		AccessRequests:          id.ActiveRequests,
-		DisallowReissue:         id.DisallowReissue,
-		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
-		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
-		DeviceExtensions:        devExts,
-		BotName:                 id.BotName,
-		BotInstanceID:           id.BotInstanceID,
-		JoinToken:               id.JoinToken,
+		User:                     id.Username,
+		ScopePin:                 pinning.ToEventsPin(id.ScopePin),
+		Impersonator:             id.Impersonator,
+		Roles:                    id.Groups,
+		Usage:                    id.Usage,
+		Logins:                   id.Principals,
+		KubernetesGroups:         id.KubernetesGroups,
+		KubernetesUsers:          id.KubernetesUsers,
+		Expires:                  id.Expires,
+		RouteToCluster:           id.RouteToCluster,
+		KubernetesCluster:        id.KubernetesCluster,
+		Traits:                   id.Traits,
+		RouteToApp:               routeToApp,
+		TeleportCluster:          id.TeleportCluster,
+		RouteToDatabase:          routeToDatabase,
+		DatabaseNames:            id.DatabaseNames,
+		DatabaseUsers:            id.DatabaseUsers,
+		MFADeviceUUID:            id.MFAVerified,
+		PreviousIdentityExpires:  id.PreviousIdentityExpires,
+		ClientIP:                 id.LoginIP,
+		AWSRoleARNs:              id.AWSRoleARNs,
+		AzureIdentities:          id.AzureIdentities,
+		GCPServiceAccounts:       id.GCPServiceAccounts,
+		AccessRequests:           id.ActiveRequests,
+		DisallowReissue:          id.DisallowReissue,
+		AllowedResourceIDs:       events.ResourceIDs(id.AllowedResourceIDs),
+		AllowedResourceAccessIDs: events.ToEventResourceAccessIDs(id.AllowedResourceAccessIDs),
+		PrivateKeyPolicy:         string(id.PrivateKeyPolicy),
+		DeviceExtensions:         devExts,
+		BotName:                  id.BotName,
+		BotInstanceID:            id.BotInstanceID,
+		JoinToken:                id.JoinToken,
 	}
 }
 
@@ -613,9 +617,14 @@ var (
 	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin
 	// used to tie the certificate to a specific scope and set of scoped roles.
 	ScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 24}
+
 	// AgentScopeASN1ExtensionOID is an extension OID that contains the agent scope
 	// used to tie the certificate to a spec
 	AgentScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
+
+	// AllowedResourceAccessIDsASN1ExtensionOID is an extension OID used to list the
+	// ResourceAccessIDs which the certificate should be able to grant access to
+	AllowedResourceAccessIDsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
 )
 
 // Device Trust OIDs.
@@ -971,6 +980,30 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: allowedResourcesStr,
 			},
 		)
+	} else if len(id.AllowedResourceAccessIDs) > 0 {
+		sentinelResourceIDStr, err := types.ResourceIDsToString([]types.ResourceID{types.CreateSentinelResourceID()})
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AllowedResourcesASN1ExtensionOID,
+				Value: sentinelResourceIDStr,
+			},
+		)
+	}
+
+	if len(id.AllowedResourceAccessIDs) > 0 {
+		allowedResourceAccessIDsStr, err := types.ResourceAccessIDsToString(id.AllowedResourceAccessIDs)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AllowedResourceAccessIDsASN1ExtensionOID,
+				Value: allowedResourceAccessIDsStr,
+			},
+		)
 	}
 
 	if id.PrivateKeyPolicy != "" {
@@ -1262,7 +1295,22 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				id.AllowedResourceIDs = allowedResourceIDs
+				filteredAllowedResourceIDs := make([]types.ResourceID, 0, len(allowedResourceIDs))
+				for _, rid := range allowedResourceIDs {
+					if !types.IsSentinelResourceID(rid) {
+						filteredAllowedResourceIDs = append(filteredAllowedResourceIDs, rid)
+					}
+				}
+				id.AllowedResourceIDs = filteredAllowedResourceIDs
+			}
+		case attr.Type.Equal(AllowedResourceAccessIDsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				allowedResourceAccessIDs, err := types.ResourceAccessIDsFromString(val)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				id.AllowedResourceAccessIDs = allowedResourceAccessIDs
 			}
 		case attr.Type.Equal(PrivateKeyPolicyASN1ExtensionOID):
 			val, ok := attr.Value.(string)

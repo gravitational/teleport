@@ -912,7 +912,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 					Name:        nodeName,
 				})
 			}
-			req, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, requestResourceIDs)
+			req, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 			require.NoError(t, err)
 
 			// send the request to the auth server
@@ -1113,7 +1113,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		Kind:        types.KindNode,
 		Name:        "prod",
 	}}
-	prodResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, prodResourceIDs)
+	prodResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, types.ResourceIDsToResourceAccessIDs(prodResourceIDs))
 	require.NoError(t, err)
 
 	stagingResourceIDs := []types.ResourceID{{
@@ -1121,7 +1121,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		Kind:        types.KindNode,
 		Name:        "staging",
 	}}
-	stagingResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, stagingResourceIDs)
+	stagingResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, types.ResourceIDsToResourceAccessIDs(stagingResourceIDs))
 	require.NoError(t, err)
 
 	adminRequest, err := services.NewAccessRequest(username, "admins")

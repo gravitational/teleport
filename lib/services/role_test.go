@@ -10942,7 +10942,7 @@ func TestSessionRecordingRBAC(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.context.AccessChecker = NewAccessCheckerWithRoleSet(&AccessInfo{AllowedResourceIDs: tc.accessRequestResourceIds}, "local", tc.roles)
+			tc.context.AccessChecker = NewAccessCheckerWithRoleSet(&AccessInfo{AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs(tc.accessRequestResourceIds)}, "local", tc.roles)
 			result := tc.roles.CheckAccessToRule(&tc.context, apidefaults.Namespace, types.KindSession, types.VerbRead)
 			tc.errCheck(t, result)
 		})

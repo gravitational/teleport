@@ -73,7 +73,7 @@ type ScopedAccessCheckerSubset interface {
 type UnscopedAccessCheckerSubset interface {
 	RoleNames() []string
 	CertificateFormat() string
-	GetAllowedResourceIDs() []types.ResourceID
+	GetAllowedResourceIDs() []types.ResourceAccessID
 	CertificateExtensions() []*types.CertExtension
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) (groups []string, users []string, err error)

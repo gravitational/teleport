@@ -80,7 +80,7 @@ type NewWebSessionRequest struct {
 	// AccessRequests contains the UUIDs of the access requests currently in use.
 	AccessRequests []string
 	// RequestedResourceIDs optionally lists requested resources
-	RequestedResourceIDs []types.ResourceID
+	RequestedResourceIDs []types.ResourceAccessID
 	// AttestWebSession optionally attests the web session to meet private key policy requirements.
 	// This should only be set to true for web sessions that are purely in the purview of the Proxy
 	// and Auth services. Users should never have direct access to attested web sessions.

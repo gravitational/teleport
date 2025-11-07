@@ -201,6 +201,9 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	if app.IsAWSConsole() {
+		// TODO(kiosion): This visible/granted role handling is quite bad. Ideally, modify AccessChecker's [GetAllowedLoginsForResource]
+		// to return a struct containing all visible roles, plus a subset of granted (if present), out-of-the-box, rather than having to
+		// invoke [GetAllowedLoginsForResource] twice to diff visible vs granted roles.
 		visible := c.AllowedAWSRolesLookup[app.GetName()]
 		visibleRoles := aws.FilterAWSRoles(visible, app.GetAWSAccountID())
 
