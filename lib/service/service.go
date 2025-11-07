@@ -3573,7 +3573,7 @@ func (process *TeleportProcess) initSSH() error {
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
 			ctx := payloadContext(event.Payload)
-			restartingOnGracefulShutdown = services.IsProcessReloading(ctx) || services.HasProcessForked(ctx)
+			restartingOnGracefulShutdown = services.HasProcessForked(ctx)
 			warnOnErr(ctx, s.Shutdown(ctx), logger)
 		}
 
