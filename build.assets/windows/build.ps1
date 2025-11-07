@@ -122,6 +122,8 @@ function Enable-Rust {
         $Env:CARGO_HOME = "$ToolchainDir/cargo"
         $Env:Path = "$ToolchainDir/cargo/bin;$Env:Path"
         rustup set default-host x86_64-pc-windows-gnu
+        $Env:Path
+        Get-ChildItem Env:
     }
 }
 
