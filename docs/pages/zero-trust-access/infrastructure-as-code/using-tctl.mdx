@@ -1,0 +1,130 @@
+---
+title: "Getting Started with tctl"
+description: Provides a conceptual overview of tctl, the Teleport administrative client tool.
+tags:
+- conceptual
+- platform-wide
+---
+
+This guide provides an overview of `tctl`, a command-line tool for managing
+Teleport dynamic resources.
+
+For an overview of what a dynamic resource is, see [Infrastructure as
+Code](infrastructure-as-code.mdx).
+
+For a comprehensive list of `tctl` commands, arguments, flag, and environment
+variables, see the [`tctl` CLI Reference](../../reference/cli/tctl.mdx).
+
+## When to use tctl
+
+`tctl` is a Teleport Auth Service client that manages dynamic resources. The
+following Teleport Auth Service clients can also manage dynamic resources:
+
+- [Teleport Terraform provider](./terraform-provider/terraform-provider.mdx)
+- [Teleport Kubernetes operator](./teleport-operator/teleport-operator.mdx)
+- [Custom API clients](../api/api.mdx)
+
+`tctl` is best suited for ad hoc operations such as retrieving data about your
+cluster or unanticipated configuration changes. You can also use it to manage
+resources on small-scale Teleport clusters.
+
+As the number of Teleport resources increases, we recommend that you to switch
+to IaC tools such as Terraform or the Kubernetes operator as they offer more
+robust resource lifecycle management.
+
+## tctl permissions
+
+Every Teleport Auth Service client has an identity with a Teleport username and
+a list of roles. The identity must list every Teleport resource it has
+permissions to perform operations on and every operation it has permissions to
+perform. For example, the following Teleport role has permissions to perform all
+operations on `app` resources but read-only operations on Teleport roles:
+
+```yaml
+allow:
+  rules:
+    - resources:
+        - role
+      verbs: [list, read]
+    - resources:
+        - app
+      verbs: [list, create, read, update, delete]
+```
+
+See-the [Role
+Reference](../../reference/access-controls/roles.mdx#rbac-for-dynamic-teleport-resources)
+for more information on configuring access to Teleport resources.
+
+## Audit log 
+
+When you create or modify a resource with `tctl`, Teleport records the operation
+in the audit log. You can use the Teleport username associated with each audit
+event to determine which resource modifications took place using `tctl` and
+which ones occurred with the Terraform provider, Kubernetes operator, or custom
+API clients.
+
+See the [audit event reference](../../reference/audit-events.mdx) for a full
+list of events.
+
+## Authentication
+
+Before running `tctl` commands, administrators must authenticate to a Teleport
+cluster. You can authenticate to your cluster by running the following command:
+
+```code
+$ tsh login --user=TELEPORT_USER --proxy=PROXY_SERVICE_ADDRESS
+```
+
+See the [`tsh login`](../../reference/cli/tsh.mdx#tsh-login) reference entry for
+a full list of `tsh login` flags. 
+
+### Using the local Auth Service backend
+
+Administrators of a self-hosted Teleport cluster can manage the cluster by
+authenticating to a host that runs the Teleport Auth Service. If there is a
+Teleport configuration file on the host where `tctl` is run, `tctl` attempts to
+authenticate to the Auth Service named in the configuration file using an
+identity stored in its local backend. 
+
+`tctl` authenticates using this method if a configuration file exists at
+`/etc/teleport.yaml` or the `TELEPORT_CONFIG_FILE` environment variable points
+to a configuration file in another location. If the `auth_service` is disabled
+in the configuration file, then the configuration file is ignored.
+
+<Admonition type="warning">
+
+If you set up demo Teleport clusters on your workstation, make sure you remove
+any configuration files when you are done so `tctl` works as intended. If `tctl`
+attempts to connect to a Teleport cluster on your local machine, you will see an
+error similar to the following:
+
+```
+ERROR: open /var/lib/teleport/host_uuid: permission denied
+```
+
+</Admonition>
+
+Note that when a `tctl` command is run locally on the Auth Service, the audit
+logs will show that it was performed by the Auth Service itself.
+
+To provide an accurate audit trail, it is important to limit direct SSH access
+to the Auth Service with
+[Access Controls](../../zero-trust-access/authentication/authentication.mdx) and ensure that
+admins use `tctl` remotely instead.
+
+### Using an identity file
+
+`tctl` can authenticate with a user-provided identity file. The Teleport Auth
+Service signs an identity file when a user runs `tctl auth sign` or
+`tsh login --out=<output-path>`, and the user can include the path to the
+identity file in the `--identity` flag when running `tctl` commands.
+
+When using the `--identity` flag, the user must provide the `--auth-server` flag
+with the address of an Auth Service or Proxy Service so `tctl` knows which
+cluster to authenticate to.
+
+## Resources you can view
+
+You can view the following resources with the `tctl get` command:
+
+(!docs/pages/includes/tctl-get-resources.mdx!)

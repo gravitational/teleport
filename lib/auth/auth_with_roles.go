@@ -6300,6 +6300,15 @@ func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, target
 	return a.authServer.Cache.GetLocks(ctx, inForceOnly, targets...)
 }
 
+// ListLocks returns a page of locks
+func (a *ServerWithRoles) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	if err := a.authorizeAction(types.KindLock, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.Cache.ListLocks(ctx, limit, startKey, filter)
+}
+
 // UpsertLock upserts a lock.
 func (a *ServerWithRoles) UpsertLock(ctx context.Context, lock types.Lock) error {
 	if err := a.authorizeAction(types.KindLock, types.VerbCreate, types.VerbUpdate); err != nil {

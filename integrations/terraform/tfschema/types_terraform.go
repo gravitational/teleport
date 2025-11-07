@@ -2938,11 +2938,18 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Type:        DurationType{},
 								},
 								"reason": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-										Description: "Mode can be either \"required\" or \"optional\". Empty string is treated as \"optional\". If a role has the request reason mode set to \"required\", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"mode": {
+											Description: "Mode can be either \"required\" or \"optional\". Empty string is treated as \"optional\". If a role has the request reason mode set to \"required\", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"prompt": {
+											Description: "Prompt is a custom message prompted to the user for the requested roles or resources searchable as other roles. This is only applied to the requested roles and resources specifying the prompt.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
 									Description: "Reason defines settings for the reason for the access provided by the user.",
 									Optional:    true,
 								},
@@ -3444,11 +3451,18 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Type:        DurationType{},
 								},
 								"reason": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-										Description: "Mode can be either \"required\" or \"optional\". Empty string is treated as \"optional\". If a role has the request reason mode set to \"required\", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-									}}),
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"mode": {
+											Description: "Mode can be either \"required\" or \"optional\". Empty string is treated as \"optional\". If a role has the request reason mode set to \"required\", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+										"prompt": {
+											Description: "Prompt is a custom message prompted to the user for the requested roles or resources searchable as other roles. This is only applied to the requested roles and resources specifying the prompt.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
+									}),
 									Description: "Reason defines settings for the reason for the access provided by the user.",
 									Optional:    true,
 								},
@@ -28135,6 +28149,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																			}
 																		}
 																	}
+																	{
+																		a, ok := tf.Attrs["prompt"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.Request.Reason.Prompt"})
+																		} else {
+																			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.Request.Reason.Prompt", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			} else {
+																				var t string
+																				if !v.Null && !v.Unknown {
+																					t = string(v.Value)
+																				}
+																				obj.Prompt = t
+																			}
+																		}
+																	}
 																}
 															}
 														}
@@ -30239,6 +30270,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																					t = github_com_gravitational_teleport_api_types.RequestReasonMode(v.Value)
 																				}
 																				obj.Mode = t
+																			}
+																		}
+																	}
+																	{
+																		a, ok := tf.Attrs["prompt"]
+																		if !ok {
+																			diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.Request.Reason.Prompt"})
+																		} else {
+																			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.Request.Reason.Prompt", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			} else {
+																				var t string
+																				if !v.Null && !v.Unknown {
+																					t = string(v.Value)
+																				}
+																				obj.Prompt = t
 																			}
 																		}
 																	}
@@ -34071,6 +34119,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																			tf.Attrs["mode"] = v
 																		}
 																	}
+																	{
+																		t, ok := tf.AttrTypes["prompt"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.Request.Reason.Prompt"})
+																		} else {
+																			v, ok := tf.Attrs["prompt"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																				if err != nil {
+																					diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.Request.Reason.Prompt", err})
+																				}
+																				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				if !ok {
+																					diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.Request.Reason.Prompt", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
+																				v.Null = string(obj.Prompt) == ""
+																			}
+																			v.Value = string(obj.Prompt)
+																			v.Unknown = false
+																			tf.Attrs["prompt"] = v
+																		}
+																	}
 																}
 																v.Unknown = false
 																tf.Attrs["reason"] = v
@@ -37736,6 +37806,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																			v.Value = string(obj.Mode)
 																			v.Unknown = false
 																			tf.Attrs["mode"] = v
+																		}
+																	}
+																	{
+																		t, ok := tf.AttrTypes["prompt"]
+																		if !ok {
+																			diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.Request.Reason.Prompt"})
+																		} else {
+																			v, ok := tf.Attrs["prompt"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																			if !ok {
+																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																				if err != nil {
+																					diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.Request.Reason.Prompt", err})
+																				}
+																				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				if !ok {
+																					diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.Request.Reason.Prompt", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
+																				v.Null = string(obj.Prompt) == ""
+																			}
+																			v.Value = string(obj.Prompt)
+																			v.Unknown = false
+																			tf.Attrs["prompt"] = v
 																		}
 																	}
 																}
