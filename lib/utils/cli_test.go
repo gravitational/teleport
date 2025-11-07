@@ -226,7 +226,8 @@ func TestFormatCertError(t *testing.T) {
 		cert := &x509.Certificate{Raw: []byte("dummy")}
 		err := x509.HostnameError{Certificate: cert, Host: "99999999999999999999999999999999.teleport.cluster.local"}
 		msg := formatCertError(err)
-		require.Contains(t, msg, "Cannot connect to the Auth service via the Teleport Proxy using the internal cluster domain \"99999999999999999999999999999999.teleport.cluster.local\"")
+		require.Contains(t, msg, "Cannot connect to the Auth service via the Teleport Proxy.")
+		require.Contains(t, msg, "Host: 99999999999999999999999999999999.teleport.cluster.local")
 	})
 
 	t.Run("HostnameError", func(t *testing.T) {
