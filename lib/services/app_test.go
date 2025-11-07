@@ -44,7 +44,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "no public addr, no error",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
@@ -52,7 +53,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "public addr does not conflict",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "app.example.com"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "app.example.com"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
@@ -60,16 +62,28 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "public addr matches proxy host",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
-			name: "public addr with capital letters matches proxy host",
+			name: "public addr with trailing dot matches proxy host",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "WeB.ExAmPle.CoM"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com."})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
+			name: "public addr with mixed casing matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "WeB.ExAmPle.CoM"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
@@ -78,7 +92,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "multiple proxy addrs, one matches",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"other.com:443", "web.example.com:443"},
@@ -87,7 +102,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "public addr with IDN matches proxy host",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "例.cn"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "例.cn"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"xn--fsq.cn:443"},
@@ -96,7 +112,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "public addr with IDN does not conflict with non-IDN proxy host",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "münchen.de"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "münchen.de"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"example.com:443"},
@@ -104,7 +121,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "IDN with mixed case matches proxy host",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "MünchEn.de"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "MünchEn.de"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"münchen.de:443"},
@@ -113,7 +131,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "IDN with subdomains matches proxy host",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "sub.münchen.de"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "sub.münchen.de"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"sub.xn--mnchen-3ya.de:443"},
@@ -122,7 +141,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "empty proxy addrs",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "example.com"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "example.com"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{},
@@ -130,7 +150,8 @@ func TestValidateApp(t *testing.T) {
 		{
 			name: "multiple conflicting proxies",
 			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "example.com"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "example.com"})
+				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"example.com:443", "example.com:80"},

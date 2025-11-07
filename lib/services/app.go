@@ -72,20 +72,23 @@ type Applications interface {
 
 // ValidateApp validates the Application resource.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
-	// If no public address is set, no need to validate further.
+	// If no public address is set, there's nothing to validate.
 	if app.GetPublicAddr() == "" {
 		return nil
 	}
 
-	appPublicAddr, err := utils.ParseAddr(app.GetPublicAddr())
+	// It is assumed that the app's public address has already been validated to be a valid address format during app
+	// resource validation. The remainder of this function focuses on detecting conflicts with proxy public addresses.
+	appAddr, err := utils.ParseAddr(app.GetPublicAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Normalize the application public address to ASCII using IDNA.
-	asciiAppPublicAddrHost, err := idna.ToASCII(appPublicAddr.Host())
+	// Convert the application's public address hostname to its ASCII representation for comparison. Strip any trailing
+	// dot to ensure consistent comparison.
+	asciiAppHostname, err := idna.ToASCII(strings.TrimSuffix(appAddr.Host(), "."))
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, "app %q has an invalid IDN hostname %q", app.GetName(), appAddr.Host())
 	}
 
 	proxyServers, err := proxyGetter.GetProxies()
@@ -103,14 +106,15 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		}
 
 		for _, proxyAddr := range proxyAddrs {
-			// Normalize the proxy public address to ASCII using IDNA.
-			asciiProxyAddr, err := idna.ToASCII(proxyAddr.Host())
+			// Also convert the proxy's public address hostname to its ASCII representation for comparison and strip any
+			// trailing dot.
+			asciiProxyHostname, err := idna.ToASCII(strings.TrimSuffix(proxyAddr.Host(), "."))
 			if err != nil {
-				return trace.BadParameter("invalid IDNA hostname %q: %v", proxyAddr, err)
+				return trace.WrapWithMessage(err, "proxy %q has an invalid IDN hostname %q", proxyServer.GetName(), proxyAddr)
 			}
 
 			// Compare the ASCII-normalized hostnames for equality, ignoring case.
-			if strings.EqualFold(asciiProxyAddr, asciiAppPublicAddrHost) {
+			if strings.EqualFold(asciiProxyHostname, asciiAppHostname) {
 				return trace.BadParameter(
 					"Application %q public address %q conflicts with the Teleport Proxy public address. "+
 						"Configure the application to use a unique public address that does not match the proxy's public addresses. "+

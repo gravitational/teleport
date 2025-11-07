@@ -22,11 +22,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func FuzzParseRefs(f *testing.F) {
@@ -128,36 +126,34 @@ func FuzzParserEvalBoolPredicate(f *testing.F) {
 }
 
 func FuzzValidateApp(f *testing.F) {
-	// seeds from unit tests
-	f.Add("http://localhost:8080", "web.example.com:443")               // Valid proxy
-	f.Add("http://localhost:8080", "app.example.com:443")               // Another valid proxy
-	f.Add("http://localhost:8080", "web.example.com:443,other.com:443") // Multiple proxies
-	f.Add("http://invalid-url", "web.example.com:443")                  // Invalid app URL
-	f.Add("http://localhost:8080", "xn--mnchen-3ya.de:443")             // IDN in Punycode
-	f.Add("http://localhost:8080", "münchen.de:443")                    // IDN in Unicode
-	f.Add("http://localhost:8080", "example.com:443,example.com:80")    // Multiple ports
-	f.Add("http://localhost:8080", "")                                  // Empty proxy address
-	f.Add("http://localhost:8080", "example.com")                       // Proxy without port
+	f.Add("web.example.com:443", "app.example.com")         // valid: different addresses
+	f.Add("", "app.example.com")                            // valid: empty proxy address
+	f.Add("proxy.example.com:443", "")                      // valid: empty app address
+	f.Add("example.com", "app.example.com")                 // valid: proxy without port
+	f.Add("web.example.com:443", "web.example.com")         // conflict: same as proxy
+	f.Add("web.example.com:443", "web.example.com.")        // conflict: trailing dot
+	f.Add("web.example.com:443", "WeB.ExAmPle.CoM")         // conflict: case insensitive
+	f.Add("web.example.com:443,other.com:443", "other.com") // conflict: matches second proxy
+	f.Add("xn--mnchen-3ya.de:443", "münchen.de")            // conflict: IDN
+	f.Add("münchen.de:443", "MünchEn.de")                   // conflict: IDN case insensitive
+	f.Add("example.com:443,example.com:80", "example.com")  // conflict: multiple proxy ports
 
-	f.Fuzz(func(t *testing.T, appURI string, proxyAddrs string) {
-		app, err := types.NewAppV3(types.Metadata{Name: "fuzz-app"}, types.AppSpecV3{URI: appURI})
+	f.Fuzz(func(t *testing.T, proxyPublicAddrs string, appPublicAddr string) {
+		// Create app with fuzzy public address.
+		app, err := types.NewAppV3(types.Metadata{Name: "fuzz-app"}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: appPublicAddr,
+		})
 		if err != nil {
-			// Skip invalid app URIs
-			return
+			t.Skip()
 		}
 
-		proxyAddrList := strings.Split(proxyAddrs, ",")
+		proxyAddrList := strings.Split(proxyPublicAddrs, ",")
 		mockProxyGetter := &mockProxyGetter{addrs: proxyAddrList}
 
-		for _, addr := range proxyAddrList {
-			if _, err := utils.ParseAddr(addr); err != nil {
-				// Skip invalid proxy addresses
-				return
-			}
-		}
-
-		if err = ValidateApp(app, mockProxyGetter); err != nil {
-			require.True(t, trace.IsBadParameter(err) || trace.IsAccessDenied(err))
-		}
+		// ValidateApp should never panic regardless of input.
+		require.NotPanics(t, func() {
+			_ = ValidateApp(app, mockProxyGetter)
+		})
 	})
 }
