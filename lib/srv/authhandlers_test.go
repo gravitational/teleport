@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -255,7 +256,7 @@ func TestRBAC(t *testing.T) {
 			cert, err := sshutils.ParseCertificate(c)
 			require.NoError(t, err)
 
-			// preform public key authentication
+			// perform public key authentication
 			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
 			require.NoError(t, err)
 
@@ -623,4 +624,102 @@ func TestAuthorityForCert(t *testing.T) {
 
 	_, err = ah.authorityForCert(types.UserCA, cert1)
 	require.ErrorAs(t, err, new(*trace.AccessDeniedError), "a certificate signed by a certificate should not pass validation")
+}
+
+// TestAuthAttemptAuditEvent tests that AuthAttempt audit event returns host id
+// and hostname of target node.
+func TestAuthAttemptAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	// create dummy node
+	node, err := types.NewServer("testie_node", types.KindNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testie",
+		Version:  types.V2,
+	})
+	require.NoError(t, err)
+
+	// create User CA
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      userCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     userCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	accessPoint := mockCAandAuthPrefGetter{
+		AccessPoint: server.auth,
+		authPref:    types.DefaultAuthPreference(),
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
+		},
+	}
+
+	// create mock emitter
+	emitter := &eventstest.MockRecorderEmitter{}
+
+	// create auth handler
+	config := &AuthHandlerConfig{
+		Server:       server,
+		Component:    teleport.ComponentNode,
+		Emitter:      emitter,
+		AccessPoint:  accessPoint,
+		TargetServer: node,
+	}
+	ah, err := NewAuthHandlers(config)
+	require.NoError(t, err)
+
+	// create SSH certificate
+	caSigner, err := ssh.NewSignerFromKey(userCAPriv)
+	require.NoError(t, err)
+	keygen := testauthority.New()
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      caSigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	cert, err := sshutils.ParseCertificate(c)
+	require.NoError(t, err)
+
+	// perform public key authentication, should fail because no login checker set
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+	require.Error(t, err)
+
+	// audit event (AuthAttempt) should include node's host id and hostname
+	authEvent := emitter.LastEvent().(*apievents.AuthAttempt)
+	require.Equal(t, node.GetName(), authEvent.ServerID)
+	require.Equal(t, node.GetHostname(), authEvent.ServerHostname)
 }

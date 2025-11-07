@@ -133,7 +133,7 @@ func waitForInitEvent(ctx context.Context, w types.Watcher, cfg WaitForReadyConf
 			cfg.Logger.ErrorContext(ctx, "expected init event, got something else (this is a bug)", "name", cfg.Watch.Name, "attempt", attempt, "event_type", evt.Type)
 			return trace.BadParameter("unexpected event type: %v", evt.Type)
 		}
-		cfg.Logger.InfoContext(ctx, "event stream initialized", "name", cfg.Watch.Name, "duration", cfg.Clock.Since(start).String())
+		cfg.Logger.DebugContext(ctx, "event stream initialized", "name", cfg.Watch.Name, "duration", cfg.Clock.Since(start).String())
 		return nil
 
 	case <-w.Done():

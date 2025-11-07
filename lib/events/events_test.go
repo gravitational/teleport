@@ -715,7 +715,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "failed auth attempt",
-			json: `{"ei": 0, "code":"T3007W","error":"ssh: principal \"bob\" not in the set of valid principals for given certificate: [\"root\" \"alice\"]","event":"auth","success":false,"time":"2020-04-22T20:53:50Z","uid":"ebac95ca-8673-44af-b2cf-65f517acf35a","user":"alice@example.com","cluster_name":"testcluster"}`,
+			json: `{"ei": 0, "code":"T3007W","error":"ssh: principal \"bob\" not in the set of valid principals for given certificate: [\"root\" \"alice\"]","event":"auth","server_id":"","success":false,"time":"2020-04-22T20:53:50Z","uid":"ebac95ca-8673-44af-b2cf-65f517acf35a","user":"alice@example.com","cluster_name":"testcluster"}`,
 			event: apievents.AuthAttempt{
 				Metadata: apievents.Metadata{
 					ID:          "ebac95ca-8673-44af-b2cf-65f517acf35a",
