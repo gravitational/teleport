@@ -145,6 +145,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 
+	// If there are no parts to complete, move to cleanup
+	if len(parts) == 0 {
+		return h.cleanupUpload(ctx, upload)
+	}
+
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
 		return parts[i].Number < parts[j].Number
@@ -235,6 +240,22 @@ Loop:
 	if err != nil {
 		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
 	}
+	return nil
+}
+
+func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload) error {
+	uploadKey := h.path(upload.SessionID)
+	log := h.logger.With(
+		"upload", upload.ID,
+		"session", upload.SessionID,
+		"key", uploadKey,
+	)
+	log.DebugContext(ctx, "Aborting upload")
+	if err := os.RemoveAll(h.uploadRootPath(upload)); err != nil {
+		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
+	}
+
+	log.InfoContext(ctx, "Aborted upload")
 	return nil
 }
 
