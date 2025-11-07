@@ -225,15 +225,45 @@ type Log struct {
 	svc *dynamodb.Client
 }
 
+// EventKey contains the subset of event fields used as a dynamo primary key,
+// or used by a secondary index.
+// This is used in checkpointKey to track the last processed event of a query
+// and resume the query from there.
+type EventKey struct {
+	// SessionID and EventIndex must always be set.
+	// If the event is not linked to a session, we generate a random UUID.
+	SessionID string
+	// EventIndex represent the relative order of an event in the sesssion.
+	// Its value can be 0 if the event does not belong to a session or if it is
+	// the first event of a session.
+	// Next session events increase this counter. In case of conflict
+	// (two events with the same SessionID and EventIndex), EventIndex is set to
+	// the Unix nanosecond timestamp. This seems to break the "EventIndex
+	// monotonically increases" property and might cause events to be
+	// backfilled/skipped by ongoing queries.
+	// This behavior was introduced in https://github.com/gravitational/teleport/pull/40854.
+	// Since then, EventIndex is a large int64 and might not survive a round-trip
+	// through float64. When its JSON representation is unmarshalled into
+	// `map[string]any`, the event will lose EventIndex precision this will
+	// cause data-loss. For critical usage, like DynamoDB ExclusiveStartKey,
+	// one must always marshall/unmarshall using the typed event struct.
+	// event.FieldsMap["ei"] suffers from this data loss, so its value and
+	// EventIndex might be different.
+	EventIndex int64
+	// CreatedAt is used to know if the event is outside of the requested time
+	// range (so we can discard the cursor completely in this case).
+	// This is also used as a secondary DynamodDB index.
+	CreatedAt int64 `json:",omitempty" dynamodbav:",omitempty"`
+	// CreatedAtDate is used to identify the event partition.
+	CreatedAtDate string `json:",omitempty" dynamodbav:",omitempty"`
+}
+
 type event struct {
-	SessionID      string
-	EventIndex     int64
+	EventKey
 	EventType      string
-	CreatedAt      int64
 	Expires        *int64 `json:"Expires,omitempty" dynamodbav:",omitempty"`
 	FieldsMap      events.EventFields
 	EventNamespace string
-	CreatedAtDate  string
 }
 
 const (
@@ -647,13 +677,15 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 		return nil, trace.Wrap(err)
 	}
 	e := event{
-		SessionID:      sessionID,
-		EventIndex:     in.GetIndex(),
+		EventKey: EventKey{
+			SessionID:     sessionID,
+			EventIndex:    in.GetIndex(),
+			CreatedAt:     in.GetTime().Unix(),
+			CreatedAtDate: in.GetTime().Format(iso8601DateFormat),
+		},
 		EventType:      in.GetType(),
 		EventNamespace: apidefaults.Namespace,
-		CreatedAt:      in.GetTime().Unix(),
 		FieldsMap:      fieldsMap,
-		CreatedAtDate:  in.GetTime().Format(iso8601DateFormat),
 	}
 	l.setExpiry(&e)
 	av, err := attributevalue.MarshalMap(e)
@@ -710,6 +742,7 @@ type checkpointKey struct {
 
 	// EventKey is a derived identifier for an event used for resuming
 	// sub-page breaks due to size constraints.
+	// TODO(hugoShaka): Deprecate and remove this field.
 	EventKey string `json:"event_key,omitempty"`
 }
 
@@ -835,7 +868,7 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	l.logger.DebugContext(ctx, "search events", "from", fromUTC, "to", toUTC, "filter", filter, "limit", limit, "start_key", startKey, "order", order, "checkpoint", checkpoint)
 
 	if startKey != "" {
-		createdAt, err := GetCreatedAtFromStartKey(startKey)
+		createdAt, err := getCreatedAtFromCheckpoint(checkpoint)
 		if err == nil {
 			// we compare the cursor unix time to the from unix in order to drop the nanoseconds
 			// that are not present in the cursor.
@@ -957,10 +990,14 @@ func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
+	return getCreatedAtFromCheckpoint(checkpoint)
+}
+
+func getCreatedAtFromCheckpoint(checkpoint checkpointKey) (time.Time, error) {
 	if checkpoint.Iterator == "" {
 		return time.Time{}, errors.New("missing iterator")
 	}
-	var e event
+	var e EventKey
 	if err := json.Unmarshal([]byte(checkpoint.Iterator), &e); err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
@@ -1010,13 +1047,13 @@ func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
 	}
 
 	// decode the dynamo attrs into the go map repr common to the old and new formats.
-	m := make(map[string]any)
-	if err := attributevalue.UnmarshalMap(convertedAttrMap, &m); err != nil {
+	var e event
+	if err := attributevalue.UnmarshalMap(convertedAttrMap, &e); err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
 
 	// encode the map into json, making it equivalent to the new format.
-	iterator, err := json.Marshal(m)
+	iterator, err := json.Marshal(e)
 	if err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}
@@ -1058,14 +1095,18 @@ func getSubPageCheckpoint(e *event) (string, error) {
 // find completed session.
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
-	if req.Cond != nil {
+	if req.Cond != nil && req.Cond.Expr != nil {
 		params := condFilterParams{attrValues: make(map[string]any), attrNames: make(map[string]string)}
-		expr, err := fromWhereExpr(req.Cond, &params)
+		expr, err := fromWhereExpr(req.Cond.Expr, &params)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condExpr = expr
 		filter.condParams = params
+		filter.filterFunc, err = utils.ToFieldsCondition(*req.Cond)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 	}
 	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
 	if err != nil {
@@ -1082,6 +1123,7 @@ type searchEventsFilter struct {
 	eventTypes []string
 	condExpr   string
 	condParams condFilterParams
+	filterFunc utils.FieldsCondition
 }
 
 type condFilterParams struct {
@@ -1089,9 +1131,34 @@ type condFilterParams struct {
 	attrNames  map[string]string
 }
 
+// fromWhereExpr converts a types.WhereExpr into a DynamoDB condition expression.
+// It fills in the provided condFilterParams with attribute names and values
+// that need to be supplied when executing the query.
+// For example, a condition like
+//
+// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
+// would be converted into a condition expression like
+//
+// "NOT ((#condName0 = :condValue0) OR (#condName1 = :condValue1)) AND (contains(#condName2, :condValue2))"
+// with condFilterParams containing:
+//
+//	attrNames: {"#condName0": "FieldsMap.login", "#condName1": "FieldsMap.login", "#condName2": "FieldsMap.participants"}
+//	attrValues: {":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"}
+//
+// This function supports a subset of the types.WhereExpr AST. Supported operations are:
+//   - Binary predicates: equals, notEquals
+//   - Logical operators: and, or, not
+//   - Map references: map_name["key"]
+//   - Literals: string
+//   - Functions: contains, contains_all, contains_any, can_view
+//
+// `can_view` is a special function that checks if the current user can view the underlying resource
+// based on their roles. This is a runtime check, so it cannot be converted into a static condition expression.
+// For this reason, `can_view` is handled by returning an always-true condition expression and setting a filter function
+// in condFilterParams that can be applied to the results after the query is executed.
 func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, error) {
 	if cond == nil {
-		return "", trace.BadParameter("cond is nil")
+		return "", trace.BadParameter("missing condition")
 	}
 
 	binOp := func(e types.WhereExpr2, format func(a, b string) string) (string, error) {
@@ -1135,9 +1202,58 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 		params.attrNames[k] = n
 		return fmt.Sprintf("FieldsMap.%s", k)
 	}
+
+	addMultiAttrNames := func(vals ...string) string {
+		var names []string
+		for _, n := range vals {
+			for k, v := range params.attrNames {
+				if n == v {
+					names = append(names, k)
+					continue
+				}
+			}
+			k := fmt.Sprintf("#condName%d", len(params.attrNames))
+			params.attrNames[k] = n
+			names = append(names, k)
+		}
+		return fmt.Sprintf("FieldsMap.%s", strings.Join(names, "."))
+	}
+
+	formatMap := func(m *types.WhereExpr2) (string, error) {
+		key, ok := m.R.Literal.(string)
+		if !ok {
+			return "", trace.BadParameter("map key must be a string, got %T", m.R.Literal)
+		}
+		return addMultiAttrNames(m.L.Field, key), nil
+	}
+
 	binPred := func(e types.WhereExpr2, format func(a, b string) string) (string, error) {
 		left, right := e.L, e.R
 		switch {
+		case left.MapRef != nil:
+			s, err := formatMap(left.MapRef)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				return format(s, addAttrValue(right.Literal)), nil
+			}
+			if right.Field != "" {
+				return format(s, addAttrName(right.Field)), nil
+			}
+			return "", trace.BadParameter("right side of binary predicate must be a literal or field when left side is a map reference")
+		case right.MapRef != nil:
+			s, err := formatMap(right.MapRef)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				return format(s, addAttrValue(left.Literal)), nil
+			}
+			if right.Field != "" {
+				return format(s, addAttrName(left.Field)), nil
+			}
+			return "", trace.BadParameter("left side of binary predicate must be a literal or field when right side is a map reference")
 		case left.Field != "" && right.Field != "":
 			return format(addAttrName(left.Field), addAttrName(right.Field)), nil
 		case left.Literal != nil && right.Field != "":
@@ -1146,6 +1262,74 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 			return format(addAttrName(left.Field), addAttrValue(right.Literal)), nil
 		}
 		return "", trace.BadParameter("failed to handle binary predicate with arguments %q and %q", left, right)
+	}
+	binPredSlice := func(e types.WhereExpr2, format func(a, b string) string) ([]string, error) {
+		left, right := e.L, e.R
+		switch {
+		case left.MapRef != nil:
+			s, err := formatMap(left.MapRef)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				sl, ok := right.Literal.([]string)
+				if !ok {
+					return nil, trace.BadParameter("expected slice literal, got %T", right.Literal)
+				}
+				var res []string
+				for _, v := range sl {
+					res = append(res, format(s, addAttrValue(v)))
+				}
+				return res, nil
+			}
+			if right.Field != "" {
+				return []string{format(s, addAttrName(right.Field))}, nil
+			}
+			return nil, trace.BadParameter("right side of binary predicate must be a literal or field when left side is a map reference")
+		case right.MapRef != nil:
+			s, err := formatMap(right.MapRef)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if left.Literal != nil {
+				sl, ok := left.Literal.([]string)
+				if !ok {
+					return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+				}
+				var res []string
+				for _, v := range sl {
+					res = append(res, format(s, addAttrValue(v)))
+				}
+				return res, nil
+			}
+			if left.Field != "" {
+				return []string{format(s, addAttrName(left.Field))}, nil
+			}
+			return nil, trace.BadParameter("left side of binary predicate must be a literal or field when right side is a map reference")
+		case left.Field != "" && right.Field != "":
+			return []string{format(addAttrName(left.Field), addAttrName(right.Field))}, nil
+		case left.Literal != nil && right.Field != "":
+			sl, ok := left.Literal.([]string)
+			if !ok {
+				return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+			}
+			var res []string
+			for _, v := range sl {
+				res = append(res, format(addAttrValue(v), addAttrName(right.Field)))
+			}
+			return res, nil
+		case left.Field != "" && right.Literal != nil:
+			sl, ok := right.Literal.([]string)
+			if !ok {
+				return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+			}
+			var res []string
+			for _, v := range sl {
+				res = append(res, format(addAttrName(left.Field), addAttrValue(v)))
+			}
+			return res, nil
+		}
+		return nil, trace.BadParameter("failed to handle binary predicate with arguments %q and %q", left, right)
 	}
 	if cond.Equals.L != nil && cond.Equals.R != nil {
 		if expr, err := binPred(cond.Equals, func(a, b string) string { return fmt.Sprintf("%s = %s", a, b) }); err == nil {
@@ -1157,6 +1341,35 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 			return expr, nil
 		}
 	}
+
+	if cond.ContainsAny.L != nil && cond.ContainsAny.R != nil {
+		if expr, err := binPredSlice(cond.ContainsAny, func(a, b string) string { return fmt.Sprintf("contains(%s, %s)", a, b) }); err == nil {
+			return "(" + strings.Join(expr, " OR ") + ")", nil
+		}
+	}
+
+	if cond.ContainsAll.L != nil && cond.ContainsAll.R != nil {
+		if expr, err := binPredSlice(cond.ContainsAll, func(a, b string) string { return fmt.Sprintf("contains(%s, %s)", a, b) }); err == nil {
+			return "(" + strings.Join(expr, " AND ") + ")", nil
+		}
+	}
+
+	if cond.MapRef != nil && cond.MapRef.L != nil && cond.MapRef.R != nil {
+		key, ok := cond.MapRef.R.Literal.(string)
+		if !ok {
+			return "", trace.BadParameter("map key must be a string, got %T", cond.MapRef.R.Literal)
+		}
+		return addMultiAttrNames(cond.MapRef.L.Field, key), nil
+	}
+
+	if cond.CanView != nil {
+		// CanView is a special predicate that checks if the event can be viewed
+		// by a user with a given set of roles. This is implemented by checking
+		// access after fetching the events, so here we just return a no-op
+		// expression that is always true.
+		return "attribute_exists(SessionID)", nil
+	}
+
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
@@ -1390,12 +1603,12 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 	l.checkpoint.Iterator = ""
 
 	if output.LastEvaluatedKey != nil {
-		m := make(map[string]any)
-		if err := attributevalue.UnmarshalMap(output.LastEvaluatedKey, &m); err != nil {
+		var e EventKey
+		if err := attributevalue.UnmarshalMap(output.LastEvaluatedKey, &e); err != nil {
 			return nil, false, trace.Wrap(err)
 		}
 
-		iter, err := json.Marshal(&m)
+		iter, err := json.Marshal(&e)
 		if err != nil {
 			return nil, false, err
 		}
@@ -1409,10 +1622,16 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		if err := attributevalue.UnmarshalMap(item, &e); err != nil {
 			return nil, false, trace.WrapWithMessage(err, "failed to unmarshal event")
 		}
+		if l.filter.filterFunc != nil && !l.filter.filterFunc(utils.Fields(e.FieldsMap)) {
+			continue
+		}
 		data, err := json.Marshal(e.FieldsMap)
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
+
+		// TODO(hugoShaka): Fix this. This code path has terrible performance
+		// and should be replaced by proper pagination.
 		if !l.foundStart {
 			key, err := getSubPageCheckpoint(&e)
 			if err != nil {
@@ -1494,13 +1713,13 @@ dateLoop:
 			}
 
 			if l.checkpoint.Iterator != "" {
-				m := make(map[string]any)
-				err = json.Unmarshal([]byte(l.checkpoint.Iterator), &m)
+				var e EventKey
+				err = json.Unmarshal([]byte(l.checkpoint.Iterator), &e)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
-				input.ExclusiveStartKey, err = attributevalue.MarshalMap(&m)
+				input.ExclusiveStartKey, err = attributevalue.MarshalMap(&e)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -1577,12 +1796,12 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	}
 
 	if l.checkpoint.Iterator != "" {
-		m := make(map[string]string)
-		if err = json.Unmarshal([]byte(l.checkpoint.Iterator), &m); err != nil {
+		var e EventKey
+		if err = json.Unmarshal([]byte(l.checkpoint.Iterator), &e); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		input.ExclusiveStartKey, err = attributevalue.MarshalMap(&m)
+		input.ExclusiveStartKey, err = attributevalue.MarshalMap(&e)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

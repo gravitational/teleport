@@ -25,6 +25,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"runtime"
 	"strconv"
@@ -249,6 +250,8 @@ type AccessResourcesGetter interface {
 
 	GetLock(ctx context.Context, name string) (types.Lock, error)
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
+	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 }
 
 type AccessListSuggestionClient interface {
@@ -257,6 +260,7 @@ type AccessListSuggestionClient interface {
 
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 type RoleGetter interface {
@@ -291,6 +295,8 @@ type Modules interface {
 	AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	// GenerateLongTermResourceGrouping analyzes how resources can be grouped into access lists and returns information about optimal groupings for long-term access.
+	GenerateLongTermResourceGrouping(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
 	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
@@ -323,7 +329,10 @@ func SetModules(m Modules) {
 	modules = m
 }
 
-// GetModules returns the modules interface
+// GetModules returns the modules interface. It only works in the auth service
+// process, so any code that may be executed in a different context needs to
+// obtain modules or derived options from an auth-specific caller or an RPC
+// call to the auth server.
 func GetModules() Modules {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -430,6 +439,11 @@ func (p *defaultModules) IsBoringBinary() bool {
 func (p *defaultModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
 	return nil, trace.NotFound("no attestation data for the given key")
+}
+
+// GenerateLongTermResourceGrouping is a noop since OSS teleport does not support long-term Access Requests.
+func (p *defaultModules) GenerateLongTermResourceGrouping(_ context.Context, _ AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return &types.LongTermResourceGrouping{}, nil
 }
 
 // GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.

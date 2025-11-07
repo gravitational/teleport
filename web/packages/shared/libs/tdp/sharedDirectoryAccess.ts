@@ -158,7 +158,11 @@ class BrowserFileSystem implements SharedDirectoryAccess {
    * Writes the bytes in writeData to the file at path starting at offset.
    * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
    */
-  async write(path: string, offset: bigint, data: Uint8Array): Promise<number> {
+  async write(
+    path: string,
+    offset: bigint,
+    data: Uint8Array<ArrayBuffer>
+  ): Promise<number> {
     const fileHandle = await this.getFileHandle(path);
     const file = await fileHandle.createWritable({ keepExistingData: true });
     await file.write({ type: 'write', position: Number(offset), data });

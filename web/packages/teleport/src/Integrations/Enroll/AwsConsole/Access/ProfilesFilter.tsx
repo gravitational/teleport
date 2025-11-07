@@ -98,3 +98,19 @@ const MultiValueContainer = (
     </>
   );
 };
+
+export function makeProfilesFilterOption(
+  filters: string[]
+): ProfilesFilterOption[] {
+  if (!filters || filters?.length === 0) {
+    return [];
+  }
+
+  return filters.map(f => {
+    return {
+      value: f,
+      label: f,
+      invalid: false,
+    };
+  });
+}

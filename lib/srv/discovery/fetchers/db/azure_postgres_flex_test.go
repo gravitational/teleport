@@ -37,7 +37,7 @@ import (
 func TestAzurePostgresFlexFetchers(t *testing.T) {
 	t.Parallel()
 
-	azureSub := makeAzureSubscription(t, "sub123")
+	azureSub := makeAzureSubscription("sub123")
 	azPostgresFlexServer, azPostgresFlexDB := makeAzurePostgresFlexServer(t, "postgres-flex", "sub123", "group 1", "East US", map[string]string{"env": "prod"})
 	azureMatchers := []types.AzureMatcher{{
 		Types:        []string{types.AzureMatcherPostgres},

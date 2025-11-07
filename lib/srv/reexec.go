@@ -183,11 +183,8 @@ type PAMConfig struct {
 
 // UaccMetadata contains information the child needs from the parent for user accounting.
 type UaccMetadata struct {
-	// The hostname of the node.
-	Hostname string `json:"hostname"`
-
 	// RemoteAddr is the address of the remote host.
-	RemoteAddr [4]int32 `json:"remote_addr"`
+	RemoteAddr utils.NetAddr `json:"remote_addr"`
 
 	// UtmpPath is the path of the system utmp database.
 	UtmpPath string `json:"utmp_path,omitempty"`
@@ -197,6 +194,9 @@ type UaccMetadata struct {
 
 	// BtmpPath is the path of the system btmp log.
 	BtmpPath string `json:"btmp_path,omitempty"`
+
+	// WtmpdbPath is the path of the system wtmpdb database.
+	WtmpdbPath string `json:"wtmpdb_path,omitempty"`
 }
 
 // RunCommand reads in the command to run from the parent process (over a
@@ -281,7 +281,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}()
 
 	var tty *os.File
-	uaccEnabled := false
 
 	// If a terminal was requested, file descriptor 7 always points to the
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
@@ -344,24 +343,34 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 	readyfd = nil
+	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
+		UtmpFile:   c.UaccMetadata.UtmpPath,
+		WtmpFile:   c.UaccMetadata.WtmpPath,
+		BtmpFile:   c.UaccMetadata.BtmpPath,
+		WtmpdbFile: c.UaccMetadata.WtmpdbPath,
+	})
 
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		if uaccErr := uacc.LogFailedLogin(c.UaccMetadata.BtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr); uaccErr != nil {
-			slog.DebugContext(ctx, "uacc unsupported", "error", uaccErr)
+		if uaccErr := uaccHandler.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
+			slog.DebugContext(ctx, "unable to write failed login attempt to uacc", "error", uaccErr)
 		}
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	if c.Terminal {
-		err = uacc.Open(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, c.Login, c.UaccMetadata.Hostname, c.UaccMetadata.RemoteAddr, tty)
-		// uacc support is best-effort, only enable it if Open is successful.
-		// Currently, there is no way to log this error out-of-band with the
-		// command output, so for now we essentially ignore it.
+		uaccSession, err := uaccHandler.OpenSession(tty, c.Login, &c.UaccMetadata.RemoteAddr)
 		if err == nil {
-			uaccEnabled = true
+			defer func() {
+				if closeErr := uaccSession.Close(); closeErr != nil {
+					slog.DebugContext(ctx, "failed to close uacc session", "error", closeErr)
+				}
+			}()
 		} else {
-			slog.DebugContext(ctx, "uacc unsupported", "error", err)
+			// uacc support is best-effort, only enable it if OpenSession is successful.
+			// Currently, there is no way to log this error out-of-band with the
+			// command output, so for now we essentially ignore it.
+			slog.DebugContext(ctx, "failed to open uacc session", "error", err)
 		}
 	}
 
@@ -430,13 +439,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	parkerCancel()
 
 	err = waitForShell(terminatefd, cmd)
-
-	if uaccEnabled {
-		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
-		if uaccErr != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(uaccErr)
-		}
-	}
 
 	return errorWriter, exitCode(err), trace.Wrap(err)
 }

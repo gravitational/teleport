@@ -85,6 +85,8 @@ type Auth interface {
 	GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, databaseUser string) (string, error)
+	// GetAlloyDBAuthToken generates AlloyDB auth token.
+	GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error)
 	// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
 	GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -483,6 +485,24 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string) 
 	return tok.AccessToken, nil
 }
 
+// GetAlloyDBAuthToken returns authorization token that will be used as a
+// password when connecting to AlloyDB databases.
+func (a *dbAuth) GetAlloyDBAuthToken(ctx context.Context, databaseUser string) (string, error) {
+	// https://cloud.google.com/alloydb/docs/connect-iam#procedure
+	scopes := []string{
+		"https://www.googleapis.com/auth/alloydb.login",
+	}
+	ts, err := a.getCloudTokenSource(ctx, databaseUser, scopes)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	tok, err := ts.Token()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return tok.AccessToken, nil
+}
+
 // GetSpannerTokenSource returns an oauth token source for GCP Spanner.
 func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
 	// https://developers.google.com/identity/protocols/oauth2/scopes#spanner
@@ -666,6 +686,10 @@ func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Da
 		region:       meta.Region,
 		credProvider: awsCfg.Credentials,
 		clock:        a.cfg.Clock,
+		isServerless: database.IsElastiCacheServerless(),
+	}
+	if tokenReq.isServerless {
+		tokenReq.targetID = meta.ElastiCacheServerless.CacheName
 	}
 	token, err := tokenReq.toSignedRequestURI(ctx)
 	return token, trace.Wrap(err)
@@ -950,6 +974,11 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, database types.Database) er
 
 	// If server name is set prior to this function, use that.
 	if tlsConfig.ServerName != "" {
+		return nil
+	}
+
+	if database.GetType() == types.DatabaseTypeAlloyDB {
+		// The server name will be configured dynamically by the engine.
 		return nil
 	}
 
@@ -1267,10 +1296,12 @@ func externalIDForChainedAssumeRole(meta types.AWS) string {
 type awsRedisIAMTokenRequest struct {
 	// userID is the ElastiCache user ID.
 	userID string
-	// targetID is the ElastiCache replication group ID or the MemoryDB cluster name.
+	// targetID is the ElastiCache replication group ID or the MemoryDB cluster name or a serverless cache ID.
 	targetID string
 	// region is the AWS region.
 	region string
+	// isServerless is true if the request is for ElastiCache serverless.
+	isServerless bool
 	// credProvider are used to presign with AWS SigV4.
 	credProvider aws.CredentialsProvider
 	// clock is the clock implementation.
@@ -1331,6 +1362,10 @@ func (r *awsRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
 		"Action":        {"connect"},
 		"User":          {r.userID},
 		"X-Amz-Expires": {"900"},
+	}
+	if r.isServerless {
+		// https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/auth-iam.html
+		query.Add("ResourceType", "ServerlessCache")
 	}
 	reqURI := url.URL{
 		Scheme:   "http",

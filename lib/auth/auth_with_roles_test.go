@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
@@ -88,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -2692,8 +2692,8 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 			Limit:      1,
 			Order:      types.EventOrderDescending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
+		require.NoError(t, err)
+		require.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
 	}, 5*time.Second, 200*time.Millisecond)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
@@ -2864,10 +2864,32 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	dbs, next, err := devClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should see both.
 	dbs, err = adminClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	dbs, next, err = adminClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// With limit, next should be dev
+	dbs, next, err = adminClt.ListDatabases(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, devDatabase.GetName(), next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase}, dbs,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -2965,6 +2987,14 @@ func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []t
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.EquateEmpty(),
 	))
+
+	actualDatabases, err = stream.Collect(client.RangeDatabases(t.Context(), "", ""))
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
+	))
 }
 
 func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
@@ -3015,10 +3045,22 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
 	})
 	t.Run("Read", func(t *testing.T) {
+		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
 	})
+
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
@@ -3029,8 +3071,16 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+
 		// Discovery service cannot delete non-cloud clusters.
 		clusters, err = srv.Auth().GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})
@@ -5499,9 +5549,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 				StartKey:      start,
 			})
-			if !assert.NoError(t, err) {
-				return
-			}
+			require.NoError(t, err)
 
 			results = append(results, resp.Resources...)
 			start = resp.NextKey
@@ -5512,9 +5560,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		// Note: this number should be updated in case we add more resources to
 		// the setup loop.
-		if !assert.Len(t, results, 20) {
-			return
-		}
+		require.Len(t, results, 20)
 		resultsC <- results
 	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources")
 
@@ -6023,6 +6069,9 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 		require.NoError(t, err)
+
+		createTestAppServerV3(t, srv.Auth(), name, nil)
+		createTestMCPAppServer(t, srv.Auth(), "mcp-"+name, nil)
 	}
 
 	// create user and client
@@ -6055,6 +6104,21 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		Limit: 5,
 	})
 	require.NoError(t, err, "sort field is not required")
+
+	t.Run("KindApp", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindApp},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 10) // 5 app + 5 mcp server
+	})
+	t.Run("KindMCP", func(t *testing.T) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds: []string{types.KindMCP},
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Resources, 5)
+	})
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -6308,9 +6372,9 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		assert.NoError(t, err)
-		assert.Empty(t, resp.NextKey)
-		assert.Len(t, resp.Resources, 6)
+		require.NoError(t, err)
+		require.Empty(t, resp.NextKey)
+		require.Len(t, resp.Resources, 6)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
@@ -6339,8 +6403,8 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		assert.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
-		assert.Nil(t, resp)
+		require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
+		require.Nil(t, resp)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// Validate that an error is returned when a subset of kinds are requested.
@@ -6453,21 +6517,19 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 	withMatchingAccountAssignment := withAccountAssignment(types.Allow,
 		validAccountID, validPermissionSetARN)
 
-	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-account",
-				Labels: map[string]string{
-					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-				},
+	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test-account",
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:   validAccountID,
-				Arn:  "some:account:arn",
-				Name: "Test Account",
-			},
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:   validAccountID,
+			Arn:  "some:account:arn",
+			Name: "Test Account",
 		},
 	})
 	require.NoError(t, err)
@@ -6478,8 +6540,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 	inlineEventually(t,
 		func() bool {
-			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(accounts) == 1
 		},
@@ -7183,6 +7244,66 @@ func TestGenerateHostCert(t *testing.T) {
 			require.True(t, test.expect(err))
 		})
 	}
+}
+
+// newScopedTestServerForHost creates a self-cleaning `ServerWithRoles`, configured
+// for a given host
+func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, role types.SystemRole) *auth.ServerWithRoles {
+	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, role).I)
+	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
+	require.NoError(t, err)
+
+	authWithRole := auth.NewServerWithRoles(
+		srv.AuthServer,
+		srv.AuditLog,
+		*ctxIdentity,
+	)
+
+	t.Cleanup(func() { authWithRole.Close() })
+
+	return authWithRole
+}
+
+func TestGenerateHostCertsScoped(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	scope := "/aa/bb"
+	hostID := "testhost"
+	roles := types.SystemRoles{types.RoleNode}
+
+	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
+
+	_, sshPub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	certs, err := s.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+		PublicTLSKey: tlsPubPEM,
+		PublicSSHKey: sshPub,
+		HostID:       hostID,
+		Role:         types.RoleInstance,
+		SystemRoles:  roles,
+	})
+	require.NoError(t, err)
+
+	// ensure scope encoded in TLS cert matches the auth identity
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, scope, tlsIdent.AgentScope)
+
+	// ensure scope encoded in SSH cert matches the auth identity
+	sshCert, err := sshutils.ParseCertificate(certs.SSH)
+	require.NoError(t, err)
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
+	require.Equal(t, scope, sshIdent.AgentScope)
 }
 
 // TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
@@ -8948,6 +9069,56 @@ func TestGetSnowflakeSessions(t *testing.T) {
 	}
 }
 
+func TestListSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	ctx := t.Context()
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(a, b types.WebSession) bool {
+			return a.GetName() < b.GetName()
+		}),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	}
+
+	createSession := func(user string) types.WebSession {
+		session, err := client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+			Username:     user,
+			TokenTTL:     time.Minute * 15,
+			SessionToken: "test-token-" + user,
+		})
+		require.NoError(t, err)
+		return session
+	}
+
+	expected := []types.WebSession{
+		createSession(alice),
+		createSession(bob),
+		createSession(admin),
+	}
+
+	sessions, next, err := client.ListSnowflakeSessions(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, sessions, 3)
+	require.Empty(t, cmp.Diff(expected, sessions, opts...))
+
+	page1, next, err := client.ListSnowflakeSessions(ctx, 2, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, next)
+	require.Len(t, page1, 2)
+
+	page2, next, err := client.ListSnowflakeSessions(ctx, 0, next)
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, page2, 1)
+	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
+
+}
+
 func TestDeleteSnowflakeSession(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
@@ -10455,26 +10626,23 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		},
 	}
 
-	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx,
-		services.IdentityCenterAccount{
-			Account: &identitycenterv1.Account{
-				Kind:    types.KindIdentityCenterAccount,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: accountID,
-					Labels: map[string]string{
-						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-					},
-				},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:                accountID,
-					Arn:               "aws:arn:test:account",
-					Name:              "Test Account",
-					Description:       "An account for testing",
-					PermissionSetInfo: permissionSets,
-				},
+	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: accountID,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		})
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:                accountID,
+			Arn:               "aws:arn:test:account",
+			Name:              "Test Account",
+			Description:       "An account for testing",
+			PermissionSetInfo: permissionSets,
+		},
+	})
 	require.NoError(t, err)
 
 	// GIVEN a role that allows access to all permission sets on the target
@@ -10503,8 +10671,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 	// EXPECT that the IC Account has made it to the cache
 	inlineEventually(t,
 		func() bool {
-			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(testAssignments) == 1
 		},
@@ -10709,8 +10876,6 @@ func TestValidateOracleJoinToken(t *testing.T) {
 
 func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
 	t.Helper()
-	ctx := t.Context()
-
 	app, err := types.NewAppV3(
 		types.Metadata{
 			Name:   name,
@@ -10721,10 +10886,15 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 		},
 	)
 	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, app)
+}
+
+func createTestAppServerFromApp(t *testing.T, auth *auth.Server, app *types.AppV3) *types.AppServerV3 {
+	t.Helper()
 	appServer, err := types.NewAppServerV3(
 		types.Metadata{
-			Name:   name,
-			Labels: labels,
+			Name:   app.GetName(),
+			Labels: app.GetAllLabels(),
 		},
 		types.AppServerSpecV3{
 			HostID: "test-host-id",
@@ -10733,10 +10903,28 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 	)
 	require.NoError(t, err)
 
-	_, err = auth.UpsertApplicationServer(ctx, appServer)
+	_, err = auth.UpsertApplicationServer(t.Context(), appServer)
 	require.NoError(t, err, "upserting test Application Server")
 
 	return appServer
+}
+
+func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
+	t.Helper()
+	mcp, err := types.NewAppV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppSpecV3{
+			MCP: &types.MCP{
+				Command:       "test",
+				RunAsHostUser: "test",
+			},
+		},
+	)
+	require.NoError(t, err)
+	return createTestAppServerFromApp(t, auth, mcp)
 }
 
 func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {

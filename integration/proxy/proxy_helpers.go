@@ -52,10 +52,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -653,11 +653,10 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 	t.Setenv("AWS_REGION", "us-west-2")
 
 	node := uuid.NewString()
-	_, err = join.Register(context.TODO(), join.RegisterParams{
+	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
 		Token: token,
 		ID: state.IdentityID{
-			Role:     types.RoleNode,
-			HostUUID: node,
+			Role:     types.RoleInstance,
 			NodeName: node,
 		},
 		ProxyServer: proxyAddr,

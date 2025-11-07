@@ -71,6 +71,7 @@ const (
 	AuthService_SetAccessRequestState_FullMethodName               = "/proto.AuthService/SetAccessRequestState"
 	AuthService_SubmitAccessReview_FullMethodName                  = "/proto.AuthService/SubmitAccessReview"
 	AuthService_GetAccessCapabilities_FullMethodName               = "/proto.AuthService/GetAccessCapabilities"
+	AuthService_GetRemoteAccessCapabilities_FullMethodName         = "/proto.AuthService/GetRemoteAccessCapabilities"
 	AuthService_GetAccessRequestAllowedPromotions_FullMethodName   = "/proto.AuthService/GetAccessRequestAllowedPromotions"
 	AuthService_GetPluginData_FullMethodName                       = "/proto.AuthService/GetPluginData"
 	AuthService_UpdatePluginData_FullMethodName                    = "/proto.AuthService/UpdatePluginData"
@@ -90,6 +91,7 @@ const (
 	AuthService_KeepAliveSemaphoreLease_FullMethodName             = "/proto.AuthService/KeepAliveSemaphoreLease"
 	AuthService_CancelSemaphoreLease_FullMethodName                = "/proto.AuthService/CancelSemaphoreLease"
 	AuthService_GetSemaphores_FullMethodName                       = "/proto.AuthService/GetSemaphores"
+	AuthService_ListSemaphores_FullMethodName                      = "/proto.AuthService/ListSemaphores"
 	AuthService_DeleteSemaphore_FullMethodName                     = "/proto.AuthService/DeleteSemaphore"
 	AuthService_EmitAuditEvent_FullMethodName                      = "/proto.AuthService/EmitAuditEvent"
 	AuthService_CreateAuditStream_FullMethodName                   = "/proto.AuthService/CreateAuditStream"
@@ -106,6 +108,7 @@ const (
 	AuthService_CreateSnowflakeSession_FullMethodName              = "/proto.AuthService/CreateSnowflakeSession"
 	AuthService_GetSnowflakeSession_FullMethodName                 = "/proto.AuthService/GetSnowflakeSession"
 	AuthService_GetSnowflakeSessions_FullMethodName                = "/proto.AuthService/GetSnowflakeSessions"
+	AuthService_ListSnowflakeSessions_FullMethodName               = "/proto.AuthService/ListSnowflakeSessions"
 	AuthService_DeleteSnowflakeSession_FullMethodName              = "/proto.AuthService/DeleteSnowflakeSession"
 	AuthService_DeleteAllSnowflakeSessions_FullMethodName          = "/proto.AuthService/DeleteAllSnowflakeSessions"
 	AuthService_CreateSAMLIdPSession_FullMethodName                = "/proto.AuthService/CreateSAMLIdPSession"
@@ -121,6 +124,7 @@ const (
 	AuthService_DeleteAllWebSessions_FullMethodName                = "/proto.AuthService/DeleteAllWebSessions"
 	AuthService_GetWebToken_FullMethodName                         = "/proto.AuthService/GetWebToken"
 	AuthService_GetWebTokens_FullMethodName                        = "/proto.AuthService/GetWebTokens"
+	AuthService_ListWebTokens_FullMethodName                       = "/proto.AuthService/ListWebTokens"
 	AuthService_DeleteWebToken_FullMethodName                      = "/proto.AuthService/DeleteWebToken"
 	AuthService_DeleteAllWebTokens_FullMethodName                  = "/proto.AuthService/DeleteAllWebTokens"
 	AuthService_UpdateRemoteCluster_FullMethodName                 = "/proto.AuthService/UpdateRemoteCluster"
@@ -153,6 +157,7 @@ const (
 	AuthService_CreateRegisterChallenge_FullMethodName             = "/proto.AuthService/CreateRegisterChallenge"
 	AuthService_GetOIDCConnector_FullMethodName                    = "/proto.AuthService/GetOIDCConnector"
 	AuthService_GetOIDCConnectors_FullMethodName                   = "/proto.AuthService/GetOIDCConnectors"
+	AuthService_ListOIDCConnectors_FullMethodName                  = "/proto.AuthService/ListOIDCConnectors"
 	AuthService_CreateOIDCConnector_FullMethodName                 = "/proto.AuthService/CreateOIDCConnector"
 	AuthService_UpdateOIDCConnector_FullMethodName                 = "/proto.AuthService/UpdateOIDCConnector"
 	AuthService_UpsertOIDCConnector_FullMethodName                 = "/proto.AuthService/UpsertOIDCConnector"
@@ -162,6 +167,7 @@ const (
 	AuthService_GetOIDCAuthRequest_FullMethodName                  = "/proto.AuthService/GetOIDCAuthRequest"
 	AuthService_GetSAMLConnector_FullMethodName                    = "/proto.AuthService/GetSAMLConnector"
 	AuthService_GetSAMLConnectors_FullMethodName                   = "/proto.AuthService/GetSAMLConnectors"
+	AuthService_ListSAMLConnectors_FullMethodName                  = "/proto.AuthService/ListSAMLConnectors"
 	AuthService_CreateSAMLConnector_FullMethodName                 = "/proto.AuthService/CreateSAMLConnector"
 	AuthService_UpdateSAMLConnector_FullMethodName                 = "/proto.AuthService/UpdateSAMLConnector"
 	AuthService_UpsertSAMLConnector_FullMethodName                 = "/proto.AuthService/UpsertSAMLConnector"
@@ -171,6 +177,7 @@ const (
 	AuthService_GetSAMLAuthRequest_FullMethodName                  = "/proto.AuthService/GetSAMLAuthRequest"
 	AuthService_GetGithubConnector_FullMethodName                  = "/proto.AuthService/GetGithubConnector"
 	AuthService_GetGithubConnectors_FullMethodName                 = "/proto.AuthService/GetGithubConnectors"
+	AuthService_ListGithubConnectors_FullMethodName                = "/proto.AuthService/ListGithubConnectors"
 	AuthService_CreateGithubConnector_FullMethodName               = "/proto.AuthService/CreateGithubConnector"
 	AuthService_UpdateGithubConnector_FullMethodName               = "/proto.AuthService/UpdateGithubConnector"
 	AuthService_UpsertGithubConnector_FullMethodName               = "/proto.AuthService/UpsertGithubConnector"
@@ -212,6 +219,7 @@ const (
 	AuthService_GetSessionEvents_FullMethodName                    = "/proto.AuthService/GetSessionEvents"
 	AuthService_GetLock_FullMethodName                             = "/proto.AuthService/GetLock"
 	AuthService_GetLocks_FullMethodName                            = "/proto.AuthService/GetLocks"
+	AuthService_ListLocks_FullMethodName                           = "/proto.AuthService/ListLocks"
 	AuthService_UpsertLock_FullMethodName                          = "/proto.AuthService/UpsertLock"
 	AuthService_DeleteLock_FullMethodName                          = "/proto.AuthService/DeleteLock"
 	AuthService_ReplaceRemoteLocks_FullMethodName                  = "/proto.AuthService/ReplaceRemoteLocks"
@@ -227,12 +235,14 @@ const (
 	AuthService_DeleteApp_FullMethodName                           = "/proto.AuthService/DeleteApp"
 	AuthService_DeleteAllApps_FullMethodName                       = "/proto.AuthService/DeleteAllApps"
 	AuthService_GetDatabases_FullMethodName                        = "/proto.AuthService/GetDatabases"
+	AuthService_ListDatabases_FullMethodName                       = "/proto.AuthService/ListDatabases"
 	AuthService_GetDatabase_FullMethodName                         = "/proto.AuthService/GetDatabase"
 	AuthService_CreateDatabase_FullMethodName                      = "/proto.AuthService/CreateDatabase"
 	AuthService_UpdateDatabase_FullMethodName                      = "/proto.AuthService/UpdateDatabase"
 	AuthService_DeleteDatabase_FullMethodName                      = "/proto.AuthService/DeleteDatabase"
 	AuthService_DeleteAllDatabases_FullMethodName                  = "/proto.AuthService/DeleteAllDatabases"
 	AuthService_GetKubernetesClusters_FullMethodName               = "/proto.AuthService/GetKubernetesClusters"
+	AuthService_ListKubernetesClusters_FullMethodName              = "/proto.AuthService/ListKubernetesClusters"
 	AuthService_GetKubernetesCluster_FullMethodName                = "/proto.AuthService/GetKubernetesCluster"
 	AuthService_CreateKubernetesCluster_FullMethodName             = "/proto.AuthService/CreateKubernetesCluster"
 	AuthService_UpdateKubernetesCluster_FullMethodName             = "/proto.AuthService/UpdateKubernetesCluster"
@@ -267,6 +277,7 @@ const (
 	AuthService_CreatePrivilegeToken_FullMethodName                = "/proto.AuthService/CreatePrivilegeToken"
 	AuthService_GetInstaller_FullMethodName                        = "/proto.AuthService/GetInstaller"
 	AuthService_GetInstallers_FullMethodName                       = "/proto.AuthService/GetInstallers"
+	AuthService_ListInstallers_FullMethodName                      = "/proto.AuthService/ListInstallers"
 	AuthService_SetInstaller_FullMethodName                        = "/proto.AuthService/SetInstaller"
 	AuthService_DeleteInstaller_FullMethodName                     = "/proto.AuthService/DeleteInstaller"
 	AuthService_DeleteAllInstallers_FullMethodName                 = "/proto.AuthService/DeleteAllInstallers"
@@ -299,6 +310,7 @@ const (
 	AuthService_GetClusterMaintenanceConfig_FullMethodName         = "/proto.AuthService/GetClusterMaintenanceConfig"
 	AuthService_UpdateClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/UpdateClusterMaintenanceConfig"
 	AuthService_DeleteClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/DeleteClusterMaintenanceConfig"
+	AuthService_ValidateTrustedCluster_FullMethodName              = "/proto.AuthService/ValidateTrustedCluster"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -382,6 +394,8 @@ type AuthServiceClient interface {
 	SubmitAccessReview(ctx context.Context, in *types.AccessReviewSubmission, opts ...grpc.CallOption) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilities of a user.
 	GetAccessCapabilities(ctx context.Context, in *types.AccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.AccessCapabilities, error)
+	// GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+	GetRemoteAccessCapabilities(ctx context.Context, in *types.RemoteAccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.RemoteAccessCapabilities, error)
 	// GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
 	GetAccessRequestAllowedPromotions(ctx context.Context, in *AccessRequestAllowedPromotionRequest, opts ...grpc.CallOption) (*AccessRequestAllowedPromotionResponse, error)
 	// GetPluginData gets all plugin data matching the supplied filter.
@@ -444,8 +458,11 @@ type AuthServiceClient interface {
 	KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
 	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error)
+	// ListSemaphores returns a page of all semaphores matching the supplied filter.
+	ListSemaphores(ctx context.Context, in *ListSemaphoresRequest, opts ...grpc.CallOption) (*ListSemaphoresResponse, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
 	DeleteSemaphore(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
@@ -478,8 +495,13 @@ type AuthServiceClient interface {
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(ctx context.Context, in *GetSnowflakeSessionRequest, opts ...grpc.CallOption) (*GetSnowflakeSessionResponse, error)
+	// Deprecated: Do not use.
 	// GetSnowflakeSessions gets all Snowflake web sessions.
+	// Deprecated: Use [ListSnowflakeSessions] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -515,8 +537,11 @@ type AuthServiceClient interface {
 	DeleteAllWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(ctx context.Context, in *types.GetWebTokenRequest, opts ...grpc.CallOption) (*GetWebTokenResponse, error)
+	// Deprecated: Do not use.
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error)
+	// ListWebTokens returns a page of web tokens.
+	ListWebTokens(ctx context.Context, in *ListWebTokensRequest, opts ...grpc.CallOption) (*ListWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
 	DeleteWebToken(ctx context.Context, in *types.DeleteWebTokenRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
@@ -625,8 +650,13 @@ type AuthServiceClient interface {
 	CreateRegisterChallenge(ctx context.Context, in *CreateRegisterChallengeRequest, opts ...grpc.CallOption) (*MFARegisterChallenge, error)
 	// GetOIDCConnector gets an OIDC connector resource by name.
 	GetOIDCConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error)
+	// Deprecated: Do not use.
 	// GetOIDCConnectors gets all current OIDC connector resources.
+	//
+	// Deprecated: Use ListOIDCConnectors instead.
 	GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error)
+	// ListOIDCConnectors returns a page of current OIDC connector resources.
+	ListOIDCConnectors(ctx context.Context, in *ListOIDCConnectorsRequest, opts ...grpc.CallOption) (*ListOIDCConnectorsResponse, error)
 	// UpsertOIDCConnector creates a new OIDC connector in the backend.
 	CreateOIDCConnector(ctx context.Context, in *CreateOIDCConnectorRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error)
 	// UpsertOIDCConnector updates an existing OIDC connector in the backend.
@@ -646,8 +676,13 @@ type AuthServiceClient interface {
 	GetOIDCAuthRequest(ctx context.Context, in *GetOIDCAuthRequestRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
+	// Deprecated: Do not use.
 	// GetSAMLConnectors gets all current SAML connector resources.
+	//
+	// Deprecated: Use ListSAMLConnectors instead.
 	GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error)
+	// ListSAMLConnectors returns a page of current SAML connector resources.
+	ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error)
 	// CreateSAMLConnector creates a new SAML connector in the backend.
 	CreateSAMLConnector(ctx context.Context, in *CreateSAMLConnectorRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
 	// UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -667,8 +702,13 @@ type AuthServiceClient interface {
 	GetSAMLAuthRequest(ctx context.Context, in *GetSAMLAuthRequestRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
+	// Deprecated: Do not use.
 	// GetGithubConnectors gets all current Github connector resources.
+	//
+	// Deprecated: Use ListGithubConnectors instead.
 	GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(ctx context.Context, in *CreateGithubConnectorRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -700,7 +740,10 @@ type AuthServiceClient interface {
 	DeleteAllServerInfos(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
+	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
+	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -776,8 +819,11 @@ type AuthServiceClient interface {
 	GetSessionEvents(ctx context.Context, in *GetSessionEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(ctx context.Context, in *GetLockRequest, opts ...grpc.CallOption) (*types.LockV2, error)
+	// Deprecated: Do not use.
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error)
+	// ListLocks returns a page of locks matching a filter.
+	ListLocks(ctx context.Context, in *ListLocksRequest, opts ...grpc.CallOption) (*ListLocksResponse, error)
 	// UpsertLock upserts a lock.
 	UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteLock deletes a lock.
@@ -792,6 +838,7 @@ type AuthServiceClient interface {
 	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -806,8 +853,11 @@ type AuthServiceClient interface {
 	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
+	// ListDatabases returns a page of registered databases.
+	ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
@@ -818,8 +868,11 @@ type AuthServiceClient interface {
 	DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
 	DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, in *ListKubernetesClustersRequest, opts ...grpc.CallOption) (*ListKubernetesClustersResponse, error)
 	// GetKubernetesCluster returns a kubernetes cluster by name.
 	GetKubernetesCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.KubernetesClusterV3, error)
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -939,8 +992,11 @@ type AuthServiceClient interface {
 	CreatePrivilegeToken(ctx context.Context, in *CreatePrivilegeTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// GetInstaller retrieves the installer script resource
 	GetInstaller(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.InstallerV1, error)
+	// Deprecated: Do not use.
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(ctx context.Context, in *ListInstallersRequest, opts ...grpc.CallOption) (*ListInstallersResponse, error)
 	// SetInstaller sets the installer script resource
 	SetInstaller(ctx context.Context, in *types.InstallerV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteInstaller removes the specified installer script resource
@@ -1014,6 +1070,10 @@ type AuthServiceClient interface {
 	UpdateClusterMaintenanceConfig(ctx context.Context, in *types.ClusterMaintenanceConfigV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
 	DeleteClusterMaintenanceConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
+	// by the proxy on behalf of a cluster that wishes to join to this one as a
+	// leaf cluster.
+	ValidateTrustedCluster(ctx context.Context, in *ValidateTrustedClusterRequest, opts ...grpc.CallOption) (*ValidateTrustedClusterResponse, error)
 }
 
 type authServiceClient struct {
@@ -1432,6 +1492,16 @@ func (c *authServiceClient) GetAccessCapabilities(ctx context.Context, in *types
 	return out, nil
 }
 
+func (c *authServiceClient) GetRemoteAccessCapabilities(ctx context.Context, in *types.RemoteAccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.RemoteAccessCapabilities, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(types.RemoteAccessCapabilities)
+	err := c.cc.Invoke(ctx, AuthService_GetRemoteAccessCapabilities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetAccessRequestAllowedPromotions(ctx context.Context, in *AccessRequestAllowedPromotionRequest, opts ...grpc.CallOption) (*AccessRequestAllowedPromotionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AccessRequestAllowedPromotionResponse)
@@ -1636,10 +1706,21 @@ func (c *authServiceClient) CancelSemaphoreLease(ctx context.Context, in *types.
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Semaphores)
 	err := c.cc.Invoke(ctx, AuthService_GetSemaphores_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSemaphores(ctx context.Context, in *ListSemaphoresRequest, opts ...grpc.CallOption) (*ListSemaphoresResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSemaphoresResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSemaphores_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1799,10 +1880,21 @@ func (c *authServiceClient) GetSnowflakeSession(ctx context.Context, in *GetSnow
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSnowflakeSessionsResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetSnowflakeSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSnowflakeSessionsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSnowflakeSessions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1965,10 +2057,21 @@ func (c *authServiceClient) GetWebToken(ctx context.Context, in *types.GetWebTok
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetWebTokensResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetWebTokens_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListWebTokens(ctx context.Context, in *ListWebTokensRequest, opts ...grpc.CallOption) (*ListWebTokensResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWebTokensResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListWebTokens_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2294,10 +2397,21 @@ func (c *authServiceClient) GetOIDCConnector(ctx context.Context, in *types.Reso
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.OIDCConnectorV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetOIDCConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListOIDCConnectors(ctx context.Context, in *ListOIDCConnectorsRequest, opts ...grpc.CallOption) (*ListOIDCConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOIDCConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListOIDCConnectors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2385,10 +2499,21 @@ func (c *authServiceClient) GetSAMLConnector(ctx context.Context, in *types.Reso
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.SAMLConnectorV2List)
 	err := c.cc.Invoke(ctx, AuthService_GetSAMLConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSAMLConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSAMLConnectors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2476,10 +2601,21 @@ func (c *authServiceClient) GetGithubConnector(ctx context.Context, in *types.Re
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.GithubConnectorV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetGithubConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGithubConnectorsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListGithubConnectors_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2636,6 +2772,7 @@ func (c *authServiceClient) GetTrustedCluster(ctx context.Context, in *types.Res
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.TrustedClusterV2List)
@@ -2907,10 +3044,21 @@ func (c *authServiceClient) GetLock(ctx context.Context, in *GetLockRequest, opt
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetLocksResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetLocks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListLocks(ctx context.Context, in *ListLocksRequest, opts ...grpc.CallOption) (*ListLocksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListLocksResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListLocks_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2996,6 +3144,7 @@ func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *e
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.AppV3List)
@@ -3066,10 +3215,21 @@ func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.DatabaseV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetDatabases_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDatabasesResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListDatabases_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3126,10 +3286,21 @@ func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *emptypb.
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.KubernetesClusterV3List)
 	err := c.cc.Invoke(ctx, AuthService_GetKubernetesClusters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListKubernetesClusters(ctx context.Context, in *ListKubernetesClustersRequest, opts ...grpc.CallOption) (*ListKubernetesClustersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListKubernetesClustersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListKubernetesClusters_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3466,10 +3637,21 @@ func (c *authServiceClient) GetInstaller(ctx context.Context, in *types.Resource
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.InstallerV1List)
 	err := c.cc.Invoke(ctx, AuthService_GetInstallers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListInstallers(ctx context.Context, in *ListInstallersRequest, opts ...grpc.CallOption) (*ListInstallersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListInstallersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListInstallers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3805,6 +3987,16 @@ func (c *authServiceClient) DeleteClusterMaintenanceConfig(ctx context.Context, 
 	return out, nil
 }
 
+func (c *authServiceClient) ValidateTrustedCluster(ctx context.Context, in *ValidateTrustedClusterRequest, opts ...grpc.CallOption) (*ValidateTrustedClusterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateTrustedClusterResponse)
+	err := c.cc.Invoke(ctx, AuthService_ValidateTrustedCluster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations should embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -3886,6 +4078,8 @@ type AuthServiceServer interface {
 	SubmitAccessReview(context.Context, *types.AccessReviewSubmission) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilities of a user.
 	GetAccessCapabilities(context.Context, *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
+	// GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+	GetRemoteAccessCapabilities(context.Context, *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error)
 	// GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
 	GetAccessRequestAllowedPromotions(context.Context, *AccessRequestAllowedPromotionRequest) (*AccessRequestAllowedPromotionResponse, error)
 	// GetPluginData gets all plugin data matching the supplied filter.
@@ -3948,8 +4142,11 @@ type AuthServiceServer interface {
 	KeepAliveSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
 	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error)
+	// ListSemaphores returns a page of all semaphores matching the supplied filter.
+	ListSemaphores(context.Context, *ListSemaphoresRequest) (*ListSemaphoresResponse, error)
 	// DeleteSemaphore deletes a semaphore matching the supplied filter.
 	DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error)
 	// EmitAuditEvent emits audit event
@@ -3982,8 +4179,13 @@ type AuthServiceServer interface {
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(context.Context, *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error)
+	// Deprecated: Do not use.
 	// GetSnowflakeSessions gets all Snowflake web sessions.
+	// Deprecated: Use [ListSnowflakeSessions] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -4019,8 +4221,11 @@ type AuthServiceServer interface {
 	DeleteAllWebSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(context.Context, *types.GetWebTokenRequest) (*GetWebTokenResponse, error)
+	// Deprecated: Do not use.
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error)
+	// ListWebTokens returns a page of web tokens.
+	ListWebTokens(context.Context, *ListWebTokensRequest) (*ListWebTokensResponse, error)
 	// DeleteWebToken deletes a web token.
 	DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*emptypb.Empty, error)
 	// DeleteAllWebTokens deletes all web tokens.
@@ -4129,8 +4334,13 @@ type AuthServiceServer interface {
 	CreateRegisterChallenge(context.Context, *CreateRegisterChallengeRequest) (*MFARegisterChallenge, error)
 	// GetOIDCConnector gets an OIDC connector resource by name.
 	GetOIDCConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error)
+	// Deprecated: Do not use.
 	// GetOIDCConnectors gets all current OIDC connector resources.
+	//
+	// Deprecated: Use ListOIDCConnectors instead.
 	GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error)
+	// ListOIDCConnectors returns a page of current OIDC connector resources.
+	ListOIDCConnectors(context.Context, *ListOIDCConnectorsRequest) (*ListOIDCConnectorsResponse, error)
 	// UpsertOIDCConnector creates a new OIDC connector in the backend.
 	CreateOIDCConnector(context.Context, *CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error)
 	// UpsertOIDCConnector updates an existing OIDC connector in the backend.
@@ -4150,8 +4360,13 @@ type AuthServiceServer interface {
 	GetOIDCAuthRequest(context.Context, *GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error)
+	// Deprecated: Do not use.
 	// GetSAMLConnectors gets all current SAML connector resources.
+	//
+	// Deprecated: Use ListSAMLConnectors instead.
 	GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error)
+	// ListSAMLConnectors returns a page of current SAML connector resources.
+	ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error)
 	// CreateSAMLConnector creates a new SAML connector in the backend.
 	CreateSAMLConnector(context.Context, *CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error)
 	// UpdateSAMLConnector updates an existing SAML connector in the backend.
@@ -4171,8 +4386,13 @@ type AuthServiceServer interface {
 	GetSAMLAuthRequest(context.Context, *GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error)
+	// Deprecated: Do not use.
 	// GetGithubConnectors gets all current Github connector resources.
+	//
+	// Deprecated: Use ListGithubConnectors instead.
 	GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error)
+	// ListGithubConnectors returns a page of current Github connector resources.
+	ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error)
 	// CreateGithubConnector creates a new Github connector in the backend.
 	CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error)
 	// UpdateGithubConnector updates an existing Github connector in the backend.
@@ -4204,7 +4424,10 @@ type AuthServiceServer interface {
 	DeleteAllServerInfos(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
+	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
+	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -4280,8 +4503,11 @@ type AuthServiceServer interface {
 	GetSessionEvents(context.Context, *GetSessionEventsRequest) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(context.Context, *GetLockRequest) (*types.LockV2, error)
+	// Deprecated: Do not use.
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error)
+	// ListLocks returns a page of locks matching a filter.
+	ListLocks(context.Context, *ListLocksRequest) (*ListLocksResponse, error)
 	// UpsertLock upserts a lock.
 	UpsertLock(context.Context, *types.LockV2) (*emptypb.Empty, error)
 	// DeleteLock deletes a lock.
@@ -4296,6 +4522,7 @@ type AuthServiceServer interface {
 	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -4310,8 +4537,11 @@ type AuthServiceServer interface {
 	DeleteApp(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error)
+	// ListDatabases returns a page of registered databases.
+	ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error)
 	// GetDatabase returns a database by name.
 	GetDatabase(context.Context, *types.ResourceRequest) (*types.DatabaseV3, error)
 	// CreateDatabase creates a new database resource.
@@ -4322,8 +4552,11 @@ type AuthServiceServer interface {
 	DeleteDatabase(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
 	DeleteAllDatabases(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(context.Context, *ListKubernetesClustersRequest) (*ListKubernetesClustersResponse, error)
 	// GetKubernetesCluster returns a kubernetes cluster by name.
 	GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error)
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
@@ -4443,8 +4676,11 @@ type AuthServiceServer interface {
 	CreatePrivilegeToken(context.Context, *CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 	// GetInstaller retrieves the installer script resource
 	GetInstaller(context.Context, *types.ResourceRequest) (*types.InstallerV1, error)
+	// Deprecated: Do not use.
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(context.Context, *ListInstallersRequest) (*ListInstallersResponse, error)
 	// SetInstaller sets the installer script resource
 	SetInstaller(context.Context, *types.InstallerV1) (*emptypb.Empty, error)
 	// DeleteInstaller removes the specified installer script resource
@@ -4518,6 +4754,10 @@ type AuthServiceServer interface {
 	UpdateClusterMaintenanceConfig(context.Context, *types.ClusterMaintenanceConfigV1) (*emptypb.Empty, error)
 	// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
 	DeleteClusterMaintenanceConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
+	// by the proxy on behalf of a cluster that wishes to join to this one as a
+	// leaf cluster.
+	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 }
 
 // UnimplementedAuthServiceServer should be embedded to have
@@ -4632,6 +4872,9 @@ func (UnimplementedAuthServiceServer) SubmitAccessReview(context.Context, *types
 func (UnimplementedAuthServiceServer) GetAccessCapabilities(context.Context, *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessCapabilities not implemented")
 }
+func (UnimplementedAuthServiceServer) GetRemoteAccessCapabilities(context.Context, *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRemoteAccessCapabilities not implemented")
+}
 func (UnimplementedAuthServiceServer) GetAccessRequestAllowedPromotions(context.Context, *AccessRequestAllowedPromotionRequest) (*AccessRequestAllowedPromotionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequestAllowedPromotions not implemented")
 }
@@ -4689,6 +4932,9 @@ func (UnimplementedAuthServiceServer) CancelSemaphoreLease(context.Context, *typ
 func (UnimplementedAuthServiceServer) GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSemaphores not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSemaphores(context.Context, *ListSemaphoresRequest) (*ListSemaphoresResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSemaphores not implemented")
+}
 func (UnimplementedAuthServiceServer) DeleteSemaphore(context.Context, *types.SemaphoreFilter) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSemaphore not implemented")
 }
@@ -4737,6 +4983,9 @@ func (UnimplementedAuthServiceServer) GetSnowflakeSession(context.Context, *GetS
 func (UnimplementedAuthServiceServer) GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSnowflakeSessions not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSnowflakeSessions not implemented")
+}
 func (UnimplementedAuthServiceServer) DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSnowflakeSession not implemented")
 }
@@ -4781,6 +5030,9 @@ func (UnimplementedAuthServiceServer) GetWebToken(context.Context, *types.GetWeb
 }
 func (UnimplementedAuthServiceServer) GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebTokens not implemented")
+}
+func (UnimplementedAuthServiceServer) ListWebTokens(context.Context, *ListWebTokensRequest) (*ListWebTokensResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWebTokens not implemented")
 }
 func (UnimplementedAuthServiceServer) DeleteWebToken(context.Context, *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWebToken not implemented")
@@ -4878,6 +5130,9 @@ func (UnimplementedAuthServiceServer) GetOIDCConnector(context.Context, *types.R
 func (UnimplementedAuthServiceServer) GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOIDCConnectors not implemented")
 }
+func (UnimplementedAuthServiceServer) ListOIDCConnectors(context.Context, *ListOIDCConnectorsRequest) (*ListOIDCConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListOIDCConnectors not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateOIDCConnector(context.Context, *CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOIDCConnector not implemented")
 }
@@ -4905,6 +5160,9 @@ func (UnimplementedAuthServiceServer) GetSAMLConnector(context.Context, *types.R
 func (UnimplementedAuthServiceServer) GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSAMLConnectors not implemented")
 }
+func (UnimplementedAuthServiceServer) ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSAMLConnectors not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateSAMLConnector(context.Context, *CreateSAMLConnectorRequest) (*types.SAMLConnectorV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSAMLConnector not implemented")
 }
@@ -4931,6 +5189,9 @@ func (UnimplementedAuthServiceServer) GetGithubConnector(context.Context, *types
 }
 func (UnimplementedAuthServiceServer) GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGithubConnectors not implemented")
+}
+func (UnimplementedAuthServiceServer) ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGithubConnectors not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateGithubConnector(context.Context, *CreateGithubConnectorRequest) (*types.GithubConnectorV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGithubConnector not implemented")
@@ -5055,6 +5316,9 @@ func (UnimplementedAuthServiceServer) GetLock(context.Context, *GetLockRequest) 
 func (UnimplementedAuthServiceServer) GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLocks not implemented")
 }
+func (UnimplementedAuthServiceServer) ListLocks(context.Context, *ListLocksRequest) (*ListLocksResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListLocks not implemented")
+}
 func (UnimplementedAuthServiceServer) UpsertLock(context.Context, *types.LockV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertLock not implemented")
 }
@@ -5100,6 +5364,9 @@ func (UnimplementedAuthServiceServer) DeleteAllApps(context.Context, *emptypb.Em
 func (UnimplementedAuthServiceServer) GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
 }
+func (UnimplementedAuthServiceServer) ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDatabases not implemented")
+}
 func (UnimplementedAuthServiceServer) GetDatabase(context.Context, *types.ResourceRequest) (*types.DatabaseV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabase not implemented")
 }
@@ -5117,6 +5384,9 @@ func (UnimplementedAuthServiceServer) DeleteAllDatabases(context.Context, *empty
 }
 func (UnimplementedAuthServiceServer) GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubernetesClusters not implemented")
+}
+func (UnimplementedAuthServiceServer) ListKubernetesClusters(context.Context, *ListKubernetesClustersRequest) (*ListKubernetesClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesClusters not implemented")
 }
 func (UnimplementedAuthServiceServer) GetKubernetesCluster(context.Context, *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubernetesCluster not implemented")
@@ -5220,6 +5490,9 @@ func (UnimplementedAuthServiceServer) GetInstaller(context.Context, *types.Resou
 func (UnimplementedAuthServiceServer) GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetInstallers not implemented")
 }
+func (UnimplementedAuthServiceServer) ListInstallers(context.Context, *ListInstallersRequest) (*ListInstallersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListInstallers not implemented")
+}
 func (UnimplementedAuthServiceServer) SetInstaller(context.Context, *types.InstallerV1) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetInstaller not implemented")
 }
@@ -5315,6 +5588,9 @@ func (UnimplementedAuthServiceServer) UpdateClusterMaintenanceConfig(context.Con
 }
 func (UnimplementedAuthServiceServer) DeleteClusterMaintenanceConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteClusterMaintenanceConfig not implemented")
+}
+func (UnimplementedAuthServiceServer) ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateTrustedCluster not implemented")
 }
 func (UnimplementedAuthServiceServer) testEmbeddedByValue() {}
 
@@ -5887,6 +6163,24 @@ func _AuthService_GetAccessCapabilities_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetRemoteAccessCapabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.RemoteAccessCapabilitiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetRemoteAccessCapabilities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetRemoteAccessCapabilities_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetRemoteAccessCapabilities(ctx, req.(*types.RemoteAccessCapabilitiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetAccessRequestAllowedPromotions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AccessRequestAllowedPromotionRequest)
 	if err := dec(in); err != nil {
@@ -6215,6 +6509,24 @@ func _AuthService_GetSemaphores_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListSemaphores_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSemaphoresRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSemaphores(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSemaphores_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSemaphores(ctx, req.(*ListSemaphoresRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_DeleteSemaphore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.SemaphoreFilter)
 	if err := dec(in); err != nil {
@@ -6492,6 +6804,24 @@ func _AuthService_GetSnowflakeSessions_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListSnowflakeSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSnowflakeSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSnowflakeSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSnowflakeSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSnowflakeSessions(ctx, req.(*ListSnowflakeSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_DeleteSnowflakeSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteSnowflakeSessionRequest)
 	if err := dec(in); err != nil {
@@ -6751,6 +7081,24 @@ func _AuthService_GetWebTokens_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetWebTokens(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListWebTokens_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWebTokensRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListWebTokens(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListWebTokens_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListWebTokens(ctx, req.(*ListWebTokensRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -7309,6 +7657,24 @@ func _AuthService_GetOIDCConnectors_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListOIDCConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOIDCConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListOIDCConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListOIDCConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListOIDCConnectors(ctx, req.(*ListOIDCConnectorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateOIDCConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateOIDCConnectorRequest)
 	if err := dec(in); err != nil {
@@ -7471,6 +7837,24 @@ func _AuthService_GetSAMLConnectors_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListSAMLConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSAMLConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSAMLConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSAMLConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSAMLConnectors(ctx, req.(*ListSAMLConnectorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_CreateSAMLConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateSAMLConnectorRequest)
 	if err := dec(in); err != nil {
@@ -7629,6 +8013,24 @@ func _AuthService_GetGithubConnectors_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetGithubConnectors(ctx, req.(*types.ResourcesWithSecretsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListGithubConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGithubConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListGithubConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListGithubConnectors(ctx, req.(*ListGithubConnectorsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -8364,6 +8766,24 @@ func _AuthService_GetLocks_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListLocks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLocksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListLocks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListLocks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListLocks(ctx, req.(*ListLocksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_UpsertLock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.LockV2)
 	if err := dec(in); err != nil {
@@ -8627,6 +9047,24 @@ func _AuthService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDatabasesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListDatabases(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListDatabases_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListDatabases(ctx, req.(*ListDatabasesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetDatabase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.ResourceRequest)
 	if err := dec(in); err != nil {
@@ -8731,6 +9169,24 @@ func _AuthService_GetKubernetesClusters_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetKubernetesClusters(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListKubernetesClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubernetesClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListKubernetesClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListKubernetesClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListKubernetesClusters(ctx, req.(*ListKubernetesClustersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -9347,6 +9803,24 @@ func _AuthService_GetInstallers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListInstallers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListInstallersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListInstallers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListInstallers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListInstallers(ctx, req.(*ListInstallersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_SetInstaller_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.InstallerV1)
 	if err := dec(in); err != nil {
@@ -9916,6 +10390,24 @@ func _AuthService_DeleteClusterMaintenanceConfig_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ValidateTrustedCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateTrustedClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateTrustedCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ValidateTrustedCluster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateTrustedCluster(ctx, req.(*ValidateTrustedClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -10028,6 +10520,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetAccessCapabilities_Handler,
 		},
 		{
+			MethodName: "GetRemoteAccessCapabilities",
+			Handler:    _AuthService_GetRemoteAccessCapabilities_Handler,
+		},
+		{
 			MethodName: "GetAccessRequestAllowedPromotions",
 			Handler:    _AuthService_GetAccessRequestAllowedPromotions_Handler,
 		},
@@ -10096,6 +10592,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSemaphores_Handler,
 		},
 		{
+			MethodName: "ListSemaphores",
+			Handler:    _AuthService_ListSemaphores_Handler,
+		},
+		{
 			MethodName: "DeleteSemaphore",
 			Handler:    _AuthService_DeleteSemaphore_Handler,
 		},
@@ -10156,6 +10656,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSnowflakeSessions_Handler,
 		},
 		{
+			MethodName: "ListSnowflakeSessions",
+			Handler:    _AuthService_ListSnowflakeSessions_Handler,
+		},
+		{
 			MethodName: "DeleteSnowflakeSession",
 			Handler:    _AuthService_DeleteSnowflakeSession_Handler,
 		},
@@ -10210,6 +10714,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWebTokens",
 			Handler:    _AuthService_GetWebTokens_Handler,
+		},
+		{
+			MethodName: "ListWebTokens",
+			Handler:    _AuthService_ListWebTokens_Handler,
 		},
 		{
 			MethodName: "DeleteWebToken",
@@ -10332,6 +10840,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetOIDCConnectors_Handler,
 		},
 		{
+			MethodName: "ListOIDCConnectors",
+			Handler:    _AuthService_ListOIDCConnectors_Handler,
+		},
+		{
 			MethodName: "CreateOIDCConnector",
 			Handler:    _AuthService_CreateOIDCConnector_Handler,
 		},
@@ -10368,6 +10880,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetSAMLConnectors_Handler,
 		},
 		{
+			MethodName: "ListSAMLConnectors",
+			Handler:    _AuthService_ListSAMLConnectors_Handler,
+		},
+		{
 			MethodName: "CreateSAMLConnector",
 			Handler:    _AuthService_CreateSAMLConnector_Handler,
 		},
@@ -10402,6 +10918,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGithubConnectors",
 			Handler:    _AuthService_GetGithubConnectors_Handler,
+		},
+		{
+			MethodName: "ListGithubConnectors",
+			Handler:    _AuthService_ListGithubConnectors_Handler,
 		},
 		{
 			MethodName: "CreateGithubConnector",
@@ -10564,6 +11084,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetLocks_Handler,
 		},
 		{
+			MethodName: "ListLocks",
+			Handler:    _AuthService_ListLocks_Handler,
+		},
+		{
 			MethodName: "UpsertLock",
 			Handler:    _AuthService_UpsertLock_Handler,
 		},
@@ -10620,6 +11144,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetDatabases_Handler,
 		},
 		{
+			MethodName: "ListDatabases",
+			Handler:    _AuthService_ListDatabases_Handler,
+		},
+		{
 			MethodName: "GetDatabase",
 			Handler:    _AuthService_GetDatabase_Handler,
 		},
@@ -10642,6 +11170,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetKubernetesClusters",
 			Handler:    _AuthService_GetKubernetesClusters_Handler,
+		},
+		{
+			MethodName: "ListKubernetesClusters",
+			Handler:    _AuthService_ListKubernetesClusters_Handler,
 		},
 		{
 			MethodName: "GetKubernetesCluster",
@@ -10780,6 +11312,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetInstallers_Handler,
 		},
 		{
+			MethodName: "ListInstallers",
+			Handler:    _AuthService_ListInstallers_Handler,
+		},
+		{
 			MethodName: "SetInstaller",
 			Handler:    _AuthService_SetInstaller_Handler,
 		},
@@ -10902,6 +11438,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteClusterMaintenanceConfig",
 			Handler:    _AuthService_DeleteClusterMaintenanceConfig_Handler,
+		},
+		{
+			MethodName: "ValidateTrustedCluster",
+			Handler:    _AuthService_ValidateTrustedCluster_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

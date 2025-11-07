@@ -52,14 +52,12 @@ func newLoadBalancer(ctx context.Context, frontend NetAddr, policy loadBalancerP
 	if ctx == nil {
 		return nil, trace.BadParameter("missing parameter context")
 	}
-	waitCtx, waitCancel := context.WithCancel(ctx)
+
 	return &LoadBalancer{
-		frontend:   frontend,
-		ctx:        ctx,
-		backends:   backends,
-		policy:     policy,
-		waitCtx:    waitCtx,
-		waitCancel: waitCancel,
+		frontend: frontend,
+		ctx:      ctx,
+		backends: backends,
+		policy:   policy,
 		logger: slog.With(
 			teleport.ComponentKey, "loadbalancer",
 			"frontend_addr", frontend.FullAddress(),
@@ -99,8 +97,8 @@ func randomPolicy() loadBalancerPolicy {
 	}
 }
 
-// LoadBalancer implements naive round robin TCP load
-// balancer used in tests.
+// LoadBalancer is a simple load balancer implementation.
+// It does not do any health checking of backends and is not suitable for production usage.
 type LoadBalancer struct {
 	sync.RWMutex
 	connID      int64
@@ -111,8 +109,6 @@ type LoadBalancer struct {
 	policy      loadBalancerPolicy
 	listener    net.Listener
 	connections map[NetAddr]map[int64]net.Conn
-	waitCtx     context.Context
-	waitCancel  context.CancelFunc
 
 	PROXYHeader []byte // optional PROXY header that load balancer will send to the backend on every new connection.
 }
@@ -222,7 +218,6 @@ func (l *LoadBalancer) Addr() net.Addr {
 
 // Serve starts accepting connections
 func (l *LoadBalancer) Serve() error {
-	defer l.waitCancel()
 	for {
 		conn, err := l.listener.Accept()
 		if err != nil {
@@ -246,12 +241,6 @@ func (l *LoadBalancer) forwardConnection(conn net.Conn) {
 	if err != nil {
 		l.logger.WarnContext(l.ctx, "Failed to forward connection", "error", err)
 	}
-}
-
-// Wait is here to workaround issue https://github.com/golang/go/issues/10527
-// in tests
-func (l *LoadBalancer) Wait() {
-	<-l.waitCtx.Done()
 }
 
 func (l *LoadBalancer) forward(conn net.Conn) error {

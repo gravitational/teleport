@@ -31,20 +31,20 @@ import (
 
 // ServiceBuilder returns an example service builder.
 func ServiceBuilder(cfg *Config) bot.ServiceBuilder {
-	return func(bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &Service{cfg: cfg}, nil
 	}
+	return bot.NewServiceBuilder(ServiceType, cfg.Name, buildFn)
 }
 
 // Service is a temporary example service for testing purposes. It is not
 // intended to be used and exists to demonstrate how a user configurable
 // service integrates with the tbot service manager.
 type Service struct {
-	cfg     *Config
-	Message string `yaml:"message"`
+	cfg *Config
 }
 
 func (s *Service) Run(ctx context.Context) error {
@@ -53,7 +53,7 @@ func (s *Service) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(time.Second * 5):
-			fmt.Println("Example Service prints message:", s.Message)
+			fmt.Println("Example Service prints message:", s.cfg.Message)
 		}
 	}
 }
@@ -61,6 +61,6 @@ func (s *Service) Run(ctx context.Context) error {
 func (s *Service) String() string {
 	return cmp.Or(
 		s.cfg.Name,
-		fmt.Sprintf("%s:%s", ServiceType, s.Message),
+		fmt.Sprintf("%s:%s", ServiceType, s.cfg.Message),
 	)
 }

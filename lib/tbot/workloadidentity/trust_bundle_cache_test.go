@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509/pkix"
+	"os"
 	"testing"
 	"time"
 
@@ -42,6 +43,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
 
 func TestBundleSet_Clone(t *testing.T) {
 	t.Parallel()

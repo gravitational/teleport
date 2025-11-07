@@ -26,8 +26,6 @@ podMonitor:
   enabled: true
   interval: ""
 
-teleportVersionOverride: 15.0.0
-
 auth:
   teleportConfig:
     auth_service:

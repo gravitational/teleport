@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -48,9 +49,9 @@ type HostCertificateRequest struct {
 	// PublicHostKey is the public key of the host
 	PublicHostKey []byte
 	// HostID is used by Teleport to uniquely identify a node within a cluster (this is used to help infill
-	// Identity.Princiapals and is not a standalone cert field).
+	// Identity.Principals and is not a standalone cert field).
 	HostID string
-	// NodeName is the DNS name of the node (this is used to help infill Identity.Princiapals and is not a
+	// NodeName is the DNS name of the node (this is used to help infill Identity.Principals and is not a
 	// standalone cert field).
 	NodeName string
 	// TTL defines how long a certificate is valid for
@@ -77,6 +78,11 @@ func (r *HostCertificateRequest) Check() error {
 	}
 	if err := r.Identity.SystemRole.Check(); err != nil {
 		return trace.Wrap(err)
+	}
+	if r.Identity.AgentScope != "" {
+		if err := scopes.StrongValidate(r.Identity.AgentScope); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -107,6 +113,11 @@ func (r *UserCertificateRequest) CheckAndSetDefaults() error {
 	if len(r.Identity.Principals) == 0 {
 		return trace.BadParameter("ssh user identity missing allowed logins")
 	}
+
+	if r.Identity.ScopePin != nil && len(r.Identity.Roles) != 0 {
+		return trace.BadParameter("ssh user identity cannot have both scope pin and roles set")
+	}
+
 	if r.Identity.ValidBefore != 0 {
 		return trace.BadParameter("ValidBefore should not be set in user cert requests (derived from TTL)")
 	}

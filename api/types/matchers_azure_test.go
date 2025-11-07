@@ -119,6 +119,39 @@ func TestAzureMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 			errCheck: isBadParameterErr,
 		},
+		{
+			name: "invalid install suffix",
+			in: &AzureMatcher{
+				Types: []string{"vm"},
+				Params: &InstallerParams{
+					Suffix: "$SHELL",
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "invalid update groups",
+			in: &AzureMatcher{
+				Types: []string{"vm"},
+				Params: &InstallerParams{
+					UpdateGroup: "$SHELL",
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "invalid proxy settings",
+			in: &AzureMatcher{
+				Types:   []string{"vm"},
+				Regions: []string{"us-east-1"},
+				Params: &InstallerParams{
+					HTTPProxySettings: &HTTPProxySettings{
+						HTTPProxy: "not a valid url",
+					},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.in.CheckAndSetDefaults()

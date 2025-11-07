@@ -33,7 +33,6 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import useTeleport from 'teleport/useTeleport';
 
 import ClusterList from './ClusterList';
-import { ManageCluster } from './ManageCluster';
 import { buildACL } from './utils';
 
 export function Clusters() {
@@ -44,11 +43,6 @@ export function Clusters() {
         exact
         path={cfg.routes.clusters}
         component={ClusterListPage}
-      />
-      <Route
-        key="cluster-management"
-        path={cfg.routes.manageCluster}
-        component={ManageCluster}
       />
     </Switch>
   );

@@ -28,30 +28,30 @@ import {
 test('download button is available when autoDownload is false', async () => {
   render(
     <DetailsView
-      updateEvent={makeUpdateAvailableEvent(makeUpdateInfo(false, '18.0.0'), {
-        enabled: true,
-        version: '18.0.0',
-        source: 'highest-compatible',
-        options: {
-          highestCompatibleVersion: '18.0.0',
-          managingClusterUri: undefined,
-          clusters: [
-            {
-              clusterUri: '/cluster/bar',
-              toolsAutoUpdate: true,
-              toolsVersion: '18.0.0',
-              minToolsVersion: '17.0.0-aa',
-              otherCompatibleClusters: [],
-            },
-          ],
-          unreachableClusters: [
-            { clusterUri: '/clusters/foo', errorMessage: 'NET_ERR' },
-          ],
-        },
-      })}
-      clusterGetter={{
-        findCluster: () => undefined,
-      }}
+      updateEvent={makeUpdateAvailableEvent(
+        makeUpdateInfo(false, '18.0.0', 'upgrade'),
+        {
+          enabled: true,
+          version: '18.0.0',
+          source: 'highest-compatible',
+          options: {
+            highestCompatibleVersion: '18.0.0',
+            managingClusterUri: undefined,
+            clusters: [
+              {
+                clusterUri: '/cluster/bar',
+                toolsAutoUpdate: true,
+                toolsVersion: '18.0.0',
+                minToolsVersion: '17.0.0-aa',
+                otherCompatibleClusters: [],
+              },
+            ],
+            unreachableClusters: [
+              { clusterUri: '/clusters/foo', errorMessage: 'NET_ERR' },
+            ],
+          },
+        }
+      )}
       platform="darwin"
       onCheckForUpdates={() => {}}
       onDownload={() => {}}
@@ -65,7 +65,7 @@ test('download button is available when autoDownload is false', async () => {
   ).toBeInTheDocument();
 });
 
-test('when there is no compatible client version, user needs to select cluster', async () => {
+test('when there are multiple clusters available, managing cluster can be selected', async () => {
   const changeManagingClusterSpy = jest.fn();
   render(
     <DetailsView
@@ -96,10 +96,7 @@ test('when there is no compatible client version, user needs to select cluster',
           ],
         },
       })}
-      clusterGetter={{
-        findCluster: () => undefined,
-      }}
-      platform={'darwin'}
+      platform="darwin"
       onCheckForUpdates={() => {}}
       onDownload={() => {}}
       onCancelDownload={() => {}}
@@ -112,30 +109,24 @@ test('when there is no compatible client version, user needs to select cluster',
       'Your clusters require incompatible client versions. To enable app updates, select which cluster should manage them.'
     )
   ).toBeInTheDocument();
-  expect(
-    await screen.findByText(
-      'Unable to retrieve accepted client versions from the cluster baz.'
-    )
-  ).toBeInTheDocument();
-  expect(
-    await screen.findByRole('checkbox', {
-      name: 'Use the highest compatible version from your clusters',
-    })
-  ).not.toBeChecked();
+
   const radioOptions = await screen.findAllByRole('radio');
-  expect(radioOptions).toHaveLength(3);
+  expect(radioOptions).toHaveLength(4);
 
   expect(radioOptions.at(0).closest('label')).toHaveTextContent(
     // The cluster name and the helper text are normally in separate lines.
-    'foo16.0.0 client, only compatible with this cluster.'
+    'Use the highest compatible version from your clusters⚠︎︎ No cluster provides a version compatible with all other clusters.'
   );
   expect(radioOptions.at(1).closest('label')).toHaveTextContent(
-    'bar18.0.0 client.⚠︎ Cannot provide updates, automatic client tools updates are disabled on this cluster.'
+    'fooTeleport Connect 16.0.0'
   );
   expect(radioOptions.at(2).closest('label')).toHaveTextContent(
-    'baz⚠︎ Cannot provide updates, cluster is unreachable.NET_ERR'
+    'barTeleport Connect 18.0.0⚠︎︎ Automatic client tools updates are disabled on this cluster.'
+  );
+  expect(radioOptions.at(3).closest('label')).toHaveTextContent(
+    'baz⚠︎︎ Version unavailable · Cluster is unreachable.Show MoreRetry'
   );
 
-  await userEvent.click(radioOptions.at(0));
+  await userEvent.click(radioOptions.at(1));
   expect(changeManagingClusterSpy).toHaveBeenCalledWith('/clusters/foo');
 });

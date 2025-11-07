@@ -64,6 +64,8 @@ type proxyTunnelStrategy struct {
 	db           *helpers.TeleInstance
 	dbAuthClient *authclient.Client
 	postgresDB   *postgres.TestServer
+
+	expectedTunnels int
 }
 
 func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.TunnelStrategyV1) *proxyTunnelStrategy {
@@ -151,9 +153,15 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy.
 func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
-	// TODO(jakule): Fix the test.
-	t.Skip("this test is flaky as it very sensitive to our timeouts")
+	// NOTE(eriktate): Testing database tunnels appears to be flaky (or possibly never works?)
+	// so we currently skip adding a database altogether in order to ensure peered tunnels have
+	// some automatic test coverage. Gating this behind a flag in case we want to restore the
+	// database portion of the test at some point.
+	withDB := false
+	testProxyTunnelStrategyProxyPeering(t, withDB)
+}
 
+func testProxyTunnelStrategyProxyPeering(t *testing.T, withDB bool) {
 	// This test cannot run in parallel as set module changes the global state.
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
@@ -185,11 +193,13 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	// bootstrap a node instance.
 	p.makeNode(t)
 
-	// bootstrap a db instance.
-	p.makeDatabase(t)
+	if withDB {
+		// bootstrap a db instance.
+		p.makeDatabase(t)
+	}
 
 	// wait for the node and db to open reverse tunnels to the first proxy.
-	helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 2)
+	helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, p.expectedTunnels)
 
 	// bootstrap the second proxy instance after the node and db have already
 	// established reverse tunnels to the first proxy.
@@ -204,13 +214,17 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	p.waitForNodeToBeReachable(t)
 	p.dialNode(t)
 
-	// make sure we can connect to the database going through any proxy.
-	p.waitForDatabaseToBeReachable(t)
-	p.dialDatabase(t)
+	if withDB {
+		// make sure we can connect to the database going through any proxy.
+		p.waitForDatabaseToBeReachable(t)
+		p.dialDatabase(t)
+	}
 }
 
 // dialNode starts a client conn to a node reachable through a specific proxy.
 func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
+	nodeID, err := p.node.Process.WaitForHostID(t.Context())
+	require.NoError(t, err)
 	for _, proxy := range p.proxies {
 		creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 			Process:  p.auth.Process,
@@ -221,7 +235,7 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 		client, err := proxy.NewClientWithCreds(
 			helpers.ClientConfig{
 				Cluster: p.cluster,
-				Host:    p.node.Process.Config.HostUUID,
+				Host:    nodeID,
 			},
 			*creds,
 		)
@@ -399,6 +413,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	require.NoError(t, node.Start())
 
 	p.node = node
+	p.expectedTunnels += 1
 }
 
 // makeDatabase bootstraps a new teleport db instance.
@@ -488,12 +503,15 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	p.db = db
 	p.dbAuthClient = client
 	p.postgresDB = postgresDB
+	p.expectedTunnels += 1
 }
 
 // waitForNodeToBeReachable waits for the node to be reachable from all
 // proxies by making sure the proxy peer connectivity info (if any) got
 // propagated to the auth server.
 func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
+	nodeID, err := p.node.Process.WaitForHostID(t.Context())
+	require.NoError(t, err)
 	check := func(t *helpers.TeleInstance, availability int) (bool, error) {
 		nodes, err := t.GetSiteAPI(p.cluster).GetNodes(
 			context.Background(),
@@ -504,8 +522,7 @@ func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
 		}
 
 		for _, node := range nodes {
-			if node.GetName() == p.node.Process.Config.HostUUID &&
-				len(node.GetProxyIDs()) == availability {
+			if node.GetName() == nodeID && len(node.GetProxyIDs()) == availability {
 				return true, nil
 			}
 		}
@@ -518,6 +535,8 @@ func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
 // proxies by making sure the proxy peer connectivity info (if any) got
 // propagated to the auth server.
 func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
+	dbID, err := p.db.Process.WaitForHostID(t.Context())
+	require.NoError(t, err)
 	check := func(t *helpers.TeleInstance, availability int) (bool, error) {
 		databases, err := t.GetSiteAPI(p.cluster).GetDatabaseServers(
 			context.Background(),
@@ -528,8 +547,7 @@ func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
 		}
 
 		for _, db := range databases {
-			if db.GetHostID() == p.db.Process.Config.HostUUID &&
-				len(db.GetProxyIDs()) == availability {
+			if db.GetHostID() == dbID && len(db.GetProxyIDs()) == availability {
 				return true, nil
 			}
 		}

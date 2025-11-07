@@ -1,0 +1,51 @@
+---
+title: Rotating the AWS IAM Identity Center SCIM token
+description: How to update the AWS IAM Identity Center SCIM token in Teleport
+tags:
+ - identity-governance
+ - how-to
+ - aws
+---
+
+This guide will show you how to rotate the SCIM bearer token in Teleport using `tctl`. 
+
+## How it works
+
+Teleport provisions AWS users and groups into AWS IAM Identity Center via 
+[SCIM](https://scim.org/). The Teleport SCIM client authenticates itself to AWS 
+IAM Identity Center using a bearer token. By their nature bearer tokens need to be 
+rotated occasionally to maintain security.
+
+## Generating the token
+
+You can generate the new SCIM bearer token by following the AWS IAM Identity Center
+[Rotate an access token](https://docs.aws.amazon.com/singlesignon/latest/userguide/rotate-token.html)
+user guide.
+
+Be sure to capture the token value displayed at the end of the AWS token creation
+flow, as AWS will not display it again.
+
+## Rotating the token
+
+<Admonition>
+This functionality is only available in `tctl` and cannot yet be done in the Teleport UI.
+</Admonition>
+
+```shell
+$ tctl plugins rotate awsic ${TOKEN}
+```
+
+Once the SCIM token is updated Teleport will check to see if the actual token
+value has changed. If so, Teleport will automatically restart the Identity Center
+integration for it to pick up and use the new token.
+
+## Disabling token validation
+
+By default, `tctl` will validate that the supplied token can be used to successfully
+authenticate with the configured SCIM service. If, for example, the target SCIM
+is unavailable and you want to force the token rotation you can disable the token
+validation with the `--no-validate-token` flag. 
+
+```shell
+$ tctl plugins rotate awsic --no-validate-token ${TOKEN}
+```

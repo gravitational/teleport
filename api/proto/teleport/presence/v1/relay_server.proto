@@ -34,7 +34,28 @@ message RelayServer {
 
   // resource spec
   message Spec {
-    // TODO
+    // host IDs of Proxy Service instances that this server is available on
+    // through a reverse tunnel
+    repeated string proxy_ids = 1;
+
+    // configured hostname (or nodename) of the machine, for troubleshooting and
+    // debugging
+    string hostname = 2;
+
+    // the name of the Relay group this server belongs to
+    string relay_group = 3;
+
+    // address and port that this server is reachable at by other Relay Service
+    // instance of the same group
+    string peer_addr = 4;
+
+    // random string chosen for the duration of the process, for troubleshooting
+    // and debugging
+    string nonce = 5;
+
+    // set after the Teleport instance has received a termination signal (but
+    // hasn't necessarily began shutting down)
+    bool terminating = 6;
   }
   Spec spec = 5;
 }

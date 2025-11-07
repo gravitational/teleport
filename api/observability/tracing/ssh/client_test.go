@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -48,9 +48,8 @@ func TestIsTracingSupported(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			errChan := make(chan error, 5)
 
-			srv := newServer(t, tt.expectedCapability, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+			srv := newServer(t, tt.srvVersion, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 				go ssh.DiscardRequests(requests)
 
 				for {
@@ -64,29 +63,17 @@ func TestIsTracingSupported(t *testing.T) {
 						}
 
 						if err := ch.Reject(ssh.Prohibited, "no channels allowed"); err != nil {
-							errChan <- trace.Wrap(err, "rejecting channel")
+							assert.NoError(t, err, "rejecting channel")
 							return
 						}
 					}
 				}
 			})
 
-			if tt.srvVersion != "" {
-				srv.config.ServerVersion = tt.srvVersion
-			}
-
-			go srv.Run(errChan)
-
 			conn, chans, reqs := srv.GetClient(t)
 			client := NewClient(conn, chans, reqs)
 
 			require.Equal(t, tt.expectedCapability, client.capability)
-
-			select {
-			case err := <-errChan:
-				require.NoError(t, err)
-			default:
-			}
 		})
 	}
 }
@@ -104,14 +91,13 @@ func TestSetEnvs(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	errChan := make(chan error, 5)
 
 	expected := map[string]string{"a": "1", "b": "2", "c": "3"}
 
 	// used to collect individual envs requests
 	envReqC := make(chan envReqParams, 3)
 
-	srv := newServer(t, tracingSupported, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+	srv := newServer(t, tracingSupportedVersion, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -123,7 +109,7 @@ func TestSetEnvs(t *testing.T) {
 				case ch.ChannelType() == "session":
 					ch, reqs, err := ch.Accept()
 					if err != nil {
-						errChan <- trace.Wrap(err, "failed to accept session channel")
+						assert.NoError(t, err, "failed to accept session channel")
 						return
 					}
 
@@ -178,7 +164,7 @@ func TestSetEnvs(t *testing.T) {
 									_ = req.Reply(true, nil)
 								default: // out of order or unexpected message
 									_ = req.Reply(false, []byte(fmt.Sprintf("unexpected ssh request %s on iteration %d", req.Type, i)))
-									errChan <- err
+									assert.NoError(t, err)
 									return
 								}
 							}
@@ -186,15 +172,13 @@ func TestSetEnvs(t *testing.T) {
 					}()
 				default:
 					if err := ch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unexpected channel %s", ch.ChannelType())); err != nil {
-						errChan <- err
+						assert.NoError(t, err)
 						return
 					}
 				}
 			}
 		}
 	})
-
-	go srv.Run(errChan)
 
 	// create a client and open a session
 	conn, chans, reqs := srv.GetClient(t)
@@ -235,12 +219,6 @@ func TestSetEnvs(t *testing.T) {
 			require.Equal(t, v, actual, "expected value %s for env %s, got %s", v, k, actual)
 		}
 	})
-
-	select {
-	case err := <-errChan:
-		require.NoError(t, err)
-	default:
-	}
 }
 
 type mockSSHChannel struct {
@@ -267,4 +245,136 @@ func TestWrappedSSHConn(t *testing.T) {
 	require.Panics(t, func() {
 		wrappedConn.OpenChannel("", nil)
 	})
+}
+
+// TestGlobalAndSessionRequests tests that the tracing client correctly handles global and session requests.
+func TestGlobalAndSessionRequests(t *testing.T) {
+	ctx := t.Context()
+
+	// pingRequest is an example request type. Whether sent by the server or client in
+	// a global or session context, the receiver should give an ok as the reply.
+	pingRequest := "ping@goteleport.com"
+
+	clientGlobalReply := make(chan bool, 1)
+	clientSessionReply := make(chan bool, 1)
+
+	srv := newServer(t, tracingSupportedVersion, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+		// Send a ping request when the client connection is established.
+		ok, _, err := conn.SendRequest(pingRequest, true, nil)
+		assert.NoError(t, err, "server failed to send global ping request")
+		clientGlobalReply <- ok
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case req := <-requests:
+				switch req.Type {
+				case pingRequest:
+					err := req.Reply(true, nil)
+					assert.NoError(t, err, "server failed to reply to global ping request")
+				default:
+					err := req.Reply(false, nil)
+					assert.NoError(t, err, "server failed to reply to global %q request", req.Type)
+				}
+			case ch := <-channels:
+				switch {
+				case ch == nil:
+					return
+				case ch.ChannelType() == "session":
+					ch, reqs, err := ch.Accept()
+					if err != nil {
+						assert.NoError(t, err, "failed to accept session channel")
+						return
+					}
+
+					go func() {
+						defer ch.Close()
+						for {
+							select {
+							case <-ctx.Done():
+								return
+							case req := <-reqs:
+								switch req.Type {
+								case pingRequest:
+									err := req.Reply(true, nil)
+									assert.NoError(t, err, "server failed to reply to session ping request")
+								}
+								continue
+							}
+						}
+					}()
+
+					// Send a ping request when the session is established.
+					ok, err := ch.SendRequest(pingRequest, true, nil)
+					assert.NoError(t, err, "server failed to send ping request")
+					clientSessionReply <- ok
+				default:
+					err := ch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unexpected channel %s", ch.ChannelType()))
+					assert.NoError(t, err)
+				}
+			}
+		}
+	})
+
+	conn, chans, reqs := srv.GetClient(t)
+	client := NewClient(conn, chans, reqs)
+
+	// The client should reply false to any global request from the server, as we
+	// don't currently support a mechanism for the client to register global handlers.
+	select {
+	case reply := <-clientGlobalReply:
+		require.False(t, reply, "Expected the client to reply false to global ping request")
+	case <-time.After(10 * time.Second):
+		t.Fatalf("Failed to receive client global reply to ping request")
+	}
+
+	// The server should reply true to a global ping request.
+	ok, _, err := client.SendRequest(ctx, pingRequest, true, nil)
+	require.True(t, ok, "Expected the server to reply true to global ping request")
+	require.NoError(t, err)
+
+	// If the client isn't setup to handle session requests, it should reply false to them.
+	// The client should reply true to a session ping request.
+	_, err = client.NewSession(ctx)
+	require.NoError(t, err)
+
+	select {
+	case reply := <-clientSessionReply:
+		require.False(t, reply, "Expected the client to reply false to session ping request")
+	case <-time.After(10 * time.Second):
+		t.Fatalf("Failed to receive client session reply to ping request")
+	}
+
+	// The client should reply true to a session ping request.
+	err = client.HandleSessionRequest(ctx, pingRequest, func(ctx context.Context, req *ssh.Request) {
+		err := req.Reply(true, nil)
+		assert.NoError(t, err)
+	})
+	require.NoError(t, err)
+	_, err = client.NewSession(ctx)
+	require.NoError(t, err)
+
+	select {
+	case reply := <-clientSessionReply:
+		require.True(t, reply, "Expected the client to reply true to session ping request")
+	case <-time.After(10 * time.Second):
+		t.Fatalf("Failed to receive client session reply to ping request")
+	}
+
+	// New Sessions do not reuse previously registered handlers.
+	session, err := client.NewSession(ctx)
+	require.NoError(t, err)
+
+	select {
+	case reply := <-clientSessionReply:
+		require.False(t, reply, "Expected the client to reply false to session ping request")
+	case <-time.After(10 * time.Second):
+		t.Fatalf("Failed to receive client session reply to ping request")
+	}
+
+	// The server should reply true to a session ping request.
+	ok, err = session.SendRequest(ctx, pingRequest, true, nil)
+	require.NoError(t, err)
+	require.True(t, ok, "Expected the server to reply true to session ping request")
 }

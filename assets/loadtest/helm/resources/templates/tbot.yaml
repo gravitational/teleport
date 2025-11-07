@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tbot
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tbot
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tbot
+    spec:
+      containers:
+        - name: tbot
+          image: public.ecr.aws/gravitational/tbot-distroless:{{ default $.Chart.AppVersion $.Values.image.tag }}
+          args:
+            - start
+            - -c
+            - /config/tbot.yaml
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+            - name: TELEPORT_ANONYMOUS_TELEMETRY
+              value: "0"
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+      serviceAccountName: tbot
+      volumes:
+        - name: config
+          configMap:
+            name: tbot-config
+        - name: join-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: join-sa-token
+                  expirationSeconds: 600
+                  audience: {{ .Values.clusterName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tbot-config
+  namespace: {{ .Release.Namespace }}
+data:
+  tbot.yaml: |
+    version: v2
+    onboarding:
+      join_method: kubernetes
+      token: tbot-token
+    storage:
+      type: memory
+    proxy_server: {{ .Values.proxy }}
+    outputs:
+    - type: identity
+      destination:
+        type: kubernetes_secret
+        name: identity-output
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tbot
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secrets-admin
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tbot-secrets-admin
+  namespace: {{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: tbot
+roleRef:
+  kind: Role
+  name:  secrets-admin
+  apiGroup: rbac.authorization.k8s.io

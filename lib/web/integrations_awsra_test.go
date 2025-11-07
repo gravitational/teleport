@@ -25,6 +25,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestBuildAWSRATrustAnchorConfigureScript(t *testing.T) {
@@ -121,6 +124,58 @@ func TestBuildAWSRATrustAnchorConfigureScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()), "entrypointArgs='"+tc.expectedTeleportArgs)
+		})
+	}
+}
+
+func TestValidateAWSRolesAnywhereIntegration(t *testing.T) {
+	t.Parallel()
+	wPack := newWebPack(t, 1 /* proxies */)
+	proxy := wPack.proxies[0]
+	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
+	ctx := t.Context()
+
+	existingIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+		Name: "existing-integration",
+	}, &types.AWSOIDCIntegrationSpecV1{
+		RoleARN: "arn:aws:iam::123456789012:role/valid-role",
+	})
+	require.NoError(t, err)
+
+	_, err = wPack.server.Auth().CreateIntegration(ctx, existingIntegration)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name            string
+		integrationName string
+		errCheck        require.ErrorAssertionFunc
+	}{
+		{
+			name:            "valid",
+			integrationName: "valid-integration",
+			errCheck:        require.NoError,
+		},
+		{
+			name:            "invalid",
+			integrationName: "INVALID-",
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err)
+				require.ErrorContains(tt, err, "must be a lower case valid DNS subdomain")
+			},
+		},
+		{
+			name:            "valid name but it already exists",
+			integrationName: "existing-integration",
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err)
+				require.ErrorContains(tt, err, "already exists")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			endpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", "aws-ra", tt.integrationName, "validate")
+			_, err := authPack.clt.PostJSON(ctx, endpoint, nil)
+			tt.errCheck(t, err)
 		})
 	}
 }

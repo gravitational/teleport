@@ -31,9 +31,13 @@ interface RadioButtonProps {
   disabled?: boolean;
   id?: string;
   name?: string;
-  readonly?: boolean;
   role?: string;
   value?: string;
+
+  // TODO: remove field.
+  // Radio does not have a readonly property
+  // and this field is equivalent to field "disabled".
+  readOnly?: boolean;
 
   // Container properties
   className?: string;
@@ -62,7 +66,12 @@ export const RadioButton = forwardRef<HTMLInputElement, RadioButtonProps>(
             trick, because we want to be able to use this component both with
             and without surrounding labels. Instead, we use absolute positioning
             and an actually rendered input with a custom appearance. */}
-          <RadioButtonInternal ref={ref} rbSize={size} {...inputProps} />
+          <RadioButtonInternal
+            ref={ref}
+            rbSize={size}
+            {...inputProps}
+            disabled={inputProps.disabled || inputProps.readOnly}
+          />
           <Indicator rbSize={size} />
         </InnerWrapper>
       </OuterWrapper>

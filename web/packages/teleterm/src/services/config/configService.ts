@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { z, ZodIssue } from 'zod';
-import zodToJsonSchema from 'zod-to-json-schema';
+import { z } from 'zod';
+import { $ZodIssue } from 'zod/v4/core';
 
 import Logger from 'teleterm/logger';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
@@ -31,17 +31,17 @@ import {
 
 const logger = new Logger('ConfigService');
 
-type FileLoadingError = {
+export type FileLoadingError = {
   source: 'file-loading';
   error: Error;
 };
 
-type ValidationError = {
+export type ValidationError = {
   source: 'validation';
-  errors: ZodIssue[];
+  errors: $ZodIssue[];
 };
 
-type ConfigError = FileLoadingError | ValidationError;
+export type ConfigError = FileLoadingError | ValidationError;
 
 export interface ConfigService {
   get<K extends keyof AppConfig>(
@@ -120,11 +120,13 @@ function updateJsonSchema({
   configFile: FileStorage;
   jsonSchemaFile: FileStorage;
 }): void {
-  const jsonSchema = zodToJsonSchema(
-    // Add $schema field to prevent marking it as a not allowed property.
-    schema.extend({ $schema: z.string() }),
-    { $refStrategy: 'none' }
-  );
+  const jsonSchema = z.toJSONSchema(schema, {
+    // Generate schema from the input definition (before any transformations).
+    io: 'input',
+    // The default draft 2020-12 appears to generate invalid defaults
+    // (only boolean or object allowed).
+    target: 'draft-7',
+  });
   const jsonSchemaFileName = jsonSchemaFile.getFileName();
   const jsonSchemaFileNameInConfig = configFile.get('$schema');
 
@@ -141,9 +143,10 @@ function validateStoredConfig(
 ): {
   storedConfig: Partial<AppConfig>;
   configWithDefaults: AppConfig;
-  errors: ZodIssue[] | undefined;
+  errors: $ZodIssue[] | undefined;
 } {
-  const parse = (data: Partial<AppConfig>) => schema.safeParse(data);
+  const parse = (data: Partial<AppConfig>) =>
+    schema.safeParse(data, { reportInput: true });
 
   const storedConfig = configFile.get() as Partial<AppConfig>;
   const parsed = parse(storedConfig);

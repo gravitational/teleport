@@ -21,10 +21,11 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 )
 
@@ -72,6 +73,7 @@ func TestCommands(t *testing.T) {
 			Username:    "test-user",
 			Database:    "test-database",
 		},
+		teleportVersion: "19.0.0-dev",
 	}
 	tests := []struct {
 		desc               string
@@ -122,7 +124,7 @@ func TestCommands(t *testing.T) {
 			desc:    "teleport",
 			cmdName: "teleport",
 			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
-				require.Contains(t, val, teleport.Version, "expected teleport command to include current Teleport version")
+				require.Contains(t, val, "v19.0.0-dev", "expected teleport command to include current Teleport version")
 			},
 		},
 		{
@@ -170,6 +172,10 @@ type fakeMySQLConn struct {
 
 func (c *fakeMySQLConn) Execute(command string, args ...any) (*mysql.Result, error) {
 	return c.exec(command, args...)
+}
+
+func (c *fakeMySQLConn) ExecuteSelectStreaming(command string, result *mysql.Result, perRowCallback client.SelectPerRowCallback, perResultCallback client.SelectPerResultCallback) error {
+	return trace.NotImplemented("ExecuteSelectStreaming not implemented")
 }
 
 func (c *fakeMySQLConn) UseDB(dbName string) error {

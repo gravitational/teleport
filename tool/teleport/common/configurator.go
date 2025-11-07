@@ -45,6 +45,7 @@ var awsDatabaseTypes = []string{
 	types.DatabaseTypeRedshift,
 	types.DatabaseTypeRedshiftServerless,
 	types.DatabaseTypeElastiCache,
+	types.DatabaseTypeElastiCacheServerless,
 	types.DatabaseTypeMemoryDB,
 	types.DatabaseTypeAWSKeyspaces,
 	types.DatabaseTypeDynamoDB,
@@ -270,6 +271,8 @@ func buildAWSConfigurator(ctx context.Context, manual bool, flags configureDatab
 			configuratorFlags.ForceRedshiftServerlessPermissions = true
 		case types.DatabaseTypeElastiCache:
 			configuratorFlags.ForceElastiCachePermissions = true
+		case types.DatabaseTypeElastiCacheServerless:
+			configuratorFlags.ForceElastiCacheServerlessPermissions = true
 		case types.DatabaseTypeMemoryDB:
 			configuratorFlags.ForceMemoryDBPermissions = true
 		case types.DatabaseTypeAWSKeyspaces:

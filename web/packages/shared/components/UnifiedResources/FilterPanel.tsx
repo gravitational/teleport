@@ -33,20 +33,13 @@ import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 import {
   IncludedResourceMode,
   ResourceHealthStatus,
-  SharedUnifiedResource,
   UnifiedResourcesQueryParams,
 } from './types';
-import { FilterKind, ResourceAvailabilityFilter } from './UnifiedResources';
-
-const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
-  app: 'Application',
-  db: 'Database',
-  windows_desktop: 'Desktop',
-  kube_cluster: 'Kubernetes',
-  node: 'Server',
-  user_group: 'User group',
-  git_server: 'Git Server',
-};
+import {
+  FilterKind,
+  getFilterKindName,
+  ResourceAvailabilityFilter,
+} from './UnifiedResources';
 
 const sortFieldOptions = [
   { label: 'Name', value: 'name' },
@@ -148,13 +141,15 @@ export function FilterPanel({
           />
         </HoverTooltip>
         <MultiselectMenu
-          options={availableKinds.map(
-            ({ kind, disabled }: { kind: string; disabled: boolean }) => ({
-              value: kind,
-              label: kindToLabel[kind],
-              disabled: disabled,
-            })
-          )}
+          options={availableKinds
+            .toSorted((a, b) =>
+              getFilterKindName(a.kind).localeCompare(getFilterKindName(b.kind))
+            )
+            .map(({ kind, disabled }) => ({
+              value: kind as string,
+              label: getFilterKindName(kind),
+              disabled,
+            }))}
           selected={kinds || []}
           onChange={onKindsChanged}
           label="Types"
@@ -177,7 +172,7 @@ export function FilterPanel({
           onChange={onHealthStatusChange}
           label="Health Status"
           tooltip={
-            'Health status filter is only available for database resources. Support for more resource types will be added in the future.'
+            'Health status filter is only available for database and Kubernetes resources. Support for more resource types will be added in the future.'
           }
           disabled={!isResourceStatusFilterSupported}
           buffered
@@ -367,5 +362,10 @@ const AccessRequestsToggleItem = styled.div`
 `;
 
 function resourceStatusFilterSupported(kinds: string[]) {
-  return !kinds || kinds.length === 0 || kinds.includes('db');
+  return (
+    !kinds ||
+    kinds.length === 0 ||
+    kinds.includes('db') ||
+    kinds.includes('kube_cluster')
+  );
 }

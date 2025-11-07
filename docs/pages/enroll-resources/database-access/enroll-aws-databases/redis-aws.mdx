@@ -2,18 +2,18 @@
 title: Database Access with Amazon ElastiCache for Redis and Valkey
 sidebar_label: Amazon ElastiCache
 description: How to configure Teleport database access with Amazon ElastiCache for Redis and Valkey.
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon ElastiCache for Redis and Valkey" dbConfigure="with IAM authentication"!)
-
-Teleport does not support enrolling Amazon ElastiCache Serverless.
+(!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon ElastiCache" dbConfigure="with IAM authentication"!)
 
 ## How it works
 
-(!docs/pages/includes/database-access/aws-redis-how-it-works.mdx dbType="Amazon ElastiCache for Redis and Valkey"!)
+(!docs/pages/includes/database-access/aws-redis-how-it-works.mdx dbType="Amazon ElastiCache"!)
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -22,10 +22,9 @@ Teleport does not support enrolling Amazon ElastiCache Serverless.
 <TabItem scope={["cloud","team"]} label="Teleport Cloud">
 ![Enroll ElastiCache with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/redis_elasticache_cloud.png)
 </TabItem>
-
 </Tabs>
 
-(!docs/pages/includes/database-access/auto-discovery-tip.mdx dbType="Amazon Elasticache" providerType="AWS"!)
+(!docs/pages/includes/database-access/auto-discovery-tip.mdx dbType="Amazon Elasticache cluster" providerType="AWS"!)
 
 ## Prerequisites
 

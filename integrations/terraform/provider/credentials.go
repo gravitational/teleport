@@ -516,6 +516,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 		return nil, trace.Wrap(err, "Invalid Join Method")
 	}
 	botConfig := &embeddedtbot.BotConfig{
+		Kind:       bot.KindTerraformProvider,
 		AuthServer: addr,
 		Onboarding: onboarding.Config{
 			TokenValue: joinToken,

@@ -1,9 +1,10 @@
 ---
 title: Getting Started with Access Lists
 description: Learn how to use Access Lists to manage and audit long lived access to Teleport resources.
-labels:
+tags:
  - get-started
  - identity-governance
+ - privileged-access
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -42,7 +43,7 @@ We need to create a simple test user that has only the `requester` role, which h
 to anything within a cluster. This user will only be used for the purposes of this guide, so you may use
 another user if you so choose. If you would rather use your own user, skip to the next step.
 
-Navigate to the management pane and select "Users." Click on "Create New User" and fill in `test-user` as
+To create a user, first navigate to Zero Trust Access in the left pane and click Users. Click on "Enroll Users" and fill in `test-user` as
 the name and select `requester` as the role.
 
 ![Create Test User](../../../img/access-controls/access-lists/create-test-user.png)

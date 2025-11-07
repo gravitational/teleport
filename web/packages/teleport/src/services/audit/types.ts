@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SortDir } from '../agents';
+
 // eventGroupTypes contains a map of events that were grouped under the same
 // event type but have different event codes. This is used to filter out duplicate
 // event types when listing event filters and provide modified description of event.
@@ -335,12 +337,28 @@ export const eventCodes = {
   AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
   MCP_SESSION_START: 'TMCP001I',
   MCP_SESSION_END: 'TMCP002I',
+  MCP_SESSION_END_FAILURE: 'TMCP002E',
   MCP_SESSION_REQUEST: 'TMCP003I',
   MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
   MCP_SESSION_NOTIFICATION: 'TMCP004I',
+  MCP_SESSION_NOTIFICATION_FAILURE: 'TMCP004E',
+  MCP_SESSION_LISTEN_SSE_STREAM: 'TMCP005I',
+  MCP_SESSION_LISTEN_SSE_STREAM_FAILURE: 'TMCP005E',
+  MCP_SESSION_INVALID_HTTP_REQUEST: 'TMCP006E',
   BOUND_KEYPAIR_RECOVERY: 'TBK001I',
   BOUND_KEYPAIR_ROTATION: 'TBK002I',
   BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
+  SCIM_RESOURCE_CREATE: 'TSCIM001I',
+  SCIM_RESOURCE_CREATE_FAILURE: 'TSCIM001E',
+  SCIM_RESOURCE_UPDATE: 'TSCIM002I',
+  SCIM_RESOURCE_UPDATE_FAILURE: 'TSCIM002E',
+  SCIM_RESOURCE_DELETE: 'TSCIM003I',
+  SCIM_RESOURCE_DELETE_FAILURE: 'TSCIM003E',
+  SCIM_RESOURCE_GET: 'TSCIM004I',
+  SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
+  SCIM_RESOURCE_LIST: 'TSCIM005I',
+  SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
+  CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
 } as const;
 
 /**
@@ -396,11 +414,15 @@ export type RawEvents = {
     {
       proto: 'kube';
       kubernetes_cluster: string;
+      sid: string;
     }
   >;
   [eventCodes.EXEC_FAILURE]: RawEvent<
     typeof eventCodes.EXEC_FAILURE,
-    { exitError: string }
+    {
+      exitError: string;
+      sid: string;
+    }
   >;
   [eventCodes.BILLING_CARD_CREATE]: RawEvent<
     typeof eventCodes.BILLING_CARD_CREATE
@@ -1187,6 +1209,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: RawEvent<
@@ -1195,6 +1218,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: RawEvent<
@@ -1203,6 +1227,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: RawEvent<
@@ -1211,6 +1236,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: RawEvent<
@@ -1221,6 +1247,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: RawEvent<
@@ -1231,6 +1258,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: RawEvent<
@@ -1241,6 +1269,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: RawEvent<
@@ -1251,6 +1280,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DEVICE_CREATE]: RawDeviceEvent<typeof eventCodes.DEVICE_CREATE>;
@@ -1948,6 +1978,12 @@ export type RawEvents = {
       app_name: string;
     }
   >;
+  [eventCodes.MCP_SESSION_END_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_END_FAILURE,
+    {
+      app_name: string;
+    }
+  >;
   [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
     typeof eventCodes.MCP_SESSION_REQUEST,
     {
@@ -1981,6 +2017,33 @@ export type RawEvents = {
       };
     }
   >;
+  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_NOTIFICATION_FAILURE,
+    {
+      app_name: string;
+      message: {
+        method: string;
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: RawEvent<
+    typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM,
+    {
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE,
+    {
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: RawEvent<
+    typeof eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST,
+    {
+      app_name: string;
+    }
+  >;
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
     typeof eventCodes.BOUND_KEYPAIR_RECOVERY,
     {
@@ -2007,6 +2070,43 @@ export type RawEvents = {
       bot_name: string;
       success: boolean;
       error: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_LIST]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST
+  >;
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_GET]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET
+  >;
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
+  >;
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: RawEvent<
+    typeof eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE,
+    {
+      client_ip_restrictions: string[];
+      success: boolean;
     }
   >;
 };
@@ -2227,6 +2327,25 @@ type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
   }
 >;
 
+type RawSCIMListingEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    integration: string;
+  }
+>;
+
+type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    teleport_id: string;
+    external_id: string;
+    integration: string;
+    display: string;
+  }
+>;
+
 /**
  * A map of event formatters that provide short and long description
  */
@@ -2260,6 +2379,8 @@ export type EventQuery = {
   limit?: number;
   startKey?: string;
   filterBy?: string;
+  search?: string;
+  order: SortDir;
 };
 
 export type EventResponse = {

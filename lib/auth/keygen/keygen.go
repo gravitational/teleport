@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-// Keygen is a key generator that precomputes keys to provide quick access to
-// public/private key pairs.
+// Keygen is named poorly, it provides methods for generating and signing SSH
+// certificates.
 type Keygen struct {
 	// clock is used to control time.
 	clock clockwork.Clock
@@ -55,11 +55,13 @@ func SetClock(clock clockwork.Clock) Option {
 
 // New returns a new key generator.
 func New(_ context.Context, opts ...Option) *Keygen {
-	k := &Keygen{
-		clock: clockwork.NewRealClock(),
-	}
+	k := &Keygen{}
 	for _, opt := range opts {
 		opt(k)
+	}
+
+	if k.clock == nil {
+		k.clock = clockwork.NewRealClock()
 	}
 
 	return k

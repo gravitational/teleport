@@ -124,10 +124,39 @@ export type SelectedResource = {
   resource: SharedUnifiedResource['resource'];
 };
 
+/*
+ * ResourceFilterKind are resource kinds that can be used for filtering through
+ * ListUnifiedResources API.
+ *
+ * 'mcp' can be used to filter MCP servers by the backend, even though they are
+ * internally just app resources atm.
+ */
+export type ResourceFilterKind =
+  | SharedUnifiedResource['resource']['kind']
+  | 'mcp';
+
 export type FilterKind = {
-  kind: SharedUnifiedResource['resource']['kind'];
+  kind: ResourceFilterKind;
   disabled: boolean;
 };
+
+const filterKindNameMap: Record<ResourceFilterKind, string> = {
+  app: 'Applications',
+  db: 'Databases',
+  windows_desktop: 'Desktops',
+  kube_cluster: 'Kubernetes Clusters',
+  node: 'SSH Resources',
+  user_group: 'User Groups',
+  git_server: 'Git Servers',
+  mcp: 'MCP Servers',
+};
+
+/*
+ * getFilterKindName returns the human-readable name of the filter kind.
+ */
+export function getFilterKindName(kind: ResourceFilterKind): string {
+  return filterKindNameMap[kind] ?? kind;
+}
 
 export type ResourceAvailabilityFilter =
   | {
@@ -687,11 +716,15 @@ function getResourcePinningSupport(
   return PinningSupport.Supported;
 }
 
-function generateUnifiedResourceKey(
+// TODO (avatus): send and use the generated key from the server so we don't have to keep this in sync.
+export function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
   if (resource.kind === 'node' || resource.kind == 'git_server') {
     return `${resource.hostname}/${resource.id}/${resource.kind}`.toLowerCase();
+  }
+  if (resource.kind === 'app' && resource.friendlyName !== '') {
+    return `${resource.friendlyName}/${resource.name}/${resource.kind}`.toLowerCase();
   }
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }

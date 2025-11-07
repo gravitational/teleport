@@ -88,6 +88,10 @@ func withChallengeAzure(challenge string) azureChallengeResponseOption {
 	}
 }
 
+func vmssResourceID(subscription, resourceGroup, name string) string {
+	return resourceID("Microsoft.Compute/virtualMachineScaleSets", subscription, resourceGroup, name)
+}
+
 func vmResourceID(subscription, resourceGroup, name string) string {
 	return resourceID("Microsoft.Compute/virtualMachines", subscription, resourceGroup, name)
 }
@@ -153,11 +157,8 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 	a := p.a
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -538,11 +539,8 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 	a := p.a
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -760,6 +758,28 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 			verify:      mockVerifyToken(nil),
 			certs:       []*x509.Certificate{tlsConfig.Certificate},
 			assertError: isAccessDenied,
+		},
+		{
+			name:                           "vmss resource type",
+			requestTokenName:               "test-token",
+			tokenSubscription:              "token-subscription",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmssResourceID("token-subscription", defaultResourceGroup, defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Subscription:   "token-subscription",
+							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			assertError: require.NoError,
 		},
 	}
 

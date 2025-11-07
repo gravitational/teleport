@@ -271,20 +271,6 @@ func attrValToUint(value []byte) uint64 {
 	return 0
 }
 
-func (p *pkcs11KeyStore) getKeyBitLen(signer crypto.Signer) (uint64, error) {
-	keyBitsAttr, bitsErr := p.ctx.GetAttribute(signer, crypto11.CkaModulusBits)
-	if bitsErr == nil {
-		return attrValToUint(keyBitsAttr.Value), nil
-	}
-
-	keyModAttr, modErr := p.ctx.GetAttribute(signer, crypto11.CkaModulus)
-	if modErr == nil {
-		return uint64(len(keyModAttr.Value) * 8), nil
-	}
-
-	return 0, trace.NewAggregate(bitsErr, modErr)
-}
-
 func (p *pkcs11KeyStore) validateKeyForDecryption(signer crypto.Signer) error {
 	keyTypeAttr, err := p.ctx.GetAttribute(signer, crypto11.CkaKeyType)
 	if err != nil {
@@ -295,11 +281,12 @@ func (p *pkcs11KeyStore) validateKeyForDecryption(signer crypto.Signer) error {
 		return trace.Errorf("invalid key algorithm, expected RSA")
 	}
 
-	bitLen, err := p.getKeyBitLen(signer)
+	modAttr, err := p.ctx.GetAttribute(signer, crypto11.CkaModulus)
 	if err != nil {
-		return trace.Wrap(err, "looking up key bit length")
+		return trace.Wrap(err, "looking up modulus")
 	}
 
+	bitLen := len(modAttr.Value) * 8
 	if bitLen != 4096 {
 		return trace.Errorf("expected 4096-bit key, found %d-bit key", bitLen)
 	}
@@ -320,7 +307,7 @@ func (p *pkcs11KeyStore) findDecryptersByLabel(ctx context.Context, label *types
 	var decrypters []crypto.Decrypter
 	for _, signer := range signers {
 		if err := p.validateKeyForDecryption(signer); err != nil {
-			p.log.DebugContext(ctx, "key found but could not be used for decryption", "label_type", label.Type, "label", label.Label)
+			p.log.DebugContext(ctx, "key found but could not be used for decryption", "label_type", label.Type, "label", label.Label, "error", err)
 			continue
 		}
 

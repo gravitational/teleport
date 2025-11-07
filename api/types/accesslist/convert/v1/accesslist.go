@@ -219,6 +219,7 @@ func convertStatusToProto(status *accesslist.Status) *accesslistv1.AccessListSta
 		OwnerOf:                status.OwnerOf,
 		MemberOf:               status.MemberOf,
 		CurrentUserAssignments: toCurrentUserAssignmentsProto(status.CurrentUserAssignments),
+		UserAssignments:        toUserAssignmentsProto(status.UserAssignments),
 	}
 }
 
@@ -234,6 +235,7 @@ func fromStatusProto(msg *accesslistv1.AccessList) *accesslist.Status {
 		OwnerOf:                protoStatus.GetOwnerOf(),
 		MemberOf:               protoStatus.GetMemberOf(),
 		CurrentUserAssignments: fromCurrentUserAssignmentsProto(protoStatus.GetCurrentUserAssignments()),
+		UserAssignments:        fromUserAssignmentsProto(protoStatus.GetUserAssignments()),
 	}
 }
 
@@ -255,11 +257,31 @@ func toCurrentUserAssignmentsProto(assignments *accesslist.CurrentUserAssignment
 	}
 }
 
+func toUserAssignmentsProto(assignments *accesslist.UserAssignments) *accesslistv1.UserAssignments {
+	if assignments == nil {
+		return nil
+	}
+	return &accesslistv1.UserAssignments{
+		OwnershipType:  assignments.OwnershipType,
+		MembershipType: assignments.MembershipType,
+	}
+}
+
 func fromCurrentUserAssignmentsProto(assignments *accesslistv1.CurrentUserAssignments) *accesslist.CurrentUserAssignments {
 	if assignments == nil {
 		return nil
 	}
 	return &accesslist.CurrentUserAssignments{
+		OwnershipType:  assignments.GetOwnershipType(),
+		MembershipType: assignments.GetMembershipType(),
+	}
+}
+
+func fromUserAssignmentsProto(assignments *accesslistv1.UserAssignments) *accesslist.UserAssignments {
+	if assignments == nil {
+		return nil
+	}
+	return &accesslist.UserAssignments{
 		OwnershipType:  assignments.GetOwnershipType(),
 		MembershipType: assignments.GetMembershipType(),
 	}
@@ -273,10 +295,6 @@ func convertOwnersToProto(owners []accesslist.Owner) []*accesslistv1.AccessListO
 }
 
 func convertGrantsToProto(grants accesslist.Grants) *accesslistv1.AccessListGrants {
-	if len(grants.Roles) == 0 && len(grants.Traits) == 0 {
-		return nil
-	}
-
 	return &accesslistv1.AccessListGrants{
 		Roles:  grants.Roles,
 		Traits: traitv1.ToProto(grants.Traits),

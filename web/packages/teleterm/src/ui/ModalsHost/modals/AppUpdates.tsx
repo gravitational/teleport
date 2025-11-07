@@ -58,7 +58,7 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
         width: '100%',
       })}
     >
-      <DialogHeader justifyContent="space-between" mb={4} alignItems="baseline">
+      <DialogHeader justifyContent="space-between" mb={3} alignItems="baseline">
         <H2>App Updates</H2>
         <ButtonIcon
           type="button"
@@ -73,7 +73,6 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
         <DetailsView
           platform={platform}
           updateEvent={updateEvent}
-          clusterGetter={appContext.clustersService}
           onCancelDownload={() => void cancelAppUpdateDownload()}
           onDownload={() => void downloadAppUpdate()}
           onCheckForUpdates={() => void checkForAppUpdates()}

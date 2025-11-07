@@ -1,5 +1,14 @@
 # Changelog
 
+## 19.0.0 (xx/xx/xx)
+
+### Breaking changes
+
+#### macOS 12
+
+The minimum version of macOS required to run Teleport or associated client tools
+is now macOS 12 (Monterey).
+
 ## 18.0.0 (xx/xx/xx)
 
 ### Breaking changes
@@ -166,7 +175,7 @@ During the migration from v15 to v16, the options mentioned above should be remo
 #### DynamoDB permission requirements have changed
 
 Teleport clusters using the dynamodb backend must now have the `dynamodb:ConditionCheckItem`
-permission. For a full list of all required permissions see the Teleport [Backend Reference](docs/pages/reference/backends.mdx#dynamodb).
+permission. For a full list of all required permissions see the Teleport [Backend Reference](docs/pages/reference/deployment/backends.mdx#dynamodb).
 
 #### Disabling multi-factor authentication_type
 
@@ -176,8 +185,7 @@ Support for disabling multi-factor authentication has been removed
 
 Users with custom `ssh_config` should modify their ProxyCommand to use the new,
 more performant, `tbot ssh-proxy-command`. See the
-[v16 upgrade guide](docs/pages/reference/machine-id/v16-upgrade-guide.mdx) for
-more details.
+v16 upgrade guide for more details.
 
 #### Default keyboard shortcuts in Teleport Connect have been changed
 
@@ -500,7 +508,7 @@ that supports efficient searching, sorting, and filtering operations. Teleport
 Enterprise (Cloud) customers will have their audit log automatically migrated to
 this new backend.
 
-See the documentation [here](docs/pages/reference/backends.mdx#athena).
+See the documentation [here](docs/pages/reference/deployment/backends.mdx#athena).
 
 #### Access lists
 
@@ -593,7 +601,7 @@ In Teleport 14, `tbot` can now be configured to write artifacts such as
 credentials and configuration files directly to a Kubernetes secret rather than
 a directory on the local file system.
 
-For more information, see [docs](docs/pages/reference/machine-id/configuration.mdx).
+For more information, see [docs](docs/pages/reference/machine-workload-identity/configuration.mdx).
 
 ### Breaking changes and deprecations
 
@@ -1750,7 +1758,7 @@ material on Yubikey devices instead of filesystem which helps prevent
 credentials exfiltration attacks.
 
 See how to enable it in the
-[documentation](docs/pages/zero-trust-access/access-controls/guides/hardware-key-support.mdx):
+[documentation](docs/pages/zero-trust-access/authentication/hardware-key-support.mdx):
 
 Hardware-backed private keys is an enterprise only feature, and is currently
 supported for server access only.
@@ -1930,7 +1938,7 @@ Teleport 10 introduces passwordless support to your clusters. To use passwordles
 users may register a security key with resident credentials or use a built-in
 authenticator, like Touch ID.
 
-See the [documentation](docs/pages/zero-trust-access/access-controls/guides/passwordless.mdx).
+See the [documentation](docs/pages/zero-trust-access/authentication/passwordless.mdx).
 
 ### Resource Access Requests (Preview)
 
@@ -2057,7 +2065,7 @@ connections if the HTTP proxy is set in their environment and does not allow
 connections to the Teleport Proxy Service.
 
 Refer to the
-[documentation](docs/pages/reference/networking.mdx#http-connect-proxies)
+[documentation](docs/pages/reference/deployment/networking.mdx#http-connect-proxies)
 for more details.
 
 #### New APT repos
@@ -2085,7 +2093,7 @@ sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the [Moderated Sessions
-guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx) for more
+guide](docs/pages/zero-trust-access/authentication/joining-sessions.mdx) for more
 details.
 
 #### GitHub connectors
@@ -2105,7 +2113,7 @@ s3://bucket/path?region=us-east-1&use_fips_endpoint=false
 ```
 
 See the [S3/DynamoDB backend
-documentation](docs/pages/reference/backends.mdx) for more information.
+documentation](docs/pages/reference/deployment/backends.mdx) for more information.
 
 ## 9.3.9
 
@@ -2344,7 +2352,7 @@ Teleport build infrastructure was updated to use Go v1.17.9 to fix CVE-2022-2467
 
 Teleport users can now use PostgreSQL or CockroachDB for storing Auth Service data.
 
-See the [documentation](docs/pages/reference/backends.mdx) for more information.
+See the [documentation](docs/pages/reference/deployment/backends.mdx) for more information.
 
 ### Server-side filtering and pagination
 
@@ -2495,7 +2503,7 @@ Some of the things you can do with Machine ID:
 - Configure role-based access controls and locking for machines.
 - Capture access events in the audit log.
 
-[Machine ID getting started guide](docs/pages/machine-workload-identity/machine-id/getting-started.mdx)
+[Machine ID getting started guide](docs/pages/machine-workload-identity/getting-started.mdx)
 
 ### Database access
 
@@ -2544,7 +2552,7 @@ With Moderated Sessions, Teleport administrators can define policies that allow
 users to invite other users to participate in SSH or Kubernetes sessions as
 observers, moderators or peers.
 
-[Moderated Sessions guide](docs/pages/zero-trust-access/access-controls/guides/joining-sessions.mdx)
+[Moderated Sessions guide](docs/pages/zero-trust-access/authentication/joining-sessions.mdx)
 
 ### Breaking Changes
 
@@ -2884,7 +2892,7 @@ Teleport 6.1 contains multiple new features, improvements, and bug fixes.
 Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
 For more details see [Per-Session
-MFA](docs/pages/zero-trust-access/access-controls/guides/per-session-mfa.mdx) documentation or
+MFA](docs/pages/zero-trust-access/authentication/per-session-mfa.mdx) documentation or
 [RFD
 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md)
 and [RFD
@@ -3256,7 +3264,7 @@ We've added two new RBAC resources; these provide the ability to limit token cre
   verbs: [list,create,read,update,delete]
 ```
 
-Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/access-controls/access-controls.mdx)
+Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/authentication/authentication.mdx)
 
 ##### Cluster Labels
 
@@ -3624,7 +3632,7 @@ permissions](./docs/pages/enroll-resources/kubernetes-access/controls.mdx).
 
 ##### Path prefix for etcd
 
-The [etcd backend](docs/pages/reference/backends.mdx#etcd) now correctly uses
+The [etcd backend](docs/pages/reference/deployment/backends.mdx#etcd) now correctly uses
 the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).
@@ -4476,7 +4484,7 @@ available Teleport clusters with ease.
 #### Configuration Changes
 
 * Role templates (depreciated in Teleport 2.3) were fully removed. We recommend
-  migrating to role variables which are documented [here](docs/pages/zero-trust-access/access-controls/guides/role-templates.mdx)
+  migrating to role variables which are documented [here](docs/pages/zero-trust-access/rbac-get-started/role-templates.mdx)
 
 * Resource names (like roles, connectors, trusted clusters) can no longer
   contain unicode or other special characters. Update the names of all user

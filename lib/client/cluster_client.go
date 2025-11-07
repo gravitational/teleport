@@ -801,11 +801,11 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		return nil, trace.Wrap(err)
 	}
 
-	// If mfaResp is nil, the ceremony was a no-op (no devices registered).
-	// TODO(Joerger): CreateAuthenticateChallenge, should return
-	// this error directly instead of an empty challenge, without
-	// regressing https://github.com/gravitational/teleport/issues/36482.
-	if mfaResp == nil {
+	// If mfaResp.GetResponse() is nil, the ceremony was a no-op (no devices
+	// registered). TODO(Joerger): CreateAuthenticateChallenge, should return
+	// this error directly instead of an empty challenge, without regressing
+	// https://github.com/gravitational/teleport/issues/36482.
+	if mfaResp.GetResponse() == nil {
 		return nil, trace.Wrap(authclient.ErrNoMFADevices)
 	}
 

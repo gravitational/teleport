@@ -94,6 +94,11 @@ export type LabelsInputProps = {
    * with empty key and value.
    */
   atLeastOneRow?: boolean;
+  /**
+   * Disables inputs and hides controls
+   * but does not mute values.
+   */
+  readOnly?: boolean;
 };
 
 export function LabelsInput({
@@ -110,6 +115,7 @@ export function LabelsInput({
   labelVal = { fieldName: 'Value', placeholder: 'label value' },
   rule = defaultRule,
   atLeastOneRow = false,
+  readOnly = false,
 }: LabelsInputProps) {
   const validator = useValidation() as Validator;
   const validationResult: LabelListValidationResult = useRule(rule(labels));
@@ -242,7 +248,8 @@ export function LabelsInput({
                     placeholder={labelKey.placeholder}
                     mb={0}
                     onChange={e => handleChange(e, index, 'name')}
-                    readonly={disableBtns}
+                    disabled={disableBtns}
+                    readonly={readOnly}
                   />
                 </td>
                 <td>
@@ -257,52 +264,59 @@ export function LabelsInput({
                     placeholder={labelVal.placeholder}
                     mb={0}
                     onChange={e => handleChange(e, index, 'value')}
-                    readonly={disableBtns}
+                    disabled={disableBtns}
+                    readonly={readOnly}
                   />
                 </td>
-                <td>
-                  {/* Force the trash button container to be the same height as an
+                {!readOnly && (
+                  <td>
+                    {/* Force the trash button container to be the same height as an
                       input. We can't just set center-align the cell, because the
                       field can expand when showing a validation error. */}
-                  <Flex
-                    alignItems="center"
-                    height={inputGeometry[inputSize].height}
-                  >
-                    <ButtonIcon
-                      size={buttonIconSize}
-                      title={`Remove ${adjective}`}
-                      onClick={() => removeLabel(index)}
-                      css={`
-                        &:disabled {
-                          opacity: 0.65;
-                        }
-                      `}
-                      disabled={disableBtns || singleEmptyRow}
+                    <Flex
+                      alignItems="center"
+                      height={inputGeometry[inputSize].height}
                     >
-                      <Icons.Cross color="text.muted" size="small" />
-                    </ButtonIcon>
-                  </Flex>
-                </td>
+                      <ButtonIcon
+                        size={buttonIconSize}
+                        title={`Remove ${adjective}`}
+                        onClick={() => removeLabel(index)}
+                        css={`
+                          &:disabled {
+                            opacity: 0.65;
+                          }
+                        `}
+                        disabled={disableBtns || singleEmptyRow}
+                      >
+                        <Icons.Cross color="text.muted" size="small" />
+                      </ButtonIcon>
+                    </Flex>
+                  </td>
+                )}
               </tr>
             );
           })}
         </tbody>
       </LabelTable>
-      <ButtonWithAddIcon
-        Button={ButtonSecondary}
-        label={
-          labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`
-        }
-        onClick={e => {
-          e.preventDefault();
-          addLabel();
-        }}
-        disabled={disableBtns}
-        size="small"
-        pr={3}
-        compact={false}
-        inputAlignment
-      />
+      {!readOnly && (
+        <ButtonWithAddIcon
+          Button={ButtonSecondary}
+          label={
+            labels.length > 0
+              ? `Add another ${adjective}`
+              : `Add a ${adjective}`
+          }
+          onClick={e => {
+            e.preventDefault();
+            addLabel();
+          }}
+          disabled={disableBtns}
+          size="small"
+          pr={3}
+          compact={false}
+          inputAlignment
+        />
+      )}
     </Fieldset>
   );
 }

@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.decision.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/scopes/v1/scopes.proto";
 import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
@@ -154,6 +155,10 @@ message TLSIdentity {
   // apply to other identity types, or to bots using the traditional `token`
   // join method.
   string join_token = 36;
+
+  // ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+  // set, the Roles field must not be set.
+  teleport.scopes.v1.Pin scope_pin = 37;
 }
 
 // RouteToApp holds routing information for applications.

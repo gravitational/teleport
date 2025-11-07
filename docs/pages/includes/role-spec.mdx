@@ -231,17 +231,29 @@ spec:
         # - portforward - allows users to forward ports from a pod
         verbs: ['*']
 
-    # Functions transform variables.
+    # Database account names this role can connect as.
+    #
+    # Supports role templating with traits.
     db_users: ['{{email.local(external.email)}}']
+    # Database names this role will be able to connect to. Database names are
+    # only enforced for PostgreSQL, MongoDB, and Cloud Spanner databases.
+    #
+    # Supports role templating with traits.
     db_names: ['{{external.db_names}}']
+    # Label selectors for database instances this role has access to.
+    #
+    # Supports role templating with traits.
     db_labels:
       'env': '{{regexp.replace(external.env, "^(staging)$", "$1")}}'
 
-    # List of database roles to grant. Mutually exclusive with 'db_permissions'.
+    # List of database roles to grant to the auto-provisioned user. Mutually
+    # exclusive with 'db_permissions'.
+    #
+    # Supports role templating with traits.
     db_roles: ['{{external.db_roles}}']
 
-    # Grant all possible Postgres permissions for all tables.
-    # List of database permissions to grant. Mutually exclusive with 'db_roles'.
+    # List of database permissions to grant to the auto-provisioned user.
+    # Mutually exclusive with 'db_roles'.
     db_permissions:
     - match:
         object_kind: table
@@ -369,6 +381,9 @@ spec:
         # is required for all Access Requests requesting roles or resources allowed by
         # this role. It applies only to users who have this role assigned.
         mode: "optional"
+        # 'prompt' is a custom message prompted to the user for the requested roles or resources searchable
+	      # as other roles. This is only applied to the requested roles and resources specifying the prompt.
+        prompt: I am a reason prompt specific to a requested role or resource
 
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both (enterprise-only)

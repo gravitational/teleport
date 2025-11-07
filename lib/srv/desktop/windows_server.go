@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -41,11 +42,14 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -56,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/dns"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/winpki"
@@ -85,6 +90,7 @@ const (
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
 var computerAttributes = []string{
 	attrName,
+	attrDescription,
 	attrCommonName,
 	attrDistinguishedName,
 	attrDNSHostName,
@@ -181,6 +187,8 @@ type WindowsServiceConfig struct {
 	Discovery []servicecfg.LDAPDiscoveryConfig
 	// DiscoveryInterval configures how frequently the discovery process runs.
 	DiscoveryInterval time.Duration
+	// PublishCRLInterval configures how frequently to publish CRLs.
+	PublishCRLInterval time.Duration
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
@@ -225,6 +233,7 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 	}
 
 	cfg.DiscoveryInterval = cmp.Or(cfg.DiscoveryInterval, 5*time.Minute)
+	cfg.PublishCRLInterval = cmp.Or(cfg.PublishCRLInterval, 5*time.Minute)
 
 	return nil
 }
@@ -376,9 +385,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := s.ca.Update(s.closeCtx, tc); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		go s.runCRLUpdateLoop(tc)
 	}
 
 	ok := false
@@ -396,7 +403,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := s.startDynamicReconciler(ctx); err != nil {
+	if err := s.startDynamicReconciler(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -632,8 +639,19 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.With("desktop_name", desktopName)
 
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
-		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
+	desktops, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName},
+				Limit:                pageSize,
+				StartKey:             pageToken,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return resp.Desktops, resp.NextKey, nil
+		}))
 	if err != nil {
 		log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
 		sendTDPError("Teleport failed to find the requested desktop in its database.")
@@ -772,14 +790,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	log = log.With("computer_name", computerName)
 
-	kdcAddr := s.cfg.KDCAddr
-	if !desktop.NonAD() && kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
-		if kdcAddr, err = utils.Host(s.cfg.LDAPConfig.Addr); err != nil {
-			return trace.Wrap(err, "KDC address is unspecified and LDAP address is invalid")
+	nla := s.enableNLA && !desktop.NonAD()
+
+	var kdcAddr string
+	if nla {
+		var err error
+		kdcAddr, err = s.getKDCAddress(ctx)
+		if err != nil {
+			return trace.Wrap(err, "getting KDC address")
 		}
 	}
-
-	nla := s.enableNLA && !desktop.NonAD()
 
 	log = log.With("kdc_addr", kdcAddr, "nla", nla)
 	log.InfoContext(context.Background(), "initiating RDP client")
@@ -842,6 +862,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
 		Tracker:               rdpc,
 		TeleportUser:          identity.Username,
+		UserOriginClusterName: identity.OriginClusterName,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MessageWriter:         &monitorErrorSender{tdpConn: tdpConn},
@@ -879,6 +900,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	err = rdpc.Run(ctx, certDER, keyDER)
 
 	// ctx may have been canceled, so emit with a separate context
+	audit.teardown(context.Background())
 	endEvent := audit.makeSessionEnd(recordSession)
 	s.record(context.Background(), recorder, endEvent)
 	s.emit(context.Background(), endEvent)
@@ -1036,9 +1058,11 @@ func (s *WindowsService) makeTDPReceiveHandler(
 				s.emit(ctx, errorEvent)
 			}
 		case tdp.SharedDirectoryReadResponse:
-			s.emit(ctx, audit.makeSharedDirectoryReadResponse(msg))
+			// shared directory audit events can be noisy, so we use a compactor
+			// to retain and delay them in an attempt to coalesce contiguous events
+			audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(msg))
 		case tdp.SharedDirectoryWriteResponse:
-			s.emit(ctx, audit.makeSharedDirectoryWriteResponse(msg))
+			audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(msg))
 		}
 	}
 }
@@ -1107,8 +1131,19 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 // a very large number of desktops in the cluster, this may use up a lot of CPU
 // time.
 func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
-	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(s.closeCtx,
-		types.WindowsDesktopFilter{})
+	desktops, err := stream.Collect(clientutils.Resources(s.closeCtx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				Limit:          pageSize,
+				StartKey:       pageToken,
+				SearchKeywords: []string{addr},
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return resp.Desktops, resp.NextKey, nil
+		}))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1233,7 +1268,8 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		ClusterName: s.clusterName,
 		Login:       windowsUser,
 		Participants: []types.Participant{{
-			User: id.Username,
+			User:    id.Username,
+			Cluster: id.OriginClusterName,
 		}},
 		HostUser: id.Username,
 		Created:  s.cfg.Clock.Now(),
@@ -1276,4 +1312,97 @@ func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	}
 
 	return len(s), nil
+}
+
+// runCRLUpdateLoop publishes the Certificate Revocation List to the given
+// LDAP server. It continues to do so every 5 minutes (by default) to make sure it is present
+// and in the correct location.
+func (s *WindowsService) runCRLUpdateLoop(tlsConfig *tls.Config) {
+	t := s.cfg.Clock.NewTicker(retryutils.SeventhJitter(s.cfg.PublishCRLInterval))
+	defer t.Stop()
+
+	for {
+		if err := s.ca.Update(s.closeCtx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
+			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to publish CRL", "error", err)
+		}
+
+		select {
+		case <-s.closeCtx.Done():
+			return
+		case <-t.Chan():
+			continue
+		}
+	}
+}
+
+// getKDCAddress gets the KDC address that should be used for NLA in
+// this priority order:
+// 1. Explicitly specified kdc_address
+// 2. If enabled, using locate_server DNS lookups
+// 3. If all else fails, ldap's addr
+func (s *WindowsService) getKDCAddress(ctx context.Context) (string, error) {
+	if s.cfg.KDCAddr != "" {
+		if s.cfg.LocateServer.Enabled {
+			s.cfg.Logger.WarnContext(ctx, "Both locate_server and kdc_address are set, kdc_address takes priority", "kdc_address", s.cfg.KDCAddr)
+		} else {
+			s.cfg.Logger.DebugContext(ctx, "Using hardcoded KDC address", "kdc_address", s.cfg.KDCAddr)
+		}
+		return s.cfg.KDCAddr, nil
+	}
+
+	if !s.cfg.LocateServer.Enabled && s.cfg.LDAPConfig.Addr != "" {
+		kdcAddr, err := utils.Host(s.cfg.LDAPConfig.Addr)
+		if err != nil {
+			return "", trace.Wrap(err, "KDC address is unspecified, locate server is disabled, and LDAP address is invalid")
+		}
+		s.cfg.Logger.DebugContext(ctx, "locate_server and kdc_address unspecified, assuming that KDC is available on the same host as LDAP", "address", s.cfg.LDAPConfig.Addr)
+		return kdcAddr, nil
+	}
+
+	s.cfg.Logger.DebugContext(
+		ctx,
+		"Looking for KDC server",
+		"domain", s.cfg.Domain,
+		"site", s.cfg.LocateServer.Site,
+	)
+
+	// In development environments, the system's default resolver is unlikely to be
+	// able to resolve the Active Directory SRV records needed for server location,
+	// so we allow overriding the resolver. If the TELEPORT_KDC_RESOLVER parameter
+	// is not set, the default resolver will be used.
+	resolver := dns.NewResolver(ctx, os.Getenv("TELEPORT_KDC_RESOLVER"), s.cfg.Logger)
+
+	servers, err := dns.LocateServerBySRV(
+		ctx,
+		s.cfg.Domain,
+		s.cfg.LocateServer.Site,
+		resolver,
+		"kerberos",
+		"", // Use port returned by SRV record
+	)
+	if err != nil {
+		return "", trace.Wrap(err, "locating KDC server")
+	}
+
+	if len(servers) == 0 {
+		return "", trace.NotFound("no KDC servers found for domain %q", s.cfg.Domain)
+	}
+
+	var lastErr error
+	for _, server := range servers {
+		conn, err := net.DialTimeout("tcp", server, 5*time.Second)
+		if conn != nil {
+			conn.Close()
+		}
+
+		if err == nil {
+			s.cfg.Logger.InfoContext(ctx, "Found KDC server", "server", server)
+			return server, nil
+		}
+		lastErr = err
+
+		s.cfg.Logger.InfoContext(ctx, "Error connecting to KDC server, trying next available server", "server", server, "error", err)
+	}
+
+	return "", trace.NotFound("no KDC servers responded successfully for domain %q: %v", s.cfg.Domain, lastErr)
 }

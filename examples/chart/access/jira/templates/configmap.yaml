@@ -11,8 +11,8 @@ metadata:
 data:
   teleport-jira.toml: |
     [teleport]
-    addr = "{{ .Values.teleport.address }}"
-    identity = "/var/lib/teleport/plugins/jira/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
+    identity = "/var/lib/teleport/plugins/jira/teleport-identity/{{ include "jira.identitySecretPath" . }}"
     refresh_identity = true
 
     [jira]

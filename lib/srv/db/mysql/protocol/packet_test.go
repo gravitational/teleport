@@ -26,7 +26,11 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
+	mysqlpacket "github.com/go-mysql-org/go-mysql/packet"
+	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -468,6 +472,58 @@ func TestParsePacket(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOKHasAffectedRows(t *testing.T) {
+	tests := []struct {
+		desc         string
+		affectedRows uint64
+		want         bool
+	}{
+		{
+			desc: "does not have affected rows",
+			want: false,
+		},
+		{
+			desc:         "has affected rows",
+			affectedRows: 42,
+			want:         true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			conn := &fakeConn{}
+			serverConn := &server.Conn{Conn: mysqlpacket.NewConn(conn)}
+			err := serverConn.WriteOK(&mysql.Result{AffectedRows: test.affectedRows})
+			require.NoError(t, err)
+			pkt, err := ParsePacket(conn)
+			require.NoError(t, err)
+			assert.Equal(t, &OK{
+				packet: packet{
+					bytes: []byte{
+						0x03, 0x00, 0x00, 0x00, // header
+						0x00, // type
+						byte(test.affectedRows),
+						0x00, // insert id
+					},
+				},
+			}, pkt)
+			assert.Equal(t, test.want, pkt.(*OK).HasAffectedRows())
+		})
+	}
+}
+
+type fakeConn struct {
+	net.Conn
+	buf bytes.Buffer
+}
+
+func (c *fakeConn) Read(b []byte) (n int, err error) {
+	return c.buf.Read(b)
+}
+
+func (c *fakeConn) Write(b []byte) (n int, err error) {
+	return c.buf.Write(b)
 }
 
 func isUnexpectedEOFError(err error) bool {

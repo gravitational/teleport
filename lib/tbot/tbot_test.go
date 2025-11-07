@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -184,6 +185,7 @@ func defaultBotConfig(
 		// certs.
 		Insecure: opts.insecure,
 		Services: serviceConfigs,
+		Testing:  true,
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
@@ -1029,14 +1031,12 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// EventuallyWithT to retry.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		conn, err := pgconn.Connect(ctx, fmt.Sprintf("postgres://%s/mydb?user=llama", botListener.Addr().String()))
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		defer func() {
 			conn.Close(ctx)
 		}()
 		_, err = conn.Exec(ctx, "SELECT 1;").ReadAll()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	// Shut down bot and make sure it exits.
@@ -1132,8 +1132,26 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			"ssh_config",
 		} {
 			_, err := os.Stat(filepath.Join(tmpDir, fileName))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// We need to wait for the agent to be fully connected to the Proxy
+	// (e.g. visible in the reverse tunnel server) otherwise dials to it may
+	// result in "direct dialing to nodes not found in inventory is not
+	// supported".
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := process.GetReverseTunnelServer()
+		require.NoError(t, err)
+		cluster, err := rts.Cluster(ctx, "root")
+		require.NoError(t, err)
+		nw, err := cluster.NodeWatcher()
+		require.NoError(t, err)
+		got, err := nw.CurrentResourcesWithFilter(ctx, func(r readonly.Server) bool {
+			return r.GetHostname() == "server01"
+		})
+		require.NoError(t, err)
+		require.Len(t, got, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	targets := []string{
@@ -1291,6 +1309,7 @@ func TestBotJoiningURI(t *testing.T) {
 		},
 		Oneshot:  true,
 		Insecure: true,
+		Testing:  true,
 	}
 	require.NoError(t, cfg.CheckAndSetDefaults())
 

@@ -20,7 +20,7 @@ import Logger, { NullService } from 'teleterm/logger';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
 
-import { createConfigService } from './configService';
+import { createConfigService, ValidationError } from './configService';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -61,7 +61,7 @@ test('in case of invalid value a default one is returned', () => {
       {
         code: 'invalid_type',
         expected: 'boolean',
-        received: 'string',
+        input: 'abcde',
         message: 'Expected boolean, received string',
         path: ['usageReporting.enabled'],
       },
@@ -125,4 +125,55 @@ test('field linking to the json schema and the json schema itself are updated', 
 
   expect(configFile.get('$schema')).toBe('config_schema.json');
   expect(jsonSchemaFile.replace).toHaveBeenCalledTimes(1);
+});
+
+test('terminal.shell validation', () => {
+  const configFile = createMockFileStorage();
+  configFile.replace({
+    'terminal.shell': 'quux',
+  });
+  const configService = createConfigService({
+    configFile,
+    jsonSchemaFile: createMockFileStorage(),
+    settings: makeRuntimeSettings({
+      defaultOsShellId: 'foobar',
+      availableShells: [
+        {
+          binName: 'foobar',
+          id: 'foobar',
+          binPath: '/dev/null',
+          friendlyName: 'Foo bar',
+        },
+      ],
+    }),
+  });
+
+  const configError = configService.getConfigError() as ValidationError;
+  expect(configError.source).toEqual('validation');
+  expect(configError.errors).toHaveLength(1);
+  const zodError = configError.errors[0];
+  expect(zodError).toMatchObject({
+    message: `Cannot find the shell "quux". Available options are: foobar, custom. Using platform default.`,
+    path: expect.arrayContaining(['terminal.shell']),
+  });
+});
+
+test(`enum validation`, () => {
+  const configFile = createMockFileStorage();
+  configFile.replace({
+    theme: 'foobar',
+  });
+  const configService = createConfigService({
+    configFile,
+    jsonSchemaFile: createMockFileStorage(),
+    settings: makeRuntimeSettings(),
+  });
+  const configError = configService.getConfigError() as ValidationError;
+  expect(configError.source).toEqual('validation');
+  expect(configError.errors).toHaveLength(1);
+  const zodError = configError.errors[0];
+  expect(zodError).toMatchObject({
+    message: `Expected "light", "dark", or "system", received "foobar"`,
+    path: expect.arrayContaining(['theme']),
+  });
 });

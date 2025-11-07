@@ -1009,6 +1009,10 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 [Docs](https://goteleport.com/docs/enroll-resources/agents/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
 
+### Oracle Node Joining
+[Docs](https://goteleport.com/docs/enroll-resources/agents/oracle/)
+- [ ] Join a Teleport node running in an OCI VM.
+
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/admin-guides/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label
@@ -1493,8 +1497,9 @@ GODEBUG='inittrace=1' teleport version 2>&1 | rg '^init' | awk '{print $8 " byte
 - [ ] Verify [AWS console access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
   - [ ] Can interact with AWS using `tsh` commands.
-    - [ ] `tsh aws`
-    - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
+    - [ ] `tsh aws sts get-caller-identity`
+    - [ ] `tsh aws s3 ls`
+    - [ ] `tsh aws s3 cp ./file s3://<bucket>/test`
 - [ ] Verify [Azure CLI access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/azure/) with `tsh apps login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
@@ -1540,6 +1545,7 @@ manualy testing.
   - [ ] Amazon Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Amazon ElastiCache.
+  - [ ] Amazon ElastiCache Serverless.
   - [ ] Amazon MemoryDB.
   - [ ] Amazon OpenSearch.
   - [ ] Amazon Dynamodb.
@@ -1578,6 +1584,7 @@ manualy testing.
   - [ ] Amazon Redshift.
   - [ ] Amazon Redshift Serverless.
   - [ ] Amazon ElastiCache.
+  - [ ] Amazon ElastiCache Serverless.
   - [ ] Amazon MemoryDB.
   - [ ] Amazon OpenSearch.
   - [ ] Amazon Dynamodb.
@@ -1638,6 +1645,7 @@ manualy testing.
       - [x] Can detect and register Redshift clusters. (covered by E2E test)
       - [x] Can detect and register Redshift serverless workgroups, and their VPC endpoints. (covered by E2E test)
       - [ ] Can detect and register ElastiCache Redis clusters.
+      - [ ] Can detect and register ElastiCache Serverless Redis/Valkey clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
       - [ ] Can detect and register DocumentDB clusters.
@@ -2164,14 +2172,20 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
   - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
 
 - [ ] Access Requests
-  - [ ] Verify when role.spec.allow.request.reason.mode: "required":
+  - [ ] Verify when `role.spec.allow.request.reason.mode: "required"`:
     - [ ] CLI fails to create Access Request displaying a message that reason is required.
     - [ ] Web UI fails to create Access Request displaying a message that reason is required.
-    - [ ] Other roles allowing requesting the same resources/roles without reason.mode set or with reason.mode: "optional" don't affect the behaviour.
+    - [ ] Other roles allowing requesting the same resources/roles without `reason.mode` set or with `reason.mode: "optional"` don't affect the behaviour.
     - [ ] Non-affected resources/roles don't require reason.
     - [ ] When there is a role with spec.options.request_access: always it effectively becomes role.spec.options.request_access: reason (i.e.) requires reason:
       - [ ] For CLI.
       - [ ] For Web UI.
+  - [ ] When `spec.allow.request.reason.prompt` is set on one of the user's roles:
+    - [ ] Verify this prompt is displayed in the Web UI when user makes an Access Request containing a resource/role requestable from this role.
+    - [ ] Verify non-affected resources/roles don't display this prompt.
+  - [ ] When both `spec.options.request_prompt` and `spec.allow.request.reason.prompt` are set on separate roles assigned to a user:
+    - [ ] Verify both prompts are displayed in the Web UI when user makes an Access Request containing requestable resource with `spec.allow.request.reason.prompt` set.
+    - [ ] Verify prompts are deduplicated and sorted.
 
   - [ ] [Automatic Review Rules](https://goteleport.com/docs/ver/18.x/admin-guides/access-controls/access-requests/automatic-reviews/)
     - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.
@@ -2198,6 +2212,16 @@ Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guid
     - [ ] Verify that manually deleting a nested Access List used as a member or owner does not break UserLoginState generation or listing Access Lists.
     - [ ] Verify that an Access List can be added as a member or owner of another Access List using `tctl`.
     - [ ] Verify that Access Lists added as members or owners of other Access Lists using `tctl` are validated (no circular references, no nesting > 10 levels).
+  - [ ] For Access Lists of "static" type:
+    - [ ] Verify that static Access List and its members (including nested list members) can be [created/modified/deleted with Terraform](../../docs/pages/identity-governance/access-lists/terraform.mdx) ([teleport_access_list_member ref](../../docs/pages/reference/terraform-provider/resources/access_list_member.mdx))
+    - [ ] Verify non-static Access List members cannot be imported to Terraform (Create an Access List in the web UI and add a member and try to import the member to Terraform)
+    - [ ] In Terraform: check if member's MEMBERSHIP_KIND_USER (1) is changed to MEMBERSHIP_KIND_LIST (2) forces re-creation
+    - [ ] Verify setting audit to past date/zero date doesn't create a review badge on the list in the UI
+    - [ ] Verify changing spec.type is forbidden
+    - [ ] Verify other lists cannot be converted to "static"
+    - [ ] Verify expiration and eligibility of members
+    - [ ] In the web UI: check if modifications/deletion of static lists are blocked
+    - [ ] In the web UI: check if the review is blocked (add `#review` at the end of the Access List URL)
 
 - [ ] Verify Okta Sync Service
   - [ ] Verify Okta Plugin configuration.

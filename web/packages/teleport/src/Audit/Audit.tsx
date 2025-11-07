@@ -16,10 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { useState, type PropsWithChildren } from 'react';
+import styled from 'styled-components';
 
-import { Box, Indicator } from 'design';
+import { Box, ButtonSecondary, Flex } from 'design';
 import { Danger } from 'design/Alert';
+import { SearchPanel } from 'shared/components/Search';
+import { useInfiniteScroll } from 'shared/hooks';
 
 import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
 import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
@@ -33,6 +36,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
 import EventList from './EventList';
+import { EventListSkeleton } from './EventListSkeleton';
 import useAuditEvents, { State } from './useAuditEvents';
 
 export function AuditContainer() {
@@ -44,31 +48,63 @@ export function AuditContainer() {
 
 export function Audit(props: State) {
   const {
-    attempt,
     range,
     setRange,
-    rangeOptions,
     events,
     clusterId,
-    fetchMore,
-    fetchStatus,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    error,
+    isLoading,
+    search,
+    setSearch,
+    sort,
+    setSort,
     ctx,
+    refetch,
+    isError,
   } = props;
+
   const [errorMessage, setErrorMessage] = useState('');
 
+  const { setTrigger } = useInfiniteScroll({
+    fetch: async () => {
+      if (hasNextPage && !isFetchingNextPage && !isError) {
+        fetchNextPage();
+      }
+    },
+  });
+
+  const onRetryClicked = () => {
+    refetch();
+  };
+
+  const onLoadMoreClicked = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  };
+
   return (
-    <FeatureBox>
+    <FeatureBox unsetHeight>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="8">Audit Log</FeatureHeaderTitle>
-        <RangePicker
-          ml="auto"
-          range={range}
-          ranges={rangeOptions}
-          onChangeRange={setRange}
-        />
+        <RangePicker ml="auto" range={range} onChangeRange={setRange} />
       </FeatureHeader>
       <ExternalAuditStorageCta />
-      {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
+      {!isLoading && isError && error && (
+        <ErrorsContainer>
+          <DangerWithBackground
+            primaryAction={{
+              content: 'Retry',
+              onClick: onRetryClicked,
+            }}
+          >
+            {error.message}
+          </DangerWithBackground>
+        </ErrorsContainer>
+      )}
       {!errorMessage && (
         <ClusterDropdown
           clusterLoader={ctx.clusterService}
@@ -78,18 +114,52 @@ export function Audit(props: State) {
         />
       )}
       {errorMessage && <Danger>{errorMessage}</Danger>}
-      {attempt.status === 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      )}
-      {attempt.status === 'success' && (
-        <EventList
-          events={events}
-          fetchMore={fetchMore}
-          fetchStatus={fetchStatus}
+      <Box mt={2}>
+        <SearchPanel
+          updateSearch={setSearch}
+          updateQuery={null}
+          hideAdvancedSearch={true}
+          filter={{ search }}
         />
-      )}
+        {!isLoading && (
+          <EventList
+            events={events}
+            search={search}
+            setSearch={setSearch}
+            sort={sort}
+            setSort={setSort}
+          />
+        )}
+        {((isLoading && events.length === 0) || isFetchingNextPage) && (
+          <EventListSkeleton />
+        )}
+        <div ref={setTrigger} />
+        {isError && events.length > 0 && !isLoading && (
+          <Box mt={2} textAlign="center">
+            <ButtonSecondary onClick={onLoadMoreClicked}>
+              Load more
+            </ButtonSecondary>
+          </Box>
+        )}
+      </Box>
     </FeatureBox>
   );
 }
+
+function ErrorsContainer(props: PropsWithChildren<unknown>) {
+  return <ErrorBox>{props.children}</ErrorBox>;
+}
+
+const ErrorBox = styled(Flex)`
+  position: sticky;
+  flex-direction: column;
+  top: ${props => props.theme.space[3]}px;
+  gap: ${props => props.theme.space[1]}px;
+  padding-top: ${props => props.theme.space[1]}px;
+  padding-bottom: ${props => props.theme.space[3]}px;
+  z-index: 1;
+`;
+
+const DangerWithBackground = styled(Danger)`
+  background: ${props => props.theme.colors.levels.sunken};
+`;

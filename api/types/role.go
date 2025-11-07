@@ -1865,12 +1865,19 @@ func ProcessNamespace(namespace string) string {
 
 // WhereExpr is a tree like structure representing a `where` (sub-)expression.
 type WhereExpr struct {
-	Field            string
-	Literal          interface{}
-	And, Or          WhereExpr2
-	Not              *WhereExpr
-	Equals, Contains WhereExpr2
+	Field                    string
+	Literal                  interface{}
+	And, Or                  WhereExpr2
+	Not                      *WhereExpr
+	Equals, Contains         WhereExpr2
+	ContainsAny, ContainsAll WhereExpr2
+	CanView                  *WhereNoExpr
+	MapRef                   *WhereExpr2
 }
+
+// WhereNoExpr is an empty `where` expression used by
+// functions without arguments like `can_view()`.
+type WhereNoExpr struct{}
 
 // WhereExpr2 is a pair of `where` (sub-)expressions.
 type WhereExpr2 struct {
@@ -1899,6 +1906,18 @@ func (e WhereExpr) String() string {
 	}
 	if e.Contains.L != nil && e.Contains.R != nil {
 		return fmt.Sprintf("contains(%s, %s)", e.Contains.L, e.Contains.R)
+	}
+	if e.ContainsAny.L != nil && e.ContainsAny.R != nil {
+		return fmt.Sprintf("contains_any(%s, %s)", e.ContainsAny.L, e.ContainsAny.R)
+	}
+	if e.ContainsAll.L != nil && e.ContainsAll.R != nil {
+		return fmt.Sprintf("contains_all(%s, %s)", e.ContainsAll.L, e.ContainsAll.R)
+	}
+	if e.CanView != nil {
+		return "can_view()"
+	}
+	if e.MapRef != nil && e.MapRef.L != nil && e.MapRef.R != nil {
+		return fmt.Sprintf("%s[%q]", e.MapRef.L, e.MapRef.R)
 	}
 	return ""
 }
@@ -1984,7 +2003,7 @@ func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
 	return roleConditions
 }
 
-// GetRoleConditions returns the role conditions for the role.
+// GetRequestReasonMode returns the request reason mode for the role.
 func (r *RoleV6) GetRequestReasonMode(rct RoleConditionType) RequestReasonMode {
 	roleConditions := r.GetRoleConditions(rct)
 	if roleConditions.Request == nil || roleConditions.Request.Reason == nil {

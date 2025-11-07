@@ -20,43 +20,39 @@ import userEvent from '@testing-library/user-event';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
-import { fireEvent, render, screen, within } from 'design/utils/testing';
+import { render, screen, within } from 'design/utils/testing';
 import Validation, { useValidation } from 'shared/components/Validation';
 
+import cfg from 'teleport/config';
 import { ThemeProvider } from 'teleport/ThemeProvider';
 
 import { JoinTokenGithubForm } from './JoinTokenGithubForm';
-import { NewJoinTokenState } from './UpsertJoinTokenDialog';
+import {
+  NewJoinTokenGithubStateRule,
+  NewJoinTokenState,
+} from './UpsertJoinTokenDialog';
 
 const populateRuleFieldTest =
   (
-    field: keyof NewJoinTokenState['github']['rules'][number],
+    field: keyof NewJoinTokenGithubStateRule,
     placeholer: string,
     value: string
   ) =>
   async () => {
-    const state = baseState();
-    const onUpdate = jest.fn();
+    const { user, onUpdate } = renderComponent();
 
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={onUpdate}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
+    const input = screen.getByPlaceholderText(placeholer);
+    expect(input).toBeEnabled();
 
-    fireEvent.change(screen.getByPlaceholderText(placeholer), {
-      target: { value },
-    });
+    await user.click(input);
+    await user.paste(value);
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
         rules: [
           {
-            ...state.github.rules[0],
+            ref_type: 'any',
             [field]: value,
           },
         ],
@@ -69,27 +65,28 @@ const populateFieldTest =
     field,
     placeholer,
     value,
+    needsEnt,
   }: {
-    field: keyof NewJoinTokenState['github'];
+    field: keyof NonNullable<NewJoinTokenState['github']>;
     placeholer: string;
     value: string;
+    needsEnt?: boolean;
   }) =>
   async () => {
-    const state = baseState();
-    const onUpdate = jest.fn();
+    if (needsEnt) {
+      cfg.init({
+        edition: 'ent',
+        isEnterprise: true,
+      });
+    }
 
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={onUpdate}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
+    const { user, onUpdate } = renderComponent();
 
-    fireEvent.change(screen.getByPlaceholderText(placeholer), {
-      target: { value },
-    });
+    const input = screen.getByPlaceholderText(placeholer);
+    expect(input).toBeEnabled();
+
+    await user.click(input);
+    await user.paste(value);
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
@@ -101,19 +98,9 @@ const populateFieldTest =
 
 describe('GithubJoinTokenForm', () => {
   it('a rule can be added', async () => {
-    const state = baseState();
-    const onUpdate = jest.fn();
+    const { user, onUpdate } = renderComponent();
 
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={onUpdate}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
-
-    await userEvent.click(
+    await user.click(
       screen.getByRole('button', { name: /Add another GitHub rule/i })
     );
 
@@ -121,7 +108,9 @@ describe('GithubJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
         rules: [
-          ...state.github.rules,
+          {
+            ref_type: 'any',
+          },
           {
             ref_type: 'any',
           },
@@ -131,16 +120,7 @@ describe('GithubJoinTokenForm', () => {
   });
 
   it('delete button is hidden when only one rule exists', async () => {
-    const state = baseState();
-
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={jest.fn()}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
+    renderComponent();
 
     expect(screen.queryByTestId('delete_rule')).not.toBeInTheDocument();
   });
@@ -150,14 +130,7 @@ describe('GithubJoinTokenForm', () => {
       rules: [{}, {}],
     });
 
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={jest.fn()}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
+    renderComponent({ state });
 
     expect(screen.queryAllByTestId('delete_rule').length).toBe(2);
   });
@@ -166,26 +139,18 @@ describe('GithubJoinTokenForm', () => {
     const state = baseState({
       rules: [{}, {}],
     });
-    const onUpdate = jest.fn();
 
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={onUpdate}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
+    const { user, onUpdate } = renderComponent({ state });
 
     const rule0 = screen.getByTestId('rule_0');
     const deleteButton0 = within(rule0).getByTestId('delete_rule');
 
-    await userEvent.click(deleteButton0);
+    await user.click(deleteButton0);
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
-        rules: [state.github.rules[0]],
+        rules: state.github?.rules ? [state.github.rules[0]] : [],
       })
     );
   });
@@ -201,18 +166,9 @@ describe('GithubJoinTokenForm', () => {
   );
 
   it('repository field shows a validation message', async () => {
-    const state = baseState();
+    const { user } = renderComponent();
 
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={jest.fn()}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
-
-    await userEvent.click(screen.getByTestId('submit'));
+    await user.click(screen.getByTestId('submit'));
 
     expect(
       screen.getByText('Either repository name or owner is required')
@@ -226,18 +182,9 @@ describe('GithubJoinTokenForm', () => {
   );
 
   it('repository owner field shows a validation message', async () => {
-    const state = baseState();
+    const { user } = renderComponent();
 
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={jest.fn()}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
-
-    await userEvent.click(screen.getByTestId('submit'));
+    await user.click(screen.getByTestId('submit'));
 
     expect(
       screen.getByText('Either repository owner or name is required')
@@ -263,17 +210,7 @@ describe('GithubJoinTokenForm', () => {
   );
 
   it('ref type is disabled when ref is not populated', async () => {
-    const state = baseState();
-
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={jest.fn()}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
-
+    renderComponent();
     expect(screen.getByLabelText('Ref type')).toBeDisabled();
   });
 
@@ -286,16 +223,8 @@ describe('GithubJoinTokenForm', () => {
         },
       ],
     });
-    const onUpdate = jest.fn();
 
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={onUpdate}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
+    const { onUpdate } = renderComponent({ state });
 
     const selectElement = screen.getByLabelText('Ref type');
     expect(selectElement).toBeEnabled();
@@ -305,12 +234,14 @@ describe('GithubJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
-        rules: [
-          {
-            ...state.github.rules[0],
-            ref_type: 'branch',
-          },
-        ],
+        rules: state.github?.rules
+          ? [
+              {
+                ...state.github.rules[0],
+                ref_type: 'branch',
+              },
+            ]
+          : [],
       })
     );
   });
@@ -322,6 +253,7 @@ describe('GithubJoinTokenForm', () => {
       field: 'server_host',
       placeholer: 'github.example.com',
       value: 'github.example.com',
+      needsEnt: true,
     })
   );
 
@@ -332,6 +264,7 @@ describe('GithubJoinTokenForm', () => {
       field: 'enterprise_slug',
       placeholer: 'octo-enterprise',
       value: 'octo-enterprise',
+      needsEnt: true,
     })
   );
 
@@ -342,9 +275,28 @@ describe('GithubJoinTokenForm', () => {
       field: 'static_jwks',
       placeholer: '{"keys":[--snip--]}',
       value: '{"keys":[]}',
+      needsEnt: true,
     })
   );
 });
+
+function renderComponent(options?: { state?: NewJoinTokenState }) {
+  const { state = baseState() } = options ?? {};
+  const onUpdate = jest.fn();
+  const user = userEvent.setup();
+  return {
+    ...render(
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={onUpdate}
+        readonly={false}
+      />,
+      { wrapper: Wrapper }
+    ),
+    onUpdate,
+    user,
+  };
+}
 
 const Wrapper = ({ children }: PropsWithChildren) => {
   return (
@@ -358,7 +310,6 @@ const Wrapper = ({ children }: PropsWithChildren) => {
 
 const SubmitWrapper = ({ children }: PropsWithChildren) => {
   const validation = useValidation();
-
   return (
     <>
       {children}
@@ -382,7 +333,4 @@ const baseState = (
       },
     ],
   },
-  iam: [],
-  gcp: [],
-  oracle: [],
 });

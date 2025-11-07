@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"iter"
 	"net/http"
 	"net/url"
 	"strings"
@@ -40,6 +41,7 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -550,7 +552,7 @@ func TestGithubConnectorsCRUD(t *testing.T) {
 	}
 }
 
-func TestGetTrustedClusters(t *testing.T) {
+func TestGetTrustedClustersFallback(t *testing.T) {
 	ctx := context.Background()
 	m := &mockedResourceAPIGetter{}
 
@@ -559,6 +561,24 @@ func TestGetTrustedClusters(t *testing.T) {
 		require.NoError(t, err)
 
 		return []types.TrustedCluster{cluster}, nil
+	}
+
+	// Test response is converted to ui objects.
+	tcs, err := getTrustedClusters(ctx, m)
+	require.NoError(t, err)
+	require.Len(t, tcs, 1)
+	require.Contains(t, tcs[0].Content, "name: test")
+}
+
+func TestListTrustedClusters(t *testing.T) {
+	ctx := context.Background()
+	m := &mockedResourceAPIGetter{}
+
+	m.mockListTrustedClusters = func(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
+		cluster, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{})
+		require.NoError(t, err)
+
+		return []types.TrustedCluster{cluster}, "", nil
 	}
 
 	// Test response is converted to ui objects.
@@ -722,11 +742,14 @@ type mockedResourceAPIGetter struct {
 	mockListRequestableRoles  func(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	mockListGithubConnectors  func(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	mockRangeGithubConnectors func(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	mockDeleteGithubConnector func(ctx context.Context, id string) error
 	mockUpsertTrustedCluster  func(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
 	mockGetTrustedCluster     func(ctx context.Context, name string) (types.TrustedCluster, error)
 	mockGetTrustedClusters    func(ctx context.Context) ([]types.TrustedCluster, error)
+	mockListTrustedClusters   func(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 	mockDeleteTrustedCluster  func(ctx context.Context, name string) error
 	mockListResources         func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	mockGetAuthPreference     func(ctx context.Context) (types.AuthPreference, error)
@@ -777,6 +800,26 @@ func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withS
 	return nil, trace.NotImplemented("mockGetGithubConnectors not implemented")
 }
 
+// ListGithubConnectors returns a page of valid registered Github connectors.
+// withSecrets adds or removes client secret from return results.
+func (m *mockedResourceAPIGetter) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
+	if m.mockListGithubConnectors != nil {
+		return m.mockListGithubConnectors(ctx, limit, start, withSecrets)
+	}
+
+	return nil, "", trace.NotImplemented("mockListGithubConnectors not implemented")
+}
+
+// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+// withSecrets adds or removes client secret from return results.
+func (m *mockedResourceAPIGetter) RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error] {
+	if m.mockRangeGithubConnectors != nil {
+		return m.mockRangeGithubConnectors(ctx, start, end, withSecrets)
+	}
+
+	return stream.Fail[types.GithubConnector](trace.NotImplemented("mockRangeGithubConnectors not implemented"))
+}
+
 func (m *mockedResourceAPIGetter) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {
 	if m.mockGetGithubConnector != nil {
 		return m.mockGetGithubConnector(ctx, id, false)
@@ -815,6 +858,13 @@ func (m *mockedResourceAPIGetter) GetTrustedClusters(ctx context.Context) ([]typ
 	}
 
 	return nil, trace.NotImplemented("mockGetTrustedClusters not implemented")
+}
+
+func (m *mockedResourceAPIGetter) ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
+	if m.mockListTrustedClusters != nil {
+		return m.mockListTrustedClusters(ctx, limit, startKey)
+	}
+	return nil, "", trace.NotImplemented("mockListTrustedClusters not implemented")
 }
 
 func (m *mockedResourceAPIGetter) DeleteTrustedCluster(ctx context.Context, name string) error {

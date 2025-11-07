@@ -20,6 +20,7 @@ package db
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
@@ -57,14 +58,14 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 	clt := cfg.awsClients.GetRDSClient(awsCfg)
 	// Get a list of all RDS Proxies. Each RDS Proxy has one "default"
 	// endpoint.
-	rdsProxies, err := getRDSProxies(ctx, clt, maxAWSPages)
+	rdsProxies, err := getRDSProxies(ctx, clt, cfg.Logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get all RDS Proxy custom endpoints sorted by the name of the RDS Proxy
 	// that owns the custom endpoints.
-	customEndpointsByProxyName, err := getRDSProxyCustomEndpoints(ctx, clt, maxAWSPages)
+	customEndpointsByProxyName, err := getRDSProxyCustomEndpoints(ctx, clt, cfg.Logger)
 	if err != nil {
 		cfg.Logger.DebugContext(ctx, "Failed to get RDS Proxy endpoints", "error", err)
 	}
@@ -133,7 +134,7 @@ func (f *rdsDBProxyPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 
 // getRDSProxies fetches all RDS Proxies using the provided client, up to the
 // specified max number of pages.
-func getRDSProxies(ctx context.Context, clt RDSClient, maxPages int) ([]rdstypes.DBProxy, error) {
+func getRDSProxies(ctx context.Context, clt RDSClient, log *slog.Logger) ([]rdstypes.DBProxy, error) {
 	pager := rds.NewDescribeDBProxiesPaginator(clt,
 		&rds.DescribeDBProxiesInput{},
 		func(dcpo *rds.DescribeDBProxiesPaginatorOptions) {
@@ -142,8 +143,7 @@ func getRDSProxies(ctx context.Context, clt RDSClient, maxPages int) ([]rdstypes
 	)
 
 	var rdsProxies []rdstypes.DBProxy
-	for i := 0; i < maxPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}
@@ -154,7 +154,7 @@ func getRDSProxies(ctx context.Context, clt RDSClient, maxPages int) ([]rdstypes
 
 // getRDSProxyCustomEndpoints fetches all RDS Proxy custom endpoints using the
 // provided client.
-func getRDSProxyCustomEndpoints(ctx context.Context, clt RDSClient, maxPages int) (map[string][]rdstypes.DBProxyEndpoint, error) {
+func getRDSProxyCustomEndpoints(ctx context.Context, clt RDSClient, log *slog.Logger) (map[string][]rdstypes.DBProxyEndpoint, error) {
 	customEndpointsByProxyName := make(map[string][]rdstypes.DBProxyEndpoint)
 	pager := rds.NewDescribeDBProxyEndpointsPaginator(clt,
 		&rds.DescribeDBProxyEndpointsInput{},
@@ -162,8 +162,7 @@ func getRDSProxyCustomEndpoints(ctx context.Context, clt RDSClient, maxPages int
 			ddepo.StopOnDuplicateToken = true
 		},
 	)
-	for i := 0; i < maxPages && pager.HasMorePages(); i++ {
-		page, err := pager.NextPage(ctx)
+	for page, err := range pagesWithLimit(ctx, pager, log) {
 		if err != nil {
 			return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 		}

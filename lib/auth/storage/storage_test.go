@@ -194,10 +194,10 @@ func Test_readOrGenerateHostID(t *testing.T) {
 				kubeBackend = tt.args.kubeBackend
 			}
 
-			err := readOrGenerateHostID(context.Background(), cfg, kubeBackend)
+			hostID, err := readOrGenerateHostID(context.Background(), cfg, kubeBackend)
 			require.NoError(t, err)
 
-			require.True(t, tt.wantFunc(cfg.HostUUID))
+			require.True(t, tt.wantFunc(hostID))
 
 			if tt.args.kubeBackend != nil {
 				require.True(t, tt.wantKubeItemFunc(tt.args.kubeBackend.putData))

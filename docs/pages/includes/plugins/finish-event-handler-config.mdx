@@ -11,7 +11,7 @@ batch = 20
 namespace = "default"
 # The window size configures the duration of the time window for the event handler
 # to request events from Teleport. By default, this is set to 24 hours.
-# Reduce the window size if the events backend cannot manage the event volume 
+# Reduce the window size if the events backend cannot manage the event volume
 # for the default window size.
 # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
 window-size = "24h"
@@ -20,16 +20,16 @@ window-size = "24h"
 # and new Access Requests, you can assign this field to
 # "user.login,access_request.create".
 types = ""
-# skip-event-types is a comma-separated list of types of events to skip. For
-# example, to forward all audit events except for new app deletion events, you
-# can include the following assignment:
-# skip-event-types = "app.delete"
-skip-event-types: []
-# skip-session-types is a comma-separated list of session event types to skip.
+# skip-event-types is a comma-separated list of audit log event types to skip.
+# For example, to forward all audit events except for new app deletion events,
+# you can include the following assignment:
+# skip-event-types = ["app.delete"]
+skip-event-types = []
+# skip-session-types is a comma-separated list of session recording event types to skip.
 # For example, to forward all session events except for malformed SQL packet
 # events, you can include the following assignment:
-# skip-session-types = "db.session.malformed_packet"
-skip-session-types: []
+# skip-session-types = ["db.session.malformed_packet"]
+skip-session-types = []
 
 [forward.fluentd]
 ca = "/home/bob/event-handler/ca.crt"
@@ -59,7 +59,7 @@ eventHandler:
   namespace: "default"
   # The window size configures the duration of the time window for the event handler
   # to request events from Teleport. By default, this is set to 24 hours.
-  # Reduce the window size if the events backend cannot manage the event volume 
+  # Reduce the window size if the events backend cannot manage the event volume
   # for the default window size.
   # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
   windowSize: "24h"
@@ -68,13 +68,13 @@ eventHandler:
   # and new Access Requests, you can assign this field to:
   # ["user.login", "access_request.create"]
   types: []
-  # skipEventTypes lists types of events to skip. For example, to forward all
+  # skipEventTypes lists types of audit events to skip. For example, to forward all
   # audit events except for new app deletion events, you can assign this to:
   # ["app.delete"]
   skipEventTypes: []
-  # skipSessionTypes lists session event types to skip. For example, to forward
-  # all session events except for malformed SQL packet events, you can assign
-  # this to:
+  # skipSessionTypes lists types of session recording events to skip. For example,
+  # to forward all session events except for malformed SQL packet events,
+  # you can assign this to:
   # ["db.session.malformed_packet"]
   skipSessionTypes: []
 
@@ -98,4 +98,3 @@ persistentVolumeClaim:
 
 </TabItem>
 </Tabs>
-

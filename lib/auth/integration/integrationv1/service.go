@@ -28,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/awscommon"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,6 +58,12 @@ type Cache interface {
 
 	// IntegrationsGetter defines methods to access Integration resources.
 	services.IntegrationsGetter
+
+	// DiscoveryConfigsGetter defines methods to access DiscoveryConfig resources.
+	services.DiscoveryConfigsGetter
+
+	// AppServersGetter defines methods to access application servers.
+	services.AppServersGetter
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
@@ -82,6 +88,8 @@ type Backend interface {
 	services.Integrations
 	services.PluginStaticCredentials
 	services.GitServers
+	services.DiscoveryConfigs
+	services.Presence
 }
 
 // ServiceConfig holds configuration options for
@@ -248,12 +256,8 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 			return nil, trace.Wrap(err)
 		}
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
-		// AWS OIDC and Roles Anywhere Integrations can be used as source of credentials to access AWS Web/CLI.
-		// For OIDC, this creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
-		// For Roles Anywhere, this creates a AppServers for each Roles Anywhere Profile whose endpoint is <profileName>-<integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
-		// Instead of failing when the integration is already created, it fails at creation time.
-		if errs := validation.IsDNS1035Label(req.GetIntegration().GetName()); len(errs) > 0 {
-			return nil, trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", req.GetIntegration().GetName())
+		if err := awscommon.ValidIntegratioName(req.Integration.GetName()); err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		if err := validateAWSRolesAnywhereProfileFilters(req.Integration); err != nil {
@@ -499,6 +503,8 @@ func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig type
 
 func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
 	switch ig.GetSubKind() {
+	case types.IntegrationSubKindAWSOIDC:
+		return trace.Wrap(s.deleteAWSOIDCAssociatedResources(ctx, authCtx, ig))
 	case types.IntegrationSubKindGitHub:
 		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
 	default:

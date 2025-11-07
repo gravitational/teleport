@@ -67,11 +67,11 @@ spec:
             - name: certificate
               mountPath: /var/lib/teleport/plugins/event-handler/client.key
               subPath: {{ .Values.fluentd.certificate.keyPath }}
-           {{- if .Values.tls.existingCASecretName }}
+          {{- if .Values.tls.existingCASecretName }}
             - mountPath: /etc/teleport-tls-ca
               name: "teleport-tls-ca"
               readOnly: true
-           {{- end }}
+          {{- end }}
             {{- if or .Values.persistentVolumeClaim.enabled .Values.persistentVolumeClaim.existingClaim }}
             - name: "{{ .Values.persistentVolumeClaim.volumeName }}"
               mountPath: "{{ .Values.eventHandler.storagePath }}"
@@ -98,7 +98,7 @@ spec:
             defaultMode: 0600
         - name: teleport-identity
           secret:
-            secretName: "{{ .Values.teleport.identitySecretName }}"
+            secretName: {{ include "event-handler.identitySecretName" . | quote }}
             defaultMode: 0600
         - name: certificate
           secret:

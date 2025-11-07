@@ -22,8 +22,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -36,14 +38,16 @@ import (
 
 // ServiceBuilder returns a builder for the diagnostics service.
 func ServiceBuilder(cfg Config) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		return NewService(cfg, deps.StatusRegistry)
 	}
+	return bot.NewServiceBuilder("internal/diagnostics", "diagnostics", buildFn)
 }
 
 // Config contains configuration for the diagnostics service.
 type Config struct {
 	Address      string
+	Network      string
 	PProfEnabled bool
 	Logger       *slog.Logger
 }
@@ -52,6 +56,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.Address == "" {
 		return trace.BadParameter("Address is required")
 	}
+	if cfg.Network == "" {
+		cfg.Network = "tcp"
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -59,7 +66,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 }
 
 // NewService creates a new diagnostics service.
-func NewService(cfg Config, registry *readyz.Registry) (*Service, error) {
+func NewService(cfg Config, registry readyz.ReadOnlyRegistry) (*Service, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,6 +76,7 @@ func NewService(cfg Config, registry *readyz.Registry) (*Service, error) {
 	return &Service{
 		log:            cfg.Logger,
 		diagAddr:       cfg.Address,
+		diagNetwork:    cfg.Network,
 		pprofEnabled:   cfg.PProfEnabled,
 		statusRegistry: registry,
 	}, nil
@@ -79,8 +87,9 @@ func NewService(cfg Config, registry *readyz.Registry) (*Service, error) {
 type Service struct {
 	log            *slog.Logger
 	diagAddr       string
+	diagNetwork    string
 	pprofEnabled   bool
-	statusRegistry *readyz.Registry
+	statusRegistry readyz.ReadOnlyRegistry
 }
 
 func (s *Service) String() string {
@@ -130,7 +139,30 @@ func (s *Service) Run(ctx context.Context) error {
 		}
 	}()
 
-	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+	// When the process exits, the socket files are left behind (to cover
+	// forking scenarios). To guarantee there won't be errors like "address
+	// already in use", delete the file before starting the listener.
+	if s.diagNetwork == "unix" {
+		s.log.DebugContext(ctx, "Cleaning up socket file", "path", s.diagAddr)
+		if err := trace.ConvertSystemError(os.Remove(s.diagAddr)); err != nil && !trace.IsNotFound(err) {
+			s.log.WarnContext(ctx, "Failed to cleanup existing socket file", "error", err)
+		}
+	}
+
+	listener, err := net.Listen(s.diagNetwork, s.diagAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// The default behavior for unix listeners is to delete the file when the
+	// listener closes (unlinking). However, if the process forks, the file
+	// descriptor will be gone when its parent process exits, causing the new
+	// listener to have no socket file.
+	if unixListener, ok := listener.(*net.UnixListener); ok {
+		unixListener.SetUnlinkOnClose(false)
+	}
+
+	if err := srv.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 

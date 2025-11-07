@@ -6,11 +6,14 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
     "allowSyntheticDefaultImports": true
   },
   "include": [
     "e/web/**/*.mts",
     "web/**/*.mts",
+    "web/.storybook/*.mts",
     "web/packages/build/vite",
     "web/packages/teleterm/csp.ts"
   ]

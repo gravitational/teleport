@@ -21,6 +21,7 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,6 +147,16 @@ func TestTryApproveRequest(t *testing.T) {
 		},
 	}).Return([]string{"admin@example.com"}, (error)(nil))
 
+	// Example with uppercase user
+	bot.On("FetchOncallUsers", mock.Anything, &types.AccessRequestV3{
+		Spec: types.AccessRequestSpecV3{
+			User: user,
+			SystemAnnotations: map[string][]string{
+				"example-auto-approvals": {"uppercase-user"},
+			},
+		},
+	}).Return([]string{strings.ToUpper(user)}, (error)(nil))
+
 	// Successful review
 	teleportClient.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
 		RequestID: requestID,
@@ -181,4 +192,16 @@ func TestTryApproveRequest(t *testing.T) {
 	}))
 	bot.AssertNumberOfCalls(t, "FetchOncallUsers", 2)
 	teleportClient.AssertNumberOfCalls(t, "SubmitAccessReview", 1)
+
+	// Test user is on-call ignore casing
+	require.NoError(t, app.tryApproveRequest(ctx, requestID, &types.AccessRequestV3{
+		Spec: types.AccessRequestSpecV3{
+			User: user,
+			SystemAnnotations: map[string][]string{
+				"example-auto-approvals": {"uppercase-user"},
+			},
+		},
+	}))
+	bot.AssertNumberOfCalls(t, "FetchOncallUsers", 3)
+	teleportClient.AssertNumberOfCalls(t, "SubmitAccessReview", 2)
 }

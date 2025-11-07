@@ -21,6 +21,7 @@ package internal
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -31,6 +32,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
 
 func Test_RunOnInterval(t *testing.T) {
 	t.Parallel()

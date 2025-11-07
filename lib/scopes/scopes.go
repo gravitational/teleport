@@ -23,14 +23,15 @@ import (
 	"iter"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/gravitational/trace"
 )
 
 // segmentRegexp is the regular expression used to validate scope segments. It allows
-// alphanumeric characters, hyphens, underscores, and periods. It also requires that the
-// segment starts and ends with an alphanumeric character.
-var segmentRegexp = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9\-\_\.]*[a-zA-Z0-9]$`)
+// lowercase alphanumeric characters, hyphens, underscores, and periods. It also requires
+// that the segment starts and ends with an alphanumeric character.
+var segmentRegexp = regexp.MustCompile(`^[a-z0-9][a-z0-9\-\_\.]*[a-z0-9]$`)
 
 const (
 	// separator is the character used to separate segments in a scope and is the the value of the root scope.
@@ -136,6 +137,14 @@ func StrongValidateSegment(segment string) error {
 
 	if len(segment) < minSegmentSize {
 		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
+	}
+
+	// check for uppercase characters separately. this would be caught by the regex, but its better
+	// UX to call out uppercase characters specifically since its a common mistake.
+	for _, r := range segment {
+		if unicode.IsUpper(r) {
+			return trace.BadParameter("segment %q contains uppercase character(s)", segment)
+		}
 	}
 
 	if !segmentRegexp.MatchString(segment) {
@@ -252,6 +261,37 @@ func DescendingSegments(scope string) iter.Seq[string] {
 	return strings.SplitSeq(strings.TrimSuffix(strings.TrimPrefix(scope, "/"), "/"), "/")
 }
 
+// DescendingScopes produces an iterator over the canonical representations of the parents of
+// a scope in descending order, ending with the canonical representation of the scope itself.
+// e.g. `DescendingScopes("/a/b/c")` will result in an iterator that returns `/`, `/a`, `/a/b`,
+// and `/a/b/c` in that order. `DescendingScopes("/")` will return a single-element iterator, and
+// `DescendingScopes("")` will return an empty iterator.
+//
+// Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func DescendingScopes(scope string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if scope == "" {
+			return
+		}
+
+		// start with the root scope
+		if !yield(separator) {
+			return
+		}
+
+		var segments []string
+		// iterate over the segments in descending order
+		for segment := range DescendingSegments(scope) {
+			segments = append(segments, segment)
+
+			if !yield(Join(segments...)) {
+				return
+			}
+		}
+	}
+}
+
 // Join joins the given segments into a single scope string. Note that this function
 // does not perform validation and will produce invalid scopes if one or more segments
 // are invalid.
@@ -283,7 +323,7 @@ func Join(segments ...string) string {
 type Relationship int
 
 const (
-	// Orhogonal indicates that the scopes are divergents/unrelated (e.g. '/foo' and '/bar').
+	// Orthogonal indicates that the scopes are divergents/unrelated (e.g. '/foo' and '/bar').
 	Orthogonal Relationship = iota
 	// Equivalent indicates that the scopes are equal. Some non-equal scope strings are still
 	// considered equivalent by [Compare] (e.g. 'foo' and '/foo/'), though the canonical representations
