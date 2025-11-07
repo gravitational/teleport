@@ -2458,8 +2458,7 @@ func TestSSHAccessRequestWait(t *testing.T) {
 	// Make the SSH node our test user will access.
 	sshHostname := "test-ssh-server"
 	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	sshHostID, err := node.WaitForHostID(ctx)
-	require.NoError(t, err)
+	sshHostID := node.Config.HostUUID
 
 	tmpHomePath := t.TempDir()
 
