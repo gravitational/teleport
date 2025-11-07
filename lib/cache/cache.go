@@ -3005,6 +3005,19 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 	return rg.reader.GetLocks(ctx, inForceOnly, targets...)
 }
 
+// ListLocks returns a page of locks matching a filter
+func (c *Cache) ListLocks(ctx context.Context, limit int, start string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListLocks")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.locks)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListLocks(ctx, limit, start, filter)
+}
+
 // GetWindowsDesktopServices returns all registered Windows desktop services.
 func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopServices")

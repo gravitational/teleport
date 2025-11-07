@@ -35,6 +35,7 @@ type LockGetter interface {
 	GetLock(ctx context.Context, name string) (types.Lock, error)
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
 }
 
 // Access service manages roles and permissions.

@@ -3530,7 +3530,19 @@ func (h *Handler) getClusterLocks(
 		return nil, trace.Wrap(err)
 	}
 
-	locks, err := clt.GetLocks(ctx, false)
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			var noFilter *types.LockFilter
+			return clt.ListLocks(ctx, limit, start, noFilter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			const inForceOnlyFalse = false
+			return clt.GetLocks(ctx, inForceOnlyFalse)
+		},
+	)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3555,7 +3567,10 @@ func (h *Handler) getClusterLocksV2(
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(okraport): DELETE IN v21
 	var targets []types.LockTarget
+	filter := &types.LockFilter{}
+
 	if r.URL.Query().Has("target") {
 		ts := r.URL.Query()["target"]
 		for _, ts := range ts {
@@ -3585,15 +3600,26 @@ func (h *Handler) getClusterLocksV2(
 				return nil, trace.BadParameter("invalid target type %q", parts[0])
 			}
 			targets = append(targets, target)
+			filter.Targets = append(filter.Targets, &target)
 		}
 	}
 
 	inForceOnly := false
 	if r.URL.Query().Has("in_force_only") {
 		inForceOnly = r.URL.Query().Get("in_force_only") == "true"
+		filter.InForceOnly = inForceOnly
 	}
 
-	locks, err := clt.GetLocks(ctx, inForceOnly, targets...)
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return clt.ListLocks(ctx, limit, start, filter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			return clt.GetLocks(ctx, inForceOnly, targets...)
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
