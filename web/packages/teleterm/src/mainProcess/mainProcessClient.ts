@@ -263,8 +263,8 @@ export default function createMainProcessClient(): MainProcessClient {
     addCluster: async (proxyAddress: string) => {
       return await ipcRenderer.invoke(MainProcessIpc.AddCluster, proxyAddress);
     },
-    syncRootClusters: async options => {
-      return await ipcRenderer.invoke(MainProcessIpc.SyncRootClusters, options);
+    syncRootClusters: async () => {
+      return await ipcRenderer.invoke(MainProcessIpc.SyncRootClusters);
     },
     syncCluster: (clusterUri: RootClusterUri) => {
       return ipcRenderer.invoke(MainProcessIpc.SyncCluster, { clusterUri });

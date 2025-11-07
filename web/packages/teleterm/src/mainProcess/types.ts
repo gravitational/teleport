@@ -27,7 +27,6 @@ import type { ClusterStoreUpdate } from 'teleterm/mainProcess/clusterStore';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
-import { CloneableAbortSignal } from 'teleterm/services/tshd';
 import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -231,9 +230,7 @@ export type MainProcessClient = {
   };
   addCluster(proxyAddress: string): Promise<Cluster>;
   syncCluster(clusterUri: RootClusterUri): Promise<void>;
-  syncRootClusters(options: {
-    abortSignal: CloneableAbortSignal;
-  }): Promise<Cluster[]>;
+  syncRootClusters(): Promise<Cluster[]>;
   logout(clusterUri: RootClusterUri): Promise<void>;
   subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
     cleanup: () => void;
