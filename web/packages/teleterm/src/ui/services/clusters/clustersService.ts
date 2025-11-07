@@ -182,9 +182,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     try {
       await Promise.race([
         abortPromise,
-        await this.mainProcessClient.syncRootClusters({
-          abortSignal: abortSignal && cloneAbortSignal(abortSignal),
-        }),
+        await this.mainProcessClient.syncRootClusters(),
       ]);
     } catch (error) {
       if (isAbortError(error)) {
