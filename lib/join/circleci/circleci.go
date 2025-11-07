@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
@@ -42,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/provision"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "circleci")
