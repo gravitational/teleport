@@ -21,6 +21,7 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -1613,6 +1614,13 @@ message AccessRequestCreate {
 
   // ResourceNames contains the names of the requested resources.
   repeated string ResourceNames = 17 [(gogoproto.jsontag) = "resource_names,omitempty"];
+
+  // AllowedResourceAccessIDs is the set of resources to which access is being requested,
+  // paired with additional information such as ResourceConstraints.
+  repeated types.ResourceAccessID RequestedResourceAccessIDs = 18 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // AccessRequestExpire is emitted when access request has expired.
@@ -5036,6 +5044,12 @@ message Identity {
   string JoinToken = 30 [(gogoproto.jsontag) = "join_token,omitempty"];
   // ScopePin pins a certificate to a specific scope and set of scoped roles.
   ScopePin ScopePin = 31 [(gogoproto.jsontag) = "scope_pin,omitempty"];
+  // AllowedResourceAccessIDs is the list of resources which the identity will be allowed to access,
+  // paired with additional information such as ResourceConstraints.
+  repeated types.ResourceAccessID AllowedResourceAccessIDs = 32 [
+    (gogoproto.jsontag) = "allowed_resource_access_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant

@@ -1241,7 +1241,7 @@ var File_teleport_plugins_v1_plugin_service_proto protoreflect.FileDescriptor
 
 const file_teleport_plugins_v1_plugin_service_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/plugins/v1/plugin_service.proto\x12\x13teleport.plugins.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\"H\n" +
+	"(teleport/plugins/v1/plugin_service.proto\x12\x13teleport.plugins.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a%teleport/legacy/types/resources.proto\x1a!teleport/legacy/types/types.proto\"H\n" +
 	"\n" +
 	"PluginType\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12&\n" +
