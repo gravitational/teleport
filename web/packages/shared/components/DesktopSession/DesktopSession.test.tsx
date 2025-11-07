@@ -32,8 +32,6 @@ import {
 
 import { DesktopSession } from './DesktopSession';
 
-import 'jest-canvas-mock';
-
 import userEvent from '@testing-library/user-event';
 
 import { TdpTransport } from 'shared/libs/tdp/client';
@@ -88,19 +86,25 @@ const getMockTransport = () => {
   };
 };
 
-let originalQuery: typeof navigator.permissions.query;
+let originalQuery: typeof navigator.permissions.query | undefined;
 
 beforeEach(() => {
-  originalQuery = navigator.permissions.query;
+  originalQuery = navigator.permissions?.query;
+
+  if (!navigator.permissions) {
+    (navigator as any).permissions = {};
+  }
 
   navigator.permissions.query = vi.fn().mockResolvedValue({
     state: 'granted',
     onchange: null,
-  });
+  }) as typeof navigator.permissions.query;
 });
 
 afterEach(() => {
-  navigator.permissions.query = originalQuery;
+  if (originalQuery) {
+    navigator.permissions.query = originalQuery;
+  }
 });
 
 test('reconnect button reinitializes the connection', async () => {

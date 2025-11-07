@@ -27,15 +27,16 @@ import { InputHandler } from './InputHandler';
 // Mock the TdpClient class
 vi.mock('shared/libs/tdp', async () => {
   const originalModule = await vi.importActual('shared/libs/tdp');
+  const TdpClient = vi.fn(function() {
+    return {
+      sendKeyboardInput: vi.fn(),
+      sendMouseButton: vi.fn(),
+      sendSyncKeys: vi.fn(),
+    };
+  });
   return {
     ...originalModule,
-    TdpClient: vi.fn().mockImplementation(() => {
-      return {
-        sendKeyboardInput: vi.fn(),
-        sendMouseButton: vi.fn(),
-        sendSyncKeys: vi.fn(),
-      };
-    }),
+    TdpClient,
   };
 });
 

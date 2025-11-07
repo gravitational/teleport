@@ -19,13 +19,14 @@
 import { saveOnDisk } from './saveOnDisk';
 
 test('saveOnDisk', async () => {
-  const element = { href: vi.fn(), click: vi.fn(), download: vi.fn() };
+  const element = document.createElement('a');
+  const clickSpy = vi.spyOn(element, 'click').mockImplementation();
   const createElement = vi
     .spyOn(document, 'createElement')
-    .mockReturnValueOnce(element as any);
+    .mockReturnValueOnce(element);
 
-  vi.spyOn(document.body, 'appendChild').mockImplementation();
-  vi.spyOn(document.body, 'removeChild').mockImplementation();
+  const appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation();
+  const removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation();
   const blob = vi.spyOn(global, 'Blob').mockImplementation();
   window.URL.createObjectURL = vi.fn();
 
@@ -33,4 +34,5 @@ test('saveOnDisk', async () => {
   expect(createElement).toHaveBeenCalledWith('a');
   expect(element.download).toBe('testfile.txt');
   expect(blob).toHaveBeenCalledWith(['testcontent'], { type: 'plain/text' });
+  expect(clickSpy).toHaveBeenCalled();
 });

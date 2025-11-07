@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { waitFor } from '@testing-library/react';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { TextSelectCopyMulti } from './TextSelectCopyMulti';
 
-vi.useFakeTimers();
-
 test('changing of icon when button is clicked', async () => {
-  const user = userEvent.setup({ delay: null, advanceTimers: vi.advanceTimersByTime });
+  const user = userEvent.setup();
   render(<TextSelectCopyMulti lines={[{ text: 'some text to copy' }]} />);
 
   // Init button states.
@@ -32,20 +32,27 @@ test('changing of icon when button is clicked', async () => {
 
   // Clicking copy button should change the button icon to "check".
   await user.click(screen.getByTestId('btn-copy'));
-  expect(screen.getByTestId('btn-check')).toBeVisible();
-  expect(screen.getByTestId('btn-copy')).not.toBeVisible();
+
+  await waitFor(() => {
+    expect(screen.getByTestId('btn-check')).toBeVisible();
+    expect(screen.getByTestId('btn-copy')).not.toBeVisible();
+  });
 
   const clipboardText = await navigator.clipboard.readText();
   expect(clipboardText).toBe('some text to copy');
 
   // After set time out, the buttons should return to its initial state.
-  vi.runAllTimers();
-  expect(screen.queryByTestId('btn-copy')).toBeVisible();
-  expect(screen.queryByTestId('btn-check')).not.toBeVisible();
+  await waitFor(
+    () => {
+      expect(screen.queryByTestId('btn-copy')).toBeVisible();
+      expect(screen.queryByTestId('btn-check')).not.toBeVisible();
+    },
+    { timeout: 2000 }
+  );
 });
 
 test('correct copying of texts', async () => {
-  const user = userEvent.setup({ delay: null, advanceTimers: vi.advanceTimersByTime });
+  const user = userEvent.setup();
   render(
     <TextSelectCopyMulti
       lines={[
