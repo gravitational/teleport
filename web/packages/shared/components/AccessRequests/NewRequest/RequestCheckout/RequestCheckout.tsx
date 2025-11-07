@@ -55,14 +55,28 @@ import {
   shouldShowLongTermGroupingErrors,
   UNSUPPORTED_KINDS,
 } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
+import { SecondaryCrossIcon } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/SecondaryCrossIcon';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import {
+  formatAWSRoleARNForDisplay,
+  toggleAWSConsoleConstraint,
+} from 'shared/components/AccessRequests/Shared/utils';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { Option } from 'shared/components/Select';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { mergeRefs } from 'shared/libs/mergeRefs';
-import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
+import {
+  AccessRequest,
+  getResourceIDString,
+  hasResourceConstraints,
+  RequestKind,
+  ResourceConstraints,
+  ResourceConstraintsMap,
+  ResourceIDString,
+  WithResourceConstraints,
+} from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
 
 import { AccessDurationRequest } from '../../AccessDuration';
@@ -148,6 +162,58 @@ export const RequestCheckoutWithSlider = forwardRef<
   }
 );
 
+type DisplayRow<T extends PendingListItem> = T & {
+  constraints?: ResourceConstraints;
+};
+
+const AWSConsoleConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={2} mt={1} width="100%">
+    <Text bold>Role ARNs</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.aws_console.role_arns.map((arn, idx) => (
+        <Flex
+          key={arn}
+          flexDirection="row"
+          justifyContent="space-between"
+          gap={2}
+          borderBottom={
+            idx !== item.constraints.aws_console.role_arns.length - 1 ? 1 : 0
+          }
+          borderBottomColor="interactive.tonal.neutral.0"
+        >
+          <Text style={{ alignContent: 'center' }}>
+            {formatAWSRoleARNForDisplay(arn)}
+          </Text>
+          <SecondaryCrossIcon
+            clearAttempt={clearAttempt}
+            createAttempt={createAttempt}
+            item={arn}
+            toggleResource={toggleAWSConsoleConstraint(
+              getResourceIDString({
+                cluster: item.clusterName,
+                kind: item.kind,
+                name: item.id,
+              }),
+              item.constraints,
+              setResourceConstraints
+            )}
+          />
+        </Flex>
+      ))}
+    </Flex>
+  </Flex>
+);
+
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
   toggleResources,
@@ -186,6 +252,8 @@ export function RequestCheckout<T extends PendingListItem>({
   updateNamespacesForKubeCluster,
   requestKind = RequestKind.ShortTerm,
   setRequestKind,
+  addedResourceConstraints,
+  setResourceConstraints,
 }: RequestCheckoutProps<T>) {
   const theme = useTheme();
   const [reason, setReason] = useState('');
@@ -193,6 +261,41 @@ export function RequestCheckout<T extends PendingListItem>({
   const supportsLongTerm =
     setRequestKind !== undefined && toggleResources !== undefined;
   const isLongTerm = requestKind === RequestKind.LongTerm;
+
+  const displayRows = useMemo<DisplayRow<T>[]>(() => {
+    // Kube namespaces are displayed as part of their parent kube_cluster.
+    const base = pendingAccessRequests.filter(d => d.kind !== 'namespace');
+
+    if (!addedResourceConstraints) return base;
+
+    const out: DisplayRow<T>[] = [];
+    for (const row of base) {
+      const rc =
+        addedResourceConstraints[
+          getResourceIDString({
+            cluster: row.clusterName,
+            kind: row.kind,
+            name: row.id,
+          })
+        ];
+      out.push(rc ? { ...row, constraints: rc } : row);
+    }
+    return out;
+  }, [pendingAccessRequests, addedResourceConstraints]);
+
+  // TODO(kiosion): This should not be the concern of this component, just here temporarily. Also not the best way to handle this.
+  useEffect(() => {
+    // Clear added constraints when switching to Long-Term requests.
+    if (
+      isLongTerm &&
+      addedResourceConstraints &&
+      Object.entries(addedResourceConstraints).length > 0
+    ) {
+      for (const [key] of Object.entries(addedResourceConstraints)) {
+        setResourceConstraints(key as ResourceIDString, undefined);
+      }
+    }
+  }, [isLongTerm, addedResourceConstraints, setResourceConstraints]);
 
   function updateReason(reason: string) {
     setReason(reason);
@@ -278,7 +381,12 @@ export function RequestCheckout<T extends PendingListItem>({
       ];
     }
     return [false, undefined];
-  }, [isResourceRequest, isLongTerm, dryRunResponse?.longTermResourceGrouping]);
+  }, [
+    isResourceRequest,
+    isLongTerm,
+    dryRunResponse?.longTermResourceGrouping,
+    displayRows,
+  ]);
 
   const numPendingAccessRequests = pendingAccessRequests.filter(
     item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
@@ -304,7 +412,26 @@ export function RequestCheckout<T extends PendingListItem>({
     );
   };
 
-  function customRow(item: T) {
+  const renderAfter = (item: DisplayRow<T>) => {
+    if (hasResourceConstraints(item, 'aws_console')) {
+      return (
+        <tr style={{ borderTop: 'none' }}>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <AWSConsoleConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+  };
+
+  function customRow(item: DisplayRow<T>) {
     if (item.kind === 'kube_cluster') {
       const unsupported =
         requestKind === RequestKind.LongTerm &&
@@ -356,7 +483,7 @@ export function RequestCheckout<T extends PendingListItem>({
   }
 
   const getStyle = useMemo(
-    () => (item: T) => {
+    () => (item: DisplayRow<T>) => {
       if (
         !shouldShowLongTermGroupingErrors({
           requestKind,
@@ -497,11 +624,10 @@ export function RequestCheckout<T extends PendingListItem>({
                     />
                   )}
                   <StyledTable
-                    data={pendingAccessRequests.filter(
-                      d => d.kind !== 'namespace'
-                    )}
+                    data={displayRows}
                     row={{
                       customRow,
+                      renderAfter,
                       getStyle,
                     }}
                     columns={[
@@ -563,7 +689,14 @@ export function RequestCheckout<T extends PendingListItem>({
                               value: RequestKind.LongTerm,
                               label: 'Permanent',
                               disabled: longTermDisabled,
-                              tooltip: longTermDisabledReason,
+                              tooltip:
+                                longTermDisabledReason ||
+                                (addedResourceConstraints &&
+                                Object.entries(addedResourceConstraints)
+                                  .length &&
+                                !isLongTerm
+                                  ? 'Selecting Permanent access will remove added resource constraints'
+                                  : undefined),
                             },
                           ]}
                           activeValue={
@@ -1122,6 +1255,11 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     startTime: Date;
     requestKind?: RequestKind;
     setRequestKind?: React.Dispatch<React.SetStateAction<RequestKind>>;
+    addedResourceConstraints?: ResourceConstraintsMap;
+    setResourceConstraints?: (
+      key: ResourceIDString,
+      rc?: ResourceConstraints
+    ) => void;
     onStartTimeChange(t?: Date): void;
     fetchKubeNamespaces(search: string, kubeCluster: T): Promise<string[]>;
     updateNamespacesForKubeCluster(

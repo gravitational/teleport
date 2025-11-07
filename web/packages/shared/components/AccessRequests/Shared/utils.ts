@@ -18,6 +18,12 @@
 
 import { formatDuration, intervalToDuration } from 'date-fns';
 
+import {
+  ResourceConstraints,
+  ResourceConstraintsVariant,
+  ResourceIDString,
+} from 'shared/services/accessRequests';
+
 import { ResourceMap } from '../NewRequest';
 
 export function getFormattedDurationTxt({
@@ -45,3 +51,42 @@ export function getNumAddedResources(addedResources: ResourceMap) {
     Object.keys(addedResources.aws_ic_account_assignment).length
   );
 }
+
+const AWS_IAM_ROLE_ARN_REGEX = /^arn:aws[a-z0-9-]*:iam::(\d{12}):role\/(.+)$/;
+
+/**
+ * Formats an AWS Role ARN for pretty display, in the format "accountId: rolePathAndName".
+ */
+export const formatAWSRoleARNForDisplay = (arn: string) => {
+  const match = arn.match(AWS_IAM_ROLE_ARN_REGEX);
+
+  if (!match || match.length < 3) {
+    return arn;
+  }
+
+  const [, accountId, rolePathAndName] = match;
+
+  return `${accountId}: ${rolePathAndName}`;
+};
+
+/**
+ * Toggles an AWS Console constraint by removing the specified ARN from the current constraints.
+ * If no RoleARNs remain after removal, it clears the constraint.
+ */
+export const toggleAWSConsoleConstraint =
+  (
+    key: ResourceIDString,
+    curr: ResourceConstraintsVariant<'aws_console'>,
+    set?: (
+      key: ResourceIDString,
+      constraints: ResourceConstraints | undefined
+    ) => void
+  ) =>
+  (arn: string) => {
+    const newRc = {
+      aws_console: {
+        role_arns: curr.aws_console.role_arns.filter(a => a !== arn),
+      },
+    } satisfies ResourceConstraints;
+    set?.(key, newRc.aws_console.role_arns.length ? newRc : undefined);
+  };
