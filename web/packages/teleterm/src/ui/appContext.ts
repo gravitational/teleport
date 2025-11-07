@@ -25,7 +25,7 @@ import {
   MainProcessClient,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
-import { logoutWithCleanup } from 'teleterm/ui/ClusterLogout/logoutWithCleanup';
+import { cleanUpBeforeLogout } from 'teleterm/ui/ClusterLogout/cleanUpBeforeLogout';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
@@ -212,9 +212,9 @@ export default class AppContext implements IAppContext {
           case 'did-add-cluster':
             return this.workspacesService.addWorkspace(uri);
           case 'will-logout':
-            return logoutWithCleanup(this, uri, { removeWorkspace: false });
+            return cleanUpBeforeLogout(this, uri, { removeWorkspace: false });
           case 'will-logout-and-remove':
-            return logoutWithCleanup(this, uri, { removeWorkspace: true });
+            return cleanUpBeforeLogout(this, uri, { removeWorkspace: true });
           default:
             op satisfies never;
         }

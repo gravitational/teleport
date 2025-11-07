@@ -19,8 +19,8 @@
 import { IAppContext } from 'teleterm/ui/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-/** Disposes cluster-related resources and then logs out. */
-export async function logoutWithCleanup(
+/** Disposes cluster-related resources. */
+export async function cleanUpBeforeLogout(
   ctx: IAppContext,
   clusterUri: RootClusterUri,
   opts: { removeWorkspace: boolean }
