@@ -78,6 +78,15 @@ type AzureParams struct {
 	// ClientID is the client ID of the managed identity for Teleport to assume
 	// when authenticating a node.
 	ClientID string
+	// IMDSClient overrides the client used to fetch data from Azure IMDS.
+	IMDSClient AzureIMDSClient
+}
+
+// AzureIMDSClient is a client to Azure's IMDS.
+type AzureIMDSClient interface {
+	IsAvailable(context.Context) bool
+	GetAttestedData(ctx context.Context, nonce string) ([]byte, error)
+	GetAccessToken(ctx context.Context, clientID string) (string, error)
 }
 
 // GitlabParams is the parameters specific to the gitlab join method.
@@ -875,7 +884,10 @@ func registerUsingAzureMethod(
 	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
 	certs, err := client.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
-		imds := azure.NewInstanceMetadataClient()
+		imds := params.AzureParams.IMDSClient
+		if imds == nil {
+			imds = azure.NewInstanceMetadataClient()
+		}
 		if !imds.IsAvailable(ctx) {
 			return nil, trace.AccessDenied("could not reach instance metadata. Is Teleport running on an Azure VM?")
 		}

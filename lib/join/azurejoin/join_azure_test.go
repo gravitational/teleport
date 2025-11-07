@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package azurejoin_test
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -36,13 +37,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/join/azurejoin"
+	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type mockAzureVMClient struct {
@@ -67,24 +72,12 @@ func (m *mockAzureVMClient) GetByVMID(_ context.Context, vmID string) (*azure.Vi
 	return nil, trace.NotFound("no vm with id %q", vmID)
 }
 
-func makeVMClientGetter(clients map[string]*mockAzureVMClient) auth.AzureVMClientGetter {
+func makeVMClientGetter(clients map[string]*mockAzureVMClient) azurejoin.VMClientGetter {
 	return func(subscriptionID string, _ *azure.StaticCredential) (azure.VirtualMachinesClient, error) {
 		if client, ok := clients[subscriptionID]; ok {
 			return client, nil
 		}
 		return nil, trace.NotFound("no client for subscription %q", subscriptionID)
-	}
-}
-
-type azureChallengeResponseConfig struct {
-	Challenge string
-}
-
-type azureChallengeResponseOption func(*azureChallengeResponseConfig)
-
-func withChallengeAzure(challenge string) azureChallengeResponseOption {
-	return func(cfg *azureChallengeResponseConfig) {
-		cfg.Challenge = challenge
 	}
 }
 
@@ -107,8 +100,8 @@ func resourceID(resourceType, subscription, resourceGroup, name string) string {
 	)
 }
 
-func mockVerifyToken(err error) auth.AzureVerifyTokenFunc {
-	return func(_ context.Context, rawToken string) (*auth.AccessTokenClaims, error) {
+func mockVerifyToken(err error) azurejoin.AzureVerifyTokenFunc {
+	return func(_ context.Context, rawToken string) (*azurejoin.AccessTokenClaims, error) {
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +109,7 @@ func mockVerifyToken(err error) auth.AzureVerifyTokenFunc {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var claims auth.AccessTokenClaims
+		var claims azurejoin.AccessTokenClaims
 		if err := tok.UnsafeClaimsWithoutVerification(&claims); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -132,10 +125,10 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	claims := auth.AccessTokenClaims{
+	claims := azurejoin.AccessTokenClaims{
 		TokenClaims: oidc.TokenClaims{
 			Issuer:     "https://sts.windows.net/test-tenant-id/",
-			Audience:   []string{auth.AzureAccessTokenAudience},
+			Audience:   []string{azurejoin.AzureAccessTokenAudience},
 			Subject:    "test",
 			IssuedAt:   oidc.FromTime(issueTime),
 			NotBefore:  oidc.FromTime(issueTime),
@@ -154,14 +147,19 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 	return raw, nil
 }
 
-func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
+func TestJoinAzure(t *testing.T) {
 	t.Parallel()
-
 	ctx := t.Context()
-	p := newAuthSuite(t)
-	a := p.a
 
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+	a := server.Auth()
+
+	nopClient, err := server.NewClient(authtest.TestNop())
 	require.NoError(t, err)
 
 	tlsConfig, err := fixtures.LocalTLSConfig()
@@ -169,9 +167,6 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 
 	block, _ := pem.Decode(fixtures.LocalhostKey)
 	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	require.NoError(t, err)
-
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
@@ -197,10 +192,10 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 		tokenVMID                      string
 		requestTokenName               string
 		tokenSpec                      types.ProvisionTokenSpecV2
-		challengeResponseOptions       []azureChallengeResponseOption
+		overrideReturnedChallenge      string
 		challengeResponseErr           error
 		certs                          []*x509.Certificate
-		verify                         auth.AzureVerifyTokenFunc
+		verify                         azurejoin.AzureVerifyTokenFunc
 		assertError                    require.ErrorAssertionFunc
 	}{
 		{
@@ -343,12 +338,10 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 				},
 				JoinMethod: types.JoinMethodAzure,
 			},
-			challengeResponseOptions: []azureChallengeResponseOption{
-				withChallengeAzure("wrong-challenge"),
-			},
-			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
-			assertError: isAccessDenied,
+			overrideReturnedChallenge: "wrong-challenge",
+			verify:                    mockVerifyToken(nil),
+			certs:                     []*x509.Certificate{tlsConfig.Certificate},
+			assertError:               isAccessDenied,
 		},
 		{
 			name:              "invalid signature",
@@ -458,6 +451,27 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			vmClient := &mockAzureVMClient{
+				vms: map[string]*azure.VirtualMachine{
+					defaultVMResourceID: {
+						ID:            defaultVMResourceID,
+						Name:          defaultVMName,
+						Subscription:  defaultSubscription,
+						ResourceGroup: defaultResourceGroup,
+						VMID:          defaultVMID,
+					},
+				},
+			}
+			getVMClient := makeVMClientGetter(map[string]*mockAzureVMClient{
+				defaultSubscription: vmClient,
+			})
+
+			a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+				CertificateAuthorities: tc.certs,
+				Verify:                 tc.verify,
+				GetVMClient:            getVMClient,
+			})
+
 			token, err := types.NewProvisionTokenFromSpec(
 				"test-token",
 				time.Now().Add(time.Minute),
@@ -476,74 +490,65 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			accessToken, err := makeToken(mirID, "", a.GetClock().Now())
 			require.NoError(t, err)
 
-			vmClient := &mockAzureVMClient{
-				vms: map[string]*azure.VirtualMachine{
-					defaultVMResourceID: {
-						ID:            defaultVMResourceID,
-						Name:          defaultVMName,
-						Subscription:  defaultSubscription,
-						ResourceGroup: defaultResourceGroup,
-						VMID:          defaultVMID,
-					},
-				},
+			imdsClient := &fakeIMDSClient{
+				accessToken:       accessToken,
+				accessTokenErr:    tc.challengeResponseErr,
+				overrideChallenge: tc.overrideReturnedChallenge,
+				signingCert:       tlsConfig.Certificate,
+				signingKey:        pkey,
+				subscription:      tc.tokenSubscription,
+				vmID:              tc.tokenVMID,
 			}
-			getVMClient := makeVMClientGetter(map[string]*mockAzureVMClient{
-				defaultSubscription: vmClient,
-			})
 
-			_, err = a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
-				cfg := &azureChallengeResponseConfig{Challenge: challenge}
-				for _, opt := range tc.challengeResponseOptions {
-					opt(cfg)
-				}
-
-				ad := auth.AttestedData{
-					Nonce:          cfg.Challenge,
-					SubscriptionID: tc.tokenSubscription,
-					ID:             tc.tokenVMID,
-				}
-				adBytes, err := json.Marshal(&ad)
-				require.NoError(t, err)
-				s, err := pkcs7.NewSignedData(adBytes)
-				require.NoError(t, err)
-				require.NoError(t, s.AddSigner(tlsConfig.Certificate, pkey, pkcs7.SignerInfoConfig{}))
-				signature, err := s.Finish()
-				require.NoError(t, err)
-				signedAD := auth.SignedAttestedData{
-					Encoding:  "pkcs7",
-					Signature: base64.StdEncoding.EncodeToString(signature),
-				}
-				signedADBytes, err := json.Marshal(&signedAD)
-				require.NoError(t, err)
-
-				req := &proto.RegisterUsingAzureMethodRequest{
-					RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-						Token:        tc.requestTokenName,
-						HostID:       "test-node",
-						Role:         types.RoleNode,
-						PublicSSHKey: sshPublicKey,
-						PublicTLSKey: tlsPublicKey,
+			t.Run("legacy", func(t *testing.T) {
+				_, err = joinclient.LegacyJoin(ctx, joinclient.JoinParams{
+					Token:      tc.requestTokenName,
+					JoinMethod: types.JoinMethodAzure,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						HostUUID: "testuuid",
 					},
-					AttestedData: signedADBytes,
-					AccessToken:  accessToken,
-				}
-				return req, tc.challengeResponseErr
-			}, auth.WithAzureCerts(tc.certs), auth.WithAzureVerifyFunc(tc.verify), auth.WithAzureVMClientGetter(getVMClient))
-			tc.assertError(t, err)
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:   tc.tokenVMID,
+						IMDSClient: imdsClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+			t.Run("new", func(t *testing.T) {
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:   tc.tokenVMID,
+						IMDSClient: imdsClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
 		})
 	}
 }
 
 // TestAuth_RegisterUsingAzureClaims tests the Azure join method by verifying
 // joining VMs by the token claims rather than from the Azure VM API.
-func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
+func TestJoinAzureClaims(t *testing.T) {
 	t.Parallel()
-
 	ctx := t.Context()
-	p := newAuthSuite(t)
-	a := p.a
 
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+	a := server.Auth()
+
+	nopClient, err := server.NewClient(authtest.TestNop())
 	require.NoError(t, err)
 
 	tlsConfig, err := fixtures.LocalTLSConfig()
@@ -551,9 +556,6 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 
 	block, _ := pem.Decode(fixtures.LocalhostKey)
 	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	require.NoError(t, err)
-
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
@@ -565,6 +567,17 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 	defaultIdentityName := "test-id"
 	defaultVMID := "my-vm-id"
 
+	botName := "botty"
+	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: botName,
+		},
+		Spec: &machineidv1pb.BotSpec{},
+	}, a.GetClock().Now(), "")
+	require.NoError(t, err)
+
 	tests := []struct {
 		name                           string
 		tokenManagedIdentityResourceID string
@@ -573,10 +586,9 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 		tokenVMID                      string
 		requestTokenName               string
 		tokenSpec                      types.ProvisionTokenSpecV2
-		challengeResponseOptions       []azureChallengeResponseOption
 		challengeResponseErr           error
 		certs                          []*x509.Certificate
-		verify                         auth.AzureVerifyTokenFunc
+		verify                         azurejoin.AzureVerifyTokenFunc
 		assertError                    require.ErrorAssertionFunc
 	}{
 		{
@@ -807,45 +819,149 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 				defaultSubscription: vmClient,
 			})
 
-			_, err = a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
-				cfg := &azureChallengeResponseConfig{Challenge: challenge}
-				for _, opt := range tc.challengeResponseOptions {
-					opt(cfg)
-				}
+			a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+				CertificateAuthorities: tc.certs,
+				Verify:                 tc.verify,
+				GetVMClient:            getVMClient,
+			})
 
-				ad := auth.AttestedData{
-					Nonce:          cfg.Challenge,
-					SubscriptionID: tc.tokenSubscription,
-					ID:             tc.tokenVMID,
-				}
-				adBytes, err := json.Marshal(&ad)
-				require.NoError(t, err)
-				s, err := pkcs7.NewSignedData(adBytes)
-				require.NoError(t, err)
-				require.NoError(t, s.AddSigner(tlsConfig.Certificate, pkey, pkcs7.SignerInfoConfig{}))
-				signature, err := s.Finish()
-				require.NoError(t, err)
-				signedAD := auth.SignedAttestedData{
-					Encoding:  "pkcs7",
-					Signature: base64.StdEncoding.EncodeToString(signature),
-				}
-				signedADBytes, err := json.Marshal(&signedAD)
-				require.NoError(t, err)
+			imdsClient := &fakeIMDSClient{
+				accessToken:    accessToken,
+				accessTokenErr: tc.challengeResponseErr,
+				signingCert:    tlsConfig.Certificate,
+				signingKey:     pkey,
+				subscription:   tc.tokenSubscription,
+				vmID:           tc.tokenVMID,
+			}
 
-				req := &proto.RegisterUsingAzureMethodRequest{
-					RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-						Token:        tc.requestTokenName,
-						HostID:       "test-node",
-						Role:         types.RoleNode,
-						PublicSSHKey: sshPublicKey,
-						PublicTLSKey: tlsPublicKey,
+			t.Run("legacy", func(t *testing.T) {
+				// Try to join via the legacy join service.
+				_, err = joinclient.LegacyJoin(ctx, joinclient.JoinParams{
+					Token:      tc.requestTokenName,
+					JoinMethod: types.JoinMethodAzure,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						HostUUID: "testuuid",
 					},
-					AttestedData: signedADBytes,
-					AccessToken:  accessToken,
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:   tc.tokenVMID,
+						IMDSClient: imdsClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+			t.Run("new", func(t *testing.T) {
+				// Try to join via the new join service.
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:   tc.tokenVMID,
+						IMDSClient: imdsClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+			t.Run("bot", func(t *testing.T) {
+				// Try to join as a bot.
+				tokenSpec := tc.tokenSpec
+				tokenSpec.BotName = botName
+				tokenSpec.Roles = types.SystemRoles{types.RoleBot}
+				token, err := types.NewProvisionTokenFromSpec(
+					"test-token",
+					time.Now().Add(time.Minute),
+					tokenSpec)
+				require.NoError(t, err)
+				require.NoError(t, a.UpsertToken(ctx, token))
+
+				result, err := joinclient.Join(ctx, joinclient.JoinParams{
+					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleBot,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:   tc.tokenVMID,
+						IMDSClient: imdsClient,
+					},
+				})
+				tc.assertError(t, err)
+				if err != nil {
+					return
 				}
-				return req, tc.challengeResponseErr
-			}, auth.WithAzureCerts(tc.certs), auth.WithAzureVerifyFunc(tc.verify), auth.WithAzureVMClientGetter(getVMClient))
-			tc.assertError(t, err)
+
+				cert, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
+				require.NoError(t, err)
+				identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+
+				// Make sure the LoginIP was set on the identity.
+				require.NotEmpty(t, identity.LoginIP)
+
+				// Make sure the JoinAttributes were set.
+				require.NotNil(t, identity.JoinAttributes)
+				require.NotNil(t, identity.JoinAttributes.Azure)
+				require.Equal(t, tc.tokenSubscription, identity.JoinAttributes.Azure.Subscription)
+			})
 		})
 	}
+}
+
+type fakeIMDSClient struct {
+	accessToken    string
+	accessTokenErr error
+
+	// overrideChallenge overrides the challenge/nonce included in attested data.
+	overrideChallenge string
+	signingCert       *x509.Certificate
+	signingKey        crypto.Signer
+	subscription      string
+	vmID              string
+}
+
+func (c *fakeIMDSClient) IsAvailable(_ context.Context) bool {
+	return true
+}
+
+func (c *fakeIMDSClient) GetAttestedData(_ context.Context, nonce string) ([]byte, error) {
+	ad := azurejoin.AttestedData{
+		Nonce:          nonce,
+		SubscriptionID: c.subscription,
+		ID:             c.vmID,
+	}
+	if c.overrideChallenge != "" {
+		ad.Nonce = c.overrideChallenge
+	}
+	adBytes, err := json.Marshal(&ad)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s, err := pkcs7.NewSignedData(adBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.AddSigner(c.signingCert, c.signingKey, pkcs7.SignerInfoConfig{}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signature, err := s.Finish()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signedAD := azurejoin.SignedAttestedData{
+		Encoding:  "pkcs7",
+		Signature: base64.StdEncoding.EncodeToString(signature),
+	}
+	signedADBytes, err := json.Marshal(&signedAD)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signedADBytes, nil
+}
+
+func (c *fakeIMDSClient) GetAccessToken(_ context.Context, clientID string) (string, error) {
+	return c.accessToken, trace.Wrap(c.accessTokenErr)
 }
