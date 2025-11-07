@@ -30,8 +30,18 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { ClusterStore } from '../clusterStore';
 import { ProfileChangeSet } from '../profileWatcher';
 
+/** Describes a lifecycle event related to a cluster. */
 export interface ClusterLifecycleEvent {
   uri: RootClusterUri;
+  /**
+   * The lifecycle operation type.
+   *
+   * Operations prefixed with `will-` occur before the corresponding action
+   * in the main process and can interrupt it when they return an error.
+   *
+   * Operations prefixed with `did-` occur after the action has already happened
+   * in the main process, so they cannot prevent it.
+   */
   op: 'did-add-cluster' | 'will-logout' | 'will-logout-and-remove';
 }
 
@@ -98,11 +108,6 @@ export class ClusterLifecycleManager {
 
   async logoutAndRemoveCluster(uri: RootClusterUri): Promise<void> {
     this.onBeforeLogout(uri);
-    // This method is currently only called from the renderer.
-    // Because of that, if this.rendererEventHandler.send() throws, we return the error.
-    // This is different from error handling in the profile watcher,
-    // where renderer errors don't prevent updating the cluster store,
-    // because the action already happened (the user logged out).
     await this.rendererEventHandler.send({ op: 'will-logout-and-remove', uri });
     await this.clusterStore.logoutAndRemove(uri);
   }
@@ -153,8 +158,6 @@ export class ClusterLifecycleManager {
    *
    * Some file system events require notifying the renderer (e.g., to
    * remove a workspace before a cluster store update is sent).
-   * If that call fails (either due to a timeout or because the renderer
-   * handler throws), the function will still proceed with updating the cluster store.
    */
   private async watchProfileChanges(): Promise<void> {
     try {
@@ -212,29 +215,23 @@ export class ClusterLifecycleManager {
   private async handleClusterRemoved(cluster: Cluster): Promise<void> {
     this.onBeforeLogout(cluster.uri);
 
-    try {
-      await this.rendererEventHandler.send({
-        op: 'will-logout-and-remove',
-        uri: cluster.uri,
-      });
-    } finally {
-      await this.clusterStore.logoutAndRemove(cluster.uri);
-    }
+    await this.rendererEventHandler.send({
+      op: 'will-logout-and-remove',
+      uri: cluster.uri,
+    });
+    await this.clusterStore.logoutAndRemove(cluster.uri);
   }
 
   private async handleClusterLogout(cluster: Cluster): Promise<void> {
     this.onBeforeLogout(cluster.uri);
 
-    try {
-      await this.rendererEventHandler.send({
-        op: 'will-logout',
-        uri: cluster.uri,
-      });
-    } finally {
-      const client = await this.getTshdClient();
-      await client.logout({ clusterUri: cluster.uri, removeProfile: false });
-      await this.syncOrUpdateCluster(cluster);
-    }
+    await this.rendererEventHandler.send({
+      op: 'will-logout',
+      uri: cluster.uri,
+    });
+    const client = await this.getTshdClient();
+    await client.logout({ clusterUri: cluster.uri, removeProfile: false });
+    await this.syncOrUpdateCluster(cluster);
   }
 
   private handleWatcherError(error: ProfileWatcherError): void {
