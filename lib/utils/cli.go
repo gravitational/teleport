@@ -342,6 +342,7 @@ func formatCertError(err error) string {
 
 DEBUG INFO:
   Host: %s
+
   Proxy Environment Variables:
 %s
   Server Certificate Details:
