@@ -317,6 +317,7 @@ func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID
 		return "", trace.ConvertSystemError(err)
 	}
 	m.summaries[sessionID] = data
+	delete(m.pendingSummaries, sessionID)
 	return string(sessionID), nil
 }
 
@@ -370,26 +371,14 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	return nil
 }
 
-func (m *MemoryUploader) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-
-	data, ok := m.pendingSummaries[sessionID]
-	if !ok {
-		return trace.NotFound("summary %q is not found", sessionID)
-	}
-	_, err := io.Copy(writer, bytes.NewReader(data))
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
-}
-
 func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	data, ok := m.summaries[sessionID]
+	if !ok {
+		data, ok = m.pendingSummaries[sessionID]
+	}
 	if !ok {
 		return trace.NotFound("summary %q is not found", sessionID)
 	}

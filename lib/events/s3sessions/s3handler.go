@@ -330,7 +330,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 // reader and uploads it to an S3 bucket. This function can be called multiple
 // times for a given sessionID to update the state.
 func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.pendingSummaryPath(sessionID), reader, withOverwrite())
+	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, withOverwrite(), canBeOverwrittenLater())
 	return path, trace.Wrap(err)
 }
 
@@ -339,7 +339,7 @@ func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 // uploaded object. This function can be called only once for a given
 // sessionID; subsequent calls will return an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader)
+	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, withOverwrite())
 	return path, trace.Wrap(err)
 }
 
@@ -360,7 +360,8 @@ func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, rea
 }
 
 type fileUploadConfig struct {
-	overwrite bool
+	overwrite             bool
+	canBeOverwrittenLater bool
 }
 
 type fileUploadOption func(*fileUploadConfig)
@@ -371,6 +372,21 @@ func withOverwrite() fileUploadOption {
 	}
 }
 
+func canBeOverwrittenLater() fileUploadOption {
+	return func(cfg *fileUploadConfig) {
+		cfg.canBeOverwrittenLater = true
+	}
+}
+
+// overwritableKey is a metadata key that indicates the file can be later
+// overwritten.
+const overwritableKey = "teleport-internal-overwritable"
+
+// uploadFile uploads a file to S3. Normally, it doesn't allow overwriting;
+// this can be changed if  [withOverwrite] was specified in the options. If
+// file is intended to be later overwritten, [canBeOverwrittenLater] must be
+// specified in the options. The file that can be overwritten is marked with
+// the [overwritableKey] metadata header.
 func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, opts ...fileUploadOption) (string, error) {
 	cfg := fileUploadConfig{}
 	for _, opt := range opts {
@@ -382,9 +398,37 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 		Key:    aws.String(path),
 		Body:   reader,
 	}
-	if !cfg.overwrite {
+	if cfg.canBeOverwrittenLater {
+		uploadInput.Metadata = map[string]string{overwritableKey: "true"}
+	}
+
+	if cfg.overwrite {
+		// File can overwrite the existing one. Let's see if the existing file's
+		// metadata allows it.
+		head, err := h.client.HeadObject(ctx, &s3.HeadObjectInput{
+			Bucket: aws.String(h.Bucket),
+			Key:    aws.String(path),
+		})
+		err = awsutils.ConvertS3Error(err)
+		if err != nil && !trace.IsNotFound(err) {
+			return "", err
+		}
+		if err == nil {
+			// An existing file was found.
+			if _, overwritable := head.Metadata[overwritableKey]; !overwritable {
+				return "", trace.AlreadyExists("Object %q already exists and cannot be overwritten", path)
+			}
+
+			// Since we confirmed that this version can be overwritten, let's make
+			// sure no other version appeared in the meantime.
+			uploadInput.IfMatch = head.ETag
+		}
+	} else {
+		// The file shouldn't be overwritten, so we simply assert it's not there at
+		// all.
 		uploadInput.IfNoneMatch = aws.String("*")
 	}
+
 	if !h.Config.DisableServerSideEncryption {
 		uploadInput.ServerSideEncryption = awstypes.ServerSideEncryptionAwsKms
 		if h.Config.SSEKMSKey != "" {
@@ -406,13 +450,6 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 // found.
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
 	return trace.Wrap(h.downloadOriginalFile(ctx, h.recordingPath(sessionID), writer))
-}
-
-// DownloadPendingSummary downloads a pending session summary from an S3 bucket
-// and writes the results into a writer. Returns trace.NotFound error if the
-// summary is not found or is not final.
-func (h *Handler) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer, nil /* versionID */))
 }
 
 // DownloadSummary downloads a final session summary from an S3 bucket and
@@ -552,13 +589,6 @@ func (h *Handler) summaryPath(sessionID session.ID) string {
 		return string(sessionID) + ".summary.json"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), "/")
-}
-
-func (h *Handler) pendingSummaryPath(sessionID session.ID) string {
-	const pendingPrefix = "pending"
-	return strings.TrimPrefix(
-		path.Join(h.Path, pendingPrefix, string(sessionID)+".summary.json"), "/",
-	)
 }
 
 func (h *Handler) metadataPath(sessionID session.ID) string {

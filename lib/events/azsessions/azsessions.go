@@ -317,11 +317,20 @@ func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 }
 
 // UploadSummary implements [events.UploadHandler] and uploads a final version
-// of session summary. This function can be called only once for a given
-// sessionID; subsequent calls will return an error.
+// of session summary and deletes the pending one. This function can be called
+// only once for a given sessionID; subsequent calls will return an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	path, err := h.uploadBlob(ctx, sessionID, h.summaryBlob(sessionID), reader)
-	return path, trace.Wrap(err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	_, err = cErr(h.pendingSummaryBlob(sessionID).Delete(ctx, nil))
+	if err != nil && !trace.IsNotFound(err) {
+		return "", trace.Wrap(err)
+	}
+
+	return path, nil
 }
 
 // UploadMetadata implements [events.UploadHandler] and uploads the session
@@ -375,16 +384,17 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.sessionBlob(sessionID), writer))
 }
 
-// DownloadPendingSummary implements [events.UploadHandler] and downloads a
-// pending session summary.
-func (h *Handler) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), writer))
-}
-
 // DownloadSummary implements [events.UploadHandler] and downloads a final
 // session summary.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer))
+	err := h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
+	if trace.IsNotFound(err) {
+		err = h.downloadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), writer)
+		if trace.IsNotFound(err) {
+			err = h.downloadBlob(ctx, sessionID, h.summaryBlob(sessionID), writer)
+		}
+	}
+	return trace.Wrap(err)
 }
 
 // DownloadMetadata implements [events.UploadHandler] and downloads a session's metadata.

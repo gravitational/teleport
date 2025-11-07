@@ -254,12 +254,22 @@ func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 }
 
 // UploadSummary reads the content of a final version of session summary from a
-// reader and uploads it to a GCS bucket. If successful, it returns URL of the
-// uploaded object. This function can be called only once for a given
-// sessionID; subsequent calls will return an error.
+// reader and uploads it to a GCS bucket. The pending version, if any, is
+// removed. If successful, it returns URL of the uploaded object. This function
+// can be called only once for a given sessionID; subsequent calls will return
+// an error.
 func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader)
-	return path, trace.Wrap(err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	pendingObj := h.gcsClient.Bucket(h.Config.Bucket).Object(h.pendingSummaryPath(sessionID))
+	err = convertGCSError(pendingObj.Delete(ctx))
+	if err != nil && !trace.IsNotFound(err) {
+		return "", trace.Wrap(err)
+	}
+	return path, nil
 }
 
 // UploadMetadata reads the session metadata from a reader and uploads it to a GCS
@@ -325,18 +335,23 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 	return trace.Wrap(h.downloadFile(ctx, h.recordingPath(sessionID), writer))
 }
 
-// DownloadPendingSummary downloads a pending session summary from a GCS bucket
-// and writes the result into a writer. Returns trace.NotFound error if the
-// recording is not found.
-func (h *Handler) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer))
-}
-
 // DownloadSummary downloads a session summary from a GCS bucket and writes the
 // result into a writer. Returns trace.NotFound error if the recording is not
 // found.
 func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(h.downloadFile(ctx, h.summaryPath(sessionID), writer))
+	// Happy path: the final summary exists.
+	err := h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+	if trace.IsNotFound(err) {
+		// Final summary doesn't exist, try the pending one.
+		err = h.downloadFile(ctx, h.pendingSummaryPath(sessionID), writer)
+		if trace.IsNotFound(err) {
+			// One more check for the final summary to prevent a race condition where
+			// the final one got created and the pending one got removed between the
+			// two checks above.
+			err = h.downloadFile(ctx, h.summaryPath(sessionID), writer)
+		}
+	}
+	return trace.Wrap(err)
 }
 
 // DownloadMetadata downloads a session's metadata from a GCS bucket and writes the

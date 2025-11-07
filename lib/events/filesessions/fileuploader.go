@@ -121,15 +121,16 @@ func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer eve
 	return trace.Wrap(downloadFile(l.recordingPath(sessionID), writer))
 }
 
-// DownloadPendingSummary reads a pending session summary from a local
-// directory.
-func (l *Handler) DownloadPendingSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(downloadFile(l.pendingSummaryPath(sessionID), writer))
-}
-
-// DownloadSummary reads a final session summary from a local directory.
+// DownloadSummary reads a session summary from a local directory.
 func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(downloadFile(l.summaryPath(sessionID), writer))
+	err := downloadFile(l.summaryPath(sessionID), writer)
+	if trace.IsNotFound(err) {
+		err = downloadFile(l.pendingSummaryPath(sessionID), writer)
+		if trace.IsNotFound(err) {
+			err = downloadFile(l.summaryPath(sessionID), writer)
+		}
+	}
+	return trace.Wrap(err)
 }
 
 // DownloadMetadata reads session metadata from a local directory.
@@ -168,12 +169,21 @@ func (l *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 	return uploadFile(l.pendingSummaryPath(sessionID), reader, withOverwrite())
 }
 
-// UploadSummary writes a final version of session summary. This function can
-// be called only once for a given sessionID; subsequent calls will return an
-// error.
+// UploadSummary writes a final version of session summary and removes the
+// pending one. This function can be called only once for a given sessionID;
+// subsequent calls will return an error.
 func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	name, err := uploadFile(l.summaryPath(sessionID), reader)
-	return name, trace.Wrap(err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	err = os.Remove(l.pendingSummaryPath(sessionID))
+	if err != nil && !trace.IsNotFound(err) {
+		return "", trace.Wrap(err)
+	}
+
+	return name, nil
 }
 
 // UploadMetadata writes session metadata to a local directory.
