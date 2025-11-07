@@ -3446,7 +3446,6 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 	for i := range targets {
 		targetPtrs[i] = &targets[i]
 	}
-
 	resp, err := c.grpc.GetLocks(ctx, &proto.GetLocksRequest{
 		InForceOnly: inForceOnly,
 		Targets:     targetPtrs,
@@ -3459,7 +3458,6 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 		locks = append(locks, lock)
 	}
 	return locks, nil
-
 }
 
 // ListLocks returns a page of locks matching a filter

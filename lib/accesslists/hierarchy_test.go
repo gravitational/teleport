@@ -80,13 +80,11 @@ func (m *mockLocksGetter) GetLock(ctx context.Context, name string) (types.Lock,
 }
 
 func (m *mockLocksGetter) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-
 	var locks []types.Lock
 	for _, target := range targets {
 		locks = append(locks, m.targets[target.User]...)
 	}
 	return locks, nil
-
 }
 
 func (m *mockLocksGetter) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
