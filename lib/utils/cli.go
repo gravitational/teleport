@@ -238,18 +238,18 @@ func formatCertError(err error) string {
 
 	var hostnameErr x509.HostnameError
 	if errors.As(err, &hostnameErr) {
-		var proxyEnvBuilder strings.Builder
-		for _, key := range []string{
-			"https_proxy", "http_proxy", "no_proxy",
-			"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
-		} {
-			if val, ok := os.LookupEnv(key); ok {
-				fmt.Fprintf(proxyEnvBuilder, "    %s: %s\n", key, val)
-			}
-		}
-
 		// Special case for connecting to Auth via Proxy using internal cluster domain.
 		if strings.HasSuffix(hostnameErr.Host, ".teleport.cluster.local") {
+			var proxyEnvBuilder strings.Builder
+			for _, key := range []string{
+				"https_proxy", "http_proxy", "no_proxy",
+				"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
+			} {
+				if val, ok := os.LookupEnv(key); ok {
+					fmt.Fprintf(&proxyEnvBuilder, "    %s: %s\n", key, val)
+				}
+			}
+
 			return fmt.Sprintf(`Cannot connect to the Auth service via the Teleport Proxy using the internal cluster domain %q.
 
   There might be one or more network intermediaries (like a proxy or VPN) that are modifying your connection before it
