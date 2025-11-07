@@ -234,11 +234,12 @@ export default class AppContext implements IAppContext {
         let title: string;
         switch (reason) {
           case 'processing-error':
-            title = 'An error occurred while handling a file system change';
+            title =
+              'Failed to process the detected profile update. Changes made through tsh may not be reflected in the app.';
             break;
           case 'exited':
             title =
-              'Monitoring file system changes the tsh directory stopped due to an error.';
+              "Stopped monitoring profiles. Changes made through tsh won't be reflected in the app.";
             break;
         }
 
