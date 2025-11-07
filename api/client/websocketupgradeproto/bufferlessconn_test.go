@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -33,17 +34,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newManagedConn() *managedConn {
-	c := new(managedConn)
+func newBufferlessConn() *bufferlessConn {
+	c := new(bufferlessConn)
 	c.cond.L = &c.mu
 	return c
 }
 
-func TestManagedConn(t *testing.T) {
+func waitForWriteRequestLocked(t *testing.T, c *bufferlessConn) *request {
+	t.Helper()
+	for {
+		if c.writeReq != nil && !c.writeReq.done {
+			return c.writeReq
+		}
+		if c.localClosed {
+			t.Fatalf("connection closed before write request was available")
+		}
+		c.cond.Wait()
+	}
+}
+
+func waitForReadRequestLocked(t *testing.T, c *bufferlessConn) *request {
+	t.Helper()
+	for {
+		if c.readReq != nil && !c.readReq.done {
+			return c.readReq
+		}
+		if c.localClosed {
+			t.Fatalf("connection closed before read request was available")
+		}
+		c.cond.Wait()
+	}
+}
+
+func TestBufferlessConn(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Basic", func(t *testing.T) {
-		c := newManagedConn()
+		c := newBufferlessConn()
 		t.Cleanup(func() { c.Close() })
 
 		go func() {
@@ -51,28 +78,36 @@ func TestManagedConn(t *testing.T) {
 			defer c.mu.Unlock()
 
 			const expected = "GET / HTTP/1.1\r\n"
+			var captured bytes.Buffer
 			for {
-				if c.localClosed {
-					assert.FailNow(t, "connection locally closed before receiving request")
-					return
-				}
+				req := waitForWriteRequestLocked(t, c)
+				chunk := req.buf[req.n:]
+				captured.Write(chunk)
+				req.n = len(req.buf)
+				req.done = true
+				c.cond.Broadcast()
 
-				b, _ := c.sendBuffer.buffered()
-				if len(b) >= len(expected) {
+				if strings.Contains(captured.String(), "\r\n\r\n") {
 					break
 				}
-
-				c.cond.Wait()
 			}
 
-			b, _ := c.sendBuffer.buffered()
-			if !assert.Equal(t, []byte(expected), b[:len(expected)]) {
-				c.remoteClosed = true
+			reqLine := captured.String()
+			require.True(t, strings.HasPrefix(reqLine, expected), "unexpected request: %q", reqLine)
+
+			response := []byte("HTTP/1.0 200 OK\r\n" + "content-type:text/plain\r\n" + "content-length:5\r\n" + "\r\n" + "hello")
+			sent := 0
+			for sent < len(response) {
+				req := waitForReadRequestLocked(t, c)
+				n := copy(req.buf[req.n:], response[sent:])
+				req.n += n
+				req.done = true
 				c.cond.Broadcast()
-				return
+				sent += n
 			}
 
-			c.receiveBuffer.append([]byte("HTTP/1.0 200 OK\r\n" + "content-type:text/plain\r\n" + "content-length:5\r\n" + "\r\n" + "hello"))
+			c.readErr = io.EOF
+			c.remoteClosed = true
 			c.cond.Broadcast()
 		}()
 
@@ -103,7 +138,7 @@ func TestManagedConn(t *testing.T) {
 	})
 
 	t.Run("Deadline", func(t *testing.T) {
-		c := newManagedConn()
+		c := newBufferlessConn()
 		t.Cleanup(func() { c.Close() })
 
 		require.NoError(t, c.SetReadDeadline(time.Now().Add(time.Hour)))
@@ -123,7 +158,7 @@ func TestManagedConn(t *testing.T) {
 	})
 
 	t.Run("LocalClosed", func(t *testing.T) {
-		c := newManagedConn()
+		c := newBufferlessConn()
 		c.SetDeadline(time.Now().Add(time.Hour))
 		c.Close()
 
@@ -144,10 +179,28 @@ func TestManagedConn(t *testing.T) {
 	})
 
 	t.Run("RemoteClosed", func(t *testing.T) {
-		c := newManagedConn()
+		c := newBufferlessConn()
 		t.Cleanup(func() { c.Close() })
-		c.receiveBuffer.append([]byte("hello"))
-		c.remoteClosed = true
+
+		go func() {
+			c.mu.Lock()
+			defer c.mu.Unlock()
+
+			payload := []byte("hello")
+			sent := 0
+			for sent < len(payload) {
+				req := waitForReadRequestLocked(t, c)
+				n := copy(req.buf[req.n:], payload[sent:])
+				req.n += n
+				req.done = true
+				c.cond.Broadcast()
+				sent += n
+			}
+
+			c.readErr = io.EOF
+			c.remoteClosed = true
+			c.cond.Broadcast()
+		}()
 
 		b, err := io.ReadAll(c)
 		require.NoError(t, err)
@@ -159,109 +212,75 @@ func TestManagedConn(t *testing.T) {
 	})
 
 	t.Run("WriteBuffering", func(t *testing.T) {
-		c := newManagedConn()
+		c := newBufferlessConn()
 		t.Cleanup(func() { c.Close() })
 
-		const testSize = sendBufferSize * 10
+		const testSize = 128 * 1024 * 10
+		data := bytes.Repeat([]byte("a"), testSize)
+
+		var consumed int
+		done := make(chan struct{})
 		go func() {
-			defer c.Close()
-			_, err := c.Write(bytes.Repeat([]byte("a"), testSize))
-			assert.NoError(t, err)
+			defer close(done)
+			c.mu.Lock()
+			defer c.mu.Unlock()
+
+			for consumed < testSize {
+				req := waitForWriteRequestLocked(t, c)
+				chunk := req.buf[req.n:]
+				for _, b := range chunk {
+					require.Equal(t, byte('a'), b)
+				}
+				consumed += len(chunk)
+				req.n = len(req.buf)
+				req.done = true
+				c.cond.Broadcast()
+			}
 		}()
 
-		var n uint64
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		for {
-			require.LessOrEqual(t, len(c.sendBuffer.data), sendBufferSize)
-
-			n += c.sendBuffer.len()
-
-			c.sendBuffer.advance(c.sendBuffer.len())
-			c.cond.Broadcast()
-
-			if c.localClosed {
-				break
-			}
-
-			c.cond.Wait()
-		}
+		n, err := c.Write(data)
+		require.NoError(t, err)
 		require.EqualValues(t, testSize, n)
+		<-done
 	})
 
 	t.Run("ReadBuffering", func(t *testing.T) {
-		c := newManagedConn()
+		c := newBufferlessConn()
 		t.Cleanup(func() { c.Close() })
 
-		const testSize = sendBufferSize * 10
+		const testSize = 128 * 1024 * 10
+		var (
+			copyErr error
+			copied  int64
+		)
+		done := make(chan struct{})
 		go func() {
-			defer c.Close()
-
-			n, err := io.Copy(io.Discard, c)
-			assert.NoError(t, err)
-			assert.EqualValues(t, testSize, n)
+			copied, copyErr = io.Copy(io.Discard, c)
+			close(done)
 		}()
 
-		b := bytes.Repeat([]byte("a"), testSize)
+		payload := bytes.Repeat([]byte("a"), testSize)
 
 		c.mu.Lock()
-		defer c.mu.Unlock()
-
-		for !c.localClosed {
-			s := c.receiveBuffer.write(b, receiveBufferSize)
-			if s > 0 {
-				c.cond.Broadcast()
-
-				require.LessOrEqual(t, len(c.receiveBuffer.data), receiveBufferSize)
-
-				b = b[s:]
-				if len(b) == 0 {
-					c.remoteClosed = true
-				}
-			}
-
-			c.cond.Wait()
+		sent := 0
+		for sent < len(payload) {
+			req := waitForReadRequestLocked(t, c)
+			n := copy(req.buf[req.n:], payload[sent:])
+			req.n += n
+			req.done = true
+			c.cond.Broadcast()
+			sent += n
 		}
 
-		require.Empty(t, b)
+		c.readErr = io.EOF
+		c.remoteClosed = true
+		c.cond.Broadcast()
+		c.mu.Unlock()
+
+		<-done
+		require.NoError(t, copyErr)
+		require.EqualValues(t, testSize, copied)
 	})
-}
-
-func TestBuffer(t *testing.T) {
-	t.Parallel()
-
-	var b buffer
-	require.Zero(t, b.len())
-
-	b.append([]byte("a"))
-	require.EqualValues(t, 1, b.len())
-
-	b.append(bytes.Repeat([]byte("a"), 9999))
-	require.EqualValues(t, 10000, b.len())
-	require.Len(t, b.data, 16384)
-
-	b.advance(5000)
-	require.EqualValues(t, 5000, b.len())
-	require.Len(t, b.data, 16384)
-
-	b1, b2 := b.free()
-	require.NotEmpty(t, b1)
-	require.NotEmpty(t, b2)
-	require.EqualValues(t, 16384-5000, len(b1)+len(b2))
-
-	b.append(bytes.Repeat([]byte("a"), 7000))
-	require.EqualValues(t, 12000, b.len())
-	require.Len(t, b.data, 16384)
-
-	b1, b2 = b.free()
-	require.NotEmpty(t, b1)
-	require.Empty(t, b2)
-	require.Len(t, b1, 16384-12000)
-
-	b1, b2 = b.buffered()
-	require.NotEmpty(t, b1)
-	require.NotEmpty(t, b2)
-	require.EqualValues(t, 12000, len(b1)+len(b2))
 }
 
 func TestDeadline(t *testing.T) {

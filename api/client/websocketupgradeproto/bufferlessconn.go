@@ -27,20 +27,6 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// 128 KB buffers were chosen as a resonable default for network I/O.
-// A Teleport Proxy behind a L7 load balancer will receive every single
-// connection through a WebSocket upgrade, so having reasonably sized buffers
-// helps with performance without using too much memory.
-// No buffer size will grow beyond this value, backpressure will be applied
-// by blocking writes until the reader has consumed some data or the connection
-// can be written to again.
-const (
-	bufferSize        = 128 * 1024
-	receiveBufferSize = bufferSize
-	sendBufferSize    = bufferSize
-	initialBufferSize = 4096
-)
-
 // errBrokenPipe is a "broken pipe" error, to be returned by write operations if
 // we know that the remote side is closed (reads return io.EOF instead). TCP
 // connections actually return ECONNRESET on the first syscall experiencing the
@@ -50,10 +36,9 @@ var errBrokenPipe error = syscall.EPIPE
 
 var _ net.Conn = (*Conn)(nil)
 
-// managedConn is a [net.Conn] that's managed externally by interacting with its
-// two internal buffers, one for each direction, which also keep track of the
-// absolute positions in the bytestream.
-type managedConn struct {
+// bufferlessConn is a [net.Conn] that's managed externally by interacting with
+// the two slices passed to Read and Write. There is no internal buffering.
+type bufferlessConn struct {
 	// mu protects the rest of the data in the struct.
 	mu sync.Mutex
 
@@ -68,8 +53,9 @@ type managedConn struct {
 	readDeadline  deadline
 	writeDeadline deadline
 
-	receiveBuffer buffer
-	sendBuffer    buffer
+	readReq  *request
+	writeReq *request
+	readErr  error
 
 	// localClosed indicates that Close() has been called; most operations will
 	// fail immediately with no effect returning [net.ErrClosed]. Takes priority
@@ -82,17 +68,17 @@ type managedConn struct {
 	remoteClosed bool
 }
 
-var _ net.Conn = (*managedConn)(nil)
+var _ net.Conn = (*bufferlessConn)(nil)
 
 // Close implements [net.Conn].
-func (c *managedConn) Close() error {
+func (c *bufferlessConn) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	return c.closeLocked()
 }
 
-func (c *managedConn) closeLocked() error {
+func (c *bufferlessConn) closeLocked() error {
 	if c.localClosed {
 		return net.ErrClosed
 	}
@@ -104,13 +90,22 @@ func (c *managedConn) closeLocked() error {
 	if c.writeDeadline.timer != nil {
 		c.writeDeadline.timer.Stop()
 	}
+
+	if c.readReq != nil && !c.readReq.done {
+		c.readReq.err = net.ErrClosed
+		c.readReq.done = true
+	}
+	if c.writeReq != nil && !c.writeReq.done {
+		c.writeReq.err = net.ErrClosed
+		c.writeReq.done = true
+	}
 	c.cond.Broadcast()
 
 	return nil
 }
 
 // LocalAddr implements [net.Conn].
-func (c *managedConn) LocalAddr() net.Addr {
+func (c *bufferlessConn) LocalAddr() net.Addr {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -118,7 +113,7 @@ func (c *managedConn) LocalAddr() net.Addr {
 }
 
 // RemoteAddr implements [net.Conn].
-func (c *managedConn) RemoteAddr() net.Addr {
+func (c *bufferlessConn) RemoteAddr() net.Addr {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -126,7 +121,7 @@ func (c *managedConn) RemoteAddr() net.Addr {
 }
 
 // SetDeadline implements [net.Conn].
-func (c *managedConn) SetDeadline(t time.Time) error {
+func (c *bufferlessConn) SetDeadline(t time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -141,7 +136,7 @@ func (c *managedConn) SetDeadline(t time.Time) error {
 }
 
 // SetReadDeadline implements [net.Conn].
-func (c *managedConn) SetReadDeadline(t time.Time) error {
+func (c *bufferlessConn) SetReadDeadline(t time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -155,7 +150,7 @@ func (c *managedConn) SetReadDeadline(t time.Time) error {
 }
 
 // SetWriteDeadline implements [net.Conn].
-func (c *managedConn) SetWriteDeadline(t time.Time) error {
+func (c *bufferlessConn) SetWriteDeadline(t time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -169,7 +164,7 @@ func (c *managedConn) SetWriteDeadline(t time.Time) error {
 }
 
 // Read implements [net.Conn].
-func (c *managedConn) Read(b []byte) (n int, err error) {
+func (c *bufferlessConn) Read(b []byte) (n int, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -186,31 +181,71 @@ func (c *managedConn) Read(b []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	for {
+	if c.readDeadline.timeout {
+		return 0, os.ErrDeadlineExceeded
+	}
+
+	if c.remoteClosed {
+		return 0, c.readError()
+	}
+
+	for c.readReq != nil && !c.readReq.done {
+		c.cond.Wait()
+		if c.localClosed {
+			return 0, net.ErrClosed
+		}
 		if c.readDeadline.timeout {
 			return 0, os.ErrDeadlineExceeded
 		}
+		if c.remoteClosed {
+			return 0, c.readError()
+		}
+	}
 
-		n := c.receiveBuffer.read(b)
-		if n > 0 {
+	req := &request{buf: b}
+	c.readReq = req
+	c.cond.Broadcast()
+
+	for !req.done {
+		if c.readDeadline.timeout {
+			req.err = os.ErrDeadlineExceeded
+			req.done = true
 			c.cond.Broadcast()
-			return n, nil
+			break
 		}
 
-		if c.remoteClosed {
-			return 0, io.EOF
+		if c.remoteClosed && req.n == 0 {
+			req.err = c.readError()
+			req.done = true
+			c.cond.Broadcast()
+			break
 		}
 
 		c.cond.Wait()
 
 		if c.localClosed {
-			return 0, net.ErrClosed
+			req.err = net.ErrClosed
+			req.done = true
+			break
 		}
 	}
+
+	c.readReq = nil
+	c.cond.Broadcast()
+
+	if req.err != nil {
+		return req.n, req.err
+	}
+
+	if req.n == 0 && c.remoteClosed {
+		return 0, c.readError()
+	}
+
+	return req.n, nil
 }
 
 // Write implements [net.Conn].
-func (c *managedConn) Write(b []byte) (n int, err error) {
+func (c *bufferlessConn) Write(b []byte) (n int, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -233,167 +268,72 @@ func (c *managedConn) Write(b []byte) (n int, err error) {
 		return 0, nil
 	}
 
-	for {
-		s := c.sendBuffer.write(b, sendBufferSize)
-		if s > 0 {
-			c.cond.Broadcast()
-			b = b[s:]
-			n += int(s)
+	for c.writeReq != nil && !c.writeReq.done {
+		c.cond.Wait()
 
-			if len(b) == 0 {
-				return n, nil
-			}
+		if c.localClosed {
+			return 0, net.ErrClosed
+		}
+
+		if c.writeDeadline.timeout {
+			return 0, os.ErrDeadlineExceeded
+		}
+
+		if c.remoteClosed {
+			return 0, errBrokenPipe
+		}
+	}
+
+	req := &request{buf: b}
+	c.writeReq = req
+	c.cond.Broadcast()
+
+	for !req.done {
+		if c.writeDeadline.timeout {
+			req.err = os.ErrDeadlineExceeded
+			req.done = true
+			c.cond.Broadcast()
+			break
+		}
+
+		if c.remoteClosed {
+			req.err = errBrokenPipe
+			req.done = true
+			c.cond.Broadcast()
+			break
 		}
 
 		c.cond.Wait()
 
 		if c.localClosed {
-			return n, net.ErrClosed
-		}
-
-		if c.writeDeadline.timeout {
-			return n, os.ErrDeadlineExceeded
-		}
-
-		if c.remoteClosed {
-			return n, errBrokenPipe
+			req.err = net.ErrClosed
+			req.done = true
+			break
 		}
 	}
-}
 
-// buffer represents a view of contiguous data in a bytestream, between the
-// absolute positions start and end (with 0 being the beginning of the
-// bytestream). The byte at absolute position i is data[i % len(data)],
-// len(data) is always a power of two (therefore it's always non-empty), and
-// len(data) == cap(data).
-type buffer struct {
-	data  []byte
-	start uint64
-	end   uint64
-}
+	c.writeReq = nil
+	c.cond.Broadcast()
 
-// bounds returns the indexes of start and end in the current data slice. It's
-// possible for left to be greater than right, which happens when the data is
-// stored across the end of the slice.
-func (w *buffer) bounds() (left, right uint64) {
-	return w.start % len64(w.data), w.end % len64(w.data)
-}
-
-func (w *buffer) len() uint64 {
-	return w.end - w.start
-}
-
-// buffered returns the currently used areas of the internal buffer, in order.
-// If only one slice is nonempty, it shall be the first of the two returned
-// slices.
-func (w *buffer) buffered() ([]byte, []byte) {
-	if w.len() == 0 {
-		return nil, nil
+	if req.err != nil {
+		return req.n, req.err
 	}
 
-	left, right := w.bounds()
-
-	if left >= right {
-		return w.data[left:], w.data[:right]
-	}
-	return w.data[left:right], nil
+	return req.n, nil
 }
 
-// free returns the currently unused areas of the internal buffer, in order.
-// It's not possible for the second slice to be nonempty if the first slice is
-// empty. The total length of the slices is equal to len(w.data)-w.len().
-func (w *buffer) free() ([]byte, []byte) {
-	if w.len() == 0 {
-		left, _ := w.bounds()
-		return w.data[left:], w.data[:left]
+func (c *bufferlessConn) readError() error {
+	if c.readErr != nil {
+		return c.readErr
 	}
-
-	left, right := w.bounds()
-
-	if left >= right {
-		return w.data[right:left], nil
-	}
-	return w.data[right:], w.data[:left]
+	return io.EOF
 }
 
-// reserve ensures that the buffer has a given amount of free space,
-// reallocating its internal buffer as needed. After reserve(n), the two slices
-// returned by free have total length at least n.
-func (w *buffer) reserve(n uint64) {
-	n += w.len()
-	if n <= len64(w.data) {
-		return
-	}
-
-	newCapacity := max(len64(w.data)*2, initialBufferSize)
-	for n > newCapacity {
-		newCapacity *= 2
-	}
-
-	d1, d2 := w.buffered()
-	w.data = make([]byte, newCapacity)
-	w.end = w.start
-
-	// this is less efficient than copying the data manually, but almost all
-	// uses of buffer will eventually hit a maximum buffer size anyway
-	w.append(d1)
-	w.append(d2)
-}
-
-// append copies the slice to the tail of the buffer, resizing it if necessary.
-// Writing to the slices returned by free() and appending them in order will not
-// result in any memory copy (if the buffer hasn't been reallocated).
-func (w *buffer) append(b []byte) {
-	w.reserve(len64(b))
-	f1, f2 := w.free()
-	// after reserve(n), len(f1)+len(f2) >= n, so this is guaranteed to work
-	copy(f2, b[copy(f1, b):])
-	w.grow(len64(b))
-}
-
-// write copies the slice to the tail of the buffer like in append, but only up
-// to the total buffer size specified by max. Returns the count of bytes copied
-// in, which is always not greater than len(b) and (max-w.len()).
-func (w *buffer) write(b []byte, max uint64) uint64 {
-	if w.len() >= max {
-		return 0
-	}
-
-	s := min(max-w.len(), len64(b))
-	w.append(b[:s])
-	return s
-}
-
-// grow advances the end pointer by n bytes, making previously free space
-// available as buffered data. The caller must ensure that n does not exceed
-// the currently free capacity.
-func (w *buffer) grow(n uint64) {
-	if n == 0 {
-		return
-	}
-
-	w.end += n
-}
-
-// advance will discard bytes from the head of the buffer, advancing its start
-// position. Advancing past the end causes the end to be pushed forwards as
-// well, such that an empty buffer advanced by n ends up with start = end = n.
-func (w *buffer) advance(n uint64) {
-	w.start += n
-	if w.start > w.end {
-		w.end = w.start
-	}
-}
-
-// read will attempt to fill the slice with as much data from the buffer,
-// advancing the start position of the buffer to match. Returns the amount of
-// bytes copied in the slice.
-func (w *buffer) read(b []byte) int {
-	d1, d2 := w.buffered()
-	n := copy(b, d1)
-	n += copy(b[n:], d2)
-	w.advance(uint64(n))
-	return n
+type request struct {
+	buf  []byte
+	n    int
+	err  error
+	done bool
 }
 
 // deadline holds the state necessary to handle [net.Conn]-like deadlines.
