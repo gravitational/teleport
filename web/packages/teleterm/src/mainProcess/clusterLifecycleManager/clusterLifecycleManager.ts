@@ -107,8 +107,8 @@ export class ClusterLifecycleManager {
   }
 
   async logoutAndRemoveCluster(uri: RootClusterUri): Promise<void> {
-    this.onBeforeLogout(uri);
     await this.rendererEventHandler.send({ op: 'will-logout-and-remove', uri });
+    this.onBeforeRemove(uri);
     await this.clusterStore.logoutAndRemove(uri);
   }
 
@@ -120,7 +120,7 @@ export class ClusterLifecycleManager {
     }
   }
 
-  private onBeforeLogout(uri: RootClusterUri): void {
+  private onBeforeRemove(uri: RootClusterUri): void {
     // Do not wait for this promise to finish as we don't want to block logout
     // on checking app updates.
     this.appUpdater.maybeRemoveManagingCluster(uri).catch(error => {
@@ -137,7 +137,8 @@ export class ClusterLifecycleManager {
       try {
         return this.clusterStore.sync(cluster.uri);
       } catch (e) {
-        // Theoretically, the cert could just expire.
+        // Theoretically, the cert could just expire and result in an error
+        // resolvable with relogin when trying to sync the cluster.
         // In that case, only update the store.
         if (!(isTshdRpcError(e) && e.isResolvableWithRelogin)) {
           throw e;
@@ -213,18 +214,15 @@ export class ClusterLifecycleManager {
   }
 
   private async handleClusterRemoved(cluster: Cluster): Promise<void> {
-    this.onBeforeLogout(cluster.uri);
-
     await this.rendererEventHandler.send({
       op: 'will-logout-and-remove',
       uri: cluster.uri,
     });
+    this.onBeforeRemove(cluster.uri);
     await this.clusterStore.logoutAndRemove(cluster.uri);
   }
 
   private async handleClusterLogout(cluster: Cluster): Promise<void> {
-    this.onBeforeLogout(cluster.uri);
-
     await this.rendererEventHandler.send({
       op: 'will-logout',
       uri: cluster.uri,
