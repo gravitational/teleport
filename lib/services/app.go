@@ -77,70 +77,52 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		return nil
 	}
 
-	// Ensure the public address is a valid hostname. It cannot have a port or scheme or path.
-	appPublicAddrURL, err := utils.ParseAddr(app.GetPublicAddr())
+	appPublicAddr, err := utils.ParseAddr(app.GetPublicAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if appPublicAddrURL.Port(0) != 0 || strings.Contains(app.GetPublicAddr(), "://") || appPublicAddrURL.Path != "" {
-		return trace.BadParameter(
-			"Application %q has an invalid public address %q. The public address must be a valid hostname e.g., 'app.example.com'. "+
-				"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.",
-			app.GetName(), app.GetPublicAddr())
+
+	// Normalize the application public address to ASCII using IDNA.
+	asciiAppPublicAddrHost, err := idna.ToASCII(appPublicAddr.Host())
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	// Prevent routing conflicts and session hijacking by ensuring the application's public address does not match the
-	// public address of any proxy. If an application shares a public address with a proxy, requests intended for the
-	// proxy could be misrouted to the application, compromising security.
 	proxyServers, err := proxyGetter.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Prevent routing conflicts and session hijacking by ensuring the application's public address does not match the
+	// public address of any proxy. If an application shares a public address with a proxy, requests intended for the
+	// proxy could be misrouted to the application, compromising security.
 	for _, proxyServer := range proxyServers {
 		proxyAddrs, err := utils.ParseAddrs(proxyServer.GetPublicAddrs())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		matches, err := containsHostname(proxyAddrs, appPublicAddrURL.Host())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matches {
-			return trace.BadParameter(
-				"Application %q public address %q conflicts with the Teleport Proxy public address. "+
-					"Configure the application to use a unique public address that does not match the proxy's public addresses. "+
-					"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.",
-				app.GetName(),
-				app.GetPublicAddr(),
-			)
+		for _, proxyAddr := range proxyAddrs {
+			// Normalize the proxy public address to ASCII using IDNA.
+			asciiProxyAddr, err := idna.ToASCII(proxyAddr.Host())
+			if err != nil {
+				return trace.BadParameter("invalid IDNA hostname %q: %v", proxyAddr, err)
+			}
+
+			// Compare the ASCII-normalized hostnames for equality, ignoring case.
+			if strings.EqualFold(asciiProxyAddr, asciiAppPublicAddrHost) {
+				return trace.BadParameter(
+					"Application %q public address %q conflicts with the Teleport Proxy public address. "+
+						"Configure the application to use a unique public address that does not match the proxy's public addresses. "+
+						"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.",
+					app.GetName(),
+					app.GetPublicAddr(),
+				)
+			}
 		}
 	}
 
 	return nil
-}
-
-// containsHostname returns true if the hostname is contained within the given list, taking into account IDNA encoding
-// and case sensitivity.
-func containsHostname(addresses []utils.NetAddr, targetHost string) (bool, error) {
-	asciiTargetHost, err := idna.ToASCII(targetHost)
-	if err != nil {
-		return false, trace.BadParameter("invalid IDNA hostname %q: %v", targetHost, err)
-	}
-
-	for _, addr := range addresses {
-		asciiAddrHost, err := idna.ToASCII(addr.Host())
-		if err != nil {
-			return false, trace.BadParameter("invalid IDNA hostname %q: %v", addr.Host(), err)
-		}
-
-		if strings.EqualFold(asciiAddrHost, asciiTargetHost) {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 // MarshalApp marshals Application resource to JSON.

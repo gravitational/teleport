@@ -136,33 +136,6 @@ func TestValidateApp(t *testing.T) {
 			proxyAddrs: []string{"example.com:443", "example.com:80"},
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
-		{
-			name: "public addr with port",
-			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "app.example.com:8080"})
-				return app
-			}(),
-			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "invalid public address",
-		},
-		{
-			name: "public addr with scheme",
-			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "http://app.example.com"})
-				return app
-			}(),
-			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "invalid public address",
-		},
-		{
-			name: "public addr with path",
-			app: func() types.Application {
-				app, _ := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "app.example.com/path"})
-				return app
-			}(),
-			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "invalid public address",
-		},
 	}
 
 	for _, tt := range tests {
