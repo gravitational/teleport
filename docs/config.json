@@ -2331,6 +2331,11 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/machine-id/",
+      "destination": "/machine-workload-identity/",
+      "permanent": true
+    },
+    {
       "source": "/reference/workload-identity/attributes/",
       "destination": "/reference/machine-workload-identity/workload-identity/attributes/",
       "permanent": true
