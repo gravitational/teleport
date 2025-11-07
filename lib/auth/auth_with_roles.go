@@ -5614,6 +5614,14 @@ func (a *ServerWithRoles) GetSemaphores(ctx context.Context, filter types.Semaph
 	return a.authServer.GetSemaphores(ctx, filter)
 }
 
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (a *ServerWithRoles) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbReadNoSecrets, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return a.authServer.ListSemaphores(ctx, limit, start, filter)
+}
+
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
 func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbDelete); err != nil {
@@ -6476,6 +6484,15 @@ func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, target
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.Cache.GetLocks(ctx, inForceOnly, targets...)
+}
+
+// ListLocks returns a page of locks
+func (a *ServerWithRoles) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.Cache.ListLocks(ctx, limit, startKey, filter)
 }
 
 // UpsertLock upserts a lock.

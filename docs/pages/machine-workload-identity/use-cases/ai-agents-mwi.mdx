@@ -1,6 +1,7 @@
 ---
 title: AI Agents with Machine & Workload Identity
-description: Managing AI Agents with Machine & Workload Identity
+description: Use Machine & Workload Identity to securely grant agentic AI access to infrastructure.
+sidebar_label: Agentic AI
 tags:
  - conceptual
  - mwi
@@ -12,8 +13,8 @@ Security must be enforced deterministically; AI agents cannot be trusted to foll
 Teleport solves this by issuing each agent its own identity and requiring the agent's actions (for example, database queries) to flow through the Teleport proxy. 
 This allows Teleport to apply Role-Based Access Control (RBAC) at both the network and protocol level.
 
-Teleport can secure any type of infrastructure it supports, such as SSH servers, Kubernetes clusters, databases, or MCP servers, when accessed by agents. 
-All queries, commands, and requests executed by the agent are logged, providing full visibility and [auditability](/reference/monitoring/audit.mdx).
+Teleport can secure infrastructure components such as SSH servers, Kubernetes clusters, databases, or MCP servers, when accessed by agents.
+All queries, commands, and requests executed by the agent are logged, providing full visibility and [auditability](../../reference/monitoring/audit.mdx).
 
 ## Interested in a design partnership?
 

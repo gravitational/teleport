@@ -39,7 +39,7 @@ test.each([
     }),
     expect: async () => {
       expect(
-        await screen.findByText(/Access secured with device trust/)
+        await screen.findByText(/access secured with device trust/i)
       ).toBeVisible();
     },
   },
@@ -63,7 +63,7 @@ test.each([
     }),
     expect: async () => {
       expect(
-        screen.queryByText(/Access secured with device trust/)
+        screen.queryByText(/access secured with device trust/i)
       ).not.toBeInTheDocument();
       expect(
         screen.queryByText(/Full access requires a trusted device/)

@@ -2581,10 +2581,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
 	case types.KindSemaphore:
-		sems, err := client.GetSemaphores(ctx, types.SemaphoreFilter{
+		filter := types.SemaphoreFilter{
 			SemaphoreKind: rc.ref.SubKind,
 			SemaphoreName: rc.ref.Name,
-		})
+		}
+		sems, err := clientutils.CollectWithFallback(ctx,
+			func(ctx context.Context, pageSize int, pageToken string) ([]types.Semaphore, string, error) {
+				return client.ListSemaphores(ctx, pageSize, pageToken, &filter)
+			},
+			func(ctx context.Context) ([]types.Semaphore, error) {
+				return client.GetSemaphores(ctx, filter)
+			},
+		)
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2629,7 +2638,18 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &recConfigCollection{recConfig}, nil
 	case types.KindLock:
 		if rc.ref.Name == "" {
-			locks, err := client.GetLocks(ctx, false)
+			locks, err := clientutils.CollectWithFallback(
+				ctx,
+				func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+					var noFilter *types.LockFilter
+					return client.ListLocks(ctx, limit, start, noFilter)
+				},
+				func(ctx context.Context) ([]types.Lock, error) {
+					// TODO(okraport): DELETE IN v21
+					const inForceOnlyFalse = false
+					return client.GetLocks(ctx, inForceOnlyFalse)
+				},
+			)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

@@ -1254,6 +1254,34 @@ func (g *GRPCServer) GetSemaphores(ctx context.Context, req *types.SemaphoreFilt
 	}, nil
 }
 
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (g *GRPCServer) ListSemaphores(ctx context.Context, req *authpb.ListSemaphoresRequest) (*authpb.ListSemaphoresResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	semaphores, next, err := auth.ListSemaphores(ctx, int(req.GetPageSize()), req.GetPageToken(), req.GetFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSemaphoresResponse{
+		Semaphores:    make([]*types.SemaphoreV3, 0, len(semaphores)),
+		NextPageToken: next,
+	}
+
+	for _, sem := range semaphores {
+		v3, ok := sem.(*types.SemaphoreV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected semaphore type: %T", sem)
+		}
+		resp.Semaphores = append(resp.Semaphores, v3)
+	}
+
+	return resp, nil
+}
+
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
 func (g *GRPCServer) DeleteSemaphore(ctx context.Context, req *types.SemaphoreFilter) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3766,6 +3794,39 @@ func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) 
 	}
 	return &authpb.GetLocksResponse{
 		Locks: lockV2s,
+	}, nil
+}
+
+// ListLocks returns a page of locks matching a filter
+func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest) (*authpb.ListLocksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	locks, next, err := auth.ListLocks(
+		ctx,
+		int(req.PageSize),
+		req.PageToken,
+		req.Filter,
+	)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+
+	return &authpb.ListLocksResponse{
+		Locks:         lockV2s,
+		NextPageToken: next,
 	}, nil
 }
 

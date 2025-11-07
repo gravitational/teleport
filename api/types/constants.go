@@ -650,6 +650,9 @@ const (
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
 
+	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
+	KindClientIPRestriction = "client_ip_restriction"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 

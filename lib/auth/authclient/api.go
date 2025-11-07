@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -934,6 +935,9 @@ type ReadOktaAccessPoint interface {
 
 	// GetLocks lists the locks that target a given set of resources.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+
+	// ListLocks returns a page of locks matching a filter.
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
@@ -1197,6 +1201,12 @@ type Cache interface {
 	// services.LockWatcher that provides the necessary freshness guarantees.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 
+	// ListLocks returns a page of locks.
+	// NOTE: This method is intentionally available only for the auth server
+	// cache, the other Teleport components should make use of
+	// services.LockWatcher that provides the necessary freshness guarantees.
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
+
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	// ListWindowsDesktops returns a paginated list of windows desktops.
@@ -1245,16 +1255,10 @@ type Cache interface {
 	// CountAccessListMembers will count all access list members.
 	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member list.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all members of all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member record.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
 	// ListAccessListReviews will list access list reviews for a particular access list.
@@ -1693,7 +1697,23 @@ func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, ho
 
 // GetLocks fetches locks that target a given set of resources
 func (w *OktaWrapper) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	return w.NoCache.GetLocks(ctx, inForceOnly, targets...)
+	return clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			filter := &types.LockFilter{
+				InForceOnly: inForceOnly,
+				Targets:     make([]*types.LockTarget, 0, len(targets)),
+			}
+			for _, tgt := range targets {
+				filter.Targets = append(filter.Targets, &tgt)
+			}
+			return w.NoCache.ListLocks(ctx, limit, start, filter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			return w.NoCache.GetLocks(ctx, inForceOnly, targets...)
+		},
+	)
 }
 
 // UpsertLock creates and/or updates lock resources

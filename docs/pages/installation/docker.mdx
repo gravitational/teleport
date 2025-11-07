@@ -270,7 +270,7 @@ From there, open another terminal and make sure your Teleport container's web
 API is functioning as intended:
 
 ```code
-$ curl --insecure https://localhost:3080/webapi/ping
+$ curl --insecure https://localhost:3080/webapi/ping | jq
 ```
 
 You should see JSON output similar to the following:

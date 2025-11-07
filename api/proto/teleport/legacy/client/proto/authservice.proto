@@ -377,6 +377,24 @@ message ChangePasswordRequest {
   webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
 }
 
+message ListSemaphoresRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // filter encodes semaphore filtering params.
+  types.SemaphoreFilter filter = 3;
+}
+
+message ListSemaphoresResponse {
+  // a list of semaphores.
+  repeated types.SemaphoreV3 semaphores = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // PluginDataSeq is a sequence of plugin data.
 message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
@@ -603,6 +621,8 @@ message Features {
   bytes CloudAnonymizationKey = 37 [(gogoproto.jsontag) = "cloud_anonymization_key,omitempty"];
   // AccessGraphDemoMode enables the ability to opt-in to a demo mode of Access Graph with limited features.
   bool AccessGraphDemoMode = 38 [(gogoproto.jsontag) = "access_graph_demo_mode,omitempty"];
+  // ClientIPRestrictions allows Cloud users to setup a client IP allowlist
+  bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -1601,6 +1621,26 @@ message GetLocksRequest {
 message GetLocksResponse {
   // Locks is a list of locks.
   repeated types.LockV2 Locks = 1;
+}
+
+// ListLocksRequest is a request for a page of locks.
+message ListLocksRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // Filter specifies lock specific filters.
+  types.LockFilter filter = 3;
+}
+
+// ListLocksResponse contains a page of registered applications.
+message ListLocksResponse {
+  // Locks is a list of locks.
+  repeated types.LockV2 locks = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
 }
 
 message GetLockRequest {
@@ -3257,6 +3297,8 @@ service AuthService {
   rpc CancelSemaphoreLease(types.SemaphoreLease) returns (google.protobuf.Empty);
   // GetSemaphores returns a list of all semaphores matching the supplied filter.
   rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores);
+  // ListSemaphores returns a page of all semaphores matching the supplied filter.
+  rpc ListSemaphores(ListSemaphoresRequest) returns (ListSemaphoresResponse);
   // DeleteSemaphore deletes a semaphore matching the supplied filter.
   rpc DeleteSemaphore(types.SemaphoreFilter) returns (google.protobuf.Empty);
 
@@ -3647,6 +3689,8 @@ service AuthService {
   rpc GetLock(GetLockRequest) returns (types.LockV2);
   // GetLocks gets all/in-force locks that match at least one of the targets when specified.
   rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
+  // ListLocks returns a page of locks matching a filter.
+  rpc ListLocks(ListLocksRequest) returns (ListLocksResponse);
   // UpsertLock upserts a lock.
   rpc UpsertLock(types.LockV2) returns (google.protobuf.Empty);
   // DeleteLock deletes a lock.

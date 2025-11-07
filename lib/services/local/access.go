@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -283,6 +285,30 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 	return services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
+func matchLock(lock types.Lock, filter *types.LockFilter, now time.Time) (types.Lock, bool) {
+	if filter == nil {
+		return lock, true
+	}
+
+	if filter.InForceOnly && !lock.IsInForce(now) {
+		return nil, false
+	}
+
+	// If no targets specified, return all of the found/in-force locks.
+	if len(filter.Targets) == 0 {
+		return lock, true
+	}
+
+	// Otherwise, use the targets as filters.
+	for _, target := range filter.Targets {
+		if target.Match(lock) {
+			return lock, true
+		}
+	}
+
+	return nil, false
+}
+
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	startKey := backend.ExactKey(locksPrefix)
@@ -314,6 +340,45 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 		}
 	}
 	return out, nil
+}
+
+// ListLocks returns a page of locks matching a filter
+func (s *AccessService) ListLocks(ctx context.Context, limit int, start string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	startKey := backend.NewKey(locksPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(locksPrefix))
+	result, err := s.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.Lock, 0, len(result.Items))
+	for _, item := range result.Items {
+		lock, err := services.UnmarshalLock(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to unmarshal lock",
+				"key", item.Key,
+				"error", err)
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, lock.GetName(), nil
+		}
+
+		if _, match := matchLock(lock, filter, s.Clock().Now()); !match {
+			continue
+		}
+
+		out = append(out, lock)
+	}
+	return out, "", nil
 }
 
 // UpsertLock upserts a lock.
