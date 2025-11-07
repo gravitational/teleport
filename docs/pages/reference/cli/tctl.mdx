@@ -13,98 +13,8 @@ in a cluster, including nodes, users, tokens, certificates, and devices.
 `tctl` can also be used to modify the dynamic configuration of the cluster, such as
 creating new user roles or connecting to trusted clusters.
 
-## Authentication
-
-Before running `tctl` commands, administrators must authenticate to a Teleport
-cluster. This section explains how `tctl` authenticates to the cluster.
-
-<Tabs>
-  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
-
-### On a remote host with an identity file
-
-`tctl` can authenticate with a user-provided identity file. The Teleport Auth
-Service signs an identity file when a user runs `tctl auth sign` or
-`tsh login --out=<output-path>`, and the user can include the path to the
-identity file in the `--identity` flag when running `tctl` commands.
-
-When using the `--identity` flag, the user must provide the `--auth-server` flag
-with the address of an Auth Service or Proxy Service so `tctl` knows which
-cluster to authenticate to.
-
-### On the same host as the Teleport Auth Service
-
-If there is a Teleport configuration file on the host where `tctl` is run,
-`tctl` attempts to authenticate to the Auth Service named in the configuration
-file using an identity stored in its local backend.
-
-`tctl` authenticates using this method if a configuration file exists at
-`/etc/teleport.yaml` or `TELEPORT_CONFIG_FILE` points to a configuration file
-in another location. If the `auth_service` is disabled in the configuration
-file, then the configuration file is ignored.
-
-<Admonition type="note">
-
-  Note that when a `tctl` command is run locally on the Auth Service, the audit
-  logs will show that it was performed by the Auth Service itself.
-
-  To provide an accurate audit trail, it is important to limit direct SSH access
-  to the Auth Service with
-  [Access Controls](../../zero-trust-access/authentication/authentication.mdx) and ensure that
-  admins use `tctl` remotely instead.
-
-</Admonition>
-
-### On a remote host after running `tsh login`
-
-If `tctl` cannot find a local Teleport configuration file or a user-provided
-identity file, it attempts to load the user's `tsh` profile to authenticate to
-the cluster. The `tsh` profile is created when a user runs `tsh login`.
-
-`tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
-a Teleport configuration file is present. If you are using your `tsh` profile to
-authenticate `tctl`, you must ensure that one of these conditions is true:
-
-- `TELEPORT_CONFIG_FILE` is blank
-- No file exists at `/etc/teleport.yaml`
-
-Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
-which could result in the error,
-`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
-
-  </TabItem>
-  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
-
-### On a remote host with an identity file
-
-`tctl` can authenticate with a user-provided identity file. The Teleport Auth
-Service signs an identity file when a user runs `tctl auth sign` or
-`tsh login --out=<output-path>`, and the user can include the path to the
-identity file in the `--identity` flag when running `tctl` commands.
-
-When using the `--identity` flag, the user must alo provide the `--auth-server`
-flag with the address of an Auth Service or Proxy Service so `tctl` knows which
-cluster to authenticate to.
-
-### On a remote host after running `tsh login`
-
-If `tctl` cannot find a local Teleport configuration file or a user-provided
-identity file, it attempts to load the user's `tsh` profile to authenticate to
-the cluster. The `tsh` profile is created when a user runs `tsh login`.
-
-`tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
-a Teleport configuration file is present. If you are using your `tsh` profile to
-authenticate `tctl`, you must ensure that one of these conditions is true:
-
-- `TELEPORT_CONFIG_FILE` is blank
-- No file exists at `/etc/teleport.yaml`
-
-Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
-which could result in the error,
-`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
-
-  </TabItem>
-</Tabs>
+For a conceptual overview of `tctl`, see [Getting Started with
+`tctl`](../../zero-trust-access/infrastructure-as-code/using-tctl.mdx).
 
 ## tctl global flags
 
@@ -1294,7 +1204,7 @@ $ tctl request approve request-id-1, request-id-2
 Create a pending Access Request.
 
 ```code
-$ tctl request create <username>
+$ tctl request create [<flags>] <username>
 ```
 
 ### Arguments
@@ -1305,10 +1215,10 @@ $ tctl request create <username>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-|`roles`|none|Comma-separated list of strings|Roles to be requested|
-|`resource`|none|Comma-separated list of strings|Resource IDs to be requested|
-|`reason`|none|String|Optional reason message|
-|`dry-run`|none|Boolean|Don't actually generate the Access Request|
+|`--roles`|none|Comma-separated list of strings|Roles to be requested|
+|`--resource`|none|Comma-separated list of strings|Resource IDs to be requested|
+|`--reason`|none|String|Optional reason message|
+|`--dry-run`|none|Boolean|Don't actually generate the Access Request|
 
 Use the `dry-run` flag if you want to validate whether Teleport can create an
 Access Request for the user in the `username` argument, given the user's static
