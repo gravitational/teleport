@@ -111,6 +111,10 @@ export default function RequestReview({
     return state !== undefined ? state === currentOptionState : undefined;
   }
 
+  const someResourcesConstrained = request.resources?.some(
+    r => !!r.constraints
+  );
+
   return (
     <Validation>
       {({ validator }) => (
@@ -168,7 +172,9 @@ export default function RequestReview({
                     <React.Fragment key={index}>
                       {radio}
                       <Box ml={4} mt={2} css={{ position: 'relative' }}>
-                        <HorizontalLine />
+                        <HorizontalLine
+                          height={92 + (someResourcesConstrained ? 24 : 0)}
+                        />
                         <FieldSelect<SuggestedAcessListOption>
                           ml={1}
                           maxWidth="600px"
@@ -196,6 +202,18 @@ export default function RequestReview({
                           }
                           options={suggestedAccessListOptions}
                         />
+                        {someResourcesConstrained && (
+                          <Text
+                            ml={1}
+                            mt={2}
+                            fontSize={1}
+                            color="text.slightlyMuted"
+                          >
+                            The requested resources are constrained; access
+                            granted via membership in an Access List will be
+                            broader than requested.
+                          </Text>
+                        )}
                       </Box>
                     </React.Fragment>
                   );

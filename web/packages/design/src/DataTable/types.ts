@@ -92,6 +92,7 @@ export type TableProps<T> = {
      * dropdown selector.
      */
     customRow?(row: T): JSX.Element;
+    renderAfter?(row: T): JSX.Element;
   };
 };
 
