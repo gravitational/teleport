@@ -332,7 +332,7 @@ func formatCertError(err error) string {
 				}
 			}
 
-			return fmt.Sprintf(`Cannot connect to the Auth service via the Teleport Proxy using the internal cluster domain %q.
+			return fmt.Sprintf(`Cannot connect to the Auth service via the Teleport Proxy.
 
   There might be one or more network intermediaries (like a proxy or VPN) that are modifying your connection before it
   reaches the Teleport Proxy. These intermediaries can alter how your connection is seen by the Teleport Proxy and
@@ -341,6 +341,7 @@ func formatCertError(err error) string {
   To fix this, ensure that any network intermediaries are properly configured and not interfering with your connection.
 
 DEBUG INFO:
+  Host: %s
   Proxy Environment Variables:
 %s
   Server Certificate Details:
