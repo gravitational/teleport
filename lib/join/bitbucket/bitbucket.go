@@ -21,6 +21,7 @@ package bitbucket
 import (
 	"context"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/provision"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "bitbucket")
@@ -99,6 +99,7 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsBitbucket {
 	}
 }
 
+// CheckIDTokenParams are parameters used to validate Bitbucket OIDC tokens.
 type CheckIDTokenParams struct {
 	ProvisionToken provision.Token
 	IDToken        []byte
@@ -120,6 +121,9 @@ func (p *CheckIDTokenParams) checkAndSetDefaults() error {
 	return nil
 }
 
+// CheckIDToken validates a Bitbucket OIDC token, verifying both the validity of
+// the OIDC token itself, as well as ensuring claims match any configured allow
+// rules in the provided provision token.
 func CheckIDToken(
 	ctx context.Context,
 	params *CheckIDTokenParams,
