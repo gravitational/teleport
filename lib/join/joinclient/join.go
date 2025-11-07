@@ -34,6 +34,7 @@ import (
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -302,6 +303,14 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodBoundKeypair:
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodCircleCI:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = circleci.GetIDToken(os.Getenv)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodIAM:
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodEC2:

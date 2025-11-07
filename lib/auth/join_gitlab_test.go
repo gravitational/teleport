@@ -20,6 +20,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/gitlab"
 )
+
+var errMockInvalidToken = errors.New("invalid token")
 
 type mockGitLabTokenValidator struct {
 	tokens           map[string]gitlab.IDTokenClaims

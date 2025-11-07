@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/azuredevops"
-	"github.com/gravitational/teleport/lib/circleci"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
@@ -55,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/jwt"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
@@ -334,9 +334,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodCircleCI:
-		params.IDToken, err = circleci.GetIDToken(os.Getenv)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = circleci.GetIDToken(os.Getenv)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodKubernetes:
 		params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
