@@ -3513,7 +3513,6 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 		locks = append(locks, lock)
 	}
 	return locks, nil
-
 }
 
 // ListLocks returns a page of locks matching a filter
