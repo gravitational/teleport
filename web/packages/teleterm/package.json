@@ -12,7 +12,7 @@
   "scripts": {
     "start": "pnpm build-wasm && electron-vite dev",
     "build": "pnpm build-wasm && electron-vite build",
-    "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
+    "package": "DEBUG=electron-builder electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
     "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
   },
   "repository": {
