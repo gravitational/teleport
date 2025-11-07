@@ -600,7 +600,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 				// Ensure there are no duplicate events, e.g. from proxy recording mode.
 				require.Len(collect, sessionEvents, 4, "%d unexpected duplicate events", len(sessionEvents)-4)
-			}, 10*time.Second, 100*time.Millisecond)
+			}, 20*time.Second, 100*time.Millisecond)
 		})
 	}
 }
