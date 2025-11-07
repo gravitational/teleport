@@ -80,7 +80,13 @@ export const ButtonSelect = <T extends readonly Option<OptionValue>[]>({
       {options.map(option => {
         const isActive = activeValue === option.value;
         return (
-          <HoverTooltip tipContent={option.tooltip} key={option.label}>
+          <HoverTooltip
+            tipContent={option.tooltip}
+            key={option.label}
+            css={`
+              flex: 1 1 0;
+            `}
+          >
             <ButtonSelectButton
               aria-label={option.label}
               aria-checked={isActive}
@@ -89,6 +95,7 @@ export const ButtonSelect = <T extends readonly Option<OptionValue>[]>({
               }
               intent={isActive ? 'primary' : 'neutral'}
               disabled={option.disabled || disabled}
+              px={0}
             >
               {option.label}
             </ButtonSelectButton>
