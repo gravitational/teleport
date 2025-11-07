@@ -330,21 +330,15 @@ func formatCertError(err error) string {
 			}
 		}
 
-		return fmt.Sprintf(`The certificate does not match the address %q you are attempting to connect to.
+		// Special case for connecting to Auth via Proxy using internal cluster domain.
+		if strings.HasSuffix(hostnameErr.Host, ".teleport.cluster.local") {
+			return fmt.Sprintf(`Cannot connect to the Auth service via the Teleport Proxy using the internal cluster domain %q.
 
-  This usually happens for one or more of the following reasons:
+  There might be one or more network intermediaries (like a proxy or VPN) that are modifying your connection before it
+  reaches the Teleport Proxy. These intermediaries can alter how your connection is seen by the Teleport Proxy and
+  routed, leading to certificate mismatches.
 
-    - You are connecting using an address that is not present in the certificate's Subject Alternative Names (SANs).
-    - The Teleport Proxy is misconfigured and is presenting a certificate that does not include its public address in the SANs.
-    - There is some network intermediary (like a proxy or VPN) that is modifying your connection that may alter how it is seen by the Teleport Proxy and routed.
-
-  To fix this, ensure the following:
-
-    - You are using the public address as configured in Teleport.
-    - The Teleport Proxy is configured to present a certificate that includes its public address in the SANs.
-    - Any network intermediaries are properly configured and not interfering with your connection.
-
-  If you know what you are doing, you can bypass this check by using the --insecure flag.
+  To fix this, ensure that any network intermediaries are properly configured and not interfering with your connection.
 
 DEBUG INFO:
   Proxy Environment Variables:
@@ -357,16 +351,22 @@ DEBUG INFO:
     Not After: %s
     DNS Names: %v
     IP Addresses: %v`,
+				hostnameErr.Host,
+				proxyEnvBuilder.String(),
+				hostnameErr.Certificate.Subject,
+				hostnameErr.Certificate.Issuer,
+				hostnameErr.Certificate.SerialNumber,
+				hostnameErr.Certificate.NotBefore,
+				hostnameErr.Certificate.NotAfter,
+				hostnameErr.Certificate.DNSNames,
+				hostnameErr.Certificate.IPAddresses,
+			)
+		}
+
+		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
 			hostnameErr.Host,
-			proxyEnvBuilder.String(),
-			hostnameErr.Certificate.Subject,
-			hostnameErr.Certificate.Issuer,
-			hostnameErr.Certificate.SerialNumber,
-			hostnameErr.Certificate.NotBefore,
-			hostnameErr.Certificate.NotAfter,
-			hostnameErr.Certificate.DNSNames,
-			hostnameErr.Certificate.IPAddresses,
-		)
+			hostnameErr.Error(),
+			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
 	}
 
 	var certInvalidErr x509.CertificateInvalidError

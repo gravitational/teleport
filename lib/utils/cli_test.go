@@ -305,13 +305,18 @@ func TestFormatCertError(t *testing.T) {
 		require.Contains(t, msg, "The proxy you are connecting to has presented a certificate signed by a")
 	})
 
+	t.Run("HostnameErrorConnectingToAuth", func(t *testing.T) {
+		cert := &x509.Certificate{Raw: []byte("dummy")}
+		err := x509.HostnameError{Certificate: cert, Host: "99999999999999999999999999999999.teleport.cluster.local"}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "Cannot connect to the Auth service via the Teleport Proxy using the internal cluster domain \"99999999999999999999999999999999.teleport.cluster.local\"")
+	})
+
 	t.Run("HostnameError", func(t *testing.T) {
 		cert := &x509.Certificate{Raw: []byte("dummy")}
 		err := x509.HostnameError{Certificate: cert, Host: "example.com"}
 		msg := formatCertError(err)
-		require.Contains(t, msg, "The certificate does not match the address \"example.com\"")
-		require.Contains(t, msg, "Proxy Environment Variables")
-		require.Contains(t, msg, "Server Certificate Details")
+		require.Contains(t, msg, "Cannot establish https connection to example.com")
 	})
 
 	t.Run("CertificateInvalidError", func(t *testing.T) {
