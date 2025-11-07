@@ -22,11 +22,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgerrcode"
-
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/stretchr/testify/require"
 )
 
