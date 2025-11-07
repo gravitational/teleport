@@ -25,12 +25,12 @@ import * as useRule from '../Validation/useRule';
 import FieldInput from './FieldInput';
 
 test('valid values, autofocus, onChange, onKeyPress', () => {
-  const rule = jest.fn();
-  const onChange = jest.fn();
-  const onKeyPress = jest.fn();
+  const rule = vi.fn();
+  const onChange = vi.fn();
+  const onKeyPress = vi.fn();
 
   // mock positive validation
-  jest.spyOn(useRule, 'default').mockReturnValue({ valid: true, message: '' });
+  vi.spyOn(useRule, 'default').mockReturnValue({ valid: true, message: '' });
 
   render(
     <FieldInput
@@ -64,11 +64,11 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
 });
 
 test('input validation error state', () => {
-  const rule = jest.fn();
+  const rule = vi.fn();
   const errorColor = darkTheme.colors.interactive.solid.danger.default;
 
   // mock negative validation
-  jest
+  vi
     .spyOn(useRule, 'default')
     .mockReturnValue({ valid: false, message: 'errorMsg' });
 
@@ -77,7 +77,7 @@ test('input validation error state', () => {
       placeholder="placeholderText"
       label="labelText"
       rule={rule}
-      onChange={jest.fn()}
+      onChange={vi.fn()}
     />
   );
 

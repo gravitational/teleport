@@ -21,7 +21,7 @@ import { fireEvent, render, screen } from 'design/utils/testing';
 import { ButtonWithAddIcon } from './ButtonWithAddIcon';
 
 test('buttonWithAddIcon', () => {
-  const onClick = jest.fn();
+  const onClick = vi.fn();
   const label = 'Add Item';
 
   const { rerender } = render(

@@ -129,8 +129,8 @@ test('file is not added when transferHandler does not return anything', async ()
 
 describe('handleAfterClose', () => {
   const getSetup = async () => {
-    const handleBeforeClose = jest.fn();
-    const handleAfterClose = jest.fn();
+    const handleBeforeClose = vi.fn();
+    const handleAfterClose = vi.fn();
     const handler: TransferHandlers = {
       getDownloader: async () => createFileTransferEventsEmitter(),
       getUploader: async () => undefined,

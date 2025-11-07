@@ -166,7 +166,7 @@ describe('design/Table SortIndicator', () => {
 });
 
 test('"onSort" prop is respected', () => {
-  const dummyFunc = jest.fn(() => -1);
+  const dummyFunc = vi.fn(() => -1);
 
   render(
     <Table

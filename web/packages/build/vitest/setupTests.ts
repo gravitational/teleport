@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, render } from 'design/utils/testing';
+// JSDOM polyfills - Vitest uses jsdom which may be missing some browser APIs
 
-import { DialogConfirmation } from './DialogConfirmation';
+// If a test actually depends on a working ResizeObserver implementation, call
+// mockResizeObserver provided by jsdom-testing-mocks.
+if (!global.ResizeObserver) {
+  function NullResizeObserver() {
+    this.observe = () => {};
+    this.unobserve = () => {};
+    this.disconnect = () => {};
+  }
 
-test('onClose is respected', () => {
-  const onClose = vi.fn();
-  const { container } = render(
-    <DialogConfirmation open={true} onClose={onClose} />
-  );
-
-  fireEvent.keyDown(container, { key: 'Escape' });
-  expect(onClose).toHaveBeenCalledTimes(1);
-});
+  global.ResizeObserver = NullResizeObserver as any;
+}

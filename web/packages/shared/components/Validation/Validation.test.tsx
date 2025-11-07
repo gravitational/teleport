@@ -30,12 +30,12 @@ import Validator, {
 } from './Validation';
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('methods of Validator: addRuleCallback, removeRuleCallback, validate', () => {
-  const mockCb1 = jest.fn();
-  const mockCb2 = jest.fn();
+  const mockCb1 = vi.fn();
+  const mockCb2 = vi.fn();
   const validator = new Validator();
 
   // test suscribe
@@ -46,7 +46,7 @@ test('methods of Validator: addRuleCallback, removeRuleCallback, validate', () =
   expect(validator.validate()).toBe(true);
   expect(mockCb1).toHaveBeenCalledTimes(1);
   expect(mockCb2).toHaveBeenCalledTimes(1);
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 
   // test unsubscribe method removes correct cb
   validator.removeRuleCallback(mockCb2);
@@ -56,7 +56,7 @@ test('methods of Validator: addRuleCallback, removeRuleCallback, validate', () =
 });
 
 test('methods of Validator: addResult, reset', () => {
-  const consoleError = jest.spyOn(console, 'error').mockImplementation();
+  const consoleError = vi.spyOn(console, 'error').mockImplementation();
   const validator = new Validator();
 
   // test addResult for nil object

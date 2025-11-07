@@ -24,8 +24,8 @@ import { render } from 'design/utils/testing';
 import useRule from '../Validation/useRule';
 import { FieldSelectCreatableAsync } from './FieldSelectCreatable';
 
-jest.mock('../Validation/useRule');
-const mockedUseRule = jest.mocked(useRule);
+vi.mock('../Validation/useRule');
+const mockedUseRule = vi.mocked(useRule);
 
 describe('FieldSelectCreatableAsync', () => {
   beforeEach(() => {

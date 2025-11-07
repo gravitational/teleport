@@ -20,7 +20,7 @@ import { generateTimeDropdown } from './timeOptions';
 
 test('no limit, 60 min increment, generates every options', () => {
   const startDate = new Date('2024-02-16T03:00:08.156944Z');
-  jest.useFakeTimers().setSystemTime(startDate);
+  vi.useFakeTimers().setSystemTime(startDate);
 
   const times = generateTimeDropdown({ startDate }, 60);
 
@@ -46,7 +46,7 @@ test('no limit, 60 min increment, generates every options', () => {
 
 test('with min limit, 60 min increment, generates options beginnigng from min', () => {
   const startDate = new Date('2024-02-16T20:00:08.156944Z');
-  jest.useFakeTimers().setSystemTime(startDate);
+  vi.useFakeTimers().setSystemTime(startDate);
 
   const times = generateTimeDropdown(
     { startDate, minTimestamp: startDate.getTime() },
@@ -68,7 +68,7 @@ test('with min limit, 60 min increment, generates options beginnigng from min', 
 test('with both a min and a max limit, 60 min increment, generates options within the min/max range', () => {
   const startDate = new Date('2024-02-16T08:00:08.156944Z');
   const endDate = new Date('2024-02-16T10:00:08.156944Z');
-  jest.useFakeTimers().setSystemTime(startDate);
+  vi.useFakeTimers().setSystemTime(startDate);
 
   const times = generateTimeDropdown(
     {
@@ -90,7 +90,7 @@ test('with both a min and a max limit, 60 min increment, generates options withi
 
 test('with max limit, 60 min increment, generates options ending with max limit', () => {
   const startDate = new Date('2024-02-16T08:00:08.156944Z');
-  jest.useFakeTimers().setSystemTime(startDate);
+  vi.useFakeTimers().setSystemTime(startDate);
 
   const times = generateTimeDropdown(
     { startDate, maxTimestamp: startDate.getTime() },
@@ -111,7 +111,7 @@ test('with max limit, 60 min increment, generates options ending with max limit'
 
 test('no limit, 15 min increment', () => {
   const startDate = new Date('2024-02-16T03:00:08.156944Z');
-  jest.useFakeTimers().setSystemTime(startDate);
+  vi.useFakeTimers().setSystemTime(startDate);
 
   const times = generateTimeDropdown({ startDate }, 15);
 

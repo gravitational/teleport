@@ -25,15 +25,15 @@ import {
 import { InputHandler } from './InputHandler';
 
 // Mock the TdpClient class
-jest.mock('shared/libs/tdp', () => {
-  const originalModule = jest.requireActual('shared/libs/tdp');
+vi.mock('shared/libs/tdp', async () => {
+  const originalModule = await vi.importActual('shared/libs/tdp');
   return {
     ...originalModule,
-    TdpClient: jest.fn().mockImplementation(() => {
+    TdpClient: vi.fn().mockImplementation(() => {
       return {
-        sendKeyboardInput: jest.fn(),
-        sendMouseButton: jest.fn(),
-        sendSyncKeys: jest.fn(),
+        sendKeyboardInput: vi.fn(),
+        sendMouseButton: vi.fn(),
+        sendSyncKeys: vi.fn(),
       };
     }),
   };
@@ -41,14 +41,14 @@ jest.mock('shared/libs/tdp', () => {
 
 describe('InputHandler', () => {
   let inputHandler: InputHandler;
-  let mockTdpClient: jest.Mocked<TdpClient>;
+  let mockTdpClient: TdpClient;
 
   beforeEach(() => {
     inputHandler = new InputHandler();
     mockTdpClient = new TdpClient(
       () => null,
       selectDirectoryInBrowser
-    ) as jest.Mocked<TdpClient>;
+    );
   });
 
   afterEach(() => {

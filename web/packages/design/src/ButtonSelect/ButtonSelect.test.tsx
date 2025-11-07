@@ -29,7 +29,7 @@ describe('ButtonSelect', () => {
   const activeValue = '1';
 
   function renderButtonSelect() {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     render(
       <ButtonSelect
         options={options}

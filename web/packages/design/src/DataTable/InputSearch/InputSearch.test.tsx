@@ -26,14 +26,14 @@ describe('InputSearch', () => {
   test('renders', async () => {
     renderComponent({
       searchValue: '',
-      setSearchValue: jest.fn(),
+      setSearchValue: vi.fn(),
     });
 
     expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument();
   });
 
   test('submits a search', async () => {
-    const setSearchValue = jest.fn();
+    const setSearchValue = vi.fn();
 
     const { user } = renderComponent({
       searchValue: '',

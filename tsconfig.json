@@ -19,7 +19,7 @@
   "compilerOptions": {
     "outDir": "build.assets/.cache/ts",
     "noEmit": true,
-    "types": ["node", "@types/wicg-file-system-access"],
+    "types": ["node", "@types/wicg-file-system-access", "vitest/globals"],
     "paths": {
       "build/*": ["web/packages/build/src/*"],
       "build": ["web/packages/build/src/"],

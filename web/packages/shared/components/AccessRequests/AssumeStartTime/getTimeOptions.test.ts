@@ -27,7 +27,7 @@ test('same day limit produces options with a min and a max', () => {
 
   const selectedDate = new Date(created);
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   mockAccessRequest.created = created;
   mockAccessRequest.maxDuration = maxDuration;
 
@@ -49,7 +49,7 @@ test('in between day selection produces every options (no limit)', () => {
   // The in between date, 02/17
   const selectedDate = new Date('2024-02-17T03:00:08.156944Z');
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   mockAccessRequest.created = created;
   mockAccessRequest.maxDuration = maxDuration;
 
@@ -71,7 +71,7 @@ test('first day selection produces options with only a min limit', () => {
   // The first day is the created date.
   const selectedDate = new Date(created);
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   mockAccessRequest.created = created;
   mockAccessRequest.maxDuration = maxDuration;
 
@@ -93,7 +93,7 @@ test('last day selection produces option with only a max limit', () => {
   // The last day is the max duration date
   const selectedDate = new Date(maxDuration);
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   mockAccessRequest.created = created;
   mockAccessRequest.maxDuration = maxDuration;
 
@@ -110,7 +110,7 @@ test('last day selection produces option with only a max limit', () => {
 
 test('on reviewing mode, start time options should start from current date time', () => {
   const current = new Date('2024-02-16T11:00:08.156944Z'); // 11 pm
-  jest.useFakeTimers().setSystemTime(current);
+  vi.useFakeTimers().setSystemTime(current);
 
   const created = new Date('2024-02-16T03:00:08.156944Z'); // 3pm
   const maxDuration = new Date('2024-02-18T06:45:08.156944Z');

@@ -25,11 +25,11 @@ import { fireEvent, render } from 'design/utils/testing';
 import useRule from '../Validation/useRule';
 import { FieldSelect, FieldSelectAsync } from './FieldSelect';
 
-jest.mock('../Validation/useRule');
-const mockedUseRule = jest.mocked(useRule);
+vi.mock('../Validation/useRule');
+const mockedUseRule = vi.mocked(useRule);
 
 test('valid values and onChange prop', () => {
-  const onChange = jest.fn(e => e);
+  const onChange = vi.fn(e => e);
   const options = [
     { value: 'a', label: 'A' },
     { value: 'b', label: 'B' },
@@ -58,7 +58,7 @@ test('valid values and onChange prop', () => {
 });
 
 test('select element validation error state', () => {
-  const rule = jest.fn();
+  const rule = vi.fn();
   const errorColor = darkTheme.colors.error.main;
 
   mockedUseRule.mockReturnValue({ valid: false, message: 'errorMsg' });
@@ -68,7 +68,7 @@ test('select element validation error state', () => {
       label="labelText"
       placeholder="placeholderText"
       rule={rule}
-      onChange={jest.fn()}
+      onChange={vi.fn()}
       value={null}
       options={null}
     />

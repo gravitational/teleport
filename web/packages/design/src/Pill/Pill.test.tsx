@@ -38,7 +38,7 @@ describe('design/Pill', () => {
   });
 
   it('dismissing pill calls onDismiss', () => {
-    const cb = jest.fn();
+    const cb = vi.fn();
     render(<Pill label="arch: x86_64" onDismiss={cb} />);
 
     fireEvent.click(screen.getByRole('button'));

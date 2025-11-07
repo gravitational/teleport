@@ -51,7 +51,7 @@ const TestFieldMultiInput = ({
 
 test('adding, editing, and removing items', async () => {
   const user = userEvent.setup();
-  const onChange = jest.fn();
+  const onChange = vi.fn();
   render(<TestFieldMultiInput onChange={onChange} />);
 
   await user.type(screen.getByRole('textbox'), 'apples');
@@ -78,7 +78,7 @@ test('adding, editing, and removing items', async () => {
 
 test('keyboard handling', async () => {
   const user = userEvent.setup();
-  const onChange = jest.fn();
+  const onChange = vi.fn();
   render(<TestFieldMultiInput onChange={onChange} />);
 
   await user.click(screen.getByRole('textbox'));

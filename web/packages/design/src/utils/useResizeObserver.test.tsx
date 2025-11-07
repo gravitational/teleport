@@ -30,7 +30,7 @@ const resizeObserver = mockResizeObserver();
 describe('useResizeObserver', () => {
   it('functions when observed element is conditionally rendered', async () => {
     const user = userEvent.setup();
-    const onResize = jest.fn();
+    const onResize = vi.fn();
 
     render(<ExampleComponent onResize={onResize} />);
 

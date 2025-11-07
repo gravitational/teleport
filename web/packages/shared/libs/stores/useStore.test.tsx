@@ -46,7 +46,7 @@ test('components subscribes to store changes and unsubscribes on unmount', async
     })
   );
 
-  jest.spyOn(store, 'unsubscribe');
+  vi.spyOn(store, 'unsubscribe');
   unmount();
   expect(store.unsubscribe).toHaveBeenCalledTimes(1);
 });

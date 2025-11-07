@@ -28,24 +28,27 @@ type SearchCallbackType = (results: {
   resultCount: number;
 }) => void;
 
-jest.mock('@xterm/addon-search', () => ({
-  SearchAddon: jest.fn().mockImplementation(() => ({
-    findNext: jest.fn(),
-    findPrevious: jest.fn(),
-    clearDecorations: jest.fn(),
-    onDidChangeResults: jest.fn(callback => {
-      searchCallback = callback;
-      return { dispose: jest.fn() };
-    }),
-  })),
-}));
+vi.mock('@xterm/addon-search', () => {
+  const SearchAddon = vi.fn(function() {
+    return {
+      findNext: vi.fn(),
+      findPrevious: vi.fn(),
+      clearDecorations: vi.fn(),
+      onDidChangeResults: vi.fn(callback => {
+        searchCallback = callback;
+        return { dispose: vi.fn() };
+      }),
+    };
+  });
+  return { SearchAddon };
+});
 
 const createTerminalMock = () => {
   const keyEventHandlers = new Set<(e: KeyboardEvent) => boolean>();
 
   return {
     getSearchAddon: () => new SearchAddon(),
-    focus: jest.fn(),
+    focus: vi.fn(),
     registerCustomKeyEventHandler: (handler: (e: KeyboardEvent) => boolean) => {
       keyEventHandlers.add(handler);
       return {
@@ -69,9 +72,9 @@ const renderComponent = (props = {}) => {
   const defaultProps = {
     terminalSearcher: terminalMock,
     show: true,
-    onClose: jest.fn(),
-    isSearchKeyboardEvent: jest.fn(),
-    onOpen: jest.fn(),
+    onClose: vi.fn(),
+    isSearchKeyboardEvent: vi.fn(),
+    onOpen: vi.fn(),
     ...props,
   };
 
@@ -89,7 +92,7 @@ const closeSearch = /close search/i;
 
 describe('TerminalSearch', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     searchCallback = null;
   });
 
@@ -112,7 +115,7 @@ describe('TerminalSearch', () => {
   });
 
   test('open search when Ctrl+F is pressed', () => {
-    const isSearchKeyboardEvent = jest.fn().mockReturnValue(true);
+    const isSearchKeyboardEvent = vi.fn().mockReturnValue(true);
     const { props, terminalMock } = renderComponent({ isSearchKeyboardEvent });
 
     terminalMock.triggerKeyEvent({
@@ -125,7 +128,7 @@ describe('TerminalSearch', () => {
   });
 
   test('open search when Cmd+F is pressed (Mac)', () => {
-    const isSearchKeyboardEvent = jest.fn().mockReturnValue(true);
+    const isSearchKeyboardEvent = vi.fn().mockReturnValue(true);
     const { props, terminalMock } = renderComponent({ isSearchKeyboardEvent });
 
     terminalMock.triggerKeyEvent({

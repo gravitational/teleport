@@ -39,7 +39,7 @@ test('duration difference is less than an hour returns only the max duration', (
     0 /* ms */
   );
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   mockAccessRequest.created = created;
   mockAccessRequest.maxDuration = maxDuration;
 
@@ -63,7 +63,7 @@ test('duration difference is 1hr 30min, returns an hour option and the max durat
     0 /* ms */
   );
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   mockAccessRequest.created = created;
   mockAccessRequest.maxDuration = maxDuration;
 
@@ -101,7 +101,7 @@ test('defining all preset hours', () => {
     0 /* ms */
   );
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   mockAccessRequest.created = created;
   mockAccessRequest.maxDuration = maxDuration;
 
@@ -125,7 +125,7 @@ test('defining all preset days + preset hours + maxest duration', () => {
     0 /* ms */
   );
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   mockAccessRequest.created = created;
   mockAccessRequest.maxDuration = maxDuration;
 

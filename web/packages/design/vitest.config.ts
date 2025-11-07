@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,24 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, theme } from 'design/utils/testing';
+import path from 'path';
+import react from '@vitejs/plugin-react-swc';
+import { defineConfig } from 'vitest/config';
 
-import Input from './Input';
-
-describe('design/Input', () => {
-  it('forwards a ref', () => {
-    const ref = vi.fn();
-    render(<Input ref={ref} defaultValue="foo" />);
-    expect(ref).toHaveBeenCalledWith(expect.objectContaining({ value: 'foo' }));
-  });
-  it('respects hasError prop', () => {
-    render(<Input hasError={true} />);
-    expect(screen.getByRole('textbox')).toHaveStyle({
-      'border-color': theme.colors.interactive.solid.danger.default,
-    });
-    expect(screen.getByRole('graphics-symbol')).toHaveAttribute(
-      'aria-label',
-      'Error'
-    );
-  });
+export default defineConfig({
+  plugins: [
+    react({
+      plugins: [['@swc/plugin-styled-components', {}]],
+    }),
+  ],
+  resolve: {
+    alias: {
+      // Map 'design' imports to the src directory
+      design: path.resolve(__dirname, './src'),
+    },
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: [
+      '../build/vitest/setupTests.ts',
+      '../build/jest/customMatchers.ts',
+    ],
+    env: {
+      TZ: 'UTC',
+    },
+  },
 });

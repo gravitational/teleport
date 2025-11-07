@@ -27,7 +27,7 @@ test('filters options and selects first item when inputType is FILTER', async ()
     { url: '', login: 'user2' },
     { url: '', login: 'admin' },
   ];
-  const onSelect = jest.fn();
+  const onSelect = vi.fn();
 
   render(
     <MenuLogin
@@ -58,7 +58,7 @@ test('filters options and selects first item when inputType is FILTER', async ()
 });
 
 test('does not accept an empty value when required is set to true', async () => {
-  const onSelect = jest.fn();
+  const onSelect = vi.fn();
   render(
     <MenuLogin
       placeholder="MenuLogin input"
@@ -78,7 +78,7 @@ test('does not accept an empty value when required is set to true', async () => 
 });
 
 test('accepts an empty value when required is set to false', async () => {
-  const onSelect = jest.fn();
+  const onSelect = vi.fn();
   render(
     <MenuLogin
       placeholder="MenuLogin input"

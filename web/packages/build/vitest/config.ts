@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, render } from 'design/utils/testing';
+import path from 'path';
+import react from '@vitejs/plugin-react-swc';
+import { UserConfig } from 'vitest/config';
 
-import { DialogConfirmation } from './DialogConfirmation';
-
-test('onClose is respected', () => {
-  const onClose = vi.fn();
-  const { container } = render(
-    <DialogConfirmation open={true} onClose={onClose} />
-  );
-
-  fireEvent.keyDown(container, { key: 'Escape' });
-  expect(onClose).toHaveBeenCalledTimes(1);
-});
+export const baseConfig: UserConfig = {
+  plugins: [
+    react({
+      plugins: [['@swc/plugin-styled-components', {}]],
+    }),
+  ],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: [
+      path.resolve(__dirname, './setupTests.ts'),
+      path.resolve(__dirname, '../jest/customMatchers.ts'),
+    ],
+    env: {
+      TZ: 'UTC',
+    },
+  },
+};

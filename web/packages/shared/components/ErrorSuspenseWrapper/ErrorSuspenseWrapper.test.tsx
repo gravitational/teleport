@@ -121,7 +121,7 @@ test('renders children when loaded successfully', async () => {
 });
 
 test('renders error component when query fails', async () => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(http.get('/api/test', () => HttpResponse.error()));
 
@@ -142,7 +142,7 @@ test('renders error component when query fails', async () => {
 });
 
 test('renders error component when child throws', async () => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(
     http.get('/api/test', () => HttpResponse.json({ message: 'Success' }))
@@ -163,7 +163,7 @@ test('renders error component when child throws', async () => {
 });
 
 test('resets error boundary and refetches query on reset', async () => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(http.get('/api/test', () => HttpResponse.error()));
 

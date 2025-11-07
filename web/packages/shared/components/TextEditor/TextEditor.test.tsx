@@ -24,7 +24,7 @@ import TextEditor from '.';
 
 describe('textEditor tests', () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('copy content button', async () => {
@@ -39,7 +39,7 @@ describe('textEditor tests', () => {
         ]}
       />
     );
-    const mockedCopyToClipboard = jest.spyOn(copyModule, 'copyToClipboard');
+    const mockedCopyToClipboard = vi.spyOn(copyModule, 'copyToClipboard');
 
     await userEvent.click(screen.getByTitle('Copy to clipboard'));
     expect(mockedCopyToClipboard).toHaveBeenCalledWith('my-content');
@@ -58,7 +58,7 @@ describe('textEditor tests', () => {
         ]}
       />
     );
-    const mockedDownload = jest.spyOn(downloadsModule, 'downloadObject');
+    const mockedDownload = vi.spyOn(downloadsModule, 'downloadObject');
 
     await userEvent.click(screen.getByTitle('Download'));
     expect(mockedDownload).toHaveBeenCalledWith('test.yaml', 'my-content');

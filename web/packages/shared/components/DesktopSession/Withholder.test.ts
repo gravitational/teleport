@@ -25,32 +25,32 @@ import {
 import { Withholder } from './Withholder';
 
 // Mock the TdpClient class
-jest.mock('teleport/lib/tdp', () => {
-  const originalModule = jest.requireActual('shared/libs/tdp'); // Get the actual module
+vi.mock('teleport/lib/tdp', async () => {
+  const originalModule = await vi.importActual('shared/libs/tdp'); // Get the actual module
   return {
     ...originalModule,
-    TdpClient: jest.fn().mockImplementation(() => {
+    TdpClient: vi.fn().mockImplementation(() => {
       return {
-        connect: jest.fn().mockResolvedValue(undefined),
+        connect: vi.fn().mockResolvedValue(undefined),
       };
     }),
   };
 });
 
 describe('withholder', () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   let withholder: Withholder;
-  let mockHandleKeyboardEvent: jest.Mock;
+  let mockHandleKeyboardEvent: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     withholder = new Withholder();
-    mockHandleKeyboardEvent = jest.fn();
+    mockHandleKeyboardEvent = vi.fn();
   });
 
   afterEach(() => {
     withholder.cancel();
     mockHandleKeyboardEvent.mockClear();
-    jest.clearAllTimers();
+    vi.clearAllTimers();
   });
 
   it('handles non-withheld keys immediately', () => {
@@ -112,7 +112,7 @@ describe('withholder', () => {
 
     expect(mockHandleKeyboardEvent).not.toHaveBeenCalled();
 
-    jest.advanceTimersByTime(10);
+    vi.advanceTimersByTime(10);
 
     expect(mockHandleKeyboardEvent).toHaveBeenCalledTimes(2);
     expect(mockHandleKeyboardEvent).toHaveBeenNthCalledWith(1, metaParams);
@@ -129,7 +129,7 @@ describe('withholder', () => {
     expect((withholder as any).withheldInputs).toHaveLength(1);
 
     withholder.cancel();
-    jest.advanceTimersByTime(10);
+    vi.advanceTimersByTime(10);
 
     expect(mockHandleKeyboardEvent).not.toHaveBeenCalled();
     expect((withholder as any).withheldInputs).toHaveLength(0);

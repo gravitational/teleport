@@ -30,7 +30,7 @@ test('mergeRefs', () => {
     useImperativeHandle(ref, () => 'refValue');
     return null;
   });
-  const refAsFunc = jest.fn();
+  const refAsFunc = vi.fn();
   const refAsObj = { current: undefined };
   const Example: React.FC<{ visible: boolean }> = ({ visible }) => {
     return visible ? <Dummy ref={mergeRefs([refAsObj, refAsFunc])} /> : null;
@@ -50,7 +50,7 @@ test('mergeRefs with undefined and null refs', () => {
     useImperativeHandle(ref, () => 'refValue');
     return null;
   });
-  const refAsFunc = jest.fn();
+  const refAsFunc = vi.fn();
   const refAsObj = { current: undefined };
   const Example: React.FC<{ visible: boolean }> = ({ visible }) => {
     return visible ? (

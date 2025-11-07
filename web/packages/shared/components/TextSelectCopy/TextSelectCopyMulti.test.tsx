@@ -20,10 +20,10 @@ import { render, screen, userEvent } from 'design/utils/testing';
 
 import { TextSelectCopyMulti } from './TextSelectCopyMulti';
 
-jest.useFakeTimers();
+vi.useFakeTimers();
 
 test('changing of icon when button is clicked', async () => {
-  const user = userEvent.setup({ delay: null });
+  const user = userEvent.setup({ delay: null, advanceTimers: vi.advanceTimersByTime });
   render(<TextSelectCopyMulti lines={[{ text: 'some text to copy' }]} />);
 
   // Init button states.
@@ -39,13 +39,13 @@ test('changing of icon when button is clicked', async () => {
   expect(clipboardText).toBe('some text to copy');
 
   // After set time out, the buttons should return to its initial state.
-  jest.runAllTimers();
+  vi.runAllTimers();
   expect(screen.queryByTestId('btn-copy')).toBeVisible();
   expect(screen.queryByTestId('btn-check')).not.toBeVisible();
 });
 
 test('correct copying of texts', async () => {
-  const user = userEvent.setup({ delay: null });
+  const user = userEvent.setup({ delay: null, advanceTimers: vi.advanceTimersByTime });
   render(
     <TextSelectCopyMulti
       lines={[

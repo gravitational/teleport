@@ -96,7 +96,7 @@ test('adding a reviewer and removing a suggested reviewer does not remove it fro
 });
 
 test('changing access duration, also changes pending TTL options and the request lifetime text', () => {
-  jest.useFakeTimers().setSystemTime(dryRunResponse.created);
+  vi.useFakeTimers().setSystemTime(dryRunResponse.created);
   render(<RequestCheckout />);
 
   const infoBtn = screen.getByTestId('additional-info-btn');

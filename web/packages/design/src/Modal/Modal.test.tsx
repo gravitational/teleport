@@ -47,7 +47,7 @@ test('respects open prop set to false', () => {
 });
 
 test('respects onBackdropClick prop', () => {
-  const mockFn = jest.fn();
+  const mockFn = vi.fn();
 
   renderModal({
     onBackdropClick: mockFn,
@@ -59,7 +59,7 @@ test('respects onBackdropClick prop', () => {
 });
 
 test('respects onEscapeKeyDown props', () => {
-  const mockFn = jest.fn();
+  const mockFn = vi.fn();
 
   const { container } = renderModal({
     onEscapeKeyDown: mockFn,
@@ -71,7 +71,7 @@ test('respects onEscapeKeyDown props', () => {
 });
 
 test('respects onClose prop', () => {
-  const mockFn = jest.fn();
+  const mockFn = vi.fn();
 
   const { container } = renderModal({
     onClose: mockFn,
@@ -95,7 +95,7 @@ test('respects hideBackDrop prop', () => {
 });
 
 test('respects disableBackdropClick prop', () => {
-  const mockFn = jest.fn();
+  const mockFn = vi.fn();
   renderModal({
     disableBackdropClick: true,
     onClose: mockFn,
@@ -107,7 +107,7 @@ test('respects disableBackdropClick prop', () => {
 });
 
 test('respects disableEscapeKeyDown prop', () => {
-  const mockFn = jest.fn();
+  const mockFn = vi.fn();
   const { container } = renderModal({
     disableEscapeKeyDown: true,
     onClose: mockFn,
@@ -119,7 +119,7 @@ test('respects disableEscapeKeyDown prop', () => {
 });
 
 test('unmount cleans up event listeners and closes modal', () => {
-  const mockFn = jest.fn();
+  const mockFn = vi.fn();
   const { container, unmount } = renderModal({
     onEscapeKeyDown: mockFn,
   });

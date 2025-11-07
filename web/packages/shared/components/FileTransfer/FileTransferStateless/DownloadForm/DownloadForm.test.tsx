@@ -43,7 +43,7 @@ test('button is enabled when path points to file', () => {
 });
 
 test('onAddDownload is invoked when the from is submitted', () => {
-  const handleAddDownload = jest.fn();
+  const handleAddDownload = vi.fn();
   const filePath = '/Users/file.txt';
 
   render(<DownloadForm onAddDownload={handleAddDownload} />);

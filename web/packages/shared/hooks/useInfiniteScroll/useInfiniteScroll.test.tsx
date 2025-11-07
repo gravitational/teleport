@@ -27,7 +27,7 @@ const mio = mockIntersectionObserver();
 
 function hookProps() {
   return {
-    fetch: jest.fn(),
+    fetch: vi.fn(),
   };
 }
 

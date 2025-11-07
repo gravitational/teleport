@@ -165,7 +165,7 @@ describe("doesn't react to fetch() calls before the previous one finishes", () =
 
   beforeEach(() => {
     props = hookProps();
-    fetchSpy = jest.spyOn(props, 'fetchFunc');
+    fetchSpy = vi.spyOn(props, 'fetchFunc');
   });
 
   test('when called once per state reconciliation cycle', async () => {
@@ -236,7 +236,7 @@ describe.each`
 `('for error type $name', ({ ErrorType }) => {
   it('stops fetching more pages once error is encountered', async () => {
     const props = hookProps();
-    const fetchSpy = jest.spyOn(props, 'fetchFunc');
+    const fetchSpy = vi.spyOn(props, 'fetchFunc');
     const { result } = renderHook(useKeyBasedPagination, {
       initialProps: props,
     });
@@ -273,7 +273,7 @@ describe.each`
         numResources: 7,
       }),
     });
-    const fetchSpy = jest.spyOn(props, 'fetchFunc');
+    const fetchSpy = vi.spyOn(props, 'fetchFunc');
 
     const { result, rerender } = renderHook(useKeyBasedPagination, {
       initialProps: props,
@@ -299,7 +299,7 @@ describe.each`
 
   it('resumes fetching once forceFetch is called after an error', async () => {
     const props = hookProps();
-    const fetchSpy = jest.spyOn(props, 'fetchFunc');
+    const fetchSpy = vi.spyOn(props, 'fetchFunc');
     const { result } = renderHook(useKeyBasedPagination, {
       initialProps: props,
     });
@@ -324,7 +324,7 @@ describe.each`
 
 test('forceFetch spawns another request, even if there is one pending', async () => {
   const props = hookProps();
-  const fetchSpy = jest.spyOn(props, 'fetchFunc');
+  const fetchSpy = vi.spyOn(props, 'fetchFunc');
   const { result } = renderHook(useKeyBasedPagination, {
     initialProps: props,
   });

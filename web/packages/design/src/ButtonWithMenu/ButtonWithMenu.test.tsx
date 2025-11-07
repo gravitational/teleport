@@ -23,7 +23,7 @@ import { ButtonWithMenu } from './ButtonWithMenu';
 
 test('clicking on a menu item executes its onClick and closes the menu', async () => {
   const user = userEvent.setup();
-  const menuItemOnClick = jest.fn();
+  const menuItemOnClick = vi.fn();
 
   render(
     <ButtonWithMenu text="Button text">

@@ -35,7 +35,6 @@ import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 
 import '@testing-library/jest-dom';
-import 'jest-styled-components';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HttpResponse, JsonBodyType } from 'msw';
@@ -70,9 +69,7 @@ function render(
  updates / timeouts to finish.
  */
 function tick() {
-  return new Promise<void>(res =>
-    jest.requireActual('timers').setImmediate(res)
-  );
+  return new Promise<void>(res => setImmediate(res));
 }
 
 screen.debug = () => {

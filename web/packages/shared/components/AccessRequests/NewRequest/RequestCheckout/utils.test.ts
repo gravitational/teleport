@@ -30,7 +30,7 @@ test('duration is less than 1 hour', () => {
   const created = new Date('2024-02-16T03:00:00.000000Z');
   const maxDuration = new Date('2024-02-16T03:45:00.000000Z');
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   const opts = getPendingRequestDurationOptions(created, maxDuration.getTime());
 
   // Only one option, the max duration.
@@ -43,7 +43,7 @@ test('duration is a mix of some preset hours and the max duration', () => {
   const created = new Date('2024-02-16T03:00:00.000000Z');
   const maxDuration = new Date('2024-02-16T05:45:00.000000Z');
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   const opts = getPendingRequestDurationOptions(created, maxDuration.getTime());
 
   // Only one option, the max duration.
@@ -64,7 +64,7 @@ test('defining all preset hours', () => {
   const created = new Date('2024-02-16T03:00:00.000000Z');
   const maxDuration = new Date('2024-02-16T21:00:00.000000Z');
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   const opts = getPendingRequestDurationOptions(created, maxDuration.getTime());
 
   expect(opts).toHaveLength(presetHours.length);
@@ -78,7 +78,7 @@ test('defining all preset days + preset hours + maxest', () => {
   const created = new Date('2024-02-16T03:00:00.000000Z');
   const maxDuration = new Date('2024-02-27T03:30:00.000000Z');
 
-  jest.useFakeTimers().setSystemTime(created);
+  vi.useFakeTimers().setSystemTime(created);
   const opts = getPendingRequestDurationOptions(created, maxDuration.getTime());
 
   expect(opts).toHaveLength(presetHours.length + presetDays.length);

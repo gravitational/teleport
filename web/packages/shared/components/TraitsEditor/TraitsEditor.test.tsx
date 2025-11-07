@@ -30,7 +30,7 @@ import {
 } from './TraitsEditor';
 
 test('Available traits are rendered', async () => {
-  const setConfiguredTraits = jest.fn();
+  const setConfiguredTraits = vi.fn();
   const userTraits: AllUserTraits = {
     logins: ['root', 'ubuntu'],
     db_roles: ['dbadmin', 'postgres'],
@@ -54,7 +54,7 @@ test('Available traits are rendered', async () => {
 
 test('Add and remove Trait', async () => {
   const configuredTraits: TraitsOption[] = [];
-  const setConfiguredTraits = jest.fn();
+  const setConfiguredTraits = vi.fn();
 
   const { rerender } = render(
     <Validation>

@@ -19,15 +19,15 @@
 import { saveOnDisk } from './saveOnDisk';
 
 test('saveOnDisk', async () => {
-  const element = { href: jest.fn(), click: jest.fn(), download: jest.fn() };
-  const createElement = jest
+  const element = { href: vi.fn(), click: vi.fn(), download: vi.fn() };
+  const createElement = vi
     .spyOn(document, 'createElement')
     .mockReturnValueOnce(element as any);
 
-  jest.spyOn(document.body, 'appendChild').mockImplementation();
-  jest.spyOn(document.body, 'removeChild').mockImplementation();
-  const blob = jest.spyOn(global, 'Blob').mockImplementation();
-  window.URL.createObjectURL = jest.fn();
+  vi.spyOn(document.body, 'appendChild').mockImplementation();
+  vi.spyOn(document.body, 'removeChild').mockImplementation();
+  const blob = vi.spyOn(global, 'Blob').mockImplementation();
+  window.URL.createObjectURL = vi.fn();
 
   saveOnDisk('testcontent', 'testfile.txt', 'plain/text');
   expect(createElement).toHaveBeenCalledWith('a');

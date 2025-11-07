@@ -76,7 +76,7 @@ describe('CollapsibleInfoSection', () => {
   });
 
   test('calls onClick callback with isOpen toggle state', async () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     render(
       <CollapsibleInfoSection onClick={handleClick}>
         Content

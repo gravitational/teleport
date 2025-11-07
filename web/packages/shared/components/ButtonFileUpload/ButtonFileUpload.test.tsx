@@ -21,7 +21,7 @@ import { fireEvent, render, screen } from 'design/utils/testing';
 import { ButtonFileUpload } from './ButtonFileUpload';
 
 test('buttonFileUpload', async () => {
-  const setSelectedFile = jest.fn();
+  const setSelectedFile = vi.fn();
   const file = new File(['dummy'], 'dummy.text', { type: 'plain/text' });
   render(
     <ButtonFileUpload

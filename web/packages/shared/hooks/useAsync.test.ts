@@ -54,7 +54,7 @@ test('run resolves the promise to an error and does not update the state on unmo
   });
   unmount();
 
-  await expect(promise).resolves.toEqual([null, new CanceledError()]);
+  await expect(promise).resolves.toEqual([null, expect.any(CanceledError)]);
   const [attempt] = result.current;
   expect(attempt.status).toBe('processing');
 
@@ -76,7 +76,7 @@ test('run resolves the promise to an error and does not update the state on unmo
   });
   unmount();
 
-  await expect(promise).resolves.toEqual([null, new CanceledError()]);
+  await expect(promise).resolves.toEqual([null, expect.any(CanceledError)]);
   const [attempt] = result.current;
   expect(attempt.status).toBe('processing');
 
@@ -102,7 +102,7 @@ test('run resolves the promise to an error after being re-run when the callback 
   });
 
   await waitFor(() =>
-    expect(firstRunPromise).resolves.toEqual([null, new CanceledError()])
+    expect(firstRunPromise).resolves.toEqual([null, expect.any(CanceledError)])
   );
 
   const [, error] = await firstRunPromise;
@@ -168,7 +168,7 @@ test('run resolves the promise to an error after being re-run when the callback 
   });
 
   await waitFor(() =>
-    expect(firstRunPromise).resolves.toEqual([null, new CanceledError()])
+    expect(firstRunPromise).resolves.toEqual([null, expect.any(CanceledError)])
   );
 
   const [, error] = await firstRunPromise;

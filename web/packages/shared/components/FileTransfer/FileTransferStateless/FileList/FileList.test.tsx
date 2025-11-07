@@ -35,14 +35,14 @@ const files: TransferredFile[] = [
 ];
 
 test('list items are rendered', () => {
-  render(<FileList files={files} onCancel={jest.fn()} />);
+  render(<FileList files={files} onCancel={vi.fn()} />);
   const [listItem] = screen.getAllByRole('listitem');
   expect(listItem).toHaveTextContent('~/mona-lisa.jpg');
   expect(listItem).toHaveTextContent('0%');
 });
 
 test('transfer is cancelled when component unmounts', () => {
-  const handleCancel = jest.fn();
+  const handleCancel = vi.fn();
   const { unmount } = render(
     <FileList files={[files[0]]} onCancel={handleCancel} />
   );
@@ -51,7 +51,7 @@ test('transfer is cancelled when component unmounts', () => {
 });
 
 test('transfer is cancelled when user clicks Cancel button', () => {
-  const handleCancel = jest.fn();
+  const handleCancel = vi.fn();
   render(<FileList files={[files[0]]} onCancel={handleCancel} />);
   fireEvent.click(screen.getByTitle('Cancel'));
   expect(handleCancel).toHaveBeenCalledTimes(1);

@@ -25,7 +25,7 @@ import { useSpecifiableFields } from '../NewRequest/useSpecifiableFields';
 import { AssumeStartTime } from './AssumeStartTime';
 
 test('assume start time, creating mode', () => {
-  jest.useFakeTimers().setSystemTime(dryRunResponse.created);
+  vi.useFakeTimers().setSystemTime(dryRunResponse.created);
   render(<AssumeStartTimeComp accessRequest={dryRunResponse} />);
 
   // Init state.
@@ -69,7 +69,7 @@ test('assume start time, reviewing mode, with assume start time', () => {
     ...dryRunResponse,
     assumeStartTime: new Date('2024-02-16T02:51:12.70087Z'),
   };
-  jest.useFakeTimers().setSystemTime(withStart.created);
+  vi.useFakeTimers().setSystemTime(withStart.created);
   render(<AssumeStartTimeComp accessRequest={withStart} review={true} />);
 
   // Init state should render the requested assume start date and time.
@@ -100,7 +100,7 @@ test('assume start time, reviewing mode, with assume start time', () => {
 });
 
 test('assume start time, reviewing mode, with NO assume start time', () => {
-  jest.useFakeTimers().setSystemTime(dryRunResponse.created);
+  vi.useFakeTimers().setSystemTime(dryRunResponse.created);
   render(<AssumeStartTimeComp accessRequest={dryRunResponse} review={true} />);
 
   // Init state should not render time since it wasn't defined

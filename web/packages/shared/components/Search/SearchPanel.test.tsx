@@ -28,8 +28,8 @@ describe('SearchPanel', () => {
       filter: {
         search: '',
       },
-      updateSearch: jest.fn(),
-      updateQuery: jest.fn(),
+      updateSearch: vi.fn(),
+      updateQuery: vi.fn(),
       disableSearch: false,
     });
 
@@ -37,8 +37,8 @@ describe('SearchPanel', () => {
   });
 
   test('submits a search', async () => {
-    const updateSearch = jest.fn();
-    const updateQuery = jest.fn();
+    const updateSearch = vi.fn();
+    const updateQuery = vi.fn();
 
     const { user } = renderComponent({
       filter: {
@@ -63,8 +63,8 @@ describe('SearchPanel', () => {
   });
 
   test('submits a query (advanced)', async () => {
-    const updateSearch = jest.fn();
-    const updateQuery = jest.fn();
+    const updateSearch = vi.fn();
+    const updateQuery = vi.fn();
 
     const { user } = renderComponent({
       filter: {

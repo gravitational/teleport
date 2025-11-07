@@ -21,16 +21,16 @@ import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { CopyButton } from './CopyButton';
 
-jest.mock('design/utils/copyToClipboard', () => {
+vi.mock('design/utils/copyToClipboard', () => {
   return {
     __esModule: true,
-    copyToClipboard: jest.fn(),
+    copyToClipboard: vi.fn(),
   };
 });
 
 describe('CopyButton', () => {
   it('prevents parent elements from stealing clicks', () => {
-    const parentClick = jest.fn();
+    const parentClick = vi.fn();
 
     render(
       <div onClick={parentClick}>

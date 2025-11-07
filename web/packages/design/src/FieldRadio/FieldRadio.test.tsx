@@ -23,7 +23,7 @@ import { render, screen, userEvent } from 'design/utils/testing';
 import { FieldRadio } from './FieldRadio';
 
 test('controlled flow', async () => {
-  const onChange = jest.fn();
+  const onChange = vi.fn();
 
   function TestField() {
     const [val, setVal] = useState('');

@@ -24,7 +24,7 @@ import { newSchedule } from './types';
 
 test('Toggle Monday', async () => {
   const schedule = newSchedule();
-  const setSchedule = jest.fn();
+  const setSchedule = vi.fn();
 
   render(
     <Validation>
@@ -50,7 +50,7 @@ test('Toggle Monday', async () => {
 
 test('Set custom Monday start time', async () => {
   const schedule = newSchedule();
-  const setSchedule = jest.fn();
+  const setSchedule = vi.fn();
 
   schedule.shifts.Monday = {
     startTime: { label: '12:00AM', value: '00:00' },

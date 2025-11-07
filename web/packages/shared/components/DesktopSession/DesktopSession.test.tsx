@@ -39,7 +39,7 @@ import userEvent from '@testing-library/user-event';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 // Disable WASM in tests.
-jest.mock('shared/libs/ironrdp/pkg/ironrdp');
+vi.mock('shared/libs/ironrdp/pkg/ironrdp');
 
 // Matches codec.decodePngFrame.
 function encodePngFrame(): ArrayBuffer {
@@ -54,7 +54,7 @@ function encodePngFrame(): ArrayBuffer {
   return buffer;
 }
 
-const hasNoOtherSession = jest.fn().mockResolvedValue(false);
+const hasNoOtherSession = vi.fn().mockResolvedValue(false);
 const aclAttempt = makeSuccessAttempt({
   clipboardSharingEnabled: true,
   directorySharingEnabled: true,
@@ -93,7 +93,7 @@ let originalQuery: typeof navigator.permissions.query;
 beforeEach(() => {
   originalQuery = navigator.permissions.query;
 
-  navigator.permissions.query = jest.fn().mockResolvedValue({
+  navigator.permissions.query = vi.fn().mockResolvedValue({
     state: 'granted',
     onchange: null,
   });
@@ -109,8 +109,8 @@ test('reconnect button reinitializes the connection', async () => {
     transport.getTransport,
     selectDirectoryInBrowser
   );
-  jest.spyOn(tpdClient, 'connect');
-  jest.spyOn(tpdClient, 'shutdown');
+  vi.spyOn(tpdClient, 'connect');
+  vi.spyOn(tpdClient, 'shutdown');
   const { unmount } = render(
     <DesktopSession
       client={tpdClient}
@@ -188,7 +188,7 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
 
 test('re-sharing directory is possible after a reconnect', async () => {
   const transport = getMockTransport();
-  const mockFsSpy = jest.fn(async () => mockDirectoryAccess());
+  const mockFsSpy = vi.fn(async () => mockDirectoryAccess());
   const tpdClient = new TdpClient(transport.getTransport, mockFsSpy);
   render(
     <DesktopSession

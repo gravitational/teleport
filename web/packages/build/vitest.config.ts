@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,24 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, theme } from 'design/utils/testing';
+import { defineConfig } from 'vitest/config';
 
-import Input from './Input';
-
-describe('design/Input', () => {
-  it('forwards a ref', () => {
-    const ref = vi.fn();
-    render(<Input ref={ref} defaultValue="foo" />);
-    expect(ref).toHaveBeenCalledWith(expect.objectContaining({ value: 'foo' }));
-  });
-  it('respects hasError prop', () => {
-    render(<Input hasError={true} />);
-    expect(screen.getByRole('textbox')).toHaveStyle({
-      'border-color': theme.colors.interactive.solid.danger.default,
-    });
-    expect(screen.getByRole('graphics-symbol')).toHaveAttribute(
-      'aria-label',
-      'Error'
-    );
-  });
+export default defineConfig({
+  test: {
+    // Enable globals (describe, it, expect) to match Jest behavior
+    globals: true,
+    // Load custom matchers
+    setupFiles: ['./jest/customMatchers.ts'],
+  },
 });

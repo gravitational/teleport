@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, render } from 'design/utils/testing';
+// https://vitest.dev/api/expect.html#expect-extend
+interface CustomMatchers<R = unknown> {
+  toEventuallyBeTrue(args: { waitFor: number; tick: number }): Promise<R>;
+}
 
-import { DialogConfirmation } from './DialogConfirmation';
-
-test('onClose is respected', () => {
-  const onClose = vi.fn();
-  const { container } = render(
-    <DialogConfirmation open={true} onClose={onClose} />
-  );
-
-  fireEvent.keyDown(container, { key: 'Escape' });
-  expect(onClose).toHaveBeenCalledTimes(1);
-});
+declare module 'vitest' {
+  interface Assertion<T = any> extends CustomMatchers<T> {}
+  interface AsymmetricMatchersContaining extends CustomMatchers {}
+}

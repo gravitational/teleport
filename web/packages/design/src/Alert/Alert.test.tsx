@@ -36,8 +36,8 @@ describe('Alert', () => {
 
   test('action buttons', async () => {
     const user = userEvent.setup();
-    const primaryCallback = jest.fn();
-    const secondaryCallback = jest.fn();
+    const primaryCallback = vi.fn();
+    const secondaryCallback = vi.fn();
     render(
       <Alert
         primaryAction={{ content: 'Primary Button', onClick: primaryCallback }}
@@ -57,7 +57,7 @@ describe('Alert', () => {
 
   test('dismiss button', async () => {
     const user = userEvent.setup();
-    const onDismiss = jest.fn();
+    const onDismiss = vi.fn();
     render(
       <Alert dismissible onDismiss={onDismiss}>
         Message
@@ -88,8 +88,8 @@ describe('Banner', () => {
 
   test('action buttons', async () => {
     const user = userEvent.setup();
-    const primaryCallback = jest.fn();
-    const secondaryCallback = jest.fn();
+    const primaryCallback = vi.fn();
+    const secondaryCallback = vi.fn();
     render(
       <Banner
         primaryAction={{ content: 'Primary Button', onClick: primaryCallback }}
@@ -132,7 +132,7 @@ describe('Banner', () => {
 
   test('dismiss button', async () => {
     const user = userEvent.setup();
-    const onDismiss = jest.fn();
+    const onDismiss = vi.fn();
     render(
       <Banner dismissible onDismiss={onDismiss}>
         Message

@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Types for custom matchers are defined in jest.d.ts.
-// https://jestjs.io/docs/27.x/expect#expectextendmatchers
-// https://redd.one/blog/practical-guide-to-custom-jest-matchers
+// Types for custom matchers are defined in vitest.d.ts.
+// https://vitest.dev/api/expect.html#expect-extend
 expect.extend({
   /**
    * toEventuallyBeTrue passes the check if condition resolves to true within the timeout passed in

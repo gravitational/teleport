@@ -25,7 +25,7 @@ import {
 
 describe('getDurationOptionIndexClosestToOneWeek', () => {
   const beginDate = new Date('2024-02-10T03:00:00.000000Z');
-  jest.useFakeTimers().setSystemTime(beginDate);
+  vi.useFakeTimers().setSystemTime(beginDate);
 
   const durationOpts: DurationOption[] = [
     { value: beginDate.getTime(), label: '' }, // earliest date

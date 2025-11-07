@@ -24,7 +24,7 @@ import { useRefAutoFocus } from './useRefAutoFocus';
 
 test('focus automatically when allowed', () => {
   const element = {
-    focus: jest.fn(),
+    focus: vi.fn(),
   };
   render(<Focusable element={element} shouldFocus={true} />);
   expect(element.focus).toHaveBeenCalledTimes(1);
@@ -32,7 +32,7 @@ test('focus automatically when allowed', () => {
 
 test('do nothing when focus in not allowed', () => {
   const element = {
-    focus: jest.fn(),
+    focus: vi.fn(),
   };
   render(<Focusable element={element} shouldFocus={false} />);
   expect(element.focus).not.toHaveBeenCalled();
@@ -40,7 +40,7 @@ test('do nothing when focus in not allowed', () => {
 
 test('refocus when deps list changes', () => {
   const element = {
-    focus: jest.fn(),
+    focus: vi.fn(),
   };
   const { rerender } = render(
     <Focusable
@@ -61,7 +61,7 @@ test('refocus when deps list changes', () => {
 
 test('do not refocus when deps list does not change', () => {
   const element = {
-    focus: jest.fn(),
+    focus: vi.fn(),
   };
   const { rerender } = render(
     <Focusable

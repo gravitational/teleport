@@ -43,8 +43,7 @@ test('click on action button does not expand or collapse notification', async ()
   fireEvent.click(screen.getByText('Retry'));
 
   // Check if the text still has the initial, "collapsed" style (look at shortTextCss).
-  expect(screen.getByText(description)).toHaveStyleRule(
-    '-webkit-line-clamp',
-    '3'
-  );
+  expect(screen.getByText(description)).toHaveStyle({
+    '-webkit-line-clamp': '3',
+  });
 });

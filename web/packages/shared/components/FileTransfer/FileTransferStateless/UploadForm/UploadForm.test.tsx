@@ -42,7 +42,7 @@ test('file input is disabled when path is empty', () => {
 });
 
 test('files can be selected using input', () => {
-  const handleAddUpload = jest.fn();
+  const handleAddUpload = vi.fn();
 
   render(<UploadForm onAddUpload={handleAddUpload} />);
 
@@ -56,7 +56,7 @@ test('files can be selected using input', () => {
 });
 
 test('files can be dropped into upload area', () => {
-  const handleAddUpload = jest.fn();
+  const handleAddUpload = vi.fn();
 
   render(<UploadForm onAddUpload={handleAddUpload} />);
 
