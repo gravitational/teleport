@@ -105,9 +105,14 @@ export interface AccessRequestReviewer {
   state: RequestState;
 }
 
+/**
+ * Resource represents a {@link ResourceId} with optional additional details
+ * such as {@link ResourceDetails} and/or {@link ResourceConstraints} set by Proxy.
+ */
 export type Resource = {
   id: ResourceId;
   details?: ResourceDetails;
+  constraints?: ResourceConstraints;
 };
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -130,3 +135,115 @@ export type ResourceDetails = {
   hostname?: string;
   friendlyName?: string;
 };
+
+/**
+ * Represents a {@link ResourceId} in an Access Request-related context,
+ * where additional information such as {@link ResourceConstraints} may be provided.
+ */
+export type ResourceAccessId = {
+  id: ResourceId;
+  constraints?: ResourceConstraints;
+};
+
+type AwsConsoleConstraints = {
+  role_arns: string[];
+};
+
+type BaseResourceConstraints = {
+  version?: 'v1';
+};
+
+/**
+ * ResourceConstraints mirrors the gRPC-generated ResourceConstraints struct,
+ * with a `oneof details`: exactly one detail variant should be present.
+ */
+export type ResourceConstraints = BaseResourceConstraints &
+  (
+    | {
+        aws_console: AwsConsoleConstraints;
+      }
+    | {
+        aws_console?: never;
+      }
+  );
+
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+type DetailKeys<TUnion, TBase extends object> = Exclude<
+  KeysOfUnion<TUnion>,
+  keyof TBase
+>;
+type StringKeys<T> = Extract<T, string>;
+
+/**
+ * ResourceConstraintsKind mirrors the fields assignable
+ * to the gRPC-generated ResourceConstraints struct's `details`.
+ */
+export type ResourceConstraintsKind = StringKeys<
+  DetailKeys<ResourceConstraints, BaseResourceConstraints>
+>;
+
+/**
+ * ResourceConstraintsVariant narrows {@link ResourceConstraints} to the provided
+ * {@link ResourceConstraintsKind}.
+ */
+export type ResourceConstraintsVariant<K extends ResourceConstraintsKind> =
+  Extract<ResourceConstraints, Record<K, unknown>>;
+
+/**
+ * Augments a resource-like object `R` with strongly-typed {@link ResourceConstraints}
+ * based on the specified detail variant key.
+ */
+export type WithResourceConstraints<
+  K extends ResourceConstraintsKind,
+  R extends object = object,
+> = R & { constraints: ResourceConstraintsVariant<K> };
+
+const isConstraintsVariant = <K extends ResourceConstraintsKind>(
+  c: ResourceConstraints | undefined,
+  key: K
+): c is ResourceConstraintsVariant<K> =>
+  !!c && typeof c === 'object' && key in c;
+
+/**
+ * Narrows `item.constraints` to the given variant (e.g., 'awsConsole').
+ */
+export const hasResourceConstraints = <
+  K extends ResourceConstraintsKind,
+  T extends { constraints?: ResourceConstraints },
+>(
+  item: T,
+  key: K
+): item is T & { constraints: ResourceConstraintsVariant<K> } =>
+  isConstraintsVariant(item.constraints, key);
+
+declare const __resourceIDBrand: unique symbol;
+
+/**
+ * Resource identifier in the format "cluster/kind/name".
+ * Use {@link getResourceIDString} to construct; this is a branded type
+ * to ensure compile-time type safety.
+ */
+export type ResourceIDString = string & {
+  [__resourceIDBrand]: 'ResourceIDString';
+};
+
+/**
+ * Creates a {@link ResourceIDString} from its component parts.
+ */
+export const getResourceIDString = ({
+  cluster,
+  kind,
+  name,
+}: {
+  cluster: string;
+  kind: string;
+  name: string;
+}): ResourceIDString => `${cluster}/${kind}/${name}` as ResourceIDString;
+
+/**
+ * Maps supported {@link ResourceIDString}s to their {@link ResourceConstraints}.
+ */
+export type ResourceConstraintsMap = Record<
+  ResourceIDString,
+  ResourceConstraints
+>;
