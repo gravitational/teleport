@@ -1,0 +1,72 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package types;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types";
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// ResourceID is a unique identifier for a teleport resource.
+// Must be kept in sync with teleport.decision.v1alpha1.ResourceId.
+message ResourceID {
+  // ClusterName is the name of the cluster the resource is in.
+  string ClusterName = 1 [(gogoproto.jsontag) = "cluster"];
+  // Kind is the resource kind.
+  string Kind = 2 [(gogoproto.jsontag) = "kind"];
+  // Name is the name of the specific resource.
+  string Name = 3 [(gogoproto.jsontag) = "name"];
+  // SubResourceName is the resource belonging to resource identified by "Name"
+  // that the user is allowed to access to.
+  // When granting access to a subresource, access to other resources is limited.
+  // Currently it just supports resources of Kind=pod and the format is the following
+  // "<kube_namespace>/<kube_pod>".
+  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
+}
+
+// ResourceConstraints is a domain-specific payload that narrows what principals
+// or options are allowed on the associated ResourceID. Exactly one detail is set.
+message ResourceConstraints {
+  // version is version; supported values are: `v1`.
+  string version = 1;
+
+  oneof details {
+    // aws_console scopes an AWS Console app to a subset of role ARNs
+    // the requester is allowed to use.
+    AWSConsoleResourceConstraints aws_console = 10;
+  }
+}
+
+// AwsConsoleResourceConstraints scopes an AWS Console app to a subset of role ARNs
+// the requester is allowed to use.
+message AWSConsoleResourceConstraints {
+  repeated string role_arns = 1;
+}
+
+// ResourceAccessID represents a ResourceID in an Access Request-related context,
+// where additional information such as ResourceConstraints may be provided.
+message ResourceAccessID {
+  ResourceID id = 1 [(gogoproto.nullable) = false];
+  ResourceConstraints constraints = 2 [(gogoproto.nullable) = true];
+}
+
+// ResourceAccessIDList represents a list of ResourceAccessIDs
+message ResourceAccessIDList {
+  repeated ResourceAccessID resources = 1 [(gogoproto.nullable) = false];
+}
