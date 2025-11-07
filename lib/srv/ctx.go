@@ -944,7 +944,7 @@ func (c *ServerContext) reportStats(conn *utils.TrackingConn) {
 	serverRX.Add(float64(rxBytes))
 }
 
-// shouldHandleRecording returns whether this server context is responsible for
+// ShouldHandleRecording returns whether this server context is responsible for
 // recording session events, including session recording, audit events, and session tracking.
 func (c *ServerContext) ShouldHandleSessionRecording() bool {
 	// The only time this server is not responsible for recording the session is when this
