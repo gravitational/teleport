@@ -228,7 +228,7 @@ type AccessChecker interface {
 	// GetAllowedResourceIDs returns the list of allowed resources the identity for
 	// the AccessChecker is allowed to access. An empty or nil list indicates that
 	// there are no resource-specific restrictions.
-	GetAllowedResourceIDs() []types.ResourceID
+	GetAllowedResourceIDs() []types.ResourceAccessID
 
 	// SessionRecordingMode returns the recording mode for a specific service.
 	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
@@ -315,7 +315,7 @@ type AccessInfo struct {
 	// access. A nil or empty list indicates that no resource-specific
 	// access restrictions should be applied. Used for search-based access
 	// requests.
-	AllowedResourceIDs []types.ResourceID
+	AllowedResourceIDs []types.ResourceAccessID
 	// Username is the Teleport username.
 	Username string
 }
@@ -453,11 +453,11 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 	}, nil
 }
 
-func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
+func (a *accessChecker) checkAllowedResources(r AccessCheckable) (*types.ResourceAccessID, error) {
 	if len(a.info.AllowedResourceIDs) == 0 {
 		// certificate does not contain a list of specifically allowed
 		// resources, only role-based access control is used
-		return nil
+		return nil, nil
 	}
 
 	// Note: logging in this function only happens in trace mode. This is because
@@ -467,23 +467,23 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	isLoggingEnabled := rbacLogger.Enabled(ctx, logutils.TraceLevel)
 
 	for _, resourceID := range a.info.AllowedResourceIDs {
-		if resourceID.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
+		if id := resourceID.GetResourceID(); id.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
 			// Allowed to access this resource by resource ID, move on to role checks.
 
 			if isLoggingEnabled {
 				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Matched allowed resource ID",
-					slog.String("resource_id", types.ResourceIDToString(resourceID)),
+					slog.String("resource_id", types.ResourceIDToString(id)),
 				)
 			}
 
-			return nil
+			return &resourceID, nil
 		}
 	}
 
 	if isLoggingEnabled {
-		allowedResources, err := types.ResourceIDsToString(a.info.AllowedResourceIDs)
+		allowedResources, err := types.ResourceIDsToString(types.ExtractResourceIDs(a.info.AllowedResourceIDs))
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		slog.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, not in allowed resource IDs",
@@ -492,17 +492,17 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 			slog.Any("allowed_resources", allowedResources),
 		)
 
-		return trace.AccessDenied("access to %v denied, %q not in allowed resource IDs %s",
+		return nil, trace.AccessDenied("access to %v denied, %q not in allowed resource IDs %s",
 			r.GetKind(), r.GetName(), allowedResources)
 	}
 
-	return trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
+	return nil, trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
 }
 
 // matchesUCRResource matches requested resource with its respective
 // resource type stored in the unified resource cache.
-func matchesUCRResource(requestedR types.ResourceID, r AccessCheckable) bool {
-	if requestedR.Name != r.GetName() {
+func matchesUCRResource(requestedR types.ResourceAccessID, r AccessCheckable) bool {
+	if requestedR.GetResourceID().Name != r.GetName() {
 		return false
 	}
 	// If the allowed resource has `Kind=types.KindKubePod` or any other
@@ -510,17 +510,17 @@ func matchesUCRResource(requestedR types.ResourceID, r AccessCheckable) bool {
 	// access the Kubernetes cluster that it belongs to.
 	// At this point, we do not verify that the accessed resource matches the
 	// allowed resources, but that verification happens in the caller function.
-	if slices.Contains(types.KubernetesResourcesKinds, requestedR.Kind) || strings.HasPrefix(requestedR.Kind, types.AccessRequestPrefixKindKube) {
+	if slices.Contains(types.KubernetesResourcesKinds, requestedR.GetResourceID().Kind) || strings.HasPrefix(requestedR.GetResourceID().Kind, types.AccessRequestPrefixKindKube) {
 		return r.GetKind() == types.KindKubernetesCluster
 	}
 
 	// Identity Center account is stored as KindApp kind and
 	// KindIdentityCenterAccount subKind in the unified resource cache.
-	if requestedR.Kind == types.KindIdentityCenterAccount {
+	if requestedR.GetResourceID().Kind == types.KindIdentityCenterAccount {
 		return r.GetKind() == types.KindApp && r.GetSubKind() == types.KindIdentityCenterAccount
 	}
 
-	return requestedR.Kind == r.GetKind()
+	return requestedR.GetResourceID().Kind == r.GetKind()
 }
 
 // AccessInfo returns the AccessInfo that this access checker is based on.
@@ -531,7 +531,11 @@ func (a *accessChecker) AccessInfo() *AccessInfo {
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
-	if err := a.checkAllowedResources(r); err != nil {
+	// Enforce AllowedResourceIDs if present; capture match
+	var matchedRID *types.ResourceAccessID
+	var err error
+
+	if matchedRID, err = a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -542,7 +546,24 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 		matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 	}
 
+	// If matched RID has ResourceConstraints, guard any principal-bearing matcher(s)
+	if matchedRID != nil && matchedRID.GetConstraints() != nil {
+		guard := WithConstraints(matchedRID.GetConstraints())
+		for i := range matchers {
+			matchers[i] = guard(matchers[i])
+		}
+	}
+
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
+}
+
+func (a *accessChecker) matchAllowedRID(r AccessCheckable) (*types.ResourceAccessID, bool) {
+	for _, resourceID := range a.info.AllowedResourceIDs {
+		if id := resourceID.GetResourceID(); id.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
+			return &resourceID, true
+		}
+	}
+	return nil, false
 }
 
 // CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
@@ -550,7 +571,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 // role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
 // for labels, MFA and Device Trust.
 func (a *accessChecker) CheckAccessToSAMLIdP(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
-	if err := a.checkAllowedResources(r); err != nil {
+	if _, err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -570,13 +591,13 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	// The old one will get mapped to wildcard later.
 	allowedResourceIDs := slices.Clone(a.info.AllowedResourceIDs)
 	for _, elem := range a.info.AllowedResourceIDs {
-		if elem.Kind == types.KindKubeNamespace {
-			allowedResourceIDs = append(allowedResourceIDs, types.ResourceID{
-				ClusterName:     elem.ClusterName,
+		if rid := elem.GetResourceID(); rid.Kind == types.KindKubeNamespace {
+			allowedResourceIDs = append(allowedResourceIDs, types.ResourceAccessID{Id: types.ResourceID{
+				ClusterName:     rid.ClusterName,
 				Kind:            types.AccessRequestPrefixKindKubeClusterWide + "namespaces",
-				SubResourceName: elem.SubResourceName,
-				Name:            elem.Name,
-			})
+				SubResourceName: rid.SubResourceName,
+				Name:            rid.Name,
+			}})
 		}
 	}
 
@@ -584,7 +605,8 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	// the denied resources from the roles take precedence over the allowed
 	// resources from the certificate.
 	denied = rolesDenied
-	for _, r := range allowedResourceIDs {
+	for _, wr := range allowedResourceIDs {
+		r := wr.GetResourceID()
 		if r.Name != cluster.GetName() || r.ClusterName != a.localCluster {
 			continue
 		}
@@ -687,7 +709,7 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for
 // the AccessChecker is allowed to access. An empty or nil list indicates that
 // there are no resource-specific restrictions.
-func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceID {
+func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceAccessID {
 	return a.info.AllowedResourceIDs
 }
 
@@ -1355,7 +1377,7 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 		ScopePin:           ident.ScopePin,
 		Roles:              ident.Roles,
 		Traits:             ident.Traits,
-		AllowedResourceIDs: ident.AllowedResourceIDs,
+		AllowedResourceIDs: types.CombineAsResourceAccessIDs(ident.AllowedResourceIDs, ident.AllowedResourceAccessIDs),
 	}
 }
 
@@ -1396,7 +1418,7 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 		Username:           unmappedIdentity.Username,
 		Roles:              roles,
 		Traits:             traits,
-		AllowedResourceIDs: unmappedIdentity.AllowedResourceIDs,
+		AllowedResourceIDs: types.CombineAsResourceAccessIDs(unmappedIdentity.AllowedResourceIDs, unmappedIdentity.AllowedResourceAccessIDs),
 	}, nil
 }
 
@@ -1413,7 +1435,7 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 		ScopePin:           identity.ScopePin,
 		Roles:              identity.Groups,
 		Traits:             identity.Traits,
-		AllowedResourceIDs: identity.AllowedResourceIDs,
+		AllowedResourceIDs: types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs),
 	}, nil
 }
 
@@ -1470,7 +1492,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 		Username:           identity.Username,
 		Roles:              roles,
 		Traits:             traits,
-		AllowedResourceIDs: identity.AllowedResourceIDs,
+		AllowedResourceIDs: types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs),
 	}, nil
 }
 

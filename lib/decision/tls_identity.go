@@ -40,44 +40,45 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 	}
 
 	return &tlsca.Identity{
-		Username:                id.Username,
-		ScopePin:                id.ScopePin,
-		Impersonator:            id.Impersonator,
-		Groups:                  id.Groups,
-		SystemRoles:             id.SystemRoles,
-		Usage:                   id.Usage,
-		Principals:              id.Principals,
-		KubernetesGroups:        id.KubernetesGroups,
-		KubernetesUsers:         id.KubernetesUsers,
-		Expires:                 timestampToGoTime(id.Expires),
-		RouteToCluster:          id.RouteToCluster,
-		KubernetesCluster:       id.KubernetesCluster,
-		Traits:                  traitToWrappers(id.Traits),
-		RouteToApp:              routeToAppFromProto(id.RouteToApp),
-		TeleportCluster:         id.TeleportCluster,
-		OriginClusterName:       id.TeleportCluster,
-		RouteToDatabase:         routeToDatabaseFromProto(id.RouteToDatabase),
-		DatabaseNames:           id.DatabaseNames,
-		DatabaseUsers:           id.DatabaseUsers,
-		MFAVerified:             id.MfaVerified,
-		PreviousIdentityExpires: timestampToGoTime(id.PreviousIdentityExpires),
-		LoginIP:                 id.LoginIp,
-		PinnedIP:                id.PinnedIp,
-		AWSRoleARNs:             id.AwsRoleArns,
-		AzureIdentities:         id.AzureIdentities,
-		GCPServiceAccounts:      id.GcpServiceAccounts,
-		ActiveRequests:          id.ActiveRequests,
-		DisallowReissue:         id.DisallowReissue,
-		Renewable:               id.Renewable,
-		Generation:              id.Generation,
-		BotName:                 id.BotName,
-		BotInstanceID:           id.BotInstanceId,
-		JoinToken:               id.JoinToken,
-		AllowedResourceIDs:      resourceIDsToTypes(id.AllowedResourceIds),
-		PrivateKeyPolicy:        keys.PrivateKeyPolicy(id.PrivateKeyPolicy),
-		ConnectionDiagnosticID:  id.ConnectionDiagnosticId,
-		DeviceExtensions:        deviceExtensionsFromProto(id.DeviceExtensions),
-		UserType:                types.UserType(id.UserType),
+		Username:                 id.Username,
+		ScopePin:                 id.ScopePin,
+		Impersonator:             id.Impersonator,
+		Groups:                   id.Groups,
+		SystemRoles:              id.SystemRoles,
+		Usage:                    id.Usage,
+		Principals:               id.Principals,
+		KubernetesGroups:         id.KubernetesGroups,
+		KubernetesUsers:          id.KubernetesUsers,
+		Expires:                  timestampToGoTime(id.Expires),
+		RouteToCluster:           id.RouteToCluster,
+		KubernetesCluster:        id.KubernetesCluster,
+		Traits:                   traitToWrappers(id.Traits),
+		RouteToApp:               routeToAppFromProto(id.RouteToApp),
+		TeleportCluster:          id.TeleportCluster,
+		OriginClusterName:        id.TeleportCluster,
+		RouteToDatabase:          routeToDatabaseFromProto(id.RouteToDatabase),
+		DatabaseNames:            id.DatabaseNames,
+		DatabaseUsers:            id.DatabaseUsers,
+		MFAVerified:              id.MfaVerified,
+		PreviousIdentityExpires:  timestampToGoTime(id.PreviousIdentityExpires),
+		LoginIP:                  id.LoginIp,
+		PinnedIP:                 id.PinnedIp,
+		AWSRoleARNs:              id.AwsRoleArns,
+		AzureIdentities:          id.AzureIdentities,
+		GCPServiceAccounts:       id.GcpServiceAccounts,
+		ActiveRequests:           id.ActiveRequests,
+		DisallowReissue:          id.DisallowReissue,
+		Renewable:                id.Renewable,
+		Generation:               id.Generation,
+		BotName:                  id.BotName,
+		BotInstanceID:            id.BotInstanceId,
+		JoinToken:                id.JoinToken,
+		AllowedResourceIDs:       resourceIDsToTypes(id.AllowedResourceIds),
+		AllowedResourceAccessIDs: resourceAccessIDPointersToValues(id.AllowedResourceAccessIds),
+		PrivateKeyPolicy:         keys.PrivateKeyPolicy(id.PrivateKeyPolicy),
+		ConnectionDiagnosticID:   id.ConnectionDiagnosticId,
+		DeviceExtensions:         deviceExtensionsFromProto(id.DeviceExtensions),
+		UserType:                 types.UserType(id.UserType),
 	}
 }
 
@@ -90,43 +91,44 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 	}
 
 	return &decisionpb.TLSIdentity{
-		Username:                id.Username,
-		ScopePin:                id.ScopePin,
-		Impersonator:            id.Impersonator,
-		Groups:                  id.Groups,
-		SystemRoles:             id.SystemRoles,
-		Usage:                   id.Usage,
-		Principals:              id.Principals,
-		KubernetesGroups:        id.KubernetesGroups,
-		KubernetesUsers:         id.KubernetesUsers,
-		Expires:                 timestampFromGoTime(id.Expires),
-		RouteToCluster:          id.RouteToCluster,
-		KubernetesCluster:       id.KubernetesCluster,
-		Traits:                  traitFromWrappers(id.Traits),
-		RouteToApp:              routeToAppToProto(&id.RouteToApp),
-		TeleportCluster:         id.TeleportCluster,
-		RouteToDatabase:         routeToDatabaseToProto(&id.RouteToDatabase),
-		DatabaseNames:           id.DatabaseNames,
-		DatabaseUsers:           id.DatabaseUsers,
-		MfaVerified:             id.MFAVerified,
-		PreviousIdentityExpires: timestampFromGoTime(id.PreviousIdentityExpires),
-		LoginIp:                 id.LoginIP,
-		PinnedIp:                id.PinnedIP,
-		AwsRoleArns:             id.AWSRoleARNs,
-		AzureIdentities:         id.AzureIdentities,
-		GcpServiceAccounts:      id.GCPServiceAccounts,
-		ActiveRequests:          id.ActiveRequests,
-		DisallowReissue:         id.DisallowReissue,
-		Renewable:               id.Renewable,
-		Generation:              id.Generation,
-		BotName:                 id.BotName,
-		BotInstanceId:           id.BotInstanceID,
-		JoinToken:               id.JoinToken,
-		AllowedResourceIds:      resourceIDsFromTypes(id.AllowedResourceIDs),
-		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
-		ConnectionDiagnosticId:  id.ConnectionDiagnosticID,
-		DeviceExtensions:        deviceExtensionsToProto(&id.DeviceExtensions),
-		UserType:                string(id.UserType),
+		Username:                 id.Username,
+		ScopePin:                 id.ScopePin,
+		Impersonator:             id.Impersonator,
+		Groups:                   id.Groups,
+		SystemRoles:              id.SystemRoles,
+		Usage:                    id.Usage,
+		Principals:               id.Principals,
+		KubernetesGroups:         id.KubernetesGroups,
+		KubernetesUsers:          id.KubernetesUsers,
+		Expires:                  timestampFromGoTime(id.Expires),
+		RouteToCluster:           id.RouteToCluster,
+		KubernetesCluster:        id.KubernetesCluster,
+		Traits:                   traitFromWrappers(id.Traits),
+		RouteToApp:               routeToAppToProto(&id.RouteToApp),
+		TeleportCluster:          id.TeleportCluster,
+		RouteToDatabase:          routeToDatabaseToProto(&id.RouteToDatabase),
+		DatabaseNames:            id.DatabaseNames,
+		DatabaseUsers:            id.DatabaseUsers,
+		MfaVerified:              id.MFAVerified,
+		PreviousIdentityExpires:  timestampFromGoTime(id.PreviousIdentityExpires),
+		LoginIp:                  id.LoginIP,
+		PinnedIp:                 id.PinnedIP,
+		AwsRoleArns:              id.AWSRoleARNs,
+		AzureIdentities:          id.AzureIdentities,
+		GcpServiceAccounts:       id.GCPServiceAccounts,
+		ActiveRequests:           id.ActiveRequests,
+		DisallowReissue:          id.DisallowReissue,
+		Renewable:                id.Renewable,
+		Generation:               id.Generation,
+		BotName:                  id.BotName,
+		BotInstanceId:            id.BotInstanceID,
+		JoinToken:                id.JoinToken,
+		AllowedResourceIds:       resourceIDsFromTypes(id.AllowedResourceIDs),
+		AllowedResourceAccessIds: resourceAccessIDValuesToPointers(id.AllowedResourceAccessIDs),
+		PrivateKeyPolicy:         string(id.PrivateKeyPolicy),
+		ConnectionDiagnosticId:   id.ConnectionDiagnosticID,
+		DeviceExtensions:         deviceExtensionsToProto(&id.DeviceExtensions),
+		UserType:                 string(id.UserType),
 	}
 }
 
@@ -224,6 +226,46 @@ func routeToDatabaseToProto(routeToDatabase *tlsca.RouteToDatabase) *decisionpb.
 		Database:    routeToDatabase.Database,
 		Roles:       routeToDatabase.Roles,
 	}
+}
+
+func resourceAccessIDPointersToValues(resourceAccessIDs []*types.ResourceAccessID) []types.ResourceAccessID {
+	if len(resourceAccessIDs) == 0 {
+		return nil
+	}
+
+	ret := make([]types.ResourceAccessID, len(resourceAccessIDs))
+	for i, r := range resourceAccessIDs {
+		ret[i] = types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     r.Id.ClusterName,
+				Kind:            r.Id.Kind,
+				Name:            r.Id.Name,
+				SubResourceName: r.Id.SubResourceName,
+			},
+			Constraints: r.Constraints,
+		}
+	}
+	return ret
+}
+
+func resourceAccessIDValuesToPointers(resourceAccessIDs []types.ResourceAccessID) []*types.ResourceAccessID {
+	if len(resourceAccessIDs) == 0 {
+		return nil
+	}
+
+	ret := make([]*types.ResourceAccessID, len(resourceAccessIDs))
+	for i, r := range resourceAccessIDs {
+		ret[i] = &types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     r.Id.ClusterName,
+				Kind:            r.Id.Kind,
+				Name:            r.Id.Name,
+				SubResourceName: r.Id.SubResourceName,
+			},
+			Constraints: r.Constraints,
+		}
+	}
+	return ret
 }
 
 func resourceIDsToTypes(resourceIDs []*decisionpb.ResourceId) []types.ResourceID {
