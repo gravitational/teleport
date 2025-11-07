@@ -24,7 +24,7 @@ jobs:
       contents: read
       packages: write
 
-  build-branch-latest:
+  build-current:
     needs: [build-master]
     if: always()
     uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v18
@@ -34,8 +34,8 @@ jobs:
       contents: read
       packages: write
 
-  build-branch-latest-minus-1:
-    needs: [build-branch-latest]
+  build-stable:
+    needs: [build-current]
     if: always()
     uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v17
     with:
@@ -44,11 +44,11 @@ jobs:
       contents: read
       packages: write
 
-  # build-branch-latest-prerelease is to build the buildboxes for a freshly cut
-  # teleport version that is still alpha, beta or rc. Once released, this job
-  # should be updated to the next branch number and disabled.
-  # build-branch-latest-prerelease:
-  #   needs: [build-branch-latest-minus-2]
+  # build-prerelease is to build the buildboxes for a freshly cut teleport
+  # version that is still alpha, beta or rc. Once released, this job should be
+  # updated to the next branch number and disabled.
+  # build-prerelease:
+  #   needs: [build-stable]
   #   if: always()
   #   uses: gravitational/teleport.e/.github/workflows/build-buildboxes.yaml@branch/v19
   #   with:
