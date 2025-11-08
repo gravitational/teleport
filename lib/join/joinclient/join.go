@@ -33,6 +33,7 @@ import (
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -196,6 +197,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
 	case types.JoinMethodToken,
+		types.JoinMethodBitbucket,
 		types.JoinMethodBoundKeypair,
 		types.JoinMethodIAM,
 		types.JoinMethodEC2,
@@ -289,6 +291,15 @@ func joinWithMethod(
 	switch types.JoinMethod(method) {
 	case types.JoinMethodToken:
 		return tokenJoin(stream, clientParams)
+	case types.JoinMethodBitbucket:
+		// Tests may specify their own IDToken, so only overwrite it when empty.
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = bitbucket.NewIDTokenSource(os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodBoundKeypair:
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodIAM:
