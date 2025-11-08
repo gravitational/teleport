@@ -141,6 +141,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/metrics"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -722,6 +723,12 @@ type TeleportProcess struct {
 	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
 
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	// optionally other systems can add their gatherers, this can be used if they
+	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
+	*metrics.SyncGatherers
+
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
 
@@ -1296,6 +1303,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
+		SyncGatherers: metrics.NewSyncGatherers(
+			metricsRegistry,
+			prometheus.DefaultGatherer,
+		),
 	}
 
 	process.registerExpectedServices(cfg)
