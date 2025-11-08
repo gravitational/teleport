@@ -200,6 +200,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	case types.JoinMethodToken,
 		types.JoinMethodBitbucket,
 		types.JoinMethodBoundKeypair,
+		types.JoinMethodCircleCI,
 		types.JoinMethodIAM,
 		types.JoinMethodEC2,
 		types.JoinMethodEnv0,
