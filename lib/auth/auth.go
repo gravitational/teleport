@@ -102,7 +102,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -118,6 +117,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
@@ -1301,7 +1301,9 @@ type Server struct {
 	// the purpose of tests.
 	terraformIDTokenValidator terraformCloudIDTokenValidator
 
-	bitbucketIDTokenValidator bitbucketIDTokenValidator
+	// bitbucketIDTokenValidator allows JWTs from Bitbucket to be validated by
+	// the auth server.
+	bitbucketIDTokenValidator bitbucket.Validator
 
 	// createBoundKeypairValidator is a helper to create new bound keypair
 	// challenge validators. Used to override the implementation used in tests.
