@@ -220,7 +220,14 @@ func parseAndVerifyAttestedData(
 	if len(p7.Certificates) == 0 {
 		return "", "", trace.AccessDenied("no certificates for signature")
 	}
-	fixAzureSigningAlgorithm(p7)
+	signingCert := p7.Certificates[0]
+
+	if !isAllowedDomain(signingCert.Subject.CommonName, allowedAzureCommonNames) {
+		return "", "", trace.AccessDenied(
+			"certificate common name does not match allow-list (%s)",
+			signingCert.Subject.CommonName,
+		)
+	}
 
 	if len(intermediates) > 0 {
 		// Client explicitly sent intermediate CAs, included them.
@@ -245,6 +252,7 @@ func parseAndVerifyAttestedData(
 		pool.AddCert(cert)
 	}
 
+	fixAzureSigningAlgorithm(p7)
 	if err := p7.VerifyWithChain(pool); err != nil {
 		return "", "", trace.Wrap(err)
 	}
