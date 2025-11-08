@@ -43,7 +43,7 @@ var ErrCannotReduceBatchSize = errors.New("cannot reduce batch size further")
 //	}
 func DynamicBatchSize[T any](items []T, defaultChunkSize int) iter.Seq[*Batch[T]] {
 	return func(yield func(*Batch[T]) bool) {
-		if len(items) == 0 {
+		if len(items) == 0 || defaultChunkSize <= 0 {
 			return
 		}
 		state := &batchState{
