@@ -2,6 +2,9 @@ name: Smoke test package rpm/deb
 run-name: Smoke test package rpm/deb
 
 on:
+  push:
+  pull_request:
+  merge_group:
   workflow_dispatch:
     inputs:
       release-version:
@@ -9,9 +12,6 @@ on:
           Override the build version from what is in the Makefile.
           Use this override to specify a tag for build debugging purposes.
         type: string
-
-  pull_request:
-  merge_group:
 
 jobs:
   changes:
