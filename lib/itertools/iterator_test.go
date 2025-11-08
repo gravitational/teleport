@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package batcher
+package itertools
 
 import (
 	"testing"
@@ -26,7 +26,7 @@ func TestBasicIteration(t *testing.T) {
 	items := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
 	var batches [][]int
-	for batch := range DynamicBatchSizeIter(items, 3) {
+	for batch := range DynamicBatchSize(items, 3) {
 		batches = append(batches, append([]int(nil), batch.Items...))
 	}
 
@@ -44,7 +44,7 @@ func TestReduceBatchSizeTillLimitIsReached(t *testing.T) {
 	expectedSizes := []int{20, 10, 5, 3, 2, 1}
 	var actualSizes []int
 
-	for batch := range DynamicBatchSizeIter(items, 20) {
+	for batch := range DynamicBatchSize(items, 20) {
 		actualSizes = append(actualSizes, len(batch.Items))
 
 		if len(batch.Items) != 1 {
@@ -69,7 +69,7 @@ func TestReduceSizeByHalfEvySecondIter(t *testing.T) {
 	var batches [][]int
 	i := 0
 
-	for batch := range DynamicBatchSizeIter(items, 30) {
+	for batch := range DynamicBatchSize(items, 30) {
 		i++
 		if i%2 == 0 && len(batch.Items) > 1 {
 			require.NoError(t, batch.ReduceBatchSizeByHalf())

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package batcher
+package itertools
 
 import (
 	"errors"
@@ -25,15 +25,15 @@ import (
 // below the minimum allowed size.
 var ErrCannotReduceBatchSize = errors.New("cannot reduce batch size further")
 
-// DynamicBatchSizeIter returns an iterator that yields batches of items with dynamic size adjustment.
+// DynamicBatchSize returns an iterator that yields batches of items with dynamic size adjustment.
 // It supports batch size reduction for retry scenarios via the Batch.Retry() method.
 //
 // Example usage:
 //
-//	for batch := range batcher.DynamicBatchSizeIter(items, 100) {
+//	for batch := range itertools.DynamicBatchSize(items, 100) {
 //	    if err := processBatch(batch.Items); err != nil {
 //	        if shouldReduceSize(err) {
-//	            if err := batch.ReduceBatchSizeByHalf(); err != nil {
+//	            if err := itertools.ReduceBatchSizeByHalf(); err != nil {
 //	                return err
 //	            }
 //	            continue
@@ -41,7 +41,7 @@ var ErrCannotReduceBatchSize = errors.New("cannot reduce batch size further")
 //	        return err
 //	    }
 //	}
-func DynamicBatchSizeIter[T any](items []T, defaultChunkSize int) iter.Seq[*Batch[T]] {
+func DynamicBatchSize[T any](items []T, defaultChunkSize int) iter.Seq[*Batch[T]] {
 	return func(yield func(*Batch[T]) bool) {
 		if len(items) == 0 {
 			return
