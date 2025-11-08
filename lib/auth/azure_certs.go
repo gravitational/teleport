@@ -23,12 +23,12 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -48,45 +48,88 @@ func isAllowedDomain(cn string, domains []string) bool {
 	return false
 }
 
-// getAzureIssuerCert fetches a x509 certificate's issuing certificate.
-func getAzureIssuerCert(ctx context.Context, cert *x509.Certificate) (*x509.Certificate, error) {
-	if len(cert.IssuingCertificateURL) == 0 {
-		return nil, nil
+func validateAzureCertIssuerURL(issuerURLString string) (string, error) {
+	// All active issuing certs are listed here
+	// https://www.microsoft.com/pkiops/docs/repository.htm
+	//
+	// The cert path always looks like the following, although this does not
+	// appear to be guaranteed by Microsoft.
+	// url: http://www.microsoft.com/pkiops/certs/<cert-name>.crt
+	//
+	// In v18.5+ certs are never fetched over the network and this will cease
+	// to be an issue.
+	const (
+		allowedHost       = "www.microsoft.com"
+		allowedPathPrefix = "/pkiops/certs/"
+		allowedPathSuffix = ".crt"
+	)
+
+	issuerURL, err := url.Parse(issuerURLString)
+	if err != nil {
+		return "", trace.AccessDenied("url failed to parse")
 	}
 
-	httpClient, err := defaults.HTTPClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch issuerURL.Scheme {
+	case "http", "https":
+	default:
+		return "", trace.AccessDenied("invalid url scheme %q", issuerURL.Scheme)
+	}
+
+	if issuerURL.Host != allowedHost {
+		return "", trace.AccessDenied("invalid host %q", issuerURL.Host)
+	}
+
+	if !strings.HasPrefix(issuerURL.Path, allowedPathPrefix) ||
+		!strings.HasSuffix(issuerURL.Path, allowedPathSuffix) {
+		return "", trace.AccessDenied("invalid path, must match %s<name>%s",
+			allowedPathPrefix, allowedPathSuffix)
+	}
+
+	// Construct a new URL with only the scheme, host, and path to strip any
+	// possible extra fields like query params or fragments.
+	sanitizedURL := url.URL{
+		Scheme: issuerURL.Scheme,
+		Host:   allowedHost,
+		Path:   issuerURL.Path,
+	}
+	return sanitizedURL.String(), nil
+}
+
+// getAzureIssuerCert fetches a x509 certificate's issuing certificate.
+func getAzureIssuerCert(ctx context.Context, cert *x509.Certificate, httpClient utils.HTTPDoClient) (*x509.Certificate, error) {
+	if len(cert.IssuingCertificateURL) == 0 {
+		return nil, trace.BadParameter("certificate has no issuing certificate URL")
 	}
 
 	// Azure sends only one issuing cert.
 	issuerURL := cert.IssuingCertificateURL[0]
-	commonName := cert.Subject.CommonName
-	if !isAllowedDomain(commonName, allowedAzureCommonNames) {
-		return nil, trace.AccessDenied(
-			"certificate common name does not match allow-list (%s)",
-			commonName,
-		)
+	sanitizedIssuerURL, err := validateAzureCertIssuerURL(issuerURL)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating issuing certificate URL")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, issuerURL, nil)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sanitizedIssuerURL, nil /*body*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "fetching issuing certificate")
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.AccessDenied("failed to fetch issuing cert, got HTTP status code %d", resp.StatusCode)
+	}
+
 	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, trace.ReadError(resp.StatusCode, body)
+		return nil, trace.Wrap(err, "reading HTTP response body")
 	}
 
 	issuerCert, err := x509.ParseCertificate(body)
-	return issuerCert, trace.Wrap(err)
+	return issuerCert, trace.Wrap(err, "parsing issuing certificate")
 }
 
 func getAzureRootCerts() ([]*x509.Certificate, error) {
