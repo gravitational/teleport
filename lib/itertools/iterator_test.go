@@ -14,80 +14,118 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package itertools
+package itertools_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/itertools"
 )
 
-func TestBasicIteration(t *testing.T) {
-	items := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+func TestDynamicBatchSize(t *testing.T) {
+	t.Parallel()
 
-	var batches [][]int
-	for batch := range DynamicBatchSize(items, 3) {
-		batches = append(batches, append([]int(nil), batch.Items...))
-	}
+	t.Run("basic", func(t *testing.T) {
+		items := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
-	require.Equal(t, [][]int{
-		{1, 2, 3},
-		{4, 5, 6},
-		{7, 8, 9},
-		{10},
-	}, batches)
-}
+		var got [][]int
+		for batch := range itertools.DynamicBatchSize(items, 3) {
+			got = append(got, batch.Items)
+		}
+		require.Equal(t, [][]int{
+			{1, 2, 3},
+			{4, 5, 6},
+			{7, 8, 9},
+			{10},
+		}, got)
+	})
 
-func TestReduceBatchSizeTillLimitIsReached(t *testing.T) {
-	items := sequence(100)
+	t.Run("reduce every second iteration", func(t *testing.T) {
+		items := sequence(62)
+		var got [][]int
+		i := 0
+		for batch := range itertools.DynamicBatchSize(items, 30) {
+			i++
+			if i%2 == 0 && len(batch.Items) > 1 {
+				require.NoError(t, batch.ReduceBatchSizeByHalf())
+				continue
+			}
+			got = append(got, batch.Items)
+		}
+		require.Equal(t, [][]int{
+			{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
+			{31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45},
+			{46, 47, 48, 49, 50, 51, 52, 53},
+			{54, 55, 56, 57},
+			{58, 59},
+			{60},
+			{61},
+			{62},
+		}, got)
+	})
 
-	expectedSizes := []int{20, 10, 5, 3, 2, 1}
-	var actualSizes []int
+	t.Run("empty slice", func(t *testing.T) {
+		for range itertools.DynamicBatchSize([]int{}, 10) {
+			require.Fail(t, "should not be called")
+		}
+	})
 
-	for batch := range DynamicBatchSize(items, 20) {
-		actualSizes = append(actualSizes, len(batch.Items))
+	t.Run("single item", func(t *testing.T) {
+		items := []int{42}
+		var got [][]int
+		for batch := range itertools.DynamicBatchSize(items, 10) {
+			got = append(got, batch.Items)
+		}
+		require.Equal(t, [][]int{{42}}, got)
+	})
 
-		if len(batch.Items) != 1 {
+	t.Run("batch size of 1", func(t *testing.T) {
+		items := sequence(3)
+		var got [][]int
+
+		for batch := range itertools.DynamicBatchSize(items, 1) {
+			got = append(got, batch.Items)
+		}
+		require.Equal(t, [][]int{{1}, {2}, {3}}, got)
+	})
+
+	t.Run("batch size larger than items", func(t *testing.T) {
+		items := sequence(5)
+		var got [][]int
+		for batch := range itertools.DynamicBatchSize(items, 100) {
+			got = append(got, batch.Items)
+		}
+		require.Equal(t, [][]int{{1, 2, 3, 4, 5}}, got)
+	})
+
+	t.Run("cannot reduce batch size of 1", func(t *testing.T) {
+		items := []int{1}
+		for batch := range itertools.DynamicBatchSize(items, 10) {
 			err := batch.ReduceBatchSizeByHalf()
-			require.NoError(t, err)
-			continue
+			require.ErrorIs(t, err, itertools.ErrCannotReduceBatchSize)
 		}
+	})
 
-		// When we reach batch size of 1, attempt to reduce further should return an error
-		// that indicates we can't reduce further.
-		err := batch.ReduceBatchSizeByHalf()
-		require.Error(t, err, "should not be able to reduce batch size of 1")
-		break
-	}
-
-	require.Equal(t, expectedSizes, actualSizes)
-}
-
-func TestReduceSizeByHalfEvySecondIter(t *testing.T) {
-	items := sequence(62)
-
-	var batches [][]int
-	i := 0
-
-	for batch := range DynamicBatchSize(items, 30) {
-		i++
-		if i%2 == 0 && len(batch.Items) > 1 {
-			require.NoError(t, batch.ReduceBatchSizeByHalf())
-			continue
+	t.Run("break after first batch", func(t *testing.T) {
+		items := sequence(100)
+		var got [][]int
+		for batch := range itertools.DynamicBatchSize(items, 10) {
+			got = append(got, batch.Items)
+			break
 		}
-		batches = append(batches, append([]int(nil), batch.Items...))
-	}
+		require.Equal(t, [][]int{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}}, got)
+	})
 
-	require.Equal(t, [][]int{
-		{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
-		{31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45},
-		{46, 47, 48, 49, 50, 51, 52, 53},
-		{54, 55, 56, 57},
-		{58, 59},
-		{60},
-		{61},
-		{62},
-	}, batches)
+	t.Run("invalid size", func(t *testing.T) {
+		items := sequence(10)
+		var got [][]int
+		for batch := range itertools.DynamicBatchSize(items, 0) {
+			got = append(got, batch.Items)
+		}
+		require.Empty(t, got)
+	})
 }
 
 func sequence(n int) []int {
