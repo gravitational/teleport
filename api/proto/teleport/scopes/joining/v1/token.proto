@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.scopes.joining.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1";
@@ -42,6 +43,9 @@ message ScopedToken {
 
   // Spec is the token specification.
   ScopedTokenSpec spec = 6;
+
+  // The status of the token.
+  ScopedTokenStatus status = 7;
 }
 
 // ScopedTokenSpec is the specification of a scoped token.
@@ -57,4 +61,30 @@ message ScopedTokenSpec {
   // The joining method required in order to use this token.
   // Supported joining methods for scoped tokens only include 'token'.
   string join_method = 3;
+
+  // The usage mode of the token. Can be "oneshot" or "unlimited". Oneshot
+  // tokens can only be used to provision a single resource. Unlimited tokens
+  // can be be used to provision any number of resources until it expires.
+  string mode = 4;
+}
+
+// The usage status of a oneshot token.
+message OneshotStatus {
+  // The timestamp representing when a oneshot token was successfully used for
+  // provisioning.
+  google.protobuf.Timestamp used_at = 1;
+  // The timestamp representing when a oneshot token should no longer be avaialable
+  // for idempotent retries.
+  google.protobuf.Timestamp reusable_until = 2;
+  // The public key of the host that used the token.
+  bytes used_by_public_key = 3;
+}
+
+// The status of a scoped token.
+message ScopedTokenStatus {
+  // The usage status of the token.
+  oneof usage {
+    // The usage status of a oneshot token.
+    OneshotStatus oneshot = 1;
+  }
 }

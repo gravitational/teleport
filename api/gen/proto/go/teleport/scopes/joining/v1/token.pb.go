@@ -24,6 +24,7 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -53,7 +54,9 @@ type ScopedToken struct {
 	// Scope is the scope of the token resource.
 	Scope string `protobuf:"bytes,5,opt,name=scope,proto3" json:"scope,omitempty"`
 	// Spec is the token specification.
-	Spec          *ScopedTokenSpec `protobuf:"bytes,6,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec *ScopedTokenSpec `protobuf:"bytes,6,opt,name=spec,proto3" json:"spec,omitempty"`
+	// The status of the token.
+	Status        *ScopedTokenStatus `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -130,6 +133,13 @@ func (x *ScopedToken) GetSpec() *ScopedTokenSpec {
 	return nil
 }
 
+func (x *ScopedToken) GetStatus() *ScopedTokenStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
 // ScopedTokenSpec is the specification of a scoped token.
 type ScopedTokenSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -141,7 +151,11 @@ type ScopedTokenSpec struct {
 	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
 	// The joining method required in order to use this token.
 	// Supported joining methods for scoped tokens only include 'token'.
-	JoinMethod    string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	JoinMethod string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	// The usage mode of the token. Can be "oneshot" or "unlimited". Oneshot
+	// tokens can only be used to provision a single resource. Unlimited tokens
+	// can be be used to provision any number of resources until it expires.
+	Mode          string `protobuf:"bytes,4,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -197,23 +211,175 @@ func (x *ScopedTokenSpec) GetJoinMethod() string {
 	return ""
 }
 
+func (x *ScopedTokenSpec) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+// The usage status of a oneshot token.
+type OneshotStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The timestamp representing when a oneshot token was successfully used for
+	// provisioning.
+	UsedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=used_at,json=usedAt,proto3" json:"used_at,omitempty"`
+	// The timestamp representing when a oneshot token should no longer be avaialable
+	// for idempotent retries.
+	ReusableUntil *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=reusable_until,json=reusableUntil,proto3" json:"reusable_until,omitempty"`
+	// The public key of the host that used the token.
+	UsedByPublicKey []byte `protobuf:"bytes,3,opt,name=used_by_public_key,json=usedByPublicKey,proto3" json:"used_by_public_key,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *OneshotStatus) Reset() {
+	*x = OneshotStatus{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OneshotStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OneshotStatus) ProtoMessage() {}
+
+func (x *OneshotStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OneshotStatus.ProtoReflect.Descriptor instead.
+func (*OneshotStatus) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *OneshotStatus) GetUsedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UsedAt
+	}
+	return nil
+}
+
+func (x *OneshotStatus) GetReusableUntil() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ReusableUntil
+	}
+	return nil
+}
+
+func (x *OneshotStatus) GetUsedByPublicKey() []byte {
+	if x != nil {
+		return x.UsedByPublicKey
+	}
+	return nil
+}
+
+// The status of a scoped token.
+type ScopedTokenStatus struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The usage status of the token.
+	//
+	// Types that are valid to be assigned to Usage:
+	//
+	//	*ScopedTokenStatus_Oneshot
+	Usage         isScopedTokenStatus_Usage `protobuf_oneof:"usage"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScopedTokenStatus) Reset() {
+	*x = ScopedTokenStatus{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedTokenStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedTokenStatus) ProtoMessage() {}
+
+func (x *ScopedTokenStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScopedTokenStatus.ProtoReflect.Descriptor instead.
+func (*ScopedTokenStatus) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ScopedTokenStatus) GetUsage() isScopedTokenStatus_Usage {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
+func (x *ScopedTokenStatus) GetOneshot() *OneshotStatus {
+	if x != nil {
+		if x, ok := x.Usage.(*ScopedTokenStatus_Oneshot); ok {
+			return x.Oneshot
+		}
+	}
+	return nil
+}
+
+type isScopedTokenStatus_Usage interface {
+	isScopedTokenStatus_Usage()
+}
+
+type ScopedTokenStatus_Oneshot struct {
+	// The usage status of a oneshot token.
+	Oneshot *OneshotStatus `protobuf:"bytes,1,opt,name=oneshot,proto3,oneof"`
+}
+
+func (*ScopedTokenStatus_Oneshot) isScopedTokenStatus_Usage() {}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"&teleport/scopes/joining/v1/token.proto\x12\x1ateleport.scopes.joining.v1\x1a!teleport/header/v1/metadata.proto\"\xe7\x01\n" +
+	"&teleport/scopes/joining/v1/token.proto\x12\x1ateleport.scopes.joining.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xae\x02\n" +
 	"\vScopedToken\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
-	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\"o\n" +
+	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x83\x01\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
 	"\vjoin_method\x18\x03 \x01(\tR\n" +
-	"joinMethodBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"joinMethod\x12\x12\n" +
+	"\x04mode\x18\x04 \x01(\tR\x04mode\"\xb4\x01\n" +
+	"\rOneshotStatus\x123\n" +
+	"\aused_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x06usedAt\x12A\n" +
+	"\x0ereusable_until\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\rreusableUntil\x12+\n" +
+	"\x12used_by_public_key\x18\x03 \x01(\fR\x0fusedByPublicKey\"c\n" +
+	"\x11ScopedTokenStatus\x12E\n" +
+	"\aoneshot\x18\x01 \x01(\v2).teleport.scopes.joining.v1.OneshotStatusH\x00R\aoneshotB\a\n" +
+	"\x05usageBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -227,20 +393,27 @@ func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
-	(*ScopedToken)(nil),     // 0: teleport.scopes.joining.v1.ScopedToken
-	(*ScopedTokenSpec)(nil), // 1: teleport.scopes.joining.v1.ScopedTokenSpec
-	(*v1.Metadata)(nil),     // 2: teleport.header.v1.Metadata
+	(*ScopedToken)(nil),           // 0: teleport.scopes.joining.v1.ScopedToken
+	(*ScopedTokenSpec)(nil),       // 1: teleport.scopes.joining.v1.ScopedTokenSpec
+	(*OneshotStatus)(nil),         // 2: teleport.scopes.joining.v1.OneshotStatus
+	(*ScopedTokenStatus)(nil),     // 3: teleport.scopes.joining.v1.ScopedTokenStatus
+	(*v1.Metadata)(nil),           // 4: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	2, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	4, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	3, // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
+	5, // 3: teleport.scopes.joining.v1.OneshotStatus.used_at:type_name -> google.protobuf.Timestamp
+	5, // 4: teleport.scopes.joining.v1.OneshotStatus.reusable_until:type_name -> google.protobuf.Timestamp
+	2, // 5: teleport.scopes.joining.v1.ScopedTokenStatus.oneshot:type_name -> teleport.scopes.joining.v1.OneshotStatus
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -248,13 +421,16 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 	if File_teleport_scopes_joining_v1_token_proto != nil {
 		return
 	}
+	file_teleport_scopes_joining_v1_token_proto_msgTypes[3].OneofWrappers = []any{
+		(*ScopedTokenStatus_Oneshot)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
