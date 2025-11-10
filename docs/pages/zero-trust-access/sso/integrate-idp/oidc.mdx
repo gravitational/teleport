@@ -82,7 +82,7 @@ and issue certificates to users.
 
 The next step is to add an OIDC connector to Teleport. The connectors are
 created, tested, and added or removed using `tctl` [resource
-commands](../../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx) or the Teleport Web UI.
+commands](../../../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx) or the Teleport Web UI.
 
 On your workstation, create a file called `client-secret.txt` consisting only of
 your client secret.
@@ -111,7 +111,7 @@ $ tctl sso configure oidc --name <CONNECTOR-NAME> \
 - `--secret`: The client token/secret provided by the IdP to authorize this client.
 
 For more information on these and all available flags, see the [tctl sso configure
-oidc](../../reference/cli/tctl.mdx) section of the Teleport CLI
+oidc](../../../reference/cli/tctl.mdx) section of the Teleport CLI
 Reference page.
 
 The file created should look like the example below:
@@ -149,6 +149,13 @@ spec:
 version: v3
 
 ```
+
+</details>
+
+<details>
+<summary>Changing the callback address</summary>
+
+(!docs/pages/includes/sso/change-callback.mdx!)
 
 </details>
 
