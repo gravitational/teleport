@@ -18,77 +18,78 @@ package itertools
 
 import (
 	"errors"
-	"iter"
 )
 
 // ErrCannotReduceBatchSize is returned when an attempt is made to reduce the batch size
 // below the minimum allowed size.
 var ErrCannotReduceBatchSize = errors.New("cannot reduce batch size further")
 
-// DynamicBatchSize returns an iterator that yields batches of items with dynamic size adjustment.
-// It supports batch size reduction for retry scenarios via the Batch.Retry() method.
+// DynamicBatchSizeIterator provides an iterator over batches of items with dynamic size adjustment.
+// It supports batch size reduction for retry scenarios via the ReduceSize() method.
+type DynamicBatchSizeIterator[T any] struct {
+	items        []T
+	currentSize  int
+	currentChunk []T
+	shouldRetry  bool
+}
+
+// DynamicBatchSize creates a new iterator that yields batches of items with dynamic size adjustment.
 //
 // Example usage:
 //
-//	for batch := range itertools.DynamicBatchSize(items, 100) {
-//	    if err := processBatch(batch.Items); err != nil {
+//	chunks := itertools.DynamicBatchSize(items, 1000)
+//	for chunks.Next() {
+//	    chunk := chunks.Chunk()
+//	    if err := processBatch(chunk); err != nil {
 //	        if shouldReduceSize(err) {
-//	            if err := itertools.ReduceBatchSizeByHalf(); err != nil {
+//	            if err := chunks.ReduceSize(); err != nil {
 //	                return err
 //	            }
-//	            continue
 //	        }
-//	        return err
 //	    }
 //	}
-func DynamicBatchSize[T any](items []T, defaultChunkSize int) iter.Seq[*Batch[T]] {
-	return func(yield func(*Batch[T]) bool) {
-		if len(items) == 0 || defaultChunkSize <= 0 {
-			return
-		}
-		state := &batchState{
-			currentSize: min(len(items), defaultChunkSize),
-			shouldRetry: false,
-		}
-		for len(items) > 0 {
-			end := min(state.currentSize, len(items))
-			chunk := items[:end]
-			if !yield(&Batch[T]{Items: chunk, state: state}) {
-				return
-			}
-			if state.shouldRetry {
-				state.shouldRetry = false
-				continue
-			}
-			items = items[end:]
-		}
+func DynamicBatchSize[T any](items []T, defaultChunkSize int) *DynamicBatchSizeIterator[T] {
+	if defaultChunkSize <= 0 {
+		defaultChunkSize = 1
+	}
+	return &DynamicBatchSizeIterator[T]{
+		items:       items,
+		currentSize: defaultChunkSize,
+		shouldRetry: false,
 	}
 }
 
-// Batch represents a batch of items with control methods for retry logic.
-type Batch[T any] struct {
-	Items []T
-	// state holds internal state for batch size management
-	// needs to be a pointer to allow shared state across flow
-	state *batchState
+// Next advances the iterator to the next batch. Returns true if there is a batch available,
+// false if the iterator is exhausted. If ReduceSize() was called on the previous iteration,
+// Next() will retry the current batch with the reduced size.
+func (it *DynamicBatchSizeIterator[T]) Next() bool {
+	// If not retrying, advance to the next chunk
+	if !it.shouldRetry && it.currentChunk != nil {
+		it.items = it.items[len(it.currentChunk):]
+	}
+	it.shouldRetry = false
+
+	if len(it.items) == 0 {
+		return false
+	}
+
+	end := min(it.currentSize, len(it.items))
+	it.currentChunk = it.items[:end]
+	return true
 }
 
-// ReduceBatchSizeByHalf reduces the batch size and signals that this batch should be retried
-// with a smaller size. Returns an error if the batch size cannot be reduced further.
-func (b *Batch[T]) ReduceBatchSizeByHalf() error {
-	return b.state.reduceBatchSize()
+// Chunk returns the current batch of items. Should only be called after Next() returns true.
+func (it *DynamicBatchSizeIterator[T]) Chunk() []T {
+	return it.currentChunk
 }
 
-type batchState struct {
-	shouldRetry bool
-	currentSize int
-}
-
-func (bs *batchState) reduceBatchSize() error {
-	if bs.currentSize <= 1 {
+// ReduceSize reduces the batch size by half and signals that the current batch should be retried.
+// Returns ErrCannotReduceBatchSize if the batch size cannot be reduced further.
+func (it *DynamicBatchSizeIterator[T]) ReduceSize() error {
+	if len(it.currentChunk) <= 1 {
 		return ErrCannotReduceBatchSize
 	}
-	bs.currentSize = (bs.currentSize + 1) / 2
-	bs.shouldRetry = true
+	it.currentSize = (it.currentSize + 1) / 2
+	it.shouldRetry = true
 	return nil
 }

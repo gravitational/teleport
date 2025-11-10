@@ -31,8 +31,10 @@ func TestDynamicBatchSize(t *testing.T) {
 		items := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
 		var got [][]int
-		for batch := range itertools.DynamicBatchSize(items, 3) {
-			got = append(got, batch.Items)
+		chunks := itertools.DynamicBatchSize(items, 3)
+		for chunks.Next() {
+			chunk := chunks.Chunk()
+			got = append(got, chunk)
 		}
 		require.Equal(t, [][]int{
 			{1, 2, 3},
@@ -46,13 +48,15 @@ func TestDynamicBatchSize(t *testing.T) {
 		items := sequence(62)
 		var got [][]int
 		i := 0
-		for batch := range itertools.DynamicBatchSize(items, 30) {
+		chunks := itertools.DynamicBatchSize(items, 30)
+		for chunks.Next() {
+			chunk := chunks.Chunk()
 			i++
-			if i%2 == 0 && len(batch.Items) > 1 {
-				require.NoError(t, batch.ReduceBatchSizeByHalf())
+			if i%2 == 0 && len(chunk) > 1 {
+				require.NoError(t, chunks.ReduceSize())
 				continue
 			}
-			got = append(got, batch.Items)
+			got = append(got, chunk)
 		}
 		require.Equal(t, [][]int{
 			{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30},
@@ -67,7 +71,8 @@ func TestDynamicBatchSize(t *testing.T) {
 	})
 
 	t.Run("empty slice", func(t *testing.T) {
-		for range itertools.DynamicBatchSize([]int{}, 10) {
+		chunks := itertools.DynamicBatchSize([]int{}, 10)
+		for chunks.Next() {
 			require.Fail(t, "should not be called")
 		}
 	})
@@ -75,8 +80,10 @@ func TestDynamicBatchSize(t *testing.T) {
 	t.Run("single item", func(t *testing.T) {
 		items := []int{42}
 		var got [][]int
-		for batch := range itertools.DynamicBatchSize(items, 10) {
-			got = append(got, batch.Items)
+		chunks := itertools.DynamicBatchSize(items, 10)
+		for chunks.Next() {
+			chunk := chunks.Chunk()
+			got = append(got, chunk)
 		}
 		require.Equal(t, [][]int{{42}}, got)
 	})
@@ -85,8 +92,10 @@ func TestDynamicBatchSize(t *testing.T) {
 		items := sequence(3)
 		var got [][]int
 
-		for batch := range itertools.DynamicBatchSize(items, 1) {
-			got = append(got, batch.Items)
+		chunks := itertools.DynamicBatchSize(items, 1)
+		for chunks.Next() {
+			chunk := chunks.Chunk()
+			got = append(got, chunk)
 		}
 		require.Equal(t, [][]int{{1}, {2}, {3}}, got)
 	})
@@ -94,16 +103,19 @@ func TestDynamicBatchSize(t *testing.T) {
 	t.Run("batch size larger than items", func(t *testing.T) {
 		items := sequence(5)
 		var got [][]int
-		for batch := range itertools.DynamicBatchSize(items, 100) {
-			got = append(got, batch.Items)
+		chunks := itertools.DynamicBatchSize(items, 100)
+		for chunks.Next() {
+			chunk := chunks.Chunk()
+			got = append(got, chunk)
 		}
 		require.Equal(t, [][]int{{1, 2, 3, 4, 5}}, got)
 	})
 
 	t.Run("cannot reduce batch size of 1", func(t *testing.T) {
 		items := []int{1}
-		for batch := range itertools.DynamicBatchSize(items, 10) {
-			err := batch.ReduceBatchSizeByHalf()
+		chunks := itertools.DynamicBatchSize(items, 10)
+		for chunks.Next() {
+			err := chunks.ReduceSize()
 			require.ErrorIs(t, err, itertools.ErrCannotReduceBatchSize)
 		}
 	})
@@ -111,8 +123,10 @@ func TestDynamicBatchSize(t *testing.T) {
 	t.Run("break after first batch", func(t *testing.T) {
 		items := sequence(100)
 		var got [][]int
-		for batch := range itertools.DynamicBatchSize(items, 10) {
-			got = append(got, batch.Items)
+		chunks := itertools.DynamicBatchSize(items, 10)
+		for chunks.Next() {
+			chunk := chunks.Chunk()
+			got = append(got, chunk)
 			break
 		}
 		require.Equal(t, [][]int{{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}}, got)
@@ -121,10 +135,15 @@ func TestDynamicBatchSize(t *testing.T) {
 	t.Run("invalid size", func(t *testing.T) {
 		items := sequence(10)
 		var got [][]int
-		for batch := range itertools.DynamicBatchSize(items, 0) {
-			got = append(got, batch.Items)
+		chunks := itertools.DynamicBatchSize(items, 0)
+		for chunks.Next() {
+			chunk := chunks.Chunk()
+			got = append(got, chunk)
 		}
-		require.Empty(t, got)
+		// When chunk size is invalid (0 or negative), it defaults to 1
+		require.Equal(t, [][]int{
+			{1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10},
+		}, got)
 	})
 }
 
