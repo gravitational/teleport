@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"time"
 
@@ -73,6 +74,7 @@ const (
 // consistent view to the rest of the Teleport application. It makes no decisions
 // about granting or withholding list membership.
 type AccessListService struct {
+	backend       backend.Backend
 	clock         clockwork.Clock
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
@@ -148,6 +150,7 @@ func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...Serv
 	}
 
 	return &AccessListService{
+		backend:       b,
 		clock:         clock,
 		service:       service,
 		memberService: memberService,
@@ -676,9 +679,29 @@ func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) erro
 	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
 }
 
-// UpsertAccessListWithMembers creates or updates an access list resource and its members.
-func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+type writeFn func(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
+
+func (a *AccessListService) selectWriteFn(op opType) (writeFn, error) {
+	switch op {
+	case opTypeUpdate:
+		return a.service.ConditionalUpdateResource, nil
+
+	case opTypeUpsert:
+		return a.service.UpsertResource, nil
+	}
+
+	return nil, trace.BadParameter("Unknown Access List write operation: %d", op)
+}
+
+// writeAccessListWithMembers holds all of the common logic for updating and
+// upserting an access list and it's collection of members.
+func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember, op opType) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	if err := accessList.CheckAndSetDefaults(); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	writeFn, err := a.selectWriteFn(op)
+	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -690,9 +713,20 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 	validateAccessList := func() error {
 		existingAccessList, err := a.service.GetResource(ctx, accessList.GetName())
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+		if err != nil {
+			// a not found error is totally legal for an upsert operation, but
+			// fatal for an update.
+			if op == opTypeUpdate || !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
+
+		if op == opTypeUpdate {
+			if accessList.Metadata.Revision != existingAccessList.Metadata.Revision {
+				return trace.CompareFailed("access list revision does not match. it may have been concurrently modified")
+			}
+		}
+
 		preserveAccessListFields(existingAccessList, accessList)
 
 		if err := accesslists.ValidateAccessListWithMembers(ctx, existingAccessList, accessList, membersIn, &accessListAndMembersGetter{a.service, a.memberService}); err != nil {
@@ -766,21 +800,9 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 			}
 		}
 
-		// Add any remaining members to the access list.
-		for _, member := range membersMap {
-			upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// Update memberOf field if nested list.
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListMemberOf(ctx, accessList.GetName(), member.Spec.Name, true); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-			member.SetRevision(upserted.GetRevision())
+		if err := a.insertMembersAndUpdateNestedRelationships(ctx, slices.Collect(maps.Values(membersMap))); err != nil {
+			return trace.Wrap(err)
 		}
-
 		return nil
 	}
 
@@ -796,9 +818,9 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		return nil
 	}
 
-	updateAccessList := func() error {
+	writeAccessList := func() error {
 		var err error
-		accessList, err = a.service.UpsertResource(ctx, accessList)
+		accessList, err = writeFn(ctx, accessList)
 		return trace.Wrap(err)
 	}
 
@@ -812,7 +834,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 		actions = append(actions, func() error { return a.VerifyAccessListCreateLimit(ctx, accessList.GetName()) })
 	}
 
-	actions = append(actions, validateAccessList, reconcileMembers, updateAccessList, reconcileOwners)
+	actions = append(actions, validateAccessList, reconcileMembers, writeAccessList, reconcileOwners)
 
 	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -828,6 +850,26 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	}
 
 	return accessList, membersIn, nil
+}
+
+// UpsertAccessListWithMembers creates or updates an access list resource and its members.
+func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	upsertedACL, upsertedMembers, err := a.writeAccessListWithMembers(ctx, accessList, membersIn, opTypeUpsert)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return upsertedACL, upsertedMembers, nil
+}
+
+// UpdateAccessListAndOverwriteMembers does a conditional update on an AccessList and
+// all its members. For the purposes of this update, the Access List's member
+// records  are covered under the enclosing Access List's revision.
+func (a *AccessListService) UpdateAccessListAndOverwriteMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	updatedACL, udatedMembers, err := a.writeAccessListWithMembers(ctx, accessList, membersIn, opTypeUpdate)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return updatedACL, udatedMembers, nil
 }
 
 func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error) {
@@ -1078,4 +1120,61 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	if old.Origin() == common.OriginAWSIdentityCenter {
 		new.Metadata.Labels = old.GetAllLabels()
 	}
+}
+
+// ListUserAccessLists is not implemented in the local service.
+func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
+	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
+}
+
+func (a *AccessListService) insertMembersAndUpdateNestedRelationships(ctx context.Context, members []*accesslist.AccessListMember) error {
+	if err := a.insertMembers(ctx, members); err != nil {
+		return trace.Wrap(err)
+	}
+	// In case of nested access list members.
+	if err := a.updatedMembersNestedRelationships(ctx, members); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (a *AccessListService) insertMembers(ctx context.Context, members []*accesslist.AccessListMember) error {
+	items, err := a.membersToBackendItems(members)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	revs, err := backend.PutBatch(ctx, a.backend, items)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for i, rev := range revs {
+		members[i].SetRevision(rev)
+	}
+	return nil
+}
+
+func (a *AccessListService) membersToBackendItems(members []*accesslist.AccessListMember) ([]backend.Item, error) {
+	out := make([]backend.Item, 0, len(members))
+	for _, member := range members {
+		item, err := a.memberService.WithPrefix(member.Spec.AccessList).MakeBackendItem(member)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Context, members []*accesslist.AccessListMember) error {
+	for _, member := range members {
+		if member.Spec.MembershipKind != accesslist.MembershipKindList {
+			continue
+		}
+		// Update memberOf field if nested list.
+		if err := a.updateAccessListMemberOf(ctx, member.Spec.AccessList, member.Spec.Name, true); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }

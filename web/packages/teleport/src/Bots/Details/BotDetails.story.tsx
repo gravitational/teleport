@@ -20,6 +20,7 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
 import { MemoryRouter, Route, Router } from 'react-router';
+import { action } from 'storybook/internal/actions';
 
 import Box from 'design/Box';
 
@@ -134,10 +135,13 @@ export const HappyWithEmpty: Story = {
           tokens: [],
         }),
         mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess({
-          bot_instances: [],
-          next_page_token: '',
-        }),
+        listBotInstancesSuccess(
+          {
+            bot_instances: [],
+            next_page_token: '',
+          },
+          'v1'
+        ),
         successGetRoles({
           startKey: '',
           items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
@@ -172,21 +176,24 @@ export const HappyWithTypical: Story = {
           tokens: ['kubernetes'],
         }),
         mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess({
-          bot_instances: [
-            {
-              bot_name: 'bot-1',
-              instance_id: '6570dbf1-3530-4e13-a8c7-497bb9927994',
-              active_at_latest: new Date().toISOString(),
-              host_name_latest:
-                'my-svc.my-namespace.svc.cluster-domain.example',
-              join_method_latest: 'kubernetes',
-              os_latest: 'linux',
-              version_latest: '18.1.0',
-            },
-          ],
-          next_page_token: '',
-        }),
+        listBotInstancesSuccess(
+          {
+            bot_instances: [
+              {
+                bot_name: 'bot-1',
+                instance_id: '6570dbf1-3530-4e13-a8c7-497bb9927994',
+                active_at_latest: new Date().toISOString(),
+                host_name_latest:
+                  'my-svc.my-namespace.svc.cluster-domain.example',
+                join_method_latest: 'kubernetes',
+                os_latest: 'linux',
+                version_latest: '18.1.0',
+              },
+            ],
+            next_page_token: '',
+          },
+          'v1'
+        ),
         successGetRoles({
           startKey: '',
           items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
@@ -238,22 +245,25 @@ export const HappyWithLongValues: Story = {
           ],
         }),
         mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess({
-          bot_instances: [
-            {
-              bot_name: '',
-              instance_id:
-                '04241a2a66b904241a2a66b904241a2a66b904241a2a66b904241a2a66b9',
-              host_name_latest:
-                'hotnamehotnamehotnamehotnamehotnamehotnamehotnamehotnamehotname',
-              active_at_latest: '2025-01-01T00:00:00Z',
-              join_method_latest: 'github',
-              os_latest: 'linux',
-              version_latest: '17.2.6-04241a2',
-            },
-          ],
-          next_page_token: '',
-        }),
+        listBotInstancesSuccess(
+          {
+            bot_instances: [
+              {
+                bot_name: '',
+                instance_id:
+                  '04241a2a66b904241a2a66b904241a2a66b904241a2a66b904241a2a66b9',
+                host_name_latest:
+                  'hotnamehotnamehotnamehotnamehotnamehotnamehotnamehotnamehotname',
+                active_at_latest: '2025-01-01T00:00:00Z',
+                join_method_latest: 'github',
+                os_latest: 'linux',
+                version_latest: '17.2.6-04241a2',
+              },
+            ],
+            next_page_token: '',
+          },
+          'v1'
+        ),
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -582,6 +592,7 @@ function Wrapper(props?: {
   const history = createMemoryHistory({
     initialEntries: ['/web/bot/ansible-worker'],
   });
+  history.push = action('history.push');
 
   const customAcl = makeAcl({
     bots: {

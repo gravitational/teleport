@@ -35,6 +35,7 @@ func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
 	return map[string]Handler{
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
+		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
 		types.KindAppServer:                          appServerHandler(),
 		types.KindAuthServer:                         authHandler(),
@@ -46,6 +47,8 @@ func Handlers() map[string]Handler {
 		types.KindBot:                                botHandler(),
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindDatabase:                           databaseHandler(),
+		types.KindDatabaseObject:                     databaseObjectHandler(),
+		types.KindDatabaseObjectImportRule:           databaseObjectImportRuleHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindInstaller:                          installerHandler(),
@@ -55,6 +58,7 @@ func Handlers() map[string]Handler {
 		types.KindRole:                               roleHandler(),
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
 		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
+		types.KindToken:                              tokenHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),

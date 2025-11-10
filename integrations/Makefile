@@ -3,11 +3,11 @@ test: test-access test-lib test-event-handler test-terraform-provider test-terra
 
 .PHONY: test-access
 test-access:
-	go test -v ./access/...
+	gotestsum ./access/...
 
 .PHONY: test-lib
 test-lib:
-	go test ./lib/...
+	gotestsum ./lib/...
 
 .PHONY: test-event-handler
 test-event-handler:

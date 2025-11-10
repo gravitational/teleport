@@ -21,10 +21,14 @@ package mongodb
 import (
 	"context"
 	"crypto/tls"
+	"iter"
+	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.mongodb.org/mongo-driver/mongo/address"
 	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -38,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/endpoints"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -56,10 +61,22 @@ const (
 // When connecting to a replica set, returns connection to the server selected
 // based on the read preference connection string option. This allows users to
 // configure database access to always connect to a secondary for example.
-func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (driver.Connection, func(), error) {
+func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*serverConnection, error) {
+	deployment, err := depCache.load(ctx, sessionCtx, e.connectDeployment)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conn, err := deployment.connect(ctx)
+	if err != nil {
+		return nil, trace.NewAggregate(err, deployment.close(ctx))
+	}
+	return conn, nil
+}
+
+func (e *Engine) connectDeployment(ctx context.Context, sessionCtx *common.Session) (*deployment, error) {
 	options, selector, err := e.getTopologyOptions(ctx, sessionCtx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Using driver's "topology" package allows to retain low-level control
 	// over server connections (reading/writing wire messages) but at the
@@ -67,31 +84,18 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	// in a replica set.
 	top, err := topology.New(options)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	err = top.Connect()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	if err := top.Connect(); err != nil {
+		e.Log.DebugContext(e.Context, "Failed to connect topology", "error", err)
+		return nil, trace.Wrap(err)
 	}
-	server, err := top.SelectServer(ctx, selector)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	e.Log.DebugContext(e.Context, "Connecting to cluster.", "topology", top, "server", server)
-	conn, err := server.Connection(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	closeFn := func() {
-		if err := top.Disconnect(ctx); err != nil {
-			e.Log.WarnContext(e.Context, "Failed to close topology", "error", err)
-		}
-		if err := conn.Close(); err != nil {
-			e.Log.ErrorContext(e.Context, "Failed to close server connection.", "error", err)
-		}
-	}
-	return conn, closeFn, nil
+	return &deployment{
+		top:              top,
+		selector:         selector,
+		log:              e.Log,
+		messagesReceived: common.GetMessagesFromServerMetric(sessionCtx.Database),
+	}, nil
 }
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
@@ -289,4 +293,124 @@ func (h *handshaker) FinishHandshake(context.Context, driver.Connection) error {
 func x509Username(sessionCtx *common.Session) string {
 	// MongoDB uses full certificate Subject field as a username.
 	return "CN=" + sessionCtx.DatabaseUser
+}
+
+type serverConnection struct {
+	connection driver.Connection
+	deployment *deployment
+}
+
+type replyIterator iter.Seq2[protocol.Message, error]
+
+func (c *serverConnection) roundTrip(ctx context.Context, clientMessage protocol.Message, maxMessageSize uint32) replyIterator {
+	return func(yield func(protocol.Message, error) bool) {
+		if err := c.writeMessage(ctx, clientMessage); err != nil {
+			yield(nil, err)
+			return
+		}
+		// Some client messages will not receive a reply.
+		if clientMessage.MoreToCome(nil) {
+			return
+		}
+		for {
+			// Otherwise read the server's reply...
+			serverMessage, err := c.readMessage(ctx, maxMessageSize)
+			if !yield(serverMessage, err) || err != nil {
+				return
+			}
+			// Stop reading if server indicated it has nothing more to send.
+			if !serverMessage.MoreToCome(clientMessage) {
+				return
+			}
+		}
+	}
+}
+
+func (c *serverConnection) readMessage(ctx context.Context, maxMessageSize uint32) (protocol.Message, error) {
+	msg, err := protocol.ReadServerMessage(ctx, c.connection, maxMessageSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.deployment.messagesReceived.Inc()
+	return msg, nil
+}
+
+func (c *serverConnection) writeMessage(ctx context.Context, clientMessage protocol.Message) error {
+	return trace.Wrap(c.connection.WriteWireMessage(ctx, clientMessage.GetBytes()))
+}
+
+func (c *serverConnection) close(ctx context.Context) error {
+	var errs []error
+	if err := c.deployment.close(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if expirer, ok := c.connection.(driver.Expirable); ok {
+		// expire the connection to evict it from the driver connection pool
+		if err := expirer.Expire(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := c.connection.Close(); err != nil {
+		errs = append(errs, err)
+	}
+	return trace.NewAggregate(errs...)
+}
+
+type clientConnection struct {
+	net.Conn
+	messagesReceived prometheus.Counter
+}
+
+func (c *clientConnection) readMessage(maxMessageSize uint32) (protocol.Message, error) {
+	msg, err := protocol.ReadMessage(c, maxMessageSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.messagesReceived.Inc()
+	return msg, trace.Wrap(err)
+}
+
+func (c *clientConnection) writeMessage(message protocol.Message) error {
+	_, err := c.Write(message.GetBytes())
+	return trace.Wrap(err)
+}
+
+// deployment wraps [topology.Topology] and [description.ServerSelector].
+// It is used to select and connect to a server in the topology.
+type deployment struct {
+	top      *topology.Topology
+	selector description.ServerSelector
+
+	onClose          func(ctx context.Context, log *slog.Logger) error
+	log              *slog.Logger
+	messagesReceived prometheus.Counter
+}
+
+// connect selects a server, connects to it, and returns the connection.
+func (d *deployment) connect(ctx context.Context) (*serverConnection, error) {
+	d.log.DebugContext(ctx, "Selecting server from topology", "topology", d.top)
+	server, err := d.top.SelectServer(ctx, d.selector)
+	if err != nil {
+		d.log.DebugContext(ctx, "Failed to select server from topology", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	d.log.DebugContext(ctx, "Connecting to server", "server", server)
+	conn, err := server.Connection(ctx)
+	if err != nil {
+		d.log.DebugContext(ctx, "Failed to connect to server", "error", err)
+		return nil, trace.Wrap(err)
+	}
+	serverConn := &serverConnection{
+		connection: conn,
+		deployment: d,
+	}
+	return serverConn, nil
+}
+
+func (d *deployment) close(ctx context.Context) error {
+	if d.onClose != nil {
+		return trace.Wrap(d.onClose(ctx, d.log))
+	}
+	return nil
 }

@@ -20,7 +20,6 @@ import { useState } from 'react';
 
 import { ButtonBorder, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { dateTimeMatcher } from 'design/utils/match';
 
 import { Event } from 'teleport/services/audit';
 
@@ -30,7 +29,7 @@ import renderTypeCell from './EventTypeCell';
 import { ViewInPolicyButton } from './ViewInPolicyButton';
 
 export default function EventList(props: Props) {
-  const { events = [], fetchMore, fetchStatus, pageSize = 50 } = props;
+  const { events = [], sort, setSort } = props;
   const [detailsToShow, setDetailsToShow] = useState<Event>();
   return (
     <>
@@ -40,7 +39,7 @@ export default function EventList(props: Props) {
           {
             key: 'codeDesc',
             headerText: 'Type',
-            isSortable: true,
+            isSortable: false,
             render: event => renderTypeCell(event),
           },
           {
@@ -60,14 +59,10 @@ export default function EventList(props: Props) {
           },
         ]}
         emptyText={'No Events Found'}
-        isSearchable
-        searchableProps={['code', 'codeDesc', 'time', 'user', 'message', 'id']}
-        customSearchMatchers={[dateTimeMatcher(['time'])]}
-        initialSort={{ key: 'time', dir: 'DESC' }}
-        pagination={{ pageSize }}
-        fetching={{
-          onFetchMore: fetchMore,
-          fetchStatus,
+        customSort={{
+          fieldName: sort.fieldName,
+          dir: sort.dir,
+          onSort: setSort,
         }}
       />
       {detailsToShow && (
@@ -108,7 +103,8 @@ export function renderDescCell({ message }: Event) {
 
 type Props = {
   events: State['events'];
-  fetchMore: State['fetchMore'];
-  fetchStatus: State['fetchStatus'];
-  pageSize?: number;
+  search: State['search'];
+  setSearch: State['setSearch'];
+  sort: State['sort'];
+  setSort: State['setSort'];
 };

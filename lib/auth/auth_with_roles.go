@@ -82,6 +82,12 @@ type ServerWithRoles struct {
 	alog       events.AuditLogSessionStreamer
 	// context holds authorization context
 	context authz.Context
+
+	// scopedContext is an authz context that may or may not be scoped, some methods which have been
+	// converted to support scoped identities will be supplied with this context instead of the standard
+	// context field above. Only one of the two is non-nil at a time, so care must be taken to ensure
+	// that the correct one is used for a given method.
+	scopedContext *authz.ScopedContext
 }
 
 // CloseContext is closed when the auth server shuts down
@@ -654,7 +660,8 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 	if !a.hasBuiltinRole(req.Role) && req.Role != types.RoleInstance {
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
-	return a.authServer.GenerateHostCerts(ctx, req)
+	identity := a.context.Identity.GetIdentity()
+	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope)
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
@@ -2451,6 +2458,11 @@ func validateOracleJoinToken(token types.ProvisionToken) error {
 		for _, region := range allow.Regions {
 			if canonicalRegion, _ := oracle.ParseRegion(region); canonicalRegion == "" {
 				return trace.BadParameter("invalid region: %v", region)
+			}
+		}
+		for _, instanceID := range allow.Instances {
+			if _, err := oracle.ParseRegionFromOCID(instanceID); err != nil {
+				return trace.BadParameter("invalid instance OCID: %s", instanceID)
 			}
 		}
 	}
@@ -5580,6 +5592,14 @@ func (a *ServerWithRoles) GetSemaphores(ctx context.Context, filter types.Semaph
 	return a.authServer.GetSemaphores(ctx, filter)
 }
 
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (a *ServerWithRoles) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	if err := a.authorizeAction(types.KindSemaphore, types.VerbReadNoSecrets, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return a.authServer.ListSemaphores(ctx, limit, start, filter)
+}
+
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
 func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	if err := a.authorizeAction(types.KindSemaphore, types.VerbDelete); err != nil {
@@ -6278,6 +6298,15 @@ func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, target
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.Cache.GetLocks(ctx, inForceOnly, targets...)
+}
+
+// ListLocks returns a page of locks
+func (a *ServerWithRoles) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	if err := a.authorizeAction(types.KindLock, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.Cache.ListLocks(ctx, limit, startKey, filter)
 }
 
 // UpsertLock upserts a lock.
@@ -7344,6 +7373,28 @@ func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(ctx context.Contex
 		services.AccessState{MFAVerified: true})
 }
 
+// samlAppLabelFriendlyMsg returns a user friendly RBAC message to be displayed
+// in the Web UI or tctl when creating or updating a service provider resource.
+// It is only processed for errors that may have occurred due to missing
+// app_labels in role version 8.
+func samlAppLabelFriendlyMsg(err error, action string, emptyLabel bool) string {
+	if err == nil {
+		return ""
+	}
+	if !strings.Contains(err.Error(), "app_labels") {
+		return ""
+	}
+
+	const docs = "https://goteleport.com/docs/identity-governance/idps/saml-idp-rbac"
+	// TODO(sshah): adjust error message once we land Teleport role version 9.
+	if emptyLabel {
+		return fmt.Sprintf(`%s this resource with an empty label requires a version 8 role permitting wildcard "app_labels". `+
+			`Consider applying labels for granular access: %s `, action, docs)
+	}
+	return fmt.Sprintf(`You need a version 8 role with "app_labels" permitting label(s) configured for this resource. `+
+		`Check the SAML IdP RBAC guide for more details: %s`, docs)
+}
+
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error) {
 	if err := a.authorizeAction(types.KindSAMLIdPServiceProvider, types.VerbList); err != nil {
@@ -7423,7 +7474,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 	}
 
 	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, samlAppLabelFriendlyMsg(err, "Creating", len(sp.GetAllLabels()) == 0))
 	}
 
 	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
@@ -7480,10 +7531,10 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, existingSP); err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, samlAppLabelFriendlyMsg(err, "Updating", len(sp.GetAllLabels()) == 0))
 	}
 	if err = a.checkAccessToSAMLIdPServiceProvider(ctx, sp); err != nil {
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, samlAppLabelFriendlyMsg(err, "Updating", len(sp.GetAllLabels()) == 0))
 	}
 
 	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {

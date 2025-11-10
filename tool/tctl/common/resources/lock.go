@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -71,7 +72,19 @@ func lockHandler() Handler {
 
 func getLock(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	if ref.Name == "" {
-		locks, err := client.GetLocks(ctx, false)
+		locks, err := clientutils.CollectWithFallback(
+			ctx,
+			func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				var noFilter *types.LockFilter
+				return client.ListLocks(ctx, limit, start, noFilter)
+			},
+			func(ctx context.Context) ([]types.Lock, error) {
+				// TODO(okraport): DELETE IN v21
+				const inForceOnlyFalse = false
+				return client.GetLocks(ctx, inForceOnlyFalse)
+			},
+		)
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

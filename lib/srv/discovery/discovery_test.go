@@ -2939,6 +2939,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				ResourceGroups: []string{"testrg"},
 				Regions:        []string{"westcentralus"},
 				ResourceTags:   types.Labels{"teleport": {"yes"}},
+				Params:         &types.InstallerParams{},
 			}},
 		}
 	}
@@ -3308,6 +3309,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					ProjectIDs: []string{"*"},
 					Locations:  []string{"myzone"},
 					Labels:     types.Labels{"teleport": {"yes"}},
+					Params:     &types.InstallerParams{},
 				}},
 			},
 			wantInstalledInstances: []string{"myinstance1", "myinstance2"},

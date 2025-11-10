@@ -131,7 +131,7 @@ func (process *TeleportProcess) runRelayService() error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:    teleport.ComponentRelay,
 			Logger:       sublogger("node_watcher"),
-			Client:       conn.Client,
+			Client:       accessPoint,
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
@@ -203,7 +203,7 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer peerServer.Close()
 
-	transportTLSConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+	transportTLSConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

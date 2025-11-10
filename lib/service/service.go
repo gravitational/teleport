@@ -59,7 +59,6 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -144,6 +143,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/metrics"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -181,8 +181,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
+	libwatcher "github.com/gravitational/teleport/lib/watcher"
 	"github.com/gravitational/teleport/lib/web"
 	webapp "github.com/gravitational/teleport/lib/web/app"
 )
@@ -714,8 +716,14 @@ type TeleportProcess struct {
 	// conflicts.
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
-	// Telepeort's metric service.
+	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
+
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	// optionally other systems can add their gatherers, this can be used if they
+	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
+	*metrics.SyncGatherers
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
@@ -987,6 +995,12 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	return i, nil
 }
 
+// MetricsRegistry returns the process-scoped metrics registry.
+// New metrics must register against this and not the global prometheus registry.
+func (process *TeleportProcess) MetricsRegistry() prometheus.Registerer {
+	return process.metricsRegistry
+}
+
 // Process is a interface for processes
 type Process interface {
 	// Closer closes all resources used by the process
@@ -1078,14 +1092,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}()
 
-	// Use the custom metrics registry if specified, else create a new one.
-	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
-	// config.
-	metricsRegistry := cfg.MetricsRegistry
-	if metricsRegistry == nil {
-		metricsRegistry = prometheus.NewRegistry()
-	}
+	// config and reusing the same registry causes them to fail.
+	metricsRegistry := prometheus.NewRegistry()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1288,6 +1298,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
+		SyncGatherers: metrics.NewSyncGatherers(
+			metricsRegistry,
+			prometheus.DefaultGatherer,
+		),
 	}
 
 	process.registerExpectedServices(cfg)
@@ -1646,7 +1660,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		if err := createLockedPIDFile(cfg.PIDFile); err != nil {
+		if err := procutils.CreateLockedPIDFile(cfg.PIDFile); err != nil {
 			return nil, trace.Wrap(err, "creating pidfile")
 		}
 	}
@@ -2196,6 +2210,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterName:          cn,
 		AuthPreferenceGetter: clusterConfig,
 		FIPS:                 cfg.FIPS,
+		Clock:                cfg.Clock,
 	}
 
 	switch {
@@ -2311,12 +2326,14 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		auditServiceConfig := events.AuditLogConfig{
-			Context:       process.ExitContext(),
-			DataDir:       filepath.Join(cfg.DataDir, teleport.LogsDir),
-			ServerID:      hostUUID,
-			UploadHandler: uploadHandler,
-			ExternalLog:   externalLog,
-			Decrypter:     encryptedIO,
+			Context:                   process.ExitContext(),
+			DataDir:                   filepath.Join(cfg.DataDir, teleport.LogsDir),
+			ServerID:                  hostUUID,
+			UploadHandler:             uploadHandler,
+			ExternalLog:               externalLog,
+			Decrypter:                 encryptedIO,
+			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingMetadataProvider: recordingMetadataProvider,
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
@@ -2417,6 +2434,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Logger:                      logger,
 			RunWhileLockedRetryInterval: cfg.Testing.RunWhileLockedRetryInterval,
 			SessionSummarizerProvider:   sessionSummarizerProvider,
+			RecordingMetadataProvider:   recordingMetadataProvider,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
@@ -2439,6 +2457,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	authServer.EncryptedIO = encryptedIO
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -2509,6 +2528,7 @@ func (process *TeleportProcess) initAuthService() error {
 	recordingMetadataService, err := recordingmetadatav1.NewRecordingMetadataService(recordingmetadatav1.RecordingMetadataServiceConfig{
 		Streamer:      authServer,
 		UploadHandler: authServer,
+		Encrypter:     encryptedIO,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2527,13 +2547,15 @@ func (process *TeleportProcess) initAuthService() error {
 		logger.WarnContext(process.ExitContext(), "auth service's upload completer is disabled, abandoned uploads may accumulate in external storage")
 	case uploadHandler != nil:
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
-			Uploader:       uploadHandler,
-			Component:      teleport.ComponentAuth,
-			ClusterName:    clusterName,
-			AuditLog:       process.auditLog,
-			SessionTracker: authServer.Services,
-			Semaphores:     authServer.Services,
-			ServerID:       hostUUID,
+			Uploader:                  uploadHandler,
+			Component:                 teleport.ComponentAuth,
+			ClusterName:               clusterName,
+			AuditLog:                  process.auditLog,
+			SessionTracker:            authServer.Services,
+			Semaphores:                authServer.Services,
+			ServerID:                  hostUUID,
+			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingMetadataProvider: recordingMetadataProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err, "starting upload completer")
@@ -2615,65 +2637,20 @@ func (process *TeleportProcess) initAuthService() error {
 		component := teleport.Component(teleport.ComponentAuth, "backend")
 		process.ExpectService(component)
 		process.RegisterFunc("auth.wait-for-event-stream", func() error {
-			start := process.Clock.Now()
-
-			retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-				First:  0,
-				Driver: retryutils.NewLinearDriver(5 * time.Second),
-				Max:    time.Minute,
-				Jitter: retryutils.DefaultJitter,
-				Clock:  process.Clock,
-			})
-			if err != nil {
-				return trace.Wrap(err, "creating the backend watch retry (this is a bug)")
+			if err := libwatcher.WaitForReady(process.ExitContext(), libwatcher.WaitForReadyConfig{
+				Watcher: authServer,
+				Logger:  process.logger.With(teleport.ComponentLabel, component),
+				Clock:   process.Clock,
+			}); err != nil {
+				return trace.Wrap(err)
 			}
-			log := process.logger.With(teleport.ComponentLabel, component)
-			var attempt int
-
-			// The wait logic is retried until it is successful or a termination is triggered.
-			for {
-				attempt++
-				select {
-				case <-process.GracefulExitContext().Done():
-					return trace.Wrap(err, "context canceled while backing off (attempt %d)", attempt)
-				case <-retry.After():
-					retry.Inc()
-				}
-
-				w, err := authServer.NewWatcher(process.ExitContext(), types.Watch{
-					Name: "auth.wait-for-backend",
-					Kinds: []types.WatchKind{
-						{Kind: types.KindClusterName},
-					},
-				})
-				if err != nil {
-					log.ErrorContext(process.ExitContext(), "Failed to create watcher", "kind", types.KindClusterName, "attempt", attempt, "error", err)
-					continue
-				}
-
-				select {
-				case evt := <-w.Events():
-					w.Close()
-					if evt.Type != types.OpInit {
-						log.ErrorContext(process.ExitContext(), "expected init event, got something else (this is a bug)", "kind", types.KindClusterName, "attempt", attempt, "error", err, "event_type", evt.Type)
-						continue
-					}
-					process.logger.With(teleport.ComponentLabel, component).InfoContext(process.ExitContext(), "auth backend initialized", "duration", process.Clock.Since(start).String())
-					process.OnHeartbeat(component)(nil)
-					return nil
-				case <-w.Done():
-					log.ErrorContext(process.ExitContext(), "watcher closed while waiting for backend init", "kind", types.KindClusterName, "attempt", attempt, "error", w.Error())
-					continue
-				case <-process.GracefulExitContext().Done():
-					w.Close()
-					return trace.Wrap(err, "context canceled while waiting for backendf init event")
-				}
-			}
+			process.OnHeartbeat(component)(nil)
+			return nil
 		})
 	}
 
 	// Register TLS endpoint of the auth service
-	tlsConfig, err := connector.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := process.ServerTLSConfig(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2985,7 +2962,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Registerer = process.metricsRegistry
 
 	cfg.Access = services.Access
-	cfg.AccessLists = services.AccessLists
+	cfg.AccessLists = services.AccessListsInternal
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
 	cfg.AppSession = services.Identity
 	cfg.Applications = services.Applications
@@ -3285,6 +3262,19 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 	return events.NewAsyncEmitter(events.AsyncEmitterConfig{
 		Inner: emitter,
 	})
+}
+
+// ServerTLSConfig returns a new server-side [*tls.Config] that presents the
+// connector's credentials as its certificate. The returned tls.Config doesn't
+// request or trust any client certificates, so the caller is responsible for
+// configuring it.
+func (process *TeleportProcess) ServerTLSConfig(conn *Connector) (*tls.Config, error) {
+	conf := utils.TLSConfig(process.Config.CipherSuites)
+	conf.Time = process.Clock.Now
+	conf.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+		return conn.serverGetCertificate()
+	}
+	return conf, nil
 }
 
 // initInstance initializes the pseudo-service "Instance" that is active on all teleport instances.
@@ -3673,7 +3663,7 @@ func (process *TeleportProcess) initSSH() error {
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
 			ctx := payloadContext(event.Payload)
-			restartingOnGracefulShutdown = services.IsProcessReloading(ctx) || services.HasProcessForked(ctx)
+			restartingOnGracefulShutdown = services.HasProcessForked(ctx)
 			warnOnErr(ctx, s.Shutdown(ctx), logger)
 		}
 
@@ -3762,6 +3752,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	// use the local auth server for uploads if auth happens to be
 	// running in this process, otherwise wait for the instance client
 	var uploaderClient procUploader
+	var encryptedRecordingMaxUploadSize int
 	if la := process.getLocalAuth(); la != nil {
 		// The auth service's upload completer is initialized separately,
 		// so as a special case we can stop early if auth happens to be
@@ -3777,6 +3768,7 @@ func (process *TeleportProcess) initUploaderService() error {
 			return trace.Wrap(err, "cannot get cluster name")
 		}
 		clusterName = cn.GetClusterName()
+
 	} else {
 		logger.DebugContext(process.ExitContext(), "auth is not running in-process, waiting for instance connector")
 		conn, err := waitForInstanceConnector(process, logger)
@@ -3788,6 +3780,10 @@ func (process *TeleportProcess) initUploaderService() error {
 		}
 		uploaderClient = conn.Client
 		clusterName = conn.ClusterName()
+
+		// encrypted uploads are aggregated and uploaded directly rather than with an event stream.
+		// Since we are using the gRPC client, we must set this maximum for the aggregation step.
+		encryptedRecordingMaxUploadSize = 4 * 1024 * 1024 // 4MiB, default gRPC max msg recv size.
 	}
 
 	logger.InfoContext(process.ExitContext(), "starting upload completer service")
@@ -3806,14 +3802,14 @@ func (process *TeleportProcess) initUploaderService() error {
 	for _, path := range paths {
 		for i := 1; i < len(path); i++ {
 			dir := filepath.Join(path[:i+1]...)
-			logger.InfoContext(process.ExitContext(), "Creating directory.", "directory", dir)
+			logger.Log(process.ExitContext(), logutils.TraceLevel, "Creating directory.", "directory", dir)
 			err := os.Mkdir(dir, 0o755)
 			err = trace.ConvertSystemError(err)
 			if err != nil && !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
 			}
 			if uid != nil && gid != nil {
-				logger.InfoContext(process.ExitContext(), "Setting directory owner.", "directory", dir, "uid", *uid, "gid", *gid)
+				logger.Log(process.ExitContext(), logutils.TraceLevel, "Setting directory owner.", "directory", dir, "uid", *uid, "gid", *gid)
 				err := os.Lchown(dir, *uid, *gid)
 				if err != nil {
 					return trace.ConvertSystemError(err)
@@ -3826,12 +3822,13 @@ func (process *TeleportProcess) initUploaderService() error {
 	corruptedDir := filepath.Join(paths[1]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
-		Streamer:                   uploaderClient,
-		ScanDir:                    uploadsDir,
-		CorruptedDir:               corruptedDir,
-		EventsC:                    process.Config.Testing.UploadEventsC,
-		InitialScanDelay:           15 * time.Second,
-		EncryptedRecordingUploader: uploaderClient,
+		Streamer:                        uploaderClient,
+		ScanDir:                         uploadsDir,
+		CorruptedDir:                    corruptedDir,
+		EventsC:                         process.Config.Testing.UploadEventsC,
+		InitialScanDelay:                15 * time.Second,
+		EncryptedRecordingUploader:      uploaderClient,
+		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4898,7 +4895,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	serverTLSConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
+	serverTLSConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -6672,7 +6669,7 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+		tlsConfig, err := process.ServerTLSConfig(conn)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -7010,7 +7007,11 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 		}
 	}
 
-	creds, err := cert.GenerateSelfSignedCert(hosts, ips)
+	now := time.Now
+	if cfg.Clock != nil {
+		now = cfg.Clock.Now
+	}
+	creds, err := cert.GenerateSelfSignedCert(hosts, ips, nil, now)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -7216,7 +7217,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		return nil, nil
 	}
 	clusterName := cfg.conn.ClusterName()
-	serverTLSConfig, err := cfg.conn.ServerTLSConfig(process.Config.CipherSuites)
+	serverTLSConfig, err := process.ServerTLSConfig(cfg.conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7377,36 +7378,4 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	}
 	statusService := local.NewStatusService(process.backend)
 	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
-}
-
-// createLockedPIDFile creates a PID file in the path specified by pidFile
-// containing the current PID, atomically swapping it in the final place and
-// leaving it with an exclusive advisory lock that will get released when the
-// process ends, for the benefit of "pkill -L".
-func createLockedPIDFile(pidFile string) error {
-	pending, err := renameio.NewPendingFile(pidFile, renameio.WithPermissions(0o644))
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	defer pending.Cleanup()
-	if _, err := fmt.Fprintf(pending, "%v\n", os.Getpid()); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	const minimumDupFD = 3 // skip stdio
-	locker, err := unix.FcntlInt(pending.Fd(), unix.F_DUPFD_CLOEXEC, minimumDupFD)
-	runtime.KeepAlive(pending)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	if err := unix.Flock(locker, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		_ = unix.Close(locker)
-		return trace.ConvertSystemError(err)
-	}
-	// deliberately leak the fd to hold the lock until the process dies
-
-	if err := pending.CloseAtomicallyReplace(); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
 }

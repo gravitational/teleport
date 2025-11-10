@@ -178,6 +178,11 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
+
+	// GetAssignedScope always returns an empty string because a [ProvisionToken] is always
+	// unscoped
+	GetAssignedScope() string
+
 	// Clone creates a copy of the token.
 	Clone() ProvisionToken
 }
@@ -652,6 +657,12 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 	return name
 }
 
+// GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
+// unscoped
+func (p *ProvisionTokenV2) GetAssignedScope() string {
+	return ""
+}
+
 // String returns the human readable representation of a provisioning token.
 func (p ProvisionTokenV2) String() string {
 	expires := "never"
@@ -1038,6 +1049,9 @@ func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
 				"allow[%d]: tenancy must be set",
 				i,
 			)
+		}
+		if len(rule.Instances) > 100 {
+			return trace.BadParameter("allow[%d]: maximum 100 instances may be set (found %d)", i, len(rule.Instances))
 		}
 	}
 	return nil

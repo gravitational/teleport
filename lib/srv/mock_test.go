@@ -141,16 +141,15 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 
-	authCfg := &auth.InitConfig{
+	authServer, err := auth.NewServer(&auth.InitConfig{
 		Backend:        bk,
 		VersionStorage: authtest.NewFakeTeleportVersion(),
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		HostUUID:       uuid.NewString(),
-	}
-
-	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
+		Clock:          clock,
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, authServer.Close())
