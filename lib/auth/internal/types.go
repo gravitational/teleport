@@ -162,6 +162,9 @@ type CertRequest struct {
 	JoinAttributes *workloadidentityv1pb.JoinAttrs
 	// RequesterName is the name of the service that sent the request.
 	RequesterName proto.UserCertsRequest_Requester
+	// DelegationSessionID is the ID of the Delegation Session this certificate
+	// is being generated for.
+	DelegationSessionID string
 }
 
 // Check verifies the cert request is valid.
@@ -244,6 +247,9 @@ type NewWebSessionRequest struct {
 	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
 	// authentication and some differences in locking behavior.
 	Scope string
+	// DelegationSessionID is the ID of the Delegation Session this session is
+	// being created for.
+	DelegationSessionID string
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.
