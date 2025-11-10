@@ -1,7 +1,7 @@
 ---
 title: Run the Teleport Terraform Provider on a Server
 sidebar_label: Dedicated Server
-description: How to manage dynamic resources using the Teleport Terraform provider from a dedicated deployment server with MachineID.
+description: How to manage dynamic resources using the Teleport Terraform provider from a dedicated deployment server with Machine & Workload Identity .
 tags:
  - infrastructure-as-code
  - how-to
@@ -16,12 +16,13 @@ CI/CD and short-lived cloud VMs. If you are in one of those cases, please follow
 - [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
 - [Run the Terraform Provider locally](./local.mdx)
 
-This guide will setup MachineID on the server. MachineID is Teleport's feature
-for providing identities to machines and services, rather than users.
+This guide will setup Teleport Machine & Workload Identity on the server.
+Machine & Workload Identity provides identities to machines and services, rather
+than human users.
 
 ## How it works
 
-This setup relies on a MachineID daemon (`tbot`) to join the Teleport cluster, obtain and refresh credentials for the
+This setup relies on a Machine & Workload Identity daemon (`tbot`) to join the Teleport cluster, obtain and refresh credentials for the
 Terraform provider. The daemon stores its identity on the disk and refresh the terraform credentials, typically every
 30 minutes.
 
