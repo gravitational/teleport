@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev-rhammonds.build.7"
+const Version = "19.0.0-dev-rhammonds.build.8"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev-rhammonds.build.7"
+const VersionPreRelease = "dev-rhammonds.build.8"
 const VersionMetadata = ""
