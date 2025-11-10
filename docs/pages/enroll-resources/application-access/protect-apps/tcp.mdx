@@ -1,5 +1,6 @@
 ---
 title: TCP Application Access
+sidebar_label: TCP Applications
 description: How to configure Teleport for accessing plain TCP apps
 tags:
  - how-to
@@ -221,10 +222,10 @@ Support for multiple ports is available in Teleport v17.1+. Connections from Tel
 do not support multiple ports are routed to the first port from the application specification. An
 Application Service that does not support multiple ports will not be able to handle traffic to a
 multi-port application if it receives such application through [dynamic
-registration](./dynamic-registration.mdx) from an Auth Service.
+registration](../guides/dynamic-registration.mdx) from an Auth Service.
 
 ### Further reading
 
 - Learn about [access controls](../controls.mdx) for applications.
 - Learn how to [connect to TCP apps with VNet](../../../connect-your-client/vnet.mdx) and
-  [configure VNet for custom `public_addr`](vnet.mdx).
+  [configure VNet for custom `public_addr`](../guides/vnet.mdx).
