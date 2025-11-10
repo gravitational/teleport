@@ -226,6 +226,10 @@ type Identity struct {
 	// OriginClusterName is the name of the cluster where the identity is
 	// authenticated.
 	OriginClusterName string
+
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -616,6 +620,10 @@ var (
 	// AgentScopeASN1ExtensionOID is an extension OID that contains the agent scope
 	// used to tie the certificate to a spec
 	AgentScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
+
+	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
+	// identifier of the Delegation Session this certificate was created for.
+	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
 )
 
 // Device Trust OIDs.
@@ -1029,6 +1037,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		})
 	}
 
+	if id.DelegationSessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
+			Type:  DelegationSessionIDASN1ExtensionOID,
+			Value: id.DelegationSessionID,
+		})
+	}
+
 	return subject, nil
 }
 
@@ -1306,6 +1321,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err := unmarshaler.Unmarshal([]byte(val), id.JoinAttributes); err != nil {
 					return nil, trace.Wrap(err)
 				}
+			}
+		case attr.Type.Equal(DelegationSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DelegationSessionID = val
 			}
 		}
 	}
