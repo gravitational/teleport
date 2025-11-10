@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -147,13 +148,19 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		tok, err := s.cfg.ScopedTokenService.UseScopedToken(ctx, name)
+		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+			Name: name,
+		})
 		if err != nil {
 			scopedErr = err
 			return
 		}
+		if err := joining.ValidateTokenForUse(res.GetToken()); err != nil {
+			scopedErr = err
+			return
+		}
 
-		scoped, scopedErr = joining.NewToken(tok)
+		scoped, scopedErr = joining.NewToken(res.GetToken())
 	}()
 
 	wg.Add(1)
@@ -487,7 +494,7 @@ func (s *Server) makeHostResult(
 	token provision.Token,
 	rawClaims any,
 ) (*messages.HostResult, error) {
-	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), token.GetAssignedScope(), rawClaims)
+	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), rawClaims)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -513,7 +520,6 @@ func makeHostCertsParams(
 	authCtx *joinauthz.Context,
 	hostParams *messages.HostParams,
 	joinMethod types.JoinMethod,
-	scope string,
 	rawClaims any,
 ) (*HostCertsParams, error) {
 	// GenerateHostCertsForJoin requires the TLS key to be PEM-encoded.
