@@ -115,7 +115,6 @@ type ServerConfig struct {
 	FIPS               bool
 	ScopedTokenService services.ScopedTokenService
 	OracleHTTPClient   utils.HTTPDoClient
-	Logger             *slog.Logger
 }
 
 // Server implements cluster joining for nodes and bots.
@@ -126,9 +125,6 @@ type Server struct {
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
-	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, "join-service")
-	}
 	return &Server{
 		cfg:               cfg,
 		oracleRootCACache: oraclejoin.NewRootCACache(),

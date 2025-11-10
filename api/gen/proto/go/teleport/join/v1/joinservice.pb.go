@@ -2648,44 +2648,6 @@ func (x *BotResult) GetBoundKeypairResult() *BoundKeypairResult {
 	return nil
 }
 
-// The final message sent from the client to the cluster signaling that credentials have been
-// successfully received.
-type Confirm struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Confirm) Reset() {
-	*x = Confirm{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[35]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Confirm) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Confirm) ProtoMessage() {}
-
-func (x *Confirm) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[35]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Confirm.ProtoReflect.Descriptor instead.
-func (*Confirm) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{35}
-}
-
 // JoinResponse is the message type sent from the server to the joining client.
 type JoinResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2694,7 +2656,6 @@ type JoinResponse struct {
 	//	*JoinResponse_Init
 	//	*JoinResponse_Challenge
 	//	*JoinResponse_Result
-	//	*JoinResponse_Confirm
 	Payload       isJoinResponse_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2702,7 +2663,7 @@ type JoinResponse struct {
 
 func (x *JoinResponse) Reset() {
 	*x = JoinResponse{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[36]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2714,7 +2675,7 @@ func (x *JoinResponse) String() string {
 func (*JoinResponse) ProtoMessage() {}
 
 func (x *JoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[36]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2727,7 +2688,7 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
 func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{36}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *JoinResponse) GetPayload() isJoinResponse_Payload {
@@ -2764,15 +2725,6 @@ func (x *JoinResponse) GetResult() *Result {
 	return nil
 }
 
-func (x *JoinResponse) GetConfirm() *Confirm {
-	if x != nil {
-		if x, ok := x.Payload.(*JoinResponse_Confirm); ok {
-			return x.Confirm
-		}
-	}
-	return nil
-}
-
 type isJoinResponse_Payload interface {
 	isJoinResponse_Payload()
 }
@@ -2797,20 +2749,11 @@ type JoinResponse_Result struct {
 	Result *Result `protobuf:"bytes,3,opt,name=result,proto3,oneof"`
 }
 
-type JoinResponse_Confirm struct {
-	// Confirm is the final message sent from the client back to the cluster after a successfuljoin.
-	// It signals to the cluster that the client received their credentials and any post provisioning
-	// actions can be taken.
-	Confirm *Confirm `protobuf:"bytes,4,opt,name=confirm,proto3,oneof"`
-}
-
 func (*JoinResponse_Init) isJoinResponse_Payload() {}
 
 func (*JoinResponse_Challenge) isJoinResponse_Payload() {}
 
 func (*JoinResponse_Result) isJoinResponse_Payload() {}
-
-func (*JoinResponse_Confirm) isJoinResponse_Payload() {}
 
 // ProxySuppliedParams holds parameters set by the Proxy when nodes join
 // via the proxy address. They must only be trusted if the incoming join
@@ -2828,7 +2771,7 @@ type ClientInit_ProxySuppliedParams struct {
 
 func (x *ClientInit_ProxySuppliedParams) Reset() {
 	*x = ClientInit_ProxySuppliedParams{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[37]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2840,7 +2783,7 @@ func (x *ClientInit_ProxySuppliedParams) String() string {
 func (*ClientInit_ProxySuppliedParams) ProtoMessage() {}
 
 func (x *ClientInit_ProxySuppliedParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[37]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3047,13 +2990,11 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\tBotResult\x12B\n" +
 	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12[\n" +
 	"\x14bound_keypair_result\x18\x02 \x01(\v2$.teleport.join.v1.BoundKeypairResultH\x00R\x12boundKeypairResult\x88\x01\x01B\x17\n" +
-	"\x15_bound_keypair_result\"\t\n" +
-	"\aConfirm\"\xf5\x01\n" +
+	"\x15_bound_keypair_result\"\xbe\x01\n" +
 	"\fJoinResponse\x122\n" +
 	"\x04init\x18\x01 \x01(\v2\x1c.teleport.join.v1.ServerInitH\x00R\x04init\x12;\n" +
 	"\tchallenge\x18\x02 \x01(\v2\x1b.teleport.join.v1.ChallengeH\x00R\tchallenge\x122\n" +
-	"\x06result\x18\x03 \x01(\v2\x18.teleport.join.v1.ResultH\x00R\x06result\x125\n" +
-	"\aconfirm\x18\x04 \x01(\v2\x19.teleport.join.v1.ConfirmH\x00R\aconfirmB\t\n" +
+	"\x06result\x18\x03 \x01(\v2\x18.teleport.join.v1.ResultH\x00R\x06resultB\t\n" +
 	"\apayload2X\n" +
 	"\vJoinService\x12I\n" +
 	"\x04Join\x12\x1d.teleport.join.v1.JoinRequest\x1a\x1e.teleport.join.v1.JoinResponse(\x010\x01BLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1;joinv1b\x06proto3"
@@ -3071,7 +3012,7 @@ func file_teleport_join_v1_joinservice_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_join_v1_joinservice_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(GivingUp_Reason)(0),                   // 0: teleport.join.v1.GivingUp.Reason
 	(*ClientInit)(nil),                     // 1: teleport.join.v1.ClientInit
@@ -3109,16 +3050,15 @@ var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(*Certificates)(nil),                   // 33: teleport.join.v1.Certificates
 	(*HostResult)(nil),                     // 34: teleport.join.v1.HostResult
 	(*BotResult)(nil),                      // 35: teleport.join.v1.BotResult
-	(*Confirm)(nil),                        // 36: teleport.join.v1.Confirm
-	(*JoinResponse)(nil),                   // 37: teleport.join.v1.JoinResponse
-	(*ClientInit_ProxySuppliedParams)(nil), // 38: teleport.join.v1.ClientInit.ProxySuppliedParams
-	(*timestamppb.Timestamp)(nil),          // 39: google.protobuf.Timestamp
+	(*JoinResponse)(nil),                   // 36: teleport.join.v1.JoinResponse
+	(*ClientInit_ProxySuppliedParams)(nil), // 37: teleport.join.v1.ClientInit.ProxySuppliedParams
+	(*timestamppb.Timestamp)(nil),          // 38: google.protobuf.Timestamp
 }
 var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
-	38, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
+	37, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
 	2,  // 1: teleport.join.v1.HostParams.public_keys:type_name -> teleport.join.v1.PublicKeys
 	2,  // 2: teleport.join.v1.BotParams.public_keys:type_name -> teleport.join.v1.PublicKeys
-	39, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
+	38, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
 	3,  // 4: teleport.join.v1.ClientParams.host_params:type_name -> teleport.join.v1.HostParams
 	4,  // 5: teleport.join.v1.ClientParams.bot_params:type_name -> teleport.join.v1.BotParams
 	5,  // 6: teleport.join.v1.TokenInit.client_params:type_name -> teleport.join.v1.ClientParams
@@ -3161,14 +3101,13 @@ var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
 	30, // 43: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
 	31, // 44: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
 	32, // 45: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
-	36, // 46: teleport.join.v1.JoinResponse.confirm:type_name -> teleport.join.v1.Confirm
-	29, // 47: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
-	37, // 48: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
-	48, // [48:49] is the sub-list for method output_type
-	47, // [47:48] is the sub-list for method input_type
-	47, // [47:47] is the sub-list for extension type_name
-	47, // [47:47] is the sub-list for extension extendee
-	0,  // [0:47] is the sub-list for field type_name
+	29, // 46: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
+	36, // 47: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
+	47, // [47:48] is the sub-list for method output_type
+	46, // [46:47] is the sub-list for method input_type
+	46, // [46:46] is the sub-list for extension type_name
+	46, // [46:46] is the sub-list for extension extendee
+	0,  // [0:46] is the sub-list for field type_name
 }
 
 func init() { file_teleport_join_v1_joinservice_proto_init() }
@@ -3220,11 +3159,10 @@ func file_teleport_join_v1_joinservice_proto_init() {
 		(*Result_BotResult)(nil),
 	}
 	file_teleport_join_v1_joinservice_proto_msgTypes[34].OneofWrappers = []any{}
-	file_teleport_join_v1_joinservice_proto_msgTypes[36].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[35].OneofWrappers = []any{
 		(*JoinResponse_Init)(nil),
 		(*JoinResponse_Challenge)(nil),
 		(*JoinResponse_Result)(nil),
-		(*JoinResponse_Confirm)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3232,7 +3170,7 @@ func file_teleport_join_v1_joinservice_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_join_v1_joinservice_proto_rawDesc), len(file_teleport_join_v1_joinservice_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   38,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

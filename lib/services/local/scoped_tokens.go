@@ -70,6 +70,9 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 		return nil, trace.Wrap(err)
 	}
 
+	// status can not be explicitly assigned during creation
+	req.Token.Status = &joiningv1.ScopedTokenStatus{}
+
 	created, err := s.svc.CreateResource(ctx, req.GetToken())
 	return &joiningv1.CreateScopedTokenResponse{
 		Token: created,
@@ -88,19 +91,17 @@ func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.
 	return &joiningv1.GetScopedTokenResponse{Token: token}, nil
 }
 
-// tokenReuseDuration is how long a scoped token can be reused by the host that consumed it
+// tokenReuseDuration is how long a scoped token can be reused by the host that
+// consumed it
 const tokenReuseDuration = time.Minute * 10
 
-// UseScopedToken attempts to use a scoped token to provision a resource. A [trace.LimitExceeded]
-// error is returned if the token is expired or has no remaining uses, which should be treated as
-// a failure to provision. The given public key is an idempotency key to allow the same host to
-// retry joining due to spurious failures without consuming the token. Once a host has confirmed
-// provisioning, "free" retries will no longer be possible.
+// UseScopedToken attempts to use a scoped token to provision a resource. A
+// [trace.LimitExceededError] error is returned if the token is expired or has
+// been exhausted, which should be treated as a failure to provision. The
+// given public key is an idempotency key to allow the same host to temporarily
+// retry a failed join due to spurious errors even after the token has been
+// consumed.
 func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv1.ScopedToken, publicKey []byte) (*joiningv1.ScopedToken, error) {
-	token, err := s.svc.GetResource(ctx, token.GetMetadata().GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := joining.ValidateTokenForUse(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -117,7 +118,9 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv
 	}
 
 	if token.Status.Usage == nil {
-		token.Status.Usage = &joiningv1.ScopedTokenStatus_Oneshot{}
+		token.Status.Usage = &joiningv1.ScopedTokenStatus_Oneshot{
+			Oneshot: &joiningv1.OneshotStatus{},
+		}
 	}
 
 	usage := token.Status.GetOneshot()
@@ -141,7 +144,7 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv
 		usage.ReusableUntil = timestamppb.New(time.Now().Add(tokenReuseDuration))
 	}
 
-	token, err = s.svc.ConditionalUpdateResource(ctx, token)
+	token, err := s.svc.ConditionalUpdateResource(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

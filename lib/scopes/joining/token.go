@@ -145,11 +145,10 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 
 var ErrTokenExpired = &trace.LimitExceededError{Message: "scoped token is expired"}
 
-var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usages are exhausted"}
+var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage exhausted"}
 
 // ValidateTokenForUse checks if a given scoped token can be used for
-// provisioning. Returns a [trace.LimitExceeded] error if the token is expired
-// or has no remaining uses.
+// provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	if err := WeakValidateToken(token); err != nil {
 		return trace.Wrap(err)

@@ -50,6 +50,9 @@ func (s *Server) handleTokenJoin(
 		nil, /*rawClaims*/
 		nil, /*attrs*/
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Scoped tokens have usage limits, so once we've verified that host certs could
 	// be generated we need to attempt to consume the token. Any error should be
@@ -61,5 +64,5 @@ func (s *Server) handleTokenJoin(
 		}
 	}
 
-	return result, trace.Wrap(err)
+	return result, nil
 }
