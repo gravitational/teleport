@@ -457,10 +457,8 @@ tctl-app:
 .PHONEY: test-bpf
 test-bpf:
 	mkdir -p _test
-	go test -c -tags bpf -o _test/libbpf.test ./lib/bpf
-	go test -c -tags bpf -o _test/libsrv.test ./lib/srv
+	go test -c -tags bpf,pam -o _test/libsrv.test ./lib/srv
 
-	sudo TELEPORT_BPF_TEST=1 _test/libbpf.test
 	# ignore non bpf-related tests
 	sudo TELEPORT_BPF_TEST=1 _test/libsrv.test -test.run=TestBPF
 

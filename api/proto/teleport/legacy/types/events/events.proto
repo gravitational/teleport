@@ -1020,6 +1020,9 @@ message BPFMetadata {
 
   // Program is name of the executable.
   string Program = 3 [(gogoproto.jsontag) = "program"];
+
+  // AuditSessionID is the internal audit login session ID (auid).
+  uint32 AuditSessionID = 4 [(gogoproto.jsontag) = "audit_session_id"];
 }
 
 // Status contains common command or operation status fields
