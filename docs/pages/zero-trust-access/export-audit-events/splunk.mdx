@@ -79,7 +79,7 @@ We'll re-purpose the files generated for Fluentd in our Universal Forwarder conf
 ### Enable issuing of credentials for the Event Handler role
 
 <Tabs>
-<TabItem label="Machine ID">
+<TabItem label="Machine & Workload Identity">
 (!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
 </TabItem>
 <TabItem label="Long-lived identity files">
@@ -95,7 +95,7 @@ dangerous if exfiltrated, though in demo deployments, you can generate
 longer-lived identity files with `tctl`:
 
 <Tabs>
-<TabItem label="Machine ID">
+<TabItem label="Machine & Workload Identity">
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-event-handler-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
@@ -414,6 +414,6 @@ about impersonation, read [our
 guide](../authentication/impersonation.mdx).
 
 While this guide uses the `tctl auth sign` command to issue credentials for the
-Teleport Event Handler, production clusters should use Machine ID for safer,
-more reliable renewals. Read [our guide](../../machine-workload-identity/getting-started.mdx)
-to getting started with Machine ID.
+Teleport Event Handler, production clusters should use Machine & Workload
+Identity for safer, more reliable renewals. Read [our guide](../../machine-workload-identity/getting-started.mdx)
+to getting started with Machine & Workload Identity.

@@ -367,8 +367,8 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be
-      # able to authenticate with the cluster.
+      # The "id-token: write" permission is required or Machine & Workload
+      # Identity will not be able to authenticate with the cluster.
       id-token: write
       contents: read
     name: terraform-plan
