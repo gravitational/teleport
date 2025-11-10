@@ -21,6 +21,7 @@ package peer
 import (
 	"testing"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -30,12 +31,13 @@ import (
 // TestServerTLS ensures that only trusted certificates with the proxy role
 // are accepted by the server.
 func TestServerTLS(t *testing.T) {
-	ca1 := newSelfSignedCA(t)
-	ca2 := newSelfSignedCA(t)
+	clock := clockwork.NewRealClock()
+	ca1 := newSelfSignedCA(t, clock)
+	ca2 := newSelfSignedCA(t, clock)
 
 	// trusted certificates with proxy roles.
-	client1 := setupClient(t, ca1, newAtomicCA(ca1), types.RoleProxy)
-	_, serverDef1 := setupServer(t, "s1", ca1, ca1, types.RoleProxy)
+	client1 := setupClient(t, ca1, newAtomicCA(ca1), types.RoleProxy, clock)
+	_, serverDef1 := setupServer(t, "s1", ca1, ca1, types.RoleProxy, clock)
 	err := client1.updateConnections([]types.Server{serverDef1})
 	require.NoError(t, err)
 	stream, _, err := client1.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
@@ -44,16 +46,16 @@ func TestServerTLS(t *testing.T) {
 	stream.Close()
 
 	// trusted certificates with incorrect server role.
-	client2 := setupClient(t, ca1, newAtomicCA(ca1), types.RoleNode)
-	_, serverDef2 := setupServer(t, "s2", ca1, ca1, types.RoleProxy)
+	client2 := setupClient(t, ca1, newAtomicCA(ca1), types.RoleNode, clock)
+	_, serverDef2 := setupServer(t, "s2", ca1, ca1, types.RoleProxy, clock)
 	err = client2.updateConnections([]types.Server{serverDef2})
 	require.NoError(t, err) // connection succeeds but is in transient failure state
 	_, _, err = client2.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.Error(t, err)
 
 	// certificates with correct role from different CAs
-	client3 := setupClient(t, ca1, newAtomicCA(ca2), types.RoleProxy)
-	_, serverDef3 := setupServer(t, "s3", ca2, ca1, types.RoleProxy)
+	client3 := setupClient(t, ca1, newAtomicCA(ca2), types.RoleProxy, clock)
+	_, serverDef3 := setupServer(t, "s3", ca2, ca1, types.RoleProxy, clock)
 	err = client3.updateConnections([]types.Server{serverDef3})
 	require.NoError(t, err)
 	stream, _, err = client3.dial([]string{"s3"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
