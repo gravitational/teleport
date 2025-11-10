@@ -589,7 +589,8 @@ func (process *TeleportProcess) firstTimeConnectIdentityLocal(role types.SystemR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.LocalRegister(id, localAuth, additionalPrincipals, dnsNames, process.Config.AdvertiseIP, systemRoles)
+	identity, err := auth.LocalRegister(id, localAuth, additionalPrincipals, dnsNames, process.Config.AdvertiseIP, systemRoles)
+	return identity, trace.Wrap(err)
 }
 
 func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.SystemRole) (*state.Identity, error) {
@@ -623,7 +624,8 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 		//
 		// TODO(nklaassen): DELETE IN 20
 		process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity does not include required system role, must re-join with a provision token", "role", role)
-		return process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		identity, err := process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		return identity, trace.Wrap(err)
 	}
 	// The instance connector does have the role requested, we can reregister
 	// without going through the join process.
@@ -668,8 +670,8 @@ func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
-	return identity, trace.Wrap(err)
+
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
 }
 
 func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, hostUUID string) (*state.Identity, error) {

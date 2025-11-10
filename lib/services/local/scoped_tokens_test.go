@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -47,8 +48,7 @@ func TestScopedTokenService(t *testing.T) {
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	// service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -64,6 +64,7 @@ func TestScopedTokenService(t *testing.T) {
 			AssignedScope: "/test/one",
 			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
+			Mode:          string(joining.TokenUsageModeUnlimited),
 		},
 	}
 
@@ -110,20 +111,10 @@ func TestScopedTokenService(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// expired tokens should error and delete the token
-	expiredToken, err = service.UseScopedToken(ctx, expiredRes.Token.Metadata.Name)
-	require.True(t, trace.IsLimitExceeded(err))
-	require.Nil(t, expiredToken)
-
 	_, err = service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name: expiredRes.Token.Metadata.Name,
 	})
 	require.True(t, trace.IsNotFound(err))
-
-	// active tokens should function like a get
-	activeToken, err = service.UseScopedToken(ctx, activeToken.Metadata.Name)
-	require.NoError(t, err)
-	assert.Empty(t, gocmp.Diff(activeToken, activeRes.Token, cmpOpts...))
 
 	fetchedActive, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name: activeRes.Token.Metadata.Name,
@@ -153,6 +144,7 @@ func TestScopedTokenList(t *testing.T) {
 			Roles: []string{
 				types.RoleNode.String(),
 			},
+			Mode: string(joining.TokenUsageModeUnlimited),
 		},
 	}
 
@@ -347,4 +339,69 @@ func TestScopedTokenList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScopedTokenConsumption(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	clock.Advance(-30 * time.Hour)
+	bk, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	token := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "testtoken",
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    "token",
+			Roles:         []string{types.RoleNode.String()},
+			Mode:          string(joining.TokenUsageModeOneshot),
+		},
+	}
+
+	created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: token,
+	})
+	require.NoError(t, err)
+
+	testKey := []byte("test")
+	otherKey := []byte("other")
+
+	// first usage should always succeed
+	tok, err := service.UseScopedToken(ctx, created.GetToken(), testKey)
+	require.NoError(t, err)
+
+	// attempting to reuse with the same key before consumption should succeed
+	tok, err = service.UseScopedToken(ctx, tok, testKey)
+	require.NoError(t, err)
+
+	// attempting to use with a different key should fail
+	_, err = service.UseScopedToken(ctx, tok, otherKey)
+	require.ErrorIs(t, err, joining.ErrTokenExhausted)
+
+	// attempting to consume with a different key should fail
+	_, err = service.ConsumeScopedToken(ctx, tok.Metadata.Name, otherKey)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+
+	// attempting to consume with the same key should succeed
+	tok, err = service.ConsumeScopedToken(ctx, tok.Metadata.Name, testKey)
+	require.NoError(t, err)
+
+	// attempting to reuse with the same key after consumption should fail
+	_, err = service.UseScopedToken(ctx, tok, testKey)
+	require.ErrorIs(t, err, joining.ErrTokenExhausted)
+
+	// attempting to consume with the same key after consumption should fail
+	_, err = service.ConsumeScopedToken(ctx, tok.Metadata.Name, testKey)
+	require.ErrorIs(t, err, joining.ErrTokenExhausted)
 }

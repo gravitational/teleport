@@ -24,6 +24,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -225,16 +226,14 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		return nil, trace.NotImplemented("new join service is not implemented for method %v", params.JoinMethod)
 	}
 
-	// Initiate the join request, using a cancelable context to make sure the
-	// stream is closed when this function returns.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// Initiate the join request, using a context with a deadlineto make sure the
+	// stream is closed even if the client fails to send a confirmation message.
+	ctx, _ = context.WithDeadline(ctx, time.Now().Add(time.Second*60))
 	stream, err := client.Join(ctx)
 	if err != nil {
 		// Connection errors may manifest when initiating the RPC.
 		return nil, &connectionError{trace.Wrap(err, "initiating join stream")}
 	}
-	defer stream.CloseSend()
 
 	// Send the ClientInit message with the intended join method, token name,
 	// and system role.

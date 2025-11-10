@@ -629,6 +629,12 @@ func (e *ClientGaveUpError) Error() string {
 	return msg.String()
 }
 
+// Confirm is the final message sent from the client after a successful join signaling that
+// credentials have been successfully received and stored.
+type Confirm struct {
+	embedRequest
+}
+
 // ClientStream represents the client side of a join request stream.
 // It can send [Request]s and receive [Response]s.
 //

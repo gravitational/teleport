@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 // handleTokenJoin handles join attempts for the token join method.
@@ -39,8 +40,6 @@ func (s *Server) handleTokenJoin(
 	// Set any diagnostic info from the ClientParams.
 	setDiagnosticClientParams(stream.Diagnostic(), &tokenInit.ClientParams)
 
-	// There are no additional checks for the token join method, just make the
-	// result message and return it.
 	result, err := s.makeResult(
 		stream.Context(),
 		stream.Diagnostic(),
@@ -51,5 +50,16 @@ func (s *Server) handleTokenJoin(
 		nil, /*rawClaims*/
 		nil, /*attrs*/
 	)
+
+	// Scoped tokens have usage limits, so once we've verified that host certs could
+	// be generated we need to attempt to consume the token. Any error should be
+	// considered a join failure.
+	if scoped, ok := token.(*joining.Token); ok {
+		publicKey := tokenInit.ClientParams.HostParams.PublicKeys.PublicTLSKey
+		if _, err := s.cfg.ScopedTokenService.UseScopedToken(stream.Context(), scoped.GetScoped(), publicKey); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return result, trace.Wrap(err)
 }

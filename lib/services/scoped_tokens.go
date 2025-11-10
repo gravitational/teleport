@@ -33,7 +33,7 @@ type ScopedTokenService interface {
 	// UseScopedToken fetches a scoped join token by unique name and checks if it can
 	// be used for provisioning. If the token is expired, [UseScopedToken] should also
 	// delete it from the backend.
-	UseScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error)
+	UseScopedToken(ctx context.Context, token *joiningv1.ScopedToken, publicKey []byte) (*joiningv1.ScopedToken, error)
 	// ListScopedTokens retrieves a paginated list of scoped join tokens
 	ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error)
 

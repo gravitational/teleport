@@ -501,6 +501,10 @@ message BotResult {
   optional BoundKeypairResult bound_keypair_result = 2;
 }
 
+// The final message sent from the client to the cluster signaling that credentials have been
+// successfully received.
+message Confirm {}
+
 // JoinResponse is the message type sent from the server to the joining client.
 message JoinResponse {
   oneof payload {
@@ -515,6 +519,10 @@ message JoinResponse {
     // the cluster when the join flow is successful.
     // For the token join method, it is sent immediately in response to the ClientInit request.
     Result result = 3;
+    // Confirm is the final message sent from the client back to the cluster after a successfuljoin.
+    // It signals to the cluster that the client received their credentials and any post provisioning
+    // actions can be taken.
+    Confirm confirm = 4;
   }
 }
 

@@ -35,6 +35,16 @@ var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodToken): {},
 }
 
+// TokenUsageMode represents the possible usage modes of a scoped token.
+type TokenUsageMode string
+
+const (
+	// TokenUsageModeOneshot denotes a token that can only provision a single resource.
+	TokenUsageModeOneshot TokenUsageMode = "oneshot"
+	// TokenUsageModeUnlimited denotes a token that can provision any number of resources.
+	TokenUsageModeUnlimited = "unlimited"
+)
+
 // StrongValidateToken checks if the scoped token is well-formed according to
 // all scoped token rules. This function *must* be used to validate any scoped
 // token being created from scratch. When validating existing scoped token
@@ -77,6 +87,12 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 
 	if _, ok := joinMethodsSupportingScopes[spec.JoinMethod]; !ok {
 		return trace.BadParameter("join method %q does not support scoping", spec.JoinMethod)
+	}
+
+	switch TokenUsageMode(spec.GetMode()) {
+	case TokenUsageModeOneshot, TokenUsageModeUnlimited:
+	default:
+		return trace.BadParameter("scoped token mode is not supported")
 	}
 
 	if len(spec.Roles) == 0 {
@@ -127,21 +143,31 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
+var ErrTokenExpired = &trace.LimitExceededError{Message: "scoped token is expired"}
+
+var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usages are exhausted"}
+
 // ValidateTokenForUse checks if a given scoped token can be used for
-// provisioning.
+// provisioning. Returns a [trace.LimitExceeded] error if the token is expired
+// or has no remaining uses.
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	if err := WeakValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 
+	now := time.Now().UTC()
 	ttl := token.GetMetadata().GetExpires()
-	if ttl == nil || ttl.AsTime().IsZero() {
-		return nil
+	if ttl != nil && !ttl.AsTime().IsZero() {
+		if ttl.AsTime().Before(now) {
+			return trace.Wrap(ErrTokenExpired)
+		}
 	}
 
-	now := time.Now().UTC()
-	if ttl.AsTime().Before(now) {
-		return trace.LimitExceeded("scoped token is expired")
+	reusableUntil := token.GetStatus().GetOneshot().GetReusableUntil()
+	if reusableUntil != nil && !reusableUntil.AsTime().IsZero() {
+		if reusableUntil.AsTime().Before(now) {
+			return trace.Wrap(ErrTokenExhausted)
+		}
 	}
 
 	return nil
@@ -262,4 +288,9 @@ func (t *Token) GetAllowRules() []*types.TokenRule {
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
 	return types.NewDuration(0)
+}
+
+// GetScoped returns the wrapped [*joiningv1.ScopedToken]
+func (t *Token) GetScoped() *joiningv1.ScopedToken {
+	return t.scoped
 }

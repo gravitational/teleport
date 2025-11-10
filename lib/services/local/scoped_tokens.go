@@ -18,8 +18,12 @@ package local
 
 import (
 	"context"
+	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -84,21 +88,64 @@ func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.
 	return &joiningv1.GetScopedTokenResponse{Token: token}, nil
 }
 
-// UseScopedToken fetches a scoped join token by unique name and checks if it
-// can be used for provisioning. Expired tokens will be deleted.
-func (s *ScopedTokenService) UseScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error) {
-	token, err := s.svc.GetResource(ctx, name)
+// tokenReuseDuration is how long a scoped token can be reused by the host that consumed it
+const tokenReuseDuration = time.Minute * 10
+
+// UseScopedToken attempts to use a scoped token to provision a resource. A [trace.LimitExceeded]
+// error is returned if the token is expired or has no remaining uses, which should be treated as
+// a failure to provision. The given public key is an idempotency key to allow the same host to
+// retry joining due to spurious failures without consuming the token. Once a host has confirmed
+// provisioning, "free" retries will no longer be possible.
+func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv1.ScopedToken, publicKey []byte) (*joiningv1.ScopedToken, error) {
+	token, err := s.svc.GetResource(ctx, token.GetMetadata().GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := joining.ValidateTokenForUse(token); err != nil {
-		if trace.IsLimitExceeded(err) {
-			if err := s.svc.DeleteResource(ctx, name); err != nil {
-				return nil, trace.LimitExceeded("cleaning up expired token: %v", err)
-			}
-		}
 		return nil, trace.Wrap(err)
 	}
+
+	switch joining.TokenUsageMode(token.Spec.Mode) {
+	case joining.TokenUsageModeOneshot:
+	// we can short circuit for non-oneshot usage modes
+	default:
+		return token, nil
+	}
+
+	if token.Status == nil {
+		token.Status = &joiningv1.ScopedTokenStatus{}
+	}
+
+	if token.Status.Usage == nil {
+		token.Status.Usage = &joiningv1.ScopedTokenStatus_Oneshot{}
+	}
+
+	usage := token.Status.GetOneshot()
+	if usage != nil {
+		if usage.GetUsedAt() != nil {
+			return nil, trace.Wrap(joining.ErrTokenExhausted)
+		}
+
+		if len(usage.GetUsedByPublicKey()) > 0 {
+			// no need to update the token if we're retrying for the same public key
+			if slices.Equal(usage.GetUsedByPublicKey(), publicKey) {
+				return token, nil
+			}
+
+			return nil, trace.Wrap(joining.ErrTokenExhausted)
+		}
+
+		// set the public key if this is the first time this token has been used
+		usage.UsedByPublicKey = publicKey
+		usage.UsedAt = timestamppb.Now()
+		usage.ReusableUntil = timestamppb.New(time.Now().Add(tokenReuseDuration))
+	}
+
+	token, err = s.svc.ConditionalUpdateResource(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return token, nil
 }
 
