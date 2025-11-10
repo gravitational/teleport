@@ -214,7 +214,7 @@ func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
 func TestLocalInstaller_Link(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
-	servicePath := filepath.Join(serviceDir, serviceName)
+	servicePath := filepath.Join(serviceDir, teleportServiceName)
 
 	tests := []struct {
 		name            string
@@ -459,8 +459,8 @@ func TestLocalInstaller_Link(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path:        filepath.Join(linkDir, serviceDir, serviceName),
-						ExampleName: serviceName,
+						Path:        filepath.Join(linkDir, serviceDir, teleportServiceName),
+						ExampleName: teleportServiceName,
 						ExampleFunc: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 							return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 						},
@@ -527,7 +527,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 func TestLocalInstaller_TryLink(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
-	servicePath := filepath.Join(serviceDir, serviceName)
+	servicePath := filepath.Join(serviceDir, teleportServiceName)
 
 	tests := []struct {
 		name            string
@@ -719,8 +719,8 @@ func TestLocalInstaller_TryLink(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path:        filepath.Join(linkDir, serviceDir, serviceName),
-						ExampleName: serviceName,
+						Path:        filepath.Join(linkDir, serviceDir, teleportServiceName),
+						ExampleName: teleportServiceName,
 						ExampleFunc: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 							return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 						},
@@ -862,8 +862,8 @@ func TestLocalInstaller_Remove(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path:        filepath.Join(linkDir, serviceDir, serviceName),
-						ExampleName: serviceName,
+						Path:        filepath.Join(linkDir, serviceDir, teleportServiceName),
+						ExampleName: teleportServiceName,
 						ExampleFunc: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 							return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 						},
@@ -889,7 +889,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 func TestLocalInstaller_IsLinked(t *testing.T) {
 	t.Parallel()
 	const version = "existing-version"
-	servicePath := filepath.Join(serviceDir, serviceName)
+	servicePath := filepath.Join(serviceDir, teleportServiceName)
 
 	tests := []struct {
 		name          string
@@ -937,8 +937,8 @@ func TestLocalInstaller_IsLinked(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path:        filepath.Join(linkDir, serviceDir, serviceName),
-						ExampleName: serviceName,
+						Path:        filepath.Join(linkDir, serviceDir, teleportServiceName),
+						ExampleName: teleportServiceName,
 						ExampleFunc: func(b []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 							return fmt.Appendf(nil, "[service=%s][path=%s][flags=%s]", string(b), pathDir, flags.Strings())
 
@@ -982,7 +982,7 @@ func TestLocalInstaller_IsLinked(t *testing.T) {
 func TestLocalInstaller_Unlink(t *testing.T) {
 	t.Parallel()
 	const version = "existing-version"
-	servicePath := filepath.Join(serviceDir, serviceName)
+	servicePath := filepath.Join(serviceDir, teleportServiceName)
 
 	tests := []struct {
 		name string
@@ -1103,7 +1103,7 @@ func TestLocalInstaller_Unlink(t *testing.T) {
 				InstallDir: versionsDir,
 				TargetServices: []ServiceFile{
 					{
-						Path:   filepath.Join(linkDir, serviceDir, serviceName),
+						Path:   filepath.Join(linkDir, serviceDir, teleportServiceName),
 						Binary: "teleport",
 					},
 				},
