@@ -124,8 +124,9 @@ function Enable-Rust {
         rustup set default-host x86_64-pc-windows-gnu
         #$Env:Path
         #Get-ChildItem Env:
-        $mingw = 'C:\Program Files\Git\mingw64\bin;C:\mingw64\bin'
-        $Env:Path = "$mingw;$($env:Path)"
+        #$mingw = 'C:\Program Files\Git\mingw64\bin;C:\mingw64\bin'
+        #$Env:Path = "$mingw;$($env:Path)"
+        Remove-Item -Path 'C:/Strawberry' -Recurse -Force
     }
 }
 
