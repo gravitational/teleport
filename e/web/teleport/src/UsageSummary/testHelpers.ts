@@ -1,9 +1,11 @@
 import {
   GetUsageResponse,
+  PricingModel,
   Usage,
   UsageCycle,
   UsageLimits,
 } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { Metric } from 'e-teleport/UsageSummary/Summary';
 
 export const makeGetUsageResponse = (
   overrides: Partial<GetUsageResponse> = {}
@@ -33,6 +35,7 @@ export const makeUsageCycle = (
       endFormatted: 'Feb 01, 2024',
       activeAccounts: 0,
       calibratingAccounts: 0,
+      pricingModel: makePricingModel(),
     },
     overrides
   );
@@ -59,6 +62,22 @@ export const makeUsageLimits = (
       mwi: 0,
       tpr: 0,
       ztamau: 0,
+    },
+    overrides
+  );
+};
+
+export const makePricingModel = (
+  overrides: Partial<PricingModel> = {}
+): PricingModel => {
+  return Object.assign(
+    {
+      version: '',
+      modelId: '',
+      name: '',
+      createdAt: 0,
+      description: '',
+      metric: [Metric.MWI, Metric.IGMAU, Metric.ISTPR, Metric.MAU, Metric.TPR],
     },
     overrides
   );

@@ -1,11 +1,12 @@
-import styled, { useTheme } from 'styled-components';
+import { useTheme } from 'styled-components';
 
 import { Box, Flex, H2, H3, Subtitle2, SyncStamp, Text } from 'design';
 
 import { GetUsageResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { usageUnixInMilliseconds } from 'e-teleport/UsageSummary/helpers';
 
-import { UsageBar } from './UsageBar';
+import { CyclesContainer, getPercentage } from '../shared';
+import { UsageBar } from '../UsageBar';
 
 export type Section = {
   name: string;
@@ -113,7 +114,7 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
       enabled: true, // always enabled
       usage: [
         {
-          name: 'MWI',
+          name: 'Machine & Workload Identities',
           used: usage.mwi,
           percentage: getPercentage({
             usage: usage.mwi,
@@ -223,28 +224,3 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
     </Box>
   );
 };
-
-const CyclesContainer = styled(Flex)<{ enabled?: boolean }>`
-  flex: 1 1 33%;
-  min-width: 420px;
-  background-color: ${({ theme }) => theme.colors.levels.surface};
-  border-radius: 8px;
-  padding: ${({ theme }) => theme.space[4]}px;
-  flex-direction: column;
-  justify-content: ${({ enabled }) => (enabled ? 'normal' : 'space-between')};
-`;
-
-function getPercentage({
-  usage,
-  limit,
-  calibration,
-}: {
-  usage: number;
-  limit: number;
-  calibration: boolean;
-}): number {
-  if (calibration) {
-    return 100;
-  }
-  return ~~Math.round((usage / limit) * 100);
-}

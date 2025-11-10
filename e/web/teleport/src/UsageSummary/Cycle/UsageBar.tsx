@@ -1,8 +1,8 @@
 import styled, { useTheme } from 'styled-components';
 
-import { Box, ButtonSecondary, Flex, Text } from 'design';
+import { Box, ButtonSecondary, Flex, P1, P2, Text } from 'design';
 
-import { Section } from 'e-teleport/UsageSummary/Cycle/Cycle';
+import { Section } from './v1/Cycle';
 
 export function UsageBar({
   section,
@@ -55,20 +55,20 @@ export function UsageBar({
         key={name}
         data-testid={name}
         mb={i == section.usage.length - 1 ? '0' : '4'}
+        style={{ flexGrow: 2 }}
       >
-        <Flex width="100%" justifyContent="space-between">
-          <Text>{name}</Text>
-          <Box>
-            {calibrating ? (
-              <Text style={{ fontStyle: 'italic' }}>Calibrating</Text>
-            ) : (
-              <>
-                {used || 0} of {limit || 0} ({percentage}%)
-              </>
-            )}
-          </Box>
-        </Flex>
-        <Box mt="3" style={{ position: 'relative' }}>
+        <Box mt="3" mb="1">
+          {calibrating ? (
+            <P1 color="text.slightlyMuted" style={{ fontStyle: 'italic' }}>
+              Calibrating
+            </P1>
+          ) : (
+            <P1 color="text.slightlyMuted">
+              {used || 0} of {limit || 0} ({percentage}%)
+            </P1>
+          )}
+        </Box>
+        <Box style={{ position: 'relative' }}>
           {!aggregate && customerUsed > 0 && (
             <StyledBar
               percent={Math.min(customerPercentage, 100)}
@@ -90,13 +90,16 @@ export function UsageBar({
             }}
           />
         </Box>
+        <Box mt={2}>
+          <P2>{name}</P2>
+        </Box>
       </BarContainer>
     )
   );
 }
 
 const BarContainer = styled(Box)`
-  weight: 300;
+  min-width: 300px;
 `;
 
 const StyledBar = styled.div<{

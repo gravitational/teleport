@@ -70,6 +70,14 @@ function makeUsageHistory(json: any): UsageCycle[] {
       endFormatted: j.endFormatted || '',
       activeAccounts: j.activeAccounts || 0,
       calibratingAccounts: j.calibratingAccounts || 0,
+      pricingModel: {
+        version: j?.pricingModel.version,
+        modelId: j?.pricingModel.modelId,
+        name: j?.pricingModel.name,
+        createdAt: j?.pricingModel.createdAt,
+        description: j?.pricingModel.description,
+        metric: j?.pricingModel.metric,
+      },
     };
   });
 }

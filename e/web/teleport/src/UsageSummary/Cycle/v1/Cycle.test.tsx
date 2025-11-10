@@ -2,13 +2,14 @@ import { within } from '@testing-library/react';
 
 import { render, screen } from 'design/utils/testing';
 
-import { Cycle, CycleProps } from 'e-teleport/UsageSummary/Cycle/Cycle';
 import {
   makeGetUsageResponse,
   makeUsage,
   makeUsageCycle,
   makeUsageLimits,
 } from 'e-teleport/UsageSummary/testHelpers';
+
+import { Cycle, CycleProps } from './Cycle';
 
 describe('cycle', () => {
   let props: CycleProps;
@@ -71,7 +72,7 @@ describe('cycle', () => {
     expect(within(pr).getByText(/0 of 0/i)).toBeInTheDocument();
     expect(within(pr).getByText(/\(0%\)/i)).toBeInTheDocument();
 
-    const mwi = screen.getByTestId(/MWI/);
+    const mwi = screen.getByTestId(/Machine and Workload Identities/);
 
     expect(within(mwi).getByText(/0 of 0/i)).toBeInTheDocument();
     expect(within(mwi).getByText(/\(0%\)/i)).toBeInTheDocument();
@@ -114,7 +115,7 @@ describe('cycle', () => {
     expect(within(pr).getByText(/\(400%\)/i)).toBeInTheDocument();
 
     const mwiSection = screen.getByTestId(/Machine and Workload Identities/);
-    const mwi = within(mwiSection).getByTestId(/MWI/);
+    const mwi = within(mwiSection).getByTestId(/Machine & Workload Identities/);
 
     expect(within(mwi).getByText(/800 of 2/i)).toBeInTheDocument();
     expect(within(mwi).getByText(/\(40000%\)/i)).toBeInTheDocument();

@@ -1,5 +1,6 @@
 import cfg from 'e-teleport/config';
 import { GetUsageResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { Metric } from 'e-teleport/UsageSummary/Summary';
 import { makeGetUsageResponse } from 'e-teleport/UsageSummary/testHelpers';
 import api from 'teleport/services/api';
 
@@ -23,6 +24,20 @@ describe('cloudService', () => {
           calibratingAccounts: 0,
           end: new Date('2024/01/30').getTime(),
           endFormatted: 'Jan 30, 2024',
+          pricingModel: {
+            version: '4.0.0',
+            modelId: '1a5451df-74e1-4332-b3b9-e397bdd29e02',
+            name: 'model four',
+            createdAt: 1762379155000,
+            description: 'the newest pricing model',
+            metric: [
+              Metric.MWI,
+              Metric.IGMAU,
+              Metric.ISTPR,
+              Metric.MAU,
+              Metric.TPR,
+            ],
+          },
           start: new Date('2024/01/02').getTime(),
           startFormatted: 'Jan 02, 2024',
           usage: {

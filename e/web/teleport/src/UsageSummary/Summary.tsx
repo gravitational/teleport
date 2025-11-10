@@ -9,7 +9,6 @@ import { ShimmerBox } from 'design/ShimmerBox';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { GetUsageResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
-import { Cycle } from 'e-teleport/UsageSummary/Cycle/Cycle';
 import { UsageHistory } from 'e-teleport/UsageSummary/History/UsageHistory';
 import useTeleport from 'e-teleport/useTeleportE';
 import {
@@ -19,7 +18,17 @@ import {
 } from 'teleport/components/Layout';
 import { useNoMinWidth } from 'teleport/Main';
 
+import { Cycle as V1Cycle } from './Cycle/v1/Cycle';
+import { Cycle as V2Cycle } from './Cycle/v2/Cycle';
 import { Guide } from './Guide';
+
+export enum Metric {
+  MAU = 'MAU',
+  TPR = 'TPR',
+  IGMAU = 'IGMAU',
+  MWI = 'MWI',
+  ISTPR = 'ISTPR',
+}
 
 export function Summary() {
   useNoMinWidth();
@@ -111,11 +120,20 @@ export function Summary() {
                   })}
                 </>
                 <Flex gap="5" flexDirection="column">
-                  <Cycle
-                    usageResponse={usageResponse}
-                    customer={customer}
-                    aggregate={aggregate}
-                  />
+                  {usageResponse.usageHistory[0].pricingModel?.version ===
+                  '1.0.0' ? (
+                    <V1Cycle
+                      usageResponse={usageResponse}
+                      customer={customer}
+                      aggregate={aggregate}
+                    />
+                  ) : (
+                    <V2Cycle
+                      usageResponse={usageResponse}
+                      customer={customer}
+                      aggregate={aggregate}
+                    />
+                  )}
                   <UsageHistory usageResponse={usageResponse} />
                 </Flex>
               </Box>

@@ -2,6 +2,7 @@ import { render, screen } from 'design/utils/testing';
 
 import {
   makeGetUsageResponse,
+  makePricingModel,
   makeUsage,
   makeUsageCycle,
 } from '../testHelpers';
@@ -43,15 +44,19 @@ test('renders all elements', async () => {
     />
   );
 
-  expect(await screen.findByText('Usage History')).toBeInTheDocument();
+  expect(
+    await screen.findByText('Usage Reporting History')
+  ).toBeInTheDocument();
 
   // column headers
-  expect(screen.getByText('Billing Cycle')).toBeInTheDocument();
-  expect(screen.getByText('ZTA MAU')).toBeInTheDocument();
-  expect(screen.getByText('ZTA TPR')).toBeInTheDocument();
-  expect(screen.getByText('MWI')).toBeInTheDocument();
-  expect(screen.getByText('IG MAU')).toBeInTheDocument();
-  expect(screen.getByText('IS TPR')).toBeInTheDocument();
+  expect(screen.getByText('Usage Cycle')).toBeInTheDocument();
+  expect(screen.getByText('Monthly Active Users (MAU)')).toBeInTheDocument();
+  expect(
+    screen.getByText('Teleport Protected Resources (TPR)')
+  ).toBeInTheDocument();
+  expect(screen.getByText('Machine & Workload Identities')).toBeInTheDocument();
+  expect(screen.getByText('Identity Governance MAU')).toBeInTheDocument();
+  expect(screen.getByText('Identity Security TPR')).toBeInTheDocument();
 
   expect(screen.getByText('Jan 15, 2023 - Feb 14, 2023')).toBeInTheDocument();
   expect(screen.getByText('Feb 15, 2023 - Mar 14, 2023')).toBeInTheDocument();
@@ -65,7 +70,7 @@ test('renders all elements', async () => {
   expect(screen.getAllByText('16')).toHaveLength(2);
 });
 
-test('hides unavailable features', async () => {
+test('hides unavailable metrics', async () => {
   const usageResponse = makeGetUsageResponse({
     missingEntitlements: ['Identity', 'Policy'],
     usageHistory: [makeUsageCycle()],
@@ -73,7 +78,19 @@ test('hides unavailable features', async () => {
   render(<UsageHistory usageResponse={usageResponse} />);
 
   // - populates in 'Identity' and 'Policy' columns
-  expect(screen.getAllByText('N/A')).toHaveLength(2);
+  expect(screen.getAllByText('Not available')).toHaveLength(2);
+});
+
+test('indicates non-included metrics as unincluded', async () => {
+  const usageResponse = makeGetUsageResponse({
+    usageHistory: [
+      makeUsageCycle({ pricingModel: makePricingModel({ metric: [] }) }),
+    ],
+  });
+  render(<UsageHistory usageResponse={usageResponse} />);
+
+  // sets each metric as not in use as they're not part of the returned pricing model
+  expect(screen.getAllByText('Not in use')).toHaveLength(5);
 });
 
 test('shows calibration periods', async () => {
@@ -101,7 +118,7 @@ test('hides calibration periods when a feature is disabled', async () => {
   // for one history row:
   // 3/5 columns show calibrating, 2/5 disabled features show -
   expect(screen.getAllByText('Calibration Period*')).toHaveLength(3);
-  expect(screen.getAllByText('N/A')).toHaveLength(2);
+  expect(screen.getAllByText('Not available')).toHaveLength(2);
   expect(screen.getByText(calibrationInfo)).toBeInTheDocument();
 });
 

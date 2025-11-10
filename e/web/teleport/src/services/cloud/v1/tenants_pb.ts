@@ -848,6 +848,47 @@ export interface GetUsageResponse {
     alerts: Alert[];
 }
 /**
+ * @generated from protobuf message gravitational.cloud.tenants.v1.PricingModel
+ */
+export interface PricingModel {
+    /**
+     *  version is the pricing model version (eg '1.0.0')
+     *
+     * @generated from protobuf field: string version = 1;
+     */
+    version: string;
+    /**
+     * model_is is the model identifier
+     *
+     * @generated from protobuf field: string model_id = 2;
+     */
+    modelId: string;
+    /**
+     * name is the model name
+     *
+     * @generated from protobuf field: string name = 3;
+     */
+    name: string;
+    /**
+     * created_at is when the model was created
+     *
+     * @generated from protobuf field: int64 created_at = 4;
+     */
+    createdAt: number;
+    /**
+     * description is a brief overview of the model
+     *
+     * @generated from protobuf field: string description = 5;
+     */
+    description: string;
+    /**
+     * metric contains the model usage metrics
+     *
+     * @generated from protobuf field: repeated string metric = 6;
+     */
+    metric: string[];
+}
+/**
  * Alert displays an in-page alert.
  *
  * @generated from protobuf message gravitational.cloud.tenants.v1.Alert
@@ -926,6 +967,12 @@ export interface UsageCycle {
      * @generated from protobuf field: int64 calibrating_accounts = 8;
      */
     calibratingAccounts: number;
+    /**
+     * pricing_model contains pricing information
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.PricingModel pricing_model = 9;
+     */
+    pricingModel?: PricingModel;
 }
 /**
  * Usage is the usage amount per metrics by a customer/subscription. Includes both purchased metrics and tracked metrics not included in the pricing model.
@@ -1227,6 +1274,12 @@ export interface UsageHistoryItem {
      * @generated from protobuf field: gravitational.cloud.tenants.v1.UsageQuota usage_quota = 11;
      */
     usageQuota?: UsageQuota;
+    /**
+     * pricing_model contains pricing information
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.PricingModel pricing_model = 12;
+     */
+    pricingModel?: PricingModel;
 }
 /**
  * UsageMetricPerCycle contains a metrics details
@@ -3733,6 +3786,93 @@ class GetUsageResponse$Type extends MessageType<GetUsageResponse> {
  */
 export const GetUsageResponse = new GetUsageResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class PricingModel$Type extends MessageType<PricingModel> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.PricingModel", [
+            { no: 1, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "model_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "created_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 5, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "metric", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<PricingModel>): PricingModel {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.version = "";
+        message.modelId = "";
+        message.name = "";
+        message.createdAt = 0;
+        message.description = "";
+        message.metric = [];
+        if (value !== undefined)
+            reflectionMergePartial<PricingModel>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PricingModel): PricingModel {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string version */ 1:
+                    message.version = reader.string();
+                    break;
+                case /* string model_id */ 2:
+                    message.modelId = reader.string();
+                    break;
+                case /* string name */ 3:
+                    message.name = reader.string();
+                    break;
+                case /* int64 created_at */ 4:
+                    message.createdAt = reader.int64().toNumber();
+                    break;
+                case /* string description */ 5:
+                    message.description = reader.string();
+                    break;
+                case /* repeated string metric */ 6:
+                    message.metric.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: PricingModel, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string version = 1; */
+        if (message.version !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.version);
+        /* string model_id = 2; */
+        if (message.modelId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.modelId);
+        /* string name = 3; */
+        if (message.name !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.name);
+        /* int64 created_at = 4; */
+        if (message.createdAt !== 0)
+            writer.tag(4, WireType.Varint).int64(message.createdAt);
+        /* string description = 5; */
+        if (message.description !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.description);
+        /* repeated string metric = 6; */
+        for (let i = 0; i < message.metric.length; i++)
+            writer.tag(6, WireType.LengthDelimited).string(message.metric[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.PricingModel
+ */
+export const PricingModel = new PricingModel$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class Alert$Type extends MessageType<Alert> {
     constructor() {
         super("gravitational.cloud.tenants.v1.Alert", [
@@ -3814,7 +3954,8 @@ class UsageCycle$Type extends MessageType<UsageCycle> {
             { no: 5, name: "end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
             { no: 6, name: "end_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "active_accounts", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
-            { no: 8, name: "calibrating_accounts", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ }
+            { no: 8, name: "calibrating_accounts", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 9, name: "pricing_model", kind: "message", T: () => PricingModel }
         ]);
     }
     create(value?: PartialMessage<UsageCycle>): UsageCycle {
@@ -3858,6 +3999,9 @@ class UsageCycle$Type extends MessageType<UsageCycle> {
                 case /* int64 calibrating_accounts */ 8:
                     message.calibratingAccounts = reader.int64().toNumber();
                     break;
+                case /* gravitational.cloud.tenants.v1.PricingModel pricing_model */ 9:
+                    message.pricingModel = PricingModel.internalBinaryRead(reader, reader.uint32(), options, message.pricingModel);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3894,6 +4038,9 @@ class UsageCycle$Type extends MessageType<UsageCycle> {
         /* int64 calibrating_accounts = 8; */
         if (message.calibratingAccounts !== 0)
             writer.tag(8, WireType.Varint).int64(message.calibratingAccounts);
+        /* gravitational.cloud.tenants.v1.PricingModel pricing_model = 9; */
+        if (message.pricingModel)
+            PricingModel.internalBinaryWrite(message.pricingModel, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -4315,7 +4462,8 @@ class UsageHistoryItem$Type extends MessageType<UsageHistoryItem> {
             { no: 8, name: "igmau", kind: "scalar", jsonName: "ig_mau", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
             { no: 9, name: "active_tenants", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
             { no: 10, name: "calibrating_tenants", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
-            { no: 11, name: "usage_quota", kind: "message", T: () => UsageQuota }
+            { no: 11, name: "usage_quota", kind: "message", T: () => UsageQuota },
+            { no: 12, name: "pricing_model", kind: "message", T: () => PricingModel }
         ]);
     }
     create(value?: PartialMessage<UsageHistoryItem>): UsageHistoryItem {
@@ -4372,6 +4520,9 @@ class UsageHistoryItem$Type extends MessageType<UsageHistoryItem> {
                 case /* gravitational.cloud.tenants.v1.UsageQuota usage_quota */ 11:
                     message.usageQuota = UsageQuota.internalBinaryRead(reader, reader.uint32(), options, message.usageQuota);
                     break;
+                case /* gravitational.cloud.tenants.v1.PricingModel pricing_model */ 12:
+                    message.pricingModel = PricingModel.internalBinaryRead(reader, reader.uint32(), options, message.pricingModel);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -4417,6 +4568,9 @@ class UsageHistoryItem$Type extends MessageType<UsageHistoryItem> {
         /* gravitational.cloud.tenants.v1.UsageQuota usage_quota = 11; */
         if (message.usageQuota)
             UsageQuota.internalBinaryWrite(message.usageQuota, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* gravitational.cloud.tenants.v1.PricingModel pricing_model = 12; */
+        if (message.pricingModel)
+            PricingModel.internalBinaryWrite(message.pricingModel, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

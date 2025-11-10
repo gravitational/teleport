@@ -1,11 +1,11 @@
 import styled from 'styled-components';
 
+import { Flex, H2, P2, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import Flex from 'design/Flex';
-import Text, { H2, P2 } from 'design/Text';
 
 import {
   GetUsageResponse,
+  PricingModel,
   UsageCycle,
 } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { usageUnixInMilliseconds } from 'e-teleport/UsageSummary/helpers';
@@ -14,10 +14,18 @@ export type UsageHistoryProps = {
   usageResponse: GetUsageResponse;
 };
 
+enum Metric {
+  MAU = 'MAU',
+  TPR = 'TPR',
+  IGMAU = 'IGMAU',
+  MWI = 'MWI',
+  ISTPR = 'ISTPR',
+}
+
 export const UsageHistory = ({ usageResponse }: UsageHistoryProps) => {
   return (
     <Flex flexDirection="column" gap="3">
-      <H2 mb="4">Usage History</H2>
+      <H2 mb="4">Usage Reporting History</H2>
       <Table<UsageCycle>
         disableFilter={true}
         emptyText="No cycle information available"
@@ -25,7 +33,7 @@ export const UsageHistory = ({ usageResponse }: UsageHistoryProps) => {
         initialSort={{ altSortKey: 'start', dir: 'DESC' }}
         columns={[
           {
-            headerText: 'Billing Cycle',
+            headerText: 'Usage Cycle',
             render: ({ startFormatted, endFormatted, end }) => (
               <StyledCell $highlight={isCurrentCycle(end)}>
                 {startFormatted} - {endFormatted}
@@ -37,10 +45,17 @@ export const UsageHistory = ({ usageResponse }: UsageHistoryProps) => {
           {
             altKey: 'usage.ztamau',
             isSortable: true,
-            headerText: 'ZTA MAU',
-            render: ({ calibratingAccounts, usage, end }: UsageCycle) => {
+            headerText: 'Monthly Active Users (MAU)',
+            render: ({
+              calibratingAccounts,
+              usage,
+              end,
+              pricingModel,
+            }: UsageCycle) => {
               return (
                 <MetricCell
+                  metric={Metric.MAU}
+                  model={pricingModel}
                   val={usage.ztamau}
                   cycleEnd={end}
                   isCalibration={calibratingAccounts >= 1}
@@ -51,10 +66,17 @@ export const UsageHistory = ({ usageResponse }: UsageHistoryProps) => {
           {
             altKey: 'usage.tpr',
             isSortable: true,
-            headerText: 'ZTA TPR',
-            render: ({ calibratingAccounts, usage, end }) => {
+            headerText: 'Teleport Protected Resources (TPR)',
+            render: ({
+              calibratingAccounts,
+              usage,
+              end,
+              pricingModel,
+            }: UsageCycle) => {
               return (
                 <MetricCell
+                  metric={Metric.TPR}
+                  model={pricingModel}
                   val={usage.tpr}
                   cycleEnd={end}
                   isCalibration={calibratingAccounts >= 1}
@@ -65,10 +87,17 @@ export const UsageHistory = ({ usageResponse }: UsageHistoryProps) => {
           {
             altKey: 'usage.mwi',
             isSortable: true,
-            headerText: 'MWI',
-            render: ({ calibratingAccounts, usage, end }) => {
+            headerText: 'Machine & Workload Identities',
+            render: ({
+              calibratingAccounts,
+              usage,
+              end,
+              pricingModel,
+            }: UsageCycle) => {
               return (
                 <MetricCell
+                  metric={Metric.MWI}
+                  model={pricingModel}
                   val={usage.mwi}
                   cycleEnd={end}
                   isCalibration={calibratingAccounts >= 1}
@@ -79,16 +108,21 @@ export const UsageHistory = ({ usageResponse }: UsageHistoryProps) => {
           {
             altKey: 'usage.igmau',
             isSortable: true,
-            headerText: 'IG MAU',
-            render: ({ calibratingAccounts, usage, end }) => {
+            headerText: 'Identity Governance MAU',
+            render: ({
+              calibratingAccounts,
+              usage,
+              end,
+              pricingModel,
+            }: UsageCycle) => {
               return (
                 <MetricCell
+                  metric={Metric.IGMAU}
+                  model={pricingModel}
                   val={usage.igmau}
                   cycleEnd={end}
                   isCalibration={calibratingAccounts >= 1}
-                  isDisabled={usageResponse.missingEntitlements.includes(
-                    'Identity'
-                  )}
+                  cta={usageResponse.missingEntitlements.includes('Identity')}
                 />
               );
             },
@@ -96,16 +130,21 @@ export const UsageHistory = ({ usageResponse }: UsageHistoryProps) => {
           {
             altKey: 'is-tpr',
             isSortable: true,
-            headerText: 'IS TPR',
-            render: ({ calibratingAccounts, usage, end }) => {
+            headerText: 'Identity Security TPR',
+            render: ({
+              calibratingAccounts,
+              usage,
+              end,
+              pricingModel,
+            }: UsageCycle) => {
               return (
                 <MetricCell
+                  metric={Metric.ISTPR}
+                  model={pricingModel}
                   val={usage.tpr}
                   cycleEnd={end}
                   isCalibration={calibratingAccounts >= 1}
-                  isDisabled={usageResponse.missingEntitlements.includes(
-                    'Policy'
-                  )}
+                  cta={usageResponse.missingEntitlements.includes('Policy')}
                 />
               );
             },
@@ -133,25 +172,49 @@ const isCurrentCycle = (cycleEnd: number): boolean => {
 };
 
 const MetricCell = ({
+  model,
+  metric,
   val,
   cycleEnd,
   isCalibration,
-  isDisabled,
+  cta,
 }: {
+  model: PricingModel;
+  metric: Metric;
   val: number;
   cycleEnd: number;
   isCalibration: boolean;
-  isDisabled?: boolean;
+  cta?: boolean;
 }) => {
+  function getContents() {
+    if (!model.metric.includes(metric)) {
+      return (
+        <Text color="text.slightlyMuted" style={{ fontStyle: 'italic' }}>
+          Not in use
+        </Text>
+      );
+    }
+    if (cta) {
+      return (
+        <Text color="text.slightlyMuted" style={{ fontStyle: 'italic' }}>
+          Not available
+        </Text>
+      );
+    }
+    if (isCalibration) {
+      return (
+        <Text color="text.slightlyMuted" style={{ fontStyle: 'italic' }}>
+          Calibration Period*
+        </Text>
+      );
+    }
+
+    return val;
+  }
+
   return (
     <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
-      {isDisabled ? (
-        'N/A'
-      ) : isCalibration ? (
-        <Text style={{ fontStyle: 'italic' }}>Calibration Period*</Text>
-      ) : (
-        val
-      )}
+      {getContents()}
     </StyledCell>
   );
 };

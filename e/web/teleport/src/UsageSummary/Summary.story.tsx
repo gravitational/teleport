@@ -12,6 +12,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { Summary } from 'e-teleport/UsageSummary/Summary';
 import {
   makeGetUsageResponse,
+  makePricingModel,
   makeUsageCycle,
 } from 'e-teleport/UsageSummary/testHelpers';
 import { ContextProvider } from 'teleport/index';
@@ -52,6 +53,7 @@ const defaultResponse = makeGetUsageResponse({
   alerts: [],
   usageHistory: [
     makeUsageCycle({
+      pricingModel: makePricingModel({ version: '1.0.0' }),
       usage: {
         igmau: 34,
         ztamau: 55,
@@ -83,7 +85,7 @@ const defaultResponse = makeGetUsageResponse({
   aggregateCount: 3,
 });
 
-export const Aggregate = {
+export const V1Aggregate = {
   parameters: {
     msw: [
       http.post(
@@ -100,6 +102,59 @@ export const Aggregate = {
             ...defaultResponse,
             usageHistory: [
               makeUsageCycle({
+                pricingModel: makePricingModel({ version: '1.0.0' }),
+                usage: {
+                  igmau: 23,
+                  ztamau: 40,
+                  tpr: 107,
+                  mwi: 30,
+                },
+                usageLimits: {
+                  igmau: 30,
+                  ztamau: 65,
+                  tpr: 1000,
+                  mwi: 50,
+                },
+              }),
+            ],
+          });
+        },
+        { once: true }
+      ),
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
+
+export const V2Aggregate = {
+  parameters: {
+    msw: [
+      http.post(
+        cfg.api.billingSummaryPath,
+        () => {
+          return HttpResponse.json({
+            ...defaultResponse,
+            usageHistory: [
+              makeUsageCycle({
+                ...defaultResponse.usageHistory[0],
+                pricingModel: makePricingModel({ version: '2.0.0' }),
+              }),
+              ...defaultResponse.usageHistory,
+            ],
+          });
+        },
+        { once: true }
+      ),
+      http.post(
+        cfg.api.billingSummaryPath,
+        () => {
+          return HttpResponse.json({
+            ...defaultResponse,
+            usageHistory: [
+              makeUsageCycle({
+                pricingModel: makePricingModel({ version: '2.0.0' }),
                 usage: {
                   igmau: 23,
                   ztamau: 40,
