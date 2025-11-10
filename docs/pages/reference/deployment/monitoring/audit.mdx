@@ -256,6 +256,19 @@ auth_service:
    session_recording: "proxy"  # can also be "off" and "node" (default)
 ```
 
+<Admonition type="warning" >
+ 
+The use of Proxy Recording Mode across your cluster is no longer necessary to support
+[OpenSSH Nodes](../../enroll-resources/server-access/openssh/openssh-agentless.mdx).
+Proxy Recording Mode is automatically used for OpenSSH Nodes without the need for SSH
+agent forwarding, which is the primary security concern for this mode.
+ 
+Recording Proxy Mode will continue to be supported for legacy OpenSSH support and other
+niche use case, but many existing and new features will not be supported in this mode due
+to several technical limitations it introduces.
+ 
+</Admonition>
+
 #### Optional insecure step: Disable strict host checking
  
 When in Recording Proxy Mode, Teleport will check that the host certificate of any
