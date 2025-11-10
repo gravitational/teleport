@@ -793,6 +793,15 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 
 	hello.Services = filteredServices
 
+	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
+	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
+	// to the authenticated identity's scope.
+	agentScope := a.context.Identity.GetIdentity().AgentScope
+	if hello.Scope != "" && hello.Scope != agentScope {
+		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
+	}
+	hello.Scope = agentScope
+
 	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
@@ -982,6 +991,9 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	// Note: UpsertNode doesn't allow any namespaces but "default".
 	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if s.GetScope() != "" {
+		return nil, trace.BadParameter("UpsertNode does not yet support scoped resources")
 	}
 	return a.authServer.UpsertNode(ctx, s)
 }
@@ -5646,6 +5658,9 @@ func (a *ServerWithRoles) UpsertDatabaseServer(ctx context.Context, server types
 	if err := a.actionNamespace(server.GetNamespace(), types.KindDatabaseServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if server.GetScope() != "" {
+		return nil, trace.BadParameter("scoped database server must register a control stream")
+	}
 	return a.authServer.UpsertDatabaseServer(ctx, server)
 }
 
@@ -5821,6 +5836,9 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
 	if err := a.actionNamespace(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if server.GetScope() != "" {
+		return nil, trace.BadParameter("scoped app server must register a control stream")
 	}
 	return a.authServer.UpsertApplicationServer(ctx, server)
 }
@@ -6095,6 +6113,9 @@ func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.Kub
 func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	if err := a.authorizeAction(types.KindKubeServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if s.GetScope() != "" {
+		return nil, trace.BadParameter("scoped kubernetes server must register a control stream")
 	}
 	return a.authServer.UpsertKubernetesServer(ctx, s)
 }
