@@ -141,7 +141,11 @@ type ScopedTokenSpec struct {
 	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
 	// The joining method required in order to use this token.
 	// Supported joining methods for scoped tokens only include 'token'.
-	JoinMethod    string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	JoinMethod string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	// The number of resources that can be provisioned using this token.
+	MaxUses *int32 `protobuf:"varint,5,opt,name=max_uses,json=maxUses,proto3,oneof" json:"max_uses,omitempty"`
+	// The number of successful provisioning attempts made using this token.
+	AttemptedUses int32 `protobuf:"varint,6,opt,name=attempted_uses,json=attemptedUses,proto3" json:"attempted_uses,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -197,6 +201,20 @@ func (x *ScopedTokenSpec) GetJoinMethod() string {
 	return ""
 }
 
+func (x *ScopedTokenSpec) GetMaxUses() int32 {
+	if x != nil && x.MaxUses != nil {
+		return *x.MaxUses
+	}
+	return 0
+}
+
+func (x *ScopedTokenSpec) GetAttemptedUses() int32 {
+	if x != nil {
+		return x.AttemptedUses
+	}
+	return 0
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -208,12 +226,15 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
-	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\"o\n" +
+	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\"\xc3\x01\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
 	"\vjoin_method\x18\x03 \x01(\tR\n" +
-	"joinMethodBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"joinMethod\x12\x1e\n" +
+	"\bmax_uses\x18\x05 \x01(\x05H\x00R\amaxUses\x88\x01\x01\x12%\n" +
+	"\x0eattempted_uses\x18\x06 \x01(\x05R\rattemptedUsesB\v\n" +
+	"\t_max_usesBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -248,6 +269,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 	if File_teleport_scopes_joining_v1_token_proto != nil {
 		return
 	}
+	file_teleport_scopes_joining_v1_token_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

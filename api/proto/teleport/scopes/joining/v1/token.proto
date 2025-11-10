@@ -57,4 +57,10 @@ message ScopedTokenSpec {
   // The joining method required in order to use this token.
   // Supported joining methods for scoped tokens only include 'token'.
   string join_method = 3;
+
+  // The number of resources that can be provisioned using this token.
+  optional int32 max_uses = 5;
+
+  // The number of successful provisioning attempts made using this token.
+  int32 attempted_uses = 6;
 }
