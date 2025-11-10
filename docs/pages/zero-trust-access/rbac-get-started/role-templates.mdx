@@ -408,12 +408,46 @@ spec:
         verbs: ['*']
 ```
 
+### Available interpolation functions
+
 Available interpolation functions include:
 
 Function | Description
 --- | ---
 `email.local(variable)` | Extracts the local part of an email address. `email.local(alice@example.com)` evaluates to `alice`.
 `regexp.replace(variable, expression, replacement)` | Finds all matches of `expression` and replaces them with `replacement`. This supports expansion, e.g. `regexp.replace(external.email, "^(.*)@example.com$", "$1")`. Values which do not match the expression will be filtered out. `$N` is used to refer to the Nth captured group, starting at `$1`.
+
+### Working with an external email identity
+
+Along with sending groups, an SSO provider will also provide a user's email address.
+In many organizations, the username that a person uses to log in to a system is the
+same as the first part of their email address, the "local" part.
+
+For example, `dave.smith@example.com` might log in with the username `dave.smith`.
+Teleport provides an easy way to extract the first part of an email address so
+it can be used as a username. This is the `{{email.local}}` function.
+
+If the email claim from the identity provider (which can be accessed via
+`{{external.email}}`) is sent and contains an email address, you can extract the
+"local" part of the email address before the @ sign like this:
+`{{email.local(external.email)}}`
+
+Here's how this looks in a Teleport role:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: sso_user
+spec:
+  allow:
+    logins:
+    # Extracts the local part of dave.smith@acme.com, so the login will
+    # now support dave.smith.
+    - '{{email.local(external.email)}}'
+    node_labels:
+      '*': '*'
+```
 
 ## Templating in Access Requests
 
