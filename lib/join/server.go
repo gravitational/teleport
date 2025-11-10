@@ -455,7 +455,7 @@ func (s *Server) makeHostResult(
 	token provision.Token,
 	rawClaims any,
 ) (*messages.HostResult, error) {
-	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), token.GetAssignedScope(), rawClaims)
+	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, configuredJoinMethod(token), rawClaims)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -481,7 +481,6 @@ func makeHostCertsParams(
 	authCtx *joinauthz.Context,
 	hostParams *messages.HostParams,
 	joinMethod types.JoinMethod,
-	scope string,
 	rawClaims any,
 ) (*HostCertsParams, error) {
 	// GenerateHostCertsForJoin requires the TLS key to be PEM-encoded.

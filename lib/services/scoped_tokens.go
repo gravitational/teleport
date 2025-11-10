@@ -34,6 +34,10 @@ type ScopedTokenService interface {
 	// be used for provisioning. If the token is expired, [UseScopedToken] should also
 	// delete it from the backend.
 	UseScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error)
+	// ConsumeScopedToken consumes a usage of a scoped token. This function should return a
+	// [trace.LimitExceeded] error if the token is expired or has no remaining uses, which
+	// should indicate a failure to use the token.
+	ConsumeScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error)
 	// ListScopedTokens retrieves a paginated list of scoped join tokens
 	ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error)
 

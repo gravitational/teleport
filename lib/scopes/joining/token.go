@@ -127,11 +127,21 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
+var ErrTokenExpired = &trace.LimitExceededError{Message: "scoped token is expired"}
+
+var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token has met its max allowed uses"}
+
 // ValidateTokenForUse checks if a given scoped token can be used for
-// provisioning.
+// provisioning. Returns a [trace.LimitExceeded] error if the token is expired
+// or has no remaining uses.
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	if err := WeakValidateToken(token); err != nil {
 		return trace.Wrap(err)
+	}
+
+	maxUses := token.Spec.MaxUses
+	if maxUses != nil && token.Spec.AttemptedUses >= *maxUses {
+		return trace.Wrap(ErrTokenExhausted)
 	}
 
 	ttl := token.GetMetadata().GetExpires()
@@ -141,7 +151,7 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 
 	now := time.Now().UTC()
 	if ttl.AsTime().Before(now) {
-		return trace.LimitExceeded("scoped token is expired")
+		return trace.Wrap(ErrTokenExpired)
 	}
 
 	return nil

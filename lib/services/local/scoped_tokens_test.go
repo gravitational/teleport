@@ -20,6 +20,7 @@ import (
 	"cmp"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -47,8 +49,7 @@ func TestScopedTokenService(t *testing.T) {
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	// service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -347,4 +348,56 @@ func TestScopedTokenList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScopedTokenConsumption(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	clock.Advance(-30 * time.Hour)
+	bk, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	maxUses := int32(20)
+	token := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "testtoken",
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    "token",
+			Roles:         []string{types.RoleNode.String()},
+			MaxUses:       &maxUses,
+		},
+	}
+
+	created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: token,
+	})
+	require.NoError(t, err)
+
+	synctest.Test(t, func(t *testing.T) {
+		for range int(maxUses) {
+			go func() {
+				tok, err := service.UseScopedToken(ctx, created.Token.Metadata.Name)
+				require.NoError(t, err)
+
+				_, err = service.ConsumeScopedToken(ctx, tok.Metadata.Name)
+				require.NoError(t, err)
+			}()
+		}
+		synctest.Wait()
+		_, err = service.UseScopedToken(ctx, created.Token.Metadata.Name)
+		require.ErrorIs(t, err, joining.ErrTokenExhausted)
+
+		_, err = service.ConsumeScopedToken(ctx, created.Token.Metadata.Name)
+		require.ErrorIs(t, err, joining.ErrTokenExhausted)
+	})
 }

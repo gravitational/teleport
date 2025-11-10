@@ -39,8 +39,6 @@ func (s *Server) handleTokenJoin(
 	// Set any diagnostic info from the ClientParams.
 	setDiagnosticClientParams(stream.Diagnostic(), &tokenInit.ClientParams)
 
-	// There are no additional checks for the token join method, just make the
-	// result message and return it.
 	result, err := s.makeResult(
 		stream.Context(),
 		stream.Diagnostic(),
@@ -51,5 +49,15 @@ func (s *Server) handleTokenJoin(
 		nil, /*rawClaims*/
 		nil, /*attrs*/
 	)
+
+	// Scoped tokens have usage limits, so once we've verified that host certs could
+	// be generated we need to attempt to consume the token. Any error should be
+	// considered a join failure.
+	if token.GetAssignedScope() != "" {
+		if _, err := s.cfg.ScopedTokenService.ConsumeScopedToken(stream.Context(), token.GetName()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return result, trace.Wrap(err)
 }

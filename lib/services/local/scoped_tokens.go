@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 
@@ -66,6 +67,9 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 		return nil, trace.Wrap(err)
 	}
 
+	// a new token, by definition, cannot have usage attempts so we guard
+	// against any accidental assignment during creation
+	req.Token.Spec.AttemptedUses = 0
 	created, err := s.svc.CreateResource(ctx, req.GetToken())
 	return &joiningv1.CreateScopedTokenResponse{
 		Token: created,
@@ -92,7 +96,9 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, name string) (*
 		return nil, trace.Wrap(err)
 	}
 	if err := joining.ValidateTokenForUse(token); err != nil {
-		if trace.IsLimitExceeded(err) {
+		// unscoped tokens are automatically deleted on use after expiration,
+		// so we do the same here for parity
+		if errors.Is(err, joining.ErrTokenExpired) {
 			if err := s.svc.DeleteResource(ctx, name); err != nil {
 				return nil, trace.LimitExceeded("cleaning up expired token: %v", err)
 			}
@@ -100,6 +106,35 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, name string) (*
 		return nil, trace.Wrap(err)
 	}
 	return token, nil
+}
+
+const maxConsumeAttempts = 7
+
+// ConsumeScopedToken consumes a usage of a scoped token. A [trace.LimitExceeded]
+// error is returned if the token is expired or has no remaining uses, which
+// should be treated as a failure to provision.
+func (s *ScopedTokenService) ConsumeScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error) {
+	for range maxConsumeAttempts {
+		token, err := s.svc.GetResource(ctx, name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := joining.ValidateTokenForUse(token); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// we can short circuit here if this token has no limits
+		if token.Spec.MaxUses == nil {
+			return token, nil
+		}
+		token.Spec.AttemptedUses++
+		token, err = s.svc.ConditionalUpdateResource(ctx, token)
+		if err == nil {
+			return token, nil
+		}
+	}
+
+	return nil, trace.LimitExceeded("too many failed attempts to consume scoped token")
 }
 
 func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {
