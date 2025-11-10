@@ -3466,6 +3466,7 @@ func generateCert(ctx context.Context, a *Server, req internal.CertRequest, caTy
 		deviceID:             req.DeviceExtensions.DeviceID,
 		botInstanceID:        req.BotInstanceID,
 		joinToken:            req.JoinToken,
+		delegationSessionID:  req.DelegationSessionID,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4007,6 +4008,9 @@ type verifyLocksForUserCertsReq struct {
 	botInstanceID string
 	// joinMethod is the join token name, set only for non-token bots.
 	joinToken string
+	// delegationSessionID is the ID of a Delegation Session, when using access
+	// delegation.
+	delegationSessionID string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -4036,6 +4040,9 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	}
 	if req.joinToken != "" {
 		lockTargets = append(lockTargets, types.LockTarget{JoinToken: req.joinToken})
+	}
+	if req.delegationSessionID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{DelegationSessionID: req.delegationSessionID})
 	}
 
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))

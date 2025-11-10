@@ -78,6 +78,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		ConnectionDiagnosticID:  id.ConnectionDiagnosticId,
 		DeviceExtensions:        deviceExtensionsFromProto(id.DeviceExtensions),
 		UserType:                types.UserType(id.UserType),
+		DelegationSessionID:     id.DelegationSessionId,
 	}
 }
 
@@ -127,6 +128,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		ConnectionDiagnosticId:  id.ConnectionDiagnosticID,
 		DeviceExtensions:        deviceExtensionsToProto(&id.DeviceExtensions),
 		UserType:                string(id.UserType),
+		DelegationSessionId:     id.DelegationSessionID,
 	}
 }
 

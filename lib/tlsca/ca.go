@@ -404,6 +404,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		BotName:                 id.BotName,
 		BotInstanceID:           id.BotInstanceID,
 		JoinToken:               id.JoinToken,
+		DelegationSessionID:     id.DelegationSessionID,
 	}
 }
 

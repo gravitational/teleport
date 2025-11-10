@@ -168,6 +168,9 @@ message TLSIdentity {
   // When present, AllowedResourceAccessIDs should be treated as authoritative
   // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
   repeated types.ResourceAccessID allowed_resource_access_ids = 38;
+  // DelegationSessionID is the identifier of the DelegationSession, when access
+  // delegation is being used to lend the user's access to a bot or workload.
+  string delegation_session_id = 39;
 }
 
 // RouteToApp holds routing information for applications.
