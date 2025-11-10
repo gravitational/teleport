@@ -82,6 +82,12 @@ async function initializeApp(): Promise<void> {
     settings,
   });
 
+  const tshHome = configService.get('tshHome').value;
+  // Ensure the tsh directory exist.
+  await fs.mkdir(tshHome, {
+    recursive: true,
+  });
+
   nativeTheme.themeSource = configService.get('theme').value;
   const windowsManager = new WindowsManager(
     appStateFileStorage,
