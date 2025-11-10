@@ -94,6 +94,10 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		}
 	}
 
+	if spec.MaxUses != nil && *spec.MaxUses < 0 {
+		return trace.BadParameter("max uses must not be a negative")
+	}
+
 	return nil
 }
 
