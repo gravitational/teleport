@@ -804,6 +804,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindAccessList, RO()),
 							types.NewRule(types.KindRole, RO()),
 							types.NewRule(types.KindUser, RO()),
+							types.NewRule(types.KindUserLoginState, RO()),
 						},
 					},
 				},
