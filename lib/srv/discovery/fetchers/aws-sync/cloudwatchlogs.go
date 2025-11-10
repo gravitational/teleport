@@ -33,7 +33,7 @@ import (
 // FetchEKSAuditLogs returns a slice of audit log events for the given cluster
 // starting from the given cursor.
 func (a *Fetcher) FetchEKSAuditLogs(ctx context.Context, cluster *accessgraphv1alpha.AWSEKSClusterV1, cursor *accessgraphv1alpha.KubeAuditLogCursor) ([]cwltypes.FilteredLogEvent, error) {
-	cfg, err := a.AWSConfigProvider.GetConfig(ctx, cluster.Region, a.getAWSOptions()...)
+	cfg, err := a.AWSConfigProvider.GetConfig(ctx, cluster.GetRegion(), a.getAWSOptions()...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -42,9 +42,9 @@ func (a *Fetcher) FetchEKSAuditLogs(ctx context.Context, cluster *accessgraphv1a
 	// limit is not a hard limit - we may exceed it but won't get any more pages
 	// once reached.
 	var limit int32 = 500 // TODO(camscale): Consider making this a parameter
-	startTime := cursor.LastEventTime.AsTime().UTC()
+	startTime := cursor.GetLastEventTime().AsTime().UTC()
 	input := &cloudwatchlogs.FilterLogEventsInput{
-		LogGroupName:        aws.String("/aws/eks/" + cluster.Name + "/cluster"),
+		LogGroupName:        aws.String("/aws/eks/" + cluster.GetName() + "/cluster"),
 		LogStreamNamePrefix: aws.String("kube-apiserver-audit-"),
 		StartTime:           aws.Int64(startTime.UnixMilli()),
 		Limit:               aws.Int32(limit),
@@ -80,18 +80,18 @@ func (a *Fetcher) FetchEKSAuditLogs(ctx context.Context, cluster *accessgraphv1a
 // If the cursor is nil, the events are returned unfiltered.
 func cwlEventsAfterCursor(events []cwltypes.FilteredLogEvent, cursor *accessgraphv1alpha.KubeAuditLogCursor) []cwltypes.FilteredLogEvent {
 	// If we're not looking for events from a cursor position, just return all events.
-	if cursor == nil || cursor.EventId == "" {
+	if cursor == nil || cursor.GetEventId() == "" {
 		return events
 	}
 
-	startTime := cursor.LastEventTime.AsTime().UTC()
+	startTime := cursor.GetLastEventTime().AsTime().UTC()
 	for i, event := range events {
 		// If we never saw cursor.EventId with the given timestamp,
 		// just return all the events.
 		if time.UnixMilli(*event.Timestamp).UTC().After(startTime) {
 			return events
 		}
-		if *event.EventId == cursor.EventId {
+		if *event.EventId == cursor.GetEventId() {
 			return events[i+1:]
 		}
 	}
