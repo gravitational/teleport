@@ -9,8 +9,11 @@
 
 #include <bpf/bpf_core_read.h>
 
-// easier to use bpf_printk taken from https://nakryiko.com/posts/bpf-tips-printk/
-// define our own struct definition if our vmlinux.h is outdated
+// Easier to use bpf_printk taken from https://nakryiko.com/posts/bpf-tips-printk/
+
+// Define our own struct definition if our vmlinux.h is outdated; this empty
+// definition will not conflict because of the ___x but anything after the
+// triple underscore will get ignored by BPF CO-RE.
 struct trace_event_raw_bpf_trace_printk___x {};
 
 #undef bpf_printk

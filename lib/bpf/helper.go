@@ -104,7 +104,6 @@ func (c *Counter) loop() {
 		_, err := c.doorbellBuf.Read()
 		if err != nil {
 			if errors.Is(err, ringbuf.ErrClosed) {
-				logger.DebugContext(context.Background(), "Received signal, exiting")
 				return
 			}
 			logger.ErrorContext(context.Background(), "Error reading from ring buffer", "error", err)

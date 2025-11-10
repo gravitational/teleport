@@ -461,12 +461,12 @@ tctl-app:
 # This is a requirement for building BPF bytecode.
 .PHONY: bpf-bytecode
 bpf-bytecode:
-ifneq ($(or $(wildcard /usr/include/linux/bpf.h), $(wildcard /usr/include/bpf/bpf_helpers.h)), "")
+ifneq ($(or $(wildcard /usr/include/linux/bpf.h),$(wildcard /usr/include/bpf/bpf_helpers.h)),"")
 else
 $(error "libbpf-dev is required to build BPF bytecode")
 endif # libbpf-dev installed
-ifneq ("$(shell clang --version 2>/dev/null)","")
-	go generate -tags bpf ./lib/bpf/
+ifneq ("$(shell command -v clang --version 2>/dev/null)","")
+	go generate ./lib/bpf/
 else
 $(error "clang is required to build BPF bytecode")
 endif # clang installed
@@ -1303,7 +1303,6 @@ lint-sh:
 		shellcheck \
 		--exclude=SC2086 \
 		--exclude=SC1091 \
-		--exclude=SC1017 \
 		$(SH_LINT_FLAGS)
 
 	# lint AWS AMI scripts

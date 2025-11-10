@@ -45,14 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Multi-arch setup, as mentioned in https://github.com/cilium/ebpf/issues/305
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target amd64 -cflags "-D__TARGET_ARCH_x86" -tags bpf -type data_t command ../../bpf/enhancedrecording/command.bpf.c
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target amd64 -cflags "-D__TARGET_ARCH_x86" -tags bpf -type data_t -no-global-types disk ../../bpf/enhancedrecording/disk.bpf.c
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target amd64 -cflags "-D__TARGET_ARCH_x86" -tags bpf -type ipv4_data_t -type ipv6_data_t network ../../bpf/enhancedrecording/network.bpf.c
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target arm64 -cflags "-D__TARGET_ARCH_arm64" -tags bpf -type data_t command ../../bpf/enhancedrecording/command.bpf.c
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target arm64 -cflags "-D__TARGET_ARCH_arm64" -tags bpf -no-global-types -type data_t disk ../../bpf/enhancedrecording/disk.bpf.c
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target arm64 -cflags "-D__TARGET_ARCH_arm64" -tags bpf -type ipv4_data_t -type ipv6_data_t network ../../bpf/enhancedrecording/network.bpf.c
-
 // ArgsCacheSize is the number of args events to store before dropping args
 // events.
 const ArgsCacheSize = 1024

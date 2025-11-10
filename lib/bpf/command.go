@@ -22,7 +22,6 @@ package bpf
 
 import (
 	"context"
-	_ "embed"
 	"io"
 	"sync"
 
