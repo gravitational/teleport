@@ -392,11 +392,11 @@ func (c *Conn) writeLoop() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// unblockReaderOnErr is a helper function that sets a past read deadline
+	// unblockReaderOnErrLocked is a helper function that sets a past read deadline
 	// on the underlying connection to unblock the read loop in case of errors
 	// during writing. It also broadcasts the condition variable to wake up
 	// any waiting goroutines.
-	unblockReaderOnErr := func() {
+	unblockReaderOnErrLocked := func() {
 		if c.localClosed {
 			c.remoteClosed = true
 		}
@@ -407,16 +407,15 @@ func (c *Conn) writeLoop() {
 
 	// maxFrameSize is the maximum amount of data that can be transmitted at once;
 	// picked for sanity's sake, and to allow acks to be sent relatively frequently.
-	const maxFrameSize = 128 * 1024
-	dataBuffer := make([]byte, maxFrameSize)
+	dataBuffer := make([]byte, bufferSize)
 	for {
 		n := c.sendBuffer.read(dataBuffer)
 		if n > 0 {
-			err := c.writeFrame(
+			err := c.writeFrameUnlocking(
 				ws.NewBinaryFrame(dataBuffer[:n]),
 			)
 			if err != nil {
-				unblockReaderOnErr()
+				unblockReaderOnErrLocked()
 				return
 			}
 			c.cond.Broadcast()
@@ -425,15 +424,15 @@ func (c *Conn) writeLoop() {
 
 		// Handle ping/pong replies
 		if len(c.pingPongReplies) > 0 {
-			frames := c.pingPongReplies
-			c.pingPongReplies = nil
+			frame := c.pingPongReplies[0]
+			// Remove the frame from the slice
+			c.pingPongReplies = c.pingPongReplies[1:]
 
-			for _, fr := range frames {
-				if err := c.writeFrame(fr); err != nil {
-					unblockReaderOnErr()
-					return
-				}
+			if err := c.writeFrameUnlocking(frame); err != nil {
+				unblockReaderOnErrLocked()
+				return
 			}
+
 			c.cond.Broadcast()
 			// After sending ping/pong replies, continue to check for more data to send.
 			// This is required because in writeFrame we unlock the mutex, so there might be new data
@@ -453,8 +452,8 @@ func (c *Conn) writeLoop() {
 
 			// always try to send a close frame when closing the connection
 			// even if the connection does not support the close process.
-			if err := c.writeFrame(closeFrame); err != nil {
-				unblockReaderOnErr()
+			if err := c.writeFrameUnlocking(closeFrame); err != nil {
+				unblockReaderOnErrLocked()
 				return
 			}
 
@@ -464,7 +463,7 @@ func (c *Conn) writeLoop() {
 			// This is to avoid holding the connection open waiting for a close frame
 			// that we know will never come.
 			if !c.supportsCloseProccess {
-				unblockReaderOnErr()
+				unblockReaderOnErrLocked()
 				return
 			}
 
@@ -479,13 +478,14 @@ func (c *Conn) writeLoop() {
 			// from the remote side and close the connection.
 			return
 		}
+
 		c.cond.Wait()
 	}
 }
 
 // writeFrameLocked writes a WebSocket frame to the connection without acquiring
 // the write mutex. This is used when we already hold the write mutex.
-func (c *Conn) writeFrame(frame ws.Frame) error {
+func (c *Conn) writeFrameUnlocking(frame ws.Frame) error {
 	// If the connection is a client connection, we should mask the frame
 	// as per the WebSocket protocol. In this case, we use a empty mask
 	// for simplicity so messages are not actually masked, but the masked bit is set.
@@ -542,7 +542,7 @@ func (c *Conn) closeWithErrFrame(frame ws.Frame) error {
 	stopTimer := time.AfterFunc(
 		maxDeadlineOnClose,
 		func() {
-			c.underlyingConn.SetDeadline(time.Now().Add(-time.Second))
+			_ = c.underlyingConn.Close()
 		},
 	)
 	// This defer will ensure that the deadline is cleared when the function returns.
