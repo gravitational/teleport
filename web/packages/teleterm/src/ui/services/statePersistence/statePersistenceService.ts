@@ -64,6 +64,7 @@ export interface StatePersistenceState {
      */
     hasEverStarted: boolean;
   };
+  promoteMigratedTshHome: boolean;
 }
 
 // Before adding new methods to this service, consider using usePersistedState instead.

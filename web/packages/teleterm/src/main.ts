@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -32,9 +33,10 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { createConfigService } from 'teleterm/services/config';
-import { createFileStorage } from 'teleterm/services/fileStorage';
+import { createFileStorage, FileStorage } from 'teleterm/services/fileStorage';
 import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
+import type { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { setTray } from './tray';
@@ -87,6 +89,10 @@ async function initializeApp(): Promise<void> {
   await fs.mkdir(tshHome, {
     recursive: true,
   });
+
+  // TODO(gzdunek): DELETE IN 20.0.0. Users should already migrate to the new location.
+  // Also remove MigratedTshHomeBanner component and relevant properties from app_state.json.
+  await migrateOldTshHomeOnce(logger, tshHome, appStateFileStorage);
 
   nativeTheme.themeSource = configService.get('theme').value;
   const windowsManager = new WindowsManager(
@@ -342,4 +348,83 @@ function showDialogWithError(title: string, unknownError: unknown) {
   // V8 includes the error message in the stack, so there's no need to append stack to message.
   const content = error.stack || error.message;
   dialog.showErrorBox(title, content);
+}
+
+/**
+ * Migrates the old "Teleport Connect/tsh" directory to the new location
+ * ("~/.tsh" by default) by copying all files recursively.
+ * Any failure in the migration process causes an early exit and marks it as processed.
+ * Retrying on the next launch could be harmful, since the user likely already
+ * re-added their profiles.
+ */
+async function migrateOldTshHomeOnce(
+  logger: Logger,
+  tshHome: string,
+  appStorage: FileStorage
+): Promise<void> {
+  const oldTshHome = path.resolve(app.getPath('userData'), 'tsh');
+  const tshHomeMigrationKey = 'tshHomeMigration';
+  const tshMigration: TshHomeMigration =
+    appStorage.get()?.[tshHomeMigrationKey];
+  if (tshMigration?.processed) {
+    return;
+  }
+
+  const markMigrationAsProcessed = (opts?: { noOldTshHome?: boolean }) => {
+    const migrationProcessed: TshHomeMigration = { processed: true };
+    // The properties are separated, because `tshHomeMigration` should only
+    // be updated from the main process.
+    // The renderer can only update properties in the `state` key.
+    appStorage.put(tshHomeMigrationKey, migrationProcessed);
+    // Do not promote the shared tsh directory if there was nothing to migrate.
+    if (!opts?.noOldTshHome) {
+      // TODO(gzdunek): We need a better way to manage the app state.
+      const appState = (appStorage.get('state') || {}) as StatePersistenceState;
+      appState.promoteMigratedTshHome = true;
+      appStorage.put('state', appState);
+    }
+  };
+
+  // Check if the old directory exists.
+  try {
+    await fs.stat(oldTshHome);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      logger.info(
+        'Old tsh directory does not exist, marking migration as processed.'
+      );
+      markMigrationAsProcessed({ noOldTshHome: true });
+      return;
+    }
+    logger.error('Failed to read old tsh directory', err);
+    markMigrationAsProcessed();
+    return;
+  }
+
+  // Perform the migration.
+  // The dereference option allows the source and the target to be symlinks.
+  //
+  // It may happen that the user already symlinked the global tsh home to the
+  // Electron's the home.
+  // In that case, the copy will fail with ERR_FS_CP_EINVAL error.
+  try {
+    await fs.cp(oldTshHome, tshHome, {
+      recursive: true,
+      force: true,
+      dereference: true,
+    });
+    logger.info('Successfully copied tsh home directory to', tshHome);
+  } catch (err) {
+    logger.error('Failed to copy tsh directory', err);
+  } finally {
+    markMigrationAsProcessed();
+  }
+}
+
+interface TshHomeMigration {
+  /**
+   * Indicates whether the old `tsh` directory has been migrated to the new location.
+   * `true` means the migration was attempted (successfully or not) and should not be retried.
+   */
+  processed?: boolean;
 }
