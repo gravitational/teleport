@@ -31,19 +31,42 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 )
+
+// cloudwatchlogFetcher fetches cloudwatch logs for a given cluster, starting
+// at the given cursur position. This interface exists so tests can plug in a
+// fake fetcher and not need to stub out deeper AWS interfaces.
+type cloudwatchlogFetcher interface {
+	FetchEKSAuditLogs(
+		ctx context.Context,
+		cluster *accessgraphv1alpha.AWSEKSClusterV1,
+		cursor *accessgraphv1alpha.KubeAuditLogCursor,
+	) ([]cwltypes.FilteredLogEvent, error)
+}
 
 // eksAuditLogFetcher is a fetcher for EKS audit logs for a single cluster,
 // fetching the logs from AWS Cloud Watch Logs. It uses the grpc stream
 // to initiate the stream and possibly receive a resume state used to
 // synchronize the start point with a previous run fetching the logs.
 type eksAuditLogFetcher struct {
-	fetcher *aws_sync.Fetcher
+	fetcher cloudwatchlogFetcher
 	cluster *accessgraphv1alpha.AWSEKSClusterV1
 	stream  accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient
 	log     *slog.Logger
-	cancel  context.CancelFunc
+}
+
+func newEKSAuditLogFetcher(
+	fetcher cloudwatchlogFetcher,
+	cluster *accessgraphv1alpha.AWSEKSClusterV1,
+	stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient,
+	log *slog.Logger,
+) *eksAuditLogFetcher {
+	return &eksAuditLogFetcher{
+		fetcher: fetcher,
+		cluster: cluster,
+		stream:  stream,
+		log:     log,
+	}
 }
 
 // Run continuously polls AWS Cloud Watch Logs for Kubernetes apiserver
@@ -79,7 +102,7 @@ func (f *eksAuditLogFetcher) Run(ctx context.Context) error {
 		}
 
 		f.log.DebugContext(ctx, "Sent KubeAuditLogEvents", "count", len(events),
-			"cursor_time", cursor.LastEventTime.AsTime())
+			"cursor_time", cursor.GetLastEventTime().AsTime())
 	}
 	return trace.Wrap(ctx.Err())
 }

@@ -54,6 +54,10 @@ type eksAuditLogCluster struct {
 	cluster *accessgraphv1alpha.AWSEKSClusterV1
 }
 
+type eksAuditLogFetcherRunner interface {
+	Run(context.Context) error
+}
+
 // eksAuditLogWatcher is a watcher that waits for notifications on a channel
 // indicating what EKS clusters should have audit logs fetched, and reconciles
 // that against what is currently being fetched. Fetchers are started and
@@ -63,8 +67,20 @@ type eksAuditLogWatcher struct {
 	log                *slog.Logger
 	auditLogClustersCh chan []eksAuditLogCluster
 
-	fetchers    map[string]*eksAuditLogFetcher
+	// Fetchers tracks the cluster IDs (ARN) of the clusters for which we
+	// have a fetcher running. The value is a CancelFunc that is called to
+	// stop the fetcher.
+	fetchers    map[string]context.CancelFunc
 	completedCh chan fetcherCompleted
+
+	// newFetcher is a function used to construct a new fetcher. It exists
+	// so tests can override it to not create real fetchers.
+	newFetcher func(
+		*aws_sync.Fetcher,
+		*accessgraphv1alpha.AWSEKSClusterV1,
+		accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient,
+		*slog.Logger,
+	) eksAuditLogFetcherRunner
 }
 
 func newEKSAuditLogWatcher(
@@ -75,15 +91,15 @@ func newEKSAuditLogWatcher(
 		client:             client,
 		log:                logger,
 		auditLogClustersCh: make(chan []eksAuditLogCluster),
-		fetchers:           make(map[string]*eksAuditLogFetcher),
+		fetchers:           make(map[string]context.CancelFunc),
 		completedCh:        make(chan fetcherCompleted),
 	}
 }
 
 // fetcherCompleted captures the result of a completed eksAuditLogFetcher.
 type fetcherCompleted struct {
-	fetcher *eksAuditLogFetcher
-	err     error
+	clusterID string
+	err       error
 }
 
 // Run starts a watcher by creating a KubeAuditLogStream on its grpc client. It
@@ -168,27 +184,27 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 		discoveredClusters[discovered.cluster.Arn] = discovered
 	}
 	// Stop any fetchers for clusters we are running fetcher for that discovery did not return.
-	for arn, existing := range mapDifference(w.fetchers, discoveredClusters) {
+	for arn, fetcherCancel := range mapDifference(w.fetchers, discoveredClusters) {
 		w.log.InfoContext(ctx, "Stopping eksKubeAuditLogFetcher", "cluster", arn)
-		existing.cancel()
+		fetcherCancel()
 		// cleanup will happen when the fetcher finishes and is put on the completed channel.
 	}
 	// Start any new fetchers for clusters we are not running that discovery returned.
 	for arn, discovered := range mapDifference(discoveredClusters, w.fetchers) {
 		w.log.InfoContext(ctx, "Starting eksKubeAuditLogFetcher", "cluster", arn)
 		ctx, cancel := context.WithCancel(ctx)
-		logFetcher := &eksAuditLogFetcher{
-			fetcher: discovered.fetcher,
-			cluster: discovered.cluster,
-			stream:  stream,
-			log:     w.log,
-			cancel:  cancel,
+		var logFetcher eksAuditLogFetcherRunner
+		if w.newFetcher == nil {
+			logFetcher = newEKSAuditLogFetcher(discovered.fetcher, discovered.cluster, stream, w.log)
+		} else {
+			// the pluggable newFetcher is for testing purposes
+			logFetcher = w.newFetcher(discovered.fetcher, discovered.cluster, stream, w.log)
 		}
-		w.fetchers[arn] = logFetcher
+		w.fetchers[arn] = cancel
 		go func() {
 			err := logFetcher.Run(ctx)
 			select {
-			case w.completedCh <- fetcherCompleted{logFetcher, err}:
+			case w.completedCh <- fetcherCompleted{arn, err}:
 			case <-ctx.Done():
 			}
 		}()
@@ -198,7 +214,7 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 // complete cleans up the maintained list of running log fetchers, removing the
 // given completed fetcher, and logs the completion status of the fetcher.
 func (w *eksAuditLogWatcher) complete(ctx context.Context, completed fetcherCompleted) {
-	arn := completed.fetcher.cluster.Arn
+	arn := completed.clusterID
 	if completed.err != nil && !errors.Is(completed.err, context.Canceled) {
 		w.log.ErrorContext(ctx, "eksKubeAuditLogFetcher completed with error", "cluster", arn, "error", completed.err)
 	} else {
