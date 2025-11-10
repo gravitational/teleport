@@ -58,5 +58,19 @@ func (s *Server) handleTokenJoin(
 		nil, /*rawClaims*/
 		nil, /*attrs*/
 	)
-	return result, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Scoped tokens have usage limits, so once we've verified that host certs could
+	// be generated we need to attempt to consume the token. Any error should be
+	// considered a join failure.
+	if scoped, ok := token.(*joining.Token); ok {
+		publicKey := tokenInit.ClientParams.HostParams.PublicKeys.PublicTLSKey
+		if _, err := s.cfg.ScopedTokenService.UseScopedToken(stream.Context(), scoped.GetScoped(), publicKey); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return result, nil
 }

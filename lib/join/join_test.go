@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -87,6 +88,11 @@ func TestJoinToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	authService := newFakeAuthService(t)
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
+
+	// generate scoped tokens
 	scopedToken1 := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
@@ -98,36 +104,31 @@ func TestJoinToken(t *testing.T) {
 			AssignedScope: "/aa/bb",
 			Roles:         []string{types.RoleNode.String()},
 			JoinMethod:    string(types.JoinMethodToken),
+			Mode:          string(joining.TokenUsageModeUnlimited),
 		},
 		Status: &joiningv1.ScopedTokenStatus{
 			Secret: "secret",
 		},
 	}
 	scopedToken2 := proto.CloneOf(scopedToken1)
-	scopedToken2.Metadata.Name = "scoped2"
 	scopedToken2.Spec.AssignedScope = "/aa/cc"
+	scopedToken2.Metadata.Name = "scoped2"
 
 	scopedToken3 := proto.CloneOf(scopedToken1)
 	scopedToken3.Metadata.Name = "scoped3"
 
-	authService := newFakeAuthService(t)
-	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
-	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
+	singleUseToken1 := proto.CloneOf(scopedToken1)
+	singleUseToken1.Spec.Mode = string(joining.TokenUsageModeSingle)
+	singleUseToken1.Metadata.Name = "scoped-single-use-1"
+	singleUseToken2 := proto.CloneOf(singleUseToken1)
+	singleUseToken2.Metadata.Name = "scoped-single-use-2"
 
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken1,
-	})
-	require.NoError(t, err)
-
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken2,
-	})
-	require.NoError(t, err)
-
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken3,
-	})
-	require.NoError(t, err)
+	for _, tok := range []*joiningv1.ScopedToken{scopedToken1, scopedToken2, scopedToken3, singleUseToken1, singleUseToken2} {
+		_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			Token: tok,
+		})
+		require.NoError(t, err)
+	}
 
 	proxy := newFakeProxy(authService)
 	proxy.join(t)
@@ -268,6 +269,52 @@ func TestJoinToken(t *testing.T) {
 		require.ElementsMatch(t, expectedSystemRoles, newIdentity.SystemRoles)
 	})
 
+	t.Run("join and rejoin with single use scoped token", func(t *testing.T) {
+		// Node initially joins by connecting to the proxy's gRPC service.
+		identity, err := joinViaProxyWithSecret(
+			t.Context(),
+			singleUseToken1.GetMetadata().GetName(),
+			singleUseToken1.GetStatus().GetSecret(),
+			proxyListener.Addr(),
+		)
+		require.NoError(t, err)
+		// Make sure the result contains a host ID and expected certificate roles.
+		require.NotEmpty(t, identity.ID.HostUUID)
+		require.Equal(t, types.RoleInstance, identity.ID.Role)
+		expectedSystemRoles := slices.DeleteFunc(
+			scopedToken1.GetSpec().GetRoles(),
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
+
+		require.Equal(t, scopedToken1.GetSpec().GetAssignedScope(), identity.AgentScope)
+		// Build an auth client with the new identity.
+		tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
+		require.NoError(t, err)
+		authClient, err := authService.TLS.NewClientWithCert(tlsConfig.Certificates[0])
+		require.NoError(t, err)
+
+		newIdentity, err := rejoinViaAuthClientWithSecret(
+			t.Context(),
+			singleUseToken1.GetMetadata().GetName(),
+			singleUseToken1.GetStatus().GetSecret(),
+			authClient,
+		)
+		require.NoError(t, err)
+		require.Equal(t, identity.AgentScope, newIdentity.AgentScope)
+		require.Equal(t, identity.ID.HostUUID, newIdentity.ID.HostUUID)
+		require.Equal(t, identity.ID.NodeName, newIdentity.ID.NodeName)
+		require.Equal(t, identity.ID.Role, newIdentity.ID.Role)
+		expectedSystemRoles = slices.DeleteFunc(
+			apiutils.Deduplicate(slices.Concat(
+				scopedToken1.GetSpec().GetRoles(),
+				scopedToken3.GetSpec().GetRoles(),
+			)),
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, newIdentity.SystemRoles)
+	})
+
 	t.Run("join and rejoin with mismatched scoped tokens", func(t *testing.T) {
 		// Node initially joins by connecting to the proxy's gRPC service.
 		identity, err := joinViaProxyWithSecret(
@@ -350,6 +397,34 @@ func TestJoinToken(t *testing.T) {
 				}),
 			))
 		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
+	})
+
+	t.Run("join with single use scoped token", func(t *testing.T) {
+		identity, err := joinViaProxyWithSecret(
+			t.Context(),
+			singleUseToken2.GetMetadata().GetName(),
+			singleUseToken2.GetStatus().GetSecret(),
+			proxyListener.Addr(),
+		)
+		require.NoError(t, err)
+		// Make sure the result contains a host ID and expected certificate roles.
+		require.NotEmpty(t, identity.ID.HostUUID)
+		require.Equal(t, types.RoleInstance, identity.ID.Role)
+		expectedSystemRoles := slices.DeleteFunc(
+			singleUseToken2.GetSpec().GetRoles(),
+			func(s string) bool { return s == types.RoleInstance.String() },
+		)
+		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
+		require.Equal(t, singleUseToken2.GetSpec().GetAssignedScope(), identity.AgentScope)
+
+		// ensure subsequent join attempts fail
+		_, err = joinViaProxyWithSecret(
+			t.Context(),
+			singleUseToken2.GetMetadata().GetName(),
+			singleUseToken2.GetStatus().GetSecret(),
+			proxyListener.Addr(),
+		)
+		require.ErrorContains(t, err, joining.ErrTokenExhausted.Error())
 	})
 }
 
