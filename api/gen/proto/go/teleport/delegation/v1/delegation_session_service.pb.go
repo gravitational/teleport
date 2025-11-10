@@ -484,10 +484,8 @@ type RouteToApp struct {
 	AzureIdentity string `protobuf:"bytes,7,opt,name=azure_identity,json=azureIdentity,proto3" json:"azure_identity,omitempty"`
 	// GCP service account to assume.
 	GcpServiceAccount string `protobuf:"bytes,8,opt,name=gcp_service_account,json=gcpServiceAccount,proto3" json:"gcp_service_account,omitempty"`
-	// AWS credentials, formatted as JSON.
-	AwsCredentialProcessCredentials string `protobuf:"bytes,9,opt,name=aws_credential_process_credentials,json=awsCredentialProcessCredentials,proto3" json:"aws_credential_process_credentials,omitempty"`
-	unknownFields                   protoimpl.UnknownFields
-	sizeCache                       protoimpl.SizeCache
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RouteToApp) Reset() {
@@ -572,13 +570,6 @@ func (x *RouteToApp) GetAzureIdentity() string {
 func (x *RouteToApp) GetGcpServiceAccount() string {
 	if x != nil {
 		return x.GcpServiceAccount
-	}
-	return ""
-}
-
-func (x *RouteToApp) GetAwsCredentialProcessCredentials() string {
-	if x != nil {
-		return x.AwsCredentialProcessCredentials
 	}
 	return ""
 }
@@ -690,7 +681,7 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\bprotocol\x18\x02 \x01(\tR\bprotocol\x12\x1a\n" +
 	"\busername\x18\x03 \x01(\tR\busername\x12\x1a\n" +
 	"\bdatabase\x18\x04 \x01(\tR\bdatabase\x12\x14\n" +
-	"\x05roles\x18\x05 \x03(\tR\x05roles\"\xdd\x02\n" +
+	"\x05roles\x18\x05 \x03(\tR\x05roles\"\x90\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1f\n" +
@@ -703,8 +694,7 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\faws_role_arn\x18\x06 \x01(\tR\n" +
 	"awsRoleArn\x12%\n" +
 	"\x0eazure_identity\x18\a \x01(\tR\razureIdentity\x12.\n" +
-	"\x13gcp_service_account\x18\b \x01(\tR\x11gcpServiceAccount\x12K\n" +
-	"\"aws_credential_process_credentials\x18\t \x01(\tR\x1fawsCredentialProcessCredentials\"m\n" +
+	"\x13gcp_service_account\x18\b \x01(\tR\x11gcpServiceAccount\"m\n" +
 	"\x15GenerateCertsResponse\x12\x10\n" +
 	"\x03ssh\x18\x01 \x01(\fR\x03ssh\x12\x10\n" +
 	"\x03tls\x18\x02 \x01(\fR\x03tls\x12\x17\n" +

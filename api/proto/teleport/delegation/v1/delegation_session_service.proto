@@ -138,9 +138,6 @@ message RouteToApp {
 
   // GCP service account to assume.
   string gcp_service_account = 8;
-
-  // AWS credentials, formatted as JSON.
-  string aws_credential_process_credentials = 9;
 }
 
 // GenerateCertsResponse are the results of calling GenerateCerts.

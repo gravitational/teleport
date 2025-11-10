@@ -31,7 +31,6 @@ import (
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/slices"
@@ -109,7 +108,12 @@ func (s *SessionService) CreateDelegationSession(
 		return nil, trace.BadParameter("at least one authorized user is required")
 	}
 
-	if err := s.bestEffortCheckResourceAccess(ctx, authCtx, resources); err != nil {
+	// Read user from the backend to get the current roles and traits.
+	user, err := s.userGetter.GetUser(ctx, authCtx.User.GetName(), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.bestEffortCheckResourceAccess(ctx, user, resources); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -138,14 +142,9 @@ func (s *SessionService) CreateDelegationSession(
 // errors as early as possible (while the user is still "in the loop").
 func (s *SessionService) bestEffortCheckResourceAccess(
 	ctx context.Context,
-	authCtx *authz.Context,
+	user types.User,
 	resources []*delegationv1.DelegationResourceSpec,
 ) error {
-	// Read user from the backend to get the current roles and traits.
-	user, err := s.userGetter.GetUser(ctx, authCtx.User.GetName(), false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	checker, err := services.NewAccessChecker(
 		&services.AccessInfo{
 			Roles:  user.GetRoles(),

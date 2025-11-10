@@ -21,17 +21,25 @@ package delegationv1_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/delegation/delegationv1"
+	"github.com/gravitational/teleport/lib/auth/internal"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/trace"
 )
 
 func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessionTestPack) {
@@ -80,27 +88,54 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 
 	service, err := delegationv1.NewSessionService(delegationv1.SessionServiceConfig{
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
-			checker, err := services.NewAccessChecker(
-				&services.AccessInfo{
-					Roles: pack.user.GetRoles(),
-				},
-				"test.teleport.sh",
-				accessService,
-			)
-			require.NoError(t, err)
+			if pack.botName != "" {
+				return &authz.Context{
+					Identity: authz.LocalUser{
+						Identity: tlsca.Identity{BotName: pack.botName},
+					},
+					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
+				}, nil
+			}
 
-			return &authz.Context{
-				User:                 pack.user,
-				AdminActionAuthState: pack.adminActionAuthState,
-				Checker:              checker,
-			}, nil
+			if pack.user != nil {
+				checker, err := services.NewAccessChecker(
+					&services.AccessInfo{
+						Roles: pack.user.GetRoles(),
+					},
+					"test.teleport.sh",
+					accessService,
+				)
+				require.NoError(t, err)
+
+				return &authz.Context{
+					User:                 pack.user,
+					AdminActionAuthState: pack.adminActionAuthState,
+					Checker:              checker,
+				}, nil
+			}
+
+			return nil, trace.AccessDenied("remember to call authenticateUser or authenticateBot on the test pack")
 		}),
 		ProfileReader:  profileUpstream,
+		SessionReader:  sessionUpstream,
 		SessionWriter:  sessionUpstream,
 		ResourceLister: presenceService,
 		RoleGetter:     accessService,
 		UserGetter:     identityService,
-		Logger:         logtest.NewLogger(),
+		CertGenerator: delegationv1.CertGeneratorFunc(func(ctx context.Context, req internal.CertRequest) (*proto.Certs, error) {
+			if pack.onGenerateCert != nil {
+				return pack.onGenerateCert(ctx, req)
+			}
+			return nil, trace.NotImplemented("Certificate generation not implemented")
+		}),
+		ClusterNameGetter: testClusterNameGetter{clusterName: "test.teleport.sh"},
+		AppSessionCreator: delegationv1.AppSessionCreatorFunc(func(ctx context.Context, req internal.NewAppSessionRequest) (types.WebSession, error) {
+			if pack.onCreateAppSession != nil {
+				return pack.onCreateAppSession(ctx, req)
+			}
+			return nil, trace.NotImplemented("App session creation not implemented")
+		}),
+		Logger: logtest.NewLogger(),
 	})
 
 	return service, pack
@@ -115,14 +150,29 @@ type sessionTestPack struct {
 
 	user                 types.User
 	adminActionAuthState authz.AdminActionAuthState
+	botName              string
+
+	onCreateAppSession func(context.Context, internal.NewAppSessionRequest) (types.WebSession, error)
+	onGenerateCert     func(context.Context, internal.CertRequest) (*proto.Certs, error)
 }
 
-func (p *sessionTestPack) authenticate(
+func (p *sessionTestPack) authenticateUser(
 	t *testing.T,
 	name string,
 	mfaState authz.AdminActionAuthState,
 	roleSpec types.RoleSpecV6,
 ) {
+	t.Helper()
+
+	p.user = p.createUser(t, name, roleSpec)
+	p.adminActionAuthState = mfaState
+}
+
+func (p *sessionTestPack) createUser(
+	t *testing.T,
+	name string,
+	roleSpec types.RoleSpecV6,
+) types.User {
 	t.Helper()
 
 	user, err := types.NewUser(name)
@@ -138,6 +188,37 @@ func (p *sessionTestPack) authenticate(
 	_, err = p.identity.CreateUser(t.Context(), user)
 	require.NoError(t, err)
 
-	p.user = user
-	p.adminActionAuthState = mfaState
+	return user
+}
+
+func (p *sessionTestPack) authenticateBot(botName string) {
+	p.botName = botName
+}
+
+func (p *sessionTestPack) createSession(t *testing.T, spec *delegationv1pb.DelegationSessionSpec) *delegationv1pb.DelegationSession {
+	t.Helper()
+
+	session, err := p.sessions.CreateDelegationSession(t.Context(), &delegationv1pb.DelegationSession{
+		Kind:    types.KindDelegationProfile,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:    uuid.NewString(),
+			Expires: timestamppb.New(time.Now().Add(time.Hour)),
+		},
+		Spec: spec,
+	})
+	require.NoError(t, err)
+
+	return session
+}
+
+type testClusterNameGetter struct {
+	clusterName string
+}
+
+func (g testClusterNameGetter) GetClusterName(context.Context) (types.ClusterName, error) {
+	return types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: g.clusterName,
+		ClusterID:   g.clusterName,
+	})
 }

@@ -45,7 +45,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 
 			// Create user with role that allows the use of any profile and
 			// any application (to match the profile's required_resources).
-			pack.authenticate(t,
+			pack.authenticateUser(t,
 				"bob",
 				authz.AdminActionAuthMFAVerified,
 				types.RoleSpecV6{
@@ -114,7 +114,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 			service, pack := sessionServiceTestPack(t)
 
 			// Create user with role that allows the use of any application.
-			pack.authenticate(t,
+			pack.authenticateUser(t,
 				"bob",
 				authz.AdminActionAuthMFAVerified,
 				types.RoleSpecV6{
@@ -197,7 +197,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 
 		// Create user with role that allows the use of any application but not
 		// the delegation profile.
-		pack.authenticate(t,
+		pack.authenticateUser(t,
 			"bob",
 			authz.AdminActionAuthMFAVerified,
 			types.RoleSpecV6{
@@ -235,7 +235,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 
 		// Create user with role that allows the use of any delegation profile
 		// but not the required resources.
-		pack.authenticate(t,
+		pack.authenticateUser(t,
 			"bob",
 			authz.AdminActionAuthMFAVerified,
 			types.RoleSpecV6{
@@ -274,7 +274,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 
 		// Create user with role that allows the use of any profile and
 		// any application (to match the profile's required_resources).
-		pack.authenticate(t,
+		pack.authenticateUser(t,
 			"bob",
 			authz.AdminActionAuthMFAVerified,
 			types.RoleSpecV6{
@@ -321,7 +321,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 
 		// Create user with role that allows the use of any profile and
 		// any application (to match the profile's required_resources).
-		pack.authenticate(t,
+		pack.authenticateUser(t,
 			"bob",
 			authz.AdminActionAuthMFAVerified,
 			types.RoleSpecV6{
@@ -362,7 +362,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 
 		// Create user with role that allows the use of any profile and
 		// any application (to match the profile's required_resources).
-		pack.authenticate(t,
+		pack.authenticateUser(t,
 			"bob",
 			authz.AdminActionAuthUnauthorized,
 			types.RoleSpecV6{
@@ -408,7 +408,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 
 		// Create user with role that allows the use of any profile and
 		// any application (to match the profile's required_resources).
-		pack.authenticate(t,
+		pack.authenticateUser(t,
 			"bob",
 			authz.AdminActionAuthMFAVerified,
 			types.RoleSpecV6{
