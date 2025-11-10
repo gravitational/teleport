@@ -3,9 +3,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
     ignore:
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
@@ -33,9 +32,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/api'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
@@ -50,9 +48,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/assets/aws'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -70,9 +67,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/assets/backport'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
@@ -87,9 +83,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/build.assets/tooling'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -107,9 +102,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/terraform'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
     ignore:
       # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-framework
@@ -129,9 +123,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/terraform-mwi'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
@@ -146,9 +139,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/event-handler'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
