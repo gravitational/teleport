@@ -77,12 +77,12 @@ type Exec interface {
 	// Wait will block while the command executes.
 	Wait() *ExecResult
 
-	// WaitForChild blocks until the child process has completed any required
-	// setup operations before proceeding with execution.
-	WaitForChild(ctx context.Context) error
+	// ReadBPFPID reads the PID of the process that will have a unique
+	// audit session ID to be used with Enhanced Session Recording.
+	ReadBPFPID() (int, error)
 
 	// Continue will resume execution of the process after it completes its
-	// pre-processing routine (placed in a cgroup).
+	// pre-processing routine.
 	Continue()
 
 	// PID returns the PID of the Teleport process that was re-execed.
@@ -180,12 +180,6 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
-	// Close our half of the write pipe since it is only to be used by the child process.
-	// Not closing prevents being signaled when the child closes its half.
-	if err := e.Ctx.readyw.Close(); err != nil {
-		logger.WarnContext(ctx, "Failed to close parent process ready signal write fd", "error", err)
-	}
-	e.Ctx.readyw = nil
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {
@@ -224,12 +218,22 @@ func (e *localExec) Wait() *ExecResult {
 	return execResult
 }
 
-func (e *localExec) WaitForChild(ctx context.Context) error {
-	return e.Ctx.WaitForChild(ctx)
+// ReadBPFPID reads the PID of the process that will have a unique audit
+// session ID to be used with Enhanced Session Recording.
+func (e *localExec) ReadBPFPID() (int, error) {
+	if !e.Ctx.recordWithBPF() {
+		return e.PID(), nil
+	}
+
+	pid, err := readBPFPID(e.Ctx.bpfPIDr, 20*time.Second)
+	closeErr := e.Ctx.bpfPIDr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	e.Ctx.bpfPIDr = nil
+	return pid, trace.NewAggregate(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its
-// pre-processing routine (placed in a cgroup).
+// pre-processing routine.
 func (e *localExec) Continue() {
 	e.Ctx.contw.Close()
 
@@ -301,6 +305,38 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	}
 
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
+}
+
+func readBPFPID(fd *os.File, timeout time.Duration) (int, error) {
+	var readBytes int
+	pidBuf := make([]byte, 8)
+	waitCh := make(chan error, 1)
+	go func() {
+		// Reading from the file descriptor will block until it's closed.
+		n, err := fd.Read(pidBuf)
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		readBytes = n
+		waitCh <- err
+	}()
+
+	select {
+	case <-time.After(timeout):
+		return 0, trace.LimitExceeded("timed out waiting for BPF PID")
+	case err := <-waitCh:
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+	}
+
+	pidStr := string(pidBuf[:readBytes])
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return pid, nil
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.
@@ -385,7 +421,7 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 }
 
-func (e *remoteExec) WaitForChild(context.Context) error { return nil }
+func (e *remoteExec) ReadBPFPID() (int, error) { return 0, nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}

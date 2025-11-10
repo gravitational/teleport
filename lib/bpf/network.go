@@ -148,7 +148,7 @@ func startConn(bufferSize int) (*conn, error) {
 	}, nil
 }
 
-func (c *conn) startSession(cgroupID uint64) error {
+func (c *conn) startSession(auditSessionID uint32) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -156,22 +156,22 @@ func (c *conn) startSession(cgroupID uint64) error {
 		return trace.BadParameter("connection is closed")
 	}
 
-	if err := c.objs.MonitoredCgroups.Put(cgroupID, int64(0)); err != nil {
+	if err := c.objs.MonitoredSessionids.Put(auditSessionID, uint8(0)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (c *conn) endSession(cgroupID uint64) error {
+func (c *conn) endSession(auditSessionID uint32) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	if c.closed {
-		return nil // Ignore. If the session is closed, the cgroup is no longer monitored.
+		return nil
 	}
 
-	if err := c.objs.MonitoredCgroups.Delete(&cgroupID); err != nil {
+	if err := c.objs.MonitoredSessionids.Delete(&auditSessionID); err != nil {
 		return trace.Wrap(err)
 	}
 

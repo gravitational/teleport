@@ -22,6 +22,7 @@ package srv
 
 import (
 	"bytes"
+	"context"
 	"debug/elf"
 	"encoding/base64"
 	"errors"
@@ -46,6 +47,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
@@ -110,7 +112,29 @@ type addrInfo struct {
 	port int
 }
 
-// TestBPFRecording runs various commands with Enhanced Session Recording
+func TestBPFRecording(t *testing.T) {
+	checkBPF(t)
+
+	srv, bpfSrv := newServices(t)
+
+	testBPFRecording(t, srv, bpfSrv)
+}
+
+// TODO: test with PAM auth enabled, and with a different login user.
+func TestBPFRecordingWithPAM(t *testing.T) {
+	checkBPF(t)
+	checkPAM(t)
+
+	srv, bpfSrv := newServices(t)
+	srv.pamCfg = &servicecfg.PAMConfig{
+		Enabled:     true,
+		ServiceName: "sshd",
+	}
+
+	testBPFRecording(t, srv, bpfSrv)
+}
+
+// testBPFRecording runs various commands with Enhanced Session Recording
 // enabled and verifies that the recorded events appear in the audit log.
 //
 // Many sub-tests assert that commands open specific paths, such as
@@ -120,12 +144,7 @@ type addrInfo struct {
 // given the passed arguments. These paths are either specified in the
 // Filesystem Hierarchy Standard (FHS) or are specified in their
 // respective man pages.
-func TestBPFRecording(t *testing.T) {
-	checkBPF(t)
-
-	srv := newMockServer(t)
-	bpfSrv := newBPFService(t)
-
+func testBPFRecording(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	// Create a temp dir and files for commands to use.
 	cmdDir := t.TempDir()
 	tempFilePath := filepath.Join(cmdDir, "file")
@@ -529,7 +548,7 @@ eval $(echo %s | base64 --decode)`,
 			})
 
 			// Run the command and capture the events.
-			recordedEvents := runCommand(t, srv, bpfSrv, tt.command, expectedCmdFail, recordAllEvents)
+			recordedEvents := runCommand(t, t.Context(), srv, bpfSrv, tt.command, expectedCmdFail, recordAllEvents)
 
 			commandArgs := make(map[string]int)
 			programPaths := make(map[string]string)
@@ -637,13 +656,90 @@ eval $(echo %s | base64 --decode)`,
 	}
 }
 
+func TestBPFMonitoring(t *testing.T) {
+	checkBPF(t)
+
+	srv, bpfSrv := newServices(t)
+
+	testBPFMonitoring(t, srv, bpfSrv)
+}
+
+// TODO: test with PAM auth enabled, and with a different login user.
+func TestBPFMonitoringWithPAM(t *testing.T) {
+	checkBPF(t)
+	checkPAM(t)
+
+	srv, bpfSrv := newServices(t)
+	srv.pamCfg = &servicecfg.PAMConfig{
+		Enabled:     true,
+		ServiceName: "sshd",
+	}
+
+	testBPFMonitoring(t, srv, bpfSrv)
+}
+
+// TestBPFMonitoring verifies that events will not be emitted for
+// syscalls that happen outside the monitored SSH session.
+func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
+	lis, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Go(func() { handleConnections(lis) })
+	t.Cleanup(func() {
+		lis.Close()
+		wg.Wait()
+	})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	// Run a command that will guarantee to run longer than our curl
+	// commands will.
+	eventsCh := make(chan []apievents.AuditEvent)
+	go func() {
+		eventsCh <- runCommand(t, ctx, srv, bpfSrv, "sleep 100", false, recordAllEvents)
+	}()
+
+	// Run curl commands that the bpf programs should ignore.
+	for range 5 {
+		cmd := exec.CommandContext(t.Context(), "curl", "-4", lis.Addr().String())
+		// curl should exit with 56 since the server will reset the connection.
+		var exitErr *exec.ExitError
+		require.ErrorAs(t, cmd.Run(), &exitErr)
+	}
+	// Stop the monitored sleep command.
+	cancel()
+
+	// Ensure stopping the monitored command early works properly.
+	var events []apievents.AuditEvent
+	select {
+	case events = <-eventsCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Timed out waiting for command to exit early.")
+	}
+
+	// Check that only configured events were recorded.
+	for _, e := range events {
+		switch e := e.(type) {
+		case *apievents.SessionCommand:
+			require.NotEqual(t, "curl", e.BPFMetadata.Program)
+		case *apievents.SessionDisk:
+			require.NotEqual(t, "curl", e.BPFMetadata.Program)
+		case *apievents.SessionNetwork:
+			require.NotEqual(t, "curl", e.BPFMetadata.Program)
+		default:
+			t.Fatalf("Unexpected event type: %T", e)
+		}
+	}
+}
+
 // TestBPFRoleOptions verifies that only event types configured in
 // role options will be recorded in the audit log.
 func TestBPFRoleOptions(t *testing.T) {
 	checkBPF(t)
 
-	srv := newMockServer(t)
-	bpfSrv := newBPFService(t)
+	srv, bpfSrv := newServices(t)
 
 	lis, err := net.Listen("tcp4", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -708,7 +804,7 @@ func TestBPFRoleOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Run the command and capture the events.
-			recordedEvents := runCommand(t, srv, bpfSrv, command, true, tt.events)
+			recordedEvents := runCommand(t, t.Context(), srv, bpfSrv, command, true, tt.events)
 
 			// Check that only configured events were recorded.
 			if len(tt.events) == 0 {
@@ -767,21 +863,20 @@ func commandKey(program string, args []string) string {
 	return fmt.Sprintf("%s [%s]", program, quoteStrings(args))
 }
 
-func newBPFService(t *testing.T) bpf.BPF {
+func newServices(t *testing.T) (*mockServer, bpf.BPF) {
 	t.Helper()
 
-	bpfSrv, err := bpf.New(&servicecfg.BPFConfig{
-		Enabled:    true,
-		CgroupPath: t.TempDir(),
-	})
+	bpfSrv, err := bpf.New(&servicecfg.BPFConfig{Enabled: true})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		const restarting = false
-		require.NoError(t, bpfSrv.Close(restarting))
+		require.NoError(t, bpfSrv.Close())
 	})
 
-	return bpfSrv
+	srv := newMockServer(t)
+	srv.bpf = bpfSrv
+
+	return srv, bpfSrv
 }
 
 func handleConnections(l net.Listener) {
@@ -799,13 +894,25 @@ func handleConnections(l net.Listener) {
 
 // runCommand runs the given command with Enhanced Session Recording
 // enabled and returns the recorded events.
-func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}) []apievents.AuditEvent {
+func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}) []apievents.AuditEvent {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	t.Cleanup(cancel)
+
 	scx := newExecServerContext(t, srv)
-	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{
+		BpfEvents: []string{
+			constants.EnhancedRecordingCommand,
+			constants.EnhancedRecordingDisk,
+			constants.EnhancedRecordingNetwork,
+		},
+	}
 	scx.execRequest.SetCommand(command)
 
 	cmd, err := ConfigureCommand(scx)
 	require.NoError(t, err)
+	execReq, ok := scx.execRequest.(*localExec)
+	require.True(t, ok)
+	execReq.Cmd = cmd
 
 	var output bytes.Buffer
 	cmd.Stdout = &output
@@ -814,17 +921,13 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	t.Logf("running %q", command)
 
 	require.NoError(t, cmd.Start())
-	// Close the read half of the pipe to unblock the ready signal.
-	require.NoError(t, scx.readyw.Close())
 
-	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild(t.Context()))
+	pid, err := scx.execRequest.ReadBPFPID()
+	require.NoError(t, err)
 
 	// Create a fake audit log that can be used to capture the events emitted.
 	emitter := &eventstest.MockRecorderEmitter{}
 
-	// Create a monitoring session for init. The events we execute should not
-	// have PID 1, so nothing should be captured in the Audit Log.
 	sessionCtx := &bpf.SessionContext{
 		Namespace:      apidefaults.Namespace,
 		SessionID:      uuid.New().String(),
@@ -832,18 +935,18 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 		ServerHostname: "ip-172-31-11-148",
 		Login:          "foo",
 		User:           "foo@example.com",
-		PID:            cmd.Process.Pid,
+		PID:            pid,
 		Emitter:        emitter,
 		Events:         recordEvents,
 	}
-	cgroupID, err := bpfSrv.OpenSession(sessionCtx)
+	err = bpfSrv.OpenSession(sessionCtx)
 	require.NoError(t, err)
-	require.NotZero(t, cgroupID)
 	t.Cleanup(func() {
 		require.NoError(t, bpfSrv.CloseSession(sessionCtx))
 	})
 
 	// Signal to child that it may execute the requested program.
+	t.Log("sending continue signal")
 	scx.execRequest.Continue()
 
 	// Create a channel that will be used to signal that execution is complete.
@@ -855,11 +958,15 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
 	select {
-	case <-time.After(5 * time.Second):
+	case <-ctx.Done():
+		t.Logf("output:\n%s", output.String())
+
 		// We're not interested in the error, we just want to clean up the
 		// process.
 		_ = scx.killShellw.Close()
-		t.Fatal("Timed out waiting for process to finish.")
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatal("Timed out waiting for process to finish.")
+		}
 	case err := <-cmdDone:
 		t.Logf("output:\n%s", output.String())
 
@@ -981,4 +1088,17 @@ func checkBPF(t *testing.T) {
 		t.Skip("BPF testing is disabled. Set TELEPORT_BPF_TEST environment variable to enable.")
 	}
 	testutils.RequireRoot(t)
+}
+
+func checkPAM(t *testing.T) {
+	t.Helper()
+
+	if !pam.BuildHasPAM() || !pam.SystemHasPAM() {
+		t.Skip("PAM support not enabled, skipping tests")
+	}
+
+	_, err := os.Stat("/etc/pam.d/sshd")
+	if err != nil {
+		t.Skip("required PAM policy sshd not found, skipping tests")
+	}
 }

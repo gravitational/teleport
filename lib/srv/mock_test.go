@@ -114,12 +114,12 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
 
-	scx.readyr, scx.readyw, err = os.Pipe()
-	require.NoError(t, err)
-
 	scx.killShellr, scx.killShellw, err = os.Pipe()
 	require.NoError(t, err)
 	scx.AddCloser(scx.killShellw)
+
+	scx.bpfPIDr, scx.bpfPIDw, err = os.Pipe()
+	require.NoError(t, err)
 
 	// TODO (joerger): check the error coming from Close once the logic around
 	// closing open files has been fixed to fail with "close |1: file already closed".
@@ -185,6 +185,7 @@ type mockServer struct {
 	component string
 	clock     clocki.FakeClock
 	bpf       bpf.BPF
+	pamCfg    *servicecfg.PAMConfig
 }
 
 // ID is the unique ID of the server.
@@ -231,7 +232,10 @@ func (m *mockServer) GetDataDir() string {
 
 // GetPAM returns PAM configuration for this server.
 func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+	if m.pamCfg != nil {
+		return m.pamCfg
+	}
+	return new(servicecfg.PAMConfig)
 }
 
 // GetClock returns a clock setup for the server
@@ -454,7 +458,7 @@ type fakeBPF struct {
 	bpf bpf.NOP
 }
 
-func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) (uint64, error) {
+func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) error {
 	return f.bpf.OpenSession(ctx)
 }
 
@@ -462,8 +466,8 @@ func (f fakeBPF) CloseSession(ctx *bpf.SessionContext) error {
 	return f.bpf.CloseSession(ctx)
 }
 
-func (f fakeBPF) Close(restarting bool) error {
-	return f.bpf.Close(restarting)
+func (f fakeBPF) Close() error {
+	return f.bpf.Close()
 }
 
 func (f fakeBPF) Enabled() bool {

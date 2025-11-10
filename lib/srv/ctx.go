@@ -423,15 +423,16 @@ type ServerContext struct {
 	contr *os.File
 	contw *os.File
 
-	// ready{r,w} is used to send the ready signal from the child process
-	// to the parent process.
-	readyr *os.File
-	readyw *os.File
-
 	// killShell{r,w} are used to send kill signal to the child process
 	// to terminate the shell.
 	killShellr *os.File
 	killShellw *os.File
+
+	// bpfPID{r,w} are used to send the PID of the process that will
+	// have a unique audit session ID to be used with Enhanced Session
+	// Recording.
+	bpfPIDr *os.File
+	bpfPIDw *os.File
 
 	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
@@ -587,15 +588,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
 
-	// Create pipe used to signal continue to parent process.
-	child.readyr, child.readyw, err = os.Pipe()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-	child.AddCloser(child.readyr)
-	child.AddCloser(child.readyw)
-
 	child.killShellr, child.killShellw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
@@ -631,6 +623,14 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 			}
 		}()
 	}
+
+	child.bpfPIDr, child.bpfPIDw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.Wrap(err, childErr)
+	}
+	child.AddCloser(child.bpfPIDr)
+	child.AddCloser(child.bpfPIDw)
 
 	return child, nil
 }
@@ -1172,7 +1172,19 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
+		RecordWithBPF:         c.recordWithBPF(),
 	}, nil
+}
+
+func (c *ServerContext) recordWithBPF() bool {
+	if !c.srv.GetBPF().Enabled() || c.Identity.AccessPermit == nil {
+		return false
+	}
+
+	// BPF programs will only be monitoring this session if Enhanced
+	// Session Recording is enabled on the server and the access permit
+	// enables at least one ESR event.
+	return len(eventsMapFromSSHAccessPermit(c.Identity.AccessPermit)) > 0
 }
 
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
@@ -1370,34 +1382,4 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferReques
 	c.approvedFileReq = nil
 
 	return req
-}
-
-// The child does not signal until completing PAM setup, which can take an arbitrary
-// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
-const childReadyWaitTimeout = 3 * time.Minute
-
-// WaitForChild waits for the child process to signal ready through the named pipe.
-func (c *ServerContext) WaitForChild(ctx context.Context) error {
-	bpfService := c.srv.GetBPF()
-	pam := c.srv.GetPAM()
-
-	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
-	// because PAM might inadvertently move the child process to another cgroup
-	// by invoking systemd. If this happens, then the cgroup filter used by BPF
-	// will be looking for events in the wrong cgroup and no events will be captured.
-	// However, unconditionally waiting for the child to be ready results in PAM
-	// deadlocking because stdin/stdout/stderr which it uses to relay details from
-	// PAM auth modules are not properly copied until _after_ the shell request is
-	// replied to.
-	var waitErr error
-	if bpfService.Enabled() && pam.Enabled {
-		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
-			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
-		}
-	}
-
-	closeErr := c.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	c.readyr = nil
-	return trace.NewAggregate(waitErr, closeErr)
 }

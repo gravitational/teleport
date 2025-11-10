@@ -33,13 +33,13 @@ import (
 type BPF interface {
 	// OpenSession will start monitoring all events within a session and
 	// emitting them to the Audit Log.
-	OpenSession(ctx *SessionContext) (uint64, error)
+	OpenSession(ctx *SessionContext) error
 
 	// CloseSession will stop monitoring events for a particular session.
 	CloseSession(ctx *SessionContext) error
 
 	// Close will stop any running BPF programs.
-	Close(restarting bool) error
+	Close() error
 
 	// Enabled returns whether enhanced recording is active.
 	Enabled() bool
@@ -76,7 +76,7 @@ type SessionContext struct {
 	UserOriginClusterName string
 
 	// PID is the process ID of Teleport when it re-executes itself. This is
-	// used by Teleport to find itself by cgroup.
+	// used by Teleport to find itself by the audit session ID.
 	PID int
 
 	// Emitter is used to record events for a particular session
@@ -90,19 +90,26 @@ type SessionContext struct {
 	UserRoles []string
 	// UserTraits are the traits assigned to the user.
 	UserTraits wrappers.Traits
+
+	// AuditSessionID is the audit session ID that should be the same
+	// for all processes in an SSH session. It is used to correlate
+	// audit events with the session. See
+	// https://github.com/torvalds/linux/blob/master/Documentation/ABI/stable/procfs-audit_loginuid
+	// for more details.
+	AuditSessionID uint32
 }
 
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
 type NOP struct{}
 
 // Close closes the NOP service. Note this function does nothing.
-func (s *NOP) Close(bool) error {
+func (s *NOP) Close() error {
 	return nil
 }
 
 // OpenSession opens a NOP session. Note this function does nothing.
-func (s *NOP) OpenSession(_ *SessionContext) (uint64, error) {
-	return 0, nil
+func (s *NOP) OpenSession(_ *SessionContext) error {
+	return nil
 }
 
 // CloseSession closes a NOP session. Note this function does nothing.

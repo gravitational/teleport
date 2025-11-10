@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
+	"github.com/gravitational/teleport/lib/loginuid"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -73,19 +75,25 @@ const (
 	// process.
 	LogFile
 	// ContinueFile is used to communicate to the child process that
-	// it can continue after the parent process assigns a cgroup to the
-	// child process.
+	// it can continue after the parent process starts monitoring the
+	// child's audit login session ID.
 	ContinueFile
-	// ReadyFile is used to communicate to the parent process that
-	// the child has completed any setup operations that must occur before
-	// the child is placed into its cgroup.
-	ReadyFile
+	// ReadyFileDeprecated is a placeholder for the unused file that
+	// was passed to the child process and used to communicate to the
+	// parent that the child is ready to be placed into its cgroup.
+	// This is unnecessary now that we don't use cgroups anymore.
+	ReadyFileDeprecated
 	// TerminateFile is used to communicate to the child process that
 	// the interactive terminal should be killed as the client ended the
 	// SSH session and without termination the terminal process will be assigned
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
+	// BPFPIDFile is used when Enhanced Session Recording is enabled
+	// and is used to tell the parent the PID of the grandchild
+	// that will have a unique audit session ID. The audit session ID
+	// will be used to correlate audit events to the SSH session.
+	BPFPIDFile
 	// PTYFileDeprecated is a placeholder for the unused PTY file that
 	// was passed to the child process. The PTY should only be used in the
 	// the parent process but was left here for compatibility purposes.
@@ -95,7 +103,7 @@ const (
 
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile FileFD = TerminateFile + 1
+	FirstExtraFile FileFD = BPFPIDFile + 1
 )
 
 func fdName(f FileFD) string {
@@ -152,6 +160,10 @@ type ExecCommand struct {
 	// Environment is a list of environment variables to add to the defaults.
 	Environment []string `json:"environment"`
 
+	// PAMEnvironment is a list of PAM environment variables to add to the defaults.
+	// It will only be set if PAM and Enhanced Session Recording are both enabled.
+	PAMEnvironment []string `json:"pam_environment"`
+
 	// PermitUserEnvironment is set to allow reading in ~/.tsh/environment
 	// upon login.
 	PermitUserEnvironment bool `json:"permit_user_environment"`
@@ -173,6 +185,14 @@ type ExecCommand struct {
 	// SetSELinuxContext is true when the SELinux context should be set
 	// for the child.
 	SetSELinuxContext bool `json:"set_selinux_context"`
+
+	// RecordWithBPF is true when Enhanced Session Recording should
+	// record the session.
+	RecordWithBPF bool `json:"bpf_recording"`
+
+	// BPFChild is true if Enhanced Session Recording is enabled and the
+	// BPF-specific setup has already been completed.
+	BPFChild bool `json:"bpf_child"`
 }
 
 // ExecLogConfig represents all the logging configuration data that
@@ -254,25 +274,14 @@ func RunCommand() (code int, err error) {
 	if cmdfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
+	logfd := os.NewFile(LogFile, fdName(LogFile))
+	if logfd == nil {
+		return teleport.RemoteCommandFailure, trace.BadParameter("log pipe not found")
+	}
 	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
 	if contfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
-	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
-	if readyfd == nil {
-		return teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
-	}
-
-	// Ensure that the ready signal is sent if a failure causes execution
-	// to terminate prior to actually becoming ready to unblock the parent process.
-	defer func() {
-		if readyfd == nil {
-			return
-		}
-
-		_ = readyfd.Close()
-	}()
-
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
@@ -284,7 +293,24 @@ func RunCommand() (code int, err error) {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	initLogger("reexec", c.LogConfig)
+	initLogger("reexec", logfd, c.LogConfig)
+
+	// If a terminal was requested, file descriptor 10 always points to the
+	// TTY. Extract it and set the controlling TTY. Otherwise, connect
+	// std{in,out,err} directly.
+	if c.Terminal {
+		tty = os.NewFile(TTYFile, fdName(TTYFile))
+		if tty == nil {
+			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
+		}
+	}
+
+	// If Enhanced Session Recording is enabled, handle the BPF-specific
+	// setup, but only if it hasn't already been done by a parent process.
+	if c.RecordWithBPF && !c.BPFChild {
+		err := reexecBPF(ctx, c, logfd, contfd, terminatefd, tty)
+		return exitCode(err), trace.Wrap(err)
+	}
 
 	auditdMsg := auditd.Message{
 		SystemUser:   c.Login,
@@ -313,52 +339,16 @@ func RunCommand() (code int, err error) {
 		}
 	}()
 
-	// If a terminal was requested, file descriptor 7 always points to the
-	// TTY. Extract it and set the controlling TTY. Otherwise, connect
-	// std{in,out,err} directly.
-	if c.Terminal {
-		tty = os.NewFile(TTYFile, fdName(TTYFile))
-		if tty == nil {
-			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
-		}
-	}
-
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used to
 	// launch the shell under.
-	var pamEnvironment []string
-	if c.PAMConfig != nil {
-		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
-		// otherwise discard std{out,err}. If this was not done, things like MOTD
-		// would be printed for non-interactive "exec" requests.
-		var stdin io.Reader
-		var stdout io.Writer
-		var stderr io.Writer
-		if tty != nil {
-			stdin = tty
-			stdout = tty
-			stderr = tty
-		} else {
-			stdin = os.Stdin
-			stdout = io.Discard
-			stderr = io.Discard
-		}
-
-		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
-			ServiceName: c.PAMConfig.ServiceName,
-			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
-			Login:       c.Login,
-			// Set Teleport specific environment variables that PAM modules
-			// like pam_script.so can pick up to potentially customize the
-			// account/session.
-			Env:    c.PAMConfig.Environment,
-			Stdin:  stdin,
-			Stdout: stdout,
-			Stderr: stderr,
-		})
+	// If Enhanced Session Recording is enabled the parent process will
+	// have already opened a PAM context so there's nothing to do here.
+	pamEnvironment := c.PAMEnvironment
+	if c.PAMConfig != nil && !c.BPFChild {
+		pamContext, err := openPAM(c, tty)
 		if err != nil {
-			return teleport.RemoteCommandFailure, trace.Wrap(err)
+			return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to open PAM context")
 		}
 		defer pamContext.Close()
 
@@ -366,13 +356,6 @@ func RunCommand() (code int, err error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
-	// Alert the parent process that the child process has completed any setup operations,
-	// and that we are now waiting for the continue signal before proceeding. This is needed
-	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
-	if err := readyfd.Close(); err != nil {
-		return teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-	readyfd = nil
 	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
 		UtmpFile:   c.UaccMetadata.UtmpPath,
 		WtmpFile:   c.UaccMetadata.WtmpPath,
@@ -411,7 +394,7 @@ func RunCommand() (code int, err error) {
 	}
 
 	// Wait until the continue signal is received from Teleport signaling that
-	// the child process has been placed in a cgroup.
+	// Teleport is monitoring this session.
 	err = waitForSignal(ctx, contfd, 10*time.Second)
 	if err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
@@ -471,6 +454,154 @@ func RunCommand() (code int, err error) {
 	err = waitForShell(terminatefd, cmd)
 
 	return exitCode(err), trace.Wrap(err)
+}
+
+// reexecBPF ensures the audit session ID will be updated for the child
+// process and creates a child process by rexec'ing. The PID of the
+// child process is then sent to the parent so it can be used to find
+// the audit session ID of the new child (grandchild of the parent).
+func reexecBPF(ctx context.Context, c ExecCommand, logfd, contfd, terminatefd, tty *os.File) error {
+	pidfd := os.NewFile(BPFPIDFile, fdName(BPFPIDFile))
+	if pidfd == nil {
+		return trace.BadParameter("BPF PID pipe not found")
+	}
+	defer pidfd.Close()
+
+	// Depending of the PAM service, PAM may write to /proc/self/loginuid
+	// if the 'pam_loginuid.so' module is enabled. We always want to
+	// write to /proc/self/loginuid to ensure the kernel will update the
+	// audit session ID for the next child process, but PAM may or may
+	// not write to it. Even if 'pam_loginuid.so' is enabled, it won't
+	// write to /proc/self/loginuid if the UID is the same as what's
+	// currently in /proc/self/loginuid. In any case we can detect if
+	// we need to write to /proc/self/loginuid ourselves by seeing if
+	// /proc/self/loginuid changed after a PAM context was opened.
+	writeLoginuid := true
+	if c.PAMConfig != nil {
+		preLoginuid, err := os.ReadFile("/proc/self/loginuid")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		pamContext, err := openPAM(c, tty)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer pamContext.Close()
+
+		c.PAMEnvironment = pamContext.Environment()
+
+		postLoginuid, err := os.ReadFile("/proc/self/loginuid")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !bytes.Equal(preLoginuid, postLoginuid) {
+			writeLoginuid = false
+		}
+	}
+
+	if writeLoginuid {
+		localUser, err := user.Lookup(c.Login)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := loginuid.WriteLoginUID(localUser.Uid); err != nil {
+			return trace.Errorf("failed to write to loginuid: %w", err)
+		}
+	}
+
+	cmdr, cmdw, err := os.Pipe()
+	if err != nil {
+		return trace.Errorf("failed to create command pipe: %w", err)
+	}
+
+	c.BPFChild = true
+	go copyCommand(ctx, cmdw, &c)
+
+	// Find the Teleport executable and its directory on disk.
+	executable, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	executableDir, _ := filepath.Split(executable)
+
+	cmd := exec.Cmd{
+		Path: executable,
+		Args: []string{executable, teleport.ExecSubCommand},
+		Dir:  executableDir,
+		ExtraFiles: []*os.File{
+			cmdr,
+			logfd,
+			contfd,
+			nil, // ready file is not used anymore
+			terminatefd,
+			nil, // doesn't need BPFPIDFile
+		},
+	}
+	if tty != nil {
+		cmd.ExtraFiles = append(cmd.ExtraFiles, nil, tty)
+	} else if c.ExtraFilesLen > 0 {
+		// If a terminal was not requested, and extra files were specified
+		// to be passed to the child, open them so that they can be passed
+		// to the grandchild.
+		if err := populateExtraFiles(&cmd, c.ExtraFilesLen); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Perform OS-specific tweaks to the command.
+	reexecCommandOSTweaks(&cmd)
+
+	err = cmd.Start()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Send the PID of the child process to the parent.
+	pidStr := strconv.Itoa(cmd.Process.Pid)
+	_, err = pidfd.Write([]byte(pidStr))
+	if err != nil {
+		return trace.Errorf("failed to write child PID: %w", err)
+	}
+
+	return cmd.Wait()
+}
+
+func openPAM(c ExecCommand, tty *os.File) (*pam.PAM, error) {
+	// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
+	// discard std{out,err}. If this was not done, things like MOTD would be
+	// printed for "exec" requests.
+	var stdin io.Reader
+	var stdout io.Writer
+	var stderr io.Writer
+	if c.RequestType == sshutils.ShellRequest {
+		stdin = tty
+		stdout = tty
+		stderr = tty
+	} else {
+		stdin = os.Stdin
+		stdout = io.Discard
+		stderr = io.Discard
+	}
+
+	// Open the PAM context.
+	pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		ServiceName: c.PAMConfig.ServiceName,
+		UsePAMAuth:  c.PAMConfig.UsePAMAuth,
+		Login:       c.Login,
+		// Set Teleport specific environment variables that PAM modules
+		// like pam_script.so can pick up to potentially customize the
+		// account/session.
+		Env:    c.PAMConfig.Environment,
+		Stdin:  stdin,
+		Stdout: stdout,
+		Stderr: stderr,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pamContext, nil
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
@@ -609,7 +740,10 @@ func RunNetworking() (code int, err error) {
 	if cmdfd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
-
+	logfd := os.NewFile(LogFile, fdName(LogFile))
+	if logfd == nil {
+		return teleport.RemoteCommandFailure, trace.BadParameter("log pipe not found")
+	}
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
@@ -621,7 +755,7 @@ func RunNetworking() (code int, err error) {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	initLogger("networking", c.LogConfig)
+	initLogger("networking", logfd, c.LogConfig)
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used for
@@ -1167,14 +1301,8 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		// to be passed to the child, open them so that they can be passed
 		// to the grandchild.
 		if c.ExtraFilesLen > 0 {
-			cmd.ExtraFiles = make([]*os.File, c.ExtraFilesLen)
-			for i := range c.ExtraFilesLen {
-				fd := FirstExtraFile + uintptr(i)
-				f := os.NewFile(fd, strconv.Itoa(int(fd)))
-				if f == nil {
-					return nil, trace.NotFound("extra file %d not found", fd)
-				}
-				cmd.ExtraFiles[i] = f
+			if err := populateExtraFiles(&cmd, c.ExtraFilesLen); err != nil {
+				return nil, trace.Wrap(err)
 			}
 		}
 	}
@@ -1223,6 +1351,20 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	return &cmd, nil
 }
 
+func populateExtraFiles(cmd *exec.Cmd, extraFilesLen int) error {
+	cmd.ExtraFiles = make([]*os.File, extraFilesLen)
+	for i := range extraFilesLen {
+		fd := FirstExtraFile + uintptr(i)
+		f := os.NewFile(fd, strconv.Itoa(int(fd)))
+		if f == nil {
+			return trace.NotFound("extra file %d not found", fd)
+		}
+		cmd.ExtraFiles[i] = f
+	}
+
+	return nil
+}
+
 // ConfigureCommand creates a command fully configured to execute. This
 // function is used by Teleport to re-execute itself and pass whatever data
 // is need to the child to actually execute the shell.
@@ -1248,7 +1390,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		cmdmsg.ExtraFilesLen = len(extraFiles)
 	}
 
-	go copyCommand(ctx, cmdmsg)
+	go copyCommand(ctx.CancelContext(), ctx.cmdw, cmdmsg)
 
 	// Find the Teleport executable and its directory on disk.
 	executable, err := os.Executable()
@@ -1282,8 +1424,9 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 			ctx.cmdr,
 			ctx.logw,
 			ctx.contr,
-			ctx.readyw,
+			nil, // ready file is not used anymore
 			ctx.killShellr,
+			ctx.bpfPIDw,
 		},
 	}
 	// Add extra files if applicable.
@@ -1299,21 +1442,21 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 // copyCommand will copy the provided command to the child process over the
 // pipe attached to the context.
-func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
+func copyCommand(ctx context.Context, cmdw *os.File, cmdmsg *ExecCommand) {
 	defer func() {
-		err := ctx.cmdw.Close()
+		err := cmdw.Close()
 		if err != nil {
-			slog.ErrorContext(ctx.CancelContext(), "Failed to close command pipe", "error", err)
+			slog.ErrorContext(ctx, "Failed to close command pipe", "error", err)
 		}
 
 		// Set to nil so the close in the context doesn't attempt to re-close.
-		ctx.cmdw = nil
+		cmdw = nil
 	}()
 
 	// Write command bytes to pipe. The child process will read the command
 	// to execute from this pipe.
-	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
-		slog.ErrorContext(ctx.CancelContext(), "Failed to copy command over pipe", "error", err)
+	if err := json.NewEncoder(cmdw).Encode(cmdmsg); err != nil {
+		slog.ErrorContext(ctx, "Failed to copy command over pipe", "error", err)
 		return
 	}
 }
@@ -1489,12 +1632,7 @@ func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) erro
 	}
 }
 
-func initLogger(name string, cfg ExecLogConfig) {
-	logWriter := os.NewFile(LogFile, fdName(LogFile))
-	if logWriter == nil {
-		return
-	}
-
+func initLogger(name string, logWriter *os.File, cfg ExecLogConfig) {
 	fields, err := logutils.ValidateFields(cfg.ExtraFields)
 	if err != nil {
 		return

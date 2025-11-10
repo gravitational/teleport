@@ -37,12 +37,6 @@ type BPFConfig struct {
 
 	// NetworkBufferSize is the size of the perf buffer for network events.
 	NetworkBufferSize *int
-
-	// CgroupPath is where the cgroupv2 hierarchy is mounted.
-	CgroupPath string
-
-	// RootPath root directory for the Teleport cgroups.
-	RootPath string
 }
 
 // CheckAndSetDefaults checks BPF configuration.
@@ -68,9 +62,6 @@ func (c *BPFConfig) CheckAndSetDefaults() error {
 		c.NetworkBufferSize = &perfBufferPageCount
 	} else if *c.NetworkBufferSize < 0 {
 		return trace.BadParameter("NetworkBufferSize must not be negative")
-	}
-	if c.CgroupPath == "" {
-		c.CgroupPath = defaults.CgroupPath
 	}
 
 	return nil

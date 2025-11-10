@@ -34,6 +34,10 @@
         __uint(max_entries, size); \
     } name SEC(".maps")
 
+// This is defined in bpf/bpf.h but this is the only definition we need
+// from the file.
+#define BPF_NOEXIST 1
+
 #define TASK_COMM_LEN 16
 #define __user
 
