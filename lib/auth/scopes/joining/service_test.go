@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -80,6 +81,7 @@ func TestScopedJoiningService(t *testing.T) {
 				AssignedScope: "/staging/aa",
 				JoinMethod:    "token",
 				Roles:         []string{"Node"},
+				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
 			},
 		}
 
@@ -224,6 +226,7 @@ func TestScopedJoiningService(t *testing.T) {
 				AssignedScope: "/staging/aa",
 				JoinMethod:    "token",
 				Roles:         []string{"Node"},
+				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
 			},
 		}
 
@@ -237,7 +240,9 @@ func TestScopedJoiningService(t *testing.T) {
 			protocmp.IgnoreFields(&joiningv1.ScopedToken{}, "status"),
 			protocmp.Transform(),
 		}
-		assert.Empty(t, gocmp.Diff(baseToken, stageTokenAA, cmpOpts...))
+		expectedToken := proto.CloneOf(baseToken)
+		expectedToken.Status = &joiningv1.ScopedTokenStatus{}
+		assert.Empty(t, gocmp.Diff(expectedToken, stageTokenAA, cmpOpts...))
 
 		// ensure writer can't create a token at an orthogonal scope
 		stageTokenBB := proto.CloneOf(baseToken)
@@ -262,7 +267,7 @@ func TestScopedJoiningService(t *testing.T) {
 			Name: stageTokenAA.Metadata.Name,
 		})
 		require.NoError(t, err)
-		require.Empty(t, gocmp.Diff(baseToken, getRes.GetToken(), cmpOpts...))
+		require.Empty(t, gocmp.Diff(expectedToken, getRes.GetToken(), cmpOpts...))
 
 		// ensure reader can't get token at orthogonal scope
 		_, err = reader.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
