@@ -132,6 +132,7 @@ func FuzzValidateApp(f *testing.F) {
 	f.Add("example.com", "app.example.com")                 // valid: proxy without port
 	f.Add("web.example.com:443", "web.example.com")         // conflict: same as proxy
 	f.Add("web.example.com:443", "web.example.com.")        // conflict: trailing dot
+	f.Add("web.example.com:443", "web.example.com..")       // conflict: multiple trailing dots
 	f.Add("web.example.com:443", "WeB.ExAmPle.CoM")         // conflict: case insensitive
 	f.Add("web.example.com:443,other.com:443", "other.com") // conflict: matches second proxy
 	f.Add("xn--mnchen-3ya.de:443", "münchen.de")            // conflict: IDN
@@ -139,20 +140,23 @@ func FuzzValidateApp(f *testing.F) {
 	f.Add("example.com:443,example.com:80", "example.com")  // conflict: multiple proxy ports
 
 	f.Fuzz(func(t *testing.T, proxyPublicAddrs string, appPublicAddr string) {
-		// Create app with fuzzy public address.
-		app, err := types.NewAppV3(types.Metadata{Name: "fuzz-app"}, types.AppSpecV3{
-			URI:        "http://localhost:8080",
-			PublicAddr: appPublicAddr,
-		})
-		if err != nil {
-			t.Skip()
-		}
-
-		proxyAddrList := strings.Split(proxyPublicAddrs, ",")
-		mockProxyGetter := &mockProxyGetter{addrs: proxyAddrList}
-
-		// ValidateApp should never panic regardless of input.
+		// NewAppV3 and ValidateApp should never panic regardless of input.
 		require.NotPanics(t, func() {
+			// Create app with a fuzzy public address.
+			app, err := types.NewAppV3(types.Metadata{Name: "fuzz-app"}, types.AppSpecV3{
+				URI:        "http://localhost:8080",
+				PublicAddr: appPublicAddr,
+			})
+			if err != nil {
+				// Fuzzing may produce invalid values that fail to create an App.
+				// If so, skip this iteration since the test cannot continue.
+				t.Skip("skipping invalid app spec")
+			}
+
+			proxyAddrList := strings.Split(proxyPublicAddrs, ",")
+			mockProxyGetter := &mockProxyGetter{addrs: proxyAddrList}
+
+			// Validate the app against the mock proxy addresses.
 			_ = ValidateApp(app, mockProxyGetter)
 		})
 	})
