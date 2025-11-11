@@ -9,7 +9,7 @@ publish.workspace = true
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.9.3"
+bitflags = "2.10.0"
 boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 byteorder = "1.5.0"
 bytes = "1.10.1"
@@ -28,26 +28,26 @@ ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.1.4"
 iso7816-tlv = "0.4.4"
-log = "0.4.27"
+log = "0.4.28"
 rand = { version = "0.9.2", features = ["os_rng"] }
 rsa = "0.9.8"
 sspi = { version = "0.15.0", features = ["network_client"] }
-tokio = { version = "1.47", features = ["full"] }
+tokio = { version = "1.48", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 utf16string = "0.2.0"
 uuid = { version = "1.16.0", features = ["v4"] }
 url = "2.5.7"
-picky = { version = "7.0.0-rc.17", default-features = false }
-picky-asn1-der = "0.5.2"
+picky = { version = "7.0.0-rc.18", default-features = false }
+picky-asn1-der = "0.5.4"
 picky-asn1-x509 = "0.14.6"
 reqwest = { version = "0.12", default-features = false }
-rustls = { version = "0.23.31", default-features = false, features = [
+rustls = { version = "0.23.35", default-features = false, features = [
     "aws-lc-rs",
 ] }
 
 [build-dependencies]
-cbindgen = "0.29.0"
-tempfile = "3.21.0"
+cbindgen = "0.29.2"
+tempfile = "3.23.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
