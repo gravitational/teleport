@@ -214,7 +214,7 @@ func (e *Event) String() string {
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
-	s.log.DebugContext(s.closeContext, "Adding service to supervisor", "service", srv.Name())
+	s.log.Log(s.closeContext, logutils.TraceLevel, "Adding service to supervisor", "service", srv.Name())
 	s.Lock()
 	defer s.Unlock()
 	s.services = append(s.services, srv)
@@ -252,7 +252,7 @@ func (s *LocalSupervisor) RemoveService(srv Service) error {
 	for i, el := range s.services {
 		if el == srv {
 			s.services = slices.Delete(s.services, i, i+1)
-			l.DebugContext(s.closeContext, "Service is completed and removed")
+			l.Log(s.closeContext, logutils.TraceLevel, "Service is completed and removed")
 			return nil
 		}
 	}
@@ -324,7 +324,7 @@ func (s *LocalSupervisor) serve(srv Service) {
 		}
 
 		l := s.log.With("service", srv.Name())
-		l.DebugContext(s.closeContext, "Service has started")
+		l.Log(s.closeContext, logutils.TraceLevel, "Service has started")
 		err := srv.Serve()
 		if err != nil {
 			if errors.Is(err, ErrTeleportExited) {

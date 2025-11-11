@@ -45,11 +45,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/ec2join"
+	"github.com/gravitational/teleport/lib/join/githubactions"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
@@ -78,8 +81,11 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
 	GetEnv0IDTokenValidator() Env0TokenValidator
+	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
+	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	services.Presence
 }
 
@@ -89,17 +95,20 @@ type ServerConfig struct {
 	Authorizer         authz.Authorizer
 	FIPS               bool
 	ScopedTokenService services.ScopedTokenService
+	OracleHTTPClient   utils.HTTPDoClient
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
-	cfg *ServerConfig
+	cfg               *ServerConfig
+	oracleRootCACache *oraclejoin.RootCACache
 }
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
 	return &Server{
-		cfg: cfg,
+		cfg:               cfg,
+		oracleRootCACache: oraclejoin.NewRootCACache(),
 	}
 }
 
@@ -271,6 +280,8 @@ func (s *Server) handleJoinMethod(
 	switch joinMethod {
 	case types.JoinMethodToken:
 		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodBitbucket:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateBitbucketToken)
 	case types.JoinMethodBoundKeypair:
 		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodIAM:
@@ -279,6 +290,10 @@ func (s *Server) handleJoinMethod(
 		return s.handleEC2Join(stream, authCtx, clientInit, token)
 	case types.JoinMethodEnv0:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
+	case types.JoinMethodOracle:
+		return s.handleOracleJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodGitHub:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)

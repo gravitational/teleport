@@ -1359,7 +1359,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).", strings.Join(types.RequestableResourceKinds, ", "))).Required().StringVar(&cf.ResourceKind)
-	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployements, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
+	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployments, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
 		// TODO(@creack): DELETE IN v20.0.0. Allow legacy kinds with a warning for now.
@@ -5719,7 +5719,11 @@ func awaitRequestResolution(ctx context.Context, clt authclient.ClientI, req typ
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 			case types.OpDelete:
-				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				// Delete events are not filtered, only return if the deleted
+				// request matches the request we're waiting for.
+				if event.Resource.GetName() == req.GetName() {
+					return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				}
 			default:
 				logger.WarnContext(ctx, "Skipping unknown event type", "event_type", event.Type)
 			}

@@ -201,7 +201,7 @@ spec:
 Create the file `token.tf` with the following content:
 
 ```hcl
-resource "teleport_token" "<Var name="kube-cluster-name"/>" {
+resource "teleport_provision_token" "<Var name="kube-cluster-name"/>" {
   version = "v2"
   metadata = {
     name = "<Var name="kube-cluster-name"/>-oidc"

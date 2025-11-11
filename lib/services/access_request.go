@@ -1084,6 +1084,10 @@ type RequestValidator struct {
 	// in spec.allow.request.roles and spec.allow.request.search_as_roles as roles requiring
 	// reason.
 	requiringReasonRoles map[string]struct{}
+	// customPromptRoles is a set of role names, which specifies a custom prompt when requested.
+	// Such roles are all requestable roles and search_as_roles allowed by a user's role
+	// which has spec.allow.request.reason.prompt set.
+	customPromptRoles map[string]string
 	// reasonPrompts are the prompts to be displayed in the UI for the reason input box. In the
 	// case of auto-request only the first prompt is displayed for backward compatibility.
 	reasonPrompts []string
@@ -1142,6 +1146,7 @@ func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, gett
 		getter:               getter,
 		userState:            user,
 		requiringReasonRoles: make(map[string]struct{}),
+		customPromptRoles:    make(map[string]string),
 	}
 	for _, opt := range opts {
 		opt(&m.opts)
@@ -1167,6 +1172,8 @@ func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, gett
 			return RequestValidator{}, trace.Wrap(err)
 		}
 	}
+	// we retain a fixed order of global reason prompts for determinism of auto-request
+	// backward compatibility (only the first prompt is displayed for auto-requests)
 	slices.Sort(m.reasonPrompts)
 
 	return m, nil
@@ -1221,9 +1228,17 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 	}
 
 	enrichment := &types.AccessRequestDryRunEnrichment{
-		ReasonMode:    types.RequestReasonModeOptional,
-		ReasonPrompts: m.reasonPrompts, // prompt is calculated in newRequestValidator
+		ReasonMode: types.RequestReasonModeOptional,
 	}
+
+	// populate the custom reason prompts: both from global prompts (spec.options.request_prompt) and
+	// from role/resource specific prompts (spec.allow.request.reason.prompt)
+	if err := m.populateCustomReasonPrompts(ctx, req.GetRoles(), req.GetRequestedResourceIDs()); err != nil {
+		return trace.Wrap(err)
+	}
+	// retain a deterministic order of reason prompts
+	slices.Sort(m.reasonPrompts)
+	enrichment.ReasonPrompts = m.reasonPrompts
 
 	switch {
 	// for dry-run, store the reason requirement in the enrichment data
@@ -1242,7 +1257,11 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 		if required {
-			return trace.BadParameter("%s", explanation)
+			promptString := ""
+			if len(m.reasonPrompts) > 0 {
+				promptString = "\n" + strings.Join(m.reasonPrompts, "\n")
+			}
+			return trace.BadParameter("%s%s", explanation, promptString)
 		}
 	}
 
@@ -1402,18 +1421,9 @@ func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles 
 		return true, "request reason must be specified (required request_access option in one of the roles)", nil
 	}
 
-	allApplicableRoles := requestedRoles
-	if len(requestedResourceIDs) > 0 {
-		// Do not provide loginHint. We want all matching search_as_roles for those resources.
-		roles, err := v.applicableSearchAsRoles(ctx, requestedResourceIDs, "")
-		if err != nil {
-			return false, "", trace.Wrap(err)
-		}
-		if len(allApplicableRoles) == 0 {
-			allApplicableRoles = roles
-		} else {
-			allApplicableRoles = append(allApplicableRoles, roles...)
-		}
+	allApplicableRoles, err := v.getAllApplicableRoles(ctx, requestedRoles, requestedResourceIDs)
+	if err != nil {
+		return false, "", trace.Wrap(err)
 	}
 
 	for _, r := range allApplicableRoles {
@@ -1423,6 +1433,41 @@ func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles 
 	}
 
 	return false, "", nil
+}
+
+func (v *RequestValidator) populateCustomReasonPrompts(ctx context.Context, requestedRoles []string, requestedResourceIDs []types.ResourceID) error {
+	allApplicableRoles, err := v.getAllApplicableRoles(ctx, requestedRoles, requestedResourceIDs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, r := range allApplicableRoles {
+		customPrompt, ok := v.customPromptRoles[r]
+		if ok && !slices.Contains(v.reasonPrompts, customPrompt) {
+			v.reasonPrompts = append(v.reasonPrompts, customPrompt)
+		}
+	}
+
+	return nil
+}
+
+// getAllApplicableRoles returns the combined roles for the given roles and resource IDs (search_as_roles)
+func (v *RequestValidator) getAllApplicableRoles(ctx context.Context, requestedRoles []string, requestedResourceIDs []types.ResourceID) (allApplicableRoles []string, err error) {
+	allApplicableRoles = requestedRoles
+	if len(requestedResourceIDs) > 0 {
+		// Do not provide loginHint. We want all matching search_as_roles for those resources.
+		roles, err := v.applicableSearchAsRoles(ctx, requestedResourceIDs, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(allApplicableRoles) == 0 {
+			allApplicableRoles = roles
+		} else {
+			allApplicableRoles = append(allApplicableRoles, roles...)
+		}
+	}
+
+	return allApplicableRoles, nil
 }
 
 // calculateMaxAccessDuration calculates the maximum time for the access request.
@@ -1689,12 +1734,24 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
-	if allow.Reason != nil && allow.Reason.Mode.Required() {
-		for _, r := range allow.Roles {
-			m.requiringReasonRoles[r] = struct{}{}
+	if allow.Reason != nil {
+		if allow.Reason.Mode.Required() {
+			for _, r := range allow.Roles {
+				m.requiringReasonRoles[r] = struct{}{}
+			}
+			for _, r := range allow.SearchAsRoles {
+				m.requiringReasonRoles[r] = struct{}{}
+			}
 		}
-		for _, r := range allow.SearchAsRoles {
-			m.requiringReasonRoles[r] = struct{}{}
+
+		customPrompt := strings.TrimSpace(allow.Reason.Prompt)
+		if len(customPrompt) > 0 {
+			for _, r := range allow.Roles {
+				m.customPromptRoles[r] = customPrompt
+			}
+			for _, r := range allow.SearchAsRoles {
+				m.customPromptRoles[r] = customPrompt
+			}
 		}
 	}
 
