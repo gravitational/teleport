@@ -126,9 +126,7 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
 
-	tpm, err := attest.OpenTPM(&attest.OpenConfig{
-		TPMVersion: attest.TPMVersion20,
-	})
+	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
@@ -204,10 +202,7 @@ func (d *tpmDevice) enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 // the AKs public key and then base64 encode it to produce a human-readable
 // string. This is similar to how SSH fingerprinting of public keys work.
 func credentialIDFromAK(ak *attest.AK) (string, error) {
-	akPub, err := attest.ParseAKPublic(
-		attest.TPMVersion20,
-		ak.AttestationParameters().Public,
-	)
+	akPub, err := attest.ParseAKPublic(ak.AttestationParameters().Public)
 	if err != nil {
 		return "", trace.Wrap(err, "parsing ak public")
 	}
@@ -237,9 +232,7 @@ func (d *tpmDevice) getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
-	tpm, err := attest.OpenTPM(&attest.OpenConfig{
-		TPMVersion: attest.TPMVersion20,
-	})
+	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
@@ -275,9 +268,7 @@ func (d *tpmDevice) solveTPMEnrollChallenge(
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
 
-	tpm, err := attest.OpenTPM(&attest.OpenConfig{
-		TPMVersion: attest.TPMVersion20,
-	})
+	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
@@ -368,9 +359,7 @@ func (d *tpmDevice) handleTPMActivateCredential(encryptedCredential, encryptedCr
 		return trace.Wrap(err, "setting up device state directory")
 	}
 
-	tpm, err := attest.OpenTPM(&attest.OpenConfig{
-		TPMVersion: attest.TPMVersion20,
-	})
+	tpm, err := openTPM()
 	if err != nil {
 		return trace.Wrap(err, "opening tpm")
 	}
@@ -412,9 +401,7 @@ func (d *tpmDevice) solveTPMAuthnDeviceChallenge(
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
 
-	tpm, err := attest.OpenTPM(&attest.OpenConfig{
-		TPMVersion: attest.TPMVersion20,
-	})
+	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
@@ -464,4 +451,9 @@ func attestPlatform(tpm *attest.TPM, ak *attest.AK, nonce []byte) (*attest.Platf
 	config.EventLog = []byte{}
 	platformsParams, err = tpm.AttestPlatform(ak, nonce, config)
 	return platformsParams, trace.Wrap(err, "attesting platform")
+}
+
+// openTPM opens the TPM device using a predetermined config.
+func openTPM() (*attest.TPM, error) {
+	return attest.OpenTPM(nil /* config */)
 }
