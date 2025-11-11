@@ -189,6 +189,10 @@ db_service:
         "teleport.dev/cloud": "AWS"
         # Specific to AWS. This is the AWS account ID.
         "account-id": "123456789012"
+        # Use specific label selectors so each Database Service only matches
+        # databases it can actually reach.
+        "env": "staging"
+        "vpc-id": "vpc-id-123"
       aws:
         # This is an optional AWS role ARN to assume when forwarding connections
         # to AWS databases.
@@ -215,10 +219,17 @@ Here's how it works in detail:
 1. **Label matching:** The Database Service monitors `db` resources and the
   first label selector in `db_service.resources[].labels` that matches a `db`
   will be used. If no selector matches, then the `db` resource is ignored.
-1. **Permissions:** The Database Service will assume the identity configured in
+
+  <Admonition type="warning">
+  Use more specific label selectors when needed so that a Database Service only
+  matches databases it can actually reach. Broad selectors can cause unreachable
+  databases to be registered and lead to connection failures in HA deployments.
+  </Admonition>
+
+2. **Permissions:** The Database Service will assume the identity configured in
   the label selector that matched. If the selector does not specify an identity,
   then the Database Service will use its own identity.
-1. **Connection:** The Database Service, acting as either its own identity or
+3. **Connection:** The Database Service, acting as either its own identity or
   the identity it assumed, will retrieve credentials to authenticate to the
   database and use those credentials to act as a proxy for an authorized
   Teleport user.
