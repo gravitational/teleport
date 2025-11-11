@@ -261,6 +261,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		RecordingEncryption:     recordingEncryption,
 		Plugin:                  plugin,
 		AppAuthConfig:           appAuthConfig,
+		StaticScopedToken:       clusterConfig,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 eventsC,
 	}))

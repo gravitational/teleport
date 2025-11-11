@@ -341,3 +341,38 @@ func (p *scopedTokenParser) parse(event backend.Event) (types.Resource, error) {
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
+
+type staticScopedTokenParser struct {
+	baseParser
+}
+
+func newStaticScopedTokenParser() *staticScopedTokenParser {
+	return &staticScopedTokenParser{
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, types.MetaNameStaticScopedTokens)),
+	}
+}
+
+func (p *staticScopedTokenParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return &types.ResourceHeader{
+			Kind:    types.KindStaticScopedTokens,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: types.MetaNameStaticScopedTokens,
+			},
+		}, nil
+	case types.OpPut:
+		tokens, err := services.UnmarshalProtoResource[*joiningv1.StaticScopedTokens](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshaling resource from event")
+		}
+		return types.Resource153ToLegacy(tokens), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
