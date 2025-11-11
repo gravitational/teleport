@@ -21,6 +21,7 @@ package gitlab
 import (
 	"context"
 
+	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/provision"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "gitlab")

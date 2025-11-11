@@ -21,10 +21,11 @@ package join
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/provision"
-	"github.com/gravitational/trace"
 )
 
 // validateGitlabToken performs validation and allow rule verification against
