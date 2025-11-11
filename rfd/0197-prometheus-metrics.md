@@ -26,6 +26,21 @@ This poses several challenges:
 - The same Teleport component cannot be started multiple times without causing metric conflicts, or inaccurate metrics.
   For example, integration tests starting several Teleport instances will merge their metrics together.
 
+## Conflicts
+
+Metrics conflicts can happen in several cases:
+
+1. The same metric is registered with different labels by several teleport processes. This is what happens with the
+   grpc metrics currently as teleport and tbot register global metrics with the same name but different labels. This can
+   be avoided in tests by using per-process registries.
+2. The same metric is registered several times by different components. This can be avoided by namespacing and 
+   adding metrics subsystem.
+3. The same metric is registered both in the local and global registries. In this case, the process registry takes 
+   precedence, the gathering succeeds but logs errors.
+4. The same component is being started and stopped several times and re-register its metrics. This is the case for 
+   hosted plugins. We work around by creating a dedicared registry, and registering/unregistering it as a collector. 
+   See https://github.com/prometheus/client_golang/pull/1766 for an example.
+
 ## Guidelines
 
 ### Metrics Registry
