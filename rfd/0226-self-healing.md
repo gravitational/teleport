@@ -117,9 +117,17 @@ health.
 Once a new connection is established the old connection will be drained gracefully
 and new RPCs will be sent over the new connection.
 
+We will consider enforcing a timeout where streams over the old draining connection
+may be forcfully terminated after some duration + jitter.
+
 Any open RPCs on the old connection will be allowed to run to completetion.
 
-Clients will discover the new load balancing policy via the `/webapi/ping` endpoint.
+We will explore implementing a gRPC endpoint which will allow for discovering
+new load balancing policies via the connected auth server. This endpoint will be
+called immediately after connecting and the initial health checking is complete.
+
+As a backup plan clients could also discover the new load balancing policy via the
+`/webapi/ping` endpoint. However the gRPC endpoint is the preferred solution.
 
 It will be set in the JSON response as follows:
 
