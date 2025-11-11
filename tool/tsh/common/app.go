@@ -106,29 +106,37 @@ func onAppLogin(cf *CLIConf) error {
 		AccessRequests: appInfo.profile.ActiveRequests,
 	}
 
-	var singleUseCerts bool
+	// When using `tsh app login`, certs should generally be saved to disk, whether standard certs or
+	// single-use MFA-verified 1m TTL certs. However, in cases where we are exceeding the standard
+	// 1m TTL for single-use certs, we must ensure the certs are not saved to disk.
+	saveCertificateToDisk := true
 	if app.GetAWSRolesAnywhereProfileARN() != "" {
-		singleUseCerts, err = isMFARequiredForAppAccess(cf.Context, tc, appInfo.RouteToApp)
+		singleUseCerts, err := isMFARequiredForAppAccess(cf.Context, tc, appInfo.RouteToApp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		// When using single use certs (aka per-session MFA), tsh cannot write the certificate or AWS credentials to disk.
-		// Instead, ask user to use the `--env` flag which only outputs the credentials, in an eval friendly format.
-		if singleUseCerts && !cf.AppLoginAWSEnvOutput {
-			return trace.BadParameter(`AWS access is configured to use per-session MFA and credentials are only available to a single session. Pass the --env flag to the previous command and export the credentials using eval.
+		if singleUseCerts {
+			// Prevent single use certificates from being written to disk.
+			saveCertificateToDisk = false
+
+			appCertParams.RequesterName = proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS
+
+			// When using single use certs (aka per-session MFA), tsh cannot write the certificate or AWS credentials to disk.
+			// Instead, ask user to use the `--env` flag which only outputs the credentials, in an eval friendly format.
+			if !cf.AppLoginAWSEnvOutput {
+				return trace.BadParameter(`AWS access is configured to use per-session MFA and credentials are only available to a single session. Pass the --env flag to the previous command and export the credentials using eval.
 Example:
         eval "$(tsh apps login %s --aws-role %s --env)"
 
 You can now run the AWS CLI or other AWS SDK based tools as usual.
 Example:
         aws sts get-caller-identity`,
-				shsprintf.EscapeDefaultContext(app.GetName()),
-				shsprintf.EscapeDefaultContext(appInfo.RouteToApp.AWSRoleARN),
-			)
+					shsprintf.EscapeDefaultContext(app.GetName()),
+					shsprintf.EscapeDefaultContext(appInfo.RouteToApp.AWSRoleARN),
+				)
+			}
 		}
-
-		appCertParams.RequesterName = proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS
 	}
 
 	key, err := appLogin(cf.Context, clusterClient, rootClient, appCertParams)
@@ -136,8 +144,7 @@ Example:
 		return trace.Wrap(err)
 	}
 
-	// Single use certs must not be written to local agent/disk.
-	if !singleUseCerts {
+	if saveCertificateToDisk {
 		if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
 			return trace.Wrap(err)
 		}
