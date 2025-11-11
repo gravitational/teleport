@@ -288,6 +288,7 @@ specific section for details when using a YAML config file or legacy output.
 | `--diag-addr`           | If set and the bot is in debug mode, a diagnostics service will listen on specified address. |
 | `--storage`             | A destination URI for tbot's internal storage, e.g. `file:///foo/bar`. See [Destination URIs](#destination-uris) for more info. |
 | `--registration-secret` | An optional joining secret to use on first join with the `bound_keypair` join method. |
+| `--pid-file`            | Full path to the PID file. By default no PID file will be created. |
 
 ## tbot start legacy
 
@@ -318,6 +319,7 @@ another dedicated mode instead.
 | `--join-method`      | Method to use to join the cluster. Can be `token`, `azure`, `circleci`, `gcp`, `github`, `gitlab` or `iam`.                                                                     |
 | `--oneshot`          | If set, quit after the first renewal.                                                                                                                                           |
 | `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.                                                                                                |
+| `--pid-file`         | Full path to the PID file. By default no PID file will be created.                                                                                                              |
 
 ### Examples
 <Tabs>
