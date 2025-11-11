@@ -39,7 +39,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/history": "^4.7.11",
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.18.13",
+    "@types/node": "^24.10.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@types/react-highlight": "^0.12.8",
