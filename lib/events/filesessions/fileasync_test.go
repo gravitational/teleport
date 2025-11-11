@@ -542,7 +542,7 @@ func TestMinimumUpload(t *testing.T) {
 	var partFiles []fs.FileInfo
 	filepath.WalkDir(p.scanDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return trace.Wrap(err, "walking directory tree")
 		}
 
 		if d.IsDir() {
@@ -551,7 +551,7 @@ func TestMinimumUpload(t *testing.T) {
 
 		info, err := d.Info()
 		if err != nil {
-			return err
+			return trace.Wrap(err, "retrieving file info")
 		}
 
 		// skip non-part files.
