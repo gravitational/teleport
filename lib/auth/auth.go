@@ -112,7 +112,6 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
-	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
@@ -122,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/gitlab"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -1262,7 +1262,7 @@ type Server struct {
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
-	gitlabIDTokenValidator gitlabIDTokenValidator
+	gitlabIDTokenValidator gitlab.Validator
 
 	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
 	// validated by the auth server. It can be overridden for the purpose of
