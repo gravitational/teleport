@@ -1729,7 +1729,7 @@ func TestPruneMappedSearchAs(t *testing.T) {
 			},
 			// Request for foreign resource should request all available roles,
 			// we don't know which one is necessary
-			expectRoles: []string{"node-access", "node-admins", "node-team", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
+			expectRoles: []string{"node-access", "node-admins", "node-team", "kube-admins", "db-admins", "app-admins", "windows-admins", "saml-rolev7", "empty"},
 		},
 	}
 	for _, tc := range testCases {
