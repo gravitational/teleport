@@ -2158,6 +2158,13 @@ message AuthAttempt {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ServerMetadata holds information about the target host server
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // UserTokenCreate is emitted when a user token is created.

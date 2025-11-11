@@ -388,7 +388,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
+$(BUILDDIR)/teleport: ensure-webassets rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
@@ -455,35 +455,37 @@ tctl-app:
 
 #
 # BPF support (IF ENABLED)
-# Requires a recent version of clang and libbpf installed.
+# Requires clang 14+
 #
-ifeq ("$(with_bpf)","yes")
-$(ER_BPF_BUILDDIR):
-	mkdir -p $(ER_BPF_BUILDDIR)
-
-# Build BPF code
-$(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(BPF_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	$(LLVM_STRIP) -g $@ # strip useless DWARF info
-
-.PHONY: bpf-er-bytecode
-bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
-
+# Enable target only if /usr/include/linux/bpf.h exists and clang is installed.
+# This is a requirement for building BPF bytecode.
 .PHONY: bpf-bytecode
-bpf-bytecode: bpf-er-bytecode
+bpf-bytecode:
+ifneq ($(or $(wildcard /usr/include/linux/bpf.h),$(wildcard /usr/include/bpf/bpf_helpers.h)),"")
+else
+$(error "libbpf-dev is required to build BPF bytecode")
+endif # libbpf-dev installed
+ifneq ("$(shell command -v clang --version 2>/dev/null)","")
+	go generate ./lib/bpf/
+else
+$(error "clang is required to build BPF bytecode")
+endif # clang installed
+
+# bpf-up-to-date checks if the generated BPF bytecode is up to date.
+.PHONY: bpf-up-to-date
+bpf-up-to-date: must-start-clean/host bpf-bytecode
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "bpf bytecode" "make -C build.assets bpf-bytecode"; \
+		exit 1; \
+	fi
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
 update-vmlinux-h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
 
-else
-.PHONY: bpf-bytecode
-bpf-bytecode:
-endif
-
 .PHONY: rdpclient
-rdpclient:
+rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
@@ -504,7 +506,7 @@ export ironrdp_package_json
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 build-ironrdp-wasm: ensure-wasm-deps
-	cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
@@ -550,10 +552,6 @@ clean: clean-ui clean-build
 clean-build:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-# Check if the variable is set to prevent calling remove on the root directory.
-ifneq ($(ER_BPF_BUILDDIR),)
-	rm -f $(ER_BPF_BUILDDIR)/*.o
-endif
 	-cargo clean
 	-go clean -cache
 	rm -f *.gz
@@ -951,7 +949,7 @@ test-env-leakage:
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) $(VERSRC)
+test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) $(VERSRC)
 
 # Runs base unit tests
 .PHONY: test-go-unit
@@ -1034,7 +1032,7 @@ test-go-chaos:
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR)
+test-go-root: ensure-webassets rdpclient $(TEST_LOG_DIR)
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e e2e -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
@@ -1866,7 +1864,7 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
@@ -1922,6 +1920,26 @@ rustup-set-version: ; # obsoleted by toolchain file
 .PHONY: rustup-install-target-toolchain
 rustup-install-target-toolchain:
 	rustup target add $(RUST_TARGET_ARCH)
+
+
+define rust_toolchain_warning
+  The active Rust toolchain version does not match the toolchain required
+  to build Teleport. This is likely caused by a directory override. You
+  can inspect your current overrides with 'rustup show active-toolchain'
+  and clear directory overrides with 'rustup override unset'
+endef
+export rust_toolchain_warning
+
+# inspect the current active toolchain and display a warning if it doesn't
+# match the version defined in our toolchain file.
+.PHONY: rustup-toolchain-warning
+rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
+rustup-toolchain-warning:
+	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
+		echo -en "\033[31m";\
+		echo  "$$rust_toolchain_warning";\
+		echo  -en "\033[0m";\
+	fi
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.

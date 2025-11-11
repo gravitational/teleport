@@ -201,10 +201,6 @@ func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenVali
 	a.azureDevopsIDTokenValidator = validator
 }
 
-func (a *Server) SetBitbucketIDTokenValidator(validator bitbucketIDTokenValidator) {
-	a.bitbucketIDTokenValidator = validator
-}
-
 func (a *Server) SetCircleCITokenValidate(validator func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)) {
 	a.circleCITokenValidate = validator
 }
@@ -231,14 +227,6 @@ func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenVal
 
 func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
 	a.tpmValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenValidator(validator ghaIDTokenValidator) {
-	a.ghaIDTokenValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenJWKSValidator(validator ghaIDTokenJWKSValidator) {
-	a.ghaIDTokenJWKSValidator = validator
 }
 
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {

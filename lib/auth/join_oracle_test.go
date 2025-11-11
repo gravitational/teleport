@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/oracle/oci-go-sdk/v65/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -141,6 +142,101 @@ func mapFromHeader(header http.Header) map[string]string {
 		out[k] = header.Get(k)
 	}
 	return out
+}
+
+func TestOracleTokenValidation(t *testing.T) {
+	t.Parallel()
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+	a, err := server.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc      string
+		rule      types.ProvisionTokenSpecV2Oracle_Rule
+		assertion assert.ErrorAssertionFunc
+	}{
+		{
+			desc: "valid",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.tenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.compartment.oc1..mycompartment"},
+				Regions:            []string{"us-phoenix-1"},
+				Instances:          []string{"ocid1.instance.oc1.phx.myinstance"},
+			},
+			assertion: assert.NoError,
+		},
+		{
+			desc: "invalid tenant",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.badtenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.compartment.oc1..mycompartment"},
+				Regions:            []string{"us-phoenix-1"},
+				Instances:          []string{"ocid1.instance.oc1.phx.myinstance"},
+			},
+			assertion: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				return assert.ErrorAs(t, err, new(*trace.BadParameterError), msgAndArgs...) &&
+					assert.ErrorContains(t, err, "invalid tenant", msgAndArgs...)
+			},
+		},
+		{
+			desc: "invalid compartment",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.tenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.badcompartment.oc1..mycompartment"},
+				Regions:            []string{"us-phoenix-1"},
+				Instances:          []string{"ocid1.instance.oc1.phx.myinstance"},
+			},
+			assertion: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				return assert.ErrorAs(t, err, new(*trace.BadParameterError), msgAndArgs...) &&
+					assert.ErrorContains(t, err, "invalid compartment", msgAndArgs...)
+			},
+		},
+		{
+			desc: "invalid region",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.tenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.compartment.oc1..mycompartment"},
+				Regions:            []string{"badregion"},
+				Instances:          []string{"ocid1.instance.oc1.phx.myinstance"},
+			},
+			assertion: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				return assert.ErrorAs(t, err, new(*trace.BadParameterError), msgAndArgs...) &&
+					assert.ErrorContains(t, err, "invalid region", msgAndArgs...)
+			},
+		},
+		{
+			desc: "invalid instance",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.tenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.compartment.oc1..mycompartment"},
+				Regions:            []string{"us-phoenix-1"},
+				Instances:          []string{"ocid1.badinstance.oc1.phx.myinstance"},
+			},
+			assertion: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				return assert.ErrorAs(t, err, new(*trace.BadParameterError), msgAndArgs...) &&
+					assert.ErrorContains(t, err, "invalid instance", msgAndArgs...)
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			tokenSpec := types.ProvisionTokenSpecV2{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodOracle,
+				Oracle: &types.ProvisionTokenSpecV2Oracle{
+					Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{&tc.rule},
+				},
+			}
+			token, err := types.NewProvisionTokenFromSpec("my-token", time.Now().Add(time.Minute), tokenSpec)
+			require.NoError(t, err)
+			err = a.UpsertToken(t.Context(), token)
+			tc.assertion(t, err)
+		})
+	}
 }
 
 func TestRegisterUsingOracleMethod(t *testing.T) {

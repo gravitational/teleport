@@ -1,0 +1,82 @@
+---
+title: Access Monitoring Rule Resource Reference
+sidebar_label: Access Monitoring rule
+description: Provides a comprehensive list of fields for the Teleport access monitoring rule resource.
+---
+
+Access monitoring rules allows cluster administrators to monitor Access Requests
+and apply notification routing and automatic review rules.
+
+```yaml
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: example_rule
+spec:
+  # subjects specifies the kinds of subjects to monitor.
+  # Possible values: "access_request"
+  subjects:
+  - access_request
+
+  # condition specifies the conditions that should be met to apply the access
+  # monitoring rule. The condition accepts a predicate expression which must
+  # evaluate to a boolean value.
+  #
+  # This condition would be satisfied if:
+  # - `access` role is requested
+  # - all requested resources have the label `env: dev`
+  # - requesting user has the `team: dev` user trait.
+  condition: |-
+    contains_all(set("access"), access_request.spec.roles) &&
+    access_request.spec.resource_labels_intersection["env"].contains("dev") &&
+    contains_any(user.traits["team"], set("dev"))
+
+  # Optional: desired_state specifies the desired reconciled state of the access
+  # request after the rule is applied. This field must be set to "reviewed" to
+  # enable automatic reviews.
+  # Possible values: "reviewed".
+  desired_state: reviewed
+
+  # Optional: automatic_review configures the automatic review rules.
+  automatic_review:
+    # integration specifies the name of an external integration source used to
+    # help determine if a requesting user satisfies the rule conditions.
+    # Use "builtin" to specify no external integration.
+    # Possible values: "builtin"
+    integration: builtin
+
+    # decision determines whether to automatically approve or deny the
+    # access request.
+    # Possible values: "APPROVED" or "DENIED"
+    decision: APPROVED
+
+  # Optional: notification configures notification routing rules.
+  notification:
+    # name specifies the external integration to which the notifications should
+    # be routed.
+    # Possible values: "email", "discord", "slack", "pagerduty", "jira",
+    # "mattermost", "msteams", "opsgenie", "servicenow", "datadog"
+    name: email
+
+    # recipients specifies the list of recipients to be notified when the
+    # access monitoring rule is applied.
+    recipients:
+    - example@goteleport.com
+```
+
+Accepted fields within the condition predicate expression:
+| Field                                            | Description                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| access_request.spec.roles                        | The set of roles requested.                                         |
+| access_request.spec.suggested_reviewers          | The set of reviewers specified in the request.                      |
+| access_request.spec.system_annotations           | A map of system annotations on the request.                         |
+| access_request.spec.user                         | The requesting user.                                                |
+| access_request.spec.request_reason               | The request reason.                                                 |
+| access_request.spec.creation_time                | The creation time of the request.                                   |
+| access_request.spec.expiry                       | The expiry time of the request.                                     |
+| access_request.spec.resource_labels_intersection | A map containing the intersection of all requested resource labels. |
+| access_request.spec.resource_labels_union        | A map containing the union of all requested resource labels.        |
+| user.traits                                      | A map of traits of the requesting user.                             |
+
+See [Predicate Language](../../access-controls/predicate-language.mdx) for more details.
+
