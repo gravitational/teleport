@@ -90,7 +90,7 @@ test('warning is visible and authorize button is disabled when requested user is
 });
 
 test('authorizing a session opens its URL and closes document', async () => {
-  jest.spyOn(window, 'open').mockImplementation();
+  vi.spyOn(window, 'open').mockImplementation();
   const rootCluster = makeRootCluster({
     loggedInUser: makeLoggedInUser({ isDeviceTrusted: true }),
   });

@@ -95,7 +95,7 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
     message: 'ENOENT',
   };
 
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
     .mockImplementation(
       // Hang until abort.
@@ -104,17 +104,17 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
           abortSignal.addEventListener('abort', reject)
         )
     );
-  jest
+  vi
     .spyOn(appContext.mainProcessClient, 'getAgentState')
     .mockImplementation(() => errorStatus);
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'runAgent')
     .mockImplementation(async () => {
       // the error is emitted before the function resolves
       eventEmitter.emit('', errorStatus);
       return;
     });
-  jest
+  vi
     .spyOn(appContext.mainProcessClient, 'subscribeToAgentUpdate')
     .mockImplementation((rootClusterUri, listener) => {
       eventEmitter.on('', listener);
@@ -144,7 +144,7 @@ test('startAgent re-throws errors that are thrown while spawning the process', a
 test('starting the agent flips the workspace autoStart flag to true', async () => {
   const { appContext, rootCluster } = getMocks();
 
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
     .mockResolvedValue(makeServer());
 
@@ -184,13 +184,13 @@ test('failed autostart flips the workspace autoStart flag to false', async () =>
   let currentAgentProcessState: AgentProcessState = {
     status: 'not-started',
   };
-  jest
+  vi
     .spyOn(appContext.mainProcessClient, 'getAgentState')
     .mockImplementation(() => currentAgentProcessState);
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'isAgentConfigFileCreated')
     .mockResolvedValue(true);
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'downloadAgent')
     .mockRejectedValue(new AgentCompatibilityError('incompatible'));
 
@@ -222,23 +222,23 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
   let currentAgentProcessState: AgentProcessState = {
     status: 'not-started',
   };
-  jest
+  vi
     .spyOn(appContext.mainProcessClient, 'getAgentState')
     .mockImplementation(() => currentAgentProcessState);
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'isAgentConfigFileCreated')
     .mockResolvedValue(true);
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'runAgent')
     .mockImplementation(async () => {
       currentAgentProcessState = { status: 'running' };
       eventEmitter.emit('', currentAgentProcessState);
     });
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
     .mockResolvedValue(makeServer());
-  jest.spyOn(appContext.connectMyComputerService, 'downloadAgent');
-  jest
+  vi.spyOn(appContext.connectMyComputerService, 'downloadAgent');
+  vi
     .spyOn(appContext.mainProcessClient, 'subscribeToAgentUpdate')
     .mockImplementation((rootClusterUri, listener) => {
       eventEmitter.on('', listener);
@@ -300,7 +300,7 @@ describe('canUse', () => {
         ).loggedInUser.acl.tokens.create = hasPermissions;
       });
       const isAgentConfigFileCreated = Promise.resolve(isAgentConfigured);
-      jest
+      vi
         .spyOn(appContext.connectMyComputerService, 'isAgentConfigFileCreated')
         .mockReturnValue(isAgentConfigFileCreated);
 
@@ -327,15 +327,15 @@ describe('canUse', () => {
 
 test('removing the agent shows a notification', async () => {
   const { appContext, rootCluster } = getMocks();
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'getConnectMyComputerNodeName')
     .mockResolvedValue(makeServer().name);
 
   const mockResourcesContext = {
-    requestResourcesRefresh: jest.fn(),
-    onResourcesRefreshRequest: jest.fn(),
+    requestResourcesRefresh: vi.fn(),
+    onResourcesRefreshRequest: vi.fn(),
   };
-  jest
+  vi
     .spyOn(resourcesContext, 'useResourcesContext')
     .mockImplementation(() => mockResourcesContext);
 
@@ -363,17 +363,17 @@ test('removing the agent shows a notification', async () => {
 
 test('when the request to remove the node fails a custom notification is shown', async () => {
   const { appContext, rootCluster } = getMocks();
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'removeConnectMyComputerNode')
     .mockRejectedValue(new Error('access denied'));
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'getConnectMyComputerNodeName')
     .mockResolvedValue(makeServer().name);
   const mockResourcesContext = {
-    requestResourcesRefresh: jest.fn(),
-    onResourcesRefreshRequest: jest.fn(),
+    requestResourcesRefresh: vi.fn(),
+    onResourcesRefreshRequest: vi.fn(),
   };
-  jest
+  vi
     .spyOn(resourcesContext, 'useResourcesContext')
     .mockImplementation(() => mockResourcesContext);
 

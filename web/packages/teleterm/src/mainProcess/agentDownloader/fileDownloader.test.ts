@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -39,7 +39,7 @@ const getBrowserWindowMock = () => {
   const willDownloadEmitter = new EventEmitter();
   const downloadItemEmitter = new EventEmitter();
   const downloadItem: DownloadItem = {
-    setSavePath: jest.fn(),
+    setSavePath: vi.fn(),
     getURL: () => URL,
     getFilename: () => {
       return FILE_NAME;
@@ -60,9 +60,9 @@ const getBrowserWindowMock = () => {
   } as unknown as DownloadItem;
 
   const browserWindow = {
-    setProgressBar: jest.fn(),
+    setProgressBar: vi.fn(),
     webContents: {
-      downloadURL: jest.fn(() => {
+      downloadURL: vi.fn(() => {
         willDownloadEmitter.emit('will-download', undefined, downloadItem);
         // send some progress after 500 ms
         setTimeout(
@@ -80,7 +80,7 @@ const getBrowserWindowMock = () => {
         off: (event, listener) => willDownloadEmitter.off(event, listener),
       },
     },
-  } as unknown as jest.MockedObjectDeep<BrowserWindow>;
+  } as unknown as MockedObjectDeep<BrowserWindow>;
 
   return {
     browserWindow,
@@ -91,17 +91,17 @@ const getBrowserWindowMock = () => {
 };
 
 test('resolves a promise when download succeeds', async () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   const { browserWindow, downloadItem } = getBrowserWindowMock();
   const downloader = new FileDownloader(browserWindow);
   const result = downloader.run(URL, DOWNLOAD_DIR);
 
   expect(browserWindow.webContents.downloadURL).toHaveBeenCalledWith(URL);
 
-  jest.advanceTimersByTime(500);
+  vi.advanceTimersByTime(500);
   expect(browserWindow.setProgressBar).toHaveBeenCalledWith(0.5);
 
-  jest.advanceTimersByTime(500);
+  vi.advanceTimersByTime(500);
   await expect(result).resolves.toBeUndefined();
   expect(browserWindow.setProgressBar).toHaveBeenCalledWith(-1);
   expect(downloadItem.setSavePath).toHaveBeenCalledWith(

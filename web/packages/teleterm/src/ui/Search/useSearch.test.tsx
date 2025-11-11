@@ -39,7 +39,7 @@ import { makeResourceResult } from './testHelpers';
 import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 const currentWorkspace = {
@@ -308,7 +308,7 @@ describe('useResourceSearch', () => {
         resource: makeServer({}),
         requiresRequest: false,
       }));
-    jest
+    vi
       .spyOn(appContext.resourcesService, 'searchResources')
       .mockResolvedValue(servers);
 
@@ -340,7 +340,7 @@ describe('useResourceSearch', () => {
     appContext.clustersService.setState(draftState => {
       draftState.clusters.set(cluster.uri, cluster);
     });
-    jest
+    vi
       .spyOn(appContext.resourcesService, 'searchResources')
       .mockResolvedValue([]);
 
@@ -372,7 +372,7 @@ describe('useResourceSearch', () => {
     appContext.clustersService.setState(draftState => {
       draftState.clusters.set(cluster.uri, cluster);
     });
-    jest
+    vi
       .spyOn(appContext.resourcesService, 'searchResources')
       .mockResolvedValue([]);
 
@@ -393,7 +393,7 @@ describe('useResourceSearch', () => {
     appContext.clustersService.setState(draftState => {
       draftState.clusters.set(cluster.uri, cluster);
     });
-    jest
+    vi
       .spyOn(appContext.resourcesService, 'searchResources')
       .mockResolvedValue([]);
 
@@ -421,7 +421,7 @@ describe('useResourceSearch', () => {
       draftState.clusters.set(rootCluster.uri, rootCluster);
       draftState.clusters.set(leafCluster.uri, leafCluster);
     });
-    jest
+    vi
       .spyOn(appContext.resourcesService, 'searchResources')
       .mockResolvedValue([]);
 

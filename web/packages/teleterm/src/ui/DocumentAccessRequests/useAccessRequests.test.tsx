@@ -22,8 +22,8 @@ import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 import { makeUiAccessRequest } from './useAccessRequests';
 
 test('makeUiAccessRequest', async () => {
-  jest.useFakeTimers();
-  jest.setSystemTime(new Date('2024-03-12T00:00:00.000Z'));
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2024-03-12T00:00:00.000Z'));
 
   const request: TshdAccessRequest = {
     id: '018e1246-0f5c-7829-8b05-8efac30fe18e',

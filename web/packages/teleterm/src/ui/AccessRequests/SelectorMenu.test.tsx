@@ -48,8 +48,8 @@ test('assuming or dropping a request refreshes resources', async () => {
     loggedInUser: makeLoggedInUser({ activeRequests: [accessRequest.id] }),
   });
   appContext.addRootCluster(cluster);
-  jest.spyOn(appContext.clustersService, 'dropRoles');
-  const refreshListener = jest.fn();
+  vi.spyOn(appContext.clustersService, 'dropRoles');
+  const refreshListener = vi.fn();
   appContext.tshd.getAccessRequest = () => {
     return new MockedUnaryCall({
       request: accessRequest,

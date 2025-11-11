@@ -48,7 +48,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 const rootClusterUri = '/clusters/test' as const;
@@ -183,11 +183,11 @@ test('useDocumentTerminal returns a failed attempt if the call to TerminalsServi
   const { terminalsService } = appContext;
 
   (
-    terminalsService.createPtyProcess as jest.MockedFunction<
+    terminalsService.createPtyProcess as MockedFunction<
       typeof terminalsService.createPtyProcess
     >
   ).mockReset();
-  jest
+  vi
     .spyOn(terminalsService, 'createPtyProcess')
     .mockRejectedValue(new Error('whoops'));
 
@@ -205,11 +205,11 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
   const { terminalsService, notificationsService } = appContext;
 
   (
-    terminalsService.createPtyProcess as jest.MockedFunction<
+    terminalsService.createPtyProcess as MockedFunction<
       typeof terminalsService.createPtyProcess
     >
   ).mockReset();
-  jest.spyOn(terminalsService, 'createPtyProcess').mockResolvedValue({
+  vi.spyOn(terminalsService, 'createPtyProcess').mockResolvedValue({
     process: getPtyProcessMock(),
     creationStatus: PtyProcessCreationStatus.ResolveShellEnvTimeout,
     windowsPty: undefined,
@@ -220,7 +220,7 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
       binName: 'zsh',
     },
   });
-  jest.spyOn(notificationsService, 'notifyWarning');
+  vi.spyOn(notificationsService, 'notifyWarning');
 
   const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
@@ -259,7 +259,7 @@ const testSetup = (
   const documentsService =
     appContext.workspacesService.getWorkspaceDocumentService(rootClusterUri);
   documentsService.add(doc);
-  jest
+  vi
     .spyOn(appContext.terminalsService, 'createPtyProcess')
     .mockImplementationOnce(async () => {
       return {
@@ -300,11 +300,11 @@ test('shellId is set to a config default when empty', async () => {
   const { terminalsService } = appContext;
 
   (
-    terminalsService.createPtyProcess as jest.MockedFunction<
+    terminalsService.createPtyProcess as MockedFunction<
       typeof terminalsService.createPtyProcess
     >
   ).mockReset();
-  jest.spyOn(terminalsService, 'createPtyProcess').mockResolvedValue({
+  vi.spyOn(terminalsService, 'createPtyProcess').mockResolvedValue({
     process: getPtyProcessMock(),
     creationStatus: PtyProcessCreationStatus.Ok,
     windowsPty: undefined,

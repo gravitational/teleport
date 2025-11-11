@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -37,7 +37,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe('readGrpcCert', () => {
@@ -71,7 +71,7 @@ describe('readGrpcCert', () => {
 
   it('returns an error if stat fails', async () => {
     const expectedError = new Error('Something went wrong');
-    jest.spyOn(fs, 'stat').mockRejectedValue(expectedError);
+    vi.spyOn(fs, 'stat').mockRejectedValue(expectedError);
 
     await expect(
       readGrpcCert(

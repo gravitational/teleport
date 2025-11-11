@@ -57,8 +57,8 @@ describe('pauseUserInteraction', () => {
       finishAction: rejectFailureAction,
     },
   ])('$name', async ({ action, finishAction }) => {
-    const inputFocus = jest.fn();
-    const onWindowClick = jest.fn();
+    const inputFocus = vi.fn();
+    const onWindowClick = vi.fn();
     const { result } = renderHook(() => useSearchContext(), {
       wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
     });
@@ -99,7 +99,7 @@ describe('pauseUserInteraction', () => {
 
 describe('addWindowEventListener', () => {
   it('returns a cleanup function', () => {
-    const onWindowClick = jest.fn();
+    const onWindowClick = vi.fn();
     const { result } = renderHook(() => useSearchContext(), {
       wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
     });
@@ -141,7 +141,7 @@ describe('addWindowEventListener', () => {
 
     const { cleanup } = result.current.addWindowEventListener(
       'click',
-      jest.fn()
+      vi.fn()
     );
     expect(cleanup).toBeUndefined();
 
@@ -194,7 +194,7 @@ describe('open', () => {
 describe('close', () => {
   it('restores focus on the previously active element', () => {
     const previouslyActive = {
-      focus: jest.fn(),
+      focus: vi.fn(),
     } as unknown as HTMLInputElement;
     const { result } = renderHook(() => useSearchContext(), {
       wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
@@ -215,7 +215,7 @@ describe('close', () => {
 describe('closeWithoutRestoringFocus', () => {
   it('does not restore focus on the previously active element', () => {
     const previouslyActive = {
-      focus: jest.fn(),
+      focus: vi.fn(),
     } as unknown as HTMLInputElement;
     const { result } = renderHook(() => useSearchContext(), {
       wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,

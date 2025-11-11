@@ -28,8 +28,8 @@ function makeDialogClusterConnect(): DialogClusterConnect {
     clusterUri: rootCluster.uri,
     reason: undefined,
     prefill: undefined,
-    onSuccess: jest.fn(),
-    onCancel: jest.fn(),
+    onSuccess: vi.fn(),
+    onCancel: vi.fn(),
   };
 }
 

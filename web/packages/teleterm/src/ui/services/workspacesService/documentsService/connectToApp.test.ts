@@ -29,11 +29,11 @@ import { IAppContext } from 'teleterm/ui/types';
 describe('connectToApp', () => {
   describe('launching an app in the browser for', () => {
     afterEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     test('web app', async () => {
-      jest.spyOn(window, 'open').mockImplementation();
+      vi.spyOn(window, 'open').mockImplementation();
       const appContext = new MockAppContext();
       setTestCluster(appContext);
       const app = makeApp({
@@ -51,7 +51,7 @@ describe('connectToApp', () => {
     });
 
     test('saml app', async () => {
-      jest.spyOn(window, 'open').mockImplementation();
+      vi.spyOn(window, 'open').mockImplementation();
       const appContext = new MockAppContext();
       setTestCluster(appContext);
       const app = makeApp({ samlApp: true });
@@ -68,7 +68,7 @@ describe('connectToApp', () => {
     });
 
     test('aws app', async () => {
-      jest.spyOn(window, 'open').mockImplementation();
+      vi.spyOn(window, 'open').mockImplementation();
       const appContext = new MockAppContext();
       setTestCluster(appContext);
       const app = makeApp({ awsConsole: true });
@@ -174,7 +174,7 @@ describe('setUpAppGateway', () => {
 });
 
 test('cloud app triggers alert', async () => {
-  jest.spyOn(window, 'alert').mockImplementation();
+  vi.spyOn(window, 'alert').mockImplementation();
   const appContext = new MockAppContext();
   setTestCluster(appContext);
   const app = makeApp({

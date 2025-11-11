@@ -29,15 +29,15 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
-jest.mock('electron', () => ({
+vi.mock('electron', () => ({
   dialog: {
-    showErrorBox: jest.fn(),
+    showErrorBox: vi.fn(),
   },
   shell: {
-    openExternal: jest.fn(),
+    openExternal: vi.fn(),
   },
 }));
 
@@ -89,7 +89,7 @@ describe('opening links to', () => {
         setWindowOpenHandler: d => {
           handler = d;
         },
-        on: jest.fn(),
+        on: vi.fn(),
       },
       makeRuntimeSettings(),
       { getRootClusters: () => [cluster] },
@@ -105,7 +105,7 @@ describe('opening links to', () => {
     });
 
     expect(result).toEqual({ action: 'deny' });
-    /* eslint-disable jest/no-conditional-expect */
+    /* eslint-disable vitest/no-conditional-expect */
     if (test.allowed) {
       expect(shell.openExternal).toHaveBeenCalledWith(test.url);
       expect(dialog.showErrorBox).not.toHaveBeenCalled();

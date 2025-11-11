@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -19,7 +19,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* eslint jest/no-conditional-expect: 0 */
+/* eslint vitest/no-conditional-expect: 0 */
 
 import childProcess from 'node:child_process';
 import fs from 'node:fs';
@@ -35,11 +35,11 @@ import { makeRuntimeSettings } from '../fixtures/mocks';
 import { downloadAgent } from './agentDownloader';
 import type { IFileDownloader } from './fileDownloader';
 
-jest.mock('node:child_process');
-jest.mock('node:fs');
-jest.mock('node:fs/promises');
-jest.mock('node:zlib');
-jest.mock('tar-fs');
+vi.mock('node:child_process');
+vi.mock('node:fs');
+vi.mock('node:fs/promises');
+vi.mock('node:zlib');
+vi.mock('tar-fs');
 
 const LATEST_TELEPORT_VERSIONS_MOCK = [
   {
@@ -63,7 +63,7 @@ const LATEST_TELEPORT_VERSIONS_MOCK = [
 beforeAll(() => {
   Logger.init(new NullService());
   // (Cannot spy the fetch property because it is not a function; undefined given instead)
-  global.fetch = jest.fn().mockImplementation(() =>
+  global.fetch = vi.fn().mockImplementation(() =>
     Promise.resolve({
       ok: true,
       json: () => Promise.resolve(LATEST_TELEPORT_VERSIONS_MOCK),
@@ -72,7 +72,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.resetModules();
+  vi.resetModules();
   process.env = {};
 });
 
@@ -126,9 +126,9 @@ test.each(testCases)(
       appVersion: connectVersion,
     });
     const fileDownloader: IFileDownloader = {
-      run: jest.fn(() => Promise.resolve()),
+      run: vi.fn(() => Promise.resolve()),
     };
-    jest
+    vi
       .spyOn(childProcess, 'execFile')
       .mockImplementation((command, args, options, callback) => {
         if (versionFromCache) {
@@ -145,12 +145,12 @@ test.each(testCases)(
         }
         return this;
       });
-    jest.spyOn(fs, 'createReadStream').mockImplementation(getStreamMock);
-    jest.spyOn(zlib, 'createUnzip').mockImplementation(getStreamMock);
-    jest.spyOn(tarFs, 'extract').mockImplementation(getStreamMock);
+    vi.spyOn(fs, 'createReadStream').mockImplementation(getStreamMock);
+    vi.spyOn(zlib, 'createUnzip').mockImplementation(getStreamMock);
+    vi.spyOn(tarFs, 'extract').mockImplementation(getStreamMock);
 
     const agentTempDir = `${runtimeSettings.tempDataDir}/connect-my-computer-abc`;
-    jest.spyOn(fsPromises, 'mkdtemp').mockResolvedValue(agentTempDir);
+    vi.spyOn(fsPromises, 'mkdtemp').mockResolvedValue(agentTempDir);
 
     const call = downloadAgent(fileDownloader, runtimeSettings, env);
     await expect(call).resolves.toBeUndefined();

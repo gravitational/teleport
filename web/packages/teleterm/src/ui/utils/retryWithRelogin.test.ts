@@ -30,7 +30,7 @@ beforeAll(() => {
 
 it('returns the result of actionToRetry if no error is thrown', async () => {
   const expectedReturnValue = Symbol('expectedReturnValue');
-  const actionToRetry = jest.fn().mockResolvedValue(expectedReturnValue);
+  const actionToRetry = vi.fn().mockResolvedValue(expectedReturnValue);
 
   const actualReturnValue = await retryWithRelogin(
     undefined,
@@ -44,7 +44,7 @@ it('returns the result of actionToRetry if no error is thrown', async () => {
 
 it("returns the error coming from actionToRetry if it's not retryable", async () => {
   const expectedError = Symbol('non-retryable error');
-  const actionToRetry = jest.fn().mockRejectedValue(expectedError);
+  const actionToRetry = vi.fn().mockRejectedValue(expectedError);
 
   const actualError = retryWithRelogin(
     undefined,
@@ -61,7 +61,7 @@ it('opens the login modal window and calls actionToRetry again on successful rel
   const appContext = new MockAppContext();
 
   // Immediately resolve the login promise.
-  jest
+  vi
     .spyOn(appContext.modalsService, 'openRegularDialog')
     .mockImplementation(dialog => {
       if (dialog.kind === 'cluster-connect') {
@@ -76,7 +76,7 @@ it('opens the login modal window and calls actionToRetry again on successful rel
       };
     });
 
-  jest
+  vi
     .spyOn(appContext.workspacesService, 'doesResourceBelongToActiveWorkspace')
     .mockImplementation(() => true);
 
@@ -108,18 +108,18 @@ it('opens the login modal window and calls actionToRetry again on successful rel
 it("returns the original retryable error if the document is no longer active, doesn't open the modal and doesn't call actionToRetry again", async () => {
   const appContext = new MockAppContext();
 
-  jest
+  vi
     .spyOn(appContext.modalsService, 'openRegularDialog')
     .mockImplementation(() => {
       throw new Error('Modal was opened');
     });
 
-  jest
+  vi
     .spyOn(appContext.workspacesService, 'doesResourceBelongToActiveWorkspace')
     .mockImplementation(() => false);
 
   const expectedError = makeRetryableError();
-  const actionToRetry = jest.fn().mockRejectedValue(expectedError);
+  const actionToRetry = vi.fn().mockRejectedValue(expectedError);
 
   const actualError = retryWithRelogin(
     appContext,
@@ -137,7 +137,7 @@ it("returns the original retryable error if the document is no longer active, do
 it('calls actionToRetry again if relogin attempt was canceled', async () => {
   const appContext = new MockAppContext();
 
-  jest
+  vi
     .spyOn(appContext.modalsService, 'openRegularDialog')
     .mockImplementation(dialog => {
       if (dialog.kind === 'cluster-connect') {
@@ -152,7 +152,7 @@ it('calls actionToRetry again if relogin attempt was canceled', async () => {
       };
     });
 
-  jest
+  vi
     .spyOn(appContext.workspacesService, 'doesResourceBelongToActiveWorkspace')
     .mockImplementation(() => true);
 
@@ -176,7 +176,7 @@ it('concurrent requests wait for the single login modal to resolve', async () =>
   const appContext = new MockAppContext();
 
   let logIn: () => void;
-  jest
+  vi
     .spyOn(appContext.modalsService, 'openRegularDialog')
     .mockImplementation(dialog => {
       if (dialog.kind === 'cluster-connect') {
@@ -191,7 +191,7 @@ it('concurrent requests wait for the single login modal to resolve', async () =>
       };
     });
 
-  jest
+  vi
     .spyOn(appContext.workspacesService, 'doesResourceBelongToActiveWorkspace')
     .mockImplementation(() => true);
 

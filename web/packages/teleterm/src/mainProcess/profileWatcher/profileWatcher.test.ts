@@ -225,7 +225,7 @@ test('file system events are debounced', async () => {
   const tshDir = await makePerTestDir();
   const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
-  const handler = jest.fn().mockImplementation(() => Promise.resolve());
+  const handler = vi.fn().mockImplementation(() => Promise.resolve());
   const testDebounceMs = 100;
   const watcher = watchProfiles({
     tshDirectory: tshDir,
@@ -255,7 +255,7 @@ test('no events are lost when handler is slow', async () => {
   const tshDir = await makePerTestDir();
   const tshClientMock = await mockTshClient(tshDir, { clusters: [] });
   const clusterStoreMock = mockClusterStore({ clusters: [] });
-  const handler = jest.fn().mockImplementation(() => wait(2 * testDebounceMs));
+  const handler = vi.fn().mockImplementation(() => wait(2 * testDebounceMs));
   const watcher = watchProfiles({
     tshDirectory: tshDir,
     tshClient: tshClientMock,
@@ -330,11 +330,11 @@ test('removing tsh directory does not break watcher', async () => {
   await fs.mkdir(tshDir);
   await tshClientMock.insertOrUpdateCluster(cluster);
   // The second event needs to wait for the dir to be detected.
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   const secondEvent = watcher.next();
   // Polling uses 1 second interval.
-  jest.advanceTimersByTime(1000);
-  jest.useRealTimers();
+  vi.advanceTimersByTime(1000);
+  vi.useRealTimers();
   expect((await secondEvent).value).toEqual([{ op: 'added', cluster }]);
 });
 

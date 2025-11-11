@@ -40,8 +40,8 @@ describe('requestResourcesRefresh', () => {
       }
     );
 
-    const listener1 = jest.fn();
-    const listener2 = jest.fn();
+    const listener1 = vi.fn();
+    const listener2 = vi.fn();
     result.current.clusterUri1.onResourcesRefreshRequest(listener1);
     result.current.clusterUri2.onResourcesRefreshRequest(listener2);
 
@@ -64,7 +64,7 @@ describe('onResourcesRefreshRequest cleanup function', () => {
       wrapper,
     });
 
-    const listener = jest.fn();
+    const listener = vi.fn();
     const { cleanup } = result.current.onResourcesRefreshRequest(listener);
 
     cleanup();

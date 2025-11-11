@@ -31,13 +31,13 @@ import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
 import { useGateway } from './useGateway';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 it('creates a gateway on mount if it does not exist already', async () => {
   const { appContext, gateway, doc, $wrapper } = testSetup();
 
-  jest
+  vi
     .spyOn(appContext.clustersService, 'createGateway')
     .mockImplementation(async () => {
       appContext.clustersService.setState(draftState => {
@@ -68,7 +68,7 @@ it('does not create a gateway on mount if the gateway already exists', async () 
   appContext.clustersService.setState(draftState => {
     draftState.gateways.set(gateway.uri, gateway);
   });
-  jest.spyOn(appContext.clustersService, 'createGateway');
+  vi.spyOn(appContext.clustersService, 'createGateway');
 
   renderHook(() => useGateway(doc), {
     wrapper: $wrapper,
@@ -84,14 +84,14 @@ it('does not attempt to create a gateway immediately after closing it if the gat
     draftState.gateways.set(gateway.uri, gateway);
   });
 
-  jest
+  vi
     .spyOn(appContext.clustersService, 'removeGateway')
     .mockImplementation(async gatewayUri => {
       appContext.clustersService.setState(draftState => {
         draftState.gateways.delete(gatewayUri);
       });
     });
-  jest
+  vi
     .spyOn(appContext.clustersService, 'createGateway')
     .mockResolvedValue(gateway);
 

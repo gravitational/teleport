@@ -84,8 +84,8 @@ test('dispose removes listeners, resolves pending messages, clears map, and reso
 });
 
 class MockMessagePortMain extends EventEmitter {
-  public postMessage = jest.fn();
-  public start = jest.fn();
+  public postMessage = vi.fn();
+  public start = vi.fn();
 
   constructor() {
     super();

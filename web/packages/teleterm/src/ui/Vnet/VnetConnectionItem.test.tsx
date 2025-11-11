@@ -61,12 +61,12 @@ describe('VnetSliderStepHeader', () => {
 
   it('maintains focus on start/stop toggle when transitioning between states', async () => {
     const appContext = new MockAppContext();
-    jest.spyOn(appContext.vnet, 'start').mockImplementation(async () => {
+    vi.spyOn(appContext.vnet, 'start').mockImplementation(async () => {
       // An artificial delay so that the test is able to find an element with "Starting VNet" title.
       await wait(50);
       return new MockedUnaryCall({});
     });
-    jest.spyOn(appContext.vnet, 'stop').mockImplementation(async () => {
+    vi.spyOn(appContext.vnet, 'stop').mockImplementation(async () => {
       await wait(50);
       return new MockedUnaryCall({});
     });

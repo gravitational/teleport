@@ -87,7 +87,7 @@ describe('usage reporting dialogs', () => {
   test('no dialog is shown when reporting was enabled and user was asked about job role earlier', async () => {
     const mockedAppContext = new MockAppContext();
     mockUsageReportingEnabled(mockedAppContext, { enabled: true });
-    jest
+    vi
       .spyOn(mockedAppContext.statePersistenceService, 'getUsageReportingState')
       .mockImplementation(() => ({ askedForUserJobRole: true }));
     mockOpenRegularDialog(mockedAppContext);
@@ -107,7 +107,7 @@ describe('usage reporting dialogs', () => {
 
 test('no dialog is shown when config file did not load properly', async () => {
   const mockedAppContext = new MockAppContext();
-  jest
+  vi
     .spyOn(mockedAppContext.mainProcessClient.configService, 'getConfigError')
     .mockImplementation(() => ({ source: 'file-loading', error: new Error() }));
   mockOpenRegularDialog(mockedAppContext);
@@ -128,7 +128,7 @@ function mockUsageReportingEnabled(
   mockedAppContext: AppContext,
   options: { enabled: boolean }
 ) {
-  jest
+  vi
     .spyOn(mockedAppContext.mainProcessClient.configService, 'get')
     .mockImplementation(key => {
       if (key === 'usageReporting.enabled') {
@@ -146,7 +146,7 @@ function mockOpenRegularDialog(
   mockedAppContext: AppContext,
   implementation?: (dialog: Dialog) => void
 ) {
-  jest
+  vi
     .spyOn(mockedAppContext.modalsService, 'openRegularDialog')
     .mockImplementation(dialog => {
       implementation?.(dialog);

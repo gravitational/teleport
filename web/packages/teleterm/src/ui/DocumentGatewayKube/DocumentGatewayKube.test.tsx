@@ -57,7 +57,7 @@ test('it allows reconnecting when the gateway fails to be created', async () => 
   };
   appContext.addRootClusterWithDoc(cluster, doc);
 
-  jest
+  vi
     .spyOn(appContext.tshd, 'createGateway')
     .mockReturnValueOnce(
       new MockedUnaryCall(undefined, new Error('Something went wrong'))

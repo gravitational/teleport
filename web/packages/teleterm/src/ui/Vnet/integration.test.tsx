@@ -74,7 +74,7 @@ test.each(tests)(
     ctx.addRootCluster(rootCluster, { noActivate: true });
     ctx.configService.set('usageReporting.enabled', false);
 
-    jest.spyOn(ctx.tshd, 'listUnifiedResources').mockReturnValue(
+    vi.spyOn(ctx.tshd, 'listUnifiedResources').mockReturnValue(
       new MockedUnaryCall({
         nextKey: '',
         resources: [
@@ -85,7 +85,7 @@ test.each(tests)(
         ],
       })
     );
-    jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
+    vi.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
       new MockedUnaryCall({
         appDnsZones: [proxyHostname(rootCluster.proxyHost)],
         clusters: [rootCluster.name],
@@ -170,7 +170,7 @@ test.each(tests)(
       vnet: { autoStart: false, hasEverStarted: true },
     });
 
-    jest.spyOn(ctx.tshd, 'listUnifiedResources').mockReturnValue(
+    vi.spyOn(ctx.tshd, 'listUnifiedResources').mockReturnValue(
       new MockedUnaryCall({
         nextKey: '',
         resources: [
@@ -181,7 +181,7 @@ test.each(tests)(
         ],
       })
     );
-    jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
+    vi.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
       new MockedUnaryCall({
         appDnsZones: [proxyHostname(rootCluster.proxyHost)],
         clusters: [rootCluster.name],
@@ -242,7 +242,7 @@ test('launching VNet for the first time from the connections panel does not open
   ctx.addRootCluster(rootCluster, { noActivate: true });
   ctx.configService.set('usageReporting.enabled', false);
 
-  jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
+  vi.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
     new MockedUnaryCall({
       appDnsZones: [proxyHostname(rootCluster.proxyHost)],
       clusters: [rootCluster.name],

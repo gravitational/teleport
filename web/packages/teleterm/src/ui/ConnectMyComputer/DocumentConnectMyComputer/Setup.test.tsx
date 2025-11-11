@@ -41,16 +41,16 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe('setup of DocumentConnectMyComputer', () => {
   it('calls requestResourcesRefresh after setup is done', async () => {
     const mockResourcesContext = {
-      requestResourcesRefresh: jest.fn(),
-      onResourcesRefreshRequest: jest.fn(),
+      requestResourcesRefresh: vi.fn(),
+      onResourcesRefreshRequest: vi.fn(),
     };
-    jest
+    vi
       .spyOn(useResourcesContext, 'useResourcesContext')
       .mockImplementation(() => mockResourcesContext);
 
@@ -76,13 +76,13 @@ describe('setup of DocumentConnectMyComputer', () => {
   it('attempts to remove the agent binary before retrying', async () => {
     const { elementToRender, appContext } = setupAppContext();
 
-    jest
+    vi
       .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
       .mockReset() // Reset mocks set by setupAppContext.
       .mockRejectedValueOnce(new Error('Something went wrong'))
       .mockResolvedValueOnce(makeServer());
 
-    jest.spyOn(
+    vi.spyOn(
       appContext.mainProcessClient,
       'tryRemoveConnectMyComputerAgentBinary'
     );
@@ -133,19 +133,19 @@ function setupAppContext(): {
   });
   appContext.addRootCluster(cluster);
 
-  jest
+  vi
     .spyOn(appContext.mainProcessClient, 'isAgentConfigFileCreated')
     .mockResolvedValue(false);
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'createRole')
     .mockResolvedValue({ certsReloaded: false });
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'createAgentConfigFile')
     .mockResolvedValue();
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'runAgent')
     .mockResolvedValue();
-  jest
+  vi
     .spyOn(appContext.connectMyComputerService, 'waitForNodeToJoin')
     .mockResolvedValue(makeServer());
 

@@ -119,7 +119,7 @@ describe('go through navigation items', () => {
 });
 
 test('fire action on active item when Enter is pressed', () => {
-  const firstItemCallback = jest.fn();
+  const firstItemCallback = vi.fn();
 
   function TestItem(props: { index: number; onRunActiveItem(): void }) {
     useKeyboardArrowsNavigation({

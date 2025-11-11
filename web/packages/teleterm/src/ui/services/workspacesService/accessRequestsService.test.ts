@@ -74,8 +74,8 @@ function getTestSetup(pending: PendingAccessRequest) {
     isBarCollapsed: false,
     pending,
   };
-  jest.mock('../modals');
-  const ModalsServiceMock = ModalsService as jest.MockedClass<
+  vi.mock('../modals');
+  const ModalsServiceMock = ModalsService as MockedClass<
     typeof ModalsService
   >;
   const modalsService = new ModalsServiceMock();
@@ -301,7 +301,7 @@ test('does not update the request when the user tries to mix roles with resource
   );
 
   // Cancel the modal immediately.
-  jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
+  vi.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
     if (dialog.kind === 'change-access-request-kind') {
       dialog.onCancel();
     } else {
@@ -334,7 +334,7 @@ test('updates the request when the user tries to mix roles with resources and ag
   );
 
   // Cancel the modal immediately.
-  jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
+  vi.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
     if (dialog.kind === 'change-access-request-kind') {
       dialog.onConfirm();
     } else {

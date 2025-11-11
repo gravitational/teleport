@@ -80,7 +80,7 @@ test('in case of invalid value a default one is returned', () => {
 test('if config file failed to load correctly the error is returned', () => {
   const configFile = createMockFileStorage();
   const error = new Error('Failed to read');
-  jest.spyOn(configFile, 'getFileLoadingError').mockReturnValue(error);
+  vi.spyOn(configFile, 'getFileLoadingError').mockReturnValue(error);
 
   const configService = createConfigService({
     configFile,
@@ -115,7 +115,7 @@ test('field linking to the json schema and the json schema itself are updated', 
     filePath: '~/config_schema.json',
   });
 
-  jest.spyOn(jsonSchemaFile, 'replace');
+  vi.spyOn(jsonSchemaFile, 'replace');
 
   createConfigService({
     configFile,

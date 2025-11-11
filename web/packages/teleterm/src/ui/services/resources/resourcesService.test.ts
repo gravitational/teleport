@@ -35,7 +35,7 @@ describe('searchResources', () => {
     const app = makeApp();
 
     const tshClient: Partial<TshdClient> = {
-      listUnifiedResources: jest.fn().mockResolvedValueOnce(
+      listUnifiedResources: vi.fn().mockResolvedValueOnce(
         new MockedUnaryCall({
           resources: [
             {
@@ -82,7 +82,7 @@ describe('searchResources', () => {
   it('returns a custom error pointing at cluster when a promise gets rejected', async () => {
     const expectedCause = new Error('oops');
     const tshClient: Partial<TshdClient> = {
-      listUnifiedResources: jest.fn().mockRejectedValueOnce(expectedCause),
+      listUnifiedResources: vi.fn().mockRejectedValueOnce(expectedCause),
     };
     const service = new ResourcesService(tshClient as TshdClient);
 

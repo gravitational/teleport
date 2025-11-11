@@ -32,7 +32,7 @@ beforeAll(() => {
 });
 
 test('queuing up a deep link launch before the app is rendered', async () => {
-  const launchDeepLink = jest.fn().mockResolvedValue(undefined);
+  const launchDeepLink = vi.fn().mockResolvedValue(undefined);
   const ctx = new MockAppContext();
   ctx.configService.set('usageReporting.enabled', false);
   const rootCluster = makeRootCluster();

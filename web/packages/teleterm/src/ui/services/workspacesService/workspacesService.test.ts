@@ -54,7 +54,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe('restoring workspace', () => {
@@ -333,7 +333,7 @@ describe('state persistence', () => {
       });
 
     // Confirm the reopen dialog immediately.
-    jest
+    vi
       .spyOn(modalsService, 'openRegularDialog')
       .mockImplementation(dialog => {
         if (dialog.kind === 'documents-reopen') {
@@ -379,7 +379,7 @@ describe('setActiveWorkspace', () => {
     });
 
     // Resolve the modal immediately.
-    jest
+    vi
       .spyOn(modalsService, 'openRegularDialog')
       .mockImplementation(dialog => {
         if (dialog.kind === 'cluster-connect') {
@@ -424,7 +424,7 @@ describe('setActiveWorkspace', () => {
     });
 
     // Cancel the modal immediately.
-    jest
+    vi
       .spyOn(modalsService, 'openRegularDialog')
       .mockImplementation(dialog => {
         if (dialog.kind === 'cluster-connect') {
@@ -457,7 +457,7 @@ describe('setActiveWorkspace', () => {
       persistedWorkspaces: {},
     });
 
-    jest.spyOn(notificationsService, 'notifyError');
+    vi.spyOn(notificationsService, 'notifyError');
 
     const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(
       rootCluster.uri
@@ -497,7 +497,7 @@ describe('setActiveWorkspace', () => {
       persistedWorkspaces: { [cluster.uri]: testWorkspace },
     });
 
-    jest
+    vi
       .spyOn(modalsService, 'openRegularDialog')
       .mockImplementation(dialog => {
         if (dialog.kind === 'documents-reopen') {
@@ -572,14 +572,14 @@ function getTestSetup(options: {
 }) {
   const { cluster } = options;
 
-  jest.mock('../modals');
-  const ModalsServiceMock = ModalsService as jest.MockedClass<
+  vi.mock('../modals');
+  const ModalsServiceMock = ModalsService as MockedClass<
     typeof ModalsService
   >;
   const modalsService = new ModalsServiceMock();
 
-  jest.mock('../notifications');
-  const NotificationsServiceMock = NotificationsService as jest.MockedClass<
+  vi.mock('../notifications');
+  const NotificationsServiceMock = NotificationsService as MockedClass<
     typeof NotificationsService
   >;
   const notificationsService = new NotificationsServiceMock();
@@ -590,13 +590,13 @@ function getTestSetup(options: {
   });
 
   const statePersistenceService = new StatePersistenceService(fileStorage);
-  jest.spyOn(statePersistenceService, 'saveWorkspacesState');
+  vi.spyOn(statePersistenceService, 'saveWorkspacesState');
 
   const normalizedClusters = (
     Array.isArray(cluster) ? cluster : [cluster]
   ).filter(Boolean);
   const clustersService: Partial<ClustersService> = {
-    findCluster: jest.fn(clusterUri =>
+    findCluster: vi.fn(clusterUri =>
       normalizedClusters.find(c => c.uri === clusterUri)
     ),
     getRootClusters: () => normalizedClusters,

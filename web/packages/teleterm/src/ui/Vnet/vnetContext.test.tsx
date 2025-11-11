@@ -122,7 +122,7 @@ describe('autostart', () => {
       ...statePersistenceService.getState(),
       vnet: { autoStart: true, hasEverStarted: true },
     });
-    jest
+    vi
       .spyOn(appContext.vnet, 'start')
       .mockRejectedValue(new MockedUnaryCall({}));
 
@@ -211,7 +211,7 @@ it('registers a callback for unexpected shutdown', async () => {
   expect(reason.errorMessage).toEqual('lorem ipsum dolor sit amet');
 });
 
-/* eslint-disable jest/no-standalone-expect */
+/* eslint-disable vitest/no-standalone-expect */
 describe('diag notification', () => {
   const noIssuesFoundReport = makeReport();
   const issuesFoundReport = makeReportWithIssuesFound();
@@ -229,7 +229,7 @@ describe('diag notification', () => {
     {
       it: 'is shown, closed, then shown again when the report cycles from issues found to no issues and back to issues found',
       mockAppContext: appContext => {
-        jest
+        vi
           .spyOn(appContext.vnet, 'runDiagnostics')
           .mockResolvedValueOnce(
             new MockedUnaryCall({ report: issuesFoundReport })
@@ -264,7 +264,7 @@ describe('diag notification', () => {
     {
       it: 'is not shown after opening a report, receiving another report with no issues and then issues reoccuring',
       mockAppContext: appContext => {
-        jest
+        vi
           .spyOn(appContext.vnet, 'runDiagnostics')
           .mockResolvedValueOnce(
             new MockedUnaryCall({ report: issuesFoundReport })
@@ -292,7 +292,7 @@ describe('diag notification', () => {
         expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(1);
         expect(notificationsService.getNotifications()).toHaveLength(0);
 
-        jest.clearAllMocks();
+        vi.clearAllMocks();
 
         // Wait for the third report to be processed and verify that it does not result in another
         // notification being created.
@@ -308,7 +308,7 @@ describe('diag notification', () => {
       it: "is not shown when the VNet panel is opened and doesn't appear after the panel is closed",
       controlConnectionsRef: createRef(),
       mockAppContext: appContext => {
-        jest
+        vi
           .spyOn(appContext.vnet, 'runDiagnostics')
           .mockResolvedValue(
             new MockedUnaryCall({ report: issuesFoundReport })
@@ -339,7 +339,7 @@ describe('diag notification', () => {
       it: 'is not shown when the VNet panel is opened and no issues are found, but appears after the panel is closed and issues are found',
       controlConnectionsRef: createRef(),
       mockAppContext: appContext => {
-        jest
+        vi
           .spyOn(appContext.vnet, 'runDiagnostics')
           .mockResolvedValueOnce(
             new MockedUnaryCall({ report: noIssuesFoundReport })
@@ -370,7 +370,7 @@ describe('diag notification', () => {
     {
       it: 'is not shown after dismissing a dialog and reappears after manually running diagnostics',
       mockAppContext: appContext => {
-        jest
+        vi
           .spyOn(appContext.vnet, 'runDiagnostics')
           .mockResolvedValue(
             new MockedUnaryCall({ report: issuesFoundReport })
@@ -390,7 +390,7 @@ describe('diag notification', () => {
         expect(notificationsService.getNotifications()).toHaveLength(0);
 
         // Verify that the next auto diagnostics run does not create a notification.
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         await waitFor(
           () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(1),
           { interval }
@@ -404,7 +404,7 @@ describe('diag notification', () => {
             .runDiagnostics()
             .finally(() => result.current.reinstateDiagnosticsAlert())
         );
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         await waitFor(
           () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(1),
           { interval }
@@ -415,7 +415,7 @@ describe('diag notification', () => {
     {
       it: 'does not show a button to open the diag report if there is no workspace',
       mockAppContext: appContext => {
-        jest
+        vi
           .spyOn(appContext.vnet, 'runDiagnostics')
           .mockResolvedValue(
             new MockedUnaryCall({ report: issuesFoundReport })
@@ -440,7 +440,7 @@ describe('diag notification', () => {
     },
   ];
 
-  // eslint-disable-next-line jest/expect-expect
+  // eslint-disable-next-line vitest/expect-expect
   test.each(tests)('$it', async test => {
     const appContext = new MockAppContext();
     // Set up a proper workspace so that the diag report can be opened.
@@ -457,7 +457,7 @@ describe('diag notification', () => {
       vnet: { autoStart: true, hasEverStarted: true },
     });
 
-    jest.spyOn(appContext.notificationsService, 'notifyWarning');
+    vi.spyOn(appContext.notificationsService, 'notifyWarning');
 
     test.mockAppContext(appContext);
 
@@ -471,7 +471,7 @@ describe('diag notification', () => {
     await test.verify(appContext, result, test.controlConnectionsRef);
   });
 });
-/* eslint-enable jest/no-standalone-expect */
+/* eslint-enable vitest/no-standalone-expect */
 
 const Wrapper = (
   props: PropsWithChildren<{

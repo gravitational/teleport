@@ -29,9 +29,9 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   // Mock console.error, otherwise the test would output noise to the terminal.
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 const ThrowError = (props: { error: any }) => {

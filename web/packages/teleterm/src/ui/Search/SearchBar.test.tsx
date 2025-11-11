@@ -47,7 +47,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 const displayResultsAction: SearchAction = {
@@ -75,10 +75,10 @@ it('does not display empty results copy after selecting two filters', () => {
       search: '',
     }),
   };
-  jest
+  vi
     .spyOn(useActionAttempts, 'useActionAttempts')
     .mockImplementation(() => mockActionAttempts);
-  jest.spyOn(SearchContext, 'useSearchContext').mockImplementation(() => ({
+  vi.spyOn(SearchContext, 'useSearchContext').mockImplementation(() => ({
     ...getMockedSearchContext(),
     filters: [
       { filter: 'cluster', clusterUri: '/clusters/foo' },
@@ -114,10 +114,10 @@ it('displays empty results copy after providing search query for which there is 
       search: '',
     }),
   };
-  jest
+  vi
     .spyOn(useActionAttempts, 'useActionAttempts')
     .mockImplementation(() => mockActionAttempts);
-  jest
+  vi
     .spyOn(SearchContext, 'useSearchContext')
     .mockImplementation(getMockedSearchContext);
 
@@ -152,10 +152,10 @@ it('includes offline cluster names in the empty results copy', () => {
       search: '',
     }),
   };
-  jest
+  vi
     .spyOn(useActionAttempts, 'useActionAttempts')
     .mockImplementation(() => mockActionAttempts);
-  jest
+  vi
     .spyOn(SearchContext, 'useSearchContext')
     .mockImplementation(getMockedSearchContext);
 
@@ -194,18 +194,18 @@ it('notifies about resource search errors and allows to display details', async 
       search: '',
     }),
   };
-  jest
+  vi
     .spyOn(useActionAttempts, 'useActionAttempts')
     .mockImplementation(() => mockActionAttempts);
   const mockedSearchContext = {
     ...getMockedSearchContext(),
     inputValue: 'foo',
   };
-  jest
+  vi
     .spyOn(SearchContext, 'useSearchContext')
     .mockImplementation(() => mockedSearchContext);
-  jest.spyOn(appContext.modalsService, 'openRegularDialog');
-  jest.spyOn(mockedSearchContext, 'pauseUserInteraction');
+  vi.spyOn(appContext.modalsService, 'openRegularDialog');
+  vi.spyOn(mockedSearchContext, 'pauseUserInteraction');
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -254,7 +254,7 @@ it('maintains focus on the search input after closing a resource search error mo
       search: '',
     }),
   };
-  jest
+  vi
     .spyOn(useActionAttempts, 'useActionAttempts')
     .mockImplementation(() => mockActionAttempts);
 
@@ -308,7 +308,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
     search: 'foo',
   };
   const resourceSearch = async () => resourceSearchResult;
-  jest
+  vi
     .spyOn(useSearch, 'useResourceSearch')
     .mockImplementation(() => resourceSearch);
 
@@ -358,7 +358,7 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
     search: 'foo',
   };
   const resourceSearch = async () => resourceSearchResult;
-  jest
+  vi
     .spyOn(useSearch, 'useResourceSearch')
     .mockImplementation(() => resourceSearch);
 

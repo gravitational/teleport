@@ -230,7 +230,7 @@ describe('openExistingOrAddNew', () => {
     const docPty = makeDocumentPtySession();
     const service = createService([docCluster, docPty]);
 
-    const addNew = jest.fn();
+    const addNew = vi.fn();
     const actualDocUri = service.openExistingOrAddNew(
       d => d.kind === 'doc.terminal_shell',
       addNew

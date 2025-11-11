@@ -44,7 +44,7 @@ test('fetching requestable roles for servers uses UUID, not hostname', async () 
     .getWorkspaceAccessRequestsService(rootClusterUri)
     .addOrRemoveResource({ kind: 'server', resource: server });
 
-  jest.spyOn(appContext.tshd, 'getRequestableRoles');
+  vi.spyOn(appContext.tshd, 'getRequestableRoles');
 
   const wrapper = ({ children }) => (
     <MockAppContextProvider appContext={appContext}>
@@ -84,7 +84,7 @@ test('fetching requestable roles for a kube_cluster resource without specifying 
       resource: kube,
     });
 
-  jest.spyOn(appContext.tshd, 'getRequestableRoles');
+  vi.spyOn(appContext.tshd, 'getRequestableRoles');
 
   const wrapper = ({ children }) => (
     <MockAppContextProvider appContext={appContext}>
@@ -152,7 +152,7 @@ test(`fetching requestable roles for a kube cluster's namespaces only creates re
       kube1.uri
     );
 
-  jest.spyOn(appContext.tshd, 'getRequestableRoles');
+  vi.spyOn(appContext.tshd, 'getRequestableRoles');
 
   const wrapper = ({ children }) => (
     <MockAppContextProvider appContext={appContext}>
@@ -214,7 +214,7 @@ test('after creating an access request, pending requests and specifiable fields 
       resource: kube2,
     });
 
-  let mockedCreateAccessRequestFn = jest.spyOn(
+  let mockedCreateAccessRequestFn = vi.spyOn(
     appContext.tshd,
     'createAccessRequest'
   );

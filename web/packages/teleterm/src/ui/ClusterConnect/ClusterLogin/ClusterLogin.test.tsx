@@ -40,7 +40,7 @@ it('keeps the focus on the password field on submission error', async () => {
   const appContext = new MockAppContext();
   appContext.addRootCluster(cluster);
 
-  jest
+  vi
     .spyOn(appContext.tshd, 'login')
     .mockResolvedValue(
       new MockedUnaryCall(undefined, new Error('whoops something went wrong'))
@@ -76,7 +76,7 @@ it('shows go to updates button in compatibility warning if there are clusters pr
   appContext.addRootCluster(clusterFoo);
   appContext.addRootCluster(clusterBar);
 
-  jest.spyOn(appContext.tshd, 'getAuthSettings').mockResolvedValue(
+  vi.spyOn(appContext.tshd, 'getAuthSettings').mockResolvedValue(
     new MockedUnaryCall({
       localAuthEnabled: true,
       authProviders: [],
@@ -93,7 +93,7 @@ it('shows go to updates button in compatibility warning if there are clusters pr
     })
   );
 
-  jest
+  vi
     .spyOn(appContext.mainProcessClient, 'subscribeToAppUpdateEvents')
     .mockImplementation(callback => {
       callback({
@@ -155,7 +155,7 @@ it('shows two separate prompt texts during SSO login', async () => {
   const appContext = new MockAppContext();
   appContext.addRootCluster(cluster);
 
-  jest.spyOn(appContext.tshd, 'getAuthSettings').mockReturnValue(
+  vi.spyOn(appContext.tshd, 'getAuthSettings').mockReturnValue(
     new MockedUnaryCall(
       makeAuthSettings({
         authType: 'github',
@@ -168,13 +168,13 @@ it('shows two separate prompt texts during SSO login', async () => {
 
   const { resolve: resolveLoginPromise, promise: loginPromise } =
     Promise.withResolvers<ReturnType<TshdClient['login']>>();
-  jest
+  vi
     .spyOn(appContext.tshd, 'login')
     .mockImplementation(async () => loginPromise);
 
   const { resolve: resolveSyncClusterPromise, promise: syncClusterPromise } =
     Promise.withResolvers<void>();
-  jest
+  vi
     .spyOn(appContext.mainProcessClient, 'syncCluster')
     .mockImplementation(async () => syncClusterPromise);
 

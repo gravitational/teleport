@@ -23,7 +23,7 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { AuxContext, launchDeepLink } from './launchDeepLink';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 const auxCtx: AuxContext = {
@@ -47,9 +47,9 @@ describe('parse errors', () => {
       const appCtx = new MockAppContext();
       const { workspacesService, modalsService, notificationsService } = appCtx;
 
-      jest.spyOn(notificationsService, 'notifyWarning');
-      jest.spyOn(modalsService, 'openRegularDialog');
-      jest.spyOn(workspacesService, 'setActiveWorkspace');
+      vi.spyOn(notificationsService, 'notifyWarning');
+      vi.spyOn(modalsService, 'openRegularDialog');
+      vi.spyOn(workspacesService, 'setActiveWorkspace');
 
       await launchDeepLink(appCtx, auxCtx, result);
 
@@ -87,7 +87,7 @@ it('opens cluster connect dialog if the cluster is not added yet', async () => {
   const appCtx = new MockAppContext();
   const { clustersService, workspacesService, modalsService } = appCtx;
 
-  jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
+  vi.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
     if (dialog.kind !== 'cluster-connect') {
       throw new Error(`Got unexpected dialog ${dialog.kind}`);
     }
@@ -137,7 +137,7 @@ it('does not switch workspaces if the user does not log in to the cluster when a
     draft.clusters.set(cluster.uri, { ...cluster });
   });
 
-  jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
+  vi.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
     if (dialog.kind !== 'cluster-connect') {
       throw new Error(`Got unexpected dialog ${dialog.kind}`);
     }
@@ -159,7 +159,7 @@ it('sends a notification and does not switch workspaces if the user is on Window
   const appCtx = new MockAppContext({ platform: 'win32' });
   const { workspacesService, notificationsService } = appCtx;
 
-  jest.spyOn(notificationsService, 'notifyWarning');
+  vi.spyOn(notificationsService, 'notifyWarning');
 
   expect(workspacesService.getRootClusterUri()).toBeUndefined();
 

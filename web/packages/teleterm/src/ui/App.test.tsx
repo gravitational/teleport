@@ -35,7 +35,7 @@ beforeAll(() => {
   Logger.init(new NullService());
 });
 
-jest.mock('teleterm/ui/ClusterConnect', () => ({
+vi.mock('teleterm/ui/ClusterConnect', () => ({
   ClusterConnect: props => (
     <div
       data-testid="mocked-dialog"
@@ -69,7 +69,7 @@ test('activating a workspace via deep link overrides the previously active works
   appContext.addRootCluster(deepLinkCluster);
   appContext.addRootCluster(previouslyActiveCluster);
 
-  jest
+  vi
     .spyOn(appContext.statePersistenceService, 'getWorkspacesState')
     .mockReturnValue({
       rootClusterUri: previouslyActiveCluster.uri,
@@ -170,7 +170,7 @@ test.each<{
 ])('$name', async testCase => {
   const rootCluster = makeRootCluster();
   const appContext = new MockAppContext();
-  jest
+  vi
     .spyOn(appContext.statePersistenceService, 'getWorkspacesState')
     .mockReturnValue({
       rootClusterUri: rootCluster.uri,

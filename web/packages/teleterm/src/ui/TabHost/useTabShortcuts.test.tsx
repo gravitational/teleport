@@ -97,12 +97,12 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   const appContext = new MockAppContext();
 
   let eventEmitter: KeyboardShortcutEventSubscriber;
-  jest
+  vi
     .spyOn(appContext.keyboardShortcutsService, 'subscribeToEvents')
     .mockImplementation((subscriber: KeyboardShortcutEventSubscriber) => {
       eventEmitter = subscriber;
     });
-  jest
+  vi
     .spyOn(appContext.keyboardShortcutsService, 'unsubscribeFromEvents')
     .mockImplementation(() => {
       eventEmitter = null;
@@ -113,9 +113,9 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   const docsService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();
 
-  jest.spyOn(docsService, 'open');
-  jest.spyOn(docsService, 'close');
-  jest.spyOn(docsService, 'add');
+  vi.spyOn(docsService, 'open');
+  vi.spyOn(docsService, 'close');
+  vi.spyOn(docsService, 'add');
 
   renderHook(
     () =>

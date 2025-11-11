@@ -23,7 +23,7 @@ import Logger from 'teleterm/logger';
 import { loggingInterceptor } from './interceptors';
 
 it('do not log sensitive info like password', () => {
-  const infoLogger = jest.fn();
+  const infoLogger = vi.fn();
   Logger.init({
     createLogger: () => ({
       info: infoLogger,
@@ -56,7 +56,7 @@ it('do not log sensitive info like password', () => {
 });
 
 it('includes service and method name', () => {
-  const infoLogger = jest.fn();
+  const infoLogger = vi.fn();
   Logger.init({
     createLogger: () => ({
       info: infoLogger,

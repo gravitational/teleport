@@ -31,8 +31,8 @@ import type * as uri from 'teleterm/ui/uri';
 
 import { ClustersService } from './clustersService';
 
-jest.mock('teleterm/ui/services/notifications');
-jest.mock('teleterm/ui/services/usage');
+vi.mock('teleterm/ui/services/notifications');
+vi.mock('teleterm/ui/services/usage');
 
 const clusterUri: uri.RootClusterUri = '/clusters/test';
 
@@ -52,10 +52,10 @@ const gatewayMock = makeDatabaseGateway({
   targetUri: `${clusterUri}/dbs/databaseTestUri`,
 });
 
-const NotificationsServiceMock = NotificationsService as jest.MockedClass<
+const NotificationsServiceMock = NotificationsService as MockedClass<
   typeof NotificationsService
 >;
-const UsageServiceMock = UsageService as jest.MockedClass<typeof UsageService>;
+const UsageServiceMock = UsageService as MockedClass<typeof UsageService>;
 
 function createService(client: Partial<TshdClient>): ClustersService {
   return new ClustersService(
@@ -68,10 +68,10 @@ function createService(client: Partial<TshdClient>): ClustersService {
 
 function getClientMocks(): Partial<TshdClient> {
   return {
-    login: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
-    logout: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
-    addCluster: jest.fn().mockReturnValueOnce(new MockedUnaryCall(clusterMock)),
-    getCluster: jest.fn().mockReturnValueOnce(new MockedUnaryCall(clusterMock)),
+    login: vi.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    logout: vi.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    addCluster: vi.fn().mockReturnValueOnce(new MockedUnaryCall(clusterMock)),
+    getCluster: vi.fn().mockReturnValueOnce(new MockedUnaryCall(clusterMock)),
     listLeafClusters: jest
       .fn()
       .mockReturnValueOnce(
@@ -83,7 +83,7 @@ function getClientMocks(): Partial<TshdClient> {
     createGateway: jest
       .fn()
       .mockReturnValueOnce(new MockedUnaryCall(gatewayMock)),
-    removeGateway: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    removeGateway: vi.fn().mockReturnValueOnce(new MockedUnaryCall({})),
     startHeadlessWatcher: jest
       .fn()
       .mockReturnValueOnce(new MockedUnaryCall({})),

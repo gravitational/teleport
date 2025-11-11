@@ -52,20 +52,20 @@ function getMockDocuments(): Document[] {
 
 async function getTestSetup({ documents }: { documents: Document[] }) {
   const appContext = new MockAppContext();
-  jest.spyOn(appContext.mainProcessClient, 'openTabContextMenu');
+  vi.spyOn(appContext.mainProcessClient, 'openTabContextMenu');
 
   appContext.addRootClusterWithDoc(makeRootCluster(), documents);
 
   const docsService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();
 
-  jest.spyOn(docsService, 'add');
-  jest.spyOn(docsService, 'open');
-  jest.spyOn(docsService, 'close');
-  jest.spyOn(docsService, 'swapPosition');
-  jest.spyOn(docsService, 'closeOthers');
-  jest.spyOn(docsService, 'closeToRight');
-  jest.spyOn(docsService, 'duplicatePtyAndActivate');
+  vi.spyOn(docsService, 'add');
+  vi.spyOn(docsService, 'open');
+  vi.spyOn(docsService, 'close');
+  vi.spyOn(docsService, 'swapPosition');
+  vi.spyOn(docsService, 'closeOthers');
+  vi.spyOn(docsService, 'closeToRight');
+  vi.spyOn(docsService, 'duplicatePtyAndActivate');
 
   render(
     <MockAppContextProvider appContext={appContext}>

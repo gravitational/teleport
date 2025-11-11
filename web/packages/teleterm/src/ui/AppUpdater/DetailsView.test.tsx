@@ -66,7 +66,7 @@ test('download button is available when autoDownload is false', async () => {
 });
 
 test('when there are multiple clusters available, managing cluster can be selected', async () => {
-  const changeManagingClusterSpy = jest.fn();
+  const changeManagingClusterSpy = vi.fn();
   render(
     <DetailsView
       updateEvent={makeUpdateNotAvailableEvent({

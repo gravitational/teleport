@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -89,7 +89,7 @@ test('cloneable abort signal reads up-to-date signal.aborted and signal.reason',
 });
 
 test('response error is cloned as an object for a unary call', async () => {
-  const fakeCall: () => UnaryCall = jest.fn().mockImplementation(() => ({
+  const fakeCall: () => UnaryCall = vi.fn().mockImplementation(() => ({
     then: () => Promise.reject(getRpcError()),
   }));
   const client = cloneClient(
@@ -116,8 +116,8 @@ test('response error is cloned as an object for a unary call', async () => {
 });
 
 test('response error is cloned as an object in a client streaming call', async () => {
-  const send = jest.fn();
-  const complete = jest.fn();
+  const send = vi.fn();
+  const complete = vi.fn();
   const fakeCall: () => ClientStreamingCall = jest
     .fn()
     .mockImplementation(() => ({
@@ -181,8 +181,8 @@ test('response error is cloned as an object in a server streaming call', async (
     )
   );
   const res = client.fakeMethod({});
-  const onNext = jest.fn();
-  const onError = jest.fn();
+  const onNext = vi.fn();
+  const onError = vi.fn();
   res.responses.onNext(onNext);
   res.responses.onError(onError);
 
@@ -233,8 +233,8 @@ test('response error is cloned as an object in a duplex call', async () => {
     )
   );
   const res = client.fakeMethod({});
-  const onNext = jest.fn();
-  const onError = jest.fn();
+  const onNext = vi.fn();
+  const onError = vi.fn();
   res.responses.onNext(onNext);
   res.responses.onError(onError);
 

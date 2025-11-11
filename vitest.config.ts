@@ -46,11 +46,12 @@ export default defineConfig({
       'web/packages/design/**/*.test.{ts,tsx}',
       'web/packages/shared/**/*.test.{ts,tsx}',
       'web/packages/teleport/**/*.test.{ts,tsx}',
+      'web/packages/teleterm/**/*.test.{ts,tsx}',
       'e/web/teleport/**/*.test.{ts,tsx}',
     ],
     setupFiles: [
       path.resolve(__dirname, './web/packages/build/vitest/setupTests.ts'),
-      path.resolve(__dirname, './web/packages/build/jest/customMatchers.ts'),
+      path.resolve(__dirname, './web/packages/build/vitest/customMatchers.ts'),
     ],
     env: {
       TZ: 'UTC',

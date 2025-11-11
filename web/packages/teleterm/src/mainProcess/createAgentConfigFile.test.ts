@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -31,19 +31,19 @@ import {
   generateAgentConfigPaths,
 } from './createAgentConfigFile';
 
-jest.mock('node:child_process');
-jest.mock('node:fs');
+vi.mock('node:child_process');
+vi.mock('node:fs');
 
 beforeEach(() => {
-  jest
+  vi
     .spyOn(childProcess, 'execFile')
     .mockImplementation((command, args, options, callback) => {
       callback(null, '', '');
       return undefined;
     });
-  jest.spyOn(fs, 'rm').mockImplementation(() => Promise.resolve());
-  jest.spyOn(fs, 'mkdir').mockImplementation(() => Promise.resolve(undefined));
-  jest.spyOn(fs, 'writeFile').mockImplementation(() => Promise.resolve());
+  vi.spyOn(fs, 'rm').mockImplementation(() => Promise.resolve());
+  vi.spyOn(fs, 'mkdir').mockImplementation(() => Promise.resolve(undefined));
+  vi.spyOn(fs, 'writeFile').mockImplementation(() => Promise.resolve());
 });
 
 test('teleport configure is called with proper arguments', async () => {

@@ -31,21 +31,21 @@ import { getEmptyPendingAccessRequest } from '../workspacesService/accessRequest
 import { ConnectionTrackerService } from './connectionTrackerService';
 import { TrackedConnection, TrackedGatewayConnection } from './types';
 
-jest.mock('../clusters');
-jest.mock('../statePersistence');
+vi.mock('../clusters');
+vi.mock('../statePersistence');
 
 beforeAll(() => {
   Logger.init(new NullService());
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 // TODO(ravicious): Rewrite those tests to use MockAppContext instead of manually mocking everything.
 
 it('removeItemsBelongingToRootCluster removes connections', () => {
-  jest.mock('../workspacesService');
+  vi.mock('../workspacesService');
 
   const connections: TrackedConnection[] = [
     {
@@ -204,7 +204,7 @@ function getTestSetupWithMockedConnections({
 }: {
   connections: TrackedConnection[];
 }) {
-  jest
+  vi
     .spyOn(StatePersistenceService.prototype, 'getConnectionTrackerState')
     .mockImplementation(() => {
       return {
@@ -221,15 +221,15 @@ function getTestSetupWithMockedConnections({
 
 function getTestSetupWithMockedDocuments(documents: Document[]) {
   const StatePersistenceServiceMock =
-    StatePersistenceService as jest.MockedClass<typeof StatePersistenceService>;
-  const ClustersServiceMock = ClustersService as jest.MockedClass<
+    StatePersistenceService as MockedClass<typeof StatePersistenceService>;
+  const ClustersServiceMock = ClustersService as MockedClass<
     typeof ClustersService
   >;
 
   const mockedStatePersistenceService = new StatePersistenceServiceMock(
     undefined
   );
-  jest
+  vi
     .spyOn(mockedStatePersistenceService, 'getConnectionTrackerState')
     .mockImplementation(() => {
       return {

@@ -93,7 +93,7 @@ test("mouse right click opens context menu when 'terminal.rightClick: menu' is c
   const appContext = new MockAppContext();
   const user = userEvent.setup();
   appContext.configService.set('terminal.rightClick', 'menu');
-  const openContextMenu = jest.fn();
+  const openContextMenu = vi.fn();
 
   render(
     <ConfiguredTerminal
@@ -120,7 +120,7 @@ function ConfiguredTerminal(props: {
   onOpenContextMenu?(): void;
 }) {
   const emitter = new EventEmitter();
-  const writeFn = jest.fn().mockImplementation(a => {
+  const writeFn = vi.fn().mockImplementation(a => {
     emitter.emit('', a);
     return Promise.resolve();
   });

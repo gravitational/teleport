@@ -67,7 +67,7 @@ it('displays a button for Connect My Computer in the empty state if the user can
     totalCount: 0,
     nextKey: '',
   };
-  jest
+  vi
     .spyOn(appContext.resourcesService, 'listUnifiedResources')
     .mockResolvedValue(emptyResponse);
 
@@ -124,7 +124,7 @@ it('does not display a button for Connect My Computer in the empty state if the 
     totalCount: 0,
     nextKey: '',
   };
-  jest
+  vi
     .spyOn(appContext.resourcesService, 'listUnifiedResources')
     .mockResolvedValue(emptyResponse);
 

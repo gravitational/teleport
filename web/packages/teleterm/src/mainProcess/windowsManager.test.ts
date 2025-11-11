@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -27,12 +27,12 @@ import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mo
 import { makeRuntimeSettings } from './fixtures/mocks';
 import { WindowsManager } from './windowsManager';
 
-jest.mock('electron', () => ({
+vi.mock('electron', () => ({
   Menu: {
-    buildFromTemplate: jest.fn(),
+    buildFromTemplate: vi.fn(),
   },
   ipcMain: {
-    once: jest.fn(),
+    once: vi.fn(),
   },
 }));
 
@@ -81,13 +81,13 @@ const makeWindowsManager = () => {
   let isFocused = false;
 
   const mockWindow = {
-    focus: jest.fn().mockImplementation(() => {
+    focus: vi.fn().mockImplementation(() => {
       isFocused = true;
     }),
-    isFocused: jest.fn().mockImplementation(() => isFocused),
-    isMinimized: jest.fn().mockReturnValue(false),
-    isVisible: jest.fn().mockReturnValue(true),
-    isDestroyed: jest.fn().mockReturnValue(false),
+    isFocused: vi.fn().mockImplementation(() => isFocused),
+    isMinimized: vi.fn().mockReturnValue(false),
+    isVisible: vi.fn().mockReturnValue(true),
+    isDestroyed: vi.fn().mockReturnValue(false),
   } as Partial<BrowserWindow>;
 
   windowsManager['window'] = mockWindow as BrowserWindow;

@@ -35,7 +35,7 @@ import { AppUri } from 'teleterm/ui/uri';
 import { DocumentGatewayApp } from './DocumentGatewayApp';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe('reconnecting when the gateway fails to be created', () => {
@@ -85,7 +85,7 @@ describe('reconnecting when the gateway fails to be created', () => {
     };
     appContext.addRootClusterWithDoc(cluster, doc);
 
-    jest
+    vi
       .spyOn(appContext.tshd, 'createGateway')
       .mockReturnValueOnce(
         new MockedUnaryCall(undefined, new Error('Something went wrong'))
@@ -132,7 +132,7 @@ describe('reconnecting when the gateway fails to be created', () => {
     };
     appContext.addRootClusterWithDoc(cluster, doc);
 
-    jest
+    vi
       .spyOn(appContext.tshd, 'createGateway')
       .mockReturnValueOnce(
         new MockedUnaryCall(undefined, new Error('Something went wrong'))

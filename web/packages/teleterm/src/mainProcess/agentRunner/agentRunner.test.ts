@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -53,14 +53,14 @@ afterAll(async () => {
 
 beforeEach(() => {
   Logger.init(new NullService());
-  jest.spyOn(childProcess, 'fork');
+  vi.spyOn(childProcess, 'fork');
   // Mock the implementation of fs.rm, otherwise each calls to tryRemoveAgentBinary would remove
   // agentTestProcess.mjs.
-  jest.spyOn(fs, 'rm').mockResolvedValue();
+  vi.spyOn(fs, 'rm').mockResolvedValue();
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 let userDataDir: string;
@@ -88,7 +88,7 @@ test('agent process and cleanup daemon start with correct arguments', async () =
 
     expect(childProcess.fork).toHaveBeenCalled();
     const cleanupDaemon = (
-      childProcess.fork as jest.MockedFunction<typeof childProcess.fork>
+      childProcess.fork as MockedFunction<typeof childProcess.fork>
     ).mock.results[0].value;
 
     expect(agentProcess.spawnargs).toEqual([
@@ -128,7 +128,7 @@ test('previous agent process is killed when a new one is started', async () => {
 });
 
 test('status updates are sent on a successful start', async () => {
-  const updateSender = jest.fn();
+  const updateSender = vi.fn();
   const agentRunner = new AgentRunner(
     makeRuntimeSettings(),
     agentCleanupDaemonPath,
@@ -176,7 +176,7 @@ test('status updates are sent on a successful start', async () => {
 });
 
 test('status updates are sent on a failed start', async () => {
-  const updateSender = jest.fn();
+  const updateSender = vi.fn();
   const nonExisingPath = path.join(
     __dirname,
     'agentTestProcess-nonExisting.mjs'
@@ -218,7 +218,7 @@ test('cleanup daemon stops together with agent process', async () => {
 
     expect(childProcess.fork).toHaveBeenCalled();
     const cleanupDaemon = (
-      childProcess.fork as jest.MockedFunction<typeof childProcess.fork>
+      childProcess.fork as MockedFunction<typeof childProcess.fork>
     ).mock.results[0].value;
 
     await agentRunner.kill(rootClusterUri);
@@ -274,7 +274,7 @@ test('agent is killed if cleanup daemon exits', async () => {
 
     expect(childProcess.fork).toHaveBeenCalled();
     const cleanupDaemon: ChildProcess = (
-      childProcess.fork as jest.MockedFunction<typeof childProcess.fork>
+      childProcess.fork as MockedFunction<typeof childProcess.fork>
     ).mock.results[0].value;
 
     cleanupDaemon.kill('SIGKILL');

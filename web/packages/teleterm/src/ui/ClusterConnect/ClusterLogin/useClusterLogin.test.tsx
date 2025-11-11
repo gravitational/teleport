@@ -31,7 +31,7 @@ test('login into cluster and sync cluster', async () => {
   const rootCluster = makeRootCluster();
   appContext.addRootCluster(rootCluster);
 
-  jest.spyOn(appContext.tshd, 'login');
+  vi.spyOn(appContext.tshd, 'login');
 
   const { result } = renderHook((props: Props) => useClusterLogin(props), {
     initialProps: {

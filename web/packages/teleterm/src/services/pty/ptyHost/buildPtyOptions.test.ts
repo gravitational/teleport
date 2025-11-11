@@ -32,7 +32,7 @@ beforeAll(() => {
   Logger.init(new NullService());
 });
 
-jest.mock('./resolveShellEnv', () => ({
+vi.mock('./resolveShellEnv', () => ({
   resolveShellEnvCached: () => Promise.resolve({}),
 }));
 

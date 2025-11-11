@@ -29,7 +29,7 @@ import { AppUpdateEvent, AppUpdater, AppUpdaterStorage } from './appUpdater';
 
 const mockedAppVersion = '17.8.0';
 
-jest.mock('electron', () => ({
+vi.mock('electron', () => ({
   app: {
     // Should be false to avoid removing real Squirrel directory in `dispose`.
     isPackaged: false,
@@ -43,15 +43,15 @@ beforeAll(() => {
 
   // Mock fetching checksum.
   // Creates hash from the passed URL.
-  global.fetch = jest.fn(async url => ({
+  global.fetch = vi.fn(async url => ({
     ok: true,
     text: async () =>
       `${createHash('sha-512').update(url).digest('hex')}  Teleport Connect-17.5.4-mac.zip`,
-  })) as jest.Mock;
+  })) as Mock;
 });
 
 afterAll(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 function makeUpdaterStorage(
@@ -108,8 +108,8 @@ function setUpAppUpdater(options: {
 
   const nativeUpdater = new MockedMacUpdater();
 
-  const checkForUpdatesSpy = jest.spyOn(nativeUpdater, 'checkForUpdates');
-  const downloadUpdateSpy = jest.spyOn(nativeUpdater, 'downloadUpdate');
+  const checkForUpdatesSpy = vi.spyOn(nativeUpdater, 'checkForUpdates');
+  const downloadUpdateSpy = vi.spyOn(nativeUpdater, 'downloadUpdate');
   let lastEvent: { value?: AppUpdateEvent } = {};
   const appUpdater = new AppUpdater(
     options.storage || makeUpdaterStorage(),

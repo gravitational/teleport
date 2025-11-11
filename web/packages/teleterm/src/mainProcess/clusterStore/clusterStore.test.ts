@@ -99,7 +99,7 @@ test('logs out of cluster', async () => {
   mockClient.getCluster = () => new MockedUnaryCall(clusterWithDetails);
   mockClient.listLeafClusters = () =>
     new MockedUnaryCall({ clusters: [leafCluster] });
-  const logoutMock = jest.spyOn(mockClient, 'logout');
+  const logoutMock = vi.spyOn(mockClient, 'logout');
   const clusterStore = new ClusterStore(
     () => Promise.resolve(mockClient),
     mockWindowsManager

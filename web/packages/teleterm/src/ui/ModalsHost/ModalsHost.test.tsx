@@ -57,7 +57,7 @@ const documentsReopenDialog: DialogDocumentsReopen = {
   onCancel: () => {},
 };
 
-jest.mock('teleterm/ui/ClusterConnect', () => ({
+vi.mock('teleterm/ui/ClusterConnect', () => ({
   ClusterConnect: props => (
     <div
       data-testid="mocked-dialog"
@@ -67,7 +67,7 @@ jest.mock('teleterm/ui/ClusterConnect', () => ({
   ),
 }));
 
-jest.mock('teleterm/ui/ModalsHost/modals/HardwareKeys/Touch', () => ({
+vi.mock('teleterm/ui/ModalsHost/modals/HardwareKeys/Touch', () => ({
   Touch: props => (
     <div
       data-testid="mocked-dialog"
@@ -77,7 +77,7 @@ jest.mock('teleterm/ui/ModalsHost/modals/HardwareKeys/Touch', () => ({
   ),
 }));
 
-jest.mock('teleterm/ui/DocumentsReopen', () => ({
+vi.mock('teleterm/ui/DocumentsReopen', () => ({
   DocumentsReopen: props => (
     <div
       data-testid="mocked-dialog"

@@ -215,7 +215,7 @@ function setupTests(): {
   });
 
   let gatewayLocalPort = 0;
-  jest.spyOn(ctx.tshd, 'createGateway').mockImplementation(async req => {
+  vi.spyOn(ctx.tshd, 'createGateway').mockImplementation(async req => {
     gatewayLocalPort++;
 
     return new MockedUnaryCall(
@@ -227,7 +227,7 @@ function setupTests(): {
       })
     );
   });
-  jest
+  vi
     .spyOn(ctx.tshd, 'setGatewayTargetSubresourceName')
     .mockImplementation(async req => {
       const gateway = ctx.clustersService.findGateway(req.gatewayUri);
@@ -238,7 +238,7 @@ function setupTests(): {
 
       return new MockedUnaryCall(updatedGateway);
     });
-  jest
+  vi
     .spyOn(ctx.tshd, 'getApp')
     .mockResolvedValue(new MockedUnaryCall({ app }));
 

@@ -205,7 +205,7 @@ test.each([
     };
   });
 
-  jest.spyOn(appContext.tshd, 'getUserPreferences').mockResolvedValue(
+  vi.spyOn(appContext.tshd, 'getUserPreferences').mockResolvedValue(
     new MockedUnaryCall({
       userPreferences: {
         unifiedResourcePreferences: {
@@ -219,7 +219,7 @@ test.each([
     })
   );
 
-  jest
+  vi
     .spyOn(appContext.resourcesService, 'listUnifiedResources')
     .mockResolvedValue({
       resources: [],
@@ -298,7 +298,7 @@ test.each([
   const appContext = new MockAppContext();
   appContext.addRootClusterWithDoc(rootCluster, doc);
 
-  jest
+  vi
     .spyOn(appContext.resourcesService, 'listUnifiedResources')
     .mockResolvedValue({
       resources: [
@@ -382,7 +382,7 @@ it('passes props with stable identity to <Resources>', async () => {
   const appContext = new MockAppContext();
   appContext.addRootClusterWithDoc(rootCluster, doc);
 
-  jest
+  vi
     .spyOn(appContext.resourcesService, 'listUnifiedResources')
     .mockResolvedValue({
       resources: [

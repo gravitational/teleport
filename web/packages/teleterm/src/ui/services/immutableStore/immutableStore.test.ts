@@ -22,10 +22,10 @@ describe('subscribeWithSelector', () => {
   it('calls the callback only when a selected part of the state gets updated', () => {
     const store = new TestStore();
 
-    const fooUpdatedCallback = jest.fn();
+    const fooUpdatedCallback = vi.fn();
     store.subscribeWithSelector(state => state.foo, fooUpdatedCallback);
 
-    const barUpdatedCallback = jest.fn();
+    const barUpdatedCallback = vi.fn();
     store.subscribeWithSelector(state => state.bar, barUpdatedCallback);
 
     store.setState(draft => {
@@ -46,10 +46,10 @@ describe('subscribeWithSelector', () => {
   it('returns a function which unsubscribes', () => {
     const store = new TestStore();
 
-    const fooUpdatedCallback1 = jest.fn();
+    const fooUpdatedCallback1 = vi.fn();
     store.subscribeWithSelector(state => state.foo, fooUpdatedCallback1);
 
-    const fooUpdatedCallback2 = jest.fn();
+    const fooUpdatedCallback2 = vi.fn();
     const unsubscribe = store.subscribeWithSelector(
       state => state.foo,
       fooUpdatedCallback2
@@ -67,13 +67,13 @@ describe('subscribeWithSelector', () => {
   it('calls the callbacks if multiple parts of the state get updated at the same time', () => {
     const store = new TestStore();
 
-    const fooUpdatedCallback = jest.fn();
+    const fooUpdatedCallback = vi.fn();
     store.subscribeWithSelector(state => state.foo, fooUpdatedCallback);
 
-    const barUpdatedCallback = jest.fn();
+    const barUpdatedCallback = vi.fn();
     store.subscribeWithSelector(state => state.bar, barUpdatedCallback);
 
-    const quuxUpdatedCallback = jest.fn();
+    const quuxUpdatedCallback = vi.fn();
     store.subscribeWithSelector(state => state.quux, quuxUpdatedCallback);
 
     store.setState(draft => {
@@ -89,7 +89,7 @@ describe('subscribeWithSelector', () => {
   it('calls the callbacks if a deeper part of the state gets updated', () => {
     const store = new TestStore();
 
-    const bazUpdatedCallback = jest.fn();
+    const bazUpdatedCallback = vi.fn();
     store.subscribeWithSelector(state => state.baz, bazUpdatedCallback);
 
     store.setState(draft => {

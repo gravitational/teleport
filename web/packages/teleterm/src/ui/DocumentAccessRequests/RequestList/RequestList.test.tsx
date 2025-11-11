@@ -28,7 +28,7 @@ import { RequestList } from './RequestList';
 
 test('disabled assume button with assume start date', async () => {
   // Set system time before the assume start date.
-  jest.useFakeTimers().setSystemTime(new Date('2024-02-16T02:51:12.70087Z'));
+  vi.useFakeTimers().setSystemTime(new Date('2024-02-16T02:51:12.70087Z'));
 
   render(
     <MemoryRouter>
@@ -56,7 +56,7 @@ test('disabled assume button with assume start date', async () => {
 
 test('enabled assume button with assume start date', () => {
   // Set system time as same as assume start time
-  jest.useFakeTimers().setSystemTime(request.assumeStartTime);
+  vi.useFakeTimers().setSystemTime(request.assumeStartTime);
 
   render(
     <MemoryRouter>

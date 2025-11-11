@@ -61,7 +61,7 @@ function getTestSetup() {
     'darwin',
     createMockConfigService({ 'keymap.tab1': 'Command+1' })
   );
-  const subscriber = jest.fn();
+  const subscriber = vi.fn();
   service.subscribeToEvents(subscriber);
   return { service, subscriber };
 }

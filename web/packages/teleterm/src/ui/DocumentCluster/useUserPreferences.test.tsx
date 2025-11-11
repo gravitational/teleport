@@ -54,13 +54,13 @@ test('user preferences are fetched', async () => {
     userPreferences: preferences,
   });
 
-  jest
+  vi
     .spyOn(appContext.tshd, 'getUserPreferences')
     .mockImplementation(() => getUserPreferencesPromise);
-  jest
+  vi
     .spyOn(appContext.workspacesService, 'getUnifiedResourcePreferences')
     .mockReturnValue(undefined);
-  jest
+  vi
     .spyOn(appContext.workspacesService, 'setUnifiedResourcePreferences')
     .mockImplementation();
 
@@ -92,16 +92,16 @@ test('unified resources fallback preferences are taken from a workspace', async 
     }
   );
 
-  jest
+  vi
     .spyOn(appContext.tshd, 'getUserPreferences')
     .mockImplementation(async () => {
       const response = await getUserPreferencesPromise;
       return new MockedUnaryCall(response);
     });
-  jest
+  vi
     .spyOn(appContext.workspacesService, 'getUnifiedResourcePreferences')
     .mockReturnValue(preferences.unifiedResourcePreferences);
-  jest
+  vi
     .spyOn(appContext.workspacesService, 'setUnifiedResourcePreferences')
     .mockImplementation();
 
@@ -123,10 +123,10 @@ test('unified resources fallback preferences are taken from a workspace', async 
 describe('updating preferences', () => {
   const appContext = new MockAppContext();
   beforeEach(() => {
-    jest
+    vi
       .spyOn(appContext.workspacesService, 'getUnifiedResourcePreferences')
       .mockReturnValue(undefined);
-    jest
+    vi
       .spyOn(appContext.workspacesService, 'setUnifiedResourcePreferences')
       .mockImplementation();
   });
@@ -136,10 +136,10 @@ describe('updating preferences', () => {
       userPreferences: preferences,
     });
 
-    jest
+    vi
       .spyOn(appContext.tshd, 'getUserPreferences')
       .mockImplementation(() => getUserPreferencesPromise);
-    jest
+    vi
       .spyOn(appContext.tshd, 'updateUserPreferences')
       .mockImplementation(
         async preferences =>
@@ -201,7 +201,7 @@ describe('updating preferences', () => {
         resolveUpdateUserPreferencesPromise = resolve;
       });
 
-    jest
+    vi
       .spyOn(appContext.tshd, 'getUserPreferences')
       .mockImplementation(async (requestParams, { abort }) => {
         abort.addEventListener('abort', () =>
@@ -210,7 +210,7 @@ describe('updating preferences', () => {
         const response = await getUserPreferencesPromise;
         return new MockedUnaryCall(response);
       });
-    jest
+    vi
       .spyOn(appContext.tshd, 'updateUserPreferences')
       .mockImplementation(async () => {
         const response = await updateUserPreferencesPromise;

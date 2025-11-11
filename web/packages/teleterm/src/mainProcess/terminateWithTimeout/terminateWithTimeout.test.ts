@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -63,7 +63,7 @@ test('killing a process that failed to start is noop', async () => {
   const process = fork(path.join(__dirname, 'testProcess-nonExisting.mjs'), {
     silent: true,
   });
-  jest.spyOn(process, 'kill');
+  vi.spyOn(process, 'kill');
 
   // wait for the process
   await new Promise(resolve => process.once('exit', resolve));
@@ -78,7 +78,7 @@ test('killing a process that has been already killed is noop', async () => {
   const process = fork(path.join(__dirname, 'testProcess.mjs'), {
     silent: true,
   });
-  jest.spyOn(process, 'kill');
+  vi.spyOn(process, 'kill');
 
   process.kill('SIGTERM');
   await new Promise(resolve => process.once('exit', resolve));

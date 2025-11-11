@@ -79,7 +79,7 @@ test.each(testCases)('$name', testCase => {
   const access = getConnectMyComputerAccess(loggedInUser, runtimeSettings);
   expect(access.status).toEqual(testCase.expect);
   if (testCase.expectReason) {
-    // eslint-disable-next-line jest/no-conditional-expect
+    // eslint-disable-next-line vitest/no-conditional-expect
     expect((access as ConnectMyComputerAccessNoAccess).reason).toEqual(
       testCase.expectReason
     );

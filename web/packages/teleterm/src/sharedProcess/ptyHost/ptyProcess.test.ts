@@ -1,5 +1,5 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
 /**
  * Teleport
@@ -41,7 +41,7 @@ describe('PtyProcess', () => {
         useConpty: true,
       });
 
-      const startErrorCb = jest.fn();
+      const startErrorCb = vi.fn();
 
       pty.onStartError(startErrorCb);
 
@@ -63,7 +63,7 @@ describe('PtyProcess', () => {
         ptyId: '1234',
       });
       await pty.start(80, 24);
-      const listener = jest.fn();
+      const listener = vi.fn();
       pty.onExit(listener);
 
       pty.write('\x04');

@@ -47,7 +47,7 @@ test('do not call handler on other event type', () => {
 
 function getTestSetup() {
   const { getEventEmitter, wrapper } = makeWrapper();
-  const handler = jest.fn();
+  const handler = vi.fn();
   return { handler, getEventEmitter, wrapper };
 }
 
