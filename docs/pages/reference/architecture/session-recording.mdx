@@ -135,7 +135,7 @@ the Auth Service and signed by the Teleport Host CA.
 
 The Proxy Service then establishes its own connection to the destination server authenticating in one of two ways:
 
-- For the Teleport SSH Service and legacy OpenSSH servers, the Proxy Service requires the client to provide its credentials through ssh-agent forwarding so that these credentials can be reused to connect to the OpenSSH server.
+- For the Teleport SSH Service and legacy OpenSSH servers, the Proxy Service requires the client to provide its credentials through SSH Agent Forwarding so that these credentials can be reused to connect to the OpenSSH server.
   - Note that SSH Agent Forwarding must be allowed for any user trying to connect in this mode.
 - For [OpenSSH servers](../../enroll-resources/server-access/openssh/openssh-agentless.mdx#record-at-the-proxy-service), the Proxy Service requests a certificate signed by the Teleport OpenSSH CA, which will be trusted by the OpenSSH server.
 
@@ -149,7 +149,7 @@ We consider Recording Proxy Mode to be less secure than recording at the server
 level for two reasons:
 
 - It grants additional privileges to the Teleport Proxy Service. When recording takes place at the Teleport SSH Service, the Proxy Service stores no secrets and cannot "see" the decrypted data. This makes a Proxy Service instance less critical to the security of the overall cluster. But if an attacker gains physical access to a Proxy Server running in Recording Proxy Mode, they will be able to see the decrypted traffic and client keys stored in the Proxy Server's process memory.
-- It requires the use of SSH agent forwarding (for Teleport Nodes and legacy OpenSSH server support).
+- It requires the use of SSH Agent Forwarding (for Teleport Nodes and legacy OpenSSH server support).
 
 See the [reference](../deployment/monitoring/audit.mdx) to learn how to
 turn on Recording Proxy Mode. Note that the recording mode is configured on the
@@ -160,7 +160,7 @@ Auth Service.
 The use of Recording Proxy Mode across your cluster is no longer necessary to support
 [OpenSSH servers](../../enroll-resources/server-access/openssh/openssh-agentless.mdx).
 Recording Proxy Mode is automatically used for OpenSSH servers without the need for SSH
-agent forwarding, which is the primary security concern for this mode.
+Agent Forwarding, which is the primary security concern for this mode.
 
 Recording Proxy Mode will continue to be supported for legacy OpenSSH support and other
 niche use case, but many existing and new features will not be supported in this mode due
