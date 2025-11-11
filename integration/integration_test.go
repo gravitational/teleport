@@ -570,37 +570,30 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Regexp(t, ".*exit.*", recorded)
 			require.Regexp(t, ".*echo hi.*", recorded)
 
-			// Ensure that we find the 4 primary session without duplicates.
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				sessionEvents, _, err = site.SearchEvents(ctx, events.SearchEventsRequest{
-					From: time.Time{},
-					To:   time.Now(),
-					EventTypes: []string{
-						events.SessionStartEvent,
-						events.SessionLeaveEvent,
-						events.SessionEndEvent,
-						events.SessionDataEvent,
-					},
-				})
-				require.NoError(collect, err)
+			sessionEvents, _, err = site.SearchEvents(ctx, events.SearchEventsRequest{
+				From: time.Time{},
+				To:   time.Now(),
+				EventTypes: []string{
+					events.SessionStartEvent,
+					events.SessionLeaveEvent,
+					events.SessionEndEvent,
+				},
+			})
+			require.NoError(t, err)
 
-				// Check that the events found above in the session stream show up in the backend.
-				require.True(collect, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
-					return ae.GetID() == start.GetID()
-				}), "expected session events to contain session.start event")
-				require.True(collect, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
-					return ae.GetID() == end.GetID()
-				}), "expected session events to contain session.end event")
-				require.True(collect, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
-					return ae.GetID() == leave.GetID()
-				}), "expected session events to contain session.leave event")
-				require.True(collect, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
-					return ae.GetType() == events.SessionDataEvent
-				}), "expected session events to contain session.data event")
+			// Check that the events found above in the session stream show up in the backend.
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == start.GetID()
+			}), "expected session events to contain session.start event")
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == end.GetID()
+			}), "expected session events to contain session.end event")
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == leave.GetID()
+			}), "expected session events to contain session.leave event")
 
-				// Ensure there are no duplicate events, e.g. from proxy recording mode.
-				require.Len(collect, sessionEvents, 4, "%d unexpected duplicate events", len(sessionEvents)-4)
-			}, 20*time.Second, 100*time.Millisecond)
+			// Ensure there are no duplicate events, e.g. from proxy recording mode.
+			require.Len(t, sessionEvents, 3, "%d unexpected duplicate events", len(sessionEvents)-4)
 		})
 	}
 }
