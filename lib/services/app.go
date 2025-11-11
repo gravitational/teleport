@@ -85,8 +85,8 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 	}
 
 	// Convert the application's public address hostname to its ASCII representation for comparison. Strip any trailing
-	// dot to ensure consistent comparison.
-	asciiAppHostname, err := idna.ToASCII(strings.TrimSuffix(appAddr.Host(), "."))
+	// dots to ensure consistent comparison.
+	asciiAppHostname, err := idna.ToASCII(strings.TrimRight(appAddr.Host(), "."))
 	if err != nil {
 		return trace.Wrap(err, "app %q has an invalid IDN hostname %q", app.GetName(), appAddr.Host())
 	}
@@ -107,8 +107,8 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 
 		for _, proxyAddr := range proxyAddrs {
 			// Also convert the proxy's public address hostname to its ASCII representation for comparison and strip any
-			// trailing dot.
-			asciiProxyHostname, err := idna.ToASCII(strings.TrimSuffix(proxyAddr.Host(), "."))
+			// trailing dots.
+			asciiProxyHostname, err := idna.ToASCII(strings.TrimRight(proxyAddr.Host(), "."))
 			if err != nil {
 				return trace.Wrap(err, "proxy %q has an invalid IDN hostname %q", proxyServer.GetName(), proxyAddr)
 			}

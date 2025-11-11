@@ -80,6 +80,16 @@ func TestValidateApp(t *testing.T) {
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
+			name: "public addr with multiple trailing dots matches proxy host",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com..."})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{"web.example.com:443"},
+			wantErr:    "conflicts with the Teleport Proxy public address",
+		},
+		{
 			name: "public addr with mixed casing matches proxy host",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "WeB.ExAmPle.CoM"})
