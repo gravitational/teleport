@@ -24,12 +24,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Registry is a Teleport metrics registry. Wrapping the [prometheus.Registerer]
-// allows us to propagate additional information such as:
+// Registry is a [prometheus.Registerer] for a Teleport process that
+// allows propagating additional information such as:
 //   - the metric namespace (`teleport`, `teleport_bot`, `teleport_plugins`)
 //   - an optional subsystem
 //
-// This should be passed alongside the logger.
+// This should be passed anywhere that needs to register a metric.
 type Registry struct {
 	prometheus.Registerer
 
