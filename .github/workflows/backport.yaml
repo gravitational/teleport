@@ -27,13 +27,13 @@ jobs:
           app-id: ${{ secrets.BACKPORT_APP_ID }}
           private-key: ${{ secrets.BACKPORT_PRIVATE_KEY }}
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
           token: ${{ steps.generate_token.outputs.token }}
       # Checkout main branch of shared-workflow repository.
       - name: Checkout shared-workflow
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
