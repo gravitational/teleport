@@ -63,9 +63,10 @@ func getHostUsers() ([]user.User, error) {
 
 // passwdC2Go converts `passwd` struct from C to golang native struct
 func passwdC2Go(passwdC *C.struct_passwd) user.User {
+	name := C.GoString(passwdC.pw_name)
 	return user.User{
-		Name:     C.GoString(passwdC.pw_name),
-		Username: C.GoString(passwdC.pw_name),
+		Name:     name,
+		Username: name,
 		Uid:      strconv.FormatUint(uint64(passwdC.pw_uid), 10),
 		Gid:      strconv.FormatUint(uint64(passwdC.pw_gid), 10),
 		HomeDir:  C.GoString(passwdC.pw_dir),
