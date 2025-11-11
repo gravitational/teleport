@@ -241,10 +241,10 @@ func newComponentA(reg *metrics.Registry) {
 
 Some guidelines can be enforced by setting up linters:
 - [promlinter](https://golangci-lint.run/usage/linters/#promlinter) to ensure that metric naming and labeling follows 
-  the Prometheus guidelines. Note: we might not be able to use the strict mode as namespacesa and subsystems are
+  the Prometheus guidelines. Note: we might not be able to use the strict mode as namespaces and subsystems are
   passed from the caller.
 - [forbidigo](https://golangci-lint.run/usage/linters/#forbidigo) to reject usages of `prometheus.DefaultRegisterer`,
   `prometheus.(Must)Register`. `reg.MustRegister` conflicts with `backend.MustRegister`, we might not be able to detect
-  it (`fobidigo.analyze-types` might not be sufficient)
+  it (`forbidigo.analyze-types` might not be sufficient)
 
 Existing non-compliant metrics and edge case usages will be allowed via `//nolint` comments.
