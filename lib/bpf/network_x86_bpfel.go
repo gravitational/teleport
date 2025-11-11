@@ -21,7 +21,7 @@ type networkIpv4DataT struct {
 	Saddr   uint32
 	Daddr   uint32
 	Dport   uint16
-	Command [16]int8
+	Command [16]uint8
 	_       [2]byte
 }
 
@@ -45,7 +45,7 @@ type networkIpv6DataT struct {
 		}
 	}
 	Dport   uint16
-	Command [16]int8
+	Command [16]uint8
 	_       [2]byte
 }
 

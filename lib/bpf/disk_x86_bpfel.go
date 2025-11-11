@@ -18,8 +18,8 @@ type diskDataT struct {
 	Cgroup     uint64
 	Pid        uint64
 	ReturnCode int32
-	Command    [16]int8
-	FilePath   [255]int8
+	Command    [16]uint8
+	FilePath   [255]uint8
 	_          [1]byte
 	Flags      int32
 }

@@ -39,7 +39,7 @@ struct ipv4_data_t {
     // DstPort is the port the connection is being made to.
     u16 dport;
     // Command is name of the executable making the connection.
-    char command[TASK_COMM_LEN];
+    u8 command[TASK_COMM_LEN];
 };
 BPF_RING_BUF(ipv4_events, EVENTS_BUF_SIZE);
 
@@ -61,7 +61,7 @@ struct ipv6_data_t {
     // DstPort is the port the connection is being made to.
     u16 dport;
     // Command is name of the executable making the connection.
-    char command[TASK_COMM_LEN];
+    u8 command[TASK_COMM_LEN];
 };
 BPF_RING_BUF(ipv6_events, EVENTS_BUF_SIZE);
 

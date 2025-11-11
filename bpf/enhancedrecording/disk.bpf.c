@@ -32,9 +32,9 @@ struct data_t {
     // Return_code is the return code of open.
     int return_code;
     // Command is name of the executable opening the file.
-    char command[TASK_COMM_LEN];
+    u8 command[TASK_COMM_LEN];
     // File_path is the full path to the file being opened.
-    char file_path[NAME_MAX];
+    u8 file_path[NAME_MAX];
     // Flags are the flags passed to open.
     int flags;
 };

@@ -17,9 +17,9 @@ type commandDataT struct {
 	_       structs.HostLayout
 	Pid     uint64
 	Ppid    uint64
-	Command [16]int8
+	Command [16]uint8
 	Type    uint32
-	Argv    [1024]int8
+	Argv    [1024]uint8
 	Retval  int32
 	Cgroup  uint64
 }

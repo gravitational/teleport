@@ -32,6 +32,7 @@ import (
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 
 	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -605,6 +606,11 @@ func unmarshalEvent(data []byte, v interface{}) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ConvertString converts a NUL-terminated string to a Go string.
+func ConvertString(s []byte) string {
+	return unix.ByteSliceToString(s)
 }
 
 // SystemHasBPF returns true if the binary was build with support for BPF

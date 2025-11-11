@@ -31,7 +31,7 @@ enum event_type {
 struct common_data_t {
     u64 pid;
     u64 ppid;
-    char command[TASK_COMM_LEN];
+    u8 command[TASK_COMM_LEN];
     u64 cgroup;
 };
 
@@ -41,11 +41,11 @@ struct data_t {
     // ppid is the userspace term (i.e task->real_parent->tgid in kernel).
     u64 ppid;
     // Command is the executable.
-    char command[TASK_COMM_LEN];
+    u8 command[TASK_COMM_LEN];
     // Type is the type of event.
     enum event_type type;
     // Argv is the list of arguments to the program.
-    char argv[ARGSIZE];
+    u8 argv[ARGSIZE];
     // ReturnCode is the return code of execve.
     int retval;
     // CgroupID is the internal cgroupv2 ID of the event.
