@@ -28,8 +28,9 @@ PIDFile=/run/teleport-event-handler.pid
 WantedBy=multi-user.target
 ```
 
-If you are not using Machine ID to provide short-lived credentials to the Event
-Handler, you can remove the `--teleport-refresh-enabled true` flag.
+If you are not using Machine & Workload Identity to provide short-lived
+credentials to the Event Handler, you can remove the
+`--teleport-refresh-enabled true` flag.
 
 Enable and start the plugin:
 
