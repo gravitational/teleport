@@ -53,6 +53,7 @@ import (
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/process"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
@@ -169,6 +170,26 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				PProfEnabled: b.cfg.Debug,
 			}),
 		)
+	}
+
+	if b.cfg.DiagSocketForUpdater != "" {
+		services = append(services,
+			diagnostics.ServiceBuilder(diagnostics.Config{
+				Address: b.cfg.DiagSocketForUpdater,
+				Network: "unix",
+				Logger: b.log.With(
+					teleport.ComponentKey,
+					teleport.Component(teleport.ComponentTBot, "diagnostics-updater"),
+				),
+			}),
+		)
+	}
+
+	// create the new pid file only after started successfully
+	if b.cfg.PIDFile != "" {
+		if err := process.CreateLockedPIDFile(b.cfg.PIDFile); err != nil {
+			return trace.Wrap(err, "creating pidfile")
+		}
 	}
 
 	// This faux service allows us to get the bot's internal identity and client
