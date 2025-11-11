@@ -92,6 +92,7 @@ func TestSessionEndError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var (
@@ -181,19 +182,19 @@ func TestSessionEndError(t *testing.T) {
 						}
 
 						execEvent, ok := event.(*apievents.Exec)
-						require.True(t, ok)
-						require.Equal(t, events.ExecFailureCode, execEvent.GetCode())
+						assert.True(t, ok)
+						assert.Equal(t, events.ExecFailureCode, execEvent.GetCode())
 						if tt.recordingErr == nil {
-							require.Equal(t, strconv.Itoa(errorCode), execEvent.ExitCode)
-							require.Equal(t, errorMessage, execEvent.Error)
+							assert.Equal(t, strconv.Itoa(errorCode), execEvent.ExitCode)
+							assert.Equal(t, errorMessage, execEvent.Error)
 						} else {
-							require.Empty(t, execEvent.ExitCode)
-							require.Equal(t, tt.recordingErr.Error(), execEvent.Error)
+							assert.Empty(t, execEvent.ExitCode)
+							assert.Equal(t, tt.recordingErr.Error(), execEvent.Error)
 						}
 						hasSessionExecEvent = true
 					}
-					require.Truef(t, hasSessionEndEvent, "session end event not found in audit log")
-					require.Truef(t, hasSessionExecEvent, "session exec event not found in audit log")
+					assert.Truef(t, hasSessionEndEvent, "session end event not found in audit log")
+					assert.Truef(t, hasSessionExecEvent, "session exec event not found in audit log")
 				}, 10*time.Second, 1*time.Second)
 			} else {
 				require.Never(t, func() bool {

@@ -31,7 +31,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
@@ -65,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -74,7 +74,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -86,7 +85,8 @@ import (
 )
 
 func TestRejectedClients(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_REJECT_OLD_CLIENTS", "yes")
+
 	server, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         t.TempDir(),
 		ClusterName: "cluster",
@@ -130,7 +130,7 @@ func TestRejectedClients(t *testing.T) {
 	t.Run("allow valid versions", func(t *testing.T) {
 		version := teleport.MinClientSemVer()
 		version.Major--
-		for range 5 {
+		for i := 0; i < 5; i++ {
 			version.Major++
 
 			ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
@@ -742,12 +742,9 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 	defer newProxy.Close()
 
-	newClient := func() *authclient.Client {
-		return testSrv.CloneClient(t, newProxy)
-	}
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err = newClient().GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
+		assert.NoError(ct, err)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	// advance rotation:
@@ -792,9 +789,9 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// clients with new creds will no longer work as soon as backend modification event propagates.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := newClient().GetNodes(ctx, apidefaults.Namespace)
-		require.Error(t, err)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
+		assert.Error(ct, err)
 	}, time.Second*15, time.Millisecond*100)
 
 	// clients with old creds will still work
@@ -2065,6 +2062,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 			expectRoles: []string{baseRoleName},
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			clt, sess := baseWebClient, baseWebSession
@@ -3448,7 +3446,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	t.Run("Reset link not allowed when user does not exist", func(t *testing.T) {
 		var tokenID string
 		var resp *proto.MFARegisterResponse
-		for range 5 {
+		for i := 0; i < 5; i++ {
 			token, err := testSrv.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  time.Hour,
@@ -3597,7 +3595,7 @@ func TestTLSFailover(t *testing.T) {
 	require.NoError(t, err)
 
 	// couple of runs to get enough connections
-	for range 4 {
+	for i := 0; i < 4; i++ {
 		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
 		require.True(t, trace.IsNotFound(err))
 	}
@@ -3607,14 +3605,15 @@ func TestTLSFailover(t *testing.T) {
 	require.NoError(t, err)
 
 	// client detects closed sockets and reconnect to the backup server
-	for range 4 {
+	for i := 0; i < 4; i++ {
 		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
 		require.True(t, trace.IsNotFound(err))
 	}
 }
 
-// TestJoinCAPin makes sure that joining only works with a valid CA pin.
-func TestJoinCAPin(t *testing.T) {
+// TestRegisterCAPin makes sure that registration only works with a valid
+// CA pin.
+func TestRegisterCAPin(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -3638,13 +3637,14 @@ func TestJoinCAPin(t *testing.T) {
 	require.Len(t, caPins, 1)
 	caPin := caPins[0]
 
-	// Attempt to join with valid CA pin, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+	// Attempt to register with valid CA pin, should work.
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
+			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleInstance,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{caPin},
@@ -3652,14 +3652,15 @@ func TestJoinCAPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Attempt to join with multiple CA pins where the auth server only
+	// Attempt to register with multiple CA pins where the auth server only
 	// matches one, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
+			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleInstance,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123", caPin},
@@ -3667,13 +3668,14 @@ func TestJoinCAPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Attempt to join with invalid CA pin, should fail.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+	// Attempt to register with invalid CA pin, should fail.
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
+			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleInstance,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123"},
@@ -3681,13 +3683,14 @@ func TestJoinCAPin(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	// Attempt to join with multiple invalid CA pins, should fail.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+	// Attempt to register with multiple invalid CA pins, should fail.
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
+			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleInstance,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               []string{"sha256:123", "sha256:456"},
@@ -3714,13 +3717,14 @@ func TestJoinCAPin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, caPins, 2)
 
-	// Attempt to join with multiple CA pins, should work
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+	// Attempt to register with multiple CA pins, should work
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
+			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleInstance,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPins:               caPins,
@@ -3729,9 +3733,9 @@ func TestJoinCAPin(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestJoinCAPath makes sure joining only works with a valid CA
+// TestRegisterCAPath makes sure registration only works with a valid CA
 // file on disk.
-func TestJoinCAPath(t *testing.T) {
+func TestRegisterCAPath(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -3748,13 +3752,14 @@ func TestJoinCAPath(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Attempt to join with nothing at the CA path, should work.
-	_, err := joinclient.Join(ctx, joinclient.JoinParams{
+	// Attempt to register with nothing at the CA path, should work.
+	_, err := join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
+			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleInstance,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		Clock:                clock,
@@ -3774,13 +3779,14 @@ func TestJoinCAPath(t *testing.T) {
 	err = os.WriteFile(caPath, certPem, teleport.FileMaskOwnerOnly)
 	require.NoError(t, err)
 
-	// Attempt to join with valid CA path, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+	// Attempt to register with valid CA path, should work.
+	_, err = join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
+			HostUUID: "once",
 			NodeName: "node-name",
-			Role:     types.RoleInstance,
+			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
 		CAPath:               caPath,
@@ -3792,7 +3798,8 @@ func TestJoinCAPath(t *testing.T) {
 func TestClusterAlertAck(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testSrv := newTestTLSServer(t)
 
@@ -3836,7 +3843,8 @@ func TestClusterAlertAck(t *testing.T) {
 func TestClusterAlertClearAckWildcard(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testSrv := newTestTLSServer(t)
 
@@ -3894,14 +3902,17 @@ func TestClusterAlertClearAckWildcard(t *testing.T) {
 func TestClusterAlertAccessControls(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testSrv := newTestTLSServer(t)
 
 	expectAlerts := func(alerts []types.ClusterAlert, names ...string) {
 		for _, alert := range alerts {
-			if slices.Contains(names, alert.Metadata.Name) {
-				return
+			for _, name := range names {
+				if alert.Metadata.Name == name {
+					return
+				}
 			}
 			t.Fatalf("unexpected alert %q", alert.Metadata.Name)
 		}
@@ -4957,7 +4968,7 @@ func mustNewTokenFromSpec(
 	return tok
 }
 
-func requireAccessDenied(t require.TestingT, err error, i ...any) {
+func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
 	require.True(
 		t,
 		trace.IsAccessDenied(err),
@@ -4965,7 +4976,7 @@ func requireAccessDenied(t require.TestingT, err error, i ...any) {
 	)
 }
 
-func requireBadParameter(t require.TestingT, err error, i ...any) {
+func requireBadParameter(t require.TestingT, err error, i ...interface{}) {
 	require.True(
 		t,
 		trace.IsBadParameter(err),
@@ -4973,7 +4984,7 @@ func requireBadParameter(t require.TestingT, err error, i ...any) {
 	)
 }
 
-func requireNotFound(t require.TestingT, err error, i ...any) {
+func requireNotFound(t require.TestingT, err error, i ...interface{}) {
 	require.True(
 		t,
 		trace.IsNotFound(err),
@@ -5099,7 +5110,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 			name:     "already exists",
 			identity: authtest.TestUser(privilegedUser.GetName()),
 			token:    alreadyExistsToken,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(
 					t,
 					trace.IsAlreadyExists(err),

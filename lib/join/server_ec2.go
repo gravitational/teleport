@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // handleEC2Join handles join attempts for the IAM join method.
@@ -42,7 +41,7 @@ func (s *Server) handleEC2Join(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	provisionToken provision.Token,
+	provisionToken types.ProvisionToken,
 ) (messages.Response, error) {
 	// Receive the EC2Init message from the client.
 	ec2Init, err := messages.RecvRequest[*messages.EC2Init](stream)

@@ -761,15 +761,6 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				Mode: boundkeypair.RecoveryModeInsecure,
 			},
 		}
-	case types.JoinMethodEnv0:
-		spec.Env0 = &types.ProvisionTokenSpecV2Env0{
-			Allow: []*types.ProvisionTokenSpecV2Env0_Rule{
-				{
-					OrganizationID: "example-organization-id",
-					ProjectName:    "example-project-name",
-				},
-			},
-		}
 	}
 }
 
@@ -1581,6 +1572,7 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = h.getJoinScript(context.Background(), tc.settings)
 			if tc.shouldError {

@@ -1,3 +1,5 @@
+//go:build go1.24 && enablesynctest
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -246,10 +248,10 @@ func TestDiscoveryServerEKS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			synctest.Test(t, func(t *testing.T) {
-				ctx := t.Context()
+			ctx, cancel := context.WithCancel(t.Context())
+
+			synctest.Run(func() {
 				fakeConfigProvider := mocks.AWSConfigProvider{
-					AWSConfig: &aws.Config{},
 					OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
 						Integration: awsOIDCIntegration,
 					},
@@ -290,8 +292,11 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				// Wait for the discovery server to complete one iteration of discovering resources
 				synctest.Wait()
 
+				// Start server shutdown.
+				cancel()
+
 				// Discovery usage events are reported.
-				require.NotEmpty(t, mockAccessPoint.usageEvents)
+				require.Greater(t, len(mockAccessPoint.usageEvents), 0)
 
 				// Check the UserTasks created by the discovery server.
 				existingTasks := slices.Collect(maps.Values(mockAccessPoint.storeUserTasks))

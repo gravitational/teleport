@@ -141,7 +141,9 @@ func keyForWorkloadIdentitySpiffeIDIndex(r *workloadidentityv1pb.WorkloadIdentit
 	spiffeID := cases.Fold().String(r.GetSpec().GetSpiffe().GetId())
 	// Encode the id avoid; "a/b" + "/" + "c" vs. "a" + "/" + "b/c". Base32 hex
 	// maintains original ordering.
-	spiffeID = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(spiffeID))
+	spiffeID = unpaddedBase32hex.EncodeToString([]byte(spiffeID))
 	// SPIFFE IDs may not be unique, so append the resource name
 	return spiffeID + "/" + name
 }
+
+var unpaddedBase32hex = base32.HexEncoding.WithPadding(base32.NoPadding)

@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -184,7 +183,7 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins(types.Allow, []string{"abcdef"})
 
-		collection := resources.NewRoleCollection([]types.Role{expected})
+		collection := &roleCollection{roles: []types.Role{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -223,7 +222,7 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 		expected.SetCreatedBy(created.GetCreatedBy())
 		expected.SetWeakestDevice(created.GetWeakestDevice())
 
-		collection := resources.NewUserCollection([]types.User{expected})
+		collection := &userCollection{users: []types.User{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -597,7 +596,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
-		collection := resources.NewAutoUpdateConfigCollection(expected)
+		collection := &autoUpdateConfigCollection{config: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -639,7 +638,7 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 			return trace.Wrap(err, "opening file to edit")
 		}
 		expected.GetMetadata().Revision = initial.GetMetadata().GetRevision()
-		collection := resources.NewAutoUpdateVersionCollection(expected)
+		collection := &autoUpdateVersionCollection{version: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -724,7 +723,7 @@ func TestMultipleRoles(t *testing.T) {
 			role.SetLogins(types.Allow, []string{"abcdef"})
 		}
 
-		collection := resources.NewRoleCollection(roles)
+		collection := &roleCollection{roles: roles}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 

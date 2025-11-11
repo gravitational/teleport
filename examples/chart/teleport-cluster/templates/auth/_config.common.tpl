@@ -1,19 +1,18 @@
 {{- define "teleport-cluster.auth.config.common" -}}
-{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
-{{- $authentication := mustMergeOverwrite $auth.authentication (default dict $auth.authenticationSecondFactor) -}}
-{{- $logLevel := (coalesce $auth.logLevel $auth.log.level "INFO") -}}
+{{- $authentication := mustMergeOverwrite .Values.authentication (default dict .Values.authenticationSecondFactor) -}}
+{{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
 version: v3
 kubernetes_service:
   enabled: true
   listen_addr: 0.0.0.0:3026
   public_addr: "{{ include "teleport-cluster.auth.serviceFQDN" . }}:3026"
-{{- if $auth.kubeClusterName }}
-  kube_cluster_name: {{ $auth.kubeClusterName }}
+{{- if .Values.kubeClusterName }}
+  kube_cluster_name: {{ .Values.kubeClusterName }}
 {{- else }}
-  kube_cluster_name: {{ $auth.clusterName }}
+  kube_cluster_name: {{ .Values.clusterName }}
 {{- end }}
-{{- if $auth.labels }}
-  labels: {{- toYaml $auth.labels | nindent 8 }}
+{{- if .Values.labels }}
+  labels: {{- toYaml .Values.labels | nindent 8 }}
 {{- end }}
 proxy_service:
   enabled: false
@@ -21,12 +20,12 @@ ssh_service:
   enabled: false
 auth_service:
   enabled: true
-  cluster_name: {{ required "clusterName is required in chart values" $auth.clusterName }}
-{{- if $auth.enterprise }}
+  cluster_name: {{ required "clusterName is required in chart values" .Values.clusterName }}
+{{- if .Values.enterprise }}
   license_file: '/var/lib/license/license.pem'
 {{- end }}
   authentication:
-    type: "{{ required "authentication.type is required in chart values" (coalesce $auth.authenticationType $authentication.type) }}"
+    type: "{{ required "authentication.type is required in chart values" (coalesce .Values.authenticationType $authentication.type) }}"
     local_auth: {{ $authentication.localAuth }}
 {{- if $authentication.passwordless }}
     passwordless: {{ $authentication.passwordless }}
@@ -55,7 +54,7 @@ because of the "off" value. */}}
 {{- end }}
 {{- if $hasWebauthnMFA }}
     webauthn:
-      rp_id: {{ required "clusterName is required in chart values" $auth.clusterName }}
+      rp_id: {{ required "clusterName is required in chart values" .Values.clusterName }}
       {{- if $authentication.webauthn }}
         {{- if $authentication.webauthn.attestationAllowedCas }}
       attestation_allowed_cas: {{- toYaml $authentication.webauthn.attestationAllowedCas | nindent 12 }}
@@ -65,18 +64,18 @@ because of the "off" value. */}}
         {{- end }}
       {{- end }}
 {{- end }}
-{{- if $auth.sessionRecording }}
-  session_recording: {{ $auth.sessionRecording | squote }}
+{{- if .Values.sessionRecording }}
+  session_recording: {{ .Values.sessionRecording | squote }}
 {{- end }}
-{{- if $auth.proxyListenerMode }}
-  proxy_listener_mode: {{ $auth.proxyListenerMode }}
+{{- if .Values.proxyListenerMode }}
+  proxy_listener_mode: {{ .Values.proxyListenerMode }}
 {{- end }}
 teleport:
   auth_server: 127.0.0.1:3025
   log:
     severity: {{ $logLevel }}
-    output: {{ $auth.log.output }}
+    output: {{ .Values.log.output }}
     format:
-      output: {{ $auth.log.format }}
-      extra_fields: {{ $auth.log.extraFields | toJson }}
+      output: {{ .Values.log.format }}
+      extra_fields: {{ .Values.log.extraFields | toJson }}
 {{- end -}}

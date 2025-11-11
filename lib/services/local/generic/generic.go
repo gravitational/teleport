@@ -302,8 +302,6 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
 		if err != nil {
-			// unmarshal errors are logged and skipped
-			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
 			continue
 		}
 
@@ -332,7 +330,8 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 		return resource, trace.Wrap(err)
 	}
 	resource, err = s.unmarshalFunc(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision))
 	return resource, trace.Wrap(err)
 }
 
@@ -462,7 +461,8 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
-		services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
+		services.WithExpires(existingItem.Expires),
+		services.WithRevision(existingItem.Revision))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}

@@ -17,6 +17,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -35,17 +36,14 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 func TestListBots(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -84,7 +82,7 @@ func TestListBots(t *testing.T) {
 }
 
 func TestListBots_UnauthenticatedError(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	s := newWebSuite(t)
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -123,7 +121,7 @@ func TestCreateBot(t *testing.T) {
 		"bot",
 	)
 
-	ctx := t.Context()
+	ctx := context.Background()
 
 	resp, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
 		BotName: "test-bot",
@@ -181,7 +179,7 @@ func TestCreateBot(t *testing.T) {
 }
 
 func TestCreateBotJoinToken(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -233,7 +231,7 @@ func TestCreateBotJoinToken(t *testing.T) {
 }
 
 func TestDeleteBot_UnauthenticatedError(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	s := newWebSuite(t)
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -257,7 +255,7 @@ func TestDeleteBot_UnauthenticatedError(t *testing.T) {
 func TestDeleteBot(t *testing.T) {
 	botName := "bot-bravo"
 
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -292,7 +290,7 @@ func TestDeleteBot(t *testing.T) {
 }
 
 func TestGetBotByName(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -327,7 +325,7 @@ func TestGetBotByName(t *testing.T) {
 }
 
 func TestEditBot(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -361,7 +359,7 @@ func TestEditBot(t *testing.T) {
 }
 
 func TestEditBotRoles(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -417,7 +415,7 @@ func TestEditBotRoles(t *testing.T) {
 }
 
 func TestEditBotTraits(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -486,7 +484,7 @@ func TestEditBotTraits(t *testing.T) {
 }
 
 func TestEditBotMaxSessionTTL(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -616,28 +614,19 @@ func TestEditBotDescription(t *testing.T) {
 func TestListBotInstances(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
 	clusterName := env.server.ClusterName()
-	endpoints := []string{
-		pack.clt.Endpoint(
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-		pack.clt.Endpoint(
-			"v2",
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-	}
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot-instance",
+	)
+
 	instanceID := uuid.New().String()
 
 	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
@@ -672,83 +661,48 @@ func TestListBotInstances(t *testing.T) {
 					Os:         "linux",
 				},
 			},
-			LatestAuthentications: []*machineidv1.BotInstanceStatusAuthentication{
-				{
-					AuthenticatedAt: &timestamppb.Timestamp{
-						Seconds: 2,
-						Nanos:   0,
-					},
-				},
-				{
-					AuthenticatedAt: &timestamppb.Timestamp{
-						Seconds: 1,
-						Nanos:   0,
-					},
-				},
-				{
-					AuthenticatedAt: &timestamppb.Timestamp{
-						Seconds: 2,
-						Nanos:   0,
-					},
-					JoinMethod: "test-join-method",
-				},
-			},
 		},
 	})
 	require.NoError(t, err)
 
-	for _, endpoint := range endpoints {
-		t.Run(endpoint, func(t *testing.T) {
-			response, err := pack.clt.Get(ctx, endpoint, url.Values{})
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
 
-			var instances ListBotInstancesResponse
-			require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
+	var instances ListBotInstancesResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
 
-			assert.Len(t, instances.BotInstances, 1)
-			require.Empty(t, cmp.Diff(instances, ListBotInstancesResponse{
-				BotInstances: []BotInstance{
-					{
-						InstanceId:       instanceID,
-						BotName:          "test-bot",
-						JoinMethodLatest: "test-join-method",
-						HostNameLatest:   "test-hostname",
-						VersionLatest:    "1.0.0",
-						ActiveAtLatest:   "1970-01-01T00:00:03Z",
-						OSLatest:         "linux",
-					},
-				},
-			}))
-		})
-	}
+	assert.Len(t, instances.BotInstances, 1)
+	require.Empty(t, cmp.Diff(instances, ListBotInstancesResponse{
+		BotInstances: []BotInstance{
+			{
+				InstanceId:       instanceID,
+				BotName:          "test-bot",
+				JoinMethodLatest: "test-join-method",
+				HostNameLatest:   "test-hostname",
+				VersionLatest:    "1.0.0",
+				ActiveAtLatest:   "1970-01-01T00:00:03Z",
+				OSLatest:         "linux",
+			},
+		},
+	}))
 }
 
 func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
 	clusterName := env.server.ClusterName()
-	endpoints := []string{
-		pack.clt.Endpoint(
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-		pack.clt.Endpoint(
-			"v2",
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-	}
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot-instance",
+	)
 
 	instanceID := uuid.New().String()
 
@@ -770,65 +724,34 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 				JoinMethod: "test-join-method",
 			},
 			LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{},
-			InitialAuthentication: &machineidv1.BotInstanceStatusAuthentication{
-				JoinMethod: "test-join-method",
-			},
 		},
 	})
 	require.NoError(t, err)
 
-	for _, endpoint := range endpoints {
-		t.Run(endpoint, func(t *testing.T) {
-			response, err := pack.clt.Get(ctx, endpoint, url.Values{})
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
 
-			var instances ListBotInstancesResponse
-			require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
+	var instances ListBotInstancesResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
 
-			assert.Len(t, instances.BotInstances, 1)
-			require.Empty(t, cmp.Diff(instances, ListBotInstancesResponse{
-				BotInstances: []BotInstance{
-					{
-						InstanceId:       instanceID,
-						BotName:          "test-bot",
-						JoinMethodLatest: "test-join-method",
-						HostNameLatest:   "test-hostname",
-						VersionLatest:    "1.0.0",
-						ActiveAtLatest:   "1970-01-01T00:00:03Z",
-					},
-				},
-			}))
-		})
-	}
+	assert.Len(t, instances.BotInstances, 1)
+	require.Empty(t, cmp.Diff(instances, ListBotInstancesResponse{
+		BotInstances: []BotInstance{
+			{
+				InstanceId:       instanceID,
+				BotName:          "test-bot",
+				JoinMethodLatest: "test-join-method",
+				HostNameLatest:   "test-hostname",
+				VersionLatest:    "1.0.0",
+				ActiveAtLatest:   "1970-01-01T00:00:03Z",
+			},
+		},
+	}))
 }
 
 func TestListBotInstancesPaging(t *testing.T) {
 	t.Parallel()
-
-	ctx := t.Context()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
-	clusterName := env.server.ClusterName()
-
-	endpoints := []string{
-		pack.clt.Endpoint(
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-		pack.clt.Endpoint(
-			"v2",
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-	}
 
 	tcs := []struct {
 		name         string
@@ -852,42 +775,47 @@ func TestListBotInstancesPaging(t *testing.T) {
 		},
 	}
 
-	for _, endpoint := range endpoints {
-		t.Run(endpoint, func(t *testing.T) {
-			for _, tc := range tcs {
-				t.Run(tc.name, func(t *testing.T) {
-					for n := range tc.numInstances {
-						_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
-							Kind:    types.KindBotInstance,
-							Version: types.V1,
-							Spec: &machineidv1.BotInstanceSpec{
-								BotName:    "bot-1",
-								InstanceId: "instance-" + strconv.Itoa(n),
-							},
-							Status: &machineidv1.BotInstanceStatus{},
-						})
-						require.NoError(t, err)
-					}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			env := newWebPack(t, 1)
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+			clusterName := env.server.ClusterName()
+			endpoint := pack.clt.Endpoint(
+				"webapi",
+				"sites",
+				clusterName,
+				"machine-id",
+				"bot-instance",
+			)
 
-					response, err := pack.clt.Get(ctx, endpoint, url.Values{
-						"page_token": []string{""}, // default to the start
-						"page_size":  []string{strconv.Itoa(tc.pageSize)},
-					})
-					require.NoError(t, err)
-					assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
-
-					var resp ListBotInstancesResponse
-					require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
-
-					assert.Len(t, resp.BotInstances, int(math.Min(float64(tc.numInstances), float64(tc.pageSize))))
-
-					// remove instances before next test
-					for n := range tc.numInstances {
-						err = env.server.Auth().DeleteBotInstance(ctx, "bot-1", "instance-"+strconv.Itoa(n))
-						require.NoError(t, err)
-					}
+			n := 0
+			for n < tc.numInstances {
+				n += 1
+				_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+					Kind:    types.KindBotInstance,
+					Version: types.V1,
+					Spec: &machineidv1.BotInstanceSpec{
+						BotName:    "bot-1",
+						InstanceId: uuid.New().String(),
+					},
+					Status: &machineidv1.BotInstanceStatus{},
 				})
+				require.NoError(t, err)
 			}
+
+			response, err := pack.clt.Get(ctx, endpoint, url.Values{
+				"page_token": []string{""}, // default to the start
+				"page_size":  []string{strconv.Itoa(tc.pageSize)},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+			var resp ListBotInstancesResponse
+			require.NoError(t, json.Unmarshal(response.Bytes(), &resp), "invalid response received")
+
+			assert.Len(t, resp.BotInstances, int(math.Min(float64(tc.numInstances), float64(tc.pageSize))))
 		})
 	}
 }
@@ -949,28 +877,18 @@ func TestListBotInstancesSorting(t *testing.T) {
 func TestListBotInstancesWithBotFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
 	clusterName := env.server.ClusterName()
-	endpoints := []string{
-		pack.clt.Endpoint(
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-		pack.clt.Endpoint(
-			"v2",
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-	}
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot-instance",
+	)
 
 	n := 0
 	for n < 5 {
@@ -988,47 +906,20 @@ func TestListBotInstancesWithBotFilter(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for _, endpoint := range endpoints {
-		t.Run(endpoint, func(t *testing.T) {
-			response, err := pack.clt.Get(ctx, endpoint, url.Values{
-				"bot_name": []string{"bot-1"},
-			})
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{
+		"bot_name": []string{"bot-1"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
 
-			var instances ListBotInstancesResponse
-			require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
+	var instances ListBotInstancesResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
 
-			assert.Len(t, instances.BotInstances, 3)
-		})
-	}
+	assert.Len(t, instances.BotInstances, 3)
 }
 
 func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 	t.Parallel()
-
-	ctx := t.Context()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
-	clusterName := env.server.ClusterName()
-	endpoints := []string{
-		pack.clt.Endpoint(
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-		pack.clt.Endpoint(
-			"v2",
-			"webapi",
-			"sites",
-			clusterName,
-			"machine-id",
-			"bot-instance",
-		),
-	}
 
 	tcs := []struct {
 		name       string
@@ -1078,128 +969,73 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 		},
 	}
 
-	for _, endpoint := range endpoints {
-		t.Run(endpoint, func(t *testing.T) {
-			for _, tc := range tcs {
-				t.Run(tc.name, func(t *testing.T) {
-					spec := tc.spec
-					if spec == nil {
-						spec = &machineidv1.BotInstanceSpec{
-							BotName:    "test-bot",
-							InstanceId: "00000000-0000-0000-0000-000000000000",
-						}
-					}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			env := newWebPack(t, 1)
+			proxy := env.proxies[0]
+			pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+			clusterName := env.server.ClusterName()
+			endpoint := pack.clt.Endpoint(
+				"webapi",
+				"sites",
+				clusterName,
+				"machine-id",
+				"bot-instance",
+			)
 
-					_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
-						Kind:    types.KindBotInstance,
-						Version: types.V1,
-						Spec:    spec,
-						Status: &machineidv1.BotInstanceStatus{
-							InitialHeartbeat: tc.heartbeat,
-						},
-					})
-					require.NoError(t, err)
-
-					_, err = env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
-						Kind:    types.KindBotInstance,
-						Version: types.V1,
-						Spec: &machineidv1.BotInstanceSpec{
-							BotName:    "bot-gone",
-							InstanceId: uuid.New().String(),
-						},
-						Status: &machineidv1.BotInstanceStatus{
-							InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
-								Version:    "1.1.1-prod",
-								Hostname:   "test-hostname",
-								JoinMethod: "test-join-method",
-							},
-						},
-					})
-					require.NoError(t, err)
-
-					response, err := pack.clt.Get(ctx, endpoint, url.Values{
-						"search": []string{tc.searchTerm},
-					})
-					require.NoError(t, err)
-					assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
-
-					var instances ListBotInstancesResponse
-					require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
-
-					assert.Len(t, instances.BotInstances, 1)
-					assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
-
-					// remove before next test
-					err = env.server.Auth().DeleteBotInstance(ctx, spec.BotName, spec.InstanceId)
-					require.NoError(t, err)
-				})
+			spec := tc.spec
+			if spec == nil {
+				spec = &machineidv1.BotInstanceSpec{
+					BotName:    "test-bot",
+					InstanceId: "00000000-0000-0000-0000-000000000000",
+				}
 			}
+
+			_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+				Kind:    types.KindBotInstance,
+				Version: types.V1,
+				Spec:    spec,
+				Status: &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: tc.heartbeat,
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+				Kind:    types.KindBotInstance,
+				Version: types.V1,
+				Spec: &machineidv1.BotInstanceSpec{
+					BotName:    "bot-gone",
+					InstanceId: uuid.New().String(),
+				},
+				Status: &machineidv1.BotInstanceStatus{
+					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+						Version:    "1.1.1-prod",
+						Hostname:   "test-hostname",
+						JoinMethod: "test-join-method",
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			response, err := pack.clt.Get(ctx, endpoint, url.Values{
+				"search": []string{tc.searchTerm},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+			var instances ListBotInstancesResponse
+			require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
+
+			assert.Len(t, instances.BotInstances, 1)
+			assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
 		})
 	}
 }
 
-func TestListBotInstancesWithQueryFilter(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint(
-		"v2",
-		"webapi",
-		"sites",
-		clusterName,
-		"machine-id",
-		"bot-instance",
-	)
-
-	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
-		Kind:    types.KindBotInstance,
-		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
-			BotName:    "test-bot-1",
-			InstanceId: "00000000-0000-0000-0000-000000000000",
-		},
-		Status: &machineidv1.BotInstanceStatus{
-			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
-				Hostname: "svr-eu-tel-123-a",
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	_, err = env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
-		Kind:    types.KindBotInstance,
-		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
-			BotName:    "test-bot-2",
-			InstanceId: uuid.New().String(),
-		},
-		Status: &machineidv1.BotInstanceStatus{
-			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
-				Hostname: "test-hostname",
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	response, err := pack.clt.Get(ctx, endpoint, url.Values{
-		"query": []string{`status.latest_heartbeat.hostname == "svr-eu-tel-123-a"`},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
-
-	var instances ListBotInstancesResponse
-	require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
-
-	assert.Len(t, instances.BotInstances, 1)
-	assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
-}
-
 func TestGetBotInstance(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -1260,111 +1096,4 @@ func TestGetBotInstance(t *testing.T) {
 		},
 	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
 	assert.YAMLEq(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.Metadata.Revision), resp.YAML)
-}
-
-func TestBotInstanceMetrics_NotFound(t *testing.T) {
-	ctx := t.Context()
-	env := newWebPack(t, 1)
-	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
-	clusterName := env.server.ClusterName()
-
-	// No report yet should return an empty `UpgradeStatuses`.
-	endpoint := pack.clt.Endpoint(
-		"webapi", "sites", clusterName, "machine-id", "bot-instance", "metrics",
-	)
-	rsp, err := pack.clt.Get(ctx, endpoint, url.Values{})
-	require.NoError(t, err)
-
-	var body BotInstanceMetricsResponse
-	require.NoError(t, json.Unmarshal(rsp.Bytes(), &body))
-	require.Nil(t, body.UpgradeStatuses)
-}
-
-func TestBotInstanceMetrics_Success(t *testing.T) {
-	ctx := t.Context()
-	env := newWebPack(t, 1)
-	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
-	clusterName := env.server.ClusterName()
-
-	const targetVersion = "19.1.1"
-
-	_, err := env.server.Auth().
-		CreateAutoUpdateVersion(ctx, &autoupdate.AutoUpdateVersion{
-			Kind:    types.KindAutoUpdateVersion,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: types.MetaNameAutoUpdateVersion,
-			},
-			Spec: &autoupdate.AutoUpdateVersionSpec{
-				Tools: &autoupdate.AutoUpdateVersionSpecTools{
-					TargetVersion: targetVersion,
-				},
-			},
-		})
-	require.NoError(t, err)
-
-	report, err := update.NewAutoUpdateBotInstanceReport(&autoupdate.AutoUpdateBotInstanceReportSpec{
-		Timestamp: timestamppb.New(env.clock.Now()),
-		Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
-			"prod": {
-				Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
-					"19.1.1":     {Count: 1},      // Up to date
-					"19.2.0":     {Count: 10},     // Unsupported (too new)
-					"19.1.0":     {Count: 100},    // Patch available
-					"19.0.0-rc1": {Count: 1000},   // Patch available
-					"18.0.0":     {Count: 10000},  // Requires upgrade
-					"17.0.0":     {Count: 100000}, // Unsupported (too old)
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	_, err = env.server.Auth().UpsertAutoUpdateBotInstanceReport(ctx, report)
-	require.NoError(t, err)
-
-	endpoint := pack.clt.Endpoint(
-		"webapi", "sites", clusterName, "machine-id", "bot-instance", "metrics",
-	)
-	rsp, err := pack.clt.Get(ctx, endpoint, url.Values{})
-	require.NoError(t, err)
-
-	var body BotInstanceMetricsResponse
-	require.NoError(t, json.Unmarshal(rsp.Bytes(), &body))
-
-	// Up to date
-	require.Equal(t,
-		BotInstanceUpgradeStatus{
-			Count:  1,
-			Filter: `status.latest_heartbeat.version == "19.1.1"`,
-		},
-		body.UpgradeStatuses.UpToDate,
-	)
-
-	// Unsupported
-	require.Equal(t,
-		BotInstanceUpgradeStatus{
-			Count:  100010,
-			Filter: `older_than(status.latest_heartbeat.version, "18.0.0-aa") || status.latest_heartbeat.version == "20.0.0-aa" || newer_than(status.latest_heartbeat.version, "20.0.0-aa")`,
-		},
-		body.UpgradeStatuses.Unsupported,
-	)
-
-	// Patch available
-	require.Equal(t,
-		BotInstanceUpgradeStatus{
-			Count:  1100,
-			Filter: `between(status.latest_heartbeat.version, "19.0.0-aa", "19.1.1")`,
-		},
-		body.UpgradeStatuses.PatchAvailable,
-	)
-
-	// Requires upgrade
-	require.Equal(t,
-		BotInstanceUpgradeStatus{
-			Count:  10000,
-			Filter: `between(status.latest_heartbeat.version, "18.0.0-aa", "19.0.0-aa")`,
-		},
-		body.UpgradeStatuses.RequiresUpgrade,
-	)
 }

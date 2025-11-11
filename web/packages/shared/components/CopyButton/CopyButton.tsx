@@ -70,7 +70,7 @@ export function CopyButton({
     <Box mr={mr} ml={ml}>
       <HoverTooltip tipContent={copiedText}>
         <ButtonIcon
-          ref={copyAnchorEl}
+          setRef={copyAnchorEl}
           size={0}
           onClick={handleCopy}
           aria-label="copy"

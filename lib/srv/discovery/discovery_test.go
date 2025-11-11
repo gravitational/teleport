@@ -67,7 +67,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -100,7 +99,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestMain(m *testing.M) {
@@ -176,7 +174,7 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 
 func genEC2InstanceIDs(n int) []string {
 	var ec2InstanceIDs []string
-	for i := range n {
+	for i := 0; i < n; i++ {
 		ec2InstanceIDs = append(ec2InstanceIDs, fmt.Sprintf("instance-id-%d", i))
 	}
 	return ec2InstanceIDs
@@ -943,7 +941,7 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 		for {
 			var userTasks []*usertasksv1.UserTask
 			userTasks, nextTokenResp, err := userTasksClt.ListUserTasks(context.Background(), 0, nextToken, &usertasksv1.ListUserTasksFilters{})
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			allTasks = append(allTasks, userTasks...)
 			if nextTokenResp == "" {
 				break
@@ -952,7 +950,9 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 		}
 		existingTasks = allTasks
 
-		require.GreaterOrEqual(t, len(allTasks), minUserTasks)
+		if !assert.GreaterOrEqual(t, len(allTasks), minUserTasks) {
+			return
+		}
 
 		gotResources := 0
 		for _, task := range allTasks {
@@ -960,23 +960,14 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 			gotResources += len(task.GetSpec().GetDiscoverEks().GetClusters())
 			gotResources += len(task.GetSpec().GetDiscoverRds().GetDatabases())
 		}
-		require.GreaterOrEqual(t, gotResources, minUserTaskResources)
+		assert.GreaterOrEqual(t, gotResources, minUserTaskResources)
 	}, 10*time.Second, 50*time.Millisecond)
 
 	return existingTasks
 }
 
 func TestDiscoveryServerConcurrency(t *testing.T) {
-	// Most Server installations flows rely on installing teleport in the target server, which then joins the cluster.
-	// Even if multiple installations happen, only one agent will run at the same time in the target server.
-	// So, there's effectively no concurrency issue.
-	//
-	// EICE flow is different, because servers are created in the cluster directly.
-	// If two different discovery servers discover the same EC2 instance, they will both try to create
-	// the same EICE Node in the cluster, causing a conflict.
-	//
-	// After removing the EICE feature, this test must be removed as well.
-	t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
+	t.Parallel()
 	ctx := context.Background()
 	logger := logtest.NewLogger()
 
@@ -1089,8 +1080,8 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	// Even when two servers are discovering the same EC2 Instance, they will use the same name when converting to EICE Node.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		allNodes, err := tlsServer.Auth().GetNodes(ctx, "default")
-		require.NoError(t, err)
-		require.Len(t, allNodes, 1)
+		assert.NoError(t, err)
+		assert.Len(t, allNodes, 1)
 	}, 1*time.Second, 50*time.Millisecond)
 
 	// We should never get a duplicate instance.
@@ -1231,6 +1222,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1290,12 +1282,18 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				existingApps, err := tlsServer.Auth().GetApps(ctx)
-				require.NoError(t, err)
-				require.Len(t, existingApps, len(tt.expectedAppsToExistInAuth))
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, existingApps, len(tt.expectedAppsToExistInAuth)) {
+					return
+				}
 				a1 := types.Apps(existingApps)
 				a2 := types.Apps(tt.expectedAppsToExistInAuth)
 				for k := range a1 {
-					require.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k]))
+					if !assert.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k])) {
+						return
+					}
 				}
 			}, 5*time.Second, 200*time.Millisecond)
 		})
@@ -1628,17 +1626,17 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			t.Cleanup(discServer.Stop)
 			go discServer.Start()
 
-			clustersNotUpdatedMap := set.New(tc.clustersNotUpdated...)
+			clustersNotUpdatedMap := sliceToSet(tc.clustersNotUpdated)
 			clustersFoundInAuth := false
 			require.Eventually(t, func() bool {
 			loop:
 				for {
 					select {
 					case cluster := <-clustersNotUpdated:
-						if !clustersNotUpdatedMap.Contains(cluster) {
+						if _, ok := clustersNotUpdatedMap[cluster]; !ok {
 							require.Failf(t, "expected Action for cluster %s but got no action from reconciler", cluster)
 						}
-						clustersNotUpdatedMap.Remove(cluster)
+						delete(clustersNotUpdatedMap, cluster)
 					default:
 						kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
 						require.NoError(t, err)
@@ -1688,7 +1686,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 
 			cloudClients: &mockFetchersClients{},
 			matchers:     Matchers{},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, &trace.BadParameterError{Message: "no matchers or discovery group configured for discovery"})
 			},
 			discServerAssertion: require.Nil,
@@ -1712,7 +1710,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 				},
 			},
 			errAssertion: require.NoError,
-			discServerAssertion: func(t require.TestingT, i any, i2 ...any) {
+			discServerAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				val, ok := i.(*Server)
 				require.True(t, ok)
@@ -1745,7 +1743,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 				},
 			},
 			errAssertion: require.NoError,
-			discServerAssertion: func(t require.TestingT, i any, i2 ...any) {
+			discServerAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				val, ok := i.(*Server)
 				require.True(t, ok)
@@ -1756,7 +1754,8 @@ func TestDiscoveryServer_New(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			discServer, err := New(
 				ctx,
@@ -1976,6 +1975,14 @@ func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, d
 func modifyKubeCluster(cluster types.KubeCluster) types.KubeCluster {
 	cluster.GetStaticLabels()["test"] = "test"
 	return cluster
+}
+
+func sliceToSet[T comparable](slice []T) map[T]struct{} {
+	set := map[T]struct{}{}
+	for _, v := range slice {
+		set[v] = struct{}{}
+	}
+	return set
 }
 
 func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, kubeService *corev1.Service, port corev1.ServicePort) types.Application {
@@ -2760,8 +2767,10 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		expectDatabases := []types.Database{awsRDSDB}
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 			))
@@ -2776,7 +2785,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		// A new DiscoveryFetch event must have been emitted.
 		expectedEmittedEvents := currentEmittedEvents + 1
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), expectedEmittedEvents)
+			assert.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), expectedEmittedEvents)
 		}, waitForReconcileTimeout, 100*time.Millisecond)
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
@@ -2788,8 +2797,10 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			// Existing databases must be removed.
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
-				require.NoError(t, err)
-				require.Empty(t, actualDatabases)
+				if !assert.NoError(t, err) {
+					return
+				}
+				assert.Empty(t, actualDatabases)
 			}, waitForReconcileTimeout, 100*time.Millisecond)
 
 			// Given that no Fetch was issued, the counter should not increment.
@@ -3083,6 +3094,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -3391,6 +3403,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

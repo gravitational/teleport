@@ -58,20 +58,19 @@ type passwordSuite struct {
 	bk          backend.Backend
 	a           *auth.Server
 	mockEmitter *eventstest.MockRecorderEmitter
-	clock       *clockwork.FakeClock
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
-	s := passwordSuite{
-		clock: clockwork.NewFakeClock(),
-	}
+	s := passwordSuite{}
 
-	ctx := t.Context()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClockAt(time.Now())
 
 	var err error
+
 	s.bk, err = memory.New(memory.Config{
 		Context: ctx,
-		Clock:   s.clock,
+		Clock:   clock,
 	})
 	require.NoError(t, err)
 
@@ -91,7 +90,6 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
-		Clock:                  s.clock,
 	}
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -171,12 +169,14 @@ func TestPasswordLengthChange(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user1", []byte("abcdef123456"), constants.SecondFactorOff)
 	require.NoError(t, err)
 
+	fakeClock := clockwork.NewFakeClock()
+	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("defceba654321")
 
 	err = s.a.ChangePassword(ctx, req)
@@ -186,7 +186,7 @@ func TestChangePassword(t *testing.T) {
 	s.shouldLockAfterFailedAttempts(t, req)
 
 	// advance time and make sure we can login again
-	s.clock.Advance(defaults.AccountLockInterval + time.Second)
+	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("123456abcdef")
 	err = s.a.ChangePassword(ctx, req)
@@ -200,8 +200,11 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	req, err := s.prepareForPasswordChange("user2", []byte("abcdef123456"), constants.SecondFactorOTP)
 	require.NoError(t, err)
 
+	fakeClock := clockwork.NewFakeClock()
+	s.a.SetClock(fakeClock)
+
 	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
-	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+	dev, err := services.NewTOTPDevice("otp", otpSecret, fakeClock.Now())
 	require.NoError(t, err)
 	ctx := context.Background()
 	err = s.a.UpsertMFADevice(ctx, req.User, dev)
@@ -219,7 +222,7 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	s.shouldLockAfterFailedAttempts(t, req)
 
 	// advance time and make sure we can login again
-	s.clock.Advance(defaults.AccountLockInterval + time.Second)
+	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 
 	validToken, _ = totp.GenerateCode(otpSecret, s.a.GetClock().Now())
 	req.OldPassword = req.NewPassword
@@ -888,7 +891,7 @@ func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req *proto.C
 	ctx := context.Background()
 	loginAttempts, _ := s.a.GetUserLoginAttempts(req.User)
 	require.Empty(t, loginAttempts)
-	for i := range defaults.MaxLoginAttempts {
+	for i := 0; i < defaults.MaxLoginAttempts; i++ {
 		err := s.a.ChangePassword(ctx, req)
 		require.Error(t, err)
 		loginAttempts, _ = s.a.GetUserLoginAttempts(req.User)

@@ -798,7 +798,7 @@ func makeIsMasterReply(wireVersion int, maxMessageSize uint32) ([]byte, error) {
 }
 
 // makeFindReply builds a document used as a "find" command reply.
-func makeFindReply(result any) ([]byte, error) {
+func makeFindReply(result interface{}) ([]byte, error) {
 	return bson.Marshal(bson.M{
 		"ok": 1,
 		"cursor": bson.M{

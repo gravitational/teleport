@@ -290,7 +290,7 @@ func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth, 
 	if kubeName != "" {
 		newContext.Extensions[teleportKubeClusterNameExtension] = &runtime.Unknown{
 			// We need to wrap the kubeName in quotes to make sure it is parsed as a string.
-			Raw: fmt.Appendf(nil, "%q", kubeName),
+			Raw: []byte(fmt.Sprintf("%q", kubeName)),
 		}
 	}
 

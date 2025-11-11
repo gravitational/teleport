@@ -511,7 +511,7 @@ func TestHandleAccessRequest(t *testing.T) {
 				m.On("GetUser", mock.Anything, "non-existent-user", false).
 					Return(nil, trace.NotFound("user not found"))
 			},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.ErrorContains(t, err, "user not found")
 			},
 		},

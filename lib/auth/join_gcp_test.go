@@ -68,12 +68,8 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 		server.SetGCPIDTokenValidator(idTokenValidator)
 		return nil
 	}
-
-	ctx := t.Context()
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir:    t.TempDir(),
-		MutateAuth: withTokenValidator,
-	})
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
 	require.NoError(t, err)
 	auth := p.a
 
@@ -104,7 +100,7 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})

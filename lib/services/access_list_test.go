@@ -187,7 +187,7 @@ func TestAccessListMemberMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func requireAccessDenied(t require.TestingT, err error, i ...any) {
+func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %T: %s", err, err.Error())
 }

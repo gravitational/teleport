@@ -286,9 +286,6 @@ const (
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
-	// KindScopedToken is a provisioning token resource
-	KindScopedToken = "scoped_token"
-
 	// KindCertAuthority is a certificate authority resource
 	KindCertAuthority = "cert_authority"
 

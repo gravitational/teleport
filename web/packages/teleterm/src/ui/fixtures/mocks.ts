@@ -55,8 +55,7 @@ export class MockAppContext extends AppContext {
 
   addRootClusterWithDoc(
     cluster: Cluster,
-    doc: Document[] | Document | undefined,
-    options?: AddRootClusterOptions
+    doc: Document[] | Document | undefined
   ) {
     this.clustersService.setState(draftState => {
       draftState.clusters.set(cluster.uri, cluster);
@@ -64,20 +63,13 @@ export class MockAppContext extends AppContext {
     const docs = Array.isArray(doc) ? doc : [doc];
     this.workspacesService.addWorkspace(cluster.uri);
     this.workspacesService.setState(draftState => {
-      if (!options?.noActivate) {
-        draftState.rootClusterUri = cluster.uri;
-      }
+      draftState.rootClusterUri = cluster.uri;
       draftState.workspaces[cluster.uri].documents = docs.filter(Boolean);
       draftState.workspaces[cluster.uri].location = docs[0]?.uri;
     });
   }
 
-  addRootCluster(cluster: Cluster, options?: AddRootClusterOptions) {
-    this.addRootClusterWithDoc(cluster, undefined, options);
+  addRootCluster(cluster: Cluster) {
+    this.addRootClusterWithDoc(cluster, undefined);
   }
-}
-
-interface AddRootClusterOptions {
-  /** Does not set the cluster as active in workspaces service. */
-  noActivate?: boolean;
 }

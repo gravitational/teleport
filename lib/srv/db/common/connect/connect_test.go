@@ -57,7 +57,7 @@ func TestGetDatabaseServers(t *testing.T) {
 		"no match": {
 			identity: identityWithDatabase("no-match", "root", "alice", nil),
 			getter:   newDatabaseServersWithServers("first", "second", "third"),
-			expectErrorFunc: func(tt require.TestingT, err error, i ...any) {
+			expectErrorFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err), "expected trace.NotFound error but got %T", err)
 			},
@@ -107,7 +107,7 @@ func TestGetServerTLSConfig(t *testing.T) {
 			server:          databaseServerWithName("db", "server1"),
 			identity:        identityWithDatabase("db", clusterName, user.GetName(), []string{role.GetName()}),
 			expectErrorFunc: require.NoError,
-			expectTLSConfigFunc: func(tt require.TestingT, tlsConfigI any, _ ...any) {
+			expectTLSConfigFunc: func(tt require.TestingT, tlsConfigI interface{}, _ ...interface{}) {
 				require.IsType(t, &tls.Config{}, tlsConfigI)
 				tlsConfig, _ := tlsConfigI.(*tls.Config)
 				require.Len(t, tlsConfig.Certificates, 1)

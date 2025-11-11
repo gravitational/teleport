@@ -86,7 +86,7 @@ type kubeCommands struct {
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
-	kube := app.Command("kube", "Manage available Kubernetes clusters.")
+	kube := app.Command("kube", "Manage available Kubernetes clusters")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
@@ -162,7 +162,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(cf.Context, "Re-using existing TLS cert for kubernetes cluster", "cluster", kubeCluster)
+			logger.DebugContext(cf.Context, "Re-using existing TLS cert for Kubernetes cluster", "cluster", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
@@ -471,19 +471,19 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod."),
 	}
 
-	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen.").Short('c').StringVar(&c.container)
+	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
-	c.Flag("filename", "To use to exec into the resource.").Short('f').StringVar(&c.filename)
-	c.Flag("quiet", "Only print output from the remote session.").Short('q').BoolVar(&c.quiet)
-	c.Flag("stdin", "Pass stdin to the container.").Short('s').BoolVar(&c.stdin)
-	c.Flag("tty", "Stdin is a TTY.").Short('t').BoolVar(&c.tty)
+	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
+	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
+	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
+	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
 	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.displayParticipantRequirements)
-	c.Arg("target", "Pod or deployment name.").Required().StringVar(&c.target)
-	c.Arg("command", "Command to execute in the container.").Required().StringsVar(&c.command)
+	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
+	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
 	return c
 }
 
@@ -557,7 +557,7 @@ type kubeSessionsCommand struct {
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
-		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead.)"),
+		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead)"),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
@@ -598,7 +598,7 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 	c := &kubeCredentialsCommand{
 		// This command is always hidden. It's called from the kubeconfig that
 		// tsh generates and never by users directly.
-		CmdClause: parent.Command("credentials", "Get credentials for kubectl access.").Hidden(),
+		CmdClause: parent.Command("credentials", "Get credentials for kubectl access").Hidden(),
 	}
 	c.Flag("teleport-cluster", "Name of the Teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
 	c.Flag("kube-cluster", "Name of the Kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
@@ -852,7 +852,7 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *cli
 
 	cred, ok := keyRing.KubeTLSCredentials[kubeClusterName]
 	if !ok {
-		return trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
+		return trace.NotFound("TLS credential for Kubernetes cluster %q not found", kubeClusterName)
 	}
 
 	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
@@ -1085,6 +1085,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		errors   []error
 	)
 	for _, cluster := range clusters {
+		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -1217,13 +1218,13 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
-	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\".").
+	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
 		// Use the default context name template if --set-context-name is not set.
 		// This works as an hint to the user that the context name can be customized.
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
-	c.Flag("request-reason", "Reason for requesting access.").StringVar(&c.requestReason)
-	c.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&c.disableAccessRequest)
+	c.Flag("request-reason", "Reason for requesting access").StringVar(&c.requestReason)
+	c.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&c.disableAccessRequest)
 
 	return c
 }
@@ -1747,7 +1748,7 @@ func formatAmbiguousKubeCluster(cf *CLIConf, selectors resourceSelectors, kubeCl
 func formatKubeNotFound(clusterFlag string, selectors resourceSelectors) string {
 	listCmd := formatKubeListCommand(clusterFlag)
 	if selectors.IsEmpty() {
-		return fmt.Sprintf("no kubernetes clusters found, check '%v' for a list of known clusters",
+		return fmt.Sprintf("no Kubernetes clusters found, check '%v' for a list of known clusters",
 			listCmd)
 	}
 	return fmt.Sprintf("%v not found, check '%v' for a list of known clusters",

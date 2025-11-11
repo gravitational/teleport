@@ -78,6 +78,7 @@ func (a *Fetcher) fetchAWSRDSDatabases(ctx context.Context) (
 	}
 
 	for _, region := range a.Regions {
+		region := region
 		eG.Go(func() error {
 			awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, region, a.getAWSOptions()...)
 			if err != nil {

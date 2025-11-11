@@ -69,8 +69,6 @@ impl CliprdrBackend for TeleportCliprdrBackend {
         ".cliprdr"
     }
 
-    fn on_ready(&mut self) {}
-
     fn client_capabilities(&self) -> ClipboardGeneralCapabilityFlags {
         trace!("CLIPRDR: client_capabilities");
         ClipboardGeneralCapabilityFlags::USE_LONG_FORMAT_NAMES

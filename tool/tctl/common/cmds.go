@@ -73,6 +73,5 @@ func Commands() []CLICommand {
 		&stableunixusers.Command{},
 		&decision.Command{},
 		&BoundKeypairCommand{},
-		&ScopedCommand{},
 	}
 }

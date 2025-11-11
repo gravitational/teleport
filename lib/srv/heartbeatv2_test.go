@@ -169,7 +169,8 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 func TestHeartbeatV2Basics(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -295,7 +296,8 @@ func TestHeartbeatV2Basics(t *testing.T) {
 func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -351,7 +353,8 @@ func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
 func TestHeartbeatV2NoFallbackChecked(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.

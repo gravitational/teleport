@@ -51,7 +51,7 @@ type DiscoverEventData struct {
 	// event tp.ui.discover.database.enroll.rds
 	SelectedResourcesCount int `json:"selectedResourcesCount,omitempty"`
 
-	ServiceDeploy discoverServiceDeploy `json:"serviceDeploy"`
+	ServiceDeploy discoverServiceDeploy `json:"serviceDeploy,omitempty"`
 
 	DiscoveryConfigMethod string `json:"discoveryConfigMethod,omitempty"`
 

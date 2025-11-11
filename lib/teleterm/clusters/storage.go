@@ -120,9 +120,7 @@ func (s *Storage) Remove(ctx context.Context, profileName string) error {
 // https://github.com/gravitational/teleport/issues/13278
 func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
 	profiles, err := s.ListProfileNames()
-	// If the tsh directory does not exist, [client.ProfileStore.SaveProfile] will
-	// create it.
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 

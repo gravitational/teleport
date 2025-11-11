@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IPtyProcess, PtyHostClient } from '../types';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+
+import { PtyHostClient } from '../types';
 
 export function createPtyProcess(
   ptyHostClient: PtyHostClient,
   ptyId: string
 ): IPtyProcess {
-  const stream = ptyHostClient.managePtyProcess(ptyId);
+  const exchangeEventsStream = ptyHostClient.exchangeEvents(ptyId);
 
   return {
     getPtyId() {
@@ -33,20 +35,20 @@ export function createPtyProcess(
      * Client -> Server stream events
      */
 
-    async start(columns: number, rows: number): Promise<void> {
-      await stream.start(columns, rows);
+    start(columns: number, rows: number): void {
+      exchangeEventsStream.start(columns, rows);
     },
 
-    async write(data: string): Promise<void> {
-      await stream.write(data);
+    write(data: string): void {
+      exchangeEventsStream.write(data);
     },
 
-    async resize(columns: number, rows: number): Promise<void> {
-      await stream.resize(columns, rows);
+    resize(columns: number, rows: number): void {
+      exchangeEventsStream.resize(columns, rows);
     },
 
     async dispose(): Promise<void> {
-      await stream.dispose();
+      exchangeEventsStream.dispose();
     },
 
     /**
@@ -54,11 +56,11 @@ export function createPtyProcess(
      */
 
     onData(callback: (data: string) => void) {
-      return stream.onData(callback);
+      return exchangeEventsStream.onData(callback);
     },
 
     onOpen(callback: () => void) {
-      return stream.onOpen(callback);
+      return exchangeEventsStream.onOpen(callback);
     },
 
     onExit(
@@ -68,11 +70,11 @@ export function createPtyProcess(
         lastInput: string;
       }) => void
     ) {
-      return stream.onExit(callback);
+      return exchangeEventsStream.onExit(callback);
     },
 
     onStartError(callback: (message: string) => void) {
-      return stream.onStartError(callback);
+      return exchangeEventsStream.onStartError(callback);
     },
 
     /**

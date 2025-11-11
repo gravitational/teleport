@@ -1,6 +1,7 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  creationTimestamp: null
   name: teleportrolesv6.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -406,12 +407,6 @@ spec:
                               is required for all Access Requests requesting roles
                               or resources allowed by this role. It applies only to
                               users who have this role assigned.
-                            type: string
-                          prompt:
-                            description: Prompt is a custom message prompted to the
-                              user for the requested roles or resources searchable
-                              as other roles. This is only applied to the requested
-                              roles and resources specifying the prompt.
                             type: string
                         type: object
                       roles:
@@ -1023,12 +1018,6 @@ spec:
                               is required for all Access Requests requesting roles
                               or resources allowed by this role. It applies only to
                               users who have this role assigned.
-                            type: string
-                          prompt:
-                            description: Prompt is a custom message prompted to the
-                              user for the requested roles or resources searchable
-                              as other roles. This is only applied to the requested
-                              roles and resources specifying the prompt.
                             type: string
                         type: object
                       roles:

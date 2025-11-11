@@ -192,7 +192,7 @@ func (f *FanoutV2) Emit(events ...types.Event) {
 	var ebuf [16]fanoutV2Entry
 	for len(events) > 0 {
 		n := min(len(events), len(ebuf))
-		for i := range n {
+		for i := 0; i < n; i++ {
 			ebuf[i] = newFanoutV2Entry(events[i])
 		}
 		f.buf.Append(ebuf[:n]...)

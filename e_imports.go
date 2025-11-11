@@ -148,7 +148,6 @@ import (
 	_ "golang.org/x/net/http/httpproxy"
 	_ "golang.org/x/net/http2"
 	_ "golang.org/x/oauth2"
-	_ "golang.org/x/oauth2/clientcredentials"
 	_ "golang.org/x/oauth2/google"
 	_ "golang.org/x/sync/errgroup"
 	_ "golang.org/x/sync/semaphore"

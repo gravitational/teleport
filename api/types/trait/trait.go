@@ -16,21 +16,5 @@ limitations under the License.
 
 package trait
 
-import (
-	"slices"
-)
-
 // Traits is a mapping of traits to values.
 type Traits map[string][]string
-
-// Clone returns a deep copy of the traits map.
-func (t Traits) Clone() Traits {
-	if t == nil {
-		return nil
-	}
-	out := make(Traits, len(t))
-	for key, values := range t {
-		out[key] = slices.Clone(values)
-	}
-	return out
-}

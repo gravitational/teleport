@@ -27,7 +27,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1259,7 +1258,7 @@ func (c *sessionResources) removeCloser(closer io.Closer) {
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
 		if cls == closer {
-			c.closers = slices.Delete(c.closers, i, i+1)
+			c.closers = append(c.closers[:i], c.closers[i+1:]...)
 			return
 		}
 	}

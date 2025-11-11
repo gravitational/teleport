@@ -38,7 +38,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // mostACLRead is a permission mode granting readonly access to a file.
@@ -627,8 +626,8 @@ func formatEntry(e acl.Entry) string {
 // the two are identity, otherwise returns a list of error messages for each
 // issue found.
 func CompareACL(expected, candidate acl.ACL) []string {
-	expectedSet := set.New(expected...)
-	candidateSet := set.New(candidate...)
+	expectedSet := utils.NewSet(expected...)
+	candidateSet := utils.NewSet(candidate...)
 
 	missing := expectedSet.Clone().Subtract(candidateSet)
 	unexpected := candidateSet.Clone().Subtract(expectedSet)

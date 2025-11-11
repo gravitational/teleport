@@ -74,7 +74,6 @@ func (s *IdentityService) ListAppSessions(ctx context.Context, pageSize int, pag
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
-// Deprecated: Prefer paginated variant such as [IdentityService.ListSnowflakeSessions]
 func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
 	out, err := stream.Collect(s.rangeSessions(ctx, "", "", "", snowflakePrefix, sessionsPrefix))
 	if err != nil {
@@ -372,7 +371,6 @@ func (r *IdentityService) GetWebToken(ctx context.Context, req types.GetWebToken
 }
 
 // GetWebTokens gets all web tokens.
-// Deprecated: Prefer paginated variant such as [ListWebTokens] or [RangeWebTokens]
 func (r *IdentityService) GetWebTokens(ctx context.Context) (out []types.WebToken, err error) {
 	tokens, err := stream.Collect(r.RangeWebTokens(ctx, "", ""))
 	if err != nil {

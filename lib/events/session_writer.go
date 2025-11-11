@@ -547,7 +547,7 @@ func (a *SessionWriter) tryResumeStream() (apievents.Stream, error) {
 	}
 	var resumedStream apievents.Stream
 	start := time.Now()
-	for i := range FastAttempts {
+	for i := 0; i < FastAttempts; i++ {
 		var streamType string
 		if a.lastStatus == nil {
 			// The stream was either never created or has failed to receive the
@@ -605,7 +605,7 @@ func (a *SessionWriter) updateStatus(status apievents.StreamStatus) {
 		return
 	}
 	lastIndex := -1
-	for i := range a.buffer {
+	for i := 0; i < len(a.buffer); i++ {
 		if status.LastEventIndex < a.buffer[i].GetAuditEvent().GetIndex() {
 			break
 		}

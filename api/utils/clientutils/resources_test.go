@@ -298,7 +298,7 @@ func TestCollectWithFallback(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			out, err := CollectWithFallback(t.Context(), tc.pageFunc, tc.fallbackFunc)
+			out, err := CollectWithFallback(context.Background(), tc.pageFunc, tc.fallbackFunc)
 			if tc.err == nil {
 				require.NotNil(t, out)
 			}

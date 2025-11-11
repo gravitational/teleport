@@ -24,12 +24,13 @@ import (
 
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/healthcheckconfig/v1"
 )
@@ -104,24 +105,14 @@ func (r resourceTeleportHealthCheckConfig) Create(ctx context.Context, req tfsdk
 		var healthCheckConfigI *healthcheckconfigv1.HealthCheckConfig
 	// Try getting the resource until it exists.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		healthCheckConfigI, err = r.p.Client.GetHealthCheckConfig(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(ctx.Err()), "health_check_config"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(err), "health_check_config"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading HealthCheckConfig (tried %d times) - state outdated, please import resource", tries)
@@ -237,15 +228,7 @@ func (r resourceTeleportHealthCheckConfig) Update(ctx context.Context, req tfsdk
 		var healthCheckConfigI *healthcheckconfigv1.HealthCheckConfig
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		healthCheckConfigI, err = r.p.Client.GetHealthCheckConfig(ctx, name)
@@ -257,11 +240,9 @@ func (r resourceTeleportHealthCheckConfig) Update(ctx context.Context, req tfsdk
 			break
 		}
 
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(ctx.Err()), "health_check_config"))
+		if err := backoff.Do(ctx); err != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading HealthCheckConfig", trace.Wrap(err), "health_check_config"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading HealthCheckConfig (tried %d times) - state outdated, please import resource", tries)

@@ -708,8 +708,8 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				var err error
 				expected, err = w.GetUnifiedResources(ctx)
-				require.NoError(t, err)
-				require.Len(t, expected, resourceCount)
+				assert.NoError(t, err)
+				assert.Len(t, expected, resourceCount)
 			}, 10*time.Second, 100*time.Millisecond)
 
 			t.Run("resource iterator", func(t *testing.T) {
@@ -1002,8 +1002,10 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err := w.GetUnifiedResources(ctx)
-		require.NoError(t, err)
-		require.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
 	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted except for HA servers")
 
 	// delete all remaining (db, kube, app, desktop) servers
@@ -1026,8 +1028,10 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err := w.GetUnifiedResources(ctx)
-		require.NoError(t, err)
-		require.Empty(t, res)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Empty(t, res)
 	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted")
 }
 

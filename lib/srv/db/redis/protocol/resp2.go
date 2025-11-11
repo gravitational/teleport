@@ -37,7 +37,7 @@ var ErrCmdNotSupported = trace.NotImplemented("command not supported")
 // * Redis errors and Go error: go-redis returns a "human-readable" string instead of RESP compatible error message
 // * integers: go-redis converts them to string, which is not always what we want.
 // * slices: arrays are recursively converted to RESP responses.
-func WriteCmd(wr *redis.Writer, vals any) error {
+func WriteCmd(wr *redis.Writer, vals interface{}) error {
 	switch val := vals.(type) {
 	case nil:
 		// Note: RESP3 has different sequence for nil, current nil is RESP2 compatible as the rest
@@ -102,7 +102,7 @@ func WriteCmd(wr *redis.Writer, vals any) error {
 		if err := writeUinteger(wr, val); err != nil {
 			return trace.Wrap(err)
 		}
-	case any:
+	case interface{}:
 		var err error
 		v := reflect.ValueOf(val)
 
@@ -166,7 +166,7 @@ func writeError(wr *redis.Writer, prefix string, val error) error {
 }
 
 // writeSlice converts a slice to Redis wire form.
-func writeSlice(wr *redis.Writer, vals any) error {
+func writeSlice(wr *redis.Writer, vals interface{}) error {
 	v := reflect.ValueOf(vals)
 
 	if v.Kind() != reflect.Slice {
@@ -182,7 +182,7 @@ func writeSlice(wr *redis.Writer, vals any) error {
 		return trace.Wrap(err)
 	}
 
-	for i := range n {
+	for i := 0; i < n; i++ {
 		if err := WriteCmd(wr, v.Index(i).Interface()); err != nil {
 			return trace.Wrap(err)
 		}

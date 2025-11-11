@@ -26,7 +26,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // Authority implements minimal key-management facility for generating OpenSSH
@@ -78,11 +77,6 @@ func (r *HostCertificateRequest) Check() error {
 	}
 	if err := r.Identity.SystemRole.Check(); err != nil {
 		return trace.Wrap(err)
-	}
-	if r.Identity.AgentScope != "" {
-		if err := scopes.StrongValidate(r.Identity.AgentScope); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil

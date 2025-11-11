@@ -165,6 +165,7 @@ func testForward(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
@@ -226,6 +227,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
@@ -276,6 +278,7 @@ func testForwardModes(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
@@ -391,6 +394,7 @@ func testClientCert(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
@@ -838,6 +842,7 @@ func TestTCP(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.description, func(t *testing.T) {
 			t.Parallel()
 

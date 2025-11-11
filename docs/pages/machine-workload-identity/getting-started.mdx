@@ -222,9 +222,10 @@ or the Assumed Role of an AWS EC2 Instance, to attest to the identity of the pro
 ensuring only authorized bots can join the cluster. This means the bot has a verified <i>identity</i>,
 rather than just a shared secret.
 
-Teleport supports a number of secure [join methods](../reference/deployment/join-methods.mdx#delegated-join-methods)
-specific to the platform the bot is running on. Since we are using GitHub Actions,
-we will use the `github` join method.
+Teleport supports a number of secure [join
+methods](../reference/deployment/join-methods.mdx#delegated-join-methods)
+specific to the platform the bot is running on. Since we are using GitHub
+Actions, we will use the `github` join method.
 
 For the join token definition, edit the `repository`
 field to match the GitHub repository where you will run the GitHub Actions workflow.

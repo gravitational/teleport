@@ -250,7 +250,7 @@ func (c *FSClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuit
 
 	privateKeyBytes, err := keys.MarshalPrivateKey(key)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshaling private key")
+		return nil, trace.Wrap(err, "marshallng private key")
 	}
 
 	// prepend the new key to the top of the list for faster lookup
@@ -302,7 +302,7 @@ func (c *FSClientState) SetActiveKey(signer crypto.Signer) error {
 
 	privateKeyBytes, err := keys.MarshalPrivateKey(key.Signer)
 	if err != nil {
-		return trace.Wrap(err, "marshaling private key")
+		return trace.Wrap(err, "marshallng private key")
 	}
 
 	sshPubKey, err := ssh.NewPublicKey(key.Public())

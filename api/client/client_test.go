@@ -704,7 +704,7 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 }
 
 func TestUploadEncryptedRecording(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 
 	recordingEncryptionService := &uploadRecordingService{
 		uploads: make(map[string][]*recordingencryptionv1.Part),

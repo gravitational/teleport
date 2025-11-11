@@ -407,13 +407,13 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirect
 			Error:       err.Error(),
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopName:   d.desktop.GetName(),
 		DesktopAddr:   d.desktop.GetAddr(),
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
 		Path:          path,
 		Length:        m.WriteDataLength,
 		Offset:        offset,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 

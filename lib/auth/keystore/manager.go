@@ -33,7 +33,9 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"math/big"
+	"slices"
 	"time"
 
 	kms "cloud.google.com/go/kms/apiv1"
@@ -51,7 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -134,7 +135,6 @@ type Manager struct {
 
 	currentSuiteGetter cryptosuites.GetSuiteFunc
 	logger             *slog.Logger
-	clock              clockwork.Clock
 }
 
 // backend is an interface that holds private keys and provides signing and decryption
@@ -195,12 +195,11 @@ type Options struct {
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
-	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
-	OAEPHash crypto.Hash
 	// RSAKeyPairSource is an optional function used by the software keystore when
 	// generating RSA keys.
 	RSAKeyPairSource RSAKeyPairSource
-	Clock            clockwork.Clock
+	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
+	OAEPHash crypto.Hash
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -208,6 +207,7 @@ type Options struct {
 	kmsClient    *kms.KeyManagementClient
 	awsRGTClient rgtClient
 
+	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
 	faketimeOverride faketime.Clock
 }
@@ -222,9 +222,6 @@ func (opts *Options) CheckAndSetDefaults() error {
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.With(teleport.ComponentKey, "Keystore")
-	}
-	if opts.Clock == nil {
-		opts.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -279,7 +276,6 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		usableBackends:     usableBackends,
 		currentSuiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 		logger:             opts.Logger,
-		clock:              opts.Clock,
 	}, nil
 }
 
@@ -649,20 +645,12 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	tlsCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: &cryptoCountSigner{
-			Signer:  signer,
-			keyType: keyTypeTLS,
-			store:   m.backendForNewKeys.name(),
-		},
-		Entity: pkix.Name{
+	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		&cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: m.backendForNewKeys.name()},
+		pkix.Name{
 			CommonName:   clusterName,
 			Organization: []string{clusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: m.clock,
-	})
+		}, nil, defaults.CATTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -867,15 +855,15 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 			allRawKeys = append(allRawKeys, jwtKeyPair.PrivateKey)
 		}
 	}
-	caKeyTypes := set.New[string]()
+	caKeyTypes := make(map[string]struct{})
 	for _, rawKey := range allRawKeys {
 		desc, err := keyDescription(rawKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		caKeyTypes.Add(desc)
+		caKeyTypes[desc] = struct{}{}
 	}
-	result.CAKeyTypes = caKeyTypes.Elements()
+	result.CAKeyTypes = slices.Collect(maps.Keys(caKeyTypes))
 	return result, nil
 }
 

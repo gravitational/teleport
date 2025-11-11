@@ -111,14 +111,6 @@ func TestLogRotation(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, found, 1)
-
-		foundUnstructured, _, err := alog.SearchUnstructuredEvents(ctx, events.SearchEventsRequest{
-			From:  now.Add(-time.Hour),
-			To:    now.Add(time.Hour),
-			Order: types.EventOrderAscending,
-		})
-		require.NoError(t, err)
-		require.Len(t, foundUnstructured, 1)
 	}
 }
 
@@ -145,7 +137,7 @@ func TestConcurrentStreaming(t *testing.T) {
 	// on the download that the first one started
 	streams := 2
 	errors := make(chan error, streams)
-	for range streams {
+	for i := 0; i < streams; i++ {
 		go func() {
 			eventsC, errC := alog.StreamSessionEvents(ctx, sid, 0)
 			for {
@@ -164,7 +156,7 @@ func TestConcurrentStreaming(t *testing.T) {
 
 	// This test just verifies that the streamer does not panic when multiple
 	// concurrent streams are waiting on the same download to complete.
-	for range streams {
+	for i := 0; i < streams; i++ {
 		<-errors
 	}
 }
@@ -324,7 +316,7 @@ func TestExternalLog(t *testing.T) {
 }
 
 func TestUploadEncryptedRecording(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	uploader := eventstest.NewMemoryUploader()
 	alog, err := events.NewAuditLog(events.AuditLogConfig{
 		DataDir:       t.TempDir(),
@@ -383,6 +375,54 @@ func makeLog(t *testing.T, clock clockwork.Clock) *events.AuditLog {
 	require.NoError(t, err)
 
 	return alog
+}
+
+func TestPadUploadPart(t *testing.T) {
+	partData := bytes.Repeat([]byte{1, 2, 3}, 10)
+	partHeader := events.PartHeader{
+		ProtoVersion: events.V2,
+		PartSize:     uint64(len(partData)),
+		PaddingSize:  0,
+	}
+	headerBytes := partHeader.Bytes()
+	part := append(headerBytes, partData...)
+
+	// Pad the upload part to double the size.
+	minSize := len(part) * 2
+	paddedPart := events.PadUploadPart(part, minSize)
+	require.Len(t, paddedPart, minSize)
+
+	// Padding the upload part again with the same minimum should add a single header in size.
+	paddedPart = events.PadUploadPart(paddedPart, minSize)
+	require.Len(t, paddedPart, minSize+events.ProtoStreamV2PartHeaderSize)
+
+	// Ensure we can read out each part.
+	r := bytes.NewReader(paddedPart)
+	h1, err := events.ParsePartHeader(r)
+	require.NoError(t, err)
+	require.Equal(t, partHeader, h1)
+	gotData, err := io.ReadAll(io.LimitReader(r, int64(h1.PartSize)))
+	require.NoError(t, err)
+	require.Equal(t, partData, gotData)
+	io.Copy(io.Discard, io.LimitReader(r, int64(h1.PaddingSize)))
+
+	h2, err := events.ParsePartHeader(r)
+	require.NoError(t, err)
+	require.Equal(t, events.PartHeader{
+		ProtoVersion: events.V2,
+		PaddingSize:  uint64(len(part) - events.ProtoStreamV2PartHeaderSize),
+	}, h2)
+	io.Copy(io.Discard, io.LimitReader(r, int64(h2.PaddingSize)))
+
+	h3, err := events.ParsePartHeader(r)
+	require.NoError(t, err)
+	require.Equal(t, events.PartHeader{
+		ProtoVersion: events.V2,
+		PaddingSize:  0,
+	}, h3)
+
+	_, err = r.Read(nil)
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func TestCallingSummarizerMetadata(t *testing.T) {
@@ -493,52 +533,4 @@ func generateParts(t *testing.T) [][]byte {
 	parts, err := uploader.GetParts(uploads[0].ID)
 	require.NoError(t, err)
 	return parts
-}
-
-func TestPadUploadPart(t *testing.T) {
-	partData := bytes.Repeat([]byte{1, 2, 3}, 10)
-	partHeader := events.PartHeader{
-		ProtoVersion: events.V2,
-		PartSize:     uint64(len(partData)),
-		PaddingSize:  0,
-	}
-	headerBytes := partHeader.Bytes()
-	part := append(headerBytes, partData...)
-
-	// Pad the upload part to double the size.
-	minSize := len(part) * 2
-	paddedPart := events.PadUploadPart(part, minSize)
-	require.Len(t, paddedPart, minSize)
-
-	// Padding the upload part again with the same minimum should add a single header in size.
-	paddedPart = events.PadUploadPart(paddedPart, minSize)
-	require.Len(t, paddedPart, minSize+events.ProtoStreamV2PartHeaderSize)
-
-	// Ensure we can read out each part.
-	r := bytes.NewReader(paddedPart)
-	h1, err := events.ParsePartHeader(r)
-	require.NoError(t, err)
-	require.Equal(t, partHeader, h1)
-	gotData, err := io.ReadAll(io.LimitReader(r, int64(h1.PartSize)))
-	require.NoError(t, err)
-	require.Equal(t, partData, gotData)
-	io.Copy(io.Discard, io.LimitReader(r, int64(h1.PaddingSize)))
-
-	h2, err := events.ParsePartHeader(r)
-	require.NoError(t, err)
-	require.Equal(t, events.PartHeader{
-		ProtoVersion: events.V2,
-		PaddingSize:  uint64(len(part) - events.ProtoStreamV2PartHeaderSize),
-	}, h2)
-	io.Copy(io.Discard, io.LimitReader(r, int64(h2.PaddingSize)))
-
-	h3, err := events.ParsePartHeader(r)
-	require.NoError(t, err)
-	require.Equal(t, events.PartHeader{
-		ProtoVersion: events.V2,
-		PaddingSize:  0,
-	}, h3)
-
-	_, err = r.Read(nil)
-	require.ErrorIs(t, err, io.EOF)
 }

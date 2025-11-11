@@ -88,7 +88,6 @@ func TestSSHIdentityConversion(t *testing.T) {
 		DeviceCredentialID:     "cred",
 		GitHubUserID:           "github",
 		GitHubUsername:         "ghuser",
-		AgentScope:             "/foo",
 	}
 
 	ignores := []string{

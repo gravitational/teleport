@@ -374,7 +374,7 @@ func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.Connecti
 
 	// TODO(greedy52) decouple from srv.NewServerContext. We only need
 	// connection monitoring.
-	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx, nil)
+	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,18 +400,11 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 		return
 	}
 
-	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
-	sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
-	if err != nil {
-		s.reply.RejectWithAcceptError(ctx, nch, err)
-		return
-	}
-
 	if s.remoteClient == nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, trace.NotFound("missing remote client"))
 		return
 	}
-	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
+	remoteSession, err := s.remoteClient.NewSession(ctx)
 	if err != nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, err)
 		return
@@ -573,7 +566,7 @@ func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string
 			RemoteAddr: sctx.ServerConn.RemoteAddr().String(),
 			LocalAddr:  sctx.ServerConn.LocalAddr().String(),
 		},
-		ServerMetadata: s.EventMetadata(),
+		ServerMetadata: s.TargetMetadata(),
 	}
 	if err != nil {
 		event.Metadata.Code = events.GitCommandFailureCode
@@ -670,7 +663,7 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 func (s *ForwardServer) Context() context.Context {
 	return s.cfg.ParentContext
 }
-func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
+func (s *ForwardServer) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
 		ServerNamespace: s.cfg.TargetServer.GetNamespace(),

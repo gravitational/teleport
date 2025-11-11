@@ -152,7 +152,7 @@ func (t *Tool) IsEqual(toolsDir, version, os, arch string) bool {
 	if t.OS == "" {
 		path, ok := t.PathMap[DefaultClientTools()[0]]
 		if !ok {
-			return false
+			return version == t.Version
 		}
 		info, err := buildinfo.ReadFile(filepath.Join(toolsDir, path))
 		if err != nil {

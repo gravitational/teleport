@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Ref, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
@@ -311,17 +311,10 @@ export function ResourceCard({
   );
 }
 
-const WarningRightEdgeBadgeIcon = ({
-  onClick,
-  ref,
-}: {
-  onClick?(): void;
-  ref?: Ref<HTMLDivElement>;
-}) => {
+const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick?(): void }) => {
   return (
     <Box
       onClick={onClick}
-      ref={ref}
       css={`
         position: absolute;
         top: 0;

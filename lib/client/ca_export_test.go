@@ -197,7 +197,7 @@ func TestExportAuthorities(t *testing.T) {
 			req: ExportAuthoritiesRequest{
 				AuthType: "invalid",
 			},
-			errorCheck: func(tt require.TestingT, err error, i ...any) {
+			errorCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, `"invalid" authority type is not supported`)
 			},
 		},

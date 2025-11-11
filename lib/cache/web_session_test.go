@@ -36,7 +36,7 @@ func TestAppSessions(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	for i := range 31 {
+	for i := 0; i < 31; i++ {
 		err := p.appSessionS.UpsertAppSession(t.Context(), &types.WebSessionV2{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindAppSession,
@@ -51,7 +51,7 @@ func TestAppSessions(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for i := range 3 {
+	for i := 0; i < 3; i++ {
 		err := p.appSessionS.UpsertAppSession(t.Context(), &types.WebSessionV2{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindAppSession,
@@ -68,14 +68,14 @@ func TestAppSessions(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		expected, next, err := p.appSessionS.ListAppSessions(ctx, 0, "", "")
-		require.NoError(t, err)
-		require.Empty(t, next)
-		require.Len(t, expected, 34)
+		assert.NoError(t, err)
+		assert.Empty(t, next)
+		assert.Len(t, expected, 34)
 
 		cached, next, err := p.cache.ListAppSessions(ctx, 0, "", "")
-		require.NoError(t, err)
-		require.Empty(t, next)
-		require.Len(t, cached, 34)
+		assert.NoError(t, err)
+		assert.Empty(t, next)
+		assert.Len(t, cached, 34)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	session, err := p.cache.GetAppSession(ctx, types.GetAppSessionRequest{
@@ -124,9 +124,9 @@ func TestAppSessions(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cached, next, err := p.cache.ListAppSessions(ctx, 0, "", "")
-		require.NoError(t, err)
-		require.Empty(t, next)
-		require.Empty(t, cached)
+		assert.NoError(t, err)
+		assert.Empty(t, next)
+		assert.Empty(t, cached)
 	}, 15*time.Second, 100*time.Millisecond)
 }
 
@@ -137,7 +137,7 @@ func TestWebSessions(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	for i := range 31 {
+	for i := 0; i < 31; i++ {
 		err := p.webSessionS.Upsert(t.Context(), &types.WebSessionV2{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindWebSession,
@@ -154,23 +154,23 @@ func TestWebSessions(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		expected, err := p.webSessionS.List(ctx)
-		require.NoError(t, err)
-		require.Len(t, expected, 31)
+		assert.NoError(t, err)
+		assert.Len(t, expected, 31)
 
 		for _, session := range expected {
 			cached, err := p.cache.GetWebSession(ctx, types.GetWebSessionRequest{SessionID: session.GetName()})
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(session, cached))
+			assert.NoError(t, err)
+			assert.Empty(t, cmp.Diff(session, cached))
 		}
 	}, 15*time.Second, 100*time.Millisecond)
 
 	require.NoError(t, p.webSessionS.DeleteAll(ctx))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		for i := range 31 {
+		for i := 0; i < 31; i++ {
 			session, err := p.cache.GetWebSession(ctx, types.GetWebSessionRequest{SessionID: "web-session" + strconv.Itoa(i+1)})
-			require.Error(t, err)
-			require.Nil(t, session)
+			assert.Error(t, err)
+			assert.Nil(t, session)
 		}
 	}, 15*time.Second, 100*time.Millisecond)
 }

@@ -311,6 +311,7 @@ func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Cl
 	group.SetLimit(concurrentEKSEnrollingLimit)
 
 	for _, eksClusterName := range req.ClusterNames {
+		eksClusterName := eksClusterName
 
 		group.Go(func() error {
 			resourceId, issueType, err := enrollEKSCluster(ctx, log, clock, clt, proxyAddr, eksClusterName, req)
@@ -525,8 +526,10 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 		return false, trace.Wrap(err)
 	}
 
-	if slices.Contains(entries.AccessEntries, roleArn) {
-		return false, nil
+	for _, entry := range entries.AccessEntries {
+		if entry == roleArn {
+			return false, nil
+		}
 	}
 
 	createAccessEntryReq := &eks.CreateAccessEntryInput{
@@ -588,7 +591,7 @@ func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RES
 	// helm.action.Configuration requires a debug method that supports string interpolation (similar to fmt.XPrintf family of commands).
 	// > func(format string, v ...interface{})
 	// slog.Log does not support it, so it must be added
-	debugLogWithFormat := func(format string, v ...any) {
+	debugLogWithFormat := func(format string, v ...interface{}) {
 		if !log.Handler().Enabled(ctx, slog.LevelDebug) {
 			return
 		}

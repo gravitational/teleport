@@ -157,8 +157,10 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 
 func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) error {
-		testenv.WithClusterName("root")(o)
-		testenv.WithConfig(func(cfg *servicecfg.Config) {
+		if err := testenv.WithClusterName("root")(o); err != nil {
+			return err
+		}
+		if err := testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
@@ -166,8 +168,9 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
-		})(o)
-
+		})(o); err != nil {
+			return err
+		}
 		return nil
 	}
 }

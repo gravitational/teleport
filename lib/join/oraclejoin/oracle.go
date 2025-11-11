@@ -36,9 +36,9 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/common"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
-	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -50,7 +50,7 @@ type CheckChallengeSolutionParams struct {
 	// Solution is the client's full solution to the challenge.
 	Solution *messages.OracleChallengeSolution
 	// ProvisionToken is the token being used for the request.
-	ProvisionToken provision.Token
+	ProvisionToken types.ProvisionToken
 	// RootCACache caches Oracle root CAs per region.
 	RootCACache *RootCACache
 	// HTTPClient (optional) is an HTTP client that will be used to send

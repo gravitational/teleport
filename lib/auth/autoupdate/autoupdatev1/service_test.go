@@ -363,17 +363,6 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
-			name: "GetAutoUpdateBotInstanceReport",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthUnauthorized,
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindBotInstance,
-			allowedVerbs: []string{types.VerbList},
-		},
-		{
 			name: "DeleteAutoUpdateBotInstanceReport",
 			allowedStates: []authz.AdminActionAuthState{
 				authz.AdminActionAuthNotRequired,

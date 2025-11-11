@@ -411,7 +411,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			clusterName, err := auth.authServer.GetClusterName(auth.CloseContext())
+			clusterName, err := auth.GetClusterName(auth.CloseContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -6066,8 +6066,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
 		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer,
-		Logger:     logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
@@ -6130,11 +6128,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
 
 	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-		Authorizer:         cfg.Authorizer,
-		AuthService:        cfg.AuthServer,
-		FIPS:               cfg.AuthServer.fips,
-		ScopedTokenService: cfg.AuthServer.Services,
-		OracleHTTPClient:   cfg.OracleHTTPClient,
+		Authorizer:       cfg.Authorizer,
+		AuthService:      cfg.AuthServer,
+		FIPS:             cfg.AuthServer.fips,
+		OracleHTTPClient: cfg.OracleHTTPClient,
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
@@ -6455,23 +6452,30 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchUnstructuredEvents(
-		ctx,
-		events.SearchEventsRequest{
-			From:       req.StartDate.AsTime(),
-			To:         req.EndDate.AsTime(),
-			EventTypes: req.EventTypes,
-			Limit:      int(req.Limit),
-			Order:      types.EventOrder(req.Order),
-			StartKey:   req.StartKey,
-		},
-	)
+
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       req.StartDate.AsTime(),
+		To:         req.EndDate.AsTime(),
+		EventTypes: req.EventTypes,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	unstructuredEvents := make([]*auditlogpb.EventUnstructured, 0, len(rawEvents))
+	for _, event := range rawEvents {
+		unstructuredEvent, err := apievents.ToUnstructured(event)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		unstructuredEvents = append(unstructuredEvents, unstructuredEvent)
+	}
+
 	return &auditlogpb.EventsUnstructured{
-		Items:   rawEvents,
+		Items:   unstructuredEvents,
 		LastKey: lastkey,
 	}, nil
 }
@@ -6543,31 +6547,4 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 			return trail.ToGRPC(trace.Wrap(err))
 		}
 	}
-}
-
-// ValidateTrustedCluster is called by the Proxy when a leaf cluster is
-// requesting to join.
-func (g *GRPCServer) ValidateTrustedCluster(
-	ctx context.Context,
-	req *authpb.ValidateTrustedClusterRequest,
-) (*authpb.ValidateTrustedClusterResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	nativeReq := authclient.ValidateTrustedClusterRequestFromProto(req)
-	nativeResp, err := auth.ValidateTrustedCluster(ctx, nativeReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	protoResp, err := nativeResp.ToProto()
-	if err != nil {
-		return nil, trace.Wrap(
-			err,
-			"converting native ValidateTrustedClusterResponse to proto representation",
-		)
-	}
-
-	return protoResp, nil
 }

@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -273,8 +272,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRotatedKeyParser()
 		case types.KindRelayServer:
 			parser = newRelayServerParser()
-		case types.KindScopedToken:
-			parser = newScopedTokenParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -438,7 +435,12 @@ func (p baseParser) prefixes() []backend.Key {
 }
 
 func (p baseParser) match(key backend.Key) bool {
-	return slices.ContainsFunc(p.matchPrefixes, key.HasPrefix)
+	for _, prefix := range p.matchPrefixes {
+		if key.HasPrefix(prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAuthorityParser {

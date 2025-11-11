@@ -1,3 +1,5 @@
+//go:build go1.24 && enablesynctest
+
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -69,8 +71,12 @@ func TestGetTargetHealth(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				worker, err := newWorker(t.Context(), workerConfig{
+			synctest.Run(func() {
+				// TODO(gavin): use t.Context() once we bump to go1.25 which adds synctest.Test(t, func(t *testing.T) { ... })
+				// See https://github.com/golang/go/issues/74837#issuecomment-3177146173 for more info
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				worker, err := newWorker(ctx, workerConfig{
 					HealthCheckCfg: test.healthCheckConfig,
 					Target: Target{
 						HealthChecker: &TargetDialer{

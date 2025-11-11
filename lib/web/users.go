@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-func (h *Handler) updateUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) updateUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -46,7 +46,7 @@ func (h *Handler) updateUserHandle(w http.ResponseWriter, r *http.Request, param
 	return updateUser(r, clt)
 }
 
-func (h *Handler) createUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) createUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -56,7 +56,7 @@ func (h *Handler) createUserHandle(w http.ResponseWriter, r *http.Request, param
 }
 
 // TODO(rudream): DELETE IN V21.0.0
-func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -106,7 +106,15 @@ func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params
 	}, nil
 }
 
-func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+// listUsersResponse is the response for the list users request.
+type listUsersResponse struct {
+	// Items is the list of users retrieved.
+	Items []ui.UserListEntry `json:"items"`
+	// StartKey is the position from which to resume search.
+	StartKey string `json:"startKey"`
+}
+
+func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -119,7 +127,7 @@ func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params h
 	return getUser(r.Context(), username, clt)
 }
 
-func (h *Handler) deleteUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) deleteUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -264,14 +272,6 @@ func getUsers(ctx context.Context, m userAPIGetter) ([]ui.UserListEntry, error) 
 	return uiUsers, nil
 }
 
-// listUsersResponse is the response for the list users request.
-type listUsersResponse struct {
-	// Items is the list of users retrieved.
-	Items []ui.UserListEntry `json:"items"`
-	// StartKey is the position from which to resume search.
-	StartKey string `json:"startKey"`
-}
-
 func getUser(ctx context.Context, username string, m userAPIGetter) (*ui.User, error) {
 	user, err := m.GetUser(ctx, username, false)
 	if err != nil {
@@ -316,7 +316,7 @@ type privilegeTokenRequest struct {
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.
-func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) createPrivilegeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req privilegeTokenRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

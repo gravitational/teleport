@@ -70,6 +70,8 @@ message AccessMonitoringRuleSpec {
 
   // schedules specifies a map of schedules that can be used to configure the
   // access monitoring rule conditions.
+  //
+  // Available in Teleport v18.2.8 or higher.
   map<string, Schedule> schedules = 8;
 }
 

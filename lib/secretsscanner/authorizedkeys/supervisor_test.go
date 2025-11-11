@@ -23,7 +23,6 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -32,19 +31,16 @@ import (
 )
 
 func TestSupervisorRunner(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		clock := clockwork.NewRealClock()
+	// Create a mock clock
+	clock := clockwork.NewFakeClock()
 
-		ctx, cancel := context.WithCancel(t.Context())
+	t.Run("runner starts and stops based on monitor state", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		var mu sync.Mutex
 		var running bool
-		readRunning := func() bool {
-			mu.Lock()
-			defer mu.Unlock()
-			return running
-		}
+
 		runner := func(ctx context.Context) error {
 			mu.Lock()
 			running = true
@@ -72,34 +68,42 @@ func TestSupervisorRunner(t *testing.T) {
 			return supervisorRunner(ctx, cfg)
 		})
 
-		// initially enabled
-		synctest.Wait()
+		require.Eventually(t, func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return running
+		}, 100*time.Millisecond, 10*time.Millisecond, "expected runner to start, but it did not")
 
-		require.True(t, readRunning(), "expected runner to be running, but it is not")
-
-		// disable runner
 		disable()
 
-		time.Sleep(2 * time.Second)
-		synctest.Wait()
+		clock.BlockUntil(1)
+		clock.Advance(2 * time.Second)
 
-		require.False(t, readRunning(), "expected runner to be stopped, but it is running")
+		require.Eventually(t, func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return !running
+		}, 100*time.Millisecond, 10*time.Millisecond, "expected runner to stop, but it did not")
 
-		// re-enable runner
 		enable()
+		clock.BlockUntil(1)
+		clock.Advance(2 * time.Second)
 
-		time.Sleep(2 * time.Second)
-		synctest.Wait()
+		require.Eventually(t, func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return running
+		}, 100*time.Millisecond, 10*time.Millisecond, "expected runner to re-start, but it did not")
 
-		require.True(t, readRunning(), "expected runner to be running, but it is not")
-
-		// disable runner again
 		disable()
+		clock.BlockUntil(1)
+		clock.Advance(2 * time.Second)
 
-		time.Sleep(2 * time.Second)
-		synctest.Wait()
-
-		require.False(t, readRunning(), "expected runner to be stopped, but it is running")
+		require.Eventually(t, func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return !running
+		}, 100*time.Millisecond, 10*time.Millisecond, "expected runner to re-stop, but it did not")
 
 		// Cancel the context to stop the supervisor
 		cancel()

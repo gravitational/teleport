@@ -42,7 +42,7 @@ type DiscoveryConfig struct {
 	// AccessGraph is the configuration for the Access Graph Cloud sync.
 	AccessGraph *types.AccessGraphSync `json:"accessGraph,omitempty"`
 	// Status is the status of the DiscoveryConfig.
-	Status discoveryconfig.Status `json:"status"`
+	Status discoveryconfig.Status `json:"status,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.

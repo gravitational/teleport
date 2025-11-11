@@ -99,7 +99,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsAlreadyExists(err))
 			},
@@ -113,7 +113,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -127,7 +127,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does not exist.
 				return nil, trace.NotFound("")
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -152,7 +152,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -420,8 +420,8 @@ func TestRoleCRUD(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting roles")
 
 	assert.Empty(t, getResponse.StartKey)
-	for _, item := range getResponse.Items.([]any) {
-		assert.NotEqual(t, "test-role", item.(map[string]any)["name"], "expected test-role to be deleted")
+	for _, item := range getResponse.Items.([]interface{}) {
+		assert.NotEqual(t, "test-role", item.(map[string]interface{})["name"], "expected test-role to be deleted")
 	}
 
 	// Validate that attempting to retrieve a deleted role yields a NotFound error.
@@ -719,6 +719,7 @@ func TestListResources(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -22,10 +22,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -250,7 +248,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 	case app.IsTCP():
 		appNameWithOptionalTargetPort := app.GetName()
 		if routeToApp.TargetPort != 0 {
-			appNameWithOptionalTargetPort = net.JoinHostPort(app.GetName(), strconv.Itoa(int(routeToApp.GetTargetPort())))
+			appNameWithOptionalTargetPort = fmt.Sprintf("%s:%d", app.GetName(), routeToApp.TargetPort)
 		}
 
 		return tcpAppLoginTemplate.Execute(output, map[string]string{
@@ -283,7 +281,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return webAppLoginTemplate.Execute(output, map[string]any{
+		return webAppLoginTemplate.Execute(output, map[string]interface{}{
 			"appName":  app.GetName(),
 			"curlCmd":  curlCmd,
 			"insecure": cf.InsecureSkipVerify,

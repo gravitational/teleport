@@ -8,14 +8,10 @@ tags:
  - azure
 ---
 
-{/* vale 3rd-party-products.former-names = NO */}
-
 This guide shows how to configure Microsoft Entra ID (formerly Azure AD) as an 
 OIDC identity provider for Teleport. With this configuration, users can access 
 Teleport by authenticating with Entra ID, and be granted with permissions to 
 access or manage resource in Teleport based on their group membership in Entra ID.
-
-{/* vale 3rd-party-products.former-names = YES */}
 
 A SAML-based Entra ID IdP configuration version is available in this [guide](entra-id.mdx).
 
@@ -163,14 +159,10 @@ Entra ID are preserved as user's traits in the user resource.
 
 ### (Optional) Groups overage claim
 
-{/* vale 3rd-party-products.former-names = NO */}
-
 If user's group membership exceeds the 200 group limit, Microsoft Entra ID issues a
 groups overage claim instead of the expected `groups` claim. The groups overage 
 claim contains an Azure AD Graph API link, which indicates that the user's group 
 membership is to be queried from the Microsoft Graph API. 
-
-{/* vale 3rd-party-products.former-names = YES */}
 
 If your user's group membership do not exceed the group limit, you can skip this
 step. Otherwise, you will need to grant Teleport with a Microsoft Graph API 

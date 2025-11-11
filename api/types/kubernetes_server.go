@@ -58,12 +58,6 @@ type KubeServer interface {
 	SetCluster(KubeCluster) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
-	// GetRelayGroup returns the name of the Relay group that the kube server is
-	// connected to.
-	GetRelayGroup() string
-	// GetRelayIDs returns the list of Relay host IDs that the kube server is
-	// connected to.
-	GetRelayIDs() []string
 	// GetTargetHealth gets health details for a target Kubernetes cluster.
 	GetTargetHealth() *TargetHealth
 	// SetTargetHealth sets health details for a target Kubernetes cluster.
@@ -72,6 +66,12 @@ type KubeServer interface {
 	GetTargetHealthStatus() TargetHealthStatus
 	// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
 	SetTargetHealthStatus(status TargetHealthStatus)
+	// GetRelayGroup returns the name of the Relay group that the kube server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the kube server is
+	// connected to.
+	GetRelayIDs() []string
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.

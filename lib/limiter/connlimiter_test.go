@@ -29,42 +29,42 @@ import (
 func TestConnectionsLimiter(t *testing.T) {
 	l := limiter.NewConnectionsLimiter(0)
 
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		require.NoError(t, l.AcquireConnection("token1"))
 	}
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		require.NoError(t, l.AcquireConnection("token2"))
 	}
 
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		l.ReleaseConnection("token1")
 	}
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		l.ReleaseConnection("token2")
 	}
 
 	l = limiter.NewConnectionsLimiter(5)
 
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		require.NoError(t, l.AcquireConnection("token1"))
 	}
 
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		require.NoError(t, l.AcquireConnection("token2"))
 	}
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		require.Error(t, l.AcquireConnection("token2"))
 	}
 
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		l.ReleaseConnection("token1")
 		require.NoError(t, l.AcquireConnection("token1"))
 	}
 
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		l.ReleaseConnection("token2")
 	}
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		require.NoError(t, l.AcquireConnection("token2"))
 	}
 }

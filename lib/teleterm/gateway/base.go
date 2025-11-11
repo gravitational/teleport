@@ -21,6 +21,7 @@ package gateway
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"log/slog"
 	"net"
 	"strconv"
@@ -230,7 +231,7 @@ type TCPPortAllocator interface {
 type NetTCPPortAllocator struct{}
 
 func (n NetTCPPortAllocator) Listen(localAddress, port string) (net.Listener, error) {
-	listener, err := net.Listen("tcp", net.JoinHostPort(localAddress, port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", localAddress, port))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -469,7 +469,10 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 func chunkInstances(insts EC2Instances) []Instances {
 	var instColl []Instances
 	for i := 0; i < len(insts.Instances); i += awsEC2APIChunkSize {
-		end := min(i+awsEC2APIChunkSize, len(insts.Instances))
+		end := i + awsEC2APIChunkSize
+		if end > len(insts.Instances) {
+			end = len(insts.Instances)
+		}
 		inst := EC2Instances{
 			AccountID:           insts.AccountID,
 			Region:              insts.Region,
@@ -511,7 +514,10 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 
 		for _, res := range page.Reservations {
 			for i := 0; i < len(res.Instances); i += awsEC2APIChunkSize {
-				end := min(i+awsEC2APIChunkSize, len(res.Instances))
+				end := i + awsEC2APIChunkSize
+				if end > len(res.Instances) {
+					end = len(res.Instances)
+				}
 				ownerID := aws.ToString(res.OwnerId)
 				inst := EC2Instances{
 					AccountID:           ownerID,

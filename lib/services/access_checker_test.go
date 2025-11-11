@@ -601,101 +601,6 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 	require.Equal(t, expectedShell, hui.Shell)
 }
 
-func TestAccessCheckerDesktopGroups(t *testing.T) {
-	localCluster := "cluster"
-
-	allowCreateNoGroups := newRole(func(r *types.RoleV6) { r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true) })
-	denyUserCreation := newRole(func(r *types.RoleV6) { r.Spec.Options.CreateDesktopUser = types.NewBoolOption(false) })
-	allowGroupA := newRole(func(r *types.RoleV6) {
-		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
-		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"a"}}
-		r.Spec.Allow.DesktopGroups = []string{"groupA"}
-	})
-	allowGroupB := newRole(func(r *types.RoleV6) {
-		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
-		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"b"}}
-		r.Spec.Allow.DesktopGroups = []string{"groupB"}
-	})
-	allowABC := newRole(func(r *types.RoleV6) {
-		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
-		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"all"}}
-		r.Spec.Allow.DesktopGroups = []string{"groupA", "groupB", "groupC"}
-	})
-	denyGroupB := newRole(func(r *types.RoleV6) {
-		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
-		r.Spec.Allow.WindowsDesktopLabels = types.Labels{"group": []string{"all"}}
-
-		r.Spec.Deny.WindowsDesktopLabels = types.Labels{"denygroup": []string{"b"}}
-		r.Spec.Deny.DesktopGroups = []string{"groupB"}
-	})
-	denyGroupC := newRole(func(r *types.RoleV6) {
-		r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
-
-		r.Spec.Deny.WindowsDesktopLabels = types.Labels{"denygroup": []string{"c"}}
-		r.Spec.Deny.DesktopGroups = []string{"groupC"}
-	})
-
-	for _, test := range []struct {
-		name          string
-		roles         RoleSet
-		desktopLabels map[string]string
-		wantGroups    []string
-		assert        require.ErrorAssertionFunc
-	}{
-		{
-			name:       "empty groups",
-			roles:      NewRoleSet(allowCreateNoGroups),
-			wantGroups: []string{},
-			assert:     require.NoError,
-		},
-		{
-			name:          "multiple groups",
-			roles:         NewRoleSet(allowABC),
-			desktopLabels: map[string]string{"group": "all"},
-			wantGroups:    []string{"groupA", "groupB", "groupC"},
-			assert:        require.NoError,
-		},
-		{
-			name:          "only considers matching labels",
-			roles:         NewRoleSet(allowGroupA, allowGroupB),
-			desktopLabels: map[string]string{"group": "a"},
-			wantGroups:    []string{"groupA"},
-			assert:        require.NoError,
-		},
-		{
-			name:          "denied groups are removed",
-			roles:         NewRoleSet(allowABC, denyGroupB, denyGroupC),
-			desktopLabels: map[string]string{"group": "all", "denygroup": "b"},
-			// B gets removed due to deny rule, but C doesn't since labels don't match
-			wantGroups: []string{"groupA", "groupC"},
-			assert:     require.NoError,
-		},
-		{
-			name:          "error if user creation is disabled",
-			roles:         NewRoleSet(allowCreateNoGroups, denyUserCreation),
-			desktopLabels: map[string]string{},
-			wantGroups:    nil,
-			assert:        require.Error,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			desktop, err := types.NewWindowsDesktopV3("test-desktop", test.desktopLabels, types.WindowsDesktopSpecV3{
-				Addr: "example.com:3389",
-			})
-			require.NoError(t, err)
-
-			ac := NewAccessCheckerWithRoleSet(&AccessInfo{}, localCluster, test.roles)
-			groups, err := ac.DesktopGroups(desktop)
-			require.ElementsMatch(t, test.wantGroups, groups)
-			test.assert(t, err)
-
-			if err == nil {
-				require.NotNil(t, groups, "desktop groups should never be nil, use an empty slice instead")
-			}
-		})
-	}
-}
-
 func TestSSHPortForwarding(t *testing.T) {
 	anyLabels := types.Labels{"*": {"*"}}
 	localCluster := "cluster"
@@ -1004,6 +909,90 @@ func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 	}
 }
 
+func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
+	const localCluster = "cluster"
+
+	tests := []struct {
+		info         *AccessInfo
+		name         string
+		resource     types.AppServerV3
+		assertAccess require.ErrorAssertionFunc
+	}{
+		{
+			name: "matches kind and subkind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindApp,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: require.NoError,
+		},
+		{
+			name: "unmatched subkind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind: types.KindApp,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+		{
+			name: "unmatched kind",
+			info: &AccessInfo{
+				AllowedResourceIDs: []types.ResourceID{
+					{
+						Kind:        types.KindIdentityCenterAccount,
+						ClusterName: localCluster,
+						Name:        "aws-dev",
+					},
+				},
+			},
+			resource: types.AppServerV3{
+				Kind:    types.KindAppSession,
+				SubKind: types.KindIdentityCenterAccount,
+				Metadata: types.Metadata{
+					Name: "aws-dev",
+				},
+			},
+			assertAccess: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "not in allowed resource IDs")
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
+			tc.assertAccess(t, accessChecker.CheckAccess(
+				&tc.resource,
+				AccessState{MFARequired: MFARequiredNever},
+			))
+		})
+	}
+}
+
 func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
 	roleEmptyTools := newRole(func(rv *types.RoleV6) {
 		rv.SetName("empty")
@@ -1075,90 +1064,6 @@ func TestAccessChecker_EnumerateMCPTools(t *testing.T) {
 				enumResult := accessChecker.EnumerateMCPTools(tt.mcpServer)
 				require.Equal(t, tt.result, enumResult)
 			})
-		})
-	}
-}
-
-func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
-	const localCluster = "cluster"
-
-	tests := []struct {
-		info         *AccessInfo
-		name         string
-		resource     types.AppServerV3
-		assertAccess require.ErrorAssertionFunc
-	}{
-		{
-			name: "matches kind and subkind",
-			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind:    types.KindApp,
-				SubKind: types.KindIdentityCenterAccount,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: require.NoError,
-		},
-		{
-			name: "unmatched subkind",
-			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind: types.KindApp,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "not in allowed resource IDs")
-			},
-		},
-		{
-			name: "unmatched kind",
-			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceID{
-					{
-						Kind:        types.KindIdentityCenterAccount,
-						ClusterName: localCluster,
-						Name:        "aws-dev",
-					},
-				},
-			},
-			resource: types.AppServerV3{
-				Kind:    types.KindAppSession,
-				SubKind: types.KindIdentityCenterAccount,
-				Metadata: types.Metadata{
-					Name: "aws-dev",
-				},
-			},
-			assertAccess: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "not in allowed resource IDs")
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			accessChecker := NewAccessCheckerWithRoleSet(tc.info, localCluster, NewRoleSet(newRole(func(rv *types.RoleV6) {})))
-			tc.assertAccess(t, accessChecker.CheckAccess(
-				&tc.resource,
-				AccessState{MFARequired: MFARequiredNever},
-			))
 		})
 	}
 }

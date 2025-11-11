@@ -76,14 +76,13 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
-	clickhouse "github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
@@ -96,9 +95,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	redisprotocol "github.com/gravitational/teleport/lib/srv/db/redis/protocol"
-	redis "github.com/gravitational/teleport/lib/srv/db/redis/protocoltest"
+	redis "github.com/gravitational/teleport/lib/srv/db/redis/testing"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
-	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest"
+	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/testing"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1032,6 +1031,7 @@ func TestAccessMongoDB(t *testing.T) {
 	// Execute each scenario on both modern and legacy Mongo servers
 	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
+		test := test
 		t.Run(fmt.Sprintf("%v", test.desc), func(t *testing.T) {
 			t.Parallel()
 
@@ -1043,6 +1043,7 @@ func TestAccessMongoDB(t *testing.T) {
 				testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
 
 				for _, clientOpt := range clientOpts {
+					clientOpt := clientOpt
 
 					t.Run(fmt.Sprintf("%v/%v", serverOpt.name, clientOpt.name), func(t *testing.T) {
 						t.Parallel()
@@ -1258,6 +1259,7 @@ func TestRedisPubSub(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -1337,7 +1339,7 @@ func TestRedisPipeline(t *testing.T) {
 	pipeliner := redisClient.Pipeline()
 
 	// Set multiple keys using pipelining.
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		err := pipeliner.Set(ctx, fmt.Sprintf("foo%d", i), i, 0).Err()
 		require.NoError(t, err)
 	}
@@ -1349,7 +1351,7 @@ func TestRedisPipeline(t *testing.T) {
 		require.NoError(t, cmd.Err())
 	}
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		err := pipeliner.Get(ctx, fmt.Sprintf("foo%d", i)).Err()
 		require.NoError(t, err)
 	}
@@ -1404,7 +1406,7 @@ func TestRedisTransaction(t *testing.T) {
 			return err
 		}
 
-		for range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err := redisClient.Watch(ctx, txf, key)
 			if err == nil {
 				// Success.
@@ -1429,7 +1431,7 @@ func TestRedisTransaction(t *testing.T) {
 	asyncErrors := make(chan error, concurrentConnections)
 	defer close(asyncErrors)
 
-	for range concurrentConnections {
+	for i := 0; i < concurrentConnections; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -2238,7 +2240,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t testing.TB, userN
 
 // makeTLSConfig returns tls configuration for the test's tls listener.
 func (c *testContext) makeTLSConfig(t testing.TB) *tls.Config {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, nil, time.Now)
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil)
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
 	require.NoError(t, err)
@@ -2627,7 +2629,6 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		InventoryHandle:           inventoryHandle,
 		discoveryResourceChecker:  p.DiscoveryResourceChecker,
 		getEngineFn:               p.GetEngineFn,
-		ConnectedProxyGetter:      reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 

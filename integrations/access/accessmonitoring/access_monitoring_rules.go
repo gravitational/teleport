@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -182,7 +182,7 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 
 func (amrh *RuleHandler) recipients(ctx context.Context, req types.AccessRequest) ([]string, error) {
 	log := logger.Get(ctx)
-	recipientSet := set.New[string]()
+	recipientSet := utils.NewSet[string]()
 
 	env, err := amrh.newExpressionEnv(ctx, req)
 	if err != nil {

@@ -21,10 +21,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 )
 
 const (
@@ -164,20 +166,11 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 		"id", s.ID,
 		"index", s.Index,
 	)
+	backoff := backoff.NewDecorr(sessionBackoffBase, sessionBackoffMax, clockwork.NewRealClock())
 	attempt := sessionBackoffNumTries
 
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(sessionBackoffBase),
-		First:  sessionBackoffBase,
-		Max:    sessionBackoffMax,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	for {
-		shouldRetry, err := j.consumeSession(ctx, s)
+		retry, err := j.consumeSession(ctx, s)
 		switch {
 		case trace.IsNotFound(err):
 			// If the session was not found, and it was from more
@@ -194,7 +187,7 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 			// Otherwise, mark that the session was failed to be processed
 			// so that it can be tried again in the background.
 			return trace.NewAggregate(j.app.State.SetMissingRecording(s, processingAttempt+1), j.app.State.RemoveSession(s.ID))
-		case err != nil && shouldRetry:
+		case err != nil && retry:
 			// If the number of retries has been exceeded, then
 			// abort processing the session any further.
 			attempt--
@@ -213,10 +206,8 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 			)
 
 			// Perform backoff before retrying the session again.
-			select {
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			case <-retry.After():
+			if err := backoff.Do(ctx); err != nil {
+				return trace.Wrap(err)
 			}
 		case err != nil:
 			// Abort on any errors that don't require a retry.

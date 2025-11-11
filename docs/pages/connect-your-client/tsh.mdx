@@ -1,6 +1,5 @@
 ---
 title: Using the tsh Command Line Tool
-sidebar_label: tsh Command Line Tool
 description: This reference shows you how to use Teleport's tsh tool to authenticate to a cluster, explore your infrastructure, and connect to a resource.
 tags:
  - conceptual
@@ -21,8 +20,10 @@ In addition to this document, you can type `tsh` into your terminal for
 the CLI reference, or explore the [`tsh` CLI
 Reference](../reference/cli/tsh.mdx#tsh-login) in the documentation.
 
+{/*TODO: update this to the Access Request user guide when this is available*/}
+
 You can also use `tsh` to manage Access Requests. For instructions, see
-[Request Access to Roles and Resources](./request-access.mdx).
+[Access Requests](../identity-governance/access-requests/access-requests.mdx).
 
 ## Installing tsh
 
@@ -469,12 +470,13 @@ every day. This doesn't work for non-interactive scripts, like cron jobs or a
 CI/CD pipeline.
 
 The most secure way to generate certificates for automation purposes is to use
-[Machine ID](../machine-workload-identity/machine-id/introduction.mdx). This ensures that your automation
-is taking advantage of the security properties of short-lived credentials.
+[Machine & Workload Identity](../machine-workload-identity/machine-id/introduction.mdx).
+This ensures that your automation is taking advantage of the security properties
+of short-lived credentials.
 
-If Machine ID does not support your preferred CI/CD platform, you can create a
-local user for use in automation and request a long-lived certificate for that
-user.
+If Machine & Workload Identity does not support your preferred CI/CD platform,
+you can create a local user for use in automation and request a long-lived
+certificate for that user.
 
 In this example, we're creating a certificate with a TTL of one hour for the
 `jenkins` user and storing it in a `jenkins.pem` file, which can be later used with

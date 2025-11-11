@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -341,6 +342,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case legacyspiffe.WorkloadAPIServiceType:
+			v := &legacyspiffe.WorkloadAPIConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		case database.TunnelServiceType:
 			v := &database.TunnelConfig{}
 			if err := node.Decode(v); err != nil {
@@ -368,6 +375,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		case k8s.ArgoCDOutputServiceType:
 			v := &k8s.ArgoCDOutputConfig{}
 			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case legacyspiffe.SVIDOutputServiceType:
+			v := &legacyspiffe.SVIDOutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -576,7 +589,22 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 
 	switch version.Version {
 	case V1, "":
-		return nil, trace.BadParameter("configuration version v1 is no longer supported")
+		if !manualMigration {
+			log.WarnContext(
+				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration using `tbot migrate`.")
+		}
+		config := &configV1{}
+		if err := decoder.Decode(config); err != nil {
+			return nil, trace.BadParameter("failed parsing config file: %s", strings.ReplaceAll(err.Error(), "\n", ""))
+		}
+		latestConfig, err := config.migrate()
+		if err != nil {
+			return nil, trace.WithUserMessage(
+				trace.Wrap(err, "migrating v1 config"),
+				"Failed to migrate. Please contact Teleport support or use https://goteleport.com/docs/reference/machine-id/configuration/ to manually migrate your configuration.",
+			)
+		}
+		return latestConfig, nil
 	case V2:
 		if manualMigration {
 			return nil, trace.BadParameter("configuration already the latest version. nothing to migrate.")

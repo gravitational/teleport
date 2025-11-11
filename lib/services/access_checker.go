@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net"
 	"slices"
 	"strings"
@@ -44,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -748,20 +746,18 @@ func (result *checkDatabaseRolesResult) allowedRoles() []string {
 		return nil
 	}
 
-	rolesMap := set.New[string]()
+	rolesMap := make(map[string]struct{})
 	for _, role := range result.allowedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
-			rolesMap.Add(dbRole)
+			rolesMap[dbRole] = struct{}{}
 		}
 	}
 	for _, role := range result.deniedRoleSet {
 		for _, dbRole := range role.GetDatabaseRoles(types.Deny) {
-			rolesMap.Remove(dbRole)
+			delete(rolesMap, dbRole)
 		}
 	}
-	// The database user provisioning code is picky - it requires a non-nil
-	// slice of roles, because this value is passed directly to a SQL query.
-	return rolesMap.ElementsNotNil()
+	return utils.StringsSliceFromSet(rolesMap)
 }
 
 func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatabaseRolesResult, error) {
@@ -801,6 +797,7 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 			continue
 		}
 		deniedRoleSet = append(deniedRoleSet, role)
+
 	}
 
 	// The collected role list can be empty and that should be ok, we want to
@@ -1139,7 +1136,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 
 // DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
 func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
-	groups := set.New[string]()
+	groups := make(map[string]struct{})
 	for _, role := range a.RoleSet {
 		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
@@ -1156,7 +1153,7 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
 		for _, group := range role.GetDesktopGroups(types.Allow) {
-			groups.Add(group)
+			groups[group] = struct{}{}
 		}
 	}
 	for _, role := range a.RoleSet {
@@ -1168,14 +1165,11 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 			continue
 		}
 		for _, group := range role.GetDesktopGroups(types.Deny) {
-			groups.Remove(group)
+			delete(groups, group)
 		}
 	}
 
-	// These groups get encoded into a certificate that's parsed by
-	// Rust code on Windows. That code expects an empty JSON array,
-	// not a null value.
-	return groups.ElementsNotNil(), nil
+	return utils.StringsSliceFromSet(groups), nil
 }
 
 func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {
@@ -1192,7 +1186,7 @@ func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
-	groups := set.New[string]()
+	groups := make(map[string]struct{})
 	shellToRoles := make(map[string][]string)
 	var shell string
 	var mode types.CreateHostUserMode
@@ -1239,7 +1233,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 		}
 
 		for _, group := range role.GetHostGroups(types.Allow) {
-			groups.Add(group)
+			groups[group] = struct{}{}
 		}
 	}
 
@@ -1264,7 +1258,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 			continue
 		}
 		for _, group := range role.GetHostGroups(types.Deny) {
-			groups.Remove(group)
+			delete(groups, group)
 		}
 	}
 
@@ -1281,7 +1275,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, er
 	}
 
 	return &decisionpb.HostUsersInfo{
-		Groups: groups.Elements(),
+		Groups: utils.StringsSliceFromSet(groups),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
@@ -1368,9 +1362,10 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 	}
 
 	// make a shallow copy of traits to avoid modifying the original
-	// (don't use maps.Clone, as we want to ensure the result is an empty, but not nil, map)
 	traits := make(map[string][]string, len(unmappedIdentity.Traits)+1)
-	maps.Copy(traits, unmappedIdentity.Traits)
+	for k, v := range unmappedIdentity.Traits {
+		traits[k] = v
+	}
 
 	// Prior to Teleport 6.2 the only trait passed to the remote cluster
 	// was the "logins" trait set to the SSH certificate principals.

@@ -166,7 +166,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 			a.RemoteClusterRefreshBuckets(5)
 
 			allClusters := make(map[string]types.RemoteCluster)
-			for i := range tt.clustersTotal {
+			for i := 0; i < tt.clustersTotal; i++ {
 				rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%03d", i))
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				require.NoError(t, err)

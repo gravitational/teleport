@@ -17,17 +17,17 @@
  */
 
 import {
-  IPtyProcess,
   PtyProcessCreationStatus,
   PtyServiceClient,
 } from 'teleterm/services/pty';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 
 export class MockPtyProcess implements IPtyProcess {
-  async start() {}
+  start() {}
 
-  async write() {}
+  write() {}
 
-  async resize() {}
+  resize() {}
 
   async dispose() {}
 

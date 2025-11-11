@@ -289,7 +289,8 @@ func TestPing_autoUpdateResources(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testGroup := "test-group"
 	testUpdaterID := uuid.NewString()

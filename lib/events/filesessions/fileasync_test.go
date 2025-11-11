@@ -424,7 +424,7 @@ func TestUploadBackoff(t *testing.T) {
 	attempts := 10
 	var prev time.Time
 	var diffs []time.Duration
-	for i := range attempts {
+	for i := 0; i < attempts; i++ {
 		// wait for the upload event
 		var event events.UploadEvent
 		select {
@@ -968,7 +968,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
 
-	for i := range testCase.retries {
+	for i := 0; i < testCase.retries; i++ {
 		if testCase.onRetry != nil {
 			testCase.onRetry(t, i, uploader)
 		}

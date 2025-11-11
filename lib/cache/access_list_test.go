@@ -108,7 +108,7 @@ func TestAccessListMembers(t *testing.T) {
 
 	// Verify counting.
 	ctx := context.Background()
-	for i := range numMembers {
+	for i := 0; i < numMembers; i++ {
 		_, err = p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al.GetName(), strconv.Itoa(i)))
 		require.NoError(t, err)
 	}
@@ -287,10 +287,10 @@ func TestAccessListReviews(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-1", 100, "")
 		require.NoError(t, err)
-		require.Empty(t, next)
+		assert.Empty(t, next)
 
-		require.Len(t, out, 1)
-		require.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review1}, out,
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			protocmp.Transform()),
 		)
@@ -299,10 +299,10 @@ func TestAccessListReviews(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		out, next, err := p.cache.ListAccessListReviews(context.Background(), "fake-al-2", 100, "")
 		require.NoError(t, err)
-		require.Empty(t, next)
+		assert.Empty(t, next)
 
-		require.Len(t, out, 1)
-		require.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
+		assert.Len(t, out, 1)
+		assert.Empty(t, cmp.Diff([]*accesslist.Review{review2}, out,
 			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 			protocmp.Transform()),
 		)
@@ -315,7 +315,7 @@ func TestAccessListReviews(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		review := newAccessListReview(t, "access-list-test", "fake-review-"+strconv.Itoa(i))
 		review.Spec.Changes = accesslist.ReviewChanges{}
 		_, _, err = p.accessLists.CreateAccessListReview(t.Context(), review)
@@ -328,7 +328,7 @@ func TestAccessListReviews(t *testing.T) {
 
 		var start string
 		var out []*accesslist.Review
-		for range 10 {
+		for i := 0; i < 10; i++ {
 			page, next, err := p.cache.ListAccessListReviews(context.Background(), "access-list-test", 3, start)
 			require.NoError(t, err)
 
@@ -338,7 +338,7 @@ func TestAccessListReviews(t *testing.T) {
 			}
 			start = next
 		}
-		require.Len(t, out, 10)
+		assert.Len(t, out, 10)
 	}, 15*time.Second, 100*time.Millisecond)
 
 }
@@ -443,16 +443,16 @@ func TestListAccessListsV2(t *testing.T) {
 					},
 					SortBy: tc.sortBy,
 				})
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedNextKey, nextToken)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedNextKey, nextToken)
 
-				require.Len(t, results, len(tc.expectedNames))
+				assert.Len(t, results, len(tc.expectedNames))
 				actualNames := make([]string, len(results))
 				for i, al := range results {
 					actualNames[i] = al.GetName()
 				}
 
-				require.Equal(t, tc.expectedNames, actualNames)
+				assert.Equal(t, tc.expectedNames, actualNames)
 			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}

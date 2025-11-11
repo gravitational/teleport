@@ -440,7 +440,7 @@ func (r *RoleV6) GetLogins(rct RoleConditionType) []string {
 
 // SetLogins sets system logins for allow or deny condition.
 func (r *RoleV6) SetLogins(rct RoleConditionType, logins []string) {
-	lcopy := slices.Clone(logins)
+	lcopy := utils.CopyStrings(logins)
 
 	if rct == Allow {
 		r.Spec.Allow.Logins = lcopy
@@ -459,7 +459,7 @@ func (r *RoleV6) GetKubeGroups(rct RoleConditionType) []string {
 
 // SetKubeGroups sets kubernetes groups for allow or deny condition.
 func (r *RoleV6) SetKubeGroups(rct RoleConditionType, groups []string) {
-	lcopy := slices.Clone(groups)
+	lcopy := utils.CopyStrings(groups)
 
 	if rct == Allow {
 		r.Spec.Allow.KubeGroups = lcopy
@@ -663,7 +663,7 @@ func (r *RoleV6) GetKubeUsers(rct RoleConditionType) []string {
 
 // SetKubeUsers sets kubernetes user for allow or deny condition.
 func (r *RoleV6) SetKubeUsers(rct RoleConditionType, users []string) {
-	lcopy := slices.Clone(users)
+	lcopy := utils.CopyStrings(users)
 
 	if rct == Allow {
 		r.Spec.Allow.KubeUsers = lcopy
@@ -758,7 +758,7 @@ func (r *RoleV6) GetNamespaces(rct RoleConditionType) []string {
 
 // SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 func (r *RoleV6) SetNamespaces(rct RoleConditionType, namespaces []string) {
-	ncopy := slices.Clone(namespaces)
+	ncopy := utils.CopyStrings(namespaces)
 
 	if rct == Allow {
 		r.Spec.Allow.Namespaces = ncopy
@@ -1055,7 +1055,7 @@ func (r *RoleV6) GetWindowsLogins(rct RoleConditionType) []string {
 
 // SetWindowsLogins sets Windows desktop logins for the role's allow or deny condition.
 func (r *RoleV6) SetWindowsLogins(rct RoleConditionType, logins []string) {
-	lcopy := slices.Clone(logins)
+	lcopy := utils.CopyStrings(logins)
 
 	if rct == Allow {
 		r.Spec.Allow.WindowsDesktopLogins = lcopy
@@ -1093,7 +1093,7 @@ func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 
 // SetHostGroups sets all groups for provisioned user
 func (r *RoleV6) SetHostGroups(rct RoleConditionType, groups []string) {
-	ncopy := slices.Clone(groups)
+	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
 		r.Spec.Allow.HostGroups = ncopy
 	} else {
@@ -1111,7 +1111,7 @@ func (r *RoleV6) GetDesktopGroups(rct RoleConditionType) []string {
 
 // SetDesktopGroups sets all groups for provisioned user
 func (r *RoleV6) SetDesktopGroups(rct RoleConditionType, groups []string) {
-	ncopy := slices.Clone(groups)
+	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
 		r.Spec.Allow.DesktopGroups = ncopy
 	} else {
@@ -1129,7 +1129,7 @@ func (r *RoleV6) GetHostSudoers(rct RoleConditionType) []string {
 
 // GetHostSudoers sets the list of sudoers entries for the role
 func (r *RoleV6) SetHostSudoers(rct RoleConditionType, sudoers []string) {
-	ncopy := slices.Clone(sudoers)
+	ncopy := utils.CopyStrings(sudoers)
 	if rct == Allow {
 		r.Spec.Allow.HostSudoers = ncopy
 	} else {
@@ -2003,7 +2003,7 @@ func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
 	return roleConditions
 }
 
-// GetRequestReasonMode returns the request reason mode for the role.
+// GetRoleConditions returns the role conditions for the role.
 func (r *RoleV6) GetRequestReasonMode(rct RoleConditionType) RequestReasonMode {
 	roleConditions := r.GetRoleConditions(rct)
 	if roleConditions.Request == nil || roleConditions.Request.Reason == nil {

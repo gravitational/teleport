@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -47,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -71,7 +72,7 @@ type TLSServerConfig struct {
 	// GetRotation returns the certificate rotation state.
 	GetRotation services.RotationGetter
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// Log is the logger.
 	Log *slog.Logger
 	// Selectors is a list of resource monitor selectors.
@@ -144,9 +145,6 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.InventoryHandle == nil {
 		return trace.BadParameter("missing parameter InventoryHandle")
 	}
-	if c.ConnectedProxyGetter == nil {
-		return trace.BadParameter("missing parameter ConnectedProxyGetter")
-	}
 	if c.HealthCheckManager == nil {
 		return trace.BadParameter("missing parameter HealthCheckManager")
 	}
@@ -175,7 +173,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
 	}
-
+	if c.ConnectedProxyGetter == nil {
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
 	return nil
 }
 
@@ -245,7 +245,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &authz.Middleware{
+	authMiddleware := &auth.Middleware{
 		ClusterName:   clustername.GetClusterName(),
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 		// EnableCredentialsForwarding is set to true to allow the proxy to forward
@@ -254,8 +254,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		// to be able to replace the client identity with the header payload when
 		// the request is forwarded from a Teleport Proxy.
 		EnableCredentialsForwarding: true,
-		Handler:                     fwd,
 	}
+	authMiddleware.Wrap(fwd)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
@@ -381,31 +381,6 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	t.mu.Lock()
 	t.kubeClusterWatcher = kubeClusterWatcher
 	t.mu.Unlock()
-
-	if t.OnHeartbeat != nil {
-		// Kube uses heartbeat v2, which heartbeats resources but not the server itself
-		// If there are no resources, we will never report ready.
-		// We work around by reporting ready after the first successful watcher init.
-		var watcherWaiters []func() error
-		if kubeClusterWatcher != nil {
-			watcherWaiters = append(watcherWaiters, kubeClusterWatcher.WaitInitialization)
-		}
-		if t.KubernetesServersWatcher != nil {
-			watcherWaiters = append(watcherWaiters, t.KubernetesServersWatcher.WaitInitialization)
-		}
-		if len(watcherWaiters) > 0 {
-			go func() {
-				for _, w := range watcherWaiters {
-					err := w()
-					if err != nil {
-						t.OnHeartbeat(err)
-						return
-					}
-				}
-				t.OnHeartbeat(nil)
-			}()
-		}
-	}
 
 	// kubeServerWatcher is used by the kube proxy to watch for changes in the
 	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap

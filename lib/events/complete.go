@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -193,7 +194,10 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
 	// This is used for auth's upload completer and ensures that multiple auth servers do not
 	// attempt to complete the same uploads at the same time.
-	if u.cfg.ServerID != "" && u.cfg.Semaphores != nil {
+	// TODO(zmb3): remove the env var check once the semaphore is proven to be reliable
+	if u.cfg.Semaphores != nil && os.Getenv("TELEPORT_DISABLE_UPLOAD_COMPLETER_SEMAPHORE") == "" {
+		u.log.DebugContext(ctx, "acquiring semaphore in order to complete uploads", "server_id", u.cfg.ServerID)
+
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 

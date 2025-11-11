@@ -164,6 +164,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -294,6 +295,7 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -603,6 +605,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, scriptEndpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -1136,7 +1139,10 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	}
 
 	sliceStart := pageSize * (requestedPage - 1)
-	sliceEnd := min(pageSize*requestedPage, totalResources)
+	sliceEnd := pageSize * requestedPage
+	if sliceEnd > totalResources {
+		sliceEnd = totalResources
+	}
 
 	ret.DeployedDatabaseServices = services[sliceStart:sliceEnd]
 	if sliceEnd < totalResources {
@@ -1299,7 +1305,7 @@ func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 			},
 			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
 				var ret []ui.AWSOIDCDeployedDatabaseService
-				for i := range 1_024 {
+				for i := 0; i < 1_024; i++ {
 					ret = append(ret, ui.AWSOIDCDeployedDatabaseService{
 						Name:                fmt.Sprintf("database-service-vpc-%d", i),
 						DashboardURL:        "url",
@@ -1341,7 +1347,7 @@ func buildCommandDeployedDatabaseService(t *testing.T, valid bool, matchingLabel
 
 func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1.DeployedDatabaseService {
 	var ret []*integrationv1.DeployedDatabaseService
-	for i := range count {
+	for i := 0; i < count; i++ {
 		ret = append(ret, &integrationv1.DeployedDatabaseService{
 			Name:                fmt.Sprintf("database-service-vpc-%d", i),
 			ServiceDashboardUrl: "url",

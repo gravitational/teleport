@@ -138,7 +138,7 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		tags[clusterTagKey] = opts.ClusterName.GetClusterName()
 	}
 
-	clock := opts.Clock
+	clock := opts.clockworkOverride
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}

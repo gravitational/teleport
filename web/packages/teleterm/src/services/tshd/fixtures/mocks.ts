@@ -71,6 +71,7 @@ export class MockTshClient implements TshdClient {
       localConnectorName: '',
       clientVersionStatus: ClientVersionStatus.OK,
     });
+  removeCluster = () => new MockedUnaryCall({});
   login = () => new MockedUnaryCall({});
   loginPasswordless = undefined;
   logout = () => new MockedUnaryCall({});

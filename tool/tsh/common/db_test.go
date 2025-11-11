@@ -436,6 +436,7 @@ func testDatabaseLogin(t *testing.T) {
 	// to enable parallel test runs.
 	// Copying the profile dir is faster than sequential login for each database.
 	for _, test := range testCases {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			tmpHomePath := mustCloneTempDir(t, tmpHomePath)
@@ -566,7 +567,8 @@ func updateAccessRequestForDB(t *testing.T, s *suite, wantRequestReason, wantDBN
 }
 
 func TestLocalProxyRequirement(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
@@ -1420,7 +1422,8 @@ func TestChooseOneDatabase(t *testing.T) {
 			wantErrContains: `database "my-db" with labels "foo=bar" with query (hasPrefix(name, "my-db")) matches multiple databases`,
 		},
 	}
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			cf := &CLIConf{
@@ -1666,6 +1669,7 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, tt := range tests {
+			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1834,6 +1838,7 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, test := range tests {
+			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1910,6 +1915,7 @@ func testDatabaseSelection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		for _, test := range tests {
+			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
 				cf := &CLIConf{
@@ -1998,6 +2004,7 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			test.checkOutput(t, shouldRetryGetDatabaseUsingSearchAsRoles(test.cf, test.tc, test.inputError))

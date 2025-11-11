@@ -25,7 +25,6 @@ import {
   canUseV2Edit,
   makeBot,
   toApiGitHubTokenSpec,
-  validateGetBotInstanceMetricsResponse,
   validateGetBotInstanceResponse,
   validateListBotInstancesResponse,
 } from 'teleport/services/bot/consts';
@@ -112,7 +111,7 @@ export async function listBotTokens(
     return data;
   } catch (err) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
+    withGenericUnsupportedError(err, '18.1.0');
   }
 }
 
@@ -167,7 +166,7 @@ export async function editBot(
     return makeBot(res);
   } catch (err: unknown) {
     // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
+    withGenericUnsupportedError(err, '18.1.0');
   }
 }
 
@@ -188,29 +187,14 @@ export async function listBotInstances(
     pageToken: string;
     pageSize: number;
     searchTerm?: string;
-    sortField?: string;
-    sortDir?: string;
+    sort?: string;
     botName?: string;
-    query?: string;
   },
   signal?: AbortSignal
 ) {
-  const {
-    pageToken,
-    pageSize,
-    searchTerm,
-    sortField,
-    sortDir,
-    botName,
-    query,
-  } = variables;
+  const { pageToken, pageSize, searchTerm, sort, botName } = variables;
 
-  // TODO(nicholasmarais1158) DELETE IN v20.0.0
-  const useV1Endpoint = !query;
-
-  const path = cfg.getBotInstanceUrl({
-    action: useV1Endpoint ? 'list' : 'listV2',
-  });
+  const path = cfg.getBotInstanceUrl({ action: 'list' });
   const qs = new URLSearchParams();
 
   qs.set('page_size', pageSize.toFixed());
@@ -218,25 +202,11 @@ export async function listBotInstances(
   if (searchTerm) {
     qs.set('search', searchTerm);
   }
+  if (sort) {
+    qs.set('sort', sort);
+  }
   if (botName) {
     qs.set('bot_name', botName);
-  }
-
-  if (useV1Endpoint) {
-    const sort = `${sortField || 'name'}:${sortDir || 'asc'}`;
-    if (sort) {
-      qs.set('sort', sort);
-    }
-  } else {
-    if (sortField) {
-      qs.set('sort_field', sortField);
-    }
-    if (sortDir) {
-      qs.set('sort_dir', sortDir);
-    }
-    if (query) {
-      qs.set('query', query);
-    }
   }
 
   const data = await api.get(`${path}?${qs.toString()}`, signal);
@@ -264,24 +234,4 @@ export async function getBotInstance(
   }
 
   return data;
-}
-
-export async function getBotInstanceMetrics(
-  variables: null,
-  signal?: AbortSignal
-) {
-  const path = cfg.getBotInstanceUrl({ action: 'metrics' });
-
-  try {
-    const data = await api.get(path, signal);
-
-    if (!validateGetBotInstanceMetricsResponse(data)) {
-      throw new Error('failed to validate get bot instance metrics response');
-    }
-
-    return data;
-  } catch (err: unknown) {
-    // TODO(nicholasmarais1158) DELETE IN v20.0.0
-    withGenericUnsupportedError(err, '19.0.0');
-  }
 }

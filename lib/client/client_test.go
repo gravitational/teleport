@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -47,13 +48,12 @@ func TestHelperFunctions(t *testing.T) {
 
 func TestNewSession(t *testing.T) {
 	nc := &NodeClient{
-		TC:     &TeleportClient{},
 		Tracer: tracing.NoopProvider().Tracer("test"),
 	}
 
 	ctx := context.Background()
 	// defaults:
-	ses, err := newSession(ctx, nc, nil, nil, nil, nil, true)
+	ses, err := newSession(ctx, nc, nil, nil, nil, nil, nil, true)
 	require.NoError(t, err)
 	require.NotNil(t, ses)
 	require.Equal(t, nc, ses.NodeClient())
@@ -61,6 +61,14 @@ func TestNewSession(t *testing.T) {
 	require.Equal(t, os.Stderr, ses.terminal.Stderr())
 	require.Equal(t, os.Stdout, ses.terminal.Stdout())
 	require.Equal(t, os.Stdin, ses.terminal.Stdin())
+
+	// pass environ map
+	env := map[string]string{
+		sshutils.SessionEnvVar: "session-id",
+	}
+	ses, err = newSession(ctx, nc, nil, env, nil, nil, nil, true)
+	require.NoError(t, err)
+	require.NotNil(t, ses)
 }
 
 // TestProxyConnection verifies that client or server-side disconnect
@@ -116,7 +124,7 @@ func TestProxyConnection(t *testing.T) {
 	err = localCon.Close()
 	require.NoError(t, err)
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		select {
 		case err := <-proxyErrCh:
 			require.NoError(t, err)
@@ -148,7 +156,7 @@ func TestProxyConnection(t *testing.T) {
 	err = remoteCon.Close()
 	require.NoError(t, err)
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		select {
 		case err := <-proxyErrCh:
 			require.NoError(t, err)

@@ -104,7 +104,7 @@ func TestDiscoveryRequestMarshalling(t *testing.T) {
 
 	// prepare some random proxies for the discovery request
 	proxies := make([]types.Server, 0, proxyCount)
-	for range proxyCount {
+	for i := 0; i < proxyCount; i++ {
 		p, err := types.NewServer(uuid.New().String(), types.KindProxy, types.ServerSpecV2{})
 		require.NoError(t, err)
 		proxies = append(proxies, p)

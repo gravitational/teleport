@@ -26,14 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
@@ -46,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
-	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -399,7 +397,7 @@ func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
 	// Check if active connections count is not growing over time when new
 	// clients connect to the mongo server.
 	clientCount := 8
-	for range clientCount {
+	for i := 0; i < clientCount; i++ {
 		// Note that connection count per client fluctuates between 6 and 9.
 		// Use InDelta to avoid flaky test.
 		got := connectMongoClient(t, "admin")
@@ -412,24 +410,6 @@ func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
 		return
 	}
 	require.ErrorContains(t, err, "does not exist")
-
-	t.Run("Connection pool is shared", func(t *testing.T) {
-		var eg errgroup.Group
-		for i := range 100 {
-			eg.Go(func() error {
-				client, err := makeClient(t, "admin")
-				if err != nil {
-					return trace.Wrap(err, "failed to create client %d", i)
-				}
-				t.Cleanup(func() {
-					assert.NoError(t, client.Disconnect(t.Context()))
-				})
-				return nil
-			})
-		}
-		require.NoError(t, eg.Wait())
-		require.LessOrEqual(t, int32(9), p.Root.mongo.GetActiveConnectionsCount())
-	})
 
 	// Wait until the server reports no more connections. This usually happens
 	// really quick but wait a little longer just in case.
@@ -480,7 +460,7 @@ func (p *DatabasePack) testMongoLeafCluster(t *testing.T) {
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
 // trusted cluster setup.
 func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
-	clock := clockwork.NewFakeClock()
+	clock := clockwork.NewFakeClockAt(time.Now())
 	pack := SetupDatabaseTest(t, WithClock(clock))
 	pack.WaitForLeaf(t)
 
@@ -492,6 +472,9 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 		idleTimeout = time.Minute
 	)
+
+	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
+	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 
 	mkMySQLLeafDBClient := func(t *testing.T) mysql.TestClientConn {
 		// Connect to the database service in leaf cluster via root cluster.

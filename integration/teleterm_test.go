@@ -134,11 +134,6 @@ func TestTeleterm(t *testing.T) {
 		testClientCache(t, pack, creds)
 	})
 
-	t.Run("logging out", func(t *testing.T) {
-		t.Parallel()
-		testLogout(t, pack, creds)
-	})
-
 	t.Run("ListDatabaseUsers", func(t *testing.T) {
 		// ListDatabaseUsers cannot be run in parallel as it modifies the default roles of users set up
 		// through the test pack.
@@ -554,63 +549,6 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	require.NotEqual(t, secondCallForClient, thirdCallForClient)
 }
 
-func testLogout(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx := context.Background()
-
-	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
-
-	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
-
-	storage, err := clusters.NewStorage(clusters.Config{
-		ClientStore:        tc.ClientStore,
-		Clock:              storageFakeClock,
-		InsecureSkipVerify: tc.InsecureSkipVerify,
-	})
-	require.NoError(t, err)
-
-	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
-	require.NoError(t, err)
-
-	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
-		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-	})
-
-	daemonService, err := daemon.New(daemon.Config{
-		Storage:          storage,
-		TshdEventsClient: tshdEventsClient,
-		KubeconfigsDir:   t.TempDir(),
-		AgentsDir:        t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		daemonService.Stop()
-	})
-
-	// Ensure there is a cluster.
-	rootClusters, err := daemonService.ListRootClusters(ctx)
-	require.NoError(t, err)
-	require.Len(t, rootClusters, 1)
-
-	// Log out without removing the profile.
-	err = daemonService.ClusterLogout(ctx, cluster.URI, false)
-	require.NoError(t, err)
-	rootClusters, err = daemonService.ListRootClusters(ctx)
-	require.NoError(t, err)
-	require.Len(t, rootClusters, 1)
-	require.Empty(t, rootClusters[0].GetLoggedInUser().Name)
-
-	// Log out again, now also remove the profile.
-	err = daemonService.ClusterLogout(ctx, cluster.URI, true)
-	require.NoError(t, err)
-	rootClusters, err = daemonService.ListRootClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, rootClusters)
-
-	// Log out again, the operation should be idempotent.
-	err = daemonService.ClusterLogout(ctx, cluster.URI, true)
-	require.NoError(t, err)
-}
-
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
 	systemUser, err := user.Current()
 	require.NoError(t, err)
@@ -759,6 +697,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1157,11 +1096,11 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 		_, err = authServer.UpdateRole(ctx, role)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			role, err := authServer.GetRole(ctx, roleName)
-			require.NoError(t, err)
-			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
-
+			if assert.NoError(collect, err) {
+				assert.Equal(collect, dbUsers, role.GetDatabaseUsers(types.Allow))
+			}
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
@@ -1175,11 +1114,11 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 		_, err = authServer.UpdateUser(ctx, user)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
-			require.NoError(t, err)
-
-			require.Equal(t, roles, user.GetRoles())
+			if assert.NoError(collect, err) {
+				assert.Equal(collect, roles, user.GetRoles())
+			}
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 

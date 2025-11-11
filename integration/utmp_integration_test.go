@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -171,15 +170,15 @@ func TestRootUTMPEntryExists(t *testing.T) {
 		err = se.Shell()
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			checkUserInFile(t, utmp, s.btmpPath, teleportFakeUser, true)
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			checkUserInFile(collect, utmp, s.btmpPath, teleportFakeUser, true)
 			// Ensure that entries were not written to utmp and wtmp
-			checkUserInFile(t, utmp, s.utmpPath, teleportFakeUser, false)
-			checkUserInFile(t, utmp, s.wtmpPath, teleportFakeUser, false)
+			checkUserInFile(collect, utmp, s.utmpPath, teleportFakeUser, false)
+			checkUserInFile(collect, utmp, s.wtmpPath, teleportFakeUser, false)
 
 			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportFakeUser)
-			require.NoError(t, err)
-			require.False(t, inWtmpdb)
+			assert.NoError(collect, err)
+			assert.False(collect, inWtmpdb)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
@@ -191,7 +190,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey any
+	pkey interface{}
 
 	// pub is a public user key
 	pub []byte
@@ -264,7 +263,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			Role:         types.RoleNode,
 			PublicSSHKey: sshPublicKey,
 			PublicTLSKey: tlsPublicKey,
-		}, "")
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
@@ -349,7 +348,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath, wtmpdbPath),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
-		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	s.srv = srv

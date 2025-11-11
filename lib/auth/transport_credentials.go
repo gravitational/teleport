@@ -36,7 +36,7 @@ import (
 
 // UserGetter is responsible for building an authenticated user based on TLS metadata
 type UserGetter interface {
-	GetUser(ctx context.Context, connState tls.ConnectionState) (authz.IdentityGetter, error)
+	GetUser(connState tls.ConnectionState) (authz.IdentityGetter, error)
 }
 
 // ConnectionIdentity contains the identifying properties of a
@@ -168,10 +168,6 @@ type IdentityInfo struct {
 	Conn net.Conn
 }
 
-func (i IdentityInfo) AuthzContext() *authz.Context {
-	return i.AuthContext
-}
-
 // timeoutConn wraps a connection that is to be closed when
 // the timer expires.
 type timeoutConn struct {
@@ -226,13 +222,12 @@ func (c *TransportCredentials) ServerHandshake(rawConn net.Conn) (net.Conn, cred
 // authorizes the user, enforces any connection limits, and ensures the
 // connection is terminated at expiry of the client certificate if required.
 func (c *TransportCredentials) validateIdentity(conn net.Conn, tlsInfo *credentials.TLSInfo) (net.Conn, IdentityInfo, error) {
-	ctx := context.Background()
-
-	identityGetter, err := c.userGetter.GetUser(ctx, tlsInfo.State)
+	identityGetter, err := c.userGetter.GetUser(tlsInfo.State)
 	if err != nil {
 		return nil, IdentityInfo{}, trace.Wrap(err)
 	}
 
+	ctx := context.Background()
 	authCtx, err := c.authorize(ctx, conn.RemoteAddr(), identityGetter, &tlsInfo.State)
 	if err != nil {
 		return nil, IdentityInfo{}, trace.Wrap(err)

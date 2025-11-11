@@ -25,7 +25,9 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/integrations/lib/stringset"
+
+	"github.com/gravitational/teleport/integrations/event-handler/lib"
 )
 
 // FluentdConfig represents fluentd instance configuration
@@ -78,8 +80,8 @@ type TeleportConfig struct {
 
 // Check verifies that a valid configuration is set
 func (cfg *TeleportConfig) Check() error {
-	provided := set.NewWithCapacity[string](3)
-	missing := set.NewWithCapacity[string](3)
+	provided := stringset.NewWithCap(3)
+	missing := stringset.NewWithCap(3)
 	if cfg.TeleportCert != "" {
 		provided.Add("`teleport.cert`")
 	} else {
@@ -101,8 +103,8 @@ func (cfg *TeleportConfig) Check() error {
 	if len(provided) > 0 && len(provided) < 3 {
 		return trace.BadParameter(
 			"configuration setting(s) %s are provided but setting(s) %s are missing",
-			strings.Join(provided.Elements(), ", "),
-			strings.Join(missing.Elements(), ", "),
+			strings.Join(provided.ToSlice(), ", "),
+			strings.Join(missing.ToSlice(), ", "),
 		)
 	}
 
@@ -237,8 +239,8 @@ func (c *StartCmdConfig) Validate() error {
 	if err := c.TeleportConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	c.SkipSessionTypes = set.New(c.SkipSessionTypesRaw...)
-	c.SkipEventTypes = set.New(c.SkipEventTypesRaw...)
+	c.SkipSessionTypes = lib.SliceToAnonymousMap(c.SkipSessionTypesRaw)
+	c.SkipEventTypes = lib.SliceToAnonymousMap(c.SkipEventTypesRaw)
 
 	if c.FluentdMaxConnections < 1 {
 		// 2x concurrency is effectively uncapped.

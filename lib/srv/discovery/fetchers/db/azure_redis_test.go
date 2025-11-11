@@ -39,7 +39,7 @@ import (
 func TestAzureRedisFetchers(t *testing.T) {
 	t.Parallel()
 
-	azureSub := makeAzureSubscription("sub")
+	azureSub := makeAzureSubscription(t, "sub")
 
 	// Note that the Azure Redis APIs may return location in their display
 	// names (eg. "East US"). The Azure fetcher should normalize location names

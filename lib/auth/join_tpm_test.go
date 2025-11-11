@@ -77,14 +77,11 @@ func (m *mockTPMValidator) validate(
 }
 
 func TestServer_RegisterUsingTPMMethod(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	mockValidator := &mockTPMValidator{}
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir: t.TempDir(),
-		MutateAuth: func(server *auth.Server) error {
-			server.SetTPMValidator(mockValidator.validate)
-			return nil
-		},
+	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
+		server.SetTPMValidator(mockValidator.validate)
+		return nil
 	})
 	require.NoError(t, err)
 	authServer := p.a
@@ -143,7 +140,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 	caPool := x509.NewCertPool()
 	require.True(t, caPool.AppendCertsFromPEM([]byte(apifixtures.TLSCACertPEM)))
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "validated tpm attributes did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -274,7 +271,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		},
 		{
 			name: "failure, verification",
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				assert.ErrorContains(t, err, "capacitor overcharged")
 			},
 
@@ -299,7 +296,7 @@ func TestServer_RegisterUsingTPMMethod(t *testing.T) {
 		{
 			name:   "failure, no enterprise",
 			setOSS: true,
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				assert.ErrorIs(t, err, auth.ErrRequiresEnterprise)
 			},
 

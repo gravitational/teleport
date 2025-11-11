@@ -122,7 +122,7 @@ impl FastPathProcessor {
                 user_channel_id,
                 // These should be set to the same values as they're set to in the
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
-                enable_server_pointer: true,
+                no_server_pointer: false,
                 pointer_software_rendering: false,
             }
             .build(),

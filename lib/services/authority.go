@@ -22,7 +22,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"slices"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
@@ -275,7 +274,7 @@ func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
-		out[i] = slices.Clone(pair.Cert)
+		out[i] = append([]byte{}, pair.Cert...)
 	}
 	return out
 }
@@ -285,7 +284,7 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedSSHKeyPairs()
 	out := make([][]byte, 0, len(pairs))
 	for _, pair := range pairs {
-		out = append(out, slices.Clone(pair.PublicKey))
+		out = append(out, append([]byte{}, pair.PublicKey...))
 	}
 	return out
 }

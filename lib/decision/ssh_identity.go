@@ -67,7 +67,6 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 		DeviceCredentialID:      id.DeviceCredentialId,
 		GitHubUserID:            id.GithubUserId,
 		GitHubUsername:          id.GithubUsername,
-		AgentScope:              id.AgentScope,
 	}
 }
 
@@ -112,7 +111,6 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		GithubUserId:            id.GitHubUserID,
 		GithubUsername:          id.GitHubUsername,
 		JoinToken:               id.JoinToken,
-		AgentScope:              id.AgentScope,
 	}
 }
 

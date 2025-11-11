@@ -221,6 +221,14 @@ func (a *Server) Shutdown(ctx context.Context) error {
 	)
 }
 
+// WithClock is a functional server option that sets the server's clock
+func WithClock(clock clockwork.Clock) auth.ServerOption {
+	return func(s *auth.Server) error {
+		s.SetClock(clock)
+		return nil
+	}
+}
+
 // WithBcryptCost is a functional server option that sets the server's bcrypt cost.
 func WithBcryptCost(cost int) auth.ServerOption {
 	return func(s *auth.Server) error {
@@ -335,6 +343,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: cfg.RecordingMetadataProvider,
 	},
+		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
 	)
@@ -542,7 +551,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		AccessLists:             p.AuthServer.Services.AccessListsInternal,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
-		Applications:            p.AuthServer.Services.Applications,
+		Apps:                    p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -581,8 +590,8 @@ func InitAuthCache(p AuthCacheParams) error {
 		GitServers:              p.AuthServer.Services.GitServers,
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
 		BotInstance:             p.AuthServer.Services.BotInstance,
-		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
+		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -691,7 +700,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			}, "")
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -704,7 +713,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			}, "")
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1039,24 +1048,6 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 	}
 }
 
-// TestScopedHost returns TestIdentity for a scoped host
-func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) TestIdentity {
-	username := hostID
-	if clusterName != "" {
-		username = utils.HostFQDN(hostID, clusterName)
-	}
-	return TestIdentity{
-		I: authz.BuiltinRole{
-			Role:                  types.RoleInstance,
-			Username:              username,
-			AdditionalSystemRoles: types.SystemRoles{role},
-			Identity: tlsca.Identity{
-				AgentScope: scope,
-			},
-		},
-	}
-}
-
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 	return TestIdentity{
@@ -1334,7 +1325,7 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		}, "")
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1487,7 +1478,7 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 	}
 }
 
-// CreateUserAndRole creates user and role and assigns role to a user, used in tests.
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.

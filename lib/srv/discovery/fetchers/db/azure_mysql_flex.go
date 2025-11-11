@@ -32,7 +32,7 @@ import (
 
 // newAzureMySQLFlexServerFetcher creates a fetcher for Azure MySQL Flexible server.
 func newAzureMySQLFlexServerFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher(config, &azureMySQLFlexServerFetcher{})
+	return newAzureFetcher[*armmysqlflexibleservers.Server, azure.MySQLFlexServersClient](config, &azureMySQLFlexServerFetcher{})
 }
 
 // azureMySQLFlexServerFetcher implements azureFetcherPlugin for Azure MySQL Flexible server.

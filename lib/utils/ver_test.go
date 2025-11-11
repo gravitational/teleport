@@ -91,6 +91,7 @@ func TestMajorSemver(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := MajorSemver(tt.version)
 			if tt.wantErr {
@@ -175,6 +176,7 @@ func TestMinVerWithoutPreRelease(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

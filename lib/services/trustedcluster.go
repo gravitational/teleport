@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // ValidateTrustedCluster checks and sets Trusted Cluster defaults
@@ -102,14 +101,14 @@ func parseRoleMap(r types.RoleMap) (map[string][]string, error) {
 	return directMatch, nil
 }
 
-func mapRoles(remoteUserRoles []string, r types.RoleMap) (map[string]set.Set[string], error) {
+func mapRoles(remoteUserRoles []string, r types.RoleMap) (map[string]utils.Set[string], error) {
 	// define a mapping from local roles to the possible remote roles that may
 	// have granted them access
-	index := make(map[string]set.Set[string])
+	index := make(map[string]utils.Set[string])
 	addToIndex := func(localRole, remoteRole string) {
 		remoteRoles, ok := index[localRole]
 		if !ok {
-			index[localRole] = set.New[string](remoteRole)
+			index[localRole] = utils.NewSet[string](remoteRole)
 			return
 		}
 		remoteRoles.Add(remoteRole)
@@ -178,7 +177,7 @@ func UnmapRoles(r types.RoleMap, remoteUserRoles, localRoles []string) ([]string
 	}
 
 	// collect the remote roles of interest
-	remoteRoleSet := set.New[string]()
+	remoteRoleSet := utils.NewSet[string]()
 	for _, localRole := range localRoles {
 		rr, ok := index[localRole]
 		if !ok {

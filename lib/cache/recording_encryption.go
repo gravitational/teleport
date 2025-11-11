@@ -38,15 +38,11 @@ func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w t
 	}
 
 	return &collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]{
-		store: newStore(
-			types.KindRecordingEncryption,
-			proto.CloneOf[*recordingencryptionv1.RecordingEncryption],
-			map[recordingEncryptionIndex]func(*recordingencryptionv1.RecordingEncryption) string{
-				recordingEncryptionNameIndex: func(r *recordingencryptionv1.RecordingEncryption) string {
-					return r.GetMetadata().GetName()
-				},
+		store: newStore(types.KindRecordingEncryption, proto.CloneOf[*recordingencryptionv1.RecordingEncryption], map[recordingEncryptionIndex]func(*recordingencryptionv1.RecordingEncryption) string{
+			recordingEncryptionNameIndex: func(r *recordingencryptionv1.RecordingEncryption) string {
+				return r.GetMetadata().GetName()
 			},
-		),
+		}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*recordingencryptionv1.RecordingEncryption, error) {
 			recordingEncryption, err := upstream.GetRecordingEncryption(ctx)
 			if err != nil {

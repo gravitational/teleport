@@ -142,8 +142,8 @@ type collections struct {
 	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
 	relayServers                       *collection[*presencev1.RelayServer, relayServerIndex]
 	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
-	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
+	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -752,6 +752,13 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.botInstances = collect
 			out.byKind[resourceKind] = out.botInstances
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
 		case types.KindRecordingEncryption:
 			collect, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
 			if err != nil {
@@ -760,13 +767,6 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.recordingEncryption = collect
 			out.byKind[resourceKind] = out.recordingEncryption
-		case types.KindPlugin:
-			collect, err := newPluginsCollection(c.Plugin, watch)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			out.plugins = collect
-			out.byKind[resourceKind] = out.plugins
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

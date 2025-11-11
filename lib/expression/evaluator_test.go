@@ -331,7 +331,7 @@ func TestEvaluateTraitsMap(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			result, err := EvaluateTraitsMap(
+			result, err := EvaluateTraitsMap[evaluationEnv](
 				evaluationEnv{
 					Traits: DictFromStringSliceMap(tc.inputTraits),
 				},

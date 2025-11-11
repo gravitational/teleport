@@ -205,13 +205,10 @@ function ResourceKindMultiValue(props: MultiValueProps<ResourceKindOption>) {
   }
   return (
     <HoverTooltip tipContent="Unrecognized resource type">
-      {/* components.MultiValue doesn't forward ref, so we need an additional wrapper.*/}
-      <Flex>
-        <components.MultiValue
-          {...props}
-          className="teleport-resourcekind__value--unknown"
-        />
-      </Flex>
+      <components.MultiValue
+        {...props}
+        className="teleport-resourcekind__value--unknown"
+      />
     </HoverTooltip>
   );
 }

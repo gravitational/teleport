@@ -104,14 +104,13 @@ export function ResourceListItem({
         showingStatusInfo={showingStatusInfo}
       >
         {/* checkbox */}
-        <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-          <CheckboxInput
-            checked={selected}
-            onChange={selectResource}
-            css={`
-              grid-area: checkbox;
-            `}
-          />
+        <HoverTooltip
+          css={`
+            grid-area: checkbox;
+          `}
+          tipContent={selected ? 'Deselect' : 'Select'}
+        >
+          <CheckboxInput checked={selected} onChange={selectResource} />
         </HoverTooltip>
 
         {/* pin button */}
@@ -185,51 +184,51 @@ export function ResourceListItem({
           <ResTypeIconBox mr={1}>
             <SecondaryIcon size={18} />
           </ResTypeIconBox>
-          <HoverTooltip tipContent={resourceType} showOnlyOnOverflow>
-            <Text
-              fontSize="14px"
-              fontWeight={300}
-              color="text.slightlyMuted"
-              css={`
-                // Required for text-overflow: ellipsis to work. This is because a flex child won't shrink unless
-                // its min-width is explicitly set.
-                min-width: 0;
-              `}
-            >
+          <HoverTooltip
+            tipContent={resourceType}
+            css={`
+              // Required for text-overflow: ellipsis to work. This is because a flex child won't shrink unless
+              // its min-width is explicitly set.
+              min-width: 0;
+            `}
+            showOnlyOnOverflow
+          >
+            <Text fontSize="14px" fontWeight={300} color="text.slightlyMuted">
               {resourceType}
             </Text>
           </HoverTooltip>
         </Flex>
 
         {/* address */}
-        <HoverTooltip tipContent={addr} showOnlyOnOverflow>
-          <Text
-            fontSize="14px"
-            fontWeight={300}
-            color="text.muted"
-            css={`
-              grid-area: address;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-              // If the labels button isn't showing, let this column take up the extra space.
-              ${!showLabelsButton ? 'grid-column-end: labels-btn;' : ''}
-            `}
-          >
+        <HoverTooltip
+          tipContent={addr}
+          showOnlyOnOverflow
+          css={`
+            grid-area: address;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            // If the labels button isn't showing, let this column take up the extra space.
+            ${!showLabelsButton ? 'grid-column-end: labels-btn;' : ''}
+          `}
+        >
+          <Text fontSize="14px" fontWeight={300} color="text.muted">
             {addr}
           </Text>
         </HoverTooltip>
 
         {/* show labels button */}
         {showLabelsButton && (
-          <HoverTooltip tipContent={showLabels ? 'Hide labels' : 'Show labels'}>
+          <HoverTooltip
+            tipContent={showLabels ? 'Hide labels' : 'Show labels'}
+            css={`
+              grid-area: labels-btn;
+            `}
+          >
             <HoverIconButton
               size={1}
               onClick={() => setShowLabels(prevState => !prevState)}
               className={showLabels ? 'active' : ''}
-              css={`
-                grid-area: labels-btn;
-              `}
             >
               <Tags size={18} color={showLabels ? 'text.main' : 'text.muted'} />
             </HoverIconButton>
@@ -238,15 +237,14 @@ export function ResourceListItem({
 
         {/* warning icon if status is unhealthy */}
         {shouldDisplayStatusWarning && (
-          <HoverTooltip tipContent={'Show Connection Issue'}>
-            <HoverIconButton
-              size={1}
-              onClick={onShowStatusInfo}
-              css={`
-                grid-area: warning-icon;
-                cursor: pointer;
-              `}
-            >
+          <HoverTooltip
+            tipContent={'Show Connection Issue'}
+            css={`
+              grid-area: warning-icon;
+              cursor: pointer;
+            `}
+          >
+            <HoverIconButton size={1} onClick={onShowStatusInfo}>
               <Warning size={18} />
             </HoverIconButton>
           </HoverTooltip>

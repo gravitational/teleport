@@ -115,7 +115,6 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
-	config.Auth.Clock = clock
 	require.NoError(t, err)
 	config.Proxy.Enabled = false
 	config.SSH.Enabled = false
@@ -189,6 +188,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
 
 	authServer := authSvc.GetAuthServer()
+	authServer.SetClock(clock)
 
 	err = authServer.UpsertToken(ctx, token)
 	require.NoError(t, err)
@@ -272,8 +272,8 @@ func TestIAMNodeJoin(t *testing.T) {
 	// the proxy should eventually join the cluster and heartbeat
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		proxies, err := authServer.GetProxies()
-		require.NoError(t, err)
-		require.NotEmpty(t, proxies)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, proxies)
 	}, 10*time.Second, 50*time.Millisecond, "waiting for proxy to join cluster")
 	// InsecureDevMode needed for node to trust proxy
 	wasInsecureDevMode := lib.IsInsecureDevMode()
@@ -297,8 +297,8 @@ func TestIAMNodeJoin(t *testing.T) {
 	// the node should eventually join the cluster and heartbeat
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
-		require.NotEmpty(t, nodes)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, nodes)
 	}, 10*time.Second, 50*time.Millisecond, "waiting for node to join cluster")
 }
 
@@ -397,18 +397,18 @@ func TestEC2Labels(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
 		nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		apps, err = authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		kubes, err = authServer.GetKubernetesServers(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		require.Len(t, nodes, 1)
-		require.Len(t, apps, 1)
-		require.Len(t, databases, 1)
-		require.Len(t, kubes, 1)
+		assert.Len(t, nodes, 1)
+		assert.Len(t, apps, 1)
+		assert.Len(t, databases, 1)
+		assert.Len(t, kubes, 1)
 	}, 10*time.Second, time.Second)
 
 	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
@@ -416,40 +416,40 @@ func TestEC2Labels(t *testing.T) {
 	// Check that EC2 labels were applied.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		_, nodeHasLabel := node.GetAllLabels()[tagName]
-		require.True(t, nodeHasLabel)
+		assert.True(t, nodeHasLabel)
 
 		apps, err := authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, apps, 1)
+		assert.NoError(t, err)
+		assert.Len(t, apps, 1)
 
 		app := apps[0].GetApp()
 		_, appHasLabel := app.GetAllLabels()[tagName]
-		require.True(t, appHasLabel)
+		assert.True(t, appHasLabel)
 
 		databases, err := authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, databases, 1)
+		assert.NoError(t, err)
+		assert.Len(t, databases, 1)
 
 		database := databases[0].GetDatabase()
 		_, dbHasLabel := database.GetAllLabels()[tagName]
-		require.True(t, dbHasLabel)
+		assert.True(t, dbHasLabel)
 
 		kubeResources, err := apiclient.GetResourcesWithFilters(
 			context.Background(), authServer,
 			proto.ListResourcesRequest{ResourceType: types.KindKubeServer},
 		)
-		require.NoError(t, err)
-		require.Len(t, kubeResources, 1)
+		assert.NoError(t, err)
+		assert.Len(t, kubeResources, 1)
 
 		kubeServers, err := types.ResourcesWithLabels(kubeResources).AsKubeServers()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		kube := kubeServers[0].GetCluster()
 		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
-		require.True(t, kubeHasLabel)
+		assert.True(t, kubeHasLabel)
 	}, 10*time.Second, time.Second)
 }
 

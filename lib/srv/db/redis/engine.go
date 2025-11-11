@@ -234,7 +234,7 @@ func (e *Engine) maybeHandleFirstHello() {
 }
 
 // sendToClient sends a command to connected Redis client.
-func (e *Engine) sendToClient(vals any) error {
+func (e *Engine) sendToClient(vals interface{}) error {
 	if vals == nil {
 		return nil
 	}
@@ -530,7 +530,7 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	val, ok := cmd.Val().([]any)
+	val, ok := cmd.Val().([]interface{})
 	if !ok {
 		return nil, trace.BadParameter("failed to cast Redis value to a slice, got %T", cmd.Val())
 	}
@@ -542,7 +542,7 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 // "terminal" errors as second value (connection should be terminated when this happens)
 // or returns error/value as the first value. Then value should be sent back to
 // the client without terminating the connection.
-func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (any, error) {
+func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (interface{}, error) {
 	value, cmdErr := cmd.Result()
 	if err == nil {
 		// If the server didn't return any error use cmd.Err() as server error.

@@ -58,7 +58,6 @@ import (
 
 func (process *TeleportProcess) initRelay() {
 	process.RegisterWithAuthServer(apitypes.RoleRelay, RelayIdentityEvent)
-	process.ExpectService(teleport.ComponentRelay)
 	process.RegisterCriticalFunc("relay.run", process.runRelayService)
 }
 
@@ -203,7 +202,7 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer peerServer.Close()
 
-	transportTLSConfig, err := process.ServerTLSConfig(conn)
+	transportTLSConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -225,7 +224,7 @@ func (process *TeleportProcess) runRelayService() error {
 	{
 		tc, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 			TransportCredentials: credentials.NewTLS(transportTLSConfig),
-			UserGetter: &authz.Middleware{
+			UserGetter: &auth.Middleware{
 				ClusterName: conn.clusterName,
 			},
 			Authorizer:        authorizer,

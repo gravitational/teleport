@@ -126,7 +126,7 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 	}, nil
 }
 
-func getParameters(val any) []string {
+func getParameters(val interface{}) []string {
 	if val == nil {
 		return nil
 	}

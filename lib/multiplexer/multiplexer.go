@@ -563,7 +563,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	// signed header from our own proxies, which take precedence.
 	var proxyLine *ProxyLine
 	unsignedPROXYLineReceived := false
-	for range maxDetectionPasses {
+	for i := 0; i < maxDetectionPasses; i++ {
 		proto, err := detectProto(reader)
 		if err != nil {
 			return nil, trace.Wrap(err)

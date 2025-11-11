@@ -56,7 +56,6 @@ import (
 	libutils "github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/oidc"
-	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -344,8 +343,8 @@ func regionsForListingDeployedDatabaseService(ctx context.Context, r *http.Reque
 		}
 
 		if len(params) > 0 {
-			a := set.New(relevant...)
-			b := set.New(params...)
+			a := libutils.NewSet(relevant...)
+			b := libutils.NewSet(params...)
 			a.Intersection(b)
 			return a.Elements(), nil
 		}

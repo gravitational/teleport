@@ -53,7 +53,6 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -1137,7 +1136,12 @@ func hasDynamoDBDatabases(flags configurators.BootstrapFlags, targetCfg targetCo
 // is found.
 func isAutoDiscoveryEnabledForMatcher(matcherType string, matchers []types.AWSMatcher) bool {
 	return findAWSMatcherIs(matchers, func(matcher *types.AWSMatcher) bool {
-		return slices.Contains(matcher.Types, matcherType)
+		for _, databaseType := range matcher.Types {
+			if databaseType == matcherType {
+				return true
+			}
+		}
+		return false
 	})
 }
 
@@ -1152,7 +1156,12 @@ func findEndpointIs(databases []*servicecfg.Database, endpointIs func(string) bo
 // findDatabaseIs returns true if provided check returns true for any static
 // database config.
 func findDatabaseIs(databases []*servicecfg.Database, is func(*servicecfg.Database) bool) bool {
-	return slices.ContainsFunc(databases, is)
+	for _, database := range databases {
+		if is(database) {
+			return true
+		}
+	}
+	return false
 }
 
 // findAWSMatcherIs returns true if the provided check returns true for any
@@ -1542,7 +1551,7 @@ func parseForcedAWSRoles(flags configurators.BootstrapFlags, target awslib.Ident
 		return nil, nil
 	}
 	var out []string
-	for role := range strings.SplitSeq(flags.ForceAssumesRoles, ",") {
+	for _, role := range strings.Split(flags.ForceAssumesRoles, ",") {
 		if role == "" {
 			continue
 		}
@@ -1567,11 +1576,14 @@ func isStubAccountIDError(target awslib.Identity, err error) bool {
 // rolesForTarget returns all AWS roles from cli flags, AWS matchers, and
 // databases that the target identity will need to be able to assume.
 func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases []*servicecfg.Database, resourceMatchers []services.ResourceMatcher, targetIsAssumeRole bool) []string {
-	roleSet := set.New(forcedRoles...)
+	roleSet := make(map[string]struct{})
+	for _, roleARN := range forcedRoles {
+		roleSet[roleARN] = struct{}{}
+	}
 	if targetIsAssumeRole {
 		// if target is the same as some assume_role_arn in matchers/databases
 		// config, then it shouldn't assume other roles from config.
-		return roleSet.Elements()
+		return utils.StringsSliceFromSet(roleSet)
 	}
 	for _, matcher := range matchers {
 		assumeRoleARN := ""
@@ -1596,5 +1608,5 @@ func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases
 		}
 		roleSet[resourceMatcher.AWS.AssumeRoleARN] = struct{}{}
 	}
-	return roleSet.Elements()
+	return utils.StringsSliceFromSet(roleSet)
 }

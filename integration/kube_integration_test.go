@@ -862,7 +862,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
@@ -1139,7 +1139,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err != nil {
 			if trace.IsConnectionProblem(err) {
@@ -1328,7 +1328,7 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 		},
 	}
 
-	for i := range utils.GetIterations() {
+	for i := 0; i < utils.GetIterations(); i++ {
 		t.Run(fmt.Sprintf("Iteration=%d", i), func(t *testing.T) {
 			for _, tc := range testCases {
 				t.Run(tc.name, func(t *testing.T) {
@@ -1696,8 +1696,9 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 		// session manager's WaitUntilExists method because it doesn't work for
 		// kubernetes sessions.
 		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(context.Background())
-		require.NoError(t, err)
-		require.NotEmpty(t, sessions, "no active sessions found")
+		if !assert.NoError(t, err) || !assert.NotEmpty(t, sessions) {
+			return
+		}
 		session = sessions[0]
 	}, 10*time.Second, 100*time.Millisecond)
 
@@ -2426,9 +2427,10 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		// session manager's WaitUntilExists method because it doesn't work for
 		// kubernetes sessions.
 		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
-		require.Len(t, sessions, 1, "no active sessions found")
-		session = sessions[0]
+		assert.NoError(t, err)
+		if assert.Len(t, sessions, 1) {
+			session = sessions[0]
+		}
 	}, 10*time.Second, time.Second)
 
 	participantStdinR, participantStdinW, err := os.Pipe()
@@ -2509,8 +2511,8 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// Wait for all users to finish joining the session.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		session, err := teleport.Process.GetAuthServer().GetSessionTracker(ctx, session.GetName())
-		require.NoError(t, err)
-		require.Len(t, session.GetParticipants(), 4)
+		assert.NoError(t, err)
+		assert.Len(t, session.GetParticipants(), 4)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// send a test message from the participant
@@ -2653,9 +2655,10 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 		// session manager's WaitUntilExists method because it doesn't work for
 		// kubernetes sessions.
 		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
-		require.Len(t, sessions, 1)
-		tracker = sessions[0]
+		assert.NoError(t, err)
+		if assert.Len(t, sessions, 1) {
+			tracker = sessions[0]
+		}
 	}, 10*time.Second, time.Second)
 
 	var observerOut, peerOut, moderatorOut bytes.Buffer
@@ -2709,8 +2712,10 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 	// Wait for all users to finish joining the session.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		session, err := teleport.Process.GetAuthServer().GetSessionTracker(ctx, tracker.GetName())
-		require.NoError(t, err)
-		require.Len(t, session.GetParticipants(), 4)
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Len(t, session.GetParticipants(), 4)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// enter a command from the session creator
@@ -2991,6 +2996,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()

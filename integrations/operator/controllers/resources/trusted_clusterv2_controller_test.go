@@ -270,21 +270,20 @@ func TestTrustedClusterV2Update(t *testing.T) {
 	// The resource is created in Kubernetes, with at least a field altered
 	require.NoError(t, test.CreateKubernetesResource(ctx, resourceName))
 
-	logger := t.Logf
 	// Check the resource was updated in Teleport
-	testlib.FastEventuallyWithT(t, func(t *assert.CollectT) {
+	testlib.FastEventuallyWithT(t, func(c *assert.CollectT) {
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
 		if !equal {
-			logger("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		}
-		assert.True(t, equal)
+		assert.True(c, equal)
 	})
 
 	// Updating the resource in Kubernetes
@@ -295,17 +294,19 @@ func TestTrustedClusterV2Update(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	testlib.FastEventuallyWithT(t, func(t *assert.CollectT) {
+	testlib.FastEventuallyWithT(t, func(c *assert.CollectT) {
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
+		require.NoError(c, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		require.True(t, equal)
-		require.Empty(t, diff)
+		if !equal {
+			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+		}
+		assert.True(c, equal)
 	})
 
 	// Delete the resource to avoid leftover state.

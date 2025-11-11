@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -196,7 +197,7 @@ type ConnectionsHandler struct {
 	gcpHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
-	authMiddleware *authz.Middleware
+	authMiddleware *auth.Middleware
 
 	proxyPort string
 
@@ -326,12 +327,12 @@ func (c *ConnectionsHandler) expireSessions() {
 func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	ctx := context.Background()
 
-	// Wrap conn to detect when it is closed.
+	// Wrap conn in a CloserConn to detect when it is closed.
 	// Returning early will close conn before it has been serviced.
 	// httpServer will initiate the close call.
-	waitConn := utils.NewWaitConn(conn)
+	closerConn := utils.NewCloserConn(conn)
 
-	cleanup, err := c.handleConnection(waitConn)
+	cleanup, err := c.handleConnection(closerConn)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -348,7 +349,7 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	}
 
 	// Wait for connection to close.
-	waitConn.Wait()
+	closerConn.Wait()
 }
 
 // serveSession finds the app session and forwards the request.
@@ -689,11 +690,11 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
 
-	c.authMiddleware = &authz.Middleware{
+	c.authMiddleware = &auth.Middleware{
 		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
-		Handler:       c,
 	}
+	c.authMiddleware.Wrap(c)
 
 	return &http.Server{
 		// Note: read/write timeouts *should not* be set here because it will
@@ -757,7 +758,7 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
 	}
 
-	user, err := c.authMiddleware.GetUser(ctx, tlsConn.ConnectionState())
+	user, err := c.authMiddleware.GetUser(tlsConn.ConnectionState())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

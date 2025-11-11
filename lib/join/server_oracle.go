@@ -22,12 +22,12 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
-	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // handleOracleJoin handles join attempts for the Oracle join method.
@@ -48,7 +48,7 @@ func (s *Server) handleOracleJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	provisionToken provision.Token,
+	provisionToken types.ProvisionToken,
 ) (messages.Response, error) {
 	// Receive the OracleInit message from the client.
 	oracleInit, err := messages.RecvRequest[*messages.OracleInit](stream)

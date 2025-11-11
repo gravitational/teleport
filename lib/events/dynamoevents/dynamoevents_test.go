@@ -159,7 +159,7 @@ func TestSizeBreak(t *testing.T) {
 	blob := randStringAlpha(eventSize)
 
 	const eventCount int = 10
-	for i := range eventCount {
+	for i := 0; i < eventCount; i++ {
 		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -168,7 +168,7 @@ func TestSizeBreak(t *testing.T) {
 				Type: events.UserLoginEvent,
 				Time: tt.suite.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
 			},
-			IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
+			IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
 		})
 		require.NoError(t, err)
 	}
@@ -233,7 +233,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	const eventCount = 4000
-	for range eventCount {
+	for i := 0; i < eventCount; i++ {
 		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -251,7 +251,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 		err     error
 	)
 	ctx := context.Background()
-	for range dynamoDBLargeQueryRetries {
+	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
 		time.Sleep(tt.suite.QueryDelay)
 
 		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -447,8 +447,8 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 			EventTypes: []string{events.DatabaseSessionQueryEvent},
 			Order:      types.EventOrderAscending,
 		})
-		require.NoError(t, err)
-		require.Len(t, result, 1)
+		assert.NoError(t, err)
+		assert.Len(t, result, 1)
 	}, 10*time.Second, 500*time.Millisecond)
 
 	appReqEvent := &testAuditEvent{
@@ -641,8 +641,8 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 	const eventCount int = 10
 
 	// create events for two days
-	for dayDiff := range 2 {
-		for i := range eventCount {
+	for dayDiff := 0; dayDiff < 2; dayDiff++ {
+		for i := 0; i < eventCount; i++ {
 			err := tt.suite.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Method:       events.LoginMethodSAML,
 				Status:       apievents.Status{Success: true},
@@ -651,7 +651,7 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 					Type: events.UserLoginEvent,
 					Time: tt.suite.Clock.Now().UTC().Add(time.Hour*24*time.Duration(dayDiff) + time.Second*time.Duration(i)),
 				},
-				IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
+				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
 			})
 			require.NoError(t, err)
 		}

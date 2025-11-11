@@ -33,6 +33,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -264,6 +265,12 @@ type Config struct {
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
 
+	// MetricsRegistry is the prometheus metrics registry used by the Teleport process to register its metrics.
+	// As of today, not every Teleport metric is registered against this registry. Some Teleport services
+	// and Teleport dependencies are using the global registry.
+	// Both the MetricsRegistry and the default global registry are gathered by Teleport's metric service.
+	MetricsRegistry *prometheus.Registry
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -311,14 +318,6 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
-
-	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
-	// a locking operation for backend objects.
-	// This setting is particularly useful in test environments,
-	// as it can help accelerate operations such as updating the access list,
-	// especially when the list is also being modified concurrently by the background
-	// eligibility handler.
-	RunWhileLockedRetryInterval time.Duration
 }
 
 // AccessGraphConfig represents TAG server config

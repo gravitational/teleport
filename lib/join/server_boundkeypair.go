@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
-	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // handleBoundKeypairJoin handles join attempts for the bound keypair join
@@ -59,7 +58,7 @@ func (s *Server) handleBoundKeypairJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	token provision.Token,
+	provisionToken types.ProvisionToken,
 ) (*messages.BotResult, error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
@@ -68,13 +67,6 @@ func (s *Server) handleBoundKeypairJoin(
 	if clientInit.SystemRole != types.RoleBot.String() {
 		return nil, trace.BadParameter("bound keypair joining is only supported for bots")
 	}
-
-	// Scoped tokens currently validate against being created with the bot role, but just in case
-	// we'll check and return a more helpful error message if one happens to make it through.
-	if token.GetAssignedScope() != "" {
-		return nil, trace.BadParameter("bound keypair joining is not supported by scoped tokens")
-	}
-
 	boundKeypairInit, err := messages.RecvRequest[*messages.BoundKeypairInit](stream)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,7 +97,7 @@ func (s *Server) handleBoundKeypairJoin(
 			return nil, "", trace.Wrap(err)
 		}
 		botCertsParams.PreviousBotInstanceID = previousBotInstanceID
-		protoCerts, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, token, botCertsParams)
+		protoCerts, botInstanceID, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisionToken, botCertsParams)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -119,7 +111,7 @@ func (s *Server) handleBoundKeypairJoin(
 		AuthService:          s.cfg.AuthService,
 		AuthCtx:              authCtx,
 		Diag:                 diag,
-		ProvisionToken:       token,
+		ProvisionToken:       provisionToken,
 		ClientInit:           clientInit,
 		BoundKeypairInit:     boundKeypairInit,
 		IssueChallenge:       issueChallenge,
@@ -191,7 +183,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 	}
 
 	// Assert that the provision token allows the requested system role.
-	if err := TokenAllowsRole(provisionToken, req.JoinRequest.Role); err != nil {
+	if err := ProvisionTokenAllowsRole(provisionToken, req.JoinRequest.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

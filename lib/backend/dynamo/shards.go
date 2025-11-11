@@ -134,7 +134,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 
 		if init {
 			// block on shard iterator registration.
-			for range started {
+			for i := 0; i < started; i++ {
 				select {
 				case err = <-initC:
 					if err != nil {

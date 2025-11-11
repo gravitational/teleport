@@ -724,7 +724,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	}()
 
 	var directErr, mfaErr error
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
 			mfaCancel()
@@ -865,14 +865,9 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		}()
 	}
 
-	var joinSessionID string
-	if t.tracker != nil {
-		joinSessionID = t.tracker.GetSessionID()
-	}
-
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	if err = nc.RunInteractiveShell(ctx, joinSessionID, t.participantMode, beforeStart); err != nil {
+	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, beforeStart); err != nil {
 		if !t.closedByClient.Load() {
 			t.stream.WriteError(ctx, err.Error())
 		}

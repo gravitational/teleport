@@ -19,8 +19,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
 func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
@@ -31,7 +29,6 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		in       *AWSMatcher
-		preTest  func(t *testing.T)
 		errCheck require.ErrorAssertionFunc
 		expected *AWSMatcher
 	}{
@@ -269,10 +266,6 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				Regions:     []string{"eu-west-2"},
 				Integration: "my-integration",
 			},
-			preTest: func(t *testing.T) {
-				// Enable EICE for this test.
-				t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
-			},
 			errCheck: require.NoError,
 			expected: &AWSMatcher{
 				Types:   []string{"ec2"},
@@ -356,18 +349,6 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "eice enroll mode is disabled",
-			in: &AWSMatcher{
-				Types:       []string{"ec2"},
-				Regions:     []string{"eu-west-2"},
-				Integration: "my-integration",
-				Params: &InstallerParams{
-					EnrollMode: InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
-				},
-			},
-			errCheck: isBadParameterErr,
-		},
-		{
 			name: "invalid proxy settings",
 			in: &AWSMatcher{
 				Types:   []string{"ec2"},
@@ -382,9 +363,6 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.preTest != nil {
-				tt.preTest(t)
-			}
 			err := tt.in.CheckAndSetDefaults()
 			tt.errCheck(t, err)
 			if tt.expected != nil {

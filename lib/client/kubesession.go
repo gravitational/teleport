@@ -89,7 +89,7 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 		}
 
 		body, _ := io.ReadAll(resp.Body)
-		var respData map[string]any
+		var respData map[string]interface{}
 		if err := json.Unmarshal(body, &respData); err != nil {
 			return nil, trace.Wrap(err)
 		}

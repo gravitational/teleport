@@ -53,7 +53,6 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
-	setutils "github.com/gravitational/teleport/lib/utils/set"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -1111,8 +1110,10 @@ func MatchNamespace(selectors []string, namespace string) (bool, string) {
 
 // MatchAWSRoleARN returns true if provided role ARN matches selectors.
 func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
-	if slices.Contains(selectors, roleARN) {
-		return true, "matched"
+	for _, l := range selectors {
+		if l == roleARN {
+			return true, "matched"
+		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, role ARN: %v", selectors, roleARN)
 }
@@ -1247,7 +1248,7 @@ func (set RoleSet) RoleNames() []string {
 
 // Roles returns the list underlying roles this RoleSet is based on.
 func (set RoleSet) Roles() []types.Role {
-	return slices.Clone(set)
+	return append([]types.Role{}, set...)
 }
 
 // HasRole checks if the role set has the role
@@ -1444,8 +1445,8 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
 func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
-	groups := setutils.New[string]()
-	users := setutils.New[string]()
+	groups := make(map[string]struct{})
+	users := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
 		ok, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
@@ -1460,10 +1461,10 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, group := range role.GetKubeGroups(types.Allow) {
-				groups.Add(group)
+				groups[group] = struct{}{}
 			}
 			for _, user := range role.GetKubeUsers(types.Allow) {
-				users.Add(user)
+				users[user] = struct{}{}
 			}
 		}
 	}
@@ -1476,10 +1477,10 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 			continue
 		}
 		for _, group := range role.GetKubeGroups(types.Deny) {
-			groups.Remove(group)
+			delete(groups, group)
 		}
 		for _, user := range role.GetKubeUsers(types.Deny) {
-			users.Remove(user)
+			delete(users, user)
 		}
 	}
 	if !matchedTTL {
@@ -1488,33 +1489,33 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 	if len(groups) == 0 && len(users) == 0 {
 		return nil, nil, trace.NotFound("this user cannot request kubernetes access, has no assigned groups or users")
 	}
-	return groups.Elements(), users.Elements(), nil
+	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), nil
 }
 
 // CheckDatabaseNamesAndUsers checks if the role has any allowed database
 // names or users.
 func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
-	names := setutils.New[string]()
-	users := setutils.New[string]()
+	names := make(map[string]struct{})
+	users := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, name := range role.GetDatabaseNames(types.Allow) {
-				names.Add(name)
+				names[name] = struct{}{}
 			}
 			for _, user := range role.GetDatabaseUsers(types.Allow) {
-				users.Add(user)
+				users[user] = struct{}{}
 			}
 		}
 	}
 	for _, role := range set {
 		for _, name := range role.GetDatabaseNames(types.Deny) {
-			names.Remove(name)
+			delete(names, name)
 		}
 		for _, user := range role.GetDatabaseUsers(types.Deny) {
-			users.Remove(user)
+			delete(users, user)
 		}
 	}
 	if !matchedTTL {
@@ -1523,25 +1524,25 @@ func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL boo
 	if len(names) == 0 && len(users) == 0 {
 		return nil, nil, trace.NotFound("this user cannot request database access, has no assigned database names or users")
 	}
-	return names.Elements(), users.Elements(), nil
+	return utils.StringsSliceFromSet(names), utils.StringsSliceFromSet(users), nil
 }
 
 // CheckAWSRoleARNs returns a list of AWS role ARNs this role set is allowed to assume.
 func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	arns := setutils.New[string]()
+	arns := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, arn := range role.GetAWSRoleARNs(types.Allow) {
-				arns.Add(arn)
+				arns[arn] = struct{}{}
 			}
 		}
 	}
 	for _, role := range set {
 		for _, arn := range role.GetAWSRoleARNs(types.Deny) {
-			arns.Remove(arn)
+			delete(arns, arn)
 		}
 	}
 	if !matchedTTL {
@@ -1550,7 +1551,7 @@ func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]stri
 	if len(arns) == 0 {
 		return nil, trace.NotFound("this user cannot request AWS management console, has no assigned role ARNs")
 	}
-	return arns.Elements(), nil
+	return utils.StringsSliceFromSet(arns), nil
 }
 
 // CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
@@ -1593,14 +1594,14 @@ func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]
 
 // CheckGCPServiceAccounts returns a list of GCP service accounts this role set is allowed to assume.
 func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	accounts := setutils.New[string]()
+	accounts := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, account := range role.GetGCPServiceAccounts(types.Allow) {
-				accounts.Add(strings.ToLower(account))
+				accounts[strings.ToLower(account)] = struct{}{}
 			}
 		}
 	}
@@ -1608,10 +1609,10 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 		for _, account := range role.GetGCPServiceAccounts(types.Deny) {
 			// deny * removes all accounts
 			if account == types.Wildcard {
-				accounts = setutils.New[string]()
+				accounts = make(map[string]struct{})
 			}
 			// remove particular account
-			accounts.Remove(strings.ToLower(account))
+			delete(accounts, strings.ToLower(account))
 		}
 	}
 	if !matchedTTL {
@@ -1620,7 +1621,7 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	if len(accounts) == 0 {
 		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
 	}
-	return accounts.Elements(), nil
+	return utils.StringsSliceFromSet(accounts), nil
 }
 
 // checkAccessToSAMLIdPLegacy checks access to the SAML IdP based on
@@ -2407,8 +2408,10 @@ func NewLoginMatcher(login string) RoleMatcher {
 // Match matches a login against a role.
 func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetLogins(typ)
-	if slices.Contains(logins, l.login) {
-		return true, nil
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -2426,8 +2429,10 @@ func NewWindowsLoginMatcher(login string) RoleMatcher {
 // Match matches a Windows Desktop login against a role.
 func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetWindowsLogins(typ)
-	if slices.Contains(logins, l.login) {
-		return true, nil
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -2445,8 +2450,10 @@ func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
 // Match matches an AWS Role ARN login against a role.
 func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	awsRoles := role.GetAWSRoleARNs(typ)
-	if slices.Contains(awsRoles, l.awsRole) {
-		return true, nil
+	for _, awsRole := range awsRoles {
+		if l.awsRole == awsRole {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -3180,7 +3187,7 @@ func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, re
 
 type boolParser bool
 
-func (p boolParser) Parse(string) (any, error) {
+func (p boolParser) Parse(string) (interface{}, error) {
 	return predicate.BoolPredicate(func() bool {
 		return bool(p)
 	}), nil
@@ -3233,12 +3240,12 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappe
 }
 
 func deduplicateKubeResources(resources []types.KubernetesResource) []types.KubernetesResource {
-	allKeys := setutils.New[string]()
+	allKeys := make(map[string]struct{})
 	copy := make([]types.KubernetesResource, 0, len(resources))
 	for _, item := range resources {
 		key := item.String()
-		if !allKeys.Contains(key) {
-			allKeys.Add(key)
+		if _, value := allKeys[key]; !value {
+			allKeys[key] = struct{}{}
 			copy = append(copy, item)
 		}
 	}

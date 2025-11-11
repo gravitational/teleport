@@ -77,7 +77,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				Time: time.Now(),
 			},
 			UserMetadata:   serverCtx.Identity.GetUserMetadata(),
-			ServerMetadata: serverCtx.GetServer().EventMetadata(),
+			ServerMetadata: serverCtx.GetServer().TargetMetadata(),
 			Error:          srv.ErrNodeFileCopyingNotPermitted.Error(),
 		})
 		return srv.ErrNodeFileCopyingNotPermitted
@@ -168,7 +168,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		defer auditPipeOut.Close()
 
 		// Create common fields for events
-		serverMeta := serverCtx.GetServer().EventMetadata()
+		serverMeta := serverCtx.GetServer().TargetMetadata()
 		sessionMeta := serverCtx.GetSessionMetadata()
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
@@ -236,7 +236,7 @@ func (s *sftpSubsys) Wait() error {
 	})
 
 	errs := []error{waitErr}
-	for range copyingGoroutines {
+	for i := 0; i < copyingGoroutines; i++ {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
 			s.logger.WarnContext(ctx, "Connection problem", "error", err)

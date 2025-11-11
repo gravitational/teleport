@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"testing"
 	"time"
 
@@ -871,7 +870,7 @@ func (f *fakeNative) DeleteNonInteractive(credentialID string) error {
 			continue
 		}
 		f.nonInteractiveDelete = append(f.nonInteractiveDelete, credentialID)
-		f.creds = slices.Delete(f.creds, i, i+1)
+		f.creds = append(f.creds[:i], f.creds[i+1:]...)
 		return nil
 	}
 	return touchid.ErrCredentialNotFound

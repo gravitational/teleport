@@ -97,15 +97,9 @@ ignoreDifferences:
 ```bash
 $ argocd app sync $YOUR_APPLICATION_NAME
 ```
-4. To verify setup check the readiness of the pods in the teleport namespace.
-```code
-$ kubectl -n teleport get pods
+4. To verify setup, navigate to the 'Resources' page in your Teleport
+   cluster to confirm the Kubernetes cluster is registered.
 
-NAME                                           READY   STATUS    RESTARTS   AGE
-<your-agent-release>-0                         1/1     Running   0          14m
-<your-agent-release>-1                         1/1     Running   0          14m
-<your-agent-release>-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
-```
 ## Step 3/3. Manage access to your new resource
 
 In this step, we'll create a Teleport role called `kube-access`
@@ -176,15 +170,6 @@ group.
    $ kubectl apply -f viewers-bind.yaml
    ```
 
-Now any Teleport user you grant the `kube-access` role to will be able to see the
-Kubernetes cluster and view its content as a member of the `viewers` group.
-
-## Next steps
-
-- **Further configure the Helm chart values:** For more information on configuring the
-  kube-agent Helm chart see the [kube-agent reference](../../../reference/helm-reference/teleport-kube-agent.mdx).
-- **Set up RBAC for Kubernetes access:** For more in depth information on configuring
-  access see the [Kubernetes RBAC docs](../../../enroll-resources/kubernetes-access/controls.mdx).
-- **Learn more about working with ArgoCD:** To learn more about managing Helm charts
-  via ArgoCD visit the [official docs](https://argo-cd.readthedocs.io/en/stable/).
-
+Your Teleport user now has permissions to assume membership in the `viewers`
+group when accessing your Kubernetes cluster, and the `viewers` group now has
+permissions to view resources in the cluster.

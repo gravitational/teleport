@@ -178,7 +178,7 @@ export const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>(
   (props, ref) => {
     return (
       <StyledButton
-        ref={ref}
+        setRef={ref}
         onClick={props.onClick}
         intent="neutral"
         fill="filled"

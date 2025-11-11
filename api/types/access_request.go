@@ -161,7 +161,7 @@ func NewAccessRequestWithResources(name string, user string, roles []string, res
 		},
 		Spec: AccessRequestSpecV3{
 			User:                 user,
-			Roles:                slices.Clone(roles),
+			Roles:                utils.CopyStrings(roles),
 			RequestedResourceIDs: append([]ResourceID{}, resourceIDs...),
 		},
 	}

@@ -34,7 +34,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/integrations/access/servicenow"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
 // FakeServiceNow implements a mock ServiceNow for testing purposes.
@@ -58,15 +58,15 @@ type FakeServiceNow struct {
 
 type QueryValues url.Values
 
-func (q QueryValues) GetAsSet(name string) set.Set[string] {
+func (q QueryValues) GetAsSet(name string) stringset.StringSet {
 	values := q[name]
-	result := set.NewWithCapacity[string](len(values))
+	result := stringset.NewWithCap(len(values))
 	for _, v := range values {
 		if v != "" {
-			result.Add(v)
+			result[v] = struct{}{}
 		}
 	}
-	if result.Len() == 0 {
+	if len(result) == 0 {
 		return nil
 	}
 	return result

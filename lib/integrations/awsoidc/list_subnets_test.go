@@ -55,7 +55,10 @@ func (m mockListSubnetsClient) DescribeSubnets(ctx context.Context, params *ec2.
 	}
 
 	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := min(m.pageSize*requestedPage, totalSubnets)
+	sliceEnd := m.pageSize * requestedPage
+	if sliceEnd > totalSubnets {
+		sliceEnd = totalSubnets
+	}
 
 	ret := &ec2.DescribeSubnetsOutput{
 		Subnets: m.subnets[sliceStart:sliceEnd],
@@ -81,7 +84,7 @@ func TestListSubnets(t *testing.T) {
 		totalSubnets := 203
 
 		subnets := make([]ec2Types.Subnet, 0, totalSubnets)
-		for i := range totalSubnets {
+		for i := 0; i < totalSubnets; i++ {
 			subnets = append(subnets, ec2Types.Subnet{
 				SubnetId: aws.String(fmt.Sprintf("subnet-%d", i)),
 				Tags:     makeNameTags(fmt.Sprintf("MySubnet-%d", i)),

@@ -134,7 +134,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	createErr := make(chan error, 1)
 
 	go func() {
-		for range nodeCount {
+		for i := 0; i < nodeCount; i++ {
 			server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 			_, err := p.presenceS.UpsertNode(ctx, server)
 			if err != nil {
@@ -146,7 +146,7 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 
 	timeout := time.After(time.Second * 90)
 
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		select {
 		case event := <-p.eventsC:
 			if event.Type == RelativeExpiry {

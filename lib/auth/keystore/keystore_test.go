@@ -215,7 +215,7 @@ func TestBackends(t *testing.T) {
 			const numKeys = 3
 			rawPrivateKeys := make([][]byte, numKeys)
 			publicKeys := make([]crypto.PublicKey, numKeys)
-			for i := range numKeys {
+			for i := 0; i < numKeys; i++ {
 				var signer crypto.Signer
 				var err error
 				rawPrivateKeys[i], signer, err = backend.generateSigner(ctx, cryptosuites.ECDSAP256)
@@ -603,8 +603,8 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
-		kmsClient: testGCPKMSClient,
-		Clock:     clock,
+		kmsClient:         testGCPKMSClient,
+		clockworkOverride: clock,
 		RSAKeyPairSource: func(alg cryptosuites.Algorithm) ([]byte, []byte, error) {
 			switch alg {
 			case cryptosuites.RSA2048:

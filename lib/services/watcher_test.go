@@ -26,7 +26,6 @@ import (
 	"sort"
 	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -89,7 +88,7 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	step := w.MaxRetryPeriod / 5.0
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		// wait for watcher to reload
 		select {
 		case duration := <-w.ResetC:
@@ -398,117 +397,108 @@ func TestLockWatcherSubscribeWithEmptyTarget(t *testing.T) {
 func TestLockWatcherStale(t *testing.T) {
 	t.Parallel()
 
-	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
-		clock := clockwork.NewRealClock()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 
-		bk, err := memory.New(memory.Config{
-			Context: ctx,
-			Clock:   clock,
-		})
-		require.NoError(t, err)
-
-		type client struct {
-			services.Access
-			types.Events
-		}
-
-		access := local.NewAccessService(bk)
-		events := &withUnreliability{Events: local.NewEventsService(bk)}
-		w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component:      "test",
-				MaxRetryPeriod: 200 * time.Millisecond,
-				Client: &client{
-					Access: access,
-					Events: events,
-				},
-				Clock: clock,
-			},
-		})
-		require.NoError(t, err)
-		t.Cleanup(w.Close)
-		select {
-		case <-w.LoopC:
-		case <-time.After(15 * time.Second):
-			t.Fatal("Timeout waiting for LockWatcher loop.")
-		}
-
-		// Subscribe to lock watcher updates.
-		target := types.LockTarget{ServerID: "node"}
-		require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
-		require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
-		sub, err := w.Subscribe(ctx, target)
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, sub.Close()) })
-
-		// Close the underlying watcher. Until LockMaxStaleness is exceeded, no error
-		// should be returned.
-		events.setUnreliable(true)
-		bk.CloseWatchers()
-		select {
-		case event := <-sub.Events():
-			t.Fatalf("Unexpected event: %v.", event)
-		case <-sub.Done():
-			t.Fatal("Lock watcher subscription has unexpectedly exited.")
-		case <-time.After(2 * time.Second):
-		}
-		require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
-		require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
-
-		synctest.Wait()
-		// Advance the clock to exceed LockMaxStaleness.
-		time.Sleep(defaults.LockMaxStaleness + time.Second)
-		synctest.Wait()
-
-		select {
-		case event := <-sub.Events():
-			require.Equal(t, types.OpUnreliable, event.Type)
-		case <-sub.Done():
-			t.Fatal("Lock watcher subscription has unexpectedly exited.")
-		case <-time.After(15 * time.Second):
-			t.Fatal("Timeout waiting for OpUnreliable.")
-		}
-		require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
-		expectLockInForce(t, nil, w.CheckLockInForce(constants.LockingModeStrict, target))
-
-		// Add a lock matching the subscription target.
-		lock, err := types.NewLock("test-lock", types.LockSpecV2{
-			Target: target,
-		})
-		require.NoError(t, err)
-		require.NoError(t, access.UpsertLock(ctx, lock))
-
-		// Make the event stream reliable again. That should broadcast any matching
-		// locks added in the meantime.
-		events.setUnreliable(false)
-
-		synctest.Wait()
-		// Advance the clock to exceed LockMaxStaleness.
-		time.Sleep(time.Second)
-		synctest.Wait()
-	ExpectPut:
-		for {
-			select {
-			case event := <-sub.Events():
-				// There might be additional OpUnreliable events in the queue.
-				if event.Type == types.OpUnreliable {
-					continue ExpectPut
-				}
-				require.Equal(t, types.OpPut, event.Type)
-				receivedLock, ok := event.Resource.(types.Lock)
-				require.True(t, ok)
-				require.Empty(t, resourceDiff(receivedLock, lock))
-				break ExpectPut
-			case <-sub.Done():
-				t.Fatal("Lock watcher subscription has unexpectedly exited.")
-			case <-time.After(15 * time.Second):
-				t.Fatal("Timeout waiting for OpPut.")
-			}
-		}
-		expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeBestEffort, target))
-		expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeStrict, target))
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
 	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Access
+		types.Events
+	}
+
+	access := local.NewAccessService(bk)
+	events := &withUnreliability{Events: local.NewEventsService(bk)}
+	w, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				Access: access,
+				Events: events,
+			},
+			Clock: clock,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+	select {
+	case <-w.LoopC:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for LockWatcher loop.")
+	}
+
+	// Subscribe to lock watcher updates.
+	target := types.LockTarget{ServerID: "node"}
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
+	sub, err := w.Subscribe(ctx, target)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sub.Close()) })
+
+	// Close the underlying watcher. Until LockMaxStaleness is exceeded, no error
+	// should be returned.
+	events.setUnreliable(true)
+	bk.CloseWatchers()
+	select {
+	case event := <-sub.Events():
+		t.Fatalf("Unexpected event: %v.", event)
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+	}
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeStrict, target))
+
+	// Advance the clock to exceed LockMaxStaleness.
+	clock.Advance(defaults.LockMaxStaleness + time.Second)
+	select {
+	case event := <-sub.Events():
+		require.Equal(t, types.OpUnreliable, event.Type)
+	case <-sub.Done():
+		t.Fatal("Lock watcher subscription has unexpectedly exited.")
+	case <-time.After(15 * time.Second):
+		t.Fatal("Timeout waiting for OpUnreliable.")
+	}
+	require.NoError(t, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	expectLockInForce(t, nil, w.CheckLockInForce(constants.LockingModeStrict, target))
+
+	// Add a lock matching the subscription target.
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: target,
+	})
+	require.NoError(t, err)
+	require.NoError(t, access.UpsertLock(ctx, lock))
+
+	// Make the event stream reliable again. That should broadcast any matching
+	// locks added in the meantime.
+	events.setUnreliable(false)
+	clock.Advance(time.Second)
+ExpectPut:
+	for {
+		select {
+		case event := <-sub.Events():
+			// There might be additional OpUnreliable events in the queue.
+			if event.Type == types.OpUnreliable {
+				continue ExpectPut
+			}
+			require.Equal(t, types.OpPut, event.Type)
+			receivedLock, ok := event.Resource.(types.Lock)
+			require.True(t, ok)
+			require.Empty(t, resourceDiff(receivedLock, lock))
+			break ExpectPut
+		case <-sub.Done():
+			t.Fatal("Lock watcher subscription has unexpectedly exited.")
+		case <-time.After(15 * time.Second):
+			t.Fatal("Timeout waiting for OpPut.")
+		}
+	}
+	expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeBestEffort, target))
+	expectLockInForce(t, lock, w.CheckLockInForce(constants.LockingModeStrict, target))
 }
 
 type withUnreliability struct {
@@ -937,7 +927,7 @@ func TestNodeWatcherFallback(t *testing.T) {
 
 	// Add some servers.
 	nodes := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -989,7 +979,7 @@ func TestNodeWatcher(t *testing.T) {
 	require.NoError(t, w.WaitInitialization())
 	// Add some node servers.
 	nodes := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -998,8 +988,8 @@ func TestNodeWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(nodes))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(nodes))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool { return n.GetUseTunnel() })
@@ -1010,8 +1000,8 @@ func TestNodeWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(nodes)-1)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(nodes)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool { return n.GetName() == nodes[0].GetName() })
@@ -1075,7 +1065,7 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	// Add some kube servers.
 	kubeServers := make([]types.KubeServer, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		kubeServer := newKubeServer(t, fmt.Sprintf("kube_cluster-%d", i), "addr", fmt.Sprintf("host-%d", i))
 		_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
 		require.NoError(t, err)
@@ -1084,8 +1074,8 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Len(t, filtered, len(kubeServers))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(kubeServers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
 
 	// Test filtering by cluster name.
@@ -1099,8 +1089,8 @@ func TestKubeServerWatcher(t *testing.T) {
 	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		kube, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Len(t, kube, len(kubeServers)-1)
+		assert.NoError(t, err)
+		assert.Len(t, kube, len(kubeServers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
 
 	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
@@ -1117,8 +1107,8 @@ func TestKubeServerWatcher(t *testing.T) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		require.NoError(t, err)
-		require.Len(t, filtered, 2)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, 2)
 	}, 1000*time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
 
 	// Test deleting all kube servers with the same name.
@@ -1133,15 +1123,15 @@ func TestKubeServerWatcher(t *testing.T) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		require.NoError(t, err)
-		require.Empty(t, filtered)
+		assert.NoError(t, err)
+		assert.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
 
 	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Empty(t, filtered)
+		assert.NoError(t, err)
+		assert.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")
 }
 
@@ -1441,7 +1431,7 @@ func TestGitServerWatcher(t *testing.T) {
 
 	// Add some git servers.
 	servers := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		server := newGitServer(t, fmt.Sprintf("org%v", i+1))
 		_, err = gitServerService.CreateGitServer(ctx, server)
 		require.NoError(t, err)
@@ -1450,8 +1440,8 @@ func TestGitServerWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(servers))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(servers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
@@ -1467,8 +1457,8 @@ func TestGitServerWatcher(t *testing.T) {
 	require.NoError(t, gitServerService.DeleteGitServer(ctx, servers[0].GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(servers)-1)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(servers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {

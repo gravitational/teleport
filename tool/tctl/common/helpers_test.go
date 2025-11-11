@@ -67,7 +67,7 @@ type cliCommand interface {
 	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
-func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, args []string) error {
+func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -120,16 +120,6 @@ func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
-func runScopedCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
-	var stdoutBuff bytes.Buffer
-	command := &ScopedCommand{
-		Stdout: &stdoutBuff,
-	}
-
-	args = append([]string{"scoped"}, args...)
-	return &stdoutBuff, runCommand(t, client, command, args)
-}
-
 func runUserCommand(t *testing.T, client *authclient.Client, args []string) error {
 	command := &UserCommand{}
 	args = append([]string{"users"}, args...)
@@ -148,7 +138,7 @@ func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) e
 	return runCommand(t, client, command, args)
 }
 
-func runNotificationsCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &NotificationCommand{
 		stdout: &stdoutBuff,
@@ -260,7 +250,6 @@ type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       *clockwork.FakeClock
-	enableCache     bool
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -283,12 +272,6 @@ func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	}
 }
 
-func withEnableCache(enableCache bool) testServerOptionFunc {
-	return func(options *testServerOptions) {
-		options.enableCache = enableCache
-	}
-}
-
 func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth *service.TeleportProcess) {
 	var options testServerOptions
 	for _, opt := range opts {
@@ -304,12 +287,11 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 		require.NoError(t, err)
 	}
 
-	cfg.CachePolicy.Enabled = options.enableCache
+	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
-		cfg.Auth.Clock = options.fakeClock
 	}
 	auth, err = service.NewTeleport(cfg)
 

@@ -60,9 +60,7 @@ export default class MenuActionIcon extends React.Component<
         <HoverTooltip tipContent={this.props.tooltip} position="bottom">
           <ButtonIcon
             {...buttonIconProps}
-            ref={e => {
-              this.anchorEl = e;
-            }}
+            setRef={e => (this.anchorEl = e)}
             onClick={this.onOpen}
             data-testid="button"
           >

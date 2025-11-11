@@ -562,7 +562,7 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
+func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
@@ -1021,7 +1021,10 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 	if roles.Include(types.RoleBot) {
-		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleBot)
+		slog.WarnContext(
+			context.Background(),
+			"Role 'Bot' is not supported in static token configurations and will not function as expected. In Teleport V19.0.0, this will become an error.",
+		)
 	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
@@ -1539,7 +1542,11 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 
 	cfg.DisplayOffset = x11.DefaultDisplayOffset
 	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = min(int(*ssh.X11.DisplayOffset), x11.MaxDisplayNumber)
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+
+		if cfg.DisplayOffset > x11.MaxDisplayNumber {
+			cfg.DisplayOffset = x11.MaxDisplayNumber
+		}
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays

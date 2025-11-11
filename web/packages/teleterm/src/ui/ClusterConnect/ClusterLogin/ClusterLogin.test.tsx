@@ -172,11 +172,11 @@ it('shows two separate prompt texts during SSO login', async () => {
     .spyOn(appContext.tshd, 'login')
     .mockImplementation(async () => loginPromise);
 
-  const { resolve: resolveSyncClusterPromise, promise: syncClusterPromise } =
-    Promise.withResolvers<void>();
+  const { resolve: resolveGetClusterPromise, promise: getClusterPromise } =
+    Promise.withResolvers<ReturnType<TshdClient['getCluster']>>();
   jest
-    .spyOn(appContext.mainProcessClient, 'syncCluster')
-    .mockImplementation(async () => syncClusterPromise);
+    .spyOn(appContext.tshd, 'getCluster')
+    .mockImplementation(async () => getClusterPromise);
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -205,6 +205,6 @@ it('shows two separate prompt texts during SSO login', async () => {
 
   await act(async () => {
     // Resolve the promise to avoid leaving a hanging promise around.
-    resolveSyncClusterPromise();
+    resolveGetClusterPromise(new MockedUnaryCall(cluster));
   });
 });

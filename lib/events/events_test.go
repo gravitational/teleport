@@ -303,7 +303,7 @@ func TestJSON(t *testing.T) {
 	type testCase struct {
 		name  string
 		json  string
-		event any
+		event interface{}
 	}
 	testCases := []testCase{
 		{
@@ -536,20 +536,20 @@ func TestJSON(t *testing.T) {
 				UserMetadata: apievents.UserMetadata{
 					User: "bob@example.com",
 				},
-				IdentityAttributes: apievents.MustEncodeMap(map[string]any{
+				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{
 					"followers_url": "https://api.github.com/users/bob/followers",
 					"err":           nil,
 					"public_repos":  20,
 					"site_admin":    false,
-					"app_metadata":  map[string]any{"roles": []any{"example/admins", "example/devc"}},
-					"emails": []any{
-						map[string]any{
+					"app_metadata":  map[string]interface{}{"roles": []interface{}{"example/admins", "example/devc"}},
+					"emails": []interface{}{
+						map[string]interface{}{
 							"email":      "bob@example.com",
 							"primary":    true,
 							"verified":   true,
 							"visibility": "public",
 						},
-						map[string]any{
+						map[string]interface{}{
 							"email":      "bob@alternative.com",
 							"primary":    false,
 							"verified":   true,
@@ -1112,6 +1112,7 @@ func TestJSON(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1194,7 +1195,7 @@ func setProtoFields(msg proto.Message) {
 
 	fields := m.Descriptor().Fields()
 
-	for i := range fields.Len() {
+	for i := 0; i < fields.Len(); i++ {
 		fd := fields.Get(i)
 		if m.Has(fd) {
 			continue

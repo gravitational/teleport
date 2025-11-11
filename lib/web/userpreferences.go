@@ -82,9 +82,9 @@ type UserPreferencesResponse struct {
 	Theme                       userpreferencesv1.Theme             `json:"theme"`
 	UnifiedResourcePreferences  UnifiedResourcePreferencesResponse  `json:"unifiedResourcePreferences"`
 	Onboard                     OnboardUserPreferencesResponse      `json:"onboard"`
-	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences"`
+	ClusterPreferences          ClusterUserPreferencesResponse      `json:"clusterPreferences,omitempty"`
 	DiscoverResourcePreferences DiscoverResourcePreferencesResponse `json:"discoverResourcePreferences"`
-	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph"`
+	AccessGraph                 AccessGraphPreferencesResponse      `json:"accessGraph,omitempty"`
 	SideNavDrawerMode           userpreferencesv1.SideNavDrawerMode `json:"sideNavDrawerMode"`
 	KeyboardLayout              uint32                              `json:"keyboardLayout"`
 }

@@ -66,7 +66,7 @@ type BaseJSONRPCMessage struct {
 	// JSONRPC specifies the version of JSONRPC.
 	JSONRPC string `json:"jsonrpc"`
 	// ID is the ID for request and response. ID is nil for notification.
-	ID mcp.RequestId `json:"id"`
+	ID mcp.RequestId `json:"id,omitempty"`
 	// Method is the request or notification method. Method is empty for response.
 	Method mcp.MCPMethod `json:"method,omitempty"`
 	// Params is the params for request and notification.
@@ -136,7 +136,7 @@ type JSONRPCNotification struct {
 type JSONRPCRequest struct {
 	JSONRPC string        `json:"jsonrpc"`
 	Method  mcp.MCPMethod `json:"method"`
-	ID      mcp.RequestId `json:"id"`
+	ID      mcp.RequestId `json:"id,omitempty"`
 	Params  JSONRPCParams `json:"params,omitempty"`
 }
 

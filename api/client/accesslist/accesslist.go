@@ -61,7 +61,6 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 }
 
 // ListAccessLists returns a paginated list of access lists.
-// Deprecated: Use [Client.ListAccessListsV2] instead.
 // TODO (avatus): DELETE IN 21.0.0
 func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 	//nolint:staticcheck // SA1019. ListAccessLists is deprecated but will
@@ -474,23 +473,4 @@ func (c *Client) GetSuggestedAccessLists(ctx context.Context, accessRequestID st
 	}
 
 	return accessLists, nil
-}
-
-// ListUserAccessLists returns a paginated list of all access lists where the
-// user is explicitly an owner or member.
-func (c *Client) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
-	resp, err := c.grpcClient.ListUserAccessLists(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
-	for i, accessList := range resp.AccessLists {
-		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-	}
-
-	return accessLists, resp.GetNextPageToken(), nil
 }

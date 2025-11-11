@@ -179,7 +179,8 @@ func TestConfiguratorIsUsed(t *testing.T) {
 }
 
 func TestCredentialsCache(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -318,8 +319,8 @@ func TestCredentialsCache(t *testing.T) {
 				expectedExpiry := clock.Now().Add(TokenLifetime)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					creds, err := provider.Retrieve(ctx)
-					require.NoError(t, err)
-					require.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
+					assert.NoError(t, err)
+					assert.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
 				}, waitFor, tick)
 				credentialsUpdated = true
 			}
@@ -335,7 +336,8 @@ func TestCredentialsCache(t *testing.T) {
 // configurator to synchronously get credentials for the current draft
 // ExternalAuditStorageSpec.
 func TestDraftConfigurator(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{

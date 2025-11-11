@@ -157,8 +157,11 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-	p := newAuthSuite(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
 	a := p.a
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -539,8 +542,11 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-	p := newAuthSuite(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
 	a := p.a
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"slices"
 	"sort"
 	"testing"
 
@@ -2072,9 +2071,7 @@ func TestExtractTargetConfig(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.target, got.identity)
-
 			// for test convenience, use cmp.Diff to equate []Type(nil) and []Type{}.
-			slices.Sort(got.assumesAWSRoles)
 			diff := cmp.Diff(tt.want, got,
 				cmpopts.EquateEmpty(),
 				cmp.AllowUnexported(targetConfig{}),

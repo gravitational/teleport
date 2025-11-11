@@ -198,6 +198,7 @@ func TestAccessRequestSearch(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -278,6 +279,7 @@ func TestShowRequestTable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			captureStdout := new(bytes.Buffer)

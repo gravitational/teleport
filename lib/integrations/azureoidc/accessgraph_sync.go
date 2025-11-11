@@ -219,7 +219,9 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 			return trace.Errorf("could not get the graph API service principal: %v", err)
 		}
 		rolesNotAssigned := make(map[string]struct{})
-		maps.Copy(rolesNotAssigned, requiredGraphRoleNames)
+		for k, v := range requiredGraphRoleNames {
+			rolesNotAssigned[k] = v
+		}
 		for _, appRole := range graphPrincipal.AppRoles {
 			if _, ok := requiredGraphRoleNames[*appRole.Value]; ok {
 				roleAssignment := msgraph.AppRoleAssignment{

@@ -165,61 +165,54 @@ func TestOverwritePrompt(t *testing.T) {
 	}
 
 	ctx := context.Background()
+
+	promptWriter := bytes.NewBuffer([]byte{})
 	promptReader := prompt.NewFakeReader()
-	prompt := hardwarekey.NewCLIPrompt(os.Stderr, promptReader)
+	prompt := hardwarekey.NewCLIPrompt(promptWriter, promptReader)
 	s := piv.NewYubiKeyService(prompt)
 
 	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
 
+	resetYubikey(t, y)
 	t.Cleanup(func() { resetYubikey(t, y) })
 
-	const testPIN = "123123"
-	setupYubiKey := func(t *testing.T) {
-		resetYubikey(t, y)
-		// Set pin.
-		require.NoError(t, y.SetPIN(pivgo.DefaultPIN, testPIN))
-	}
-
 	// Get the default slot used for hardware_key_touch.
-	pinSlot := pivgo.SlotCardAuthentication
+	touchSlot := pivgo.SlotSignature
 
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
-		promptReader.AddString(testPIN)
 		promptReader.AddString("n")
 		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
-			Policy: hardwarekey.PromptPolicy{PINRequired: true},
+			Policy: hardwarekey.PromptPolicy{TouchRequired: true},
 		})
-		require.Error(t, err)
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
-		promptReader.AddString(testPIN)
 		promptReader.AddString("y")
 		_, err = keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
-			Policy: hardwarekey.PromptPolicy{PINRequired: true},
+			Policy: hardwarekey.PromptPolicy{TouchRequired: true},
 		})
 		require.NoError(t, err)
 	}
 
 	t.Run("invalid metadata cert", func(t *testing.T) {
-		setupYubiKey(t)
+		resetYubikey(t, y)
 
 		// Set a non-teleport certificate in the slot.
-		err = y.SetMetadataCertificate(pinSlot, pkix.Name{Organization: []string{"not-teleport"}})
+		err = y.SetMetadataCertificate(touchSlot, pkix.Name{Organization: []string{"not-teleport"}})
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
 	})
 
 	t.Run("invalid key policies", func(t *testing.T) {
-		setupYubiKey(t)
+		resetYubikey(t, y)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
 		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
-			CustomSlot: hardwarekey.PIVSlotKeyString(pinSlot.String()),
-			Policy:     hardwarekey.PromptPolicy{PINRequired: false},
+			CustomSlot: hardwarekey.PIVSlotKeyString(touchSlot.String()),
+			Policy:     hardwarekey.PromptPolicy{TouchRequired: false},
 		})
 		require.NoError(t, err)
 
@@ -293,11 +286,11 @@ func TestPINCaching(t *testing.T) {
 	// Signing with the right PIN should cache it.
 	promptReader.AddString(testPIN)
 	err = priv.WarmupHardwareKey(ctx)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// The PIN is cached, no prompt needed.
 	err = priv.WarmupHardwareKey(ctx)
-	require.NoError(t, err)
+	require.Error(t, err)
 }
 
 func TestConcurrentSignature(t *testing.T) {

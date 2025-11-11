@@ -843,8 +843,8 @@ is most commonly performed on TCP port 88.
 Teleport determines the address of the KDC by checking the following (in order of priority):
 
 1. If `kdc_address` is set, Teleport will use this address.
-1. If `locate_server` is enabled and `kdc_address` is not set, Teleport will
-   attempt to discover the KDC address via DNS SRV records.
+1. As of version 18.3.1, if `locate_server` is enabled and `kdc_address` is
+   not set, Teleport will attempt to discover the KDC address via DNS SRV records.
 1. If neither `locate_server` or `kdc_address` is specified, Teleport will
    assume that a KDC is available on the same host that is specified in the
    `ldap` configuration's `addr` field.

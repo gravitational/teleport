@@ -148,10 +148,10 @@ func TestJoinIAM(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, regularServer.Shutdown(ctx)) })
 
-	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
+	isAccessDenied := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
-	isBadParameter := func(t require.TestingT, err error, _ ...any) {
+	isBadParameter := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
 	}
 

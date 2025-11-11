@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -94,11 +93,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -112,8 +111,10 @@ var AllAddKeysOptions = []string{AddKeysToAgentAuto, AddKeysToAgentNo, AddKeysTo
 
 // ValidateAgentKeyOption validates that a string is a valid option for the AddKeysToAgent parameter.
 func ValidateAgentKeyOption(supplied string) error {
-	if slices.Contains(AllAddKeysOptions, supplied) {
-		return nil
+	for _, option := range AllAddKeysOptions {
+		if supplied == option {
+			return nil
+		}
 	}
 
 	return trace.BadParameter("invalid value %q, must be one of %v", supplied, AllAddKeysOptions)
@@ -526,9 +527,6 @@ type Config struct {
 
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
-
-	// ProxyTemplates describe rules for parsing out proxy out of full hostnames.
-	ProxyTemplates ProxyTemplates
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1601,64 +1599,32 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 		}, nil
 	}
 
-	host := tc.Host
-	port := strconv.Itoa(tc.HostPort)
-	predExpr := tc.PredicateExpression
-	search := tc.SearchKeywords
-
-	// Apply proxy templates.
-	expanded, matched := tc.ProxyTemplates.Apply(net.JoinHostPort(host, port))
-	if matched {
-		log.DebugContext(ctx, "Matched proxy template for host",
-			slog.String("matched_host", host),
-			slog.Group("expanded",
-				"host", expanded.Host,
-				"query", expanded.Query,
-				"search", expanded.Search,
-			),
-		)
-		// Expanded template should override all previous search criteria.
-		host = ""
-		predExpr = ""
-		search = nil
-		if expanded.Host != "" {
-			host = expanded.Host
-			if expandedHost, expandedPort, err := net.SplitHostPort(expanded.Host); err == nil {
-				host = expandedHost
-				port = expandedPort
-			}
-		} else if expanded.Query != "" {
-			predExpr = expanded.Query
-		} else if expanded.Search != "" {
-			search = ParseSearchKeywords(expanded.Search, ',')
-		}
-	}
-
-	if len(tc.Labels) == 0 && len(search) == 0 && predExpr == "" {
-		log.DebugContext(ctx, "Using provided host", "host", host)
+	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
+		log.DebugContext(ctx, "Using provided host", "host", tc.Host)
 
 		// detect the common error when users use host:port address format
-		_, badPort, err := net.SplitHostPort(host)
+		_, port, err := net.SplitHostPort(tc.Host)
 		// client has used host:port notation
 		if err == nil {
-			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", badPort)
+			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
 		}
 
+		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
 		return &TargetNode{
-			Hostname: host,
-			Addr:     net.JoinHostPort(host, port),
+			Hostname: tc.Host,
+			Addr:     addr,
 		}, nil
 	}
 
 	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
 	log.DebugContext(ctx, "Attempting to resolve matching host",
 		"labels", tc.Labels,
-		"search", search,
-		"predicate", predExpr,
+		"search", tc.SearchKeywords,
+		"predicate", tc.PredicateExpression,
 	)
 	resp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
-		PredicateExpression: predExpr,
-		SearchKeywords:      search,
+		PredicateExpression: tc.PredicateExpression,
+		SearchKeywords:      tc.SearchKeywords,
 		Labels:              tc.Labels,
 	})
 	switch {
@@ -1668,8 +1634,8 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 			Kinds:               []string{types.KindNode},
 			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
 			Labels:              tc.Labels,
-			SearchKeywords:      search,
-			PredicateExpression: predExpr,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2100,7 +2066,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	}()
 
 	var directErr, mfaErr error
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
 			mfaCancel()
@@ -2301,7 +2267,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, "", "", nil))
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
@@ -2455,7 +2421,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, sessionID.String(), mode, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2618,23 +2584,8 @@ func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdle
 	return playSession(ctx, sid, speed, streamer, skipIdleTime)
 }
 
-// SFTPRequest controls aspects of a file transfer.
-type SFTPRequest struct {
-	// Sources are the source paths to transfer from, with optional user and host.
-	Sources []string
-	// Destination is the destination path to transfer to, with optional user and host.
-	Destination string
-	// Recursive indicates recursive file transfer.
-	Recursive bool
-	// PreserveAttrs preserves access and modification times
-	// from the original file.
-	PreserveAttrs bool
-	// ProgressWriter is used to write the progress output.
-	ProgressWriter io.Writer
-}
-
-// SFTP securely copies files between Nodes or SSH servers using SFTP.
-func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
+// SFTP securely copies files between Nodes or SSH servers using SFTP
+func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination string, opts sftp.Options) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SFTP",
@@ -2642,71 +2593,53 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	)
 	defer span.End()
 
+	isDownload := sftp.IsRemotePath(source[0])
+	isUpload := sftp.IsRemotePath(destination)
+
+	if !isUpload && !isDownload {
+		return trace.BadParameter("no remote destination specified")
+	}
+
 	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer clt.Close()
 
-	// Parse sources and destination.
-	origHost := tc.Host
-	sources, err := sftp.ParseSources(req.Sources, tc.HostPort)
+	// Respect any proxy templates and attempt host resolution.
+	target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if sources.Addr != nil {
-		// Respect any proxy templates and attempt host resolution.
-		tc.Host = sources.Addr.Host()
-		target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := sources.Addr.Set(target.Addr); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	sources.Login = cmp.Or(sources.Login, tc.HostLogin)
-	dest, err := sftp.ParseTarget(req.Destination, tc.HostPort)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if dest.Addr != nil {
-		// Respect any proxy templates and attempt host resolution.
-		tc.Host = dest.Addr.Host()
-		target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := dest.Addr.Set(target.Addr); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	tc.Host = origHost
-	dest.Login = cmp.Or(dest.Login, tc.HostLogin)
 
-	sftpReq := &sftp.FileTransferRequest{
-		Sources:     sources,
-		Destination: dest,
-		DialHost: func(ctx context.Context, login, addr string) (*tracessh.Client, error) {
-			nodeClient, err := tc.ConnectToNode(ctx, clt, NodeDetails{
-				Addr:    addr,
-				Cluster: clt.ClusterName(),
-			}, login)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return nodeClient.Client, nil
-		},
-		Recursive:      req.Recursive,
-		PreserveAttrs:  req.PreserveAttrs,
-		ProgressWriter: req.ProgressWriter,
+	var cfg *sftp.Config
+	switch {
+	case isDownload:
+		dest, err := sftp.ParseDestination(source[0])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg, err = sftp.CreateDownloadConfig(dest.Path, destination, opts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case isUpload:
+		dest, err := sftp.ParseDestination(destination)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg, err = sftp.CreateUploadConfig(source, dest.Path, opts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	return trace.Wrap(tc.TransferFiles(ctx, sftpReq))
+
+	return trace.Wrap(tc.TransferFiles(ctx, clt, tc.HostLogin, target.Addr, cfg))
 }
 
 // TransferFiles copies files between the current machine and the
 // specified Node using the supplied config
-func (tc *TeleportClient) TransferFiles(ctx context.Context, req *sftp.FileTransferRequest) error {
+func (tc *TeleportClient) TransferFiles(ctx context.Context, clt *ClusterClient, hostLogin, nodeAddr string, cfg *sftp.Config) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/TransferFiles",
@@ -2714,17 +2647,27 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, req *sftp.FileTrans
 	)
 	defer span.End()
 
-	if err := sftp.TransferFiles(ctx, req); err != nil {
-		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
-		// a trace.BadParameter error when ~user path expansion was rejected, and
-		// reauthentication logic is attempted on BadParameter errors.
-		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
-			return trace.Wrap(&NonRetryableError{Err: err})
-		}
+	if hostLogin == "" {
+		return trace.BadParameter("host login is not specified")
+	}
+	if nodeAddr == "" {
+		return trace.BadParameter("node address is not specified")
+	}
 
+	nodeClient, err := tc.ConnectToNode(
+		ctx,
+		clt,
+		NodeDetails{
+			Addr:    nodeAddr,
+			Cluster: clt.ClusterName(),
+		},
+		hostLogin,
+	)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+
+	return trace.Wrap(nodeClient.TransferFiles(ctx, cfg))
 }
 
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
@@ -3039,6 +2982,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	}
 
 	for _, node := range nodes {
+		node := node
 		g.Go(func() error {
 			ctx, span := tc.Tracer.Start(
 				gctx,
@@ -3150,6 +3094,20 @@ func (tc *TeleportClient) writeCommandResults(nodes []execResult) error {
 		return trace.Errorf("%d command(s) failed", len(failedNodes))
 	}
 	return nil
+}
+
+func (tc *TeleportClient) newSessionEnv() map[string]string {
+	env := map[string]string{
+		teleport.SSHSessionWebProxyAddr: tc.WebProxyAddr,
+	}
+	if tc.SessionID != "" {
+		env[sshutils.SessionEnvVar] = tc.SessionID
+	}
+
+	for key, val := range tc.ExtraEnvs {
+		env[key] = val
+	}
+	return env
 }
 
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
@@ -3301,7 +3259,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	}
 
 	hostKeyCallback := tc.HostKeyCallback
-	authMethods := slices.Clone(tc.Config.AuthMethods)
+	authMethods := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))
@@ -5629,11 +5587,14 @@ func (tc *TeleportClient) GetSiteName() string {
 // so we need to ensure that we only present the allowed logins that would
 // result in a successful connection, if any exists.
 func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]string, error) {
-	allowed := set.New(allowedLogins...)
+	allowed := make(map[string]struct{})
+	for _, login := range allowedLogins {
+		allowed[login] = struct{}{}
+	}
 
 	var logins []string
 	for _, local := range identityPrincipals {
-		if allowed.Contains(local) {
+		if _, ok := allowed[local]; ok {
 			logins = append(logins, local)
 		}
 	}

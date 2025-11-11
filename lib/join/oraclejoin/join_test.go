@@ -24,6 +24,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -187,31 +188,6 @@ func TestJoinOracle(t *testing.T) {
 			assertion:        assert.NoError,
 		},
 		{
-			desc: "allow tenant,compartment,region,instance",
-			claims: oraclejoin.Claims{
-				InstanceID:    makeInstanceID("phx", "myinstance"),
-				CompartmentID: makeCompartmentID("mycompartment"),
-				TenancyID:     makeTenancyID("mytenant"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy: makeTenancyID("mytenant"),
-					ParentCompartments: []string{
-						makeCompartmentID("othercompartment"),
-						makeCompartmentID("mycompartment"),
-					},
-					Regions: []string{"otherregion", "phx"},
-					Instances: []string{
-						makeInstanceID("phx", "otherinstance"),
-						makeInstanceID("phx", "myinstance"),
-					},
-				},
-			},
-			tokenName:        "mytoken",
-			requestTokenName: "mytoken",
-			assertion:        assert.NoError,
-		},
-		{
 			desc: "allow multiple rules",
 			claims: oraclejoin.Claims{
 				InstanceID:    makeInstanceID("phx", "myinstance"),
@@ -300,31 +276,6 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("mycompartment"),
 					},
 					Regions: []string{"otherregion", "phx"},
-				},
-			},
-			tokenName:        "mytoken",
-			requestTokenName: "mytoken",
-			assertion:        isAccessDenied,
-		},
-		{
-			desc: "wrong instance",
-			claims: oraclejoin.Claims{
-				InstanceID:    makeInstanceID("phx", "badinstance"),
-				CompartmentID: makeCompartmentID("mycompartment"),
-				TenancyID:     makeTenancyID("mytenant"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy: makeTenancyID("mytenant"),
-					ParentCompartments: []string{
-						makeCompartmentID("othercompartment"),
-						makeCompartmentID("mycompartment"),
-					},
-					Regions: []string{"otherregion", "phx"},
-					Instances: []string{
-						makeInstanceID("phx", "otherinstance"),
-						makeInstanceID("phx", "myinstance"),
-					},
 				},
 			},
 			tokenName:        "mytoken",
@@ -422,15 +373,17 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 		require.NoError(t, err)
 
 		var signature []byte
-		switch signatureKey.Public().(type) {
-		case *rsa.PublicKey:
-			signature, err = oracle.SignChallenge(signatureKey, challenge)
-		case *ecdsa.PublicKey:
-			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.SHA256)
-		case ed25519.PublicKey:
-			signature, err = crypto.SignMessage(signatureKey, rand.Reader, []byte(challenge), crypto.Hash(0))
+		switch priv := signatureKey.(type) {
+		case *rsa.PrivateKey:
+			signature, err = oracle.SignChallenge(priv, challenge)
+			require.NoError(t, err)
+		case *ecdsa.PrivateKey:
+			digest := sha256.Sum256([]byte(challenge))
+			signature, err = ecdsa.SignASN1(rand.Reader, priv, digest[:])
+			require.NoError(t, err)
+		case ed25519.PrivateKey:
+			signature = ed25519.Sign(priv, []byte(challenge))
 		}
-		require.NoError(t, err)
 
 		// Make the root CA request but there's no need to actually sign it
 		// since this will be sent to the test's fake Oracle API.

@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -68,8 +67,6 @@ type fileTransferRequest struct {
 }
 
 func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	ctx := r.Context()
-
 	query := r.URL.Query()
 	req := fileTransferRequest{
 		cluster:               cluster.GetName(),
@@ -128,6 +125,25 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.AccessDenied("MFA required for file transfer")
 	}
 
+	var cfg *sftp.Config
+	isUpload := r.Method == http.MethodPost
+	if isUpload {
+		cfg, err = sftp.CreateHTTPUploadConfig(sftp.HTTPTransferRequest{
+			Src:         req.filename,
+			Dst:         req.remoteLocation,
+			HTTPRequest: r,
+		})
+	} else {
+		cfg, err = sftp.CreateHTTPDownloadConfig(sftp.HTTPTransferRequest{
+			Src:          req.remoteLocation,
+			Dst:          req.filename,
+			HTTPResponse: w,
+		})
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tc, err := ft.createClient(req, r, h.cfg.PROXYSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -139,9 +155,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	var moderatedSessionID string
+	ctx := r.Context()
 	if req.fileTransferRequestID != "" {
-		moderatedSessionID = req.moderatedSessionID
+		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
 	}
 
 	accessPoint, err := cluster.CachingAccessPoint()
@@ -222,42 +238,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	defer nodeClient.Close()
 
-	webTarget := sftp.Target{
-		Path: req.filename,
-	}
-	remoteTarget := sftp.Target{
-		Login: req.login,
-		Addr: &utils.NetAddr{
-			Addr: req.serverID + ":0",
-		},
-		Path: req.remoteLocation,
-	}
-	dialHost := func(_ context.Context, _, _ string) (*tracessh.Client, error) {
-		return nodeClient.Client, nil
-	}
-	var sftpReq *sftp.FileTransferRequest
-	if r.Method == http.MethodPost {
-		sftpReq, err = sftp.CreateHTTPUploadRequest(sftp.HTTPTransferRequest{
-			Src:                webTarget,
-			Dst:                remoteTarget,
-			HTTPRequest:        r,
-			DialHost:           dialHost,
-			ModeratedSessionID: moderatedSessionID,
-		})
-	} else {
-		sftpReq, err = sftp.CreateHTTPDownloadRequest(sftp.HTTPTransferRequest{
-			Src:                remoteTarget,
-			Dst:                webTarget,
-			HTTPResponse:       w,
-			DialHost:           dialHost,
-			ModeratedSessionID: moderatedSessionID,
-		})
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := sftp.TransferFiles(ctx, sftpReq); err != nil {
+	if err := nodeClient.TransferFiles(ctx, cfg); err != nil {
 		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
 			return nil, trace.Errorf("transferring directories through the Web UI is not supported at the moment, please use tsh scp -r")
 		}

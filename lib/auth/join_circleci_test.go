@@ -20,7 +20,6 @@ package auth_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -35,11 +34,9 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 )
 
-var errMockInvalidToken = errors.New("invalid token")
-
 func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 	var (
 		validIDToken  = "valid-token"
 		validOrg      = "valid-org"
@@ -63,11 +60,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 		})
 		return nil
 	}
-
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir:    t.TempDir(),
-		MutateAuth: withTokenValidator,
-	})
+	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
 	require.NoError(t, err)
 	auth := p.a
 
@@ -94,12 +87,12 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 	}
 
 	// helpers for error assertions
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		messageMatch := assert.ErrorContains(t, err, "id token claims did not match any allow rules")
 		typeMatch := assert.True(t, trace.IsAccessDenied(err))
 		require.True(t, messageMatch && typeMatch)
 	})
-	tokenNotMatched := func(t require.TestingT, err error, i ...any) {
+	tokenNotMatched := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, errMockInvalidToken)
 	}
 	tests := []struct {
@@ -172,7 +165,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 					},
 				},
 			}),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "IDToken not provided")
 			},

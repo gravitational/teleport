@@ -1,3 +1,5 @@
+//go:build go1.24 && enablesynctest
+
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -38,11 +40,22 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
+/*
+This file uses the experimental testing/synctest package introduced with Go 1.24:
+
+    https://go.dev/blog/synctest
+
+When editing this file, you should set GOEXPERIMENT=synctest for your editor/LSP
+to ensure that the language server doesn't fail to recognize the package.
+
+This file is also protected by a build tag to ensure that `go test` doesn't fail
+for users who haven't set the environment variable.
+*/
+
 func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
-	cache := &mockCache{}
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: "cluster-name"}},
-		AuthPreferenceGetter: cache,
+		AuthPreferenceGetter: &mockCache{},
 	})
 	require.NoError(t, err)
 
@@ -196,10 +209,9 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		}
 	}
 
-	cache := &mockCache{}
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: "cluster-name"}},
-		AuthPreferenceGetter: cache,
+		AuthPreferenceGetter: &mockCache{},
 	})
 	require.NoError(t, err)
 
@@ -230,16 +242,18 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			tags: exampleProfileTags,
 		}
 
-		synctest.Test(t, func(t *testing.T) {
+		synctest.Run(func() {
+			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(t.Context(), params)
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx, params)
 				assert.NoError(t, err)
 			}()
 
 			// Wait for the 1st profile sync iteration.
 			synctest.Wait()
+			cancel()
 
-			require.Empty(t, serverClient.appServers)
+			require.Len(t, serverClient.appServers, 0)
 		})
 	})
 
@@ -256,14 +270,16 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			tags: exampleProfileTags,
 		}
 
-		synctest.Test(t, func(t *testing.T) {
+		synctest.Run(func() {
+			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(t.Context(), params)
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx, params)
 				assert.NoError(t, err)
 			}()
 
 			// Wait for the 1st profile sync iteration.
 			synctest.Wait()
+			cancel()
 
 			require.Len(t, serverClient.appServers, 1)
 			appServer := serverClient.appServers[0]
@@ -279,14 +295,16 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 				"teleport.dev/integration":                    "test-integration",
 			}, appServer.GetAllLabels())
 
-			status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
-			require.NotNil(t, status)
-			lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
-			require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusSuccess, lastSyncSummary.Status)
-			require.NotEmpty(t, lastSyncSummary.StartTime)
-			require.NotEmpty(t, lastSyncSummary.EndTime)
-			require.Equal(t, int32(1), lastSyncSummary.SyncedProfiles)
-			require.Empty(t, lastSyncSummary.ErrorMessage)
+			t.Run("integration status is updated", func(t *testing.T) {
+				status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
+				require.NotNil(t, status)
+				lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
+				require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusSuccess, lastSyncSummary.Status)
+				require.NotEmpty(t, lastSyncSummary.StartTime)
+				require.NotEmpty(t, lastSyncSummary.EndTime)
+				require.Equal(t, int32(1), lastSyncSummary.SyncedProfiles)
+				require.Empty(t, lastSyncSummary.ErrorMessage)
+			})
 		})
 	})
 
@@ -306,14 +324,16 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			tags: tags,
 		}
 
-		synctest.Test(t, func(t *testing.T) {
+		synctest.Run(func() {
+			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(t.Context(), params)
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx, params)
 				assert.NoError(t, err)
 			}()
 
 			// Wait for the 1st profile sync iteration.
 			synctest.Wait()
+			cancel()
 
 			require.Len(t, serverClient.appServers, 1)
 			appServer := serverClient.appServers[0]
@@ -347,14 +367,16 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			tags: tags,
 		}
 
-		synctest.Test(t, func(t *testing.T) {
+		synctest.Run(func() {
+			ctx, cancel := context.WithCancel(context.Background())
 			go func() {
-				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(t.Context(), params)
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(ctx, params)
 				assert.NoError(t, err)
 			}()
 
 			// Wait for the 1st profile sync iteration.
 			synctest.Wait()
+			cancel()
 
 			status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
 			require.NotNil(t, status)

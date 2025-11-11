@@ -27,7 +27,7 @@ func newBufferedChannelPipe(len int) *bufferedChannelPipe {
 
 // Write will write all of p to the buffer unless the buffer is closed
 func (b *bufferedChannelPipe) Write(p []byte) (n int, err error) {
-	for n = range p {
+	for n = 0; n < len(p); n++ {
 		select {
 		// blocking behavior
 		case b.ch <- p[n]:
@@ -35,7 +35,7 @@ func (b *bufferedChannelPipe) Write(p []byte) (n int, err error) {
 			return n, io.EOF
 		}
 	}
-	return len(p), nil
+	return n, nil
 }
 
 // Read will always read at least one byte from the buffer unless the buffer is closed

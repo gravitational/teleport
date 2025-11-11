@@ -25,11 +25,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	setutils "github.com/gravitational/teleport/lib/utils/set"
 )
 
 // Fields represents a generic string-keyed map.
-type Fields map[string]any
+type Fields map[string]interface{}
 
 // GetString returns a string representation of a field.
 func (f Fields) GetString(key string) string {
@@ -420,12 +419,15 @@ func ToFieldsCondition(cfg ToFieldsConditionConfig) (FieldsCondition, error) {
 }
 
 func containsAll(slice []string, items []string) bool {
-	set := setutils.New(slice...)
+	set := make(map[string]struct{}, len(slice))
+	for _, s := range slice {
+		set[s] = struct{}{}
+	}
 	if len(items) == 0 {
 		return false
 	}
 	for _, item := range items {
-		if !set.Contains(item) {
+		if _, ok := set[item]; !ok {
 			return false
 		}
 	}
@@ -433,12 +435,15 @@ func containsAll(slice []string, items []string) bool {
 }
 
 func containsAny(slice []string, items []string) bool {
-	set := setutils.New(slice...)
+	set := make(map[string]struct{}, len(slice))
+	for _, s := range slice {
+		set[s] = struct{}{}
+	}
 	if len(items) == 0 {
 		return false
 	}
 	for _, item := range items {
-		if set.Contains(item) {
+		if _, ok := set[item]; ok {
 			return true
 		}
 	}

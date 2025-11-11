@@ -38,7 +38,6 @@ func NewClient(grpcClient userloginstatev1.UserLoginStateServiceClient) *Client 
 }
 
 // GetUserLoginStates returns a list of all user login states.
-// Deprecated: Prefer paginated variant such as ListUserLoginStates.
 func (c *Client) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
 	resp, err := c.grpcClient.GetUserLoginStates(ctx, &userloginstatev1.GetUserLoginStatesRequest{})
 	if err != nil {

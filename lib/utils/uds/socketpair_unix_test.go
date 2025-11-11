@@ -74,7 +74,7 @@ func TestSocketparFDPassing(t *testing.T) {
 
 	var eg errgroup.Group
 
-	for i := range maxFiles {
+	for i := 0; i < maxFiles; i++ {
 		f := i + 1
 		eg.Go(func() error {
 			msg := fmt.Sprintf("send-%d", f)
@@ -85,7 +85,7 @@ func TestSocketparFDPassing(t *testing.T) {
 			// fds are the remote halves of socket pairs to be sent
 			// to the server along with the associated message.
 			fds := make([]*os.File, 0, f)
-			for range f {
+			for j := 0; j < f; j++ {
 				clt, srv, err := NewSocketpair(SocketTypeStream)
 				if err != nil {
 					return trace.Errorf("failed to create socket pair: %v", err)

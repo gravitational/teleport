@@ -180,11 +180,13 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	// Spin up goroutine for bot to run in
 	ctx, cancel := context.WithCancel(ctx)
 	wg := sync.WaitGroup{}
-	wg.Go(func() {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		err := b.Run(ctx)
 		assert.NoError(t, err, "bot should not exit with error")
 		cancel()
-	})
+	}()
 	t.Cleanup(func() {
 		// Shut down bot and make sure it exits.
 		cancel()

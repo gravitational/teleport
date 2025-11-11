@@ -459,7 +459,8 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			buildType := tt.buildType
 			if buildType == "" {

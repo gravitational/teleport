@@ -203,30 +203,20 @@ export const MultiselectMenu = <T extends readonly Option<any>[]>({
             </>
           );
           return (
-            <HoverTooltip
+            <MenuItem
+              disabled={opt.disabled}
+              px={2}
               key={opt.value}
-              tipContent={(opt.disabled && opt.disabledTooltip) || undefined}
+              onClick={() => (!opt.disabled ? handleSelect(opt.value) : null)}
             >
-              <MenuItem
-                disabled={opt.disabled}
-                px={2}
-                onClick={e => {
-                  const target = e.target as HTMLElement;
-                  // Check if the click originated from the checkbox
-                  if (
-                    (target as HTMLInputElement).type === 'checkbox' ||
-                    target.closest('input[type="checkbox"]')
-                  ) {
-                    return; // Don't handle if click came from checkbox
-                  }
-                  if (!opt.disabled) {
-                    handleSelect(opt.value);
-                  }
-                }}
-              >
-                {$checkbox}
-              </MenuItem>
-            </HoverTooltip>
+              {opt.disabled && opt.disabledTooltip ? (
+                <HoverTooltip tipContent={opt.disabledTooltip}>
+                  {$checkbox}
+                </HoverTooltip>
+              ) : (
+                $checkbox
+              )}
+            </MenuItem>
           );
         })}
         {buffered && (

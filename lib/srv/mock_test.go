@@ -141,15 +141,16 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 
-	authServer, err := auth.NewServer(&auth.InitConfig{
+	authCfg := &auth.InitConfig{
 		Backend:        bk,
 		VersionStorage: authtest.NewFakeTeleportVersion(),
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		HostUUID:       uuid.NewString(),
-		Clock:          clock,
-	})
+	}
+
+	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, authServer.Close())
@@ -252,7 +253,7 @@ func (m *mockServer) GetInfo() types.Server {
 	}
 }
 
-func (m *mockServer) EventMetadata() apievents.ServerMetadata {
+func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerID:        "123",
 		ForwardedBy:     "abc",

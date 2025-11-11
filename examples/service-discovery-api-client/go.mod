@@ -1,10 +1,10 @@
 module register-app-service
 
-go 1.25.3
+go 1.24.9
 
 require (
 	github.com/docker/docker v28.3.3+incompatible
-	github.com/gravitational/teleport/api v0.0.0-20250813020053-3df242da2a4a
+	github.com/gravitational/teleport/api v0.0.0-20250818183108-571669ac0707
 	github.com/gravitational/trace v1.5.1
 	google.golang.org/grpc v1.74.2
 )
@@ -43,8 +43,8 @@ require (
 	github.com/russellhaering/gosaml2 v0.10.0 // indirect
 	github.com/russellhaering/goxmldsig v1.5.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.37.0 // indirect

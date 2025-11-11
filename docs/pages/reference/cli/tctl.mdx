@@ -355,7 +355,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../machine-workload-identity/machine-id/introduction.mdx) is a more secure alternative that
+[Machine & Workload Identity](../../machine-workload-identity/machine-id/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -421,7 +421,7 @@ $ tctl auth sign --user=admin --out=identity.pem
 
 ## tctl bots add
 
-Create a new Machine ID Bot:
+Create a new Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots add <name> [<flags>]
@@ -429,7 +429,7 @@ $ tctl bots add <name> [<flags>]
 
 ### Arguments
 
-- `<name>` - name of Machine ID Bot to create.
+- `<name>` - name of Machine & Workload Identity Bot to create.
 
 ### Flags
 
@@ -494,7 +494,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots instances list
 
-List all current instances of a Machine ID bot:
+List all current instances of a Machine & Workload Identity bot:
 
 ```code
 $ tctl bots instances list [<name>]
@@ -505,16 +505,6 @@ $ tctl bots instances list [<name>]
 - `[<name>]` - an optional bot name. If provided, filters the result to show
   only instances for the named bot. Otherwise, shows all instances for all bots.
 
-### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--search` | none | A search term | Optional. Filters the returned bot instances using a fuzzy search based on the term provided. |
-| `--query` | none | Teleport predicate language query | Optional. Filters the returned bot instances based on the Teleport predicate language query provided. |
-| `--sort-index` | `bot_name` | `bot_name`, `active_at_latest`, `version_latest`, `host_name_latest` | Optional. Sorts the returned bot instances using the given field. |
-| `--sort-order` | `ascending` | `ascending`, `descending` | Optional. Sorts the returned bot instances in the given order. |
-| `--format` | `text` | `text`, `json` | If set to `json`, returns results as a machine-readable JSON string. |
-
 ### Examples
 
 This shows all known instances for the bot named "example":
@@ -522,25 +512,6 @@ This shows all known instances for the bot named "example":
 ```code
 $ tctl bots instance list example
 ```
-
-This shows all known instances which contain the term "github";
-
-```code
-$ tctl bots instance list --search github
-```
-
-Searchable fields include; bot name, instance id, hostname, join method, version
-
-This shows all known instances with a version older than "18.0.0";
-
-```code
-$ tctl bots instance list --query `older_than(status.latest_heartbeat.version, "18.0.0")`
-```
-Version-specific functions include;
-
-- `newer_than(version, comparison)`
-- `older_than(version, comparison)`
-- `between(version, lower (inclusive), upper (exclusive))`
 
 ### Global flags
 
@@ -574,7 +545,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots ls
 
-Lists all Machine ID Bots:
+Lists all Machine & Workload Identity Bots:
 
 ```code
 $ tctl bots ls [<flags>]
@@ -587,7 +558,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots rm
 
-Delete a Machine ID Bot:
+Delete a Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots rm <name> [<flags>]
@@ -595,7 +566,7 @@ $ tctl bots rm <name> [<flags>]
 
 ### Arguments
 
-- `<name>` - name of Machine ID Bot to delete.
+- `<name>` - name of Machine & Workload Identity Bot to delete.
 
 ### Global flags
 
@@ -604,7 +575,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots update
 
-Update a Machine ID bot:
+Update a Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots update <bot> [<flags>]
@@ -1204,7 +1175,7 @@ $ tctl request approve request-id-1, request-id-2
 Create a pending Access Request.
 
 ```code
-$ tctl request create [<flags>] <username>
+$ tctl request create <username>
 ```
 
 ### Arguments
@@ -1215,10 +1186,10 @@ $ tctl request create [<flags>] <username>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-|`--roles`|none|Comma-separated list of strings|Roles to be requested|
-|`--resource`|none|Comma-separated list of strings|Resource IDs to be requested|
-|`--reason`|none|String|Optional reason message|
-|`--dry-run`|none|Boolean|Don't actually generate the Access Request|
+|`roles`|none|Comma-separated list of strings|Roles to be requested|
+|`resource`|none|Comma-separated list of strings|Resource IDs to be requested|
+|`reason`|none|String|Optional reason message|
+|`dry-run`|none|Boolean|Don't actually generate the Access Request|
 
 Use the `dry-run` flag if you want to validate whether Teleport can create an
 Access Request for the user in the `username` argument, given the user's static

@@ -39,7 +39,7 @@ type softwareKeyStore struct {
 }
 
 // RSAKeyPairSource is a function type which returns new RSA keypairs.
-type RSAKeyPairSource func(algo cryptosuites.Algorithm) (priv []byte, pub []byte, err error)
+type RSAKeyPairSource func(alg cryptosuites.Algorithm) (priv []byte, pub []byte, err error)
 
 type softwareConfig struct {
 	rsaKeyPairSource RSAKeyPairSource

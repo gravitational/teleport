@@ -32,9 +32,9 @@ type Plugin interface {
 	// GetName returns plugin name
 	GetName() string
 	// RegisterProxyWebHandlers registers new methods with the ProxyWebHandler
-	RegisterProxyWebHandlers(handler any) error
+	RegisterProxyWebHandlers(handler interface{}) error
 	// RegisterAuthWebHandlers registers new methods with the Auth Web Handler
-	RegisterAuthWebHandlers(service any) error
+	RegisterAuthWebHandlers(service interface{}) error
 	// RegisterAuthServices registers new services on the AuthServer
 	RegisterAuthServices(ctx context.Context, server any, getClientCert getCertFunc) error
 }
@@ -46,9 +46,9 @@ type Registry interface {
 	// Add adds plugin to the registry
 	Add(plugin Plugin) error
 	// RegisterProxyWebHandlers registers Teleport Proxy web handlers
-	RegisterProxyWebHandlers(handler any) error
+	RegisterProxyWebHandlers(handler interface{}) error
 	// RegisterAuthWebHandlers registers Teleport Auth web handlers
-	RegisterAuthWebHandlers(handler any) error
+	RegisterAuthWebHandlers(handler interface{}) error
 	// RegisterAuthServices registers Teleport AuthServer services
 	RegisterAuthServices(ctx context.Context, server any, getClientCert getCertFunc) error
 }
@@ -91,7 +91,7 @@ func (r *registry) Add(p Plugin) error {
 }
 
 // RegisterProxyWebHandlers registers Teleport Proxy web handlers
-func (r *registry) RegisterProxyWebHandlers(handler any) error {
+func (r *registry) RegisterProxyWebHandlers(handler interface{}) error {
 	for _, p := range r.plugins {
 		if err := p.RegisterProxyWebHandlers(handler); err != nil {
 			return trace.Wrap(err, "plugin %v failed to register", p.GetName())
@@ -102,7 +102,7 @@ func (r *registry) RegisterProxyWebHandlers(handler any) error {
 }
 
 // RegisterAuthWebHandlers registers Teleport Auth web handlers
-func (r *registry) RegisterAuthWebHandlers(handler any) error {
+func (r *registry) RegisterAuthWebHandlers(handler interface{}) error {
 	for _, p := range r.plugins {
 		if err := p.RegisterAuthWebHandlers(handler); err != nil {
 			return trace.Wrap(err, "plugin %v failed to register", p.GetName())

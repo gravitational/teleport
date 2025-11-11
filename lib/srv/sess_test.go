@@ -165,7 +165,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 
 			// new exec request context
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet, &decisionpb.SSHAccessPermit{})
-			scx.SetEnv(sftp.EnvModeratedSessionID, sess.ID())
+			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())
@@ -196,7 +196,7 @@ func TestSession_newRecorder(t *testing.T) {
 
 	logger := logtest.NewLogger()
 
-	isNotSessionWriter := func(t require.TestingT, i any, i2 ...any) {
+	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
 		_, ok := i.(*events.SessionWriter)
 		require.False(t, ok)
@@ -315,7 +315,7 @@ func TestSession_newRecorder(t *testing.T) {
 				term: &terminal{},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i any, _ ...any) {
+			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -349,7 +349,7 @@ func TestSession_newRecorder(t *testing.T) {
 				term: &terminal{},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i any, i2 ...any) {
+			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -418,7 +418,8 @@ func TestSession_emitAuditEvent(t *testing.T) {
 func TestInteractiveSession(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
@@ -508,7 +509,8 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("without BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -570,7 +572,8 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("with BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -710,9 +713,9 @@ func TestParties(t *testing.T) {
 	// Create a session with 3 parties
 	sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
 	require.Len(t, sess.getParties(), 1)
-	testJoinSession(t, reg, sess.ID())
+	testJoinSession(t, reg, sess)
 	require.Len(t, sess.getParties(), 2)
-	testJoinSession(t, reg, sess.ID())
+	testJoinSession(t, reg, sess)
 	require.Len(t, sess.getParties(), 3)
 
 	// If a party leaves, the session should remove the party and continue.
@@ -754,7 +757,7 @@ func TestParties(t *testing.T) {
 	regClock.BlockUntil(2)
 
 	// If a party connects to the lingering session, it will continue.
-	testJoinSession(t, reg, sess.ID())
+	testJoinSession(t, reg, sess)
 	require.Len(t, sess.getParties(), 1)
 
 	// advance clock and give lingerAndDie goroutine a second to complete.
@@ -774,9 +777,10 @@ func TestParties(t *testing.T) {
 	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 }
 
-func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
+func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
 	sshChanOpen := newMockSSHChannel()
+	scx.setSession(t.Context(), sess, sshChanOpen)
 
 	// Open a new session
 	go func() {
@@ -784,7 +788,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sid, types.SessionPeerMode)
+	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sess.ID(), types.SessionPeerMode)
 	require.NoError(t, err)
 }
 
@@ -853,7 +857,7 @@ func TestSessionRecordingModes(t *testing.T) {
 				for _, e := range srv.Events() {
 					delete(eventsNotReceived, e.GetType())
 				}
-				require.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
+				assert.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
 			}, time.Second*5, time.Millisecond*500, "Some events not received")
 		})
 	}
@@ -926,7 +930,8 @@ func (s sessionEvaluator) IsModerated() bool {
 
 func TestTrackingSession(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	me, err := user.Current()
 	require.NoError(t, err)
@@ -1183,7 +1188,8 @@ func TestSessionRecordingMode(t *testing.T) {
 }
 
 func TestCloseProxySession(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
@@ -1230,7 +1236,8 @@ func TestCloseProxySession(t *testing.T) {
 // closing the session releases all the resources, and return properly to the
 // user.
 func TestCloseRemoteSession(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy

@@ -20,7 +20,6 @@ package helpers
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
@@ -370,7 +369,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
-	keygen := keygen.New(t.Context(), keygen.SetClock(cfg.Clock))
+	keygen := keygen.New(context.TODO())
 	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
@@ -384,7 +383,10 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
+	clock := cfg.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
@@ -393,23 +395,15 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	subject, err := identity.Subject()
 	fatalIf(err)
 
-	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: key,
-		Entity: pkix.Name{
-			CommonName:   cfg.ClusterName,
-			Organization: []string{cfg.ClusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: clock,
-	})
+	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
 	fatalIf(err)
-
 	tlsHostCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
-
 	hostCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
-
 	tlsHostCert, err := tlsHostCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: hostCryptoPubKey,
@@ -418,17 +412,11 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: key,
-		Entity: pkix.Name{
-			CommonName:   cfg.ClusterName,
-			Organization: []string{cfg.ClusterName},
-		},
-		TTL:   defaults.CATTL,
-		Clock: clock,
-	})
+	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
+		CommonName:   cfg.ClusterName,
+		Organization: []string{cfg.ClusterName},
+	}, nil, defaults.CATTL)
 	fatalIf(err)
-
 	tlsUserCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
 	userCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
@@ -920,7 +908,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 	}
 
 	processes := make([]*service.TeleportProcess, 0, len(configs))
-	for range configs {
+	for j := 0; j < len(configs); j++ {
 		result := <-results
 		if result.tmpDir != "" {
 			i.tempDirs = append(i.tempDirs, result.tmpDir)
@@ -1338,12 +1326,7 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
-	if i.Config.WindowsDesktop.Enabled {
-		expectedEvents = append(expectedEvents, service.WindowsDesktopReady)
-	}
-	if i.Config.Relay.Enabled {
-		expectedEvents = append(expectedEvents, service.RelayReady)
-	}
+
 	if i.Config.Discovery.Enabled {
 		expectedEvents = append(expectedEvents, service.DiscoveryReady)
 	}

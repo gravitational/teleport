@@ -116,6 +116,7 @@ export function Audit(props: State) {
       {errorMessage && <Danger>{errorMessage}</Danger>}
       <Box mt={2}>
         <SearchPanel
+          disableSearch={isLoading || isFetchingNextPage}
           updateSearch={setSearch}
           updateQuery={null}
           hideAdvancedSearch={true}

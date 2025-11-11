@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -240,7 +239,6 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
 		SetStoragePresenceService(testServer.AuthServer.AuthServer.PresenceInternal),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -321,7 +319,8 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 // requests a reply whether processing the request was successful or not.
 func TestTerminalSizeRequest(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	t.Run("Invalid session", func(t *testing.T) {
 		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte("1234"))
@@ -388,7 +387,8 @@ func TestTerminalSizeRequest(t *testing.T) {
 //     conditions on this code path.
 func TestMultipleExecCommands(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
@@ -715,7 +715,7 @@ func TestInactivityTimeout(t *testing.T) {
 		// If all goes well, the client will be closed by the time cleanup happens,
 		// so change the assertion on closing the client to expect it to fail
 		f.ssh.assertCltClose = require.Error
-		se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
+		se, err := f.ssh.clt.NewSession(context.Background())
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, err) })
 		waitForTimeout(t, f, se)
@@ -727,7 +727,7 @@ func TestInactivityTimeout(t *testing.T) {
 		// If all goes well, the client will be closed by the time cleanup happens,
 		// so change the assertion on closing the client to expect it to fail
 		f.ssh.assertCltClose = require.Error
-		se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
+		se, err := f.ssh.clt.NewSession(context.Background())
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, err) })
 
@@ -1108,7 +1108,7 @@ func TestAdvertiseAddr(t *testing.T) {
 	)
 	// IP-only advertiseAddr should use the port from srvAddress.
 	f.ssh.srv.setAdvertiseAddr(advIP)
-	require.Equal(t, net.JoinHostPort(advIP.String(), f.ssh.srvPort), f.ssh.srv.AdvertiseAddr())
+	require.Equal(t, fmt.Sprintf("%s:%s", advIP, f.ssh.srvPort), f.ssh.srv.AdvertiseAddr())
 
 	// IP and port advertiseAddr should fully override srvAddress.
 	f.ssh.srv.setAdvertiseAddr(advIPPort)
@@ -1186,7 +1186,7 @@ func TestMaxSessions(t *testing.T) {
 	require.NoError(t, err)
 	defer clientConn.Close()
 
-	for range maxSessions {
+	for i := int64(0); i < maxSessions; i++ {
 		se, err := clientConn.NewSession(ctx)
 		require.NoError(t, err)
 		defer se.Close()
@@ -1389,7 +1389,7 @@ func TestX11Forward(t *testing.T) {
 		errCh <- x11EchoRequest(serverDisplay2)
 	}()
 
-	for range 4 {
+	for i := 0; i < 4; i++ {
 		select {
 		case err := <-errCh:
 			assert.NoError(t, err)
@@ -1403,7 +1403,7 @@ func TestX11Forward(t *testing.T) {
 // echoing XServer requests received back to the client. Returns the Display opened on the
 // session, which is set in $DISPLAY.
 func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11.Display {
-	se, err := clt.NewSessionWithParams(context.Background(), nil)
+	se, err := clt.NewSession(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
@@ -1481,9 +1481,9 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
 		_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		require.Eventually(t, func() bool {
+		assert.Eventually(t, func() bool {
 			output, err := os.ReadFile(tmpFile.Name())
 			if err == nil && len(output) != 0 {
 				select {
@@ -1807,12 +1807,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
-		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
 	})
 	require.NoError(t, err)
 
@@ -1856,7 +1850,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1907,14 +1900,14 @@ func TestProxyRoundRobin(t *testing.T) {
 	_, err = newUpack(f.testSrv, "user1", []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
 
 	// close first connection, and test it again
 	pool1.Stop()
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		testClient(t, f, proxy.Addr(), f.ssh.srvAddress, f.ssh.srv.Addr(), sshConfig)
 	}
 }
@@ -1951,12 +1944,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
-		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
 	})
 	require.NoError(t, err)
 
@@ -2002,7 +1989,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -2218,7 +2204,6 @@ func TestLimiter(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
@@ -2351,6 +2336,7 @@ func TestGlobalRequestClusterDetails(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2421,7 +2407,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 			DNSNames:             []string{hostname},
 			PublicSSHKey:         pub,
 			PublicTLSKey:         tlsPub,
-		}, "")
+		})
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -2613,7 +2599,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
 		return func() *tracessh.Session {
-			se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
+			se, err := f.ssh.clt.NewSession(context.Background())
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = se.Close() })
 			return se
@@ -2646,12 +2632,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			NodeWatcher:           nodeWatcher,
 			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
-			EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-				return nil, errors.New("eice disabled in tests")
-			},
-			EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-				return nil, errors.New("eice disabled in tests")
-			},
 		})
 		require.NoError(t, err)
 
@@ -2700,7 +2680,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetClock(f.clock),
 			SetLockWatcher(lockWatcher),
 			SetSessionController(sessionController),
-			SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 		)
 		require.NoError(t, err)
 		require.NoError(t, proxy.Start())
@@ -2794,7 +2773,8 @@ func TestX11ProxySupport(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// set cluster config to record at the proxy
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -2915,12 +2895,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
-		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
-		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
 	})
 	require.NoError(t, err)
 
@@ -2966,7 +2940,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -3068,7 +3041,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
-func TestEventMetadata(t *testing.T) {
+func TestTargetMetadata(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -3120,7 +3093,6 @@ func TestEventMetadata(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	}
 
 	sshSrv, err := New(
@@ -3136,7 +3108,7 @@ func TestEventMetadata(t *testing.T) {
 		serverOptions...)
 	require.NoError(t, err)
 
-	metadata := sshSrv.EventMetadata()
+	metadata := sshSrv.TargetMetadata()
 	require.Equal(t, nodeID, metadata.ServerID)
 	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
 	require.Empty(t, metadata.ServerAddr)
@@ -3152,7 +3124,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey any
+	pkey interface{}
 
 	// pub is a public user key
 	pub []byte
@@ -3305,7 +3277,7 @@ func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) s
 			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
-		}, "")
+		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
@@ -3359,12 +3331,6 @@ func TestHostUserCreationProxy(t *testing.T) {
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
-		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
-		EICEDialer: func(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
-			return nil, errors.New("eice disabled in tests")
-		},
 	})
 	require.NoError(t, err)
 
@@ -3408,7 +3374,6 @@ func TestHostUserCreationProxy(t *testing.T) {
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
-		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 
@@ -3446,7 +3411,8 @@ func TestHostUserCreationProxy(t *testing.T) {
 func TestObtainFallbackUID(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	type testCase struct {
 		config     *types.StableUNIXUserConfig
@@ -3610,114 +3576,4 @@ func (f *fakeHostUsersBackend) UserExists(name string) error {
 
 func (f *fakeHostUsersBackend) SetHostUserDeletionGrace(grace time.Duration) {
 	f.functionCalled("SetHostUserDeletionGrace")
-}
-
-func TestSessionParams(t *testing.T) {
-	f := newFixtureWithoutDiskBasedLogging(t)
-	ctx := t.Context()
-
-	// Start one session that can be used to test joining in the test cases below.
-	se, err := f.ssh.clt.NewSession(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, se.Close()) })
-	require.NoError(t, se.Shell(ctx))
-	sessions, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetActiveSessionTrackers(ctx)
-	require.NoError(t, err)
-	require.Len(t, sessions, 1)
-	joinSID := sessions[0].GetSessionID()
-
-	for _, baseCase := range []struct {
-		name   string
-		params *tracessh.SessionParams
-	}{
-		{
-			name: "new session",
-			params: &tracessh.SessionParams{
-				Reason:  "For science.",
-				Invited: []string{"Esqueleto"},
-			},
-		}, {
-			name: "join session",
-			params: &tracessh.SessionParams{
-				JoinSessionID: joinSID,
-				JoinMode:      types.SessionObserverMode,
-			},
-		},
-	} {
-		t.Run(baseCase.name, func(t *testing.T) {
-			envVars := map[string]string{
-				teleport.EnvSSHSessionReason: baseCase.params.Reason,
-				sshutils.SessionEnvVar:       baseCase.params.JoinSessionID,
-				teleport.EnvSSHJoinMode:      string(baseCase.params.JoinMode),
-			}
-			if baseCase.params.Invited != nil {
-				invitedJSON, err := json.Marshal(baseCase.params.Invited)
-				require.NoError(t, err)
-				envVars[teleport.EnvSSHSessionInvited] = string(invitedJSON)
-			}
-
-			for _, sessionCase := range []struct {
-				name    string
-				params  *tracessh.SessionParams
-				envVars map[string]string
-			}{
-				{
-					// TODO(Joerger): DELETE IN v20.0.0 - params are needed to join a session.
-					name:    "env vars only", // v18- client
-					params:  nil,
-					envVars: envVars,
-				}, {
-					// TODO(Joerger): DELETE IN v20.0.0 - only params are needed to join a session.
-					name:    "params and env vars", // v19 client
-					params:  baseCase.params,
-					envVars: envVars,
-				}, {
-					name:   "params only", // v20+ client
-					params: baseCase.params,
-				},
-			} {
-				t.Run(sessionCase.name, func(t *testing.T) {
-					sidC := make(chan string)
-					err := f.ssh.clt.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
-						sidC <- string(req.Payload)
-					})
-					require.NoError(t, err)
-
-					se, err := f.ssh.clt.NewSessionWithParams(ctx, sessionCase.params)
-					require.NoError(t, err)
-					t.Cleanup(func() { require.NoError(t, se.Close()) })
-
-					if sessionCase.envVars != nil {
-						err := se.SetEnvs(ctx, sessionCase.envVars)
-						require.NoError(t, err)
-					}
-
-					require.NoError(t, se.Shell(ctx))
-
-					var sid string
-					select {
-					case sid = <-sidC:
-					case <-time.After(time.Second):
-						t.Fatalf("Failed to received session ID from server")
-					}
-
-					sessionTracker, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetSessionTracker(ctx, sid)
-					require.NoError(t, err)
-
-					require.Equal(t, baseCase.params.Invited, sessionTracker.GetInvited())
-					require.Equal(t, baseCase.params.Reason, sessionTracker.GetReason())
-
-					participants := sessionTracker.GetParticipants()
-					if baseCase.params.JoinSessionID != "" {
-						require.Equal(t, baseCase.params.JoinSessionID, sid, "Expected to join session %q, but got a new session ID instead", baseCase.params.JoinSessionID)
-						require.Len(t, participants, 2)
-						require.Equal(t, string(baseCase.params.JoinMode), participants[1].Mode)
-					} else {
-						require.Len(t, participants, 1)
-						require.Equal(t, string(types.SessionPeerMode), participants[0].Mode)
-					}
-				})
-			}
-		})
-	}
 }

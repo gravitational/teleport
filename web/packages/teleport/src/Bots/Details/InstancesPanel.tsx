@@ -29,20 +29,17 @@ import { Indicator } from 'design/Indicator/Indicator';
 import Text from 'design/Text';
 
 import { listBotInstances } from 'teleport/services/bot/bot';
-import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { Instance } from './Instance';
 import { PanelTitleText } from './Panel';
 
-export function InstancesPanel(props: {
-  botName: string;
-  onItemSelected: (instance: BotInstanceSummary) => void;
-}) {
-  const { botName, onItemSelected } = props;
+export function InstancesPanel(props: { botName: string }) {
+  const { botName } = props;
 
-  const [sortField] = useState('active_at_latest');
-  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
+  const [sort, setSort] = useState<
+    'active_at_latest:asc' | 'active_at_latest:desc'
+  >('active_at_latest:desc');
 
   const contentRef = React.useRef<HTMLDivElement>(null);
 
@@ -61,18 +58,14 @@ export function InstancesPanel(props: {
     fetchNextPage,
   } = useInfiniteQuery({
     enabled: hasListPermission,
-    queryKey: ['bot_instances', 'list', sortField, sortDir, botName],
-    queryFn: ({ pageParam, signal }) =>
-      listBotInstances(
-        {
-          pageSize: 32,
-          pageToken: pageParam,
-          sortField,
-          sortDir,
-          botName,
-        },
-        signal
-      ),
+    queryKey: ['bot_instances', 'list', sort, botName],
+    queryFn: ({ pageParam }) =>
+      listBotInstances({
+        pageSize: 32,
+        pageToken: pageParam,
+        sort,
+        botName,
+      }),
     initialPageParam: '',
     getNextPageParam: data => data?.next_page_token,
     placeholderData: keepPreviousData,
@@ -80,17 +73,17 @@ export function InstancesPanel(props: {
   });
 
   const handleToggleSort = () => {
-    setSortDir(dir => (dir === 'DESC' ? 'ASC' : 'DESC'));
+    setSort(sort =>
+      sort === 'active_at_latest:desc'
+        ? 'active_at_latest:asc'
+        : 'active_at_latest:desc'
+    );
   };
 
   // Scrolls to the top when the selected sort changes
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
-  }, [sortField, sortDir]);
-
-  const makeOnSelectedCallback = (instance: BotInstanceSummary) => () => {
-    onItemSelected(instance);
-  };
+  }, [sort]);
 
   return (
     <Container>
@@ -99,7 +92,7 @@ export function InstancesPanel(props: {
         {isSuccess ? (
           <ActionButton onClick={handleToggleSort}>
             Recent
-            {sortDir === 'DESC' ? (
+            {sort === 'active_at_latest:desc' ? (
               <SortDescending size={'medium'} />
             ) : (
               <SortAscending size={'medium'} />
@@ -138,16 +131,12 @@ export function InstancesPanel(props: {
                   <React.Fragment key={`${instance.instance_id}`}>
                     {i === 0 && j === 0 ? undefined : <Divider />}
                     <Instance
-                      data={{
-                        id: instance.instance_id,
-                        version: instance.version_latest,
-                        hostname: instance.host_name_latest,
-                        activeAt: instance.active_at_latest,
-                        method: instance.join_method_latest,
-                        os: instance.os_latest,
-                      }}
-                      isSelectable
-                      onSelected={makeOnSelectedCallback(instance)}
+                      id={instance.instance_id}
+                      activeAt={instance.active_at_latest}
+                      hostname={instance.host_name_latest}
+                      method={instance.join_method_latest}
+                      version={instance.version_latest}
+                      os={instance.os_latest}
                     />
                   </React.Fragment>
                 ))

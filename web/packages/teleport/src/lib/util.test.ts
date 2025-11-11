@@ -18,17 +18,30 @@
 
 import { arrayStrDiff, compareByString, generateTshLoginCommand } from './util';
 
+let windowSpy;
+
+beforeEach(() => {
+  windowSpy = jest.spyOn(window, 'window', 'get');
+});
+
+afterEach(() => {
+  windowSpy.mockRestore();
+});
+
 test('with all params defined', () => {
+  windowSpy.mockImplementation(() => ({
+    location: {
+      hostname: 'my-cluster',
+      port: '1234',
+    },
+  }));
+
   expect(
     generateTshLoginCommand({
       accessRequestId: 'ar-1234',
       username: 'llama',
       authType: 'local',
       clusterId: 'cluster-1234',
-      windowLocation: {
-        hostname: 'my-cluster',
-        port: '1234',
-      },
     })
   ).toBe(
     'tsh login --proxy=my-cluster:1234 --auth=local --user=llama cluster-1234 --request-id=ar-1234'
@@ -36,12 +49,17 @@ test('with all params defined', () => {
 });
 
 test('no port and access request id', () => {
+  windowSpy.mockImplementation(() => ({
+    location: {
+      hostname: 'my-cluster',
+    },
+  }));
+
   expect(
     generateTshLoginCommand({
       username: 'llama',
       authType: 'sso',
       clusterId: 'cluster-1234',
-      windowLocation: { hostname: 'my-cluster' },
     })
   ).toBe('tsh login --proxy=my-cluster:443 cluster-1234');
 });

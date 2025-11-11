@@ -67,7 +67,7 @@ func TestHealthCheckConfig(t *testing.T) {
 		deleteAll: p.healthCheckConfig.DeleteAllHealthCheckConfigs,
 		cacheList: filterHealthCfgNonVirtual(p.cache.ListHealthCheckConfigs),
 		cacheGet:  p.cache.GetHealthCheckConfig,
-	})
+	}, withSkipPaginationTest())
 }
 
 type listHealthCfgFunc func(ctx context.Context, pageSize int, pageToken string) ([]*healthcheckconfigv1.HealthCheckConfig, string, error)

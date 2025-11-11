@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, dialog, nativeTheme } from 'electron';
+import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 import { ensureError } from 'shared/utils/error';
@@ -27,8 +28,8 @@ import { ensureError } from 'shared/utils/error';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import MainProcess from 'teleterm/mainProcess';
-import { registerNavigationHandlers } from 'teleterm/mainProcess/navigationHandler';
 import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
+import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { createConfigService } from 'teleterm/services/config';
@@ -67,6 +68,7 @@ if (app.requestSingleInstanceLock()) {
 
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
+  let devRelaunchScheduled = false;
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
@@ -97,7 +99,7 @@ async function initializeApp(): Promise<void> {
 
   let mainProcess: MainProcess;
   try {
-    mainProcess = new MainProcess({
+    mainProcess = MainProcess.create({
       settings,
       logger,
       configService,
@@ -115,6 +117,25 @@ async function initializeApp(): Promise<void> {
     return;
   }
 
+  //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
+  app.on(
+    'certificate-error',
+    (event, webContents, url, error, certificate, callback) => {
+      // allow certs errors for localhost:8080
+      if (
+        settings.dev &&
+        new URL(url).host === 'localhost:8080' &&
+        error === 'net::ERR_CERT_AUTHORITY_INVALID'
+      ) {
+        event.preventDefault();
+        callback(true);
+      } else {
+        callback(false);
+        console.error(error);
+      }
+    }
+  );
+
   app.on('will-quit', async event => {
     event.preventDefault();
     const disposeMainProcess = async () => {
@@ -125,8 +146,21 @@ async function initializeApp(): Promise<void> {
       }
     };
 
+    globalShortcut.unregisterAll();
     await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
     app.exit();
+  });
+
+  app.on('quit', () => {
+    if (devRelaunchScheduled) {
+      const [bin, ...args] = process.argv;
+      const child = spawn(bin, args, {
+        env: process.env,
+        detached: true,
+        stdio: 'inherit',
+      });
+      child.unref();
+    }
   });
 
   // On Windows/Linux: Re-launching the app while it's already running
@@ -148,9 +182,34 @@ async function initializeApp(): Promise<void> {
   // window before processing the listener for deep links.
   setUpDeepLinks(logger, windowsManager, settings);
 
+  const rootClusterProxyHostAllowList = new Set<string>();
+
+  (async () => {
+    const { terminalService } = await mainProcess.getTshdClients();
+
+    manageRootClusterProxyHostAllowList({
+      tshdClient: terminalService,
+      logger,
+      allowList: rootClusterProxyHostAllowList,
+    });
+  })().catch(error => {
+    const message = 'Could not initialize the tshd client in the main process';
+    logger.error(message, error);
+    showDialogWithError(message, error);
+    app.exit(1);
+  });
+
   app
     .whenReady()
     .then(() => {
+      if (mainProcess.settings.dev) {
+        // allow restarts on F6
+        globalShortcut.register('F6', () => {
+          devRelaunchScheduled = true;
+          app.quit();
+        });
+      }
+
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
@@ -166,13 +225,69 @@ async function initializeApp(): Promise<void> {
       app.exit(1);
     });
 
-  app.on('web-contents-created', (_, webContents) => {
-    registerNavigationHandlers(
-      webContents,
-      settings,
-      mainProcess.clusterStore,
-      logger
-    );
+  // Limit navigation capabilities to reduce the attack surface.
+  // See TEL-Q122-19 from "Teleport Core Testing Q1 2022" security audit.
+  //
+  // See also points 12, 13 and 14 from the Electron's security tutorial.
+  // https://github.com/electron/electron/blob/v17.2.0/docs/tutorial/security.md#12-verify-webview-options-before-creation
+  app.on('web-contents-created', (_, contents) => {
+    contents.on('will-navigate', (event, navigationUrl) => {
+      // Allow reloading the renderer app in dev mode.
+      if (settings.dev && new URL(navigationUrl).host === 'localhost:8080') {
+        return;
+      }
+      logger.warn(`Navigation to ${navigationUrl} blocked by 'will-navigate'`);
+      event.preventDefault();
+    });
+
+    // The usage of webview is blocked by default, but let's include the handler just in case.
+    // https://github.com/electron/electron/blob/v17.2.0/docs/api/webview-tag.md#enabling
+    contents.on('will-attach-webview', (event, _, params) => {
+      logger.warn(
+        `Opening a webview to ${params.src} blocked by 'will-attach-webview'`
+      );
+      event.preventDefault();
+    });
+
+    contents.setWindowOpenHandler(details => {
+      const url = new URL(details.url);
+
+      function isUrlSafe(): boolean {
+        if (url.protocol !== 'https:') {
+          return false;
+        }
+        if (url.host === 'goteleport.com') {
+          return true;
+        }
+        if (
+          url.host === 'github.com' &&
+          url.pathname.startsWith('/gravitational/')
+        ) {
+          return true;
+        }
+
+        // Allow opening links to the Web UIs of root clusters currently added in the app.
+        if (rootClusterProxyHostAllowList.has(url.host)) {
+          return true;
+        }
+      }
+
+      // Open links to documentation and GitHub issues in the external browser.
+      // They need to have `target` set to `_blank`.
+      if (isUrlSafe()) {
+        shell.openExternal(url.toString());
+      } else {
+        logger.warn(
+          `Opening a new window to ${url} blocked by 'setWindowOpenHandler'`
+        );
+        dialog.showErrorBox(
+          'Cannot open this link',
+          'The domain does not match any of the allowed domains. Check main.log for more details.'
+        );
+      }
+
+      return { action: 'deny' };
+    });
   });
 }
 

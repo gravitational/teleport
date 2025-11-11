@@ -29,25 +29,20 @@ export const openNewTab = (url: string) => {
   document.body.removeChild(element);
 };
 
+export type TshLoginCommand = {
+  authType: AuthType;
+  clusterId?: string;
+  username: string;
+  accessRequestId?: string;
+};
+
 export function generateTshLoginCommand({
   authType,
   clusterId = '',
   username,
   accessRequestId = '',
-  windowLocation = window.location,
-}: {
-  authType: AuthType;
-  clusterId?: string;
-  username: string;
-  accessRequestId?: string;
-  /** Allows overwriting `window.location` in tests. */
-  windowLocation?: {
-    hostname: string;
-    /** When empty, the default HTTPS port (443) is used. */
-    port?: string;
-  };
-}) {
-  const { hostname, port } = windowLocation;
+}: TshLoginCommand) {
+  const { hostname, port } = window.location;
   const host = `${hostname}:${port || '443'}`;
   const requestId = accessRequestId ? ` --request-id=${accessRequestId}` : '';
 

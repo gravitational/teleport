@@ -39,6 +39,4 @@ type Context struct {
 	BotGeneration uint64
 	// BotInstanceID is an authenticated Bot ID.
 	BotInstanceID string
-	// Scope is the assigned scope of the authenticated client.
-	Scope string
 }

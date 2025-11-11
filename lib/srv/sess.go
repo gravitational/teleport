@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -354,7 +355,7 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 	return true, userCloser, nil
 }
 
-// OpenSession either starts a new session.
+// OpenSession either joins an existing active session or starts a new session.
 func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
 	if scx.JoinOnly {
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
@@ -481,10 +482,11 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 }
 
 func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, error) {
-	// If the ModeratedSessionID param was not provided, return not approved
-	// and no error. This means the file transfer came from a non-moderated session.
-	// sessionID will be passed after a moderated session approval process has completed.
-	sessID := scx.GetSessionParams().ModeratedSessionID
+	// If the TELEPORT_MODERATED_SESSION_ID environment variable was not
+	// set, return not approved and no error. This means the file
+	// transfer came from a non-moderated session. sessionID will be
+	// passed after a moderated session approval process has completed.
+	sessID, _ := scx.GetEnv(string(sftp.ModeratedSessionID))
 	if sessID == "" {
 		return false, nil
 	}
@@ -614,15 +616,15 @@ func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *FileTransferRe
 func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.TerminalParams, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
-		sessParams := scx.GetSessionParams()
-		if sessParams.JoinSessionID == "" {
+		sid, _ := scx.GetJoinParams()
+		if sid == "" {
 			s.logger.DebugContext(ctx, "Unable to update window size, no session found in context.")
 			return nil
 		}
 
-		id, err := rsession.ParseID(sessParams.JoinSessionID)
+		id, err := rsession.ParseID(sid)
 		if err != nil {
-			return trace.BadParameter("invalid session ID %s", sessParams.JoinSessionID)
+			return trace.BadParameter("invalid session ID %s", sid)
 		}
 
 		var ok bool
@@ -878,8 +880,8 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 			user:    scx.Identity.TeleportUser,
 			cluster: scx.Identity.OriginClusterName,
 		},
-		displayParticipantRequirements: scx.GetSessionParams().DisplayParticipantRequirements,
-		serverMeta:                     scx.srv.EventMetadata(),
+		displayParticipantRequirements: utils.AsBool(scx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
+		serverMeta:                     scx.srv.TargetMetadata(),
 	}
 
 	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
@@ -1032,14 +1034,14 @@ func (s *session) Close() error {
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...any) {
+func (s *session) BroadcastMessage(format string, args ...interface{}) {
 	if s.access.IsModerated() && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
 		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
 }
 
 // BroadcastSystemMessage sends a message to all parties.
-func (s *session) BroadcastSystemMessage(format string, args ...any) {
+func (s *session) BroadcastSystemMessage(format string, args ...interface{}) {
 	s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 }
 
@@ -1066,8 +1068,13 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 		},
 		SessionRecording: s.sessionRecordingLocation(),
 		InitialCommand:   initialCommand,
-		Reason:           s.scx.GetSessionParams().Reason,
-		Invited:          s.scx.GetSessionParams().Invited,
+		Reason:           s.scx.env[teleport.EnvSSHSessionReason],
+	}
+
+	if invitedUsers := s.scx.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &sessionStartEvent.Invited); err != nil {
+			s.logger.WarnContext(ctx.srv.Context(), "Failed to parse invited users", "error", err)
+		}
 	}
 
 	if s.term != nil {
@@ -1432,7 +1439,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Emitter:               s.emitter,
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             s.id.String(),
-		ServerID:              scx.srv.ID(),
+		ServerID:              scx.srv.HostUUID(),
 		ServerHostname:        scx.srv.GetInfo().GetHostname(),
 		Login:                 scx.Identity.Login,
 		User:                  scx.Identity.TeleportUser,
@@ -1650,7 +1657,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Emitter:               s.emitter,
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             string(s.id),
-		ServerID:              scx.srv.ID(),
+		ServerID:              scx.srv.HostUUID(),
 		ServerHostname:        scx.srv.GetInfo().GetHostname(),
 		Login:                 scx.Identity.Login,
 		User:                  scx.Identity.TeleportUser,
@@ -2359,10 +2366,11 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		Kind:         string(types.SSHSessionKind),
 		State:        types.SessionState_SessionStatePending,
 		Hostname:     s.serverMeta.ServerHostname,
-		Address:      s.scx.srv.ID(),
+		Address:      s.serverMeta.ServerID,
 		ClusterName:  s.scx.ClusterName,
 		Login:        s.login,
 		HostUser:     teleportUser,
+		Reason:       s.scx.env[teleport.EnvSSHSessionReason],
 		HostPolicies: policySet,
 		Created:      s.registry.clock.Now().UTC(),
 		Participants: []types.Participant{
@@ -2374,11 +2382,15 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
-		HostID:         s.registry.Srv.HostUUID(),
+		HostID:         s.registry.Srv.ID(),
 		TargetSubKind:  s.serverMeta.ServerSubKind,
 		InitialCommand: initialCommand,
-		Reason:         s.scx.GetSessionParams().Reason,
-		Invited:        s.scx.GetSessionParams().Invited,
+	}
+
+	if invitedUsers := s.scx.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &trackerSpec.Invited); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	svc := s.registry.SessionTrackerService

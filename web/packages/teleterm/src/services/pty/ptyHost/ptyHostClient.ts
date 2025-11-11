@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChannelCredentials } from '@grpc/grpc-js';
-import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+import { ChannelCredentials, Metadata } from '@grpc/grpc-js';
 
-import { Struct } from 'gen-proto-ts/google/protobuf/struct_pb';
-import { CreatePtyProcessRequest } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
-import { PtyHostServiceClient as GrpcClient } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.client';
+import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
+import {
+  PtyHostClient as GrpcClient,
+  PtyCreate,
+  PtyId,
+} from 'teleterm/sharedProcess/ptyHost';
 
 import { PtyHostClient } from '../types';
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
@@ -30,15 +32,10 @@ export function createPtyHostClient(
   address: string,
   credentials: ChannelCredentials
 ): PtyHostClient {
-  const transport = new GrpcTransport({
-    host: address,
-    channelCredentials: credentials,
-  });
-  const client = new GrpcClient(transport);
-
+  const client = new GrpcClient(address, credentials);
   return {
-    async createPtyProcess(ptyOptions) {
-      const request = CreatePtyProcessRequest.create({
+    createPtyProcess(ptyOptions) {
+      const request = PtyCreate.create({
         args: ptyOptions.args,
         path: ptyOptions.path,
         env: Struct.fromJson(ptyOptions.env),
@@ -52,15 +49,31 @@ export function createPtyHostClient(
         request.initMessage = ptyOptions.initMessage;
       }
 
-      const { response } = await client.createPtyProcess(request);
-      return response.id;
+      return new Promise<string>((resolve, reject) => {
+        client.createPtyProcess(request, (error, response) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(response.id);
+          }
+        });
+      });
     },
-    async getCwd(ptyId) {
-      const { response } = await client.getCwd({ id: ptyId });
-      return response.cwd;
+    getCwd(ptyId) {
+      return new Promise((resolve, reject) => {
+        client.getCwd(PtyId.create({ id: ptyId }), (error, response) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(response.cwd);
+          }
+        });
+      });
     },
-    managePtyProcess(ptyId) {
-      const stream = client.managePtyProcess({ meta: { ptyId: ptyId } });
+    exchangeEvents(ptyId) {
+      const metadata = new Metadata();
+      metadata.set('ptyId', ptyId);
+      const stream = client.exchangeEvents(metadata);
       return new PtyEventsStreamHandler(stream, ptyId);
     },
   };

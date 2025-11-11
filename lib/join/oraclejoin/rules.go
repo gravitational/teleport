@@ -22,12 +22,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // CheckOracleAllowRules checks that a the oracle rules in a provision token
 // allow an OCI instance with the given claims to join the cluster.
-func CheckOracleAllowRules(claims *Claims, token provision.Token) error {
+func CheckOracleAllowRules(claims *Claims, token types.ProvisionToken) error {
 	ptv2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
 		return trace.Errorf("Oracle join method only supports ProvisionTokenV2")
@@ -38,30 +37,18 @@ func CheckOracleAllowRules(claims *Claims, token provision.Token) error {
 			// rule.Tenancy is required, if it doesn't match the instance skip this rule.
 			continue
 		}
-		if !ruleAllowsCompartment(rule, claims.CompartmentID) {
-			// Skip this rule if it does not allow the instance's compartment.
+		if len(rule.ParentCompartments) != 0 && !slices.Contains(rule.ParentCompartments, claims.CompartmentID) {
+			// rule.ParentCompartments must match the instance if it is set.
 			continue
 		}
 		if !ruleAllowsRegion(rule, instanceRegion) {
 			// Skip this rule if it does not allow the instance's region.
 			continue
 		}
-		if !ruleAllowsInstanceID(rule, claims.InstanceID) {
-			// Skip this rule if it does not allow the instance's ID.
-			continue
-		}
 		// This rule allows the instance to join.
 		return nil
 	}
 	return trace.AccessDenied("instance %v did not match any allow rules in token %v", claims.InstanceID, token.GetName())
-}
-
-func ruleAllowsCompartment(rule *types.ProvisionTokenSpecV2Oracle_Rule, instanceCompartment string) bool {
-	if len(rule.ParentCompartments) == 0 {
-		// Empty list means all compartments are allowed.
-		return true
-	}
-	return slices.Contains(rule.ParentCompartments, instanceCompartment)
 }
 
 func ruleAllowsRegion(rule *types.ProvisionTokenSpecV2Oracle_Rule, instanceRegion string) bool {
@@ -73,12 +60,4 @@ func ruleAllowsRegion(rule *types.ProvisionTokenSpecV2Oracle_Rule, instanceRegio
 		canonicalAllowedRegion, _ := ParseRegion(allowedRegion)
 		return canonicalAllowedRegion == instanceRegion
 	})
-}
-
-func ruleAllowsInstanceID(rule *types.ProvisionTokenSpecV2Oracle_Rule, instanceID string) bool {
-	if len(rule.Instances) == 0 {
-		// Empty list means all instance IDs are allowed.
-		return true
-	}
-	return slices.Contains(rule.Instances, instanceID)
 }

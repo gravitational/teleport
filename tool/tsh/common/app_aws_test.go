@@ -94,8 +94,8 @@ func TestAWS(t *testing.T) {
 		// Validate AWS credentials are set.
 		getEnvValue := func(key string) string {
 			for _, env := range cmd.Env {
-				if after, ok := strings.CutPrefix(env, key+"="); ok {
-					return after
+				if strings.HasPrefix(env, key+"=") {
+					return strings.TrimPrefix(env, key+"=")
 				}
 			}
 			return ""
@@ -451,8 +451,8 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
-		require.NoError(t, err)
-		require.Len(t, rts, 1)
+		assert.NoError(t, err)
+		assert.Len(t, rts, 1)
 	}, time.Second*10, time.Second)
 
 	tsrv, err := rootServer.GetReverseTunnelServer()

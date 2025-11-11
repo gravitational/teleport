@@ -618,7 +618,6 @@ export function RequestCheckout<T extends PendingListItem>({
                       updateReason={updateReason}
                       requireReason={requireReason}
                       reasonPrompts={reasonPrompts}
-                      numPendingAccessRequests={numPendingAccessRequests}
                     />
                     {!isLongTerm && dryRunResponse && maxDuration && (
                       <AdditionalOptions
@@ -909,22 +908,19 @@ function TextBox({
   updateReason,
   requireReason,
   reasonPrompts,
-  numPendingAccessRequests,
 }: {
   reason: string;
   updateReason(reason: string): void;
   requireReason: boolean;
-  reasonPrompts: string[];
-  numPendingAccessRequests: number;
+  reasonPrompts?: string[];
 }) {
   const { valid, message } = useRule(requireText(reason, requireReason));
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
 
   const placeholderText =
-    reasonPrompts && reasonPrompts.length && numPendingAccessRequests > 0
-      ? reasonPrompts.filter(s => s.length > 0).join('\n')
-      : 'Describe your request...';
+    reasonPrompts?.filter(s => s.length > 0).join('\n') ||
+    'Describe your request...';
 
   return (
     <LabelInput hasError={hasError}>

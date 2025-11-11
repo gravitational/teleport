@@ -18,6 +18,10 @@
 
 package cli
 
+import (
+	"context"
+)
+
 // ProxyCommand supports `tbot proxy`
 type ProxyCommand struct {
 	*genericExecutorHandler[ProxyCommand]
@@ -25,6 +29,11 @@ type ProxyCommand struct {
 	DestinationDir string
 	Cluster        string
 	ProxyServer    string
+
+	// LegacyProxy is the legacy --proxy flag.
+	// TODO(timothyb89): DELETE IN 17.0.0
+	// TODO(timothyb89): Or maybe remove in this PR.
+	LegacyProxyFlag string
 
 	ProxyRemaining *[]string
 }
@@ -34,7 +43,20 @@ func NewProxyCommand(app KingpinClause, action func(*ProxyCommand) error) *Proxy
 	cmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode.")
 
 	c := &ProxyCommand{}
-	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
+	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, func(c *ProxyCommand) error {
+		// Prepend an action to handle --proxy deprecation.
+		if c.LegacyProxyFlag != "" {
+			c.ProxyServer = c.LegacyProxyFlag
+			log.WarnContext(context.TODO(), "The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead")
+		}
+
+		return nil
+	}, action)
+
+	// We're migrating from --proxy to --proxy-server so this flag is hidden
+	// but still supported.
+	// TODO(strideynet): DELETE IN 17.0.0
+	cmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().StringVar(&c.LegacyProxyFlag)
 
 	cmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").Envar(ProxyServerEnvVar).StringVar(&c.ProxyServer)
 	cmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&c.DestinationDir)

@@ -23,7 +23,6 @@ import (
 	"context"
 	"io"
 	"iter"
-	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -231,7 +230,9 @@ func (m *MemoryUploader) GetParts(uploadID string) ([][]byte, error) {
 	for partNumber := range up.parts {
 		partNumbers = append(partNumbers, partNumber)
 	}
-	slices.Sort(partNumbers)
+	sort.Slice(partNumbers, func(i, j int) bool {
+		return partNumbers[i] < partNumbers[j]
+	})
 	for _, partNumber := range partNumbers {
 		sortedParts = append(sortedParts, up.parts[partNumber].data)
 	}
@@ -261,7 +262,9 @@ func (m *MemoryUploader) ListParts(ctx context.Context, upload events.StreamUplo
 	for partNumber := range up.parts {
 		partNumbers = append(partNumbers, partNumber)
 	}
-	slices.Sort(partNumbers)
+	sort.Slice(partNumbers, func(i, j int) bool {
+		return partNumbers[i] < partNumbers[j]
+	})
 	for _, partNumber := range partNumbers {
 		sortedParts = append(sortedParts, events.StreamPart{Number: partNumber})
 	}

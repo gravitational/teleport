@@ -105,7 +105,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		// There are  some eventual consistency shenanigans instantiating enteprise applications,
 		// where assigning app roles may temporarily return "not found" for the newly-created App ID.
 		// Retry a few times to remediate.
-		for i := range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			slog.DebugContext(ctx, "assign app role", "role_id", appRoleID, "attempt", i)
 			_, err = graphClient.GrantAppRoleToServicePrincipal(ctx, spID, assignment)
 			if err != nil {

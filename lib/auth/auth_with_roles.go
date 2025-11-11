@@ -660,8 +660,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 	if !a.hasBuiltinRole(req.Role) && req.Role != types.RoleInstance {
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
-	identity := a.context.Identity.GetIdentity()
-	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope)
+	return a.authServer.GenerateHostCerts(ctx, req)
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
@@ -898,7 +897,7 @@ Outer:
 		// one of the specified <resource>:<verb> pairs (e.g. `node:list|token:create`
 		// would be satisfied by either a user that can list nodes *or* create tokens).
 	Verbs:
-		for s := range strings.SplitSeq(alert.Metadata.Labels[types.AlertVerbPermit], "|") {
+		for _, s := range strings.Split(alert.Metadata.Labels[types.AlertVerbPermit], "|") {
 			rv := strings.Split(s, ":")
 			if len(rv) != 2 {
 				continue Verbs
@@ -923,7 +922,7 @@ Outer:
 		sups := make(map[string]types.AlertSeverity)
 
 		for _, alert := range alerts {
-			for id := range strings.SplitSeq(alert.Metadata.Labels[types.AlertSupersedes], ",") {
+			for _, id := range strings.Split(alert.Metadata.Labels[types.AlertSupersedes], ",") {
 				if sups[id] < alert.Spec.Severity {
 					sups[id] = alert.Spec.Severity
 				}
@@ -2460,11 +2459,6 @@ func validateOracleJoinToken(token types.ProvisionToken) error {
 				return trace.BadParameter("invalid region: %v", region)
 			}
 		}
-		for _, instanceID := range allow.Instances {
-			if _, err := oracle.ParseRegionFromOCID(instanceID); err != nil {
-				return trace.BadParameter("invalid instance OCID: %s", instanceID)
-			}
-		}
 	}
 	return nil
 }
@@ -3472,7 +3466,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	// add implicit roles to the set and build a checker
 	roleSet := services.NewRoleSet(parsedRoles...)
-	clusterName, err := a.authServer.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4969,6 +4963,16 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	return a.authServer.DeleteRole(ctx, name)
 }
 
+// GetClusterName gets the name of the cluster.
+// TODO(noah): DELETE IN v19.0.0 - when the apiserver getClusterName method is also
+// deleted.
+func (a *ServerWithRoles) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	if err := a.authorizeAction(types.KindClusterName, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetClusterName(ctx)
+}
+
 // GetAuthPreference gets cluster auth preference.
 func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	if err := a.authorizeAction(types.KindClusterAuthPreference, types.VerbRead); err != nil {
@@ -5460,7 +5464,6 @@ func (a *ServerWithRoles) DeleteAllServerInfos(ctx context.Context) error {
 	return trace.Wrap(a.authServer.DeleteAllServerInfos(ctx))
 }
 
-// Deprecated: Prefer paginated variant such as [teleport.trust.v1.ListTrustedClusters]
 func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	if err := a.authorizeAction(types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -5882,7 +5885,6 @@ func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pag
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
-// Deprecated: Prefer paginated variant such as [ListSnowflakeSessions]
 func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
 	// Check if this a database service.
 	if !a.hasBuiltinRole(types.RoleDatabase) {
@@ -6227,19 +6229,6 @@ func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEve
 		return nil, "", trace.Wrap(err)
 	}
 
-	return outEvents, lastKey, nil
-}
-
-// SearchUnstructuredEvents allows searching for unstructured audit events with pagination support.
-func (a *ServerWithRoles) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) (outEvents []*auditlogpb.EventUnstructured, lastKey string, err error) {
-	if err := a.authorizeAction(types.KindEvent, types.VerbList); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	outEvents, lastKey, err = a.alog.SearchUnstructuredEvents(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
 	return outEvents, lastKey, nil
 }
 
@@ -6643,20 +6632,40 @@ func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int,
 		return nil, "", trace.Wrap(err)
 	}
 
-	return generic.CollectPageAndCursor(
-		iterstream.FilterMap(
-			a.authServer.RangeKubernetesClusters(ctx, start, ""),
-			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
-				// Filter out kube clusters user doesn't have access to.
-				if a.checkAccessToKubeCluster(cluster) == nil {
-					return cluster, true
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var next string
+	var seen int
+	out, err := iterstream.Collect(
+		iterstream.TakeWhile(
+			iterstream.FilterMap(
+				a.authServer.RangeKubernetesClusters(ctx, start, ""),
+				func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+					// Filter out kube clusters user doesn't have access to.
+					if a.checkAccessToKubeCluster(cluster) == nil {
+						return cluster, true
+					}
+					return nil, false
+				},
+			),
+			func(cluster types.KubeCluster) bool {
+				if seen < limit {
+					seen++
+					return true
 				}
-				return nil, false
+				next = cluster.GetName()
+				return false
 			},
 		),
-		limit,
-		types.KubeCluster.GetName,
 	)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, next, nil
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
@@ -6780,7 +6789,6 @@ func (a *ServerWithRoles) GetDatabase(ctx context.Context, name string) (types.D
 }
 
 // GetDatabases returns all database resources.
-// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Database, err error) {
 	if err := a.authorizeAction(types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

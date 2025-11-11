@@ -55,7 +55,7 @@ func newMCPDBCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpDBStartCommand 
 		cf:        cf,
 	}
 
-	cmd.Arg("uris", "List of database MCP resource URIs that will be served by the server.").Required().StringsVar(&cmd.databaseURIs)
+	cmd.Arg("uris", "List of database MCP resource URIs that will be served by the server").Required().StringsVar(&cmd.databaseURIs)
 	return cmd
 }
 

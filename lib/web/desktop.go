@@ -60,7 +60,7 @@ func (h *Handler) desktopConnectHandle(
 	sctx *SessionContext,
 	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
-) (any, error) {
+) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
 		return nil, trace.BadParameter("missing desktopName in request URL")

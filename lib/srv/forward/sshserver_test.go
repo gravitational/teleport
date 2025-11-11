@@ -28,19 +28,15 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -145,6 +141,7 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -222,6 +219,7 @@ func TestDirectTCPIP(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -257,6 +255,7 @@ func TestCheckTCPIPForward(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -281,106 +280,6 @@ func TestCheckTCPIPForward(t *testing.T) {
 
 // TODO(atburke): Add test for handleForwardedTCPIPRequest once we have
 // infrastructure for higher-level tests here.
-
-func TestEventMetadata(t *testing.T) {
-	nodeID := uuid.NewString()
-	proxyID := uuid.NewString()
-
-	for _, tt := range []struct {
-		name           string
-		subkind        string
-		spec           types.ServerSpecV2
-		labels         map[string]string
-		expectMetadata events.ServerMetadata
-	}{
-		{
-			name: "tunnel node",
-			labels: map[string]string{
-				"stcLabel": "stcResult",
-			},
-			spec: types.ServerSpecV2{
-				Addr: "127.0.0.1:3022",
-				CmdLabels: map[string]types.CommandLabelV2{
-					"cmdLabel": {Result: "cmdResult"},
-				},
-				Hostname:  "server01",
-				UseTunnel: true,
-			},
-			expectMetadata: events.ServerMetadata{
-				ServerVersion:   teleport.Version,
-				ServerID:        nodeID,
-				ServerNamespace: apidefaults.Namespace,
-				ServerAddr:      "",
-				ServerHostname:  "server01",
-				ServerLabels: map[string]string{
-					"stcLabel": "stcResult",
-					"cmdLabel": "cmdResult",
-				},
-				ServerSubKind: types.SubKindTeleportNode,
-				ForwardedBy:   proxyID,
-			},
-		}, {
-			name: "tunnel node",
-			labels: map[string]string{
-				"stcLabel": "stcResult",
-			},
-			spec: types.ServerSpecV2{
-				Addr: "127.0.0.1:3022",
-				CmdLabels: map[string]types.CommandLabelV2{
-					"cmdLabel": {Result: "cmdResult"},
-				},
-				Hostname: "server01",
-			},
-			expectMetadata: events.ServerMetadata{
-				ServerVersion:   teleport.Version,
-				ServerID:        nodeID,
-				ServerNamespace: apidefaults.Namespace,
-				ServerAddr:      "127.0.0.1:3022",
-				ServerHostname:  "server01",
-				ServerLabels: map[string]string{
-					"stcLabel": "stcResult",
-					"cmdLabel": "cmdResult",
-				},
-				ServerSubKind: types.SubKindTeleportNode,
-				ForwardedBy:   proxyID,
-			},
-		}, {
-			name:    "agentless node",
-			subkind: types.SubKindOpenSSHNode,
-			labels: map[string]string{
-				"stcLabel": "stcResult",
-			},
-			spec: types.ServerSpecV2{
-				Addr:     "openssh.example.com:22",
-				Hostname: "agentless-host",
-			},
-			expectMetadata: events.ServerMetadata{
-				ServerVersion:   teleport.Version,
-				ServerID:        nodeID,
-				ServerNamespace: apidefaults.Namespace,
-				ServerAddr:      "openssh.example.com:22",
-				ServerHostname:  "agentless-host",
-				ServerLabels: map[string]string{
-					"stcLabel": "stcResult",
-				},
-				ServerSubKind: types.SubKindOpenSSHNode,
-				ForwardedBy:   proxyID,
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			targetServer, err := types.NewNode(nodeID, tt.subkind, tt.spec, tt.labels)
-			require.NoError(t, err)
-
-			forwardSrv := &Server{
-				proxyUUID:    proxyID,
-				targetServer: targetServer,
-			}
-
-			require.EqualValues(t, tt.expectMetadata, forwardSrv.EventMetadata())
-		})
-	}
-}
 
 func TestServerConfigCheckDefaults(t *testing.T) {
 	teleportNode, err := types.NewNode("teleport-node", "", types.ServerSpecV2{}, nil)
@@ -472,9 +371,6 @@ func TestServerConfigCheckDefaults(t *testing.T) {
 				Clock:                    clockwork.NewFakeClock(),
 				Emitter:                  &authclient.Client{},
 				LockWatcher:              &services.LockWatcher{},
-				EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
-					return nil, nil
-				},
 			}
 
 			tt.modifyCfg(config)
@@ -483,9 +379,4 @@ func TestServerConfigCheckDefaults(t *testing.T) {
 			tt.errorAssertion(t, err)
 		})
 	}
-
-	// UserAgent:                userAgent,
-	// AgentlessSigner:          params.AgentlessSigner,
-	// TargetServer:    params.TargetServer,
-
 }

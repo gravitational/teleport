@@ -17,31 +17,44 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
-import { ComponentProps, PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
+import { MemoryRouter, Router } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
 import {
+  fireEvent,
   render,
   screen,
   testQueryClient,
-  userEvent,
   waitForElementToBeRemoved,
-  within,
 } from 'design/utils/testing';
 
-import 'shared/components/TextEditor/TextEditor.mock';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import { Route } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 import {
   getBotInstanceError,
   getBotInstanceSuccess,
 } from 'teleport/test/helpers/botInstances';
 
 import { BotInstanceDetails } from './BotInstanceDetails';
+
+jest.mock('shared/components/TextEditor/TextEditor', () => {
+  return {
+    __esModule: true,
+    default: MockTextEditor,
+  };
+});
+
+jest.mock('design/utils/copyToClipboard', () => {
+  return {
+    __esModule: true,
+    copyToClipboard: jest.fn(),
+  };
+});
 
 const server = setupServer();
 
@@ -58,78 +71,91 @@ afterEach(async () => {
 
 afterAll(() => server.close());
 
+const withSuccessResponse = () => {
+  server.use(
+    getBotInstanceSuccess({
+      bot_instance: {
+        spec: {
+          instance_id: '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
+        },
+      },
+      yaml: 'kind: bot_instance\nversion: v1\n',
+    })
+  );
+};
+
+const withErrorResponse = () => {
+  server.use(getBotInstanceError(500));
+};
+
 describe('BotIntanceDetails', () => {
-  it('Allows close action', async () => {
-    const onClose = jest.fn();
+  it('Allows back navigation', async () => {
+    const history = createMemoryHistory({
+      initialEntries: [
+        '/web/bot/test-bot-name/instance/4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
+      ],
+    });
+    history.goBack = jest.fn();
+
     withSuccessResponse();
 
-    const { user } = renderComponent({ props: { onClose } });
+    renderComponent({ history });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    const closeButton = screen.getByLabelText('close');
-    await user.click(closeButton);
+    const backButton = screen.getByLabelText('back');
+    fireEvent.click(backButton);
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(history.goBack).toHaveBeenCalledTimes(1);
   });
 
-  it('Allows switching tab', async () => {
-    const onTabSelected = jest.fn();
-
+  it('Shows the short instance id', async () => {
     withSuccessResponse();
 
-    const { user } = renderComponent({ props: { onTabSelected } });
+    renderComponent();
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
-    await user.click(overviewTab);
-    expect(onTabSelected).toHaveBeenCalledTimes(1);
-    expect(onTabSelected).toHaveBeenLastCalledWith('info');
-
-    const servicesTab = screen.getByRole('tab', { name: 'Services' });
-    await user.click(servicesTab);
-    expect(onTabSelected).toHaveBeenCalledTimes(2);
-    expect(onTabSelected).toHaveBeenLastCalledWith('health');
-
-    const yamlTab = screen.getByRole('tab', { name: 'YAML' });
-    await user.click(yamlTab);
-    expect(onTabSelected).toHaveBeenCalledTimes(3);
-    expect(onTabSelected).toHaveBeenLastCalledWith('yaml');
+    expect(screen.getByText('4fa10e6')).toBeInTheDocument();
   });
 
-  it('Shows instance info', async () => {
+  it('Allows the full instance id to be copied', async () => {
     withSuccessResponse();
 
-    renderComponent({ props: { activeTab: 'info' } });
+    renderComponent();
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    const summarySection = screen
-      .getByRole('heading', {
-        name: 'Summary',
-      })
-      .closest('section');
-    expect(
-      within(summarySection!).getByText('test-bot-name')
-    ).toBeInTheDocument();
+    const copyButton = screen.getByLabelText('copy');
+    fireEvent.click(copyButton);
+
+    expect(copyToClipboard).toHaveBeenCalledTimes(1);
+    expect(copyToClipboard).toHaveBeenLastCalledWith(
+      '4fa10e68-f2e0-4cf9-ad5b-1458febcd827'
+    );
   });
 
-  it('Shows instance services', async () => {
+  it('Shows a docs link', async () => {
+    const onClick = jest.fn(e => {
+      e.preventDefault();
+    });
+
     withSuccessResponse();
 
-    renderComponent({ props: { activeTab: 'health' } });
+    renderComponent({ onDocsLinkClicked: onClick });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    const item = screen.getByTestId('application-tunnel-1');
-    expect(within(item!).getByText('application-tunnel-1')).toBeInTheDocument();
+    const docsButton = screen.getByText('View Documentation');
+    fireEvent.click(docsButton);
+
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   it('Shows full yaml', async () => {
     withSuccessResponse();
 
-    renderComponent({ props: { activeTab: 'yaml' } });
+    renderComponent();
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -145,88 +171,55 @@ describe('BotIntanceDetails', () => {
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    expect(screen.getByText('something went wrong')).toBeInTheDocument();
-  });
-
-  it('Shows a permisison warning', async () => {
-    withErrorResponse();
-
-    renderComponent({
-      hasBotInstanceReadPermission: false,
-    });
-
     expect(
-      screen.getByText('You do not have permission to read Bot instances', {
-        exact: false,
-      })
+      screen.getByText('Error: 500', { exact: false })
     ).toBeInTheDocument();
-
-    expect(screen.getByText('bot_instance.read')).toBeInTheDocument();
   });
 });
 
-const renderComponent = (options?: {
-  props?: Partial<ComponentProps<typeof BotInstanceDetails>>;
-  hasBotInstanceReadPermission?: boolean;
+const renderComponent = async (options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
+  onDocsLinkClicked?: (e: unknown) => void;
 }) => {
-  const { props, ...rest } = options ?? {};
-  const {
-    botName = 'test-bot-name',
-    instanceId = '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
-    onClose = jest.fn(),
-    activeTab = 'info',
-    onTabSelected = jest.fn(),
-  } = props ?? {};
-
-  const user = userEvent.setup();
-
-  return {
-    ...render(
-      <BotInstanceDetails
-        botName={botName}
-        instanceId={instanceId}
-        onClose={onClose}
-        activeTab={activeTab}
-        onTabSelected={onTabSelected}
-      />,
-      {
-        wrapper: makeWrapper(rest),
-      }
-    ),
-    user,
-  };
+  const { onDocsLinkClicked } = options ?? {};
+  render(
+    <BotInstanceDetails onDocsLinkClickedForTesting={onDocsLinkClicked} />,
+    {
+      wrapper: makeWrapper(options),
+    }
+  );
 };
 
-function makeWrapper(options?: { hasBotInstanceReadPermission?: boolean }) {
-  const { hasBotInstanceReadPermission = true } = options ?? {};
+function makeWrapper(options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
+}) {
+  const {
+    history = createMemoryHistory({
+      initialEntries: [
+        '/web/bot/test-bot-name/instance/4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
+      ],
+    }),
+  } = options ?? {};
 
-  const customAcl = makeAcl({
-    botInstances: {
-      ...defaultAccess,
-      read: hasBotInstanceReadPermission,
-    },
-  });
-
-  const ctx = createTeleportContext({
-    customAcl,
-  });
   return (props: PropsWithChildren) => {
     return (
-      <QueryClientProvider client={testQueryClient}>
-        <TeleportProviderBasic teleportCtx={ctx}>
+      <MemoryRouter>
+        <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
-            {props.children}
+            <Router history={history}>
+              <Route path={cfg.routes.botInstance}>{props.children}</Route>
+            </Router>
           </ConfiguredThemeProvider>
-        </TeleportProviderBasic>
-      </QueryClientProvider>
+        </QueryClientProvider>
+      </MemoryRouter>
     );
   };
 }
 
-const withSuccessResponse = () => {
-  server.use(getBotInstanceSuccess());
-};
-
-const withErrorResponse = () => {
-  server.use(getBotInstanceError(500, 'something went wrong'));
-};
+function MockTextEditor(props: { data?: [{ content: string }] }) {
+  return (
+    <div data-testid="mock-text-editor">
+      {props.data?.map(d => <div key={d.content}>{d.content}</div>)}
+    </div>
+  );
+}

@@ -166,7 +166,7 @@ func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client autoupdate
 		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
 		// The same approach applies to updates if the resource has been deleted during the process.
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-		for range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err = c.setToolsTargetVersion(ctx, client)
 			if err == nil {
 				break
@@ -185,7 +185,7 @@ func (c *AutoUpdateCommand) SetModeCommand(enabled bool) func(ctx context.Contex
 		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
 		// The same approach applies to updates if the resource has been deleted during the process.
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-		for range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err := c.setToolsMode(ctx, client, enabled)
 			if err == nil {
 				break

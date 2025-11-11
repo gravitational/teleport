@@ -37,7 +37,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -99,9 +98,6 @@ type Config struct {
 	// GraphEndpoint specifies root domain of the Graph API.
 	GraphEndpoint string
 	Logger        *slog.Logger
-	// MetricsRegistry configures where metrics should be registered.
-	// When nil, metrics are created but not registered.
-	MetricsRegistry prometheus.Registerer
 }
 
 // SetDefaults sets the default values for optional fields.
@@ -148,7 +144,6 @@ type Client struct {
 	baseURL       *url.URL
 	pageSize      int
 	logger        *slog.Logger
-	metrics       *clientMetrics
 }
 
 // NewClient returns a new client for the given config.
@@ -161,15 +156,6 @@ func NewClient(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	metrics := newMetrics()
-	// gracefully handle not being given a metric registry
-	if cfg.MetricsRegistry != nil {
-		if err := metrics.register(cfg.MetricsRegistry); err != nil {
-			return nil, trace.Wrap(err, "registering metrics")
-		}
-	}
-
 	return &Client{
 		httpClient:    cfg.HTTPClient,
 		tokenProvider: cfg.TokenProvider,
@@ -178,7 +164,6 @@ func NewClient(cfg Config) (*Client, error) {
 		baseURL:       base.JoinPath(graphVersion),
 		pageSize:      cfg.PageSize,
 		logger:        cfg.Logger,
-		metrics:       metrics,
 	}, nil
 }
 
@@ -216,8 +201,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	}
 
 	var lastErr error
-	var start time.Time
-	for range maxRetries {
+	for i := 0; i < maxRetries; i++ {
 		if retryAfter > 0 {
 			select {
 			case <-c.clock.After(retryAfter):
@@ -247,13 +231,10 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		// https://learn.microsoft.com/en-us/graph/best-practices-concept#reliability-and-support
 		req.Header.Set("client-request-id", requestID)
 
-		start = c.clock.Now()
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return nil, trace.Wrap(err) // hard I/O error, bail
 		}
-		c.metrics.requestDuration.WithLabelValues(method).Observe(c.clock.Since(start).Seconds())
-		c.metrics.requestTotal.WithLabelValues(method, strconv.Itoa(resp.StatusCode))
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 			return resp, nil

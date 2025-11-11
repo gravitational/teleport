@@ -6,64 +6,26 @@ tags:
  - platform-wide
 ---
 
-Teleport releases a new major version once per year, and provides
-security-critical support for the current and previous major version. We
-support each major version for 24 months.
-
-The most recent major version of Teleport, referred to as the **current version**,
-is the only major version of Teleport that will receive new features. The
-previous major version, referred to as the **stable Version**, will only receive
-bug fixes and security patches.
+Teleport releases a new major version approximately every 4 months, and provides
+security-critical support for the current and two previous major versions. With
+our typical release cadence, we usually support each major version for 12
+months.
 
 ## Teleport
-
-### Supported releases
-
-We continue to support the following major versions of Teleport:
-
-| Version | Release | Release Date      | EOL              | Minimum `tsh` version |
-|---------|---------|-------------------|------------------|-----------------------|
-| Current | v18.x   | July 3, 2025      | August 2027      | v17.0.0               |
-| Stable  | v17.x   | November 16, 2024 | August 2026      | v16.0.0               |
-
-### Upcoming releases
 
 We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.3.0  | Week of October 27, 2025   |
 | 18.4.0  | Week of November 10, 2025  |
-| 19.0.0  | August 2026                |
 
-### 18.3.0
+We continue to support the following major versions of Teleport:
 
-#### Web UI Workload ID
-
-Teleport's web UI will list all workload identity resources registered in the cluster.
-
-#### Relay Service
-
-Teleport will ship with a new Relay Service that acts as a lightweight Proxy Service,
-receiving connections from both SSH clients and agents.
-
-The Relay Service can be used to avoid routing SSH connections through the broader Teleport
-control plane, providing the ability to optimize network flows in large or complex deployments.
-
-#### Multi-cluster Discovery
-
-Teleport EC2 auto-discovery will support a use-case in which multiple Teleport clusters
-discover the same EC2 instances without interfering with each other.
-
-#### Kubernetes Health Checks
-
-The Kubernetes service will perform regular health checks for registered Kubernetes clusters.
-Health status will be reported in the Teleport web UI and reflected in kube_server resources.
-Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
-
-#### ElastiCache Serverless
-
-Teleport will support connecting to ElastiCache Serverless databases.
+| Release | Release Date      | EOL              | Minimum `tsh` version |
+|---------|-------------------|------------------|-----------------------|
+| v18.x   | July 3, 2025      | August 2027      | v17.0.0               |
+| v17.x   | November 16, 2024 | August 2026      | v16.0.0               |
+| v16.x   | June 14, 2024     | October 31 2025  | v15.0.0               |
 
 ### 18.4.0
 
@@ -83,14 +45,20 @@ overview of the versions of all bot instances in the cluster.
 
 The relay service will be extended to facilitate Kubernetes connections.
 
+#### Updated Oracle Joining Support
+
+Oracle compute instances are no longer required to have additional IAM permissions granted
+to them in order to join. Oracle join tokens will also allow restricting which instances
+may leverage a token to join.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                  |
 |--------------------|--------------------------------------------------------------|
-| October 20, 2025   | Teleport 18.3 will begin rollout on Cloud.                   |
-| October 20, 2025   | Teleport 18.3 agents will begin rollout to eligible tenants. |
+| November 3, 2025   | Teleport 18.3 will begin rollout on Cloud.                   |
+| November 3, 2025   | Teleport 18.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

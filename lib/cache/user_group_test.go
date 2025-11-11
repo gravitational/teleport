@@ -56,7 +56,7 @@ func TestUserGroups(t *testing.T) {
 	require.NoError(t, p.userGroups.DeleteAllUserGroups(t.Context()))
 
 	var expected []types.UserGroup
-	for i := range 500 {
+	for i := 0; i < 500; i++ {
 		ug, err := types.NewUserGroup(
 			types.Metadata{
 				Name: "ug-" + strconv.Itoa(i+1),
@@ -71,7 +71,7 @@ func TestUserGroups(t *testing.T) {
 	}
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.Equal(t, 500, p.cache.collections.userGroups.store.len())
+		assert.Equal(t, 500, p.cache.collections.userGroups.store.len())
 	}, 10*time.Second, 100*time.Millisecond)
 
 	var out []types.UserGroup

@@ -310,7 +310,6 @@ const (
 	AuthService_GetClusterMaintenanceConfig_FullMethodName         = "/proto.AuthService/GetClusterMaintenanceConfig"
 	AuthService_UpdateClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/UpdateClusterMaintenanceConfig"
 	AuthService_DeleteClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/DeleteClusterMaintenanceConfig"
-	AuthService_ValidateTrustedCluster_FullMethodName              = "/proto.AuthService/ValidateTrustedCluster"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -458,7 +457,6 @@ type AuthServiceClient interface {
 	KeepAliveSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
 	CancelSemaphoreLease(ctx context.Context, in *types.SemaphoreLease, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error)
 	// ListSemaphores returns a page of all semaphores matching the supplied filter.
@@ -495,10 +493,7 @@ type AuthServiceClient interface {
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(ctx context.Context, in *GetSnowflakeSessionRequest, opts ...grpc.CallOption) (*GetSnowflakeSessionResponse, error)
-	// Deprecated: Do not use.
 	// GetSnowflakeSessions gets all Snowflake web sessions.
-	// Deprecated: Use [ListSnowflakeSessions] instead.
-	// TODO(okraport): DELETE IN 21.0.0
 	GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
 	// ListSnowflakeSessions returns a page of Snowflake web sessions.
 	ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error)
@@ -537,7 +532,6 @@ type AuthServiceClient interface {
 	DeleteAllWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(ctx context.Context, in *types.GetWebTokenRequest, opts ...grpc.CallOption) (*GetWebTokenResponse, error)
-	// Deprecated: Do not use.
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error)
 	// ListWebTokens returns a page of web tokens.
@@ -650,10 +644,7 @@ type AuthServiceClient interface {
 	CreateRegisterChallenge(ctx context.Context, in *CreateRegisterChallengeRequest, opts ...grpc.CallOption) (*MFARegisterChallenge, error)
 	// GetOIDCConnector gets an OIDC connector resource by name.
 	GetOIDCConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3, error)
-	// Deprecated: Do not use.
 	// GetOIDCConnectors gets all current OIDC connector resources.
-	//
-	// Deprecated: Use ListOIDCConnectors instead.
 	GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error)
 	// ListOIDCConnectors returns a page of current OIDC connector resources.
 	ListOIDCConnectors(ctx context.Context, in *ListOIDCConnectorsRequest, opts ...grpc.CallOption) (*ListOIDCConnectorsResponse, error)
@@ -676,10 +667,7 @@ type AuthServiceClient interface {
 	GetOIDCAuthRequest(ctx context.Context, in *GetOIDCAuthRequestRequest, opts ...grpc.CallOption) (*types.OIDCAuthRequest, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2, error)
-	// Deprecated: Do not use.
 	// GetSAMLConnectors gets all current SAML connector resources.
-	//
-	// Deprecated: Use ListSAMLConnectors instead.
 	GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error)
 	// ListSAMLConnectors returns a page of current SAML connector resources.
 	ListSAMLConnectors(ctx context.Context, in *ListSAMLConnectorsRequest, opts ...grpc.CallOption) (*ListSAMLConnectorsResponse, error)
@@ -702,10 +690,7 @@ type AuthServiceClient interface {
 	GetSAMLAuthRequest(ctx context.Context, in *GetSAMLAuthRequestRequest, opts ...grpc.CallOption) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(ctx context.Context, in *types.ResourceWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3, error)
-	// Deprecated: Do not use.
 	// GetGithubConnectors gets all current Github connector resources.
-	//
-	// Deprecated: Use ListGithubConnectors instead.
 	GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error)
 	// ListGithubConnectors returns a page of current Github connector resources.
 	ListGithubConnectors(ctx context.Context, in *ListGithubConnectorsRequest, opts ...grpc.CallOption) (*ListGithubConnectorsResponse, error)
@@ -740,10 +725,7 @@ type AuthServiceClient interface {
 	DeleteAllServerInfos(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
-	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
-	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
-	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -819,7 +801,6 @@ type AuthServiceClient interface {
 	GetSessionEvents(ctx context.Context, in *GetSessionEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(ctx context.Context, in *GetLockRequest, opts ...grpc.CallOption) (*types.LockV2, error)
-	// Deprecated: Do not use.
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error)
 	// ListLocks returns a page of locks matching a filter.
@@ -838,7 +819,6 @@ type AuthServiceClient interface {
 	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -853,7 +833,6 @@ type AuthServiceClient interface {
 	DeleteApp(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error)
 	// ListDatabases returns a page of registered databases.
@@ -868,7 +847,6 @@ type AuthServiceClient interface {
 	DeleteDatabase(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
 	DeleteAllDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error)
 	// ListKubernetesClusters returns a page of registered kubernetes clusters.
@@ -992,7 +970,6 @@ type AuthServiceClient interface {
 	CreatePrivilegeToken(ctx context.Context, in *CreatePrivilegeTokenRequest, opts ...grpc.CallOption) (*types.UserTokenV3, error)
 	// GetInstaller retrieves the installer script resource
 	GetInstaller(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.InstallerV1, error)
-	// Deprecated: Do not use.
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error)
 	// ListInstallers returns a page of installer script resources.
@@ -1070,10 +1047,6 @@ type AuthServiceClient interface {
 	UpdateClusterMaintenanceConfig(ctx context.Context, in *types.ClusterMaintenanceConfigV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
 	DeleteClusterMaintenanceConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
-	// by the proxy on behalf of a cluster that wishes to join to this one as a
-	// leaf cluster.
-	ValidateTrustedCluster(ctx context.Context, in *ValidateTrustedClusterRequest, opts ...grpc.CallOption) (*ValidateTrustedClusterResponse, error)
 }
 
 type authServiceClient struct {
@@ -1706,7 +1679,6 @@ func (c *authServiceClient) CancelSemaphoreLease(ctx context.Context, in *types.
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetSemaphores(ctx context.Context, in *types.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Semaphores)
@@ -1880,7 +1852,6 @@ func (c *authServiceClient) GetSnowflakeSession(ctx context.Context, in *GetSnow
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSnowflakeSessionsResponse)
@@ -2057,7 +2028,6 @@ func (c *authServiceClient) GetWebToken(ctx context.Context, in *types.GetWebTok
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetWebTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetWebTokensResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetWebTokensResponse)
@@ -2397,7 +2367,6 @@ func (c *authServiceClient) GetOIDCConnector(ctx context.Context, in *types.Reso
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetOIDCConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.OIDCConnectorV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.OIDCConnectorV3List)
@@ -2499,7 +2468,6 @@ func (c *authServiceClient) GetSAMLConnector(ctx context.Context, in *types.Reso
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetSAMLConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.SAMLConnectorV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.SAMLConnectorV2List)
@@ -2601,7 +2569,6 @@ func (c *authServiceClient) GetGithubConnector(ctx context.Context, in *types.Re
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetGithubConnectors(ctx context.Context, in *types.ResourcesWithSecretsRequest, opts ...grpc.CallOption) (*types.GithubConnectorV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.GithubConnectorV3List)
@@ -2772,7 +2739,6 @@ func (c *authServiceClient) GetTrustedCluster(ctx context.Context, in *types.Res
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.TrustedClusterV2List)
@@ -3044,7 +3010,6 @@ func (c *authServiceClient) GetLock(ctx context.Context, in *GetLockRequest, opt
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetLocksResponse)
@@ -3144,7 +3109,6 @@ func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *e
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.AppV3List)
@@ -3215,7 +3179,6 @@ func (c *authServiceClient) DeleteAllApps(ctx context.Context, in *emptypb.Empty
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetDatabases(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.DatabaseV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.DatabaseV3List)
@@ -3286,7 +3249,6 @@ func (c *authServiceClient) DeleteAllDatabases(ctx context.Context, in *emptypb.
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetKubernetesClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.KubernetesClusterV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.KubernetesClusterV3List)
@@ -3637,7 +3599,6 @@ func (c *authServiceClient) GetInstaller(ctx context.Context, in *types.Resource
 	return out, nil
 }
 
-// Deprecated: Do not use.
 func (c *authServiceClient) GetInstallers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.InstallerV1List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.InstallerV1List)
@@ -3987,16 +3948,6 @@ func (c *authServiceClient) DeleteClusterMaintenanceConfig(ctx context.Context, 
 	return out, nil
 }
 
-func (c *authServiceClient) ValidateTrustedCluster(ctx context.Context, in *ValidateTrustedClusterRequest, opts ...grpc.CallOption) (*ValidateTrustedClusterResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ValidateTrustedClusterResponse)
-	err := c.cc.Invoke(ctx, AuthService_ValidateTrustedCluster_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AuthServiceServer is the server API for AuthService service.
 // All implementations should embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -4142,7 +4093,6 @@ type AuthServiceServer interface {
 	KeepAliveSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
 	// CancelSemaphoreLease cancels semaphore lease early.
 	CancelSemaphoreLease(context.Context, *types.SemaphoreLease) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetSemaphores returns a list of all semaphores matching the supplied filter.
 	GetSemaphores(context.Context, *types.SemaphoreFilter) (*Semaphores, error)
 	// ListSemaphores returns a page of all semaphores matching the supplied filter.
@@ -4179,10 +4129,7 @@ type AuthServiceServer interface {
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(context.Context, *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error)
-	// Deprecated: Do not use.
 	// GetSnowflakeSessions gets all Snowflake web sessions.
-	// Deprecated: Use [ListSnowflakeSessions] instead.
-	// TODO(okraport): DELETE IN 21.0.0
 	GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error)
 	// ListSnowflakeSessions returns a page of Snowflake web sessions.
 	ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error)
@@ -4221,7 +4168,6 @@ type AuthServiceServer interface {
 	DeleteAllWebSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetWebToken gets a web token.
 	GetWebToken(context.Context, *types.GetWebTokenRequest) (*GetWebTokenResponse, error)
-	// Deprecated: Do not use.
 	// GetWebTokens gets all web tokens.
 	GetWebTokens(context.Context, *emptypb.Empty) (*GetWebTokensResponse, error)
 	// ListWebTokens returns a page of web tokens.
@@ -4334,10 +4280,7 @@ type AuthServiceServer interface {
 	CreateRegisterChallenge(context.Context, *CreateRegisterChallengeRequest) (*MFARegisterChallenge, error)
 	// GetOIDCConnector gets an OIDC connector resource by name.
 	GetOIDCConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error)
-	// Deprecated: Do not use.
 	// GetOIDCConnectors gets all current OIDC connector resources.
-	//
-	// Deprecated: Use ListOIDCConnectors instead.
 	GetOIDCConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error)
 	// ListOIDCConnectors returns a page of current OIDC connector resources.
 	ListOIDCConnectors(context.Context, *ListOIDCConnectorsRequest) (*ListOIDCConnectorsResponse, error)
@@ -4360,10 +4303,7 @@ type AuthServiceServer interface {
 	GetOIDCAuthRequest(context.Context, *GetOIDCAuthRequestRequest) (*types.OIDCAuthRequest, error)
 	// GetSAMLConnector gets a SAML connector resource by name.
 	GetSAMLConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.SAMLConnectorV2, error)
-	// Deprecated: Do not use.
 	// GetSAMLConnectors gets all current SAML connector resources.
-	//
-	// Deprecated: Use ListSAMLConnectors instead.
 	GetSAMLConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.SAMLConnectorV2List, error)
 	// ListSAMLConnectors returns a page of current SAML connector resources.
 	ListSAMLConnectors(context.Context, *ListSAMLConnectorsRequest) (*ListSAMLConnectorsResponse, error)
@@ -4386,10 +4326,7 @@ type AuthServiceServer interface {
 	GetSAMLAuthRequest(context.Context, *GetSAMLAuthRequestRequest) (*types.SAMLAuthRequest, error)
 	// GetGithubConnector gets a Github connector resource by name.
 	GetGithubConnector(context.Context, *types.ResourceWithSecretsRequest) (*types.GithubConnectorV3, error)
-	// Deprecated: Do not use.
 	// GetGithubConnectors gets all current Github connector resources.
-	//
-	// Deprecated: Use ListGithubConnectors instead.
 	GetGithubConnectors(context.Context, *types.ResourcesWithSecretsRequest) (*types.GithubConnectorV3List, error)
 	// ListGithubConnectors returns a page of current Github connector resources.
 	ListGithubConnectors(context.Context, *ListGithubConnectorsRequest) (*ListGithubConnectorsResponse, error)
@@ -4424,10 +4361,7 @@ type AuthServiceServer interface {
 	DeleteAllServerInfos(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
-	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
-	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
-	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -4503,7 +4437,6 @@ type AuthServiceServer interface {
 	GetSessionEvents(context.Context, *GetSessionEventsRequest) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(context.Context, *GetLockRequest) (*types.LockV2, error)
-	// Deprecated: Do not use.
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error)
 	// ListLocks returns a page of locks matching a filter.
@@ -4522,7 +4455,6 @@ type AuthServiceServer interface {
 	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -4537,7 +4469,6 @@ type AuthServiceServer interface {
 	DeleteApp(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllApps removes all application resources.
 	DeleteAllApps(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetDatabases returns all registered databases.
 	GetDatabases(context.Context, *emptypb.Empty) (*types.DatabaseV3List, error)
 	// ListDatabases returns a page of registered databases.
@@ -4552,7 +4483,6 @@ type AuthServiceServer interface {
 	DeleteDatabase(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)
 	// DeleteAllDatabases removes all database resources.
 	DeleteAllDatabases(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
 	// GetKubernetesClusters returns all registered kubernetes clusters.
 	GetKubernetesClusters(context.Context, *emptypb.Empty) (*types.KubernetesClusterV3List, error)
 	// ListKubernetesClusters returns a page of registered kubernetes clusters.
@@ -4676,7 +4606,6 @@ type AuthServiceServer interface {
 	CreatePrivilegeToken(context.Context, *CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 	// GetInstaller retrieves the installer script resource
 	GetInstaller(context.Context, *types.ResourceRequest) (*types.InstallerV1, error)
-	// Deprecated: Do not use.
 	// GetInstallers retrieves all of installer script resources.
 	GetInstallers(context.Context, *emptypb.Empty) (*types.InstallerV1List, error)
 	// ListInstallers returns a page of installer script resources.
@@ -4754,10 +4683,6 @@ type AuthServiceServer interface {
 	UpdateClusterMaintenanceConfig(context.Context, *types.ClusterMaintenanceConfigV1) (*emptypb.Empty, error)
 	// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
 	DeleteClusterMaintenanceConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
-	// by the proxy on behalf of a cluster that wishes to join to this one as a
-	// leaf cluster.
-	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 }
 
 // UnimplementedAuthServiceServer should be embedded to have
@@ -5588,9 +5513,6 @@ func (UnimplementedAuthServiceServer) UpdateClusterMaintenanceConfig(context.Con
 }
 func (UnimplementedAuthServiceServer) DeleteClusterMaintenanceConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteClusterMaintenanceConfig not implemented")
-}
-func (UnimplementedAuthServiceServer) ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ValidateTrustedCluster not implemented")
 }
 func (UnimplementedAuthServiceServer) testEmbeddedByValue() {}
 
@@ -10390,24 +10312,6 @@ func _AuthService_DeleteClusterMaintenanceConfig_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AuthService_ValidateTrustedCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ValidateTrustedClusterRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).ValidateTrustedCluster(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_ValidateTrustedCluster_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ValidateTrustedCluster(ctx, req.(*ValidateTrustedClusterRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -11438,10 +11342,6 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteClusterMaintenanceConfig",
 			Handler:    _AuthService_DeleteClusterMaintenanceConfig_Handler,
-		},
-		{
-			MethodName: "ValidateTrustedCluster",
-			Handler:    _AuthService_ValidateTrustedCluster_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

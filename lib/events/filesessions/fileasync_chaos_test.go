@@ -50,7 +50,8 @@ func TestChaosUpload(t *testing.T) {
 		t.Skip("Skipping chaos test in short mode.")
 	}
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	eventsC := make(chan events.UploadEvent, 100)
 	memUploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
@@ -135,7 +136,7 @@ func TestChaosUpload(t *testing.T) {
 		err    error
 	}
 	streamsCh := make(chan streamState, parallelStreams)
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		go func() {
 			inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 4096})
 			sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
@@ -165,7 +166,7 @@ func TestChaosUpload(t *testing.T) {
 
 	// wait for all streams to be completed
 	streams := make(map[string]streamState)
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		select {
 		case status := <-streamsCh:
 			require.NoError(t, status.err)
@@ -177,7 +178,7 @@ func TestChaosUpload(t *testing.T) {
 
 	require.Len(t, streams, parallelStreams)
 
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		select {
 		case event := <-eventsC:
 			require.NoError(t, event.Error)

@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -153,8 +152,8 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		originalTraits = make(map[string][]string, len(user.GetTraits()))
 		traits = make(map[string][]string, len(user.GetTraits()))
 		for k, v := range user.GetTraits() {
-			originalTraits[k] = slices.Clone(v)
-			traits[k] = slices.Clone(v)
+			originalTraits[k] = utils.CopyStrings(v)
+			traits[k] = utils.CopyStrings(v)
 		}
 	}
 
@@ -172,9 +171,9 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 			Name:   user.GetName(),
 			Labels: user.GetAllLabels(),
 		}, userloginstate.Spec{
-			OriginalRoles:  slices.Clone(user.GetRoles()),
+			OriginalRoles:  utils.CopyStrings(user.GetRoles()),
 			OriginalTraits: originalTraits,
-			Roles:          slices.Clone(user.GetRoles()),
+			Roles:          utils.CopyStrings(user.GetRoles()),
 			Traits:         traits,
 			UserType:       user.GetUserType(),
 			GitHubIdentity: githubIdentity,
@@ -340,12 +339,22 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 		state.Spec.Traits[k] = utils.Deduplicate(v)
 	}
 
+	// If there are no roles, don't bother filtering out non-existent roles
+	if len(state.Spec.Roles) == 0 {
+		return nil
+	}
+
 	// Make sure all the roles exist. If they don't, error out.
+	var existingRoles []string
 	for _, role := range state.Spec.Roles {
-		if _, err := g.access.GetRole(ctx, role); err != nil {
+		_, err := g.access.GetRole(ctx, role)
+		if err == nil {
+			existingRoles = append(existingRoles, role)
+		} else {
 			return trace.Wrap(err)
 		}
 	}
+	state.Spec.Roles = existingRoles
 
 	return nil
 }

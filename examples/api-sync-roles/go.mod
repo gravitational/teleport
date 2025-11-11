@@ -1,9 +1,9 @@
 module sync-roles
 
-go 1.25.3
+go 1.24.9
 
 require (
-	github.com/gravitational/teleport/api v0.0.0-20250813020053-3df242da2a4a
+	github.com/gravitational/teleport/api v0.0.0-20250818183108-571669ac0707
 	github.com/gravitational/trace v1.5.1
 	google.golang.org/grpc v1.74.2
 	k8s.io/api v0.32.3
@@ -49,8 +49,8 @@ require (
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.37.0 // indirect

@@ -155,7 +155,7 @@ func (s *SlackSuiteOSS) TestMessagePosting() {
 	// We validate we got 3 messages: one for each recipient and one for the requester.
 	var messages []slack.Message
 	messageSet := make(SlackDataMessageSet)
-	for range numMessages {
+	for i := 0; i < numMessages; i++ {
 		msg, err := s.fakeSlack.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
@@ -163,7 +163,7 @@ func (s *SlackSuiteOSS) TestMessagePosting() {
 	}
 
 	assert.Len(t, messageSet, numMessages)
-	for i := range numMessages {
+	for i := 0; i < numMessages; i++ {
 		assert.Contains(t, messageSet, pluginData.SentMessages[i])
 	}
 
@@ -225,7 +225,7 @@ func (s *SlackSuiteOSS) TestRecipientsConfig() {
 	messageSet := make(SlackDataMessageSet)
 
 	// Validate we got 3 messages: one for each recipient and one for the requester.
-	for range numMessages {
+	for i := 0; i < numMessages; i++ {
 		msg, err := s.fakeSlack.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
@@ -233,7 +233,7 @@ func (s *SlackSuiteOSS) TestRecipientsConfig() {
 	}
 
 	assert.Len(t, messageSet, numMessages)
-	for i := range numMessages {
+	for i := 0; i < numMessages; i++ {
 		assert.Contains(t, messageSet, pluginData.SentMessages[i])
 	}
 
@@ -294,7 +294,7 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	messageSet := make(SlackDataMessageSet)
 
 	// Validate we got 3 messages: one for each recipient and one for the requester.
-	for range numMessages {
+	for i := 0; i < numMessages; i++ {
 		msg, err := s.fakeSlack.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
@@ -302,7 +302,7 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	}
 
 	assert.Len(t, messageSet, numMessages)
-	for i := range numMessages {
+	for i := 0; i < numMessages; i++ {
 		assert.Contains(t, messageSet, pluginData.SentMessages[i])
 	}
 
@@ -367,7 +367,7 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	messageSet := make(SlackDataMessageSet)
 
 	// Validate we got 3 messages: one for each recipient and one for the requester.
-	for range numMessagesInitial {
+	for i := 0; i < numMessagesInitial; i++ {
 		msg, err := s.fakeSlack.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
@@ -375,7 +375,7 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	}
 
 	assert.Len(t, messageSet, numMessagesInitial)
-	for i := range numMessagesInitial {
+	for i := 0; i < numMessagesInitial; i++ {
 		assert.Contains(t, messageSet, pluginData.SentMessages[i])
 	}
 
@@ -418,7 +418,7 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	assert.Len(t, pluginData.SentMessages, numMessagesFinal)
 
 	// Validate we got 2 messages since the base config should kick back in
-	for range numMessagesFinal {
+	for i := 0; i < numMessagesFinal; i++ {
 		msg, err := s.fakeSlack.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.Timestamp})
@@ -715,7 +715,7 @@ func (s *SlackSuiteEnterprise) TestRace() {
 	}
 
 	process := lib.NewProcess(ctx)
-	for range s.raceNumber {
+	for i := 0; i < s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			req, err := types.NewAccessRequest(uuid.New().String(), integration.Requester1UserName, "editor")
 			if err != nil {
@@ -735,7 +735,7 @@ func (s *SlackSuiteEnterprise) TestRace() {
 	//
 	// Multiplier NINE means that we handle THREE messages for each request and also
 	// TWO comments for each message: 2 * (1 message + 2 comments).
-	for range 9 * s.raceNumber {
+	for i := 0; i < 9*s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.fakeSlack.CheckNewMessage(ctx)
 			if err != nil {
@@ -789,7 +789,7 @@ func (s *SlackSuiteEnterprise) TestRace() {
 	}
 
 	// Multiplier THREE means that we handle the 2 updates for each of the two messages posted to reviewers.
-	for range 3 * 2 * s.raceNumber {
+	for i := 0; i < 3*2*s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.fakeSlack.CheckMessageUpdateByAPI(ctx)
 			if err != nil {
@@ -811,7 +811,7 @@ func (s *SlackSuiteEnterprise) TestRace() {
 	require.NoError(t, raceErr)
 
 	assert.Equal(t, int32(3*s.raceNumber), threadMsgsCount)
-	threadMsgIDs.Range(func(key, value any) bool {
+	threadMsgIDs.Range(func(key, value interface{}) bool {
 		next := true
 
 		val, loaded := reviewReplyCounters.LoadAndDelete(key)

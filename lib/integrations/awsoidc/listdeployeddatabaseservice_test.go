@@ -132,7 +132,10 @@ func (m *mockListECSClient) ListServices(ctx context.Context, params *ecs.ListSe
 	}
 
 	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := min(m.pageSize*requestedPage, totalEndpoints)
+	sliceEnd := m.pageSize * requestedPage
+	if sliceEnd > totalEndpoints {
+		sliceEnd = totalEndpoints
+	}
 
 	for _, service := range m.services[sliceStart:sliceEnd] {
 		ret.ServiceArns = append(ret.ServiceArns, aws.ToString(service.ServiceArn))
@@ -205,7 +208,7 @@ func TestListDeployedDatabaseServices(t *testing.T) {
 		allServices := make([]*ecstypes.Service, 0, totalServices)
 		mapServices := make(map[string]ecstypes.Service, totalServices)
 		allTasks := make(map[string]*ecstypes.TaskDefinition, totalServices)
-		for i := range totalServices {
+		for i := 0; i < totalServices; i++ {
 			ecsService, ecsTask := dummyServiceTask(i)
 			allTasks[aws.ToString(ecsTask.Family)] = ecsTask
 			mapServices[aws.ToString(ecsService.ServiceArn)] = ecsService

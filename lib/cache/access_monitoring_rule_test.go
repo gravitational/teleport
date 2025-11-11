@@ -39,7 +39,7 @@ func TestAccessMonitoringRules(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*accessmonitoringrulesv1.AccessMonitoringRule]{
 		newResource: func(name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			return newAccessMonitoringRule(t, name), nil
+			return newAccessMonitoringRule(t), nil
 		},
 		create: func(ctx context.Context, i *accessmonitoringrulesv1.AccessMonitoringRule) error {
 			_, err := p.accessMonitoringRules.CreateAccessMonitoringRule(ctx, i)
@@ -53,7 +53,7 @@ func TestAccessMonitoringRules(t *testing.T) {
 			return err
 		},
 		deleteAll: p.accessMonitoringRules.DeleteAllAccessMonitoringRules,
-	})
+	}, withSkipPaginationTest())
 }
 
 func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
@@ -199,9 +199,9 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				results, next, err := p.cache.ListAccessMonitoringRules(ctx, 0, "")
-				require.NoError(t, err)
-				require.Empty(t, next)
-				require.Len(t, results, 1)
+				assert.NoError(t, err)
+				assert.Empty(t, next)
+				assert.Len(t, results, 1)
 			},
 				15*time.Second, 100*time.Millisecond)
 

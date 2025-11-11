@@ -677,11 +677,11 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetRelayServer(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetRecordingEncryption(); r != nil {
-		out.Resource = types.ProtoResource153ToLegacy(r)
-		return &out, nil
 	} else if r := in.GetPlugin(); r != nil {
 		out.Resource = r
+		return &out, nil
+	} else if r := in.GetRecordingEncryption(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
@@ -212,7 +212,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
-					types.NewRule(types.KindAutoUpdateBotInstanceReport, RO()),
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
@@ -1207,7 +1206,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 }
 
 func mergeStrings(dst, src []string) (merged []string, changed bool) {
-	items := set.New[string](dst...)
+	items := utils.NewSet[string](dst...)
 	items.Add(src...)
 	if len(items) == len(dst) {
 		return dst, false
