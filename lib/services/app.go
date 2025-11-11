@@ -77,8 +77,9 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		return nil
 	}
 
-	// It is assumed that the app's public address has already been validated to be a valid address format during app
-	// resource validation. The remainder of this function focuses on detecting conflicts with proxy public addresses.
+	// The app's spec has already been validated in CheckAndSetDefaults, so we can assume the public address is a valid
+	// address. The remainder of this function focuses on detecting conflicts with proxy public addresses because the
+	// proxy addresses are not part of the app spec and need to be fetched separately.
 	appAddr, err := utils.ParseAddr(app.GetPublicAddr())
 	if err != nil {
 		return trace.Wrap(err)
