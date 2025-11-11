@@ -2262,15 +2262,15 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	ctx context.Context,
 	resourceIDs []types.ResourceID,
 	loginHint string,
-	roles []string,
+	requestedRoles []string,
 ) ([]string, error) {
 	if len(resourceIDs) == 0 {
 		// This is not a resource request, nothing to do
-		return roles, nil
+		return requestedRoles, nil
 	}
 
-	roles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(resourceIDs, roles)
-	if len(roles) == 0 { // all roles got pruned from not matching every kube requested kind.
+	requestedRoles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(resourceIDs, requestedRoles)
+	if len(requestedRoles) == 0 { // all roles got pruned from not matching every kube requested kind.
 		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
 	}
 
@@ -2285,11 +2285,16 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
 				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
 			)
-			return roles, nil
+			return requestedRoles, nil
 		}
 	}
 
-	allRoles, err := FetchRoles(roles, m.getter, m.userState.GetTraits())
+	requestedRoleMap := make(map[string]struct{}, len(requestedRoles))
+	for _, r := range requestedRoles {
+		requestedRoleMap[r] = struct{}{}
+	}
+	allRoles := append(requestedRoles, m.userState.GetRoles()...)
+	roleSet, err := FetchRoles(allRoles, m.getter, m.userState.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2322,7 +2327,23 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 
-		for _, role := range allRoles {
+		if resource.GetKind() == types.KindSAMLIdPServiceProvider {
+			// During time of access, all of user roles- standing roles and
+			// access request roles are used to check access. As such, its
+			// possible for ser to pass access request validation with allowing
+			// v7 role, but denied access during login due to restricting v8 role.
+			// Therefore checking access here gives user an early feedback on
+			// whether they eventually would be able to access resource.
+			if err := canAccessSaml(localClusterName, roleSet, resource, m.userState.GetTraits(), matchers...); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		for _, role := range roleSet {
+			// limit access checker to the scope of originally requested roles.
+			if _, ok := requestedRoleMap[role.GetName()]; !ok {
+				continue
+			}
 			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, matchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2346,7 +2367,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				`no roles configured in the "search_as_roles" for this user allow `+
 					`access to at least one requested resources. `+
 					`resources: %s roles: %v unmatched resources: %v`,
-				resourcesStr, roles, kubeResourceMatcher.Unmatched())
+				resourcesStr, requestedRoles, kubeResourceMatcher.Unmatched())
 		}
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
@@ -2369,13 +2390,32 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				`access to any requested resources. The user may already have `+
 				`access to all requested resources with their existing roles. `+
 				`resources: %s roles: %v login: %q`,
-			resourcesStr, roles, loginHint)
+			resourcesStr, requestedRoles, loginHint)
 	}
 	prunedRoles := make([]string, 0, len(necessaryRoles))
 	for role := range necessaryRoles {
 		prunedRoles = append(prunedRoles, role)
 	}
 	return prunedRoles, nil
+}
+
+// canAccessSaml checks access to saml resource with both requested role+existing role.
+func canAccessSaml(clusterName string, roleSet RoleSet, r types.ResourceWithLabels, traits map[string][]string, matchers ...RoleMatcher) error {
+	if err := roleSet.CheckAccessToSAMLIdP(r, traits, nil /*AuthPreference, checked during login*/, AccessState{MFAVerified: true}, matchers...); err != nil {
+		if trace.IsAccessDenied(err) {
+			return trace.BadParameter(
+				`no roles configured in the "search_as_roles" for this user allow `+
+					`access to %q.`, types.ResourceIDToString(types.ResourceID{
+					ClusterName: clusterName,
+					Name:        r.GetName(),
+					Kind:        r.GetKind(),
+					// SubResourceName not applicable for this resource.
+				}))
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func fewestLogins(roles []types.Role) []types.Role {
@@ -2412,7 +2452,17 @@ func (m *RequestValidator) roleAllowsResource(
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
 	matchers = append(matchers, extraMatchers...)
-	err := roleSet.checkAccess(resource, m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...)
+	var err error
+	if resource.GetKind() == types.KindSAMLIdPServiceProvider {
+		err = roleSet.CheckAccessToSAMLIdP(
+			resource,
+			m.userState.GetTraits(),
+			nil, /*AuthPreference, checked during login*/
+			AccessState{MFAVerified: true},
+			matchers...)
+	} else {
+		err = roleSet.checkAccess(resource, m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...)
+	}
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.

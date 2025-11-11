@@ -49,15 +49,16 @@ import (
 
 // mockGetter mocks the UserAndRoleGetter interface.
 type mockGetter struct {
-	userStates  map[string]*userloginstate.UserLoginState
-	users       map[string]types.User
-	roles       map[string]types.Role
-	nodes       map[string]types.Server
-	kubeServers map[string]types.KubeServer
-	dbServers   map[string]types.DatabaseServer
-	appServers  map[string]types.AppServer
-	desktops    map[string]types.WindowsDesktop
-	clusterName string
+	userStates              map[string]*userloginstate.UserLoginState
+	users                   map[string]types.User
+	roles                   map[string]types.Role
+	nodes                   map[string]types.Server
+	kubeServers             map[string]types.KubeServer
+	dbServers               map[string]types.DatabaseServer
+	appServers              map[string]types.AppServer
+	desktops                map[string]types.WindowsDesktop
+	samlIdPServiceProviders map[string]types.SAMLIdPServiceProvider
+	clusterName             string
 }
 
 func (m *mockGetter) ListUserLoginStates(ctx context.Context, pageSize int, nextToken string) ([]*userloginstate.UserLoginState, string, error) {
@@ -153,6 +154,11 @@ func (m *mockGetter) ListResources(ctx context.Context, req proto.ListResourcesR
 	for desktopName, desktop := range m.desktops {
 		if strings.Contains(req.PredicateExpression, desktopName) {
 			resp.Resources = append(resp.Resources, desktop)
+		}
+	}
+	for samlServiceProviderName, samlServiceProvider := range m.samlIdPServiceProviders {
+		if strings.Contains(req.PredicateExpression, samlServiceProviderName) {
+			resp.Resources = append(resp.Resources, samlServiceProvider)
 		}
 	}
 	return resp, nil
@@ -1310,15 +1316,16 @@ func newFixture(t *testing.T) (*mockGetter, string) {
 	clusterName := "my-cluster"
 
 	g := &mockGetter{
-		roles:       make(map[string]types.Role),
-		userStates:  make(map[string]*userloginstate.UserLoginState),
-		users:       make(map[string]types.User),
-		nodes:       make(map[string]types.Server),
-		kubeServers: make(map[string]types.KubeServer),
-		dbServers:   make(map[string]types.DatabaseServer),
-		appServers:  make(map[string]types.AppServer),
-		desktops:    make(map[string]types.WindowsDesktop),
-		clusterName: clusterName,
+		roles:                   make(map[string]types.Role),
+		userStates:              make(map[string]*userloginstate.UserLoginState),
+		users:                   make(map[string]types.User),
+		nodes:                   make(map[string]types.Server),
+		kubeServers:             make(map[string]types.KubeServer),
+		dbServers:               make(map[string]types.DatabaseServer),
+		appServers:              make(map[string]types.AppServer),
+		desktops:                make(map[string]types.WindowsDesktop),
+		samlIdPServiceProviders: make(map[string]types.SAMLIdPServiceProvider),
+		clusterName:             clusterName,
 	}
 
 	// set up test roles
@@ -1336,6 +1343,7 @@ func newFixture(t *testing.T) (*mockGetter, string) {
 						"db-admins",
 						"app-admins",
 						"windows-admins",
+						"saml-rolev7",
 						"empty",
 					},
 				},
@@ -1388,6 +1396,22 @@ func newFixture(t *testing.T) (*mockGetter, string) {
 				},
 			},
 		},
+		"saml-prod-team": {
+			Allow: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env": {"prod"},
+				},
+			},
+		},
+		"saml-v8-dev-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{
+						"saml-rolev7",
+					},
+				},
+			},
+		},
 		"windows-admins": {
 			Allow: types.RoleConditions{
 				WindowsDesktopLabels: types.Labels{
@@ -1404,6 +1428,24 @@ func newFixture(t *testing.T) (*mockGetter, string) {
 		require.NoError(t, err)
 		g.roles[name] = role
 	}
+
+	samlRoleV7, err := types.NewRoleWithVersion("saml-rolev7", types.V7, types.RoleSpecV6{
+		// access to saml granted by default
+	})
+	require.NoError(t, err)
+	g.roles[samlRoleV7.GetName()] = samlRoleV7
+
+	samlRoleV7Requester, err := types.NewRoleWithVersion("saml-rolev7-requester", types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{
+					"saml-rolev7",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	g.roles[samlRoleV7Requester.GetName()] = samlRoleV7Requester
 
 	user := g.user(t, "response-team")
 	g.userStates[user].Spec.Traits = map[string][]string{
@@ -1486,6 +1528,20 @@ func newFixture(t *testing.T) (*mockGetter, string) {
 	})
 	require.NoError(t, err)
 	g.desktops[desktop.GetName()] = desktop
+
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "samlapp1",
+			Labels: map[string]string{
+				"env": "dev",
+			},
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: NewSAMLTestSPMetadata("localhost", "https://localhost/acs"),
+		},
+	)
+	require.NoError(t, err)
+	g.samlIdPServiceProviders[sp.GetName()] = sp
 
 	return g, user
 }
@@ -1952,6 +2008,126 @@ func TestPruneMappedRoles(t *testing.T) {
 			caps, err := PruneMappedSearchAsRoles(ctx, clock, g, userState, localSearchAsRoles, testCase.requestResourceIDs, testCase.loginHint)
 			testCase.errorAssertion(t, err)
 			testCase.capsAssertion(t, caps)
+		})
+	}
+}
+
+func TestValidateSAMLIdPAccessRequest(t *testing.T) {
+	ctx := context.Background()
+	g, username := newFixture(t)
+
+	uls, ok := g.userStates[username]
+	require.True(t, ok, "user should exist")
+
+	testCases := []struct {
+		desc               string
+		loginHint          string
+		requestResourceIDs []types.ResourceID
+		errorAssertion     require.ErrorAssertionFunc
+		overrideRoles      []string
+		expectRoles        []string
+	}{
+		{
+			desc: "has direct access to resource",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp1",
+				},
+			},
+			expectRoles:    []string{"app-admins"},
+			errorAssertion: require.NoError,
+		},
+		{
+			desc: "requesting with v7 role succeeds",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp1",
+				},
+			},
+			overrideRoles:  []string{"saml-rolev7-requester"},
+			errorAssertion: require.NoError,
+		},
+		{
+			desc: "requesting with v8 role succeeds",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp1",
+				},
+			},
+			overrideRoles:  []string{"response-team"},
+			errorAssertion: require.NoError,
+		},
+		{
+			desc: "v7 role grants access, but can't search resource using v8 role",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp1",
+				},
+			},
+			expectRoles:   []string{"app-admins"},
+			overrideRoles: []string{"saml-rolev7", "saml-v8-dev-requester"},
+			errorAssertion: func(t require.TestingT, err error, args ...interface{}) {
+				require.ErrorContains(t, err, "no roles configured")
+			},
+		},
+		{
+			desc: "request fails if v8 role exists and does not grant access",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp1",
+				},
+			},
+			overrideRoles: []string{"saml-rolev7-requester", "saml-prod-team"},
+			errorAssertion: func(t require.TestingT, err error, args ...interface{}) {
+				require.ErrorContains(t, err, "no roles configured")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			if len(tc.overrideRoles) > 0 {
+				uls.Spec.Roles = tc.overrideRoles
+			}
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			// test RequestValidator.Validate
+			{
+				validator, err := NewRequestValidator(ctx, clock, g, uls.GetName(), WithExpandVars(true))
+				require.NoError(t, err)
+
+				req, err := types.NewAccessRequestWithResources(
+					"some-id", uls.GetName(), []string{}, tc.requestResourceIDs)
+				require.NoError(t, err)
+
+				tc.errorAssertion(t, validator.validate(ctx, req.Copy(), identity))
+
+			}
+
+			// test CalculateAccessCapabilities
+			{
+				req := types.AccessCapabilitiesRequest{
+					User:             uls.GetName(),
+					ResourceIDs:      tc.requestResourceIDs,
+					RequestableRoles: len(tc.requestResourceIDs) == 0,
+				}
+
+				_, err := CalculateAccessCapabilities(ctx, clock, g, identity, req)
+				tc.errorAssertion(t, err)
+			}
 		})
 	}
 }
