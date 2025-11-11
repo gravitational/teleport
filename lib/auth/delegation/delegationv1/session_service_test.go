@@ -135,7 +135,8 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 			}
 			return nil, trace.NotImplemented("App session creation not implemented")
 		}),
-		Logger: logtest.NewLogger(),
+		LockWriter: accessService,
+		Logger:     logtest.NewLogger(),
 	})
 
 	return service, pack
