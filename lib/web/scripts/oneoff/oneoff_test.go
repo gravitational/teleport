@@ -93,7 +93,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -152,7 +152,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -211,7 +211,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -312,7 +312,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -374,7 +374,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -505,7 +505,7 @@ func TestOneOffScript(t *testing.T) {
 		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 		})
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport-ent/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport-ent/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
