@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/gravitational/teleport/lib/metrics"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 type clientMetrics struct {

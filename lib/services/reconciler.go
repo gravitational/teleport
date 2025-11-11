@@ -28,7 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/metrics"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
