@@ -2689,6 +2689,11 @@
       "source": "/zero-trust-access/management/guides/oracle-tags/",
       "destination": "/enroll-resources/automatic-labels/oracle-tags/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/recording-proxy-mode/",
+      "destination": "/reference/architecture/session-recording/",
+      "permanent": true
     }
   ]
 }
