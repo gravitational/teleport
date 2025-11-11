@@ -217,7 +217,7 @@
     },
     {
       "source": "/machine-id/introduction/",
-      "destination": "/machine-workload-identity/machine-id/introduction/",
+      "destination": "/machine-workload-identity/introduction/",
       "permanent": true
     },
     {
@@ -502,107 +502,107 @@
     },
     {
       "source": "/enroll-resources/machine-id/access-guides/",
-      "destination": "/machine-workload-identity/machine-id/access-guides/",
+      "destination": "/machine-workload-identity/access-guides/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/access-guides/ansible/",
-      "destination": "/machine-workload-identity/machine-id/access-guides/ansible/",
+      "destination": "/machine-workload-identity/access-guides/ansible/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/access-guides/applications/",
-      "destination": "/machine-workload-identity/machine-id/access-guides/applications/",
+      "destination": "/machine-workload-identity/access-guides/applications/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/access-guides/databases/",
-      "destination": "/machine-workload-identity/machine-id/access-guides/databases/",
+      "destination": "/machine-workload-identity/access-guides/databases/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/access-guides/kubernetes/",
-      "destination": "/machine-workload-identity/machine-id/access-guides/kubernetes/",
+      "destination": "/machine-workload-identity/access-guides/kubernetes/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/access-guides/ssh/",
-      "destination": "/machine-workload-identity/machine-id/access-guides/ssh/",
+      "destination": "/machine-workload-identity/access-guides/ssh/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/access-guides/tctl/",
-      "destination": "/machine-workload-identity/machine-id/access-guides/tctl/",
+      "destination": "/machine-workload-identity/access-guides/tctl/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/aws/",
-      "destination": "/machine-workload-identity/machine-id/deployment/aws/",
+      "destination": "/machine-workload-identity/deployment/aws/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/azure-devops/",
-      "destination": "/machine-workload-identity/machine-id/deployment/azure-devops/",
+      "destination": "/machine-workload-identity/deployment/azure-devops/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/azure/",
-      "destination": "/machine-workload-identity/machine-id/deployment/azure/",
+      "destination": "/machine-workload-identity/deployment/azure/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/bitbucket/",
-      "destination": "/machine-workload-identity/machine-id/deployment/bitbucket/",
+      "destination": "/machine-workload-identity/deployment/bitbucket/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/circleci/",
-      "destination": "/machine-workload-identity/machine-id/deployment/circleci/",
+      "destination": "/machine-workload-identity/deployment/circleci/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/",
-      "destination": "/machine-workload-identity/machine-id/deployment/",
+      "destination": "/machine-workload-identity/deployment/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/gcp/",
-      "destination": "/machine-workload-identity/machine-id/deployment/gcp/",
+      "destination": "/machine-workload-identity/deployment/gcp/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/github-actions/",
-      "destination": "/machine-workload-identity/machine-id/deployment/github-actions/",
+      "destination": "/machine-workload-identity/deployment/github-actions/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/gitlab/",
-      "destination": "/machine-workload-identity/machine-id/deployment/gitlab/",
+      "destination": "/machine-workload-identity/deployment/gitlab/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/jenkins/",
-      "destination": "/machine-workload-identity/machine-id/deployment/jenkins/",
+      "destination": "/machine-workload-identity/deployment/jenkins/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/kubernetes/",
-      "destination": "/machine-workload-identity/machine-id/deployment/kubernetes/",
+      "destination": "/machine-workload-identity/deployment/kubernetes/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/linux-tpm/",
-      "destination": "/machine-workload-identity/machine-id/deployment/linux-tpm/",
+      "destination": "/machine-workload-identity/deployment/linux-tpm/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/linux/",
-      "destination": "/machine-workload-identity/machine-id/deployment/linux/",
+      "destination": "/machine-workload-identity/deployment/linux/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/faq/",
-      "destination": "/machine-workload-identity/machine-id/faq/",
+      "destination": "/machine-workload-identity/faq/",
       "permanent": true
     },
     {
@@ -612,22 +612,22 @@
     },
     {
       "source": "/enroll-resources/machine-id/introduction/",
-      "destination": "/machine-workload-identity/machine-id/introduction/",
+      "destination": "/machine-workload-identity/introduction/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/",
-      "destination": "/machine-workload-identity/machine-id/",
+      "destination": "/machine-workload-identity/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/manifesto/",
-      "destination": "/machine-workload-identity/machine-id/manifesto/",
+      "destination": "/machine-workload-identity/manifesto/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/machine-id/troubleshooting/",
-      "destination": "/machine-workload-identity/machine-id/troubleshooting/",
+      "destination": "/machine-workload-identity/troubleshooting/",
       "permanent": true
     },
     {
@@ -2327,6 +2327,151 @@
     {
       "source": "/machine-workload-identity/workload-mwi/",
       "destination": "/machine-workload-identity/use-cases/workload-mwi/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/",
+      "destination": "/machine-workload-identity/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/introduction/",
+      "destination": "/machine-workload-identity/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/faq/",
+      "destination": "/machine-workload-identity/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/manifesto/",
+      "destination": "/machine-workload-identity/manifesto/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/troubleshooting/",
+      "destination": "/machine-workload-identity/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/",
+      "destination": "/machine-workload-identity/access-guides/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/ansible-awx/",
+      "destination": "/machine-workload-identity/access-guides/ansible-awx/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/ansible/",
+      "destination": "/machine-workload-identity/access-guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/applications/",
+      "destination": "/machine-workload-identity/access-guides/applications/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/argocd/",
+      "destination": "/machine-workload-identity/access-guides/argocd/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/databases/",
+      "destination": "/machine-workload-identity/access-guides/databases/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/kubernetes/",
+      "destination": "/machine-workload-identity/access-guides/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/mcp/",
+      "destination": "/machine-workload-identity/access-guides/mcp/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/ssh/",
+      "destination": "/machine-workload-identity/access-guides/ssh/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/access-guides/tctl/",
+      "destination": "/machine-workload-identity/access-guides/tctl/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/",
+      "destination": "/machine-workload-identity/deployment/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/aws/",
+      "destination": "/machine-workload-identity/deployment/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/azure-devops/",
+      "destination": "/machine-workload-identity/deployment/azure-devops/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/azure/",
+      "destination": "/machine-workload-identity/deployment/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/bitbucket/",
+      "destination": "/machine-workload-identity/deployment/bitbucket/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/circleci/",
+      "destination": "/machine-workload-identity/deployment/circleci/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/gcp/",
+      "destination": "/machine-workload-identity/deployment/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/github-actions/",
+      "destination": "/machine-workload-identity/deployment/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/gitlab/",
+      "destination": "/machine-workload-identity/deployment/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/jenkins/",
+      "destination": "/machine-workload-identity/deployment/jenkins/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/kubernetes-oidc/",
+      "destination": "/machine-workload-identity/deployment/kubernetes-oidc/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/kubernetes/",
+      "destination": "/machine-workload-identity/deployment/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/linux-tpm/",
+      "destination": "/machine-workload-identity/deployment/linux-tpm/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/linux/",
+      "destination": "/machine-workload-identity/deployment/linux/",
       "permanent": true
     },
     {

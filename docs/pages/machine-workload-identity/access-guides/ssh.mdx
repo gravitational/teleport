@@ -1,6 +1,7 @@
 ---
-title: Machine ID with Server Access
-description: How to use Machine ID to access servers via SSH
+title: Machine & Workload Identity with Server Access
+sidebar_label: Server Access
+description: How to use Machine & Workload Identity to access servers via SSH
 tags:
  - how-to
  - mwi
@@ -21,7 +22,7 @@ will cover access using the Teleport CLI `tsh` as well as the OpenSSH client.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - If you have not already connected your server to Teleport, follow
-  the [getting started guide](../../../enroll-resources/server-access/getting-started.mdx).
+  the [getting started guide](../../enroll-resources/server-access/getting-started.mdx).
 - (!docs/pages/includes/tctl.mdx!)
 - `tbot` must already be installed and configured on the machine that will
   connect to Linux hosts with SSH. For more information, see the
@@ -172,5 +173,5 @@ SSH client certificates and either ProxyCommand or ProxyJump functionality.
 
 ## Next steps
 
-- Read the [configuration reference](../../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
   all the available configuration options.
