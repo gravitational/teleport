@@ -4272,7 +4272,7 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 // fetchJoinSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
 func (h *Handler) fetchJoinSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
 	// Session joining is not supported in proxy recording mode
-	if recConfig, err := clt.GetSessionRecordingConfig(ctx); err != nil {
+	if recConfig, err := h.auth.accessPoint.GetSessionRecordingConfig(ctx); err != nil {
 		// If the user can't see the recording mode, just let them try joining below
 		if !trace.IsAccessDenied(err) {
 			return session.Session{}, nil, trace.Wrap(err)
