@@ -94,10 +94,10 @@ func NewRegistry(reg prometheus.Registerer, namespace, subsystem string) (*Regis
 	}, nil
 }
 
-// BlackHole returns a Registry that doesn't register metrics.
+// BlackHoleRegistry returns a Registry that doesn't register metrics.
 // This can be used in tests, or to provide backward compatibility when a nil
 // Registry is passed.
-func BlackHole() *Registry {
+func BlackHoleRegistry() *Registry {
 	return &Registry{
 		Registerer: blackHoleRegistry{},
 		namespace:  "blackhole",

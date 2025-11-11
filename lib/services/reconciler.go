@@ -106,7 +106,7 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 		var err error
 		// If we are not given metrics, we create our own so we don't
 		// panic when trying to increment/observe.
-		c.Metrics, err = NewReconcilerMetrics(metrics.BlackHole().Wrap("unknown"))
+		c.Metrics, err = NewReconcilerMetrics(metrics.BlackHoleRegistry().Wrap("unknown"))
 		if err != nil {
 			return trace.Wrap(err)
 		}

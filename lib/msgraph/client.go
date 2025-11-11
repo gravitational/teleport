@@ -125,7 +125,7 @@ func (cfg *Config) SetDefaults() {
 		cfg.Logger = slog.With(teleport.ComponentKey, "msgraph")
 	}
 	if cfg.MetricsRegistry == nil {
-		cfg.MetricsRegistry = metrics.BlackHole()
+		cfg.MetricsRegistry = metrics.BlackHoleRegistry()
 	}
 }
 
