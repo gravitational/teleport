@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	// getComputersInventoryResponseAPIExample is the example from
+	// getComputersInventoryResponseV1Example is the example from
 	// https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
-	getComputersInventoryResponseAPIExample = `{
+	getComputersInventoryResponseV1Example = `{
   "totalCount": 3,
   "results": [
     {
@@ -523,6 +523,1041 @@ const (
   ]
 }`
 
+	// getComputersInventoryResponseV2Example is the example 200 response from
+	// https://developer.jamf.com/jamf-pro/reference/get_v2-computers-inventory.
+	getComputersInventoryResponseV2Example = `
+{
+  "totalCount": 3,
+  "results": [
+    {
+      "id": "1",
+      "udid": "123",
+      "general": {
+        "name": "Boalime",
+        "lastIpAddress": "247.185.82.186",
+        "lastReportedIpV4": "247.185.82.186",
+        "lastReportedIpV6": "2001:0db8:85a3:0000:0000:8a2e:0370:7335",
+        "jamfBinaryVersion": "9.27",
+        "platform": "Mac",
+        "barcode1": "5 12345 678900",
+        "barcode2": "5 12345 678900",
+        "assetTag": "304822",
+        "remoteManagement": {
+          "managed": true
+        },
+        "supervised": true,
+        "mdmCapable": {
+          "capable": true,
+          "userManagementInfo": [
+            [
+              {
+                "capableUser": "admin",
+                "managementId": "123e4567-e89b-42d3-a456-426614174000"
+              },
+              {
+                "capableUser": "rootadmin",
+                "managementId": "123e4567-e89b-42d3-a456-426614174001"
+              }
+            ]
+          ]
+        },
+        "reportDate": "2018-10-31T18:04:13Z",
+        "lastContactTime": "2018-10-31T18:04:13Z",
+        "lastCloudBackupDate": "2018-10-31T18:04:13Z",
+        "lastEnrolledDate": "2018-10-31T18:04:13Z",
+        "mdmProfileExpiration": "2018-10-31T18:04:13Z",
+        "initialEntryDate": "2018-10-31",
+        "distributionPoint": "distribution point name",
+        "enrollmentMethod": {
+          "id": "1",
+          "objectName": "user@domain.com",
+          "objectType": "User-initiated - no invitation"
+        },
+        "site": {
+          "id": "1",
+          "name": "Eau Claire"
+        },
+        "itunesStoreAccountActive": true,
+        "enrolledViaAutomatedDeviceEnrollment": true,
+        "userApprovedMdm": true,
+        "declarativeDeviceManagementEnabled": true,
+        "extensionAttributes": [
+          {
+            "definitionId": "23",
+            "name": "Some Attribute",
+            "description": "Some Attribute defines how much Foo impacts Bar.",
+            "enabled": true,
+            "multiValue": true,
+            "values": [
+              "foo",
+              "bar"
+            ],
+            "dataType": "STRING",
+            "options": [
+              "foo",
+              "bar"
+            ],
+            "inputType": "TEXT"
+          }
+        ],
+        "managementId": "73226fb6-61df-4c10-9552-eb9bc353d507",
+        "lastLoggedInUsernameSelfService": "admin",
+        "lastLoggedInUsernameSelfServiceTimestamp": "2018-10-31T18:04:13Z",
+        "lastLoggedInUsernameBinary": "admin",
+        "lastLoggedInUsernameBinaryTimestamp": "2018-10-31T18:04:13Z"
+      },
+      "diskEncryption": {
+        "bootPartitionEncryptionDetails": {
+          "partitionName": "main",
+          "partitionFileVault2State": "ENCRYPTING",
+          "partitionFileVault2Percent": 100
+        },
+        "individualRecoveryKeyValidityStatus": "VALID",
+        "institutionalRecoveryKeyPresent": true,
+        "diskEncryptionConfigurationName": "Test configuration",
+        "fileVault2Enabled": true,
+        "fileVault2EnabledUserNames": [
+          "admin"
+        ],
+        "fileVault2EligibilityMessage": "Not a boot partition"
+      },
+      "purchasing": {
+        "leased": true,
+        "purchased": true,
+        "poNumber": "53-1",
+        "poDate": "2019-01-01",
+        "vendor": "Example Vendor",
+        "warrantyDate": "2019-01-01",
+        "appleCareId": "abcd",
+        "leaseDate": "2019-01-01",
+        "purchasePrice": "$500",
+        "lifeExpectancy": 5,
+        "purchasingAccount": "admin",
+        "purchasingContact": "true",
+        "extensionAttributes": [
+          {
+            "definitionId": "23",
+            "name": "Some Attribute",
+            "description": "Some Attribute defines how much Foo impacts Bar.",
+            "enabled": true,
+            "multiValue": true,
+            "values": [
+              "foo",
+              "bar"
+            ],
+            "dataType": "STRING",
+            "options": [
+              "foo",
+              "bar"
+            ],
+            "inputType": "TEXT"
+          }
+        ]
+      },
+      "applications": [
+        {
+          "name": "Microsoft Word",
+          "path": "/usr/local/app",
+          "version": "1.0.0",
+          "macAppStore": true,
+          "sizeMegabytes": 25,
+          "bundleId": "1",
+          "updateAvailable": false,
+          "externalVersionId": "1"
+        }
+      ],
+      "storage": {
+        "bootDriveAvailableSpaceMegabytes": 3072,
+        "disks": [
+          {
+            "id": "170",
+            "device": "disk0",
+            "model": "APPLE HDD TOSHIBA MK5065GSXF",
+            "revision": "5",
+            "serialNumber": "a8598f013366",
+            "sizeMegabytes": 262144,
+            "smartStatus": "OK",
+            "type": "false",
+            "partitions": [
+              {
+                "name": "Foo",
+                "sizeMegabytes": 262144,
+                "availableMegabytes": 131072,
+                "partitionType": "BOOT",
+                "percentUsed": 25,
+                "fileVault2State": "ENCRYPTING",
+                "fileVault2ProgressPercent": 45,
+                "lvmManaged": true
+              }
+            ]
+          }
+        ]
+      },
+      "userAndLocation": {
+        "username": "Madison Anderson",
+        "realname": "13-inch MacBook",
+        "email": "email@com.pl",
+        "position": "IT Team Lead",
+        "phone": "123-456-789",
+        "departmentId": "1",
+        "buildingId": "1",
+        "room": "5",
+        "extensionAttributes": [
+          {
+            "definitionId": "23",
+            "name": "Some Attribute",
+            "description": "Some Attribute defines how much Foo impacts Bar.",
+            "enabled": true,
+            "multiValue": true,
+            "values": [
+              "foo",
+              "bar"
+            ],
+            "dataType": "STRING",
+            "options": [
+              "foo",
+              "bar"
+            ],
+            "inputType": "TEXT"
+          }
+        ]
+      },
+      "configurationProfiles": [
+        {
+          "id": "1",
+          "username": "username",
+          "lastInstalled": "2018-10-31T18:04:13Z",
+          "removable": true,
+          "displayName": "Displayed profile",
+          "profileIdentifier": "0ae590fe-9b30-11ea-bb37-0242ac130002"
+        }
+      ],
+      "printers": [
+        {
+          "name": "My Printer",
+          "type": "XYZ 1122",
+          "uri": "ipp://10.0.0.5",
+          "location": "7th floor"
+        }
+      ],
+      "services": [
+        {
+          "name": "SomeService"
+        }
+      ],
+      "hardware": {
+        "make": "Apple",
+        "model": "13-inch MacBook Pro (Mid 2012)",
+        "modelIdentifier": "MacBookPro9,2",
+        "serialNumber": "C02ZC2QYLVDL",
+        "processorSpeedMhz": 2100,
+        "processorCount": 2,
+        "coreCount": 2,
+        "processorType": "Intel Core i5",
+        "processorArchitecture": "i386",
+        "busSpeedMhz": 2133,
+        "cacheSizeKilobytes": 3072,
+        "networkAdapterType": "Foo",
+        "macAddress": "6A:2C:4B:B7:65:B5",
+        "altNetworkAdapterType": "Bar",
+        "altMacAddress": "82:45:58:44:dc:01",
+        "totalRamMegabytes": 4096,
+        "openRamSlots": 0,
+        "batteryCapacityPercent": 85,
+        "batteryHealth": "UNKNOWN",
+        "smcVersion": "2.2f38",
+        "nicSpeed": "N/A",
+        "opticalDrive": "MATSHITA DVD-R UJ-8A8",
+        "bootRom": "MBP91.00D3.B08",
+        "bleCapable": false,
+        "supportsIosAppInstalls": false,
+        "appleSilicon": false,
+        "provisioningUdid": "00000AAA888-IH866799UUJD991",
+        "extensionAttributes": [
+          {
+            "definitionId": "23",
+            "name": "Some Attribute",
+            "description": "Some Attribute defines how much Foo impacts Bar.",
+            "enabled": true,
+            "multiValue": true,
+            "values": [
+              "foo",
+              "bar"
+            ],
+            "dataType": "STRING",
+            "options": [
+              "foo",
+              "bar"
+            ],
+            "inputType": "TEXT"
+          }
+        ]
+      },
+      "localUserAccounts": [
+        {
+          "uid": "501",
+          "userGuid": "844F1177-0CF5-40C6-901F-38EDD9969C1C",
+          "username": "jamf",
+          "fullName": "John Jamf",
+          "admin": true,
+          "homeDirectory": "/Users/jamf",
+          "homeDirectorySizeMb": 131072,
+          "fileVault2Enabled": true,
+          "userAccountType": "LOCAL",
+          "passwordMinLength": 4,
+          "passwordMaxAge": 5,
+          "passwordMinComplexCharacters": 5,
+          "passwordHistoryDepth": 5,
+          "passwordRequireAlphanumeric": true,
+          "computerAzureActiveDirectoryId": "1",
+          "userAzureActiveDirectoryId": "1",
+          "azureActiveDirectoryId": "ACTIVATED"
+        }
+      ],
+      "certificates": [
+        {
+          "commonName": "jamf.com",
+          "identity": true,
+          "expirationDate": "2030-10-31T18:04:13Z",
+          "username": "test",
+          "lifecycleStatus": "ACTIVE",
+          "certificateStatus": "ISSUED",
+          "subjectName": "CN=jamf.com",
+          "serialNumber": "40f3d9fb",
+          "sha1Fingerprint": "ed361458724d06082b2314acdb82e1f586f085f5",
+          "issuedDate": "2022-05-23T14:54:10Z"
+        }
+      ],
+      "attachments": [
+        {
+          "id": "1",
+          "name": "Attachment.pdf",
+          "fileType": "application/pdf",
+          "sizeBytes": 1024
+        }
+      ],
+      "packageReceipts": {
+        "installedByJamfPro": [
+          "com.jamf.protect.JamfProtect"
+        ],
+        "installedByInstallerSwu": [
+          "com.apple.pkg.Core"
+        ],
+        "cached": [
+          "com.jamf.protect.JamfProtect"
+        ]
+      },
+      "security": {
+        "sipStatus": "ENABLED",
+        "gatekeeperStatus": "APP_STORE_AND_IDENTIFIED_DEVELOPERS",
+        "xprotectVersion": "1.2.3",
+        "autoLoginDisabled": false,
+        "remoteDesktopEnabled": true,
+        "activationLockEnabled": true,
+        "recoveryLockEnabled": true,
+        "firewallEnabled": true,
+        "secureBootLevel": "FULL_SECURITY",
+        "externalBootLevel": "ALLOW_BOOTING_FROM_EXTERNAL_MEDIA",
+        "bootstrapTokenAllowed": true,
+        "bootstrapTokenEscrowedStatus": "ESCROWED",
+        "lastAttestationAttempt": "1970-01-01T00:00:00Z",
+        "lastSuccessfulAttestation": "1970-01-01T00:00:00Z",
+        "attestationStatus": "PENDING"
+      },
+      "operatingSystem": {
+        "name": "Mac OS X",
+        "version": "10.9.5",
+        "build": "13A603",
+        "supplementalBuildVersion": "13A953",
+        "rapidSecurityResponse": "(a)",
+        "activeDirectoryStatus": "Not Bound",
+        "fileVault2Status": "ALL_ENCRYPTED",
+        "softwareUpdateDeviceId": "J132AP",
+        "extensionAttributes": [
+          {
+            "definitionId": "23",
+            "name": "Some Attribute",
+            "description": "Some Attribute defines how much Foo impacts Bar.",
+            "enabled": true,
+            "multiValue": true,
+            "values": [
+              "foo",
+              "bar"
+            ],
+            "dataType": "STRING",
+            "options": [
+              "foo",
+              "bar"
+            ],
+            "inputType": "TEXT"
+          }
+        ]
+      },
+      "licensedSoftware": [
+        {
+          "id": "1",
+          "name": "Microsoft Word"
+        }
+      ],
+      "ibeacons": [
+        {
+          "name": "room A"
+        }
+      ],
+      "softwareUpdates": [
+        {
+          "name": "BEdit",
+          "version": "1.15.2",
+          "packageName": "com.apple.pkg.AdditionalEssentials"
+        }
+      ],
+      "extensionAttributes": [
+        {
+          "definitionId": "23",
+          "name": "Some Attribute",
+          "description": "Some Attribute defines how much Foo impacts Bar.",
+          "enabled": true,
+          "multiValue": true,
+          "values": [
+            "foo",
+            "bar"
+          ],
+          "dataType": "STRING",
+          "options": [
+            "foo",
+            "bar"
+          ],
+          "inputType": "TEXT"
+        }
+      ],
+      "contentCaching": {
+        "computerContentCachingInformationId": "1",
+        "parents": [
+          {
+            "contentCachingParentId": "1",
+            "address": "SomeAddress",
+            "alerts": {
+              "contentCachingParentAlertId": "1",
+              "addresses": [],
+              "className": "SomeClass",
+              "postDate": "2018-10-31T18:04:13Z"
+            },
+            "details": {
+              "contentCachingParentDetailsId": "1",
+              "acPower": true,
+              "cacheSizeBytes": 0,
+              "capabilities": {
+                "contentCachingParentCapabilitiesId": "1",
+                "imports": true,
+                "namespaces": true,
+                "personalContent": true,
+                "queryParameters": true,
+                "sharedContent": true,
+                "prioritization": true
+              },
+              "portable": true,
+              "localNetwork": [
+                {
+                  "contentCachingParentLocalNetworkId": "1",
+                  "speed": 5000,
+                  "wired": true
+                }
+              ]
+            },
+            "guid": "CD1E1291-4AF9-4468-B5D5-0F780C13DB2F",
+            "healthy": true,
+            "port": 0,
+            "version": "1"
+          }
+        ],
+        "alerts": [
+          {
+            "cacheBytesLimit": 0,
+            "className": "SomeClass",
+            "pathPreventingAccess": "/some/path",
+            "postDate": "2018-10-31T18:04:13Z",
+            "reservedVolumeBytes": 0,
+            "resource": "SomeResource"
+          }
+        ],
+        "activated": false,
+        "active": false,
+        "actualCacheBytesUsed": 0,
+        "cacheDetails": [
+          {
+            "computerContentCachingCacheDetailsId": "1",
+            "categoryName": "SomeCategory",
+            "diskSpaceBytesUsed": 0
+          }
+        ],
+        "cacheBytesFree": 23353884672,
+        "cacheBytesLimit": 0,
+        "cacheStatus": "OK",
+        "cacheBytesUsed": 0,
+        "dataMigrationCompleted": false,
+        "dataMigrationProgressPercentage": 0,
+        "dataMigrationError": {
+          "code": 0,
+          "domain": "SomeDomain",
+          "userInfo": [
+            {
+              "key": "foo",
+              "value": "bar"
+            }
+          ]
+        },
+        "maxCachePressureLast1HourPercentage": 0,
+        "personalCacheBytesFree": 23353884672,
+        "personalCacheBytesLimit": 0,
+        "personalCacheBytesUsed": 0,
+        "port": 0,
+        "publicAddress": "SomeAddress",
+        "registrationError": "NOT_ACTIVATED",
+        "registrationResponseCode": 403,
+        "registrationStarted": "2018-10-31T18:04:13Z",
+        "registrationStatus": "CONTENT_CACHING_FAILED",
+        "restrictedMedia": false,
+        "serverGuid": "CD1E1291-4AF9-4468-B5D5-0F780C13DB2F",
+        "startupStatus": "FAILED",
+        "tetheratorStatus": "CONTENT_CACHING_DISABLED",
+        "totalBytesAreSince": "2018-10-31T18:04:13Z",
+        "totalBytesDropped": 0,
+        "totalBytesImported": 0,
+        "totalBytesReturnedToChildren": 0,
+        "totalBytesReturnedToClients": 0,
+        "totalBytesReturnedToPeers": 0,
+        "totalBytesStoredFromOrigin": 0,
+        "totalBytesStoredFromParents": 0,
+        "totalBytesStoredFromPeers": 0
+      },
+      "groupMemberships": [
+        {
+          "groupId": "1",
+          "groupName": "groupOne",
+          "groupDescription": "groupOne description",
+          "smartGroup": true
+        }
+      ]
+    }
+  ]
+}
+`
+
+	// computerInventoryV2Example is the example 200 response from
+	// https://developer.jamf.com/jamf-pro/reference/get_v2-computers-inventory-id.
+	computerInventoryV2Example = `
+{
+  "id": "1",
+  "udid": "123",
+  "general": {
+    "name": "Boalime",
+    "lastIpAddress": "247.185.82.186",
+    "lastReportedIpV4": "247.185.82.186",
+    "lastReportedIpV6": "2001:0db8:85a3:0000:0000:8a2e:0370:7335",
+    "jamfBinaryVersion": "9.27",
+    "platform": "Mac",
+    "barcode1": "5 12345 678900",
+    "barcode2": "5 12345 678900",
+    "assetTag": "304822",
+    "remoteManagement": {
+      "managed": true
+    },
+    "supervised": true,
+    "mdmCapable": {
+      "capable": true,
+      "userManagementInfo": [
+        [
+          {
+            "capableUser": "admin",
+            "managementId": "123e4567-e89b-42d3-a456-426614174000"
+          },
+          {
+            "capableUser": "rootadmin",
+            "managementId": "123e4567-e89b-42d3-a456-426614174001"
+          }
+        ]
+      ]
+    },
+    "reportDate": "2018-10-31T18:04:13Z",
+    "lastContactTime": "2018-10-31T18:04:13Z",
+    "lastCloudBackupDate": "2018-10-31T18:04:13Z",
+    "lastEnrolledDate": "2018-10-31T18:04:13Z",
+    "mdmProfileExpiration": "2018-10-31T18:04:13Z",
+    "initialEntryDate": "2018-10-31",
+    "distributionPoint": "distribution point name",
+    "enrollmentMethod": {
+      "id": "1",
+      "objectName": "user@domain.com",
+      "objectType": "User-initiated - no invitation"
+    },
+    "site": {
+      "id": "1",
+      "name": "Eau Claire"
+    },
+    "itunesStoreAccountActive": true,
+    "enrolledViaAutomatedDeviceEnrollment": true,
+    "userApprovedMdm": true,
+    "declarativeDeviceManagementEnabled": true,
+    "extensionAttributes": [
+      {
+        "definitionId": "23",
+        "name": "Some Attribute",
+        "description": "Some Attribute defines how much Foo impacts Bar.",
+        "enabled": true,
+        "multiValue": true,
+        "values": [
+          "foo",
+          "bar"
+        ],
+        "dataType": "STRING",
+        "options": [
+          "foo",
+          "bar"
+        ],
+        "inputType": "TEXT"
+      }
+    ],
+    "managementId": "73226fb6-61df-4c10-9552-eb9bc353d507",
+    "lastLoggedInUsernameSelfService": "admin",
+    "lastLoggedInUsernameSelfServiceTimestamp": "2018-10-31T18:04:13Z",
+    "lastLoggedInUsernameBinary": "admin",
+    "lastLoggedInUsernameBinaryTimestamp": "2018-10-31T18:04:13Z"
+  },
+  "diskEncryption": {
+    "bootPartitionEncryptionDetails": {
+      "partitionName": "main",
+      "partitionFileVault2State": "ENCRYPTING",
+      "partitionFileVault2Percent": 100
+    },
+    "individualRecoveryKeyValidityStatus": "VALID",
+    "institutionalRecoveryKeyPresent": true,
+    "diskEncryptionConfigurationName": "Test configuration",
+    "fileVault2Enabled": true,
+    "fileVault2EnabledUserNames": [
+      "admin"
+    ],
+    "fileVault2EligibilityMessage": "Not a boot partition"
+  },
+  "purchasing": {
+    "leased": true,
+    "purchased": true,
+    "poNumber": "53-1",
+    "poDate": "2019-01-01",
+    "vendor": "Example Vendor",
+    "warrantyDate": "2019-01-01",
+    "appleCareId": "abcd",
+    "leaseDate": "2019-01-01",
+    "purchasePrice": "$500",
+    "lifeExpectancy": 5,
+    "purchasingAccount": "admin",
+    "purchasingContact": "true",
+    "extensionAttributes": [
+      {
+        "definitionId": "23",
+        "name": "Some Attribute",
+        "description": "Some Attribute defines how much Foo impacts Bar.",
+        "enabled": true,
+        "multiValue": true,
+        "values": [
+          "foo",
+          "bar"
+        ],
+        "dataType": "STRING",
+        "options": [
+          "foo",
+          "bar"
+        ],
+        "inputType": "TEXT"
+      }
+    ]
+  },
+  "applications": [
+    {
+      "name": "Microsoft Word",
+      "path": "/usr/local/app",
+      "version": "1.0.0",
+      "macAppStore": true,
+      "sizeMegabytes": 25,
+      "bundleId": "1",
+      "updateAvailable": false,
+      "externalVersionId": "1"
+    }
+  ],
+  "storage": {
+    "bootDriveAvailableSpaceMegabytes": 3072,
+    "disks": [
+      {
+        "id": "170",
+        "device": "disk0",
+        "model": "APPLE HDD TOSHIBA MK5065GSXF",
+        "revision": "5",
+        "serialNumber": "a8598f013366",
+        "sizeMegabytes": 262144,
+        "smartStatus": "OK",
+        "type": "false",
+        "partitions": [
+          {
+            "name": "Foo",
+            "sizeMegabytes": 262144,
+            "availableMegabytes": 131072,
+            "partitionType": "BOOT",
+            "percentUsed": 25,
+            "fileVault2State": "ENCRYPTING",
+            "fileVault2ProgressPercent": 45,
+            "lvmManaged": true
+          }
+        ]
+      }
+    ]
+  },
+  "userAndLocation": {
+    "username": "Madison Anderson",
+    "realname": "13-inch MacBook",
+    "email": "email@com.pl",
+    "position": "IT Team Lead",
+    "phone": "123-456-789",
+    "departmentId": "1",
+    "buildingId": "1",
+    "room": "5",
+    "extensionAttributes": [
+      {
+        "definitionId": "23",
+        "name": "Some Attribute",
+        "description": "Some Attribute defines how much Foo impacts Bar.",
+        "enabled": true,
+        "multiValue": true,
+        "values": [
+          "foo",
+          "bar"
+        ],
+        "dataType": "STRING",
+        "options": [
+          "foo",
+          "bar"
+        ],
+        "inputType": "TEXT"
+      }
+    ]
+  },
+  "configurationProfiles": [
+    {
+      "id": "1",
+      "username": "username",
+      "lastInstalled": "2018-10-31T18:04:13Z",
+      "removable": true,
+      "displayName": "Displayed profile",
+      "profileIdentifier": "0ae590fe-9b30-11ea-bb37-0242ac130002"
+    }
+  ],
+  "printers": [
+    {
+      "name": "My Printer",
+      "type": "XYZ 1122",
+      "uri": "ipp://10.0.0.5",
+      "location": "7th floor"
+    }
+  ],
+  "services": [
+    {
+      "name": "SomeService"
+    }
+  ],
+  "hardware": {
+    "make": "Apple",
+    "model": "13-inch MacBook Pro (Mid 2012)",
+    "modelIdentifier": "MacBookPro9,2",
+    "serialNumber": "C02ZC2QYLVDL",
+    "processorSpeedMhz": 2100,
+    "processorCount": 2,
+    "coreCount": 2,
+    "processorType": "Intel Core i5",
+    "processorArchitecture": "i386",
+    "busSpeedMhz": 2133,
+    "cacheSizeKilobytes": 3072,
+    "networkAdapterType": "Foo",
+    "macAddress": "6A:2C:4B:B7:65:B5",
+    "altNetworkAdapterType": "Bar",
+    "altMacAddress": "82:45:58:44:dc:01",
+    "totalRamMegabytes": 4096,
+    "openRamSlots": 0,
+    "batteryCapacityPercent": 85,
+    "batteryHealth": "UNKNOWN",
+    "smcVersion": "2.2f38",
+    "nicSpeed": "N/A",
+    "opticalDrive": "MATSHITA DVD-R UJ-8A8",
+    "bootRom": "MBP91.00D3.B08",
+    "bleCapable": false,
+    "supportsIosAppInstalls": false,
+    "appleSilicon": false,
+    "provisioningUdid": "00000AAA888-IH866799UUJD991",
+    "extensionAttributes": [
+      {
+        "definitionId": "23",
+        "name": "Some Attribute",
+        "description": "Some Attribute defines how much Foo impacts Bar.",
+        "enabled": true,
+        "multiValue": true,
+        "values": [
+          "foo",
+          "bar"
+        ],
+        "dataType": "STRING",
+        "options": [
+          "foo",
+          "bar"
+        ],
+        "inputType": "TEXT"
+      }
+    ]
+  },
+  "localUserAccounts": [
+    {
+      "uid": "501",
+      "userGuid": "844F1177-0CF5-40C6-901F-38EDD9969C1C",
+      "username": "jamf",
+      "fullName": "John Jamf",
+      "admin": true,
+      "homeDirectory": "/Users/jamf",
+      "homeDirectorySizeMb": 131072,
+      "fileVault2Enabled": true,
+      "userAccountType": "LOCAL",
+      "passwordMinLength": 4,
+      "passwordMaxAge": 5,
+      "passwordMinComplexCharacters": 5,
+      "passwordHistoryDepth": 5,
+      "passwordRequireAlphanumeric": true,
+      "computerAzureActiveDirectoryId": "1",
+      "userAzureActiveDirectoryId": "1",
+      "azureActiveDirectoryId": "ACTIVATED"
+    }
+  ],
+  "certificates": [
+    {
+      "commonName": "jamf.com",
+      "identity": true,
+      "expirationDate": "2030-10-31T18:04:13Z",
+      "username": "test",
+      "lifecycleStatus": "ACTIVE",
+      "certificateStatus": "ISSUED",
+      "subjectName": "CN=jamf.com",
+      "serialNumber": "40f3d9fb",
+      "sha1Fingerprint": "ed361458724d06082b2314acdb82e1f586f085f5",
+      "issuedDate": "2022-05-23T14:54:10Z"
+    }
+  ],
+  "attachments": [
+    {
+      "id": "1",
+      "name": "Attachment.pdf",
+      "fileType": "application/pdf",
+      "sizeBytes": 1024
+    }
+  ],
+  "packageReceipts": {
+    "installedByJamfPro": [
+      "com.jamf.protect.JamfProtect"
+    ],
+    "installedByInstallerSwu": [
+      "com.apple.pkg.Core"
+    ],
+    "cached": [
+      "com.jamf.protect.JamfProtect"
+    ]
+  },
+  "security": {
+    "sipStatus": "ENABLED",
+    "gatekeeperStatus": "APP_STORE_AND_IDENTIFIED_DEVELOPERS",
+    "xprotectVersion": "1.2.3",
+    "autoLoginDisabled": false,
+    "remoteDesktopEnabled": true,
+    "activationLockEnabled": true,
+    "recoveryLockEnabled": true,
+    "firewallEnabled": true,
+    "secureBootLevel": "FULL_SECURITY",
+    "externalBootLevel": "ALLOW_BOOTING_FROM_EXTERNAL_MEDIA",
+    "bootstrapTokenAllowed": true,
+    "bootstrapTokenEscrowedStatus": "ESCROWED",
+    "lastAttestationAttempt": "1970-01-01T00:00:00Z",
+    "lastSuccessfulAttestation": "1970-01-01T00:00:00Z",
+    "attestationStatus": "PENDING"
+  },
+  "operatingSystem": {
+    "name": "Mac OS X",
+    "version": "10.9.5",
+    "build": "13A603",
+    "supplementalBuildVersion": "13A953",
+    "rapidSecurityResponse": "(a)",
+    "activeDirectoryStatus": "Not Bound",
+    "fileVault2Status": "ALL_ENCRYPTED",
+    "softwareUpdateDeviceId": "J132AP",
+    "extensionAttributes": [
+      {
+        "definitionId": "23",
+        "name": "Some Attribute",
+        "description": "Some Attribute defines how much Foo impacts Bar.",
+        "enabled": true,
+        "multiValue": true,
+        "values": [
+          "foo",
+          "bar"
+        ],
+        "dataType": "STRING",
+        "options": [
+          "foo",
+          "bar"
+        ],
+        "inputType": "TEXT"
+      }
+    ]
+  },
+  "licensedSoftware": [
+    {
+      "id": "1",
+      "name": "Microsoft Word"
+    }
+  ],
+  "ibeacons": [
+    {
+      "name": "room A"
+    }
+  ],
+  "softwareUpdates": [
+    {
+      "name": "BEdit",
+      "version": "1.15.2",
+      "packageName": "com.apple.pkg.AdditionalEssentials"
+    }
+  ],
+  "extensionAttributes": [
+    {
+      "definitionId": "23",
+      "name": "Some Attribute",
+      "description": "Some Attribute defines how much Foo impacts Bar.",
+      "enabled": true,
+      "multiValue": true,
+      "values": [
+        "foo",
+        "bar"
+      ],
+      "dataType": "STRING",
+      "options": [
+        "foo",
+        "bar"
+      ],
+      "inputType": "TEXT"
+    }
+  ],
+  "contentCaching": {
+    "computerContentCachingInformationId": "1",
+    "parents": [
+      {
+        "contentCachingParentId": "1",
+        "address": "SomeAddress",
+        "alerts": {
+          "contentCachingParentAlertId": "1",
+          "addresses": [],
+          "className": "SomeClass",
+          "postDate": "2018-10-31T18:04:13Z"
+        },
+        "details": {
+          "contentCachingParentDetailsId": "1",
+          "acPower": true,
+          "cacheSizeBytes": 0,
+          "capabilities": {
+            "contentCachingParentCapabilitiesId": "1",
+            "imports": true,
+            "namespaces": true,
+            "personalContent": true,
+            "queryParameters": true,
+            "sharedContent": true,
+            "prioritization": true
+          },
+          "portable": true,
+          "localNetwork": [
+            {
+              "contentCachingParentLocalNetworkId": "1",
+              "speed": 5000,
+              "wired": true
+            }
+          ]
+        },
+        "guid": "CD1E1291-4AF9-4468-B5D5-0F780C13DB2F",
+        "healthy": true,
+        "port": 0,
+        "version": "1"
+      }
+    ],
+    "alerts": [
+      {
+        "cacheBytesLimit": 0,
+        "className": "SomeClass",
+        "pathPreventingAccess": "/some/path",
+        "postDate": "2018-10-31T18:04:13Z",
+        "reservedVolumeBytes": 0,
+        "resource": "SomeResource"
+      }
+    ],
+    "activated": false,
+    "active": false,
+    "actualCacheBytesUsed": 0,
+    "cacheDetails": [
+      {
+        "computerContentCachingCacheDetailsId": "1",
+        "categoryName": "SomeCategory",
+        "diskSpaceBytesUsed": 0
+      }
+    ],
+    "cacheBytesFree": 23353884672,
+    "cacheBytesLimit": 0,
+    "cacheStatus": "OK",
+    "cacheBytesUsed": 0,
+    "dataMigrationCompleted": false,
+    "dataMigrationProgressPercentage": 0,
+    "dataMigrationError": {
+      "code": 0,
+      "domain": "SomeDomain",
+      "userInfo": [
+        {
+          "key": "foo",
+          "value": "bar"
+        }
+      ]
+    },
+    "maxCachePressureLast1HourPercentage": 0,
+    "personalCacheBytesFree": 23353884672,
+    "personalCacheBytesLimit": 0,
+    "personalCacheBytesUsed": 0,
+    "port": 0,
+    "publicAddress": "SomeAddress",
+    "registrationError": "NOT_ACTIVATED",
+    "registrationResponseCode": 403,
+    "registrationStarted": "2018-10-31T18:04:13Z",
+    "registrationStatus": "CONTENT_CACHING_FAILED",
+    "restrictedMedia": false,
+    "serverGuid": "CD1E1291-4AF9-4468-B5D5-0F780C13DB2F",
+    "startupStatus": "FAILED",
+    "tetheratorStatus": "CONTENT_CACHING_DISABLED",
+    "totalBytesAreSince": "2018-10-31T18:04:13Z",
+    "totalBytesDropped": 0,
+    "totalBytesImported": 0,
+    "totalBytesReturnedToChildren": 0,
+    "totalBytesReturnedToClients": 0,
+    "totalBytesReturnedToPeers": 0,
+    "totalBytesStoredFromOrigin": 0,
+    "totalBytesStoredFromParents": 0,
+    "totalBytesStoredFromPeers": 0
+  },
+  "groupMemberships": [
+    {
+      "groupId": "1",
+      "groupName": "groupOne",
+      "groupDescription": "groupOne description",
+      "smartGroup": true
+    }
+  ]
+}
+`
+
 	// getComputersInventoryResponseRealExample is a redacted example from a
 	// test account.
 	getComputersInventoryResponseRealExample = `{
@@ -653,6 +1688,42 @@ const (
 )
 
 func TestJSONUnmarshal(t *testing.T) {
+	wantGetComputersAPIExample := &jamf.GetComputersInventoryResponse{
+		TotalCount: 3,
+		Results: []*jamf.ComputerInventory{
+			{
+				ID:   "1",
+				UDID: "123",
+				General: &jamf.ComputerGeneralSection{
+					Name:              "Boalime",
+					JamfBinaryVersion: "9.27",
+					Platform:          "Mac",
+					ReportDate:        time.Date(2018, 10, 31, 18, 4, 13, 0, time.UTC),
+					LastContactTime:   time.Date(2018, 10, 31, 18, 4, 13, 0, time.UTC),
+					LastEnrolledDate:  time.Date(2018, 10, 31, 18, 4, 13, 0, time.UTC),
+				},
+				Hardware: &jamf.ComputerHardwareSection{
+					ModelIdentifier: "MacBookPro9,2",
+					SerialNumber:    "C02ZC2QYLVDL",
+				},
+				LocalUserAccounts: []*jamf.LocalUserAccount{
+					{
+						UID:      "501",
+						Username: "jamf",
+						FullName: "John Jamf",
+					},
+				},
+				OperatingSystem: &jamf.ComputerOperatingSystemSection{
+					Name:                     "Mac OS X",
+					Version:                  "10.9.5",
+					Build:                    "13A603",
+					SupplementalBuildVersion: "13A953",
+					RapidSecurityResponse:    "(a)",
+				},
+			},
+		},
+	}
+
 	tests := []struct {
 		name    string
 		example string
@@ -689,44 +1760,22 @@ func TestJSONUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			name:    "GetComputersInventoryResponse API example",
-			example: getComputersInventoryResponseAPIExample,
+			name:    "GetComputersInventoryResponse API v1 example",
+			example: getComputersInventoryResponseV1Example,
 			message: &jamf.GetComputersInventoryResponse{},
-			want: &jamf.GetComputersInventoryResponse{
-				TotalCount: 3,
-				Results: []*jamf.ComputerInventory{
-					{
-						ID:   "1",
-						UDID: "123",
-						General: &jamf.ComputerGeneralSection{
-							Name:              "Boalime",
-							JamfBinaryVersion: "9.27",
-							Platform:          "Mac",
-							ReportDate:        time.Date(2018, 10, 31, 18, 4, 13, 0, time.UTC),
-							LastContactTime:   time.Date(2018, 10, 31, 18, 4, 13, 0, time.UTC),
-							LastEnrolledDate:  time.Date(2018, 10, 31, 18, 4, 13, 0, time.UTC),
-						},
-						Hardware: &jamf.ComputerHardwareSection{
-							ModelIdentifier: "MacBookPro9,2",
-							SerialNumber:    "C02ZC2QYLVDL",
-						},
-						LocalUserAccounts: []*jamf.LocalUserAccount{
-							{
-								UID:      "501",
-								Username: "jamf",
-								FullName: "John Jamf",
-							},
-						},
-						OperatingSystem: &jamf.ComputerOperatingSystemSection{
-							Name:                     "Mac OS X",
-							Version:                  "10.9.5",
-							Build:                    "13A603",
-							SupplementalBuildVersion: "13A953",
-							RapidSecurityResponse:    "(a)",
-						},
-					},
-				},
-			},
+			want:    wantGetComputersAPIExample,
+		},
+		{
+			name:    "GetComputersInventoryResponse API v2 example",
+			example: getComputersInventoryResponseV2Example,
+			message: &jamf.GetComputersInventoryResponse{},
+			want:    wantGetComputersAPIExample,
+		},
+		{
+			name:    "ComputerInventory API v2 example",
+			example: computerInventoryV2Example,
+			message: &jamf.ComputerInventory{},
+			want:    wantGetComputersAPIExample.Results[0],
 		},
 		{
 			name:    "GetComputersInventoryResponse real example",
