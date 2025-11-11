@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
@@ -24,13 +24,15 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/gcp"
+	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 )
 
 type mockGCPTokenValidator struct {
@@ -45,7 +47,7 @@ func (m *mockGCPTokenValidator) Validate(_ context.Context, token string) (*gcp.
 	return &claims, nil
 }
 
-func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
+func TestJoinGCP(t *testing.T) {
 	t.Parallel()
 
 	validIDToken := "test.fake.jwt"
@@ -64,18 +66,19 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetGCPIDTokenValidator(idTokenValidator)
-		return nil
-	}
 
 	ctx := t.Context()
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir:    t.TempDir(),
-		MutateAuth: withTokenValidator,
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
 	})
 	require.NoError(t, err)
-	auth := p.a
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+	auth := authServer.Auth()
+
+	authServer.Auth().SetGCPIDTokenValidator(idTokenValidator)
 
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -129,7 +132,7 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "multiple allow rules",
+			name: "multiple-allow-rules",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGCP,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -146,7 +149,7 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "match region to zone",
+			name: "match-region-to-zone",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGCP,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -162,7 +165,7 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "incorrect project id",
+			name: "incorrect-project-id",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGCP,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -178,7 +181,7 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect location",
+			name: "incorrect-location",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGCP,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -194,7 +197,7 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect service account",
+			name: "incorrect-service-account",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGCP,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -219,80 +222,48 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tc.request.Token = tc.name
 
-			_, err = auth.RegisterUsingToken(ctx, tc.request)
-			tc.assertError(t, err)
-		})
-	}
-}
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
 
-func TestIsGCPZoneInLocation(t *testing.T) {
-	t.Parallel()
-	passingCases := []struct {
-		name     string
-		location string
-		zone     string
-	}{
-		{
-			name:     "matching zone",
-			location: "us-west1-b",
-			zone:     "us-west1-b",
-		},
-		{
-			name:     "matching region",
-			location: "us-west1",
-			zone:     "us-west1-b",
-		},
-	}
-	for _, tc := range passingCases {
-		t.Run("accept "+tc.name, func(t *testing.T) {
-			require.True(t, auth.IsGCPZoneInLocation(tc.location, tc.zone))
-		})
-	}
+			t.Run("legacy", func(t *testing.T) {
+				_, err = auth.RegisterUsingToken(ctx, tc.request)
+				tc.assertError(t, err)
+			})
 
-	failingCases := []struct {
-		name     string
-		location string
-		zone     string
-	}{
-		{
-			name:     "non-matching zone",
-			location: "europe-southwest1-b",
-			zone:     "us-west1-b",
-		},
-		{
-			name:     "non-matching region",
-			location: "europe-southwest1",
-			zone:     "us-west1-b",
-		},
-		{
-			name:     "malformed location",
-			location: "us",
-			zone:     "us-west1-b",
-		},
-		{
-			name:     "similar but non-matching region",
-			location: "europe-west1",
-			zone:     "europe-west12-a",
-		},
-		{
-			name:     "empty zone",
-			location: "us-west1",
-			zone:     "",
-		},
-		{
-			name:     "empty location",
-			location: "",
-			zone:     "us-west1-b",
-		},
-		{
-			name:     "invalid zone",
-			location: "us-west1",
-			zone:     "us-west1",
-		},
-	}
-	for _, tc := range failingCases {
-		t.Run("reject "+tc.name, func(t *testing.T) {
-			require.False(t, auth.IsGCPZoneInLocation(tc.location, tc.zone))
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tc.request.Token,
+					JoinMethod: types.JoinMethodGCP,
+					ID: state.IdentityID{
+						Role:     tc.request.Role,
+						NodeName: "testnode",
+						HostUUID: tc.request.HostID,
+					},
+					IDToken:    tc.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tc.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
+
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tc.request.Token,
+					JoinMethod: types.JoinMethodGCP,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tc.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tc.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
 		})
 	}
 }
