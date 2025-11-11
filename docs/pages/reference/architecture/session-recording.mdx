@@ -135,9 +135,9 @@ the Auth Service and signed by the Teleport Host CA.
 
 The Proxy Service then establishes its own connection to the destination server authenticating in one of two ways:
 
-- For Teleport Nodes and legacy OpenSSH servers, the Proxy Service requires the client to provide its credentials through ssh-agent forwarding so that these credentials can be reused to connect to the OpenSSH server.
+- For the Teleport SSH Service and legacy OpenSSH servers, the Proxy Service requires the client to provide its credentials through ssh-agent forwarding so that these credentials can be reused to connect to the OpenSSH server.
   - Note that SSH Agent Forwarding must be allowed for any user trying to connect in this mode.
-- For [OpenSSH Nodes](../../enroll-resources/server-access/openssh/openssh-agentless.mdx#record-at-the-proxy-service), the Proxy Service requests a certificate signed by the Teleport OpenSSH CA, which will be trusted by the OpenSSH server.
+- For [OpenSSH servers](../../enroll-resources/server-access/openssh/openssh-agentless.mdx#record-at-the-proxy-service), the Proxy Service requests a certificate signed by the Teleport OpenSSH CA, which will be trusted by the OpenSSH server.
 
 With both sides of the connections decrypted, the Proxy Service acts as a pipe between the client
 and the destination server, performing RBAC checks, recording the session, and emitting audit events 
@@ -145,10 +145,10 @@ in the process as shown below:
 
 ![recording-proxy](../../../img/recording-proxy.svg)
 
-We consider Recording Proxy Mode to be less secure than recording at the Node
+We consider Recording Proxy Mode to be less secure than recording at the server
 level for two reasons:
 
-- It grants additional privileges to the Teleport Proxy Service. In the default Node Recording mode, the Proxy Service stores no secrets and cannot "see" the decrypted data. This makes a Proxy Server less critical to the security of the overall cluster. But if an attacker gains physical access to a Proxy Server running in Recording Proxy Mode, they will be able to see the decrypted traffic and client keys stored in the Proxy Server's process memory.
+- It grants additional privileges to the Teleport Proxy Service. When recording takes place at the Teleport SSH Service, the Proxy Service stores no secrets and cannot "see" the decrypted data. This makes a Proxy Service instance less critical to the security of the overall cluster. But if an attacker gains physical access to a Proxy Server running in Recording Proxy Mode, they will be able to see the decrypted traffic and client keys stored in the Proxy Server's process memory.
 - It requires the use of SSH agent forwarding (for Teleport Nodes and legacy OpenSSH server support).
 
 See the [reference](../deployment/monitoring/audit.mdx) to learn how to
@@ -158,8 +158,8 @@ Auth Service.
 <Admonition type="warning" >
 
 The use of Recording Proxy Mode across your cluster is no longer necessary to support
-[OpenSSH Nodes](../../enroll-resources/server-access/openssh/openssh-agentless.mdx).
-Recording Proxy Mode is automatically used for OpenSSH Nodes without the need for SSH
+[OpenSSH servers](../../enroll-resources/server-access/openssh/openssh-agentless.mdx).
+Recording Proxy Mode is automatically used for OpenSSH servers without the need for SSH
 agent forwarding, which is the primary security concern for this mode.
 
 Recording Proxy Mode will continue to be supported for legacy OpenSSH support and other

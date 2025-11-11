@@ -26,13 +26,13 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 ## How it works
 
 At a high level, Teleport supports OpenSSH servers by proxying SSH connections through the Proxy Service.
-The OpenSSH server will be set up to trust connections from the Proxy rather than trusting direct
+The OpenSSH server will be set up to trust connections from the Proxy Service rather than trusting direct
 connections from users. This ensures that all connections to OpenSSH servers go through the
 Proxy Service, where session IO and audit events can be recorded and RBAC can be enforced.
 
 For deeper details as to how this works, you may be interested in the [Registered OpenSSH Nodes RFD](https://github.com/gravitational/teleport/blob/master/rfd/0098-registered-openssh-nodes.md)
 Below are some key details from the RFD:
-- The Proxy Service is uniquely able to request certificates signed by the Auth Service with the Teleport OpenSSH CA on behalf of users, and the OpenSSH server is set up to only trust certificates signed by this CA. Therefore, in order to connect to an OpenSSH Node, a user must connect through the Proxy to request and use an OpenSSH certificate.
+- The Proxy Service is uniquely able to request certificates signed by the Auth Service with the Teleport OpenSSH CA on behalf of users, and the OpenSSH server is set up to only trust certificates signed by this CA. Therefore, in order to connect to an OpenSSH server, a user must connect through the Proxy Service to request and use an OpenSSH certificate.
 - Before connecting the user to the OpenSSH server, the Proxy Service performs RBAC checks to see if the user should be allowed to access it.
 - In order to record the session and its audit events, the Proxy Service terminates (decrypts) the client SSH connection, and establishes its own connection to the OpenSSH server. It then acts as a pipe between the two connections, recording events and IO as it proceeds.
   - See [Recording Proxy Mode](../../../reference/architecture/session-recording.mdx#record-at-the-proxy-service) for more details.
