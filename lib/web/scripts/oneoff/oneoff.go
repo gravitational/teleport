@@ -82,8 +82,8 @@ type OneOffScriptParams struct {
 	// BinUname is the binary used to create a temporary directory, used to download the files.
 	// Defaults to `mktemp`.
 	BinMktemp string
-	// TR is the POSIX-compliant binary used for translating string.
-	Tr string
+	// BinTR is the POSIX-compliant binary used for translating string.
+	BinTR string
 
 	// CDNBaseURL is the URL used to download the teleport tarball.
 	// Defaults to `https://cdn.teleport.dev`
@@ -114,6 +114,7 @@ type OneOffScriptParams struct {
 	SuccessMessage string
 
 	// SupportedOSes is a list of the supported operating systems.
+	// When nil, defaults to Linux and Darwin for backward compatibility.
 	SupportedOSes []string
 }
 
@@ -139,8 +140,8 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		p.binSudo = "sudo"
 	}
 
-	if p.Tr == "" {
-		p.Tr = "tr"
+	if p.BinTR == "" {
+		p.BinTR = "tr"
 	}
 
 	if p.TeleportVersion == "" {
@@ -168,13 +169,13 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 			p.TeleportArtifact = types.PackageNameEnt
 		}
 	}
-	// TODO(vapopov): DELETE IN v21.0.0, `teleport-update` must be already added to all supported
+	// TODO(vapopov): DELETE IN v20.0.0, `teleport-update` must be already added to all supported
 	// releases and version check must be omitted.
 	version, err := utils.EnsureSemver(p.TeleportVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// Versions 17.7.2 and 18.1.5 are when the separate `teleport-update` package was introduced.
 	if version.Major == 17 && version.Compare(semver.Version{Major: 17, Minor: 7, Patch: 2}) >= 0 ||
 		version.Major == 18 && version.Compare(semver.Version{Major: 18, Minor: 1, Patch: 5}) >= 0 ||
 		version.Major > 18 {

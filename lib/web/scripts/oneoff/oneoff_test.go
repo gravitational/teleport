@@ -74,7 +74,7 @@ func TestOneOffScript(t *testing.T) {
 	script, err := BuildScript(OneOffScriptParams{
 		BinUname:        unameMock.Path,
 		BinMktemp:       mktempMock.Path,
-		Tr:              trMock.Path,
+		BinTR:           trMock.Path,
 		CDNBaseURL:      "dummyURL",
 		TeleportVersion: "v13.1.0",
 		EntrypointArgs:  "version",
@@ -105,7 +105,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
-			Tr:              trMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
 			EntrypointArgs:  "version",
@@ -164,7 +164,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
-			Tr:              trMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v19.1.0",
 			EntrypointArgs:  "version",
@@ -223,7 +223,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
-			Tr:              trMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
 			EntrypointArgs:  "version",
@@ -269,7 +269,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
-			Tr:              trMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
 			EntrypointArgs:  "version",
@@ -324,7 +324,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:              unameMock.Path,
 			BinMktemp:             mktempMock.Path,
-			Tr:                    trMock.Path,
+			BinTR:                 trMock.Path,
 			CDNBaseURL:            testServer.URL,
 			TeleportVersion:       "v13.1.0",
 			EntrypointArgs:        "version",
@@ -386,7 +386,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
-			Tr:              trMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			EntrypointArgs:  "help",
 			TeleportVersion: "v13.1.0",
@@ -517,7 +517,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
-			Tr:              trMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
 			EntrypointArgs:  "version",
