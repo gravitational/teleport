@@ -118,7 +118,7 @@ Once a new connection is established the old connection will be drained graceful
 and new RPCs will be sent over the new connection.
 
 We will consider enforcing a timeout where streams over the old draining connection
-may be forcfully terminated after some duration + jitter.
+may be forcefully terminated after some duration + jitter.
 
 Any open RPCs on the old connection will be allowed to run to completetion.
 
@@ -236,6 +236,16 @@ or there are excess connections to the desired Proxy set.
 
 ### Additonal Thoughts and Considerations
 
+#### Auth HTTP Clients
+HTTP clients should also reconnect when an auth becomes unhealthy. A `http.RoundTripper`[^10]
+can be used to close[^11] the underlying connection when the client gets a `5xx` response.
+
+This assumes that a client will get a `5xx` response when the connected auth server
+is unhealthy. Testing needs to be done to validate this behavior. The backup plan
+is a more heavy handed approach of setting `DisableKeepAlives`[^12] for the
+transport. This is not the preferred approach beacuse it will create a new
+connection for every request.
+
 #### Periodic Auth Reconnects
 
 > [!NOTE]
@@ -292,3 +302,6 @@ libraries.
 [^7]: https://github.com/gravitational/teleport/blob/4e19f750520d0ccf2c49ed109dc3c94383ec4765/lib/reversetunnel/agent.go#L640
 [^8]: https://github.com/gravitational/teleport/blob/4e19f750520d0ccf2c49ed109dc3c94383ec4765/lib/reversetunnel/local_cluster.go#L809
 [^9]: https://github.com/gravitational/teleport/blob/4e19f750520d0ccf2c49ed109dc3c94383ec4765/lib/reversetunnel/agent.go#L545-L550
+[^10]: https://pkg.go.dev/net/http#RoundTripper
+[^11]: https://pkg.go.dev/net/http#RoundTripper:~:text=//%20Close%20indicates%20whether,set.%0A%09Close%20bool
+[^12]: https://pkg.go.dev/net/http#:~:text=//%20DisableKeepAlives%2C%20if%20true%2C%20disables%20HTTP%20keep%2Dalives%20and%0A%09//%20will%20only%20use%20the%20connection%20to%20the%20server%20for%20a%20single%0A%09//%20HTTP%20request.%0A%09//%0A%09//%20This%20is%20unrelated%20to%20the%20similarly%20named%20TCP%20keep%2Dalives.%0A%09DisableKeepAlives%20bool
