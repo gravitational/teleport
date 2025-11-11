@@ -1,5 +1,5 @@
 // This example program demonstrates how to connect to a Postgres database
-// using certificates issued by Teleport Machine ID.
+// using certificates issued by Teleport Machine & Workload Identity.
 
 package main
 

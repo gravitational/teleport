@@ -1976,7 +1976,7 @@
     },
     {
       "source": "/reference/resources/",
-      "destination": "/reference/infrastructure-as-code/resources/",
+      "destination": "/reference/infrastructure-as-code/teleport-resources/",
       "permanent": true
     },
     {
@@ -2512,6 +2512,11 @@
     {
       "source": "/linux-demo/",
       "destination": "/get-started/deploy-community/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/infrastructure-as-code/resources/",
+      "destination": "/reference/infrastructure-as-code/teleport-resources/",
       "permanent": true
     }
   ]

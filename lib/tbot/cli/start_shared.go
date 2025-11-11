@@ -119,8 +119,10 @@ type sharedStartArgs struct {
 	StaticKeyPath          string
 	Keypair                string
 
-	Oneshot  bool
-	DiagAddr string
+	Oneshot              bool
+	DiagAddr             string
+	DiagSocketForUpdater string
+	PIDFile              string
 
 	oneshotSetByUser bool
 }
@@ -146,6 +148,8 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 	cmd.Flag("registration-secret-path", "For bound keypair joining, specifies a file containing a registration secret for use at first join.").StringVar(&args.RegistrationSecretPath)
 	cmd.Flag("static-key-path", "For bound keypair joining, specifies a path to a static key.").StringVar(&args.StaticKeyPath)
 	cmd.Flag("join-uri", "An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.").StringVar(&args.JoiningURI)
+	cmd.Flag("diag-socket-for-updater", "If set, run the diagnostics service on the specified socket path for teleport-update to consume.").Hidden().StringVar(&args.DiagSocketForUpdater)
+	cmd.Flag("pid-file", "Full path to the PID file. By default no PID file will be created.").StringVar(&args.PIDFile)
 
 	return args
 }
@@ -263,6 +267,9 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 	if s.StaticKeyPath != "" {
 		cfg.Onboarding.BoundKeypair.StaticPrivateKeyPath = s.StaticKeyPath
 	}
+
+	cfg.DiagSocketForUpdater = s.DiagSocketForUpdater
+	cfg.PIDFile = s.PIDFile
 
 	return nil
 }

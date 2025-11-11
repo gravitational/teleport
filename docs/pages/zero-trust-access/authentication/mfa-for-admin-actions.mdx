@@ -20,7 +20,7 @@ Examples of administrative actions include, but are not limited to:
 - Approving Access Requests
 - Generating new join tokens
 - Impersonation
-- Creating new bots for Machine ID
+- Creating new bots for Machine & Workload Identity
 
 This is an advanced security feature that protects users against compromises of
 their on-disk Teleport certificates.
@@ -30,7 +30,7 @@ their on-disk Teleport certificates.
   with `tctl auth sign` will no longer be suitable for automation due to the
   additional MFA checks.
 
-  We recommend using [Machine ID](../../machine-workload-identity/getting-started.mdx) to
+  We recommend using [Machine & Workload Identity](../../machine-workload-identity/getting-started.mdx) to
   issue certificates for automated workflows, which uses role impersonation
   that is not subject to MFA checks.
 

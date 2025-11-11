@@ -355,7 +355,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../machine-workload-identity/machine-id/introduction.mdx) is a more secure alternative that
+[Machine & Workload Identity](../../machine-workload-identity/machine-id/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -421,7 +421,7 @@ $ tctl auth sign --user=admin --out=identity.pem
 
 ## tctl bots add
 
-Create a new Machine ID Bot:
+Create a new Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots add <name> [<flags>]
@@ -429,7 +429,7 @@ $ tctl bots add <name> [<flags>]
 
 ### Arguments
 
-- `<name>` - name of Machine ID Bot to create.
+- `<name>` - name of Machine & Workload Identity Bot to create.
 
 ### Flags
 
@@ -494,7 +494,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots instances list
 
-List all current instances of a Machine ID bot:
+List all current instances of a Machine & Workload Identity bot:
 
 ```code
 $ tctl bots instances list [<name>]
@@ -545,7 +545,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots ls
 
-Lists all Machine ID Bots:
+Lists all Machine & Workload Identity Bots:
 
 ```code
 $ tctl bots ls [<flags>]
@@ -558,7 +558,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots rm
 
-Delete a Machine ID Bot:
+Delete a Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots rm <name> [<flags>]
@@ -566,7 +566,7 @@ $ tctl bots rm <name> [<flags>]
 
 ### Arguments
 
-- `<name>` - name of Machine ID Bot to delete.
+- `<name>` - name of Machine & Workload Identity Bot to delete.
 
 ### Global flags
 
@@ -575,7 +575,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots update
 
-Update a Machine ID bot:
+Update a Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots update <bot> [<flags>]
@@ -621,7 +621,7 @@ These flags are available for all commands: `--debug, --config`. Run
 Create or update a Teleport resource from a YAML file.
 
 The supported resource types are: user, node, cluster, role, connector, and device.
-See the [Resources Reference](../infrastructure-as-code/resources.mdx) for complete docs on how to build these yaml files.
+See the [Resources Reference](../infrastructure-as-code/teleport-resources/teleport-resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
 $ tctl create [<flags>] <filename>
