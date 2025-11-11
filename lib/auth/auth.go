@@ -981,7 +981,7 @@ var (
 			Help: "Number of times there was a user login",
 		},
 	)
-	UserLoginCountPerClient = prometheus.NewCounterVec(
+	userLoginCountPerClient = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricUserLoginPerClientCount,
 			Help: "Number of times there was a user login with specific client version and GroupID that routes request",
@@ -1100,7 +1100,7 @@ var (
 
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
-		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, UserLoginCountPerClient, heartbeatsMissedByAuth,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, userLoginCountPerClient, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
@@ -2241,7 +2241,7 @@ func (a *Server) updateBotInstanceMetrics() {
 }
 
 func (a *Server) hourlyCleanUpMetrics() {
-	UserLoginCountPerClient.Reset()
+	userLoginCountPerClient.Reset()
 }
 
 var (

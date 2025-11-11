@@ -349,7 +349,7 @@ func (a *Server) newWebSession(
 	}
 
 	UserLoginCount.Inc()
-	UserLoginCountPerClient.With(prometheus.Labels{
+	userLoginCountPerClient.With(prometheus.Labels{
 		teleport.TagUserAgentType: "web",
 		teleport.TagVersion:       teleport.Version,
 		teleport.TagProxyGroupID:  req.ProxyGroupID,
@@ -620,7 +620,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	a.logger.DebugContext(ctx, "Generated application web session", "user", req.User, "ttl", req.SessionTTL)
 
 	UserLoginCount.Inc()
-	UserLoginCountPerClient.With(prometheus.Labels{
+	userLoginCountPerClient.With(prometheus.Labels{
 		teleport.TagUserAgentType: "web",
 		teleport.TagVersion:       teleport.Version,
 		teleport.TagProxyGroupID:  req.ProxyGroupID,
