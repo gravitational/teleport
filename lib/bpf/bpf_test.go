@@ -33,7 +33,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -356,7 +355,7 @@ func TestRootPrograms(t *testing.T) {
 			verifyFn: func(event []byte) bool {
 				var e commandDataT
 				err := unmarshalEvent(event, &e)
-				return err == nil && ConvertString(unsafe.Pointer(&e.Command)) == "ls"
+				return err == nil && ConvertString(e.Command[:]) == "ls"
 			},
 		},
 		// Run opensnoop with "ls". This is fine because "ls" will open some
@@ -370,7 +369,7 @@ func TestRootPrograms(t *testing.T) {
 			verifyFn: func(event []byte) bool {
 				var e diskDataT
 				err := unmarshalEvent(event, &e)
-				return err == nil && ConvertString(unsafe.Pointer(&e.Command)) == "ls"
+				return err == nil && ConvertString(e.Command[:]) == "ls"
 			},
 		},
 		// Run tcpconnect with curl forcing IPv4.
@@ -384,7 +383,7 @@ func TestRootPrograms(t *testing.T) {
 				var e networkIpv4DataT
 				err := unmarshalEvent(event, &e)
 
-				return err == nil && ConvertString(unsafe.Pointer(&e.Command)) == "curl"
+				return err == nil && ConvertString(e.Command[:]) == "curl"
 			},
 		},
 		// Run tcpconnect with curl forcing IPv6.
@@ -398,7 +397,7 @@ func TestRootPrograms(t *testing.T) {
 				var e networkIpv6DataT
 				err := unmarshalEvent(event, &e)
 
-				return err == nil && ConvertString(unsafe.Pointer(&e.Command)) == "curl"
+				return err == nil && ConvertString(e.Command[:]) == "curl"
 			},
 		},
 	}
@@ -467,7 +466,7 @@ func TestRootLargeCommands(t *testing.T) {
 					// Since we're executing the command using the test binary,
 					// the arguments return on a single event, and the path of
 					// or command will come on the argv part.
-					argv := ConvertString(unsafe.Pointer(&event.Argv))
+					argv := ConvertString(event.Argv[:])
 					if event.Type == eventArg {
 						if test.expectPartialPath {
 							require.Len(t, argv, ArgvMax)

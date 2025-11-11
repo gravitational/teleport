@@ -20,8 +20,6 @@
 
 package bpf
 
-import "C"
-
 import (
 	"bytes"
 	"context"
@@ -31,7 +29,6 @@ import (
 	"slices"
 	"strconv"
 	"time"
-	"unsafe"
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/gravitational/trace"
@@ -361,8 +358,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			args = []string{}
 		}
 
-		argv := (*C.char)(unsafe.Pointer(&event.Argv))
-		args = append(args, C.GoString(argv))
+		args = append(args, ConvertString(event.Argv[:]))
 
 		s.argsCache.SetWithTTL(key, args, 24*time.Hour)
 	// The event has returned, emit the fully parsed event.
@@ -403,7 +399,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			},
 			BPFMetadata: apievents.BPFMetadata{
 				CgroupID: event.Cgroup,
-				Program:  ConvertString(unsafe.Pointer(&event.Command)),
+				Program:  ConvertString(event.Command[:]),
 				PID:      event.Pid,
 			},
 			PPID:       event.Ppid,
@@ -465,11 +461,11 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.Cgroup,
-			Program:  ConvertString(unsafe.Pointer(&event.Command)),
+			Program:  ConvertString(event.Command[:]),
 			PID:      event.Pid,
 		},
 		Flags:      event.Flags,
-		Path:       ConvertString(unsafe.Pointer(&event.FilePath)),
+		Path:       ConvertString(event.FilePath[:]),
 		ReturnCode: event.ReturnCode,
 	}
 	// Logs can be DoS by event failures here
@@ -523,7 +519,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.Cgroup,
-			Program:  ConvertString(unsafe.Pointer(&event.Command)),
+			Program:  ConvertString(event.Command[:]),
 			PID:      uint64(event.Pid),
 		},
 		DstPort:    int32(event.Dport),
@@ -583,7 +579,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		},
 		BPFMetadata: apievents.BPFMetadata{
 			CgroupID: event.Cgroup,
-			Program:  ConvertString(unsafe.Pointer(&event.Command)),
+			Program:  ConvertString(event.Command[:]),
 			PID:      uint64(event.Pid),
 		},
 		DstPort:    int32(event.Dport),
@@ -609,11 +605,6 @@ func unmarshalEvent(data []byte, v interface{}) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// ConvertString converts a C string to a Go string.
-func ConvertString(s unsafe.Pointer) string {
-	return C.GoString((*C.char)(s))
 }
 
 // SystemHasBPF returns true if the binary was build with support for BPF
