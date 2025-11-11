@@ -541,6 +541,10 @@ func TestMinimumUpload(t *testing.T) {
 	// each file part was within specific size expectations.
 	var partFiles []fs.FileInfo
 	filepath.WalkDir(p.scanDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if d.IsDir() {
 			return nil
 		}
