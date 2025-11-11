@@ -1,5 +1,3 @@
-//go:build !windows
-
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -21,7 +19,7 @@
 package authorizedkeys
 
 /*
-#cgo CFLAGS: -D_POSIX_PTHREAD_SEMANTICS
+#define _XOPEN_SOURCE 500
 #include <pwd.h>
 */
 import "C"
@@ -29,7 +27,39 @@ import "C"
 import (
 	"os/user"
 	"strconv"
+	"sync"
+
+	"github.com/gravitational/trace"
 )
+
+// pwentLock should be acquired when using MT-Unsafe race:pwent functions (i.e.
+// setpwent/getpwent/endpwent).
+var pwentLock sync.Mutex
+
+// getHostUsers returns the list of all users on the host from the user
+// directory (depending on system configuration this can be /etc/passwd,
+// LDAP...).
+func getHostUsers() ([]user.User, error) {
+	pwentLock.Lock()
+	defer pwentLock.Unlock()
+
+	C.setpwent()
+	defer C.endpwent()
+
+	var results []user.User
+	for {
+		result, err := C.getpwent()
+		// cgo error convention, check the return value before errno
+		if result != nil {
+			results = append(results, passwdC2Go(result))
+			continue
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return results, nil
+	}
+}
 
 // passwdC2Go converts `passwd` struct from C to golang native struct
 func passwdC2Go(passwdC *C.struct_passwd) user.User {
