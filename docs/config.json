@@ -222,7 +222,7 @@
     },
     {
       "source": "/machine-id/guides/github-actions/",
-      "destination": "/machine-workload-identity/machine-id/deployment/github-actions/",
+      "destination": "/machine-workload-identity/deployment/github-actions/",
       "permanent": true
     },
     {
@@ -797,7 +797,7 @@
     },
     {
       "source": "/enroll-resources/machine-id/getting-started/",
-      "destination": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {
@@ -1671,11 +1671,6 @@
       "permanent": true
     },
     {
-      "source": "/machine-workload-identity/machine-id/access-guides/ansible-awx/",
-      "destination": "/machine-workload-identity/access-guides/ansible-awx/",
-      "permanent": true
-    },
-    {
       "source": "/machine-workload-identity/machine-id/access-guides/ansible/",
       "destination": "/machine-workload-identity/access-guides/ansible/",
       "permanent": true
@@ -1698,11 +1693,6 @@
     {
       "source": "/machine-workload-identity/machine-id/access-guides/kubernetes/",
       "destination": "/machine-workload-identity/access-guides/kubernetes/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-workload-identity/machine-id/access-guides/mcp/",
-      "destination": "/machine-workload-identity/access-guides/mcp/",
       "permanent": true
     },
     {
