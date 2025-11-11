@@ -2003,7 +2003,7 @@ to other supported database protocols.
 Teleport database access for SQL Server remains in Preview mode with more UX
 improvements coming in future releases.
 
-Refer to [the guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx) to set
+Refer to [the guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad.mdx) to set
 up access to a SQL Server with Active Directory authentication.
 
 ### Snowflake database access (Preview)
@@ -2523,7 +2523,7 @@ Directory authentication support for database access. Audit logging of query
 activity is not included in the preview release and will be implemented in a
 later 9.x release.
 
-[SQL Server guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx)
+[SQL Server guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad.mdx)
 
 #### RDS MariaDB
 
@@ -2531,7 +2531,7 @@ Teleport 9 updates MariaDB support with auto-discovery and connection to AWS RDS
 MariaDB databases using IAM authentication. The minimum MariaDB version that
 supports IAM authentication is 10.6.
 
-[Updated RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
+[Updated RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
 
 #### Other Improvements
 
@@ -2637,7 +2637,7 @@ With RDS auto discovery Teleport database agents can automatically discover RDS
 instances and Aurora clusters in an AWS account.
 
 See updated
-[RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx) for
+[RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx) for
 more information.
 
 #### WebAuthn
@@ -2966,8 +2966,8 @@ Configure database access following the [Getting Started](./docs/pages/enroll-re
 ##### Guides
 
 * [AWS RDS/Aurora
-  PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
-* [AWS RDS/Aurora MySQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
+  PostgreSQL](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
+* [AWS RDS/Aurora MySQL](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
 * [Self-hosted PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx)
 * [Self-hosted MySQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted.mdx)
 * [GUI clients](docs/pages/connect-your-client/gui-clients.mdx)
