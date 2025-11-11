@@ -7805,6 +7805,23 @@ message AWSICGroupImportStatus {
   // ErrorMessage contains error message for a group and group members import attempt
   // that met with an error.
   string error_message = 2;
+  // DeprecatedRoles holds a list of roles that were created by the Identity
+  // Center plugin, but are no longer used by it.
+  repeated AWSICDeprecatedRole deprecated_roles = 3;
+}
+
+// AWSICDeprecatedRole describes an Identity-Center-Cretaed role that is no longer
+// in use by the Identity Center integration. Any references to these roles
+// should be updated and/or removed, as appropriate. Once no more references to
+// these roles exist they can be deleted.
+message AWSICDeprecatedRole {
+  // Role is the name of an Identity-Center-Created role that was deprecated due
+  // to an upstream change in AWS (for example, an AWS Account was renamed
+  // or deleted)
+  string role = 1;
+
+  // ReplacedBy indicates the role that replaced the deprecated role, if any.
+  string replaced_by = 2;
 }
 
 // AWSICGroupImportStatus defines Identity Center group and group members
