@@ -1669,7 +1669,18 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	// from env vars. There is no harm in sending the ephemeral session ID anyways
 	// as clients should ignore the reported session ID when joining a session.
 	if scx.GetSessionParams().JoinSessionID == "" {
-		scx.SetNewSessionID(ctx, session.NewID(), ch)
+		sid := session.NewID()
+		scx.SetNewSessionID(ctx, sid)
+
+		// inform the client of the session ID that is going to be used in a new
+		// goroutine to reduce latency.
+		go func() {
+			s.logger.DebugContext(ctx, "Sending current session ID")
+			_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sid))
+			if err != nil {
+				s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+			}
+		}()
 	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has

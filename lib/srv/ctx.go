@@ -700,21 +700,10 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 }
 
 // SetNewSessionID sets the ID for a new session in this server context.
-func (c *ServerContext) SetNewSessionID(ctx context.Context, sid rsession.ID, ch ssh.Channel) {
+func (c *ServerContext) SetNewSessionID(ctx context.Context, sid rsession.ID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	c.newSessionID = sid
-
-	// inform the client of the session ID that is going to be used in a new
-	// goroutine to reduce latency.
-	go func() {
-		c.Logger.DebugContext(ctx, "Sending current session ID")
-		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(c.newSessionID))
-		if err != nil {
-			c.Logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
-		}
-	}()
 }
 
 // GetNewSessionID gets the ID for a new session in this server context.

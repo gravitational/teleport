@@ -1236,22 +1236,11 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	}
 	scx.RemoteSession = remoteSession
 
-	// Accept the session channel request
-	ch, in, err := nch.Accept()
-	if err != nil {
-		s.logger.WarnContext(ctx, "Unable to accept channel", "channel", nch.ChannelType(), "error", err)
-		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-			s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
-		}
-		return
-	}
-	scx.AddCloser(ch)
-
 	if newSessionIDFromServer != nil {
 		// Wait for the session ID to be reported by the target node.
 		select {
 		case sid := <-newSessionIDFromServer:
-			scx.SetNewSessionID(ctx, sid, ch)
+			scx.SetNewSessionID(ctx, sid)
 		case <-time.After(10 * time.Second):
 			s.logger.WarnContext(ctx, "Failed to receive session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
 			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
@@ -1263,10 +1252,30 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		// The target node is not expected to report session ID, either because it's
 		// outdated or an agentless node. Continue with a random session ID and ensure
 		// we create a new session tracker.
-		scx.SetNewSessionID(ctx, session.NewID(), ch)
+		scx.SetNewSessionID(ctx, session.NewID())
 	}
 
+	// Accept the session channel request
+	ch, in, err := nch.Accept()
+	if err != nil {
+		s.logger.WarnContext(ctx, "Unable to accept channel", "channel", nch.ChannelType(), "error", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+		}
+		return
+	}
+	scx.AddCloser(ch)
 	ch = scx.TrackActivity(ch)
+
+	// inform the client of the session ID that is going to be used in a new
+	// goroutine to reduce latency.
+	go func() {
+		s.logger.DebugContext(ctx, "Sending current session ID")
+		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(scx.GetNewSessionID()))
+		if err != nil {
+			s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+		}
+	}()
 
 	s.logger.DebugContext(ctx, "Opening session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 	defer s.logger.DebugContext(ctx, "Closing session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
