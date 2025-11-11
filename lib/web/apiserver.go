@@ -3929,15 +3929,14 @@ func (h *Handler) siteNodeConnect(
 	)
 
 	clusterName := cluster.GetName()
-	if req.SessionID.IsZero() {
-		// An existing session ID was not provided so we need to create a new one.
+	if req.JoinSessionID.IsZero() {
 		sessionData, err = h.generateSession(r.Context(), &req, clusterName, sessionCtx)
 		if err != nil {
 			h.logger.DebugContext(r.Context(), "Unable to generate new ssh session", "error", err)
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, &req, clusterName)
+		sessionData, tracker, err = h.fetchJoinSession(ctx, clt, &req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3957,7 +3956,6 @@ func (h *Handler) siteNodeConnect(
 	h.logger.DebugContext(r.Context(), "New terminal request",
 		"server", req.Server,
 		"login", req.Login,
-		"sid", sessionData.ID,
 		"websid", sessionCtx.GetSessionID(),
 	)
 
@@ -4271,9 +4269,19 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 	}, nil
 }
 
-// fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
-func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
-	sessionID, err := session.ParseID(req.SessionID.String())
+// fetchJoinSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
+func (h *Handler) fetchJoinSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
+	// Session joining is not supported in proxy recording mode
+	if recConfig, err := clt.GetSessionRecordingConfig(ctx); err != nil {
+		// If the user can't see the recording mode, just let them try joining below
+		if !trace.IsAccessDenied(err) {
+			return session.Session{}, nil, trace.Wrap(err)
+		}
+	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
+		return session.Session{}, nil, trace.BadParameter("session joining is not supported in proxy recording mode")
+	}
+
+	sessionID, err := session.ParseID(req.JoinSessionID.String())
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
 	}
@@ -4282,6 +4290,10 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.Clien
 	tracker, err := clt.GetSessionTracker(ctx, string(*sessionID))
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
+	}
+
+	if types.IsOpenSSHNodeSubKind(tracker.GetTargetSubKind()) {
+		return session.Session{}, nil, trace.BadParameter("session joining is only supported for Teleport nodes, not OpenSSH nodes")
 	}
 
 	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {

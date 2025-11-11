@@ -80,8 +80,8 @@ type TerminalRequest struct {
 	// Term is the initial PTY size.
 	Term session.TerminalParams `json:"term"`
 
-	// SessionID is a Teleport session ID to join as.
-	SessionID session.ID `json:"sid"`
+	// JoinSessionID is a Teleport session ID to join as.
+	JoinSessionID session.ID `json:"sid"`
 
 	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string `json:"-"`
