@@ -50,7 +50,9 @@ func GenSchemaTraits(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 				ElemType: types.StringType,
 			},
 		},
-		Description: attr.Description,
+		Description:        attr.Description,
+		DeprecationMessage: attr.DeprecationMessage,
+		Validators:         attr.Validators,
 	}
 }
 
