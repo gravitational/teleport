@@ -147,7 +147,7 @@ Agents should prefer to use the first known policy listed in the loadBalancingCo
 array. Currently the `teleport_pick_healthy` configuration is an empty json object but
 fields could be added in the future.
 
-This can be configured on a Proxy server by setting the environment variable
+This can be configured on an auth server by setting the environment variable
 `TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY`. When not specified clients will continue
 using the default `pick_first` policy. This will allow us to opt-in to this new
 behavior.
