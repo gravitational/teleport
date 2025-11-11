@@ -88,7 +88,7 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 	// dot to ensure consistent comparison.
 	asciiAppHostname, err := idna.ToASCII(strings.TrimSuffix(appAddr.Host(), "."))
 	if err != nil {
-		return trace.WrapWithMessage(err, "app %q has an invalid IDN hostname %q", app.GetName(), appAddr.Host())
+		return trace.Wrap(err, "app %q has an invalid IDN hostname %q", app.GetName(), appAddr.Host())
 	}
 
 	proxyServers, err := proxyGetter.GetProxies()
@@ -110,7 +110,7 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 			// trailing dot.
 			asciiProxyHostname, err := idna.ToASCII(strings.TrimSuffix(proxyAddr.Host(), "."))
 			if err != nil {
-				return trace.WrapWithMessage(err, "proxy %q has an invalid IDN hostname %q", proxyServer.GetName(), proxyAddr)
+				return trace.Wrap(err, "proxy %q has an invalid IDN hostname %q", proxyServer.GetName(), proxyAddr)
 			}
 
 			// Compare the ASCII-normalized hostnames for equality, ignoring case.
