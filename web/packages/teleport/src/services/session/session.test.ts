@@ -50,7 +50,7 @@ test('fetch active sessions, response formatting', async () => {
     },
   ];
 
-  jest.spyOn(api, 'get').mockResolvedValue({ sessions: sessionsJSON });
+  vi.spyOn(api, 'get').mockResolvedValue({ sessions: sessionsJSON });
   const response = await ssh.fetchSessions('foo');
 
   expect(response[0]).toEqual(
@@ -74,11 +74,11 @@ test('fetch active sessions, response formatting', async () => {
 });
 
 test('fetch active sessions, null responses', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
   let response = await ssh.fetchSessions('foo');
   expect(response).toEqual([]);
 
-  jest.spyOn(api, 'get').mockResolvedValue({ sessions: [{}] });
+  vi.spyOn(api, 'get').mockResolvedValue({ sessions: [{}] });
   response = await ssh.fetchSessions('foo');
   expect(response[0].parties).toEqual([]);
 });

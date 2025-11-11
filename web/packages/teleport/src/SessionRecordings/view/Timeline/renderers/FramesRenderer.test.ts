@@ -26,10 +26,10 @@ import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Time
 import { FramesRenderer, type LoadedImageResult } from './FramesRenderer';
 
 // Mock the SVG utilities
-jest.mock('teleport/SessionRecordings/svg', () => ({
-  generateTerminalSVGStyleTag: jest.fn(() => '<style></style>'),
-  injectSVGStyles: jest.fn(svg => svg),
-  svgToDataURIBase64: jest.fn(svg => `data:image/svg+xml;base64,${svg}`),
+vi.mock('teleport/SessionRecordings/svg', () => ({
+  generateTerminalSVGStyleTag: vi.fn(() => '<style></style>'),
+  injectSVGStyles: vi.fn(svg => svg),
+  svgToDataURIBase64: vi.fn(svg => `data:image/svg+xml;base64,${svg}`),
 }));
 
 beforeEach(() => {
@@ -39,7 +39,7 @@ beforeEach(() => {
     value: 1,
   });
 
-  global.OffscreenCanvas = jest.fn().mockImplementation((width, height) => {
+  global.OffscreenCanvas = vi.fn().mockImplementation((width, height) => {
     const canvas = document.createElement('canvas');
 
     canvas.width = width;

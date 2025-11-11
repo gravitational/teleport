@@ -54,7 +54,7 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -76,7 +76,7 @@ describe('ResourceUnlockDialog', () => {
       ],
     });
 
-    const onCancel = jest.fn();
+    const onCancel = vi.fn();
 
     const { user } = renderComponent({ onCancel });
 
@@ -121,7 +121,7 @@ describe('ResourceUnlockDialog', () => {
       ],
     });
 
-    const onComplete = jest.fn();
+    const onComplete = vi.fn();
 
     const { user } = renderComponent({ onComplete });
 
@@ -163,8 +163,8 @@ describe('ResourceUnlockDialog', () => {
       ],
     });
 
-    const onCancel = jest.fn();
-    const onGoToLocksForTesting = jest.fn((event => {
+    const onCancel = vi.fn();
+    const onGoToLocksForTesting = vi.fn((event => {
       // Prevent errors related to window.location not being implemented.
       event.preventDefault();
     }) satisfies MouseEventHandler<HTMLAnchorElement>);
@@ -199,8 +199,8 @@ function renderComponent(
   >
 ) {
   const {
-    onCancel = jest.fn(),
-    onComplete = jest.fn(),
+    onCancel = vi.fn(),
+    onComplete = vi.fn(),
     onGoToLocksForTesting,
   } = options ?? {};
   const user = userEvent.setup();

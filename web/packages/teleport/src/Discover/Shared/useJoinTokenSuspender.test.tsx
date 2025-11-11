@@ -34,24 +34,24 @@ import {
 } from './useJoinTokenSuspender';
 
 beforeEach(() => {
-  jest
+  vi
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
 });
 
 afterEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
   clearCachedJoinTokenResult([ResourceKind.Server]);
 });
 
 test('create join token without labels', async () => {
   const ctx = new TeleportContext();
 
-  jest
+  vi
     .spyOn(ctx.joinTokenService, 'fetchJoinTokenV2')
     .mockResolvedValue(tokenResp);
 
-  jest
+  vi
     .spyOn(ctx.joinTokenService, 'fetchJoinToken')
     .mockResolvedValue(tokenResp);
 
@@ -83,11 +83,11 @@ test('create join token without labels', async () => {
 test('create join token without labels with v1 fallback', async () => {
   const ctx = new TeleportContext();
 
-  jest
+  vi
     .spyOn(ctx.joinTokenService, 'fetchJoinTokenV2')
     .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
 
-  jest
+  vi
     .spyOn(ctx.joinTokenService, 'fetchJoinToken')
     .mockResolvedValue(tokenResp);
 

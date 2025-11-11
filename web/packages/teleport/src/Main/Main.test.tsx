@@ -134,7 +134,7 @@ test('toggle rendering of info guide panel', async () => {
 });
 
 test('notification render and auto dismissal', async () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = createTeleportContext();
 
@@ -172,13 +172,13 @@ test('notification render and auto dismissal', async () => {
   expect(screen.queryAllByTestId(/toast-note/i)).toHaveLength(2);
 
   // wait for notes to auto disappear
-  act(() => jest.advanceTimersByTime(autoRemoveDurationMs + 3_000));
+  act(() => vi.advanceTimersByTime(autoRemoveDurationMs + 3_000));
 
   expect(screen.queryByText(/some note 1/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/some note 2/i)).not.toBeInTheDocument();
   expect(screen.queryAllByTestId(/toast-note/i)).toHaveLength(0);
 
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
 let note = 1;

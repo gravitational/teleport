@@ -27,7 +27,7 @@ test('keyboard press is respected', () => {
   const ctx = new ConsoleContext();
   renderHook(() => useKeyboardNav(ctx));
 
-  jest.spyOn(ctx, 'gotoTab').mockImplementation(({ url }) => {
+  vi.spyOn(ctx, 'gotoTab').mockImplementation(({ url }) => {
     return url;
   });
 
@@ -80,7 +80,7 @@ test('keyboard press is respected', () => {
   window.dispatchEvent(event);
   expect(ctx.gotoTab).toHaveReturnedWith(tab9.url);
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 
   // test non-mac platform doesn't trigger end event with ctrl + num
   event = new KeyboardEvent('keydown', { key: '4', ctrlKey: true });
@@ -88,7 +88,7 @@ test('keyboard press is respected', () => {
   expect(ctx.gotoTab).not.toHaveBeenCalled();
 
   // set platform to mac
-  jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
+  vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
 
   // test key combo not handled on mac platform
   event = new KeyboardEvent('keydown', { key: '0', ctrlKey: true });

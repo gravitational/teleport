@@ -45,6 +45,8 @@ export default defineConfig({
       'web/packages/build/**/*.test.{ts,tsx}',
       'web/packages/design/**/*.test.{ts,tsx}',
       'web/packages/shared/**/*.test.{ts,tsx}',
+      'web/packages/teleport/**/*.test.{ts,tsx}',
+      'e/web/teleport/**/*.test.{ts,tsx}',
     ],
     setupFiles: [
       path.resolve(__dirname, './web/packages/build/vitest/setupTests.ts'),

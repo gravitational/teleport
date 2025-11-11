@@ -27,9 +27,9 @@ import { Agents } from 'teleport/Integrations/status/AwsOidc/Details/Agents';
 import { integrationService } from 'teleport/services/integrations';
 
 test('renders service name & labels from response', async () => {
-  jest.spyOn(window, 'open').mockImplementation();
+  vi.spyOn(window, 'open').mockImplementation();
 
-  jest
+  vi
     .spyOn(integrationService, 'fetchAwsOidcDatabaseServices')
     .mockResolvedValue({
       services: [
@@ -85,7 +85,7 @@ test('renders service name & labels from response', async () => {
   await userEvent.click(screen.getAllByRole('row')[1]);
   expect(window.open).toHaveBeenCalledWith('some-aws-url', '_blank');
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 function getTableCellContents() {

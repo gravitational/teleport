@@ -69,18 +69,18 @@ const mockIntegration: IntegrationAwsOidc = {
 };
 
 describe('test AutoDeploy.tsx', () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
 
   beforeEach(() => {
-    jest
+    vi
       .spyOn(integrationService, 'deployDatabaseServices')
       .mockResolvedValue('dashboard-url');
 
-    jest
+    vi
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(undefined as never);
 
-    jest.spyOn(integrationService, 'fetchAwsSubnets').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchAwsSubnets').mockResolvedValue({
       nextToken: '',
       subnets: [
         {
@@ -90,7 +90,7 @@ describe('test AutoDeploy.tsx', () => {
         },
       ],
     });
-    jest.spyOn(integrationService, 'fetchSecurityGroups').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchSecurityGroups').mockResolvedValue({
       nextToken: '',
       securityGroups: [
         {
@@ -105,7 +105,7 @@ describe('test AutoDeploy.tsx', () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   async function waitForSubnetsAndSecurityGroups() {
@@ -183,7 +183,7 @@ describe('test AutoDeploy.tsx', () => {
     );
 
     // test waiting state
-    act(() => jest.advanceTimersByTime(SHOW_HINT_TIMEOUT + 1));
+    act(() => vi.advanceTimersByTime(SHOW_HINT_TIMEOUT + 1));
 
     expect(
       screen.getByText(
@@ -192,11 +192,11 @@ describe('test AutoDeploy.tsx', () => {
     ).toBeInTheDocument();
 
     // test success state
-    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+    vi.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
       agents: [{} as any], // the result doesn't matter, just need size one array.
     });
 
-    act(() => jest.advanceTimersByTime(TEST_PING_INTERVAL + 1));
+    act(() => vi.advanceTimersByTime(TEST_PING_INTERVAL + 1));
     await screen.findByText(/Successfully created/i);
   });
 });
@@ -213,7 +213,7 @@ const agentMeta: AgentMeta = {
 function getMockedContexts() {
   const teleCtx = createTeleportContext();
 
-  jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+  vi.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
     agents: [],
   });
 

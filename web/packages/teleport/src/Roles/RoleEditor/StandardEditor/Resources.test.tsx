@@ -50,7 +50,7 @@ import {
 
 describe('ServerAccessSection', () => {
   const setup = () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     let validator: Validator;
     render(
       <StatefulSection<ServerAccess, ResourceAccessValidationResult>
@@ -110,7 +110,7 @@ describe('ServerAccessSection', () => {
 
 describe('KubernetesAccessSection', () => {
   const setup = (roleVersion: RoleVersion = defaultRoleVersion) => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     let validator: Validator;
     render(
       <StatefulSection<KubernetesAccess, ResourceAccessValidationResult>
@@ -293,7 +293,7 @@ describe('KubernetesAccessSection', () => {
 
 describe('AppAccessSection', () => {
   const setup = (model: Partial<AppAccess> = {}) => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     let validator: Validator;
     render(
       <StatefulSection<AppAccess, ResourceAccessValidationResult>
@@ -411,7 +411,7 @@ describe('AppAccessSection', () => {
 
 describe('DatabaseAccessSection', () => {
   const setup = () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     let validator: Validator;
     render(
       <StatefulSection<DatabaseAccess, ResourceAccessValidationResult>
@@ -499,7 +499,7 @@ describe('DatabaseAccessSection', () => {
 
 describe('WindowsDesktopAccessSection', () => {
   const setup = () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     let validator: Validator;
     render(
       <StatefulSection<WindowsDesktopAccess, ResourceAccessValidationResult>
@@ -545,7 +545,7 @@ describe('WindowsDesktopAccessSection', () => {
 
 describe('GitHubOrganizationAccessSection', () => {
   const setup = () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     let validator: Validator;
     render(
       <StatefulSection<GitHubOrganizationAccess, ResourceAccessValidationResult>

@@ -21,7 +21,7 @@ import api from 'teleport/services/api';
 import KubeService from './kube';
 
 test('correct processed fetch response formatting', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(mockApiResponse);
+  vi.spyOn(api, 'get').mockResolvedValue(mockApiResponse);
 
   const kubeService = new KubeService();
   const response = await kubeService.fetchKubernetes('clusterId', {
@@ -47,7 +47,7 @@ test('correct processed fetch response formatting', async () => {
 });
 
 test('handling of null fetch response', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   const kubeService = new KubeService();
   const response = await kubeService.fetchKubernetes('clusterId', {
@@ -62,7 +62,7 @@ test('handling of null fetch response', async () => {
 });
 
 test('handling of null labels', async () => {
-  jest
+  vi
     .spyOn(api, 'get')
     .mockResolvedValue({ items: [{ name: 'test', labels: null }] });
 

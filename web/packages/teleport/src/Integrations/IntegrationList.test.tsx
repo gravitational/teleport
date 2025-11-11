@@ -29,7 +29,7 @@ import {
 
 test('integration list does not display action menu for aws-oidc, row click navigates', async () => {
   const history = createMemoryHistory();
-  history.push = jest.fn();
+  history.push = vi.fn();
 
   render(
     <Router history={history}>

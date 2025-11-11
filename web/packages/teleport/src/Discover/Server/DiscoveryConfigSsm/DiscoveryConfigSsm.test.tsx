@@ -67,23 +67,23 @@ describe('DiscoveryConfigSsm', () => {
   beforeEach(() => {
     cfg.isCloud = true;
 
-    jest
+    vi
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(undefined as never);
-    jest.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
+    vi.spyOn(discoveryService, 'createDiscoveryConfig').mockResolvedValue({
       name: '',
       discoveryGroup: '',
       aws: [],
     });
 
-    jest
+    vi
       .spyOn(JoinTokenService.prototype, 'fetchJoinTokenV2')
       .mockResolvedValue(tokenResp);
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
-    jest.resetAllMocks();
+    vi.clearAllMocks();
+    vi.resetAllMocks();
     cfg.isCloud = defaultIsCloud;
   });
 
@@ -92,7 +92,7 @@ describe('DiscoveryConfigSsm', () => {
     await completeForm();
     await submitConfig();
     const [[, configArg]] = (
-      discoveryService.createDiscoveryConfig as jest.Mock
+      discoveryService.createDiscoveryConfig
     ).mock.calls;
     expect(configArg.aws[0].tags).toEqual({ '*': ['*'] });
   });
@@ -121,7 +121,7 @@ describe('DiscoveryConfigSsm', () => {
 
     await submitConfig();
     const [[, configArg]] = (
-      discoveryService.createDiscoveryConfig as jest.Mock
+      discoveryService.createDiscoveryConfig as Mock
     ).mock.calls;
     expect(configArg.aws[0].tags).toEqual({ asdf: ['fdsa', 'ffff'] });
   });

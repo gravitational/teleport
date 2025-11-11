@@ -235,11 +235,11 @@ describe('JoinTokens', () => {
 const Component = ({ parseYamlMock }: { parseYamlMock?: object }) => {
   const ctx = createTeleportContext();
 
-  jest
+  vi
     .spyOn(ctx.joinTokenService, 'fetchJoinTokens')
     .mockResolvedValue({ items: tokens.map(makeJoinToken) });
 
-  jest.spyOn(ctx.yamlService, 'parse').mockResolvedValue(
+  vi.spyOn(ctx.yamlService, 'parse').mockResolvedValue(
     parseYamlMock ?? {
       spec: {
         join_method: 'iam',
@@ -248,7 +248,7 @@ const Component = ({ parseYamlMock }: { parseYamlMock?: object }) => {
     }
   );
 
-  jest.spyOn(ctx.joinTokenService, 'createJoinToken').mockResolvedValue(
+  vi.spyOn(ctx.joinTokenService, 'createJoinToken').mockResolvedValue(
     makeJoinToken({
       id: 'the_token',
       safeName: 'the_token',

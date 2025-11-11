@@ -53,7 +53,7 @@ const dummyChallengeResponse: MfaChallengeResponse = {
   },
 };
 let user: UserEvent;
-let onSuccess: jest.Mock;
+let onSuccess: any;
 
 function TestWizard(props: Partial<ChangePasswordWizardProps> = {}) {
   return (
@@ -68,19 +68,19 @@ function TestWizard(props: Partial<ChangePasswordWizardProps> = {}) {
 
 beforeEach(() => {
   user = userEvent.setup();
-  onSuccess = jest.fn();
+  onSuccess = vi.fn();
 
-  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+  vi.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
     totpChallenge: true,
     webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
   });
-  jest
+  vi
     .spyOn(auth, 'getMfaChallengeResponse')
     .mockResolvedValueOnce(dummyChallengeResponse);
-  jest.spyOn(auth, 'changePassword').mockResolvedValueOnce(undefined);
+  vi.spyOn(auth, 'changePassword').mockResolvedValueOnce(undefined);
 });
 
-afterEach(jest.resetAllMocks);
+afterEach(vi.resetAllMocks);
 
 describe('with passwordless reauthentication', () => {
   async function reauthenticate() {

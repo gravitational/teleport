@@ -35,7 +35,7 @@ import { Notifications } from './Notifications';
 test('notification bell with notifications', async () => {
   const ctx = createTeleportContext();
 
-  jest.spyOn(ctx.notificationService, 'fetchNotifications').mockResolvedValue({
+  vi.spyOn(ctx.notificationService, 'fetchNotifications').mockResolvedValue({
     nextKey: '',
     userLastSeenNotification: subMinutes(Date.now(), 12), // 12 minutes ago
     notifications: [
@@ -68,7 +68,7 @@ test('notification bell with notifications', async () => {
     ],
   });
 
-  jest
+  vi
     .spyOn(ctx.notificationService, 'upsertLastSeenNotificationTime')
     .mockResolvedValue({
       time: new Date(),
@@ -87,13 +87,13 @@ test('notification bell with notifications', async () => {
 
 test('notification bell with no notifications', async () => {
   const ctx = createTeleportContext();
-  jest.spyOn(ctx.notificationService, 'fetchNotifications').mockResolvedValue({
+  vi.spyOn(ctx.notificationService, 'fetchNotifications').mockResolvedValue({
     nextKey: '',
     userLastSeenNotification: subMinutes(Date.now(), 12), // 12 minutes ago
     notifications: [],
   });
 
-  jest
+  vi
     .spyOn(ctx.notificationService, 'upsertLastSeenNotificationTime')
     .mockResolvedValue({
       time: new Date(),

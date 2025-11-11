@@ -53,7 +53,7 @@ function renderWithContext(element, ctx?: TeleportContext) {
 }
 describe('Bots', () => {
   test('fetches bots on load', async () => {
-    jest.spyOn(api, 'get').mockResolvedValueOnce({ ...botsApiResponseFixture });
+    vi.spyOn(api, 'get').mockResolvedValueOnce({ ...botsApiResponseFixture });
     renderWithContext(<Bots />);
 
     await waitFor(() => {
@@ -65,7 +65,7 @@ describe('Bots', () => {
   });
 
   test('shows empty state when bots are empty', async () => {
-    jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+    vi.spyOn(api, 'get').mockResolvedValue({ items: [] });
     renderWithContext(<Bots />);
 
     await waitFor(() => {
@@ -74,7 +74,7 @@ describe('Bots', () => {
   });
 
   test('shows missing permissions error if user lacks permissions to list', async () => {
-    jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+    vi.spyOn(api, 'get').mockResolvedValue({ items: [] });
     const ctx = createTeleportContext();
     ctx.storeUser.setState({ acl: { ...allAccessAcl, bots: noAccess } });
     renderWithContext(<Bots />, ctx);
@@ -88,11 +88,11 @@ describe('Bots', () => {
   });
 
   test('calls delete endpoint', async () => {
-    jest
+    vi
       .spyOn(api, 'get')
       .mockResolvedValueOnce({ ...botsApiResponseFixture })
       .mockResolvedValueOnce(['role-1', 'editor']);
-    jest.spyOn(api, 'deleteWithOptions').mockResolvedValue({});
+    vi.spyOn(api, 'deleteWithOptions').mockResolvedValue({});
     renderWithContext(<Bots />);
 
     await waitFor(() => {

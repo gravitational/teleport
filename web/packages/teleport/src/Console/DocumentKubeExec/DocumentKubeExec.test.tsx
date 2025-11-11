@@ -32,9 +32,9 @@ import type { Session } from 'teleport/services/session';
 import DocumentKubeExec from './DocumentKubeExec';
 import useKubeExecSession, { Status } from './useKubeExecSession';
 
-jest.mock('./useKubeExecSession');
+vi.mock('./useKubeExecSession');
 
-const mockUseKubeExecSession = useKubeExecSession as jest.MockedFunction<
+const mockUseKubeExecSession = useKubeExecSession as MockedFunction<
   typeof useKubeExecSession
 >;
 
@@ -42,16 +42,16 @@ describe('DocumentKubeExec', () => {
   const setup = (status: Status) => {
     mockUseKubeExecSession.mockReturnValue({
       tty: {
-        sendKubeExecData: jest.fn(),
-        on: jest.fn(),
-        removeListener: jest.fn(),
-        connect: jest.fn(),
-        disconnect: jest.fn(),
-        removeAllListeners: jest.fn(),
+        sendKubeExecData: vi.fn(),
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        removeAllListeners: vi.fn(),
       } as unknown as Tty,
       status,
-      closeDocument: jest.fn(),
-      sendKubeExecData: jest.fn(),
+      closeDocument: vi.fn(),
+      sendKubeExecData: vi.fn(),
       session: baseSession,
     });
 
@@ -68,23 +68,23 @@ describe('DocumentKubeExec', () => {
 
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
-    value: jest.fn().mockImplementation(query => ({
+    value: vi.fn().mockImplementation(query => ({
       matches: false,
       media: query,
       onchange: null,
-      addListener: jest.fn(), // Deprecated
-      removeListener: jest.fn(), // Deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(), // Deprecated
+      removeListener: vi.fn(), // Deprecated
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     })),
   });
 
   test('renders loading indicator when status is loading', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     setup('loading');
 
-    act(() => jest.runAllTimers());
+    act(() => vi.runAllTimers());
     expect(screen.getByTestId('indicator')).toBeInTheDocument();
   });
 

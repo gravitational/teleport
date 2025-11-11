@@ -39,7 +39,7 @@ import TeleportContext from 'teleport/teleportContext';
 import { AwsAccount } from './AwsAccount';
 
 beforeEach(() => {
-  jest.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
+  vi.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
     items: [
       {
         resourceType: 'integration',
@@ -55,7 +55,7 @@ beforeEach(() => {
     ],
   });
 
-  jest
+  vi
     .spyOn(ResourceService.prototype, 'fetchUnifiedResources')
     .mockResolvedValue({
       agents: [app],
@@ -63,7 +63,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('non application resource kind', async () => {
@@ -136,7 +136,7 @@ function getMockedContexts(resourceSpec: SelectResourceSpec) {
   const discoverCtx: DiscoverContextState = {
     agentMeta: {},
     currentStep: 0,
-    nextStep: jest.fn(),
+    nextStep: vi.fn(),
     prevStep: () => null,
     onSelectResource: () => null,
     resourceSpec: resourceSpec,
@@ -146,11 +146,11 @@ function getMockedContexts(resourceSpec: SelectResourceSpec) {
     setResourceSpec: () => null,
     updateAgentMeta: () => null,
     emitErrorEvent: () => null,
-    emitEvent: jest.fn(),
+    emitEvent: vi.fn(),
     eventState: null,
   };
 
-  jest
+  vi
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
 

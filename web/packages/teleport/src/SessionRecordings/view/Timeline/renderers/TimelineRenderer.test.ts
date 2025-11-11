@@ -127,22 +127,22 @@ function createRenderer(
 let animationFrameCallback: FrameRequestCallback | null = null;
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 
   // Mock requestAnimationFrame to capture the callback
-  global.requestAnimationFrame = jest.fn(callback => {
+  global.requestAnimationFrame = vi.fn(callback => {
     animationFrameCallback = callback;
     return 1;
   });
 
-  global.cancelAnimationFrame = jest.fn();
+  global.cancelAnimationFrame = vi.fn();
 
   // Mock performance.now
-  jest.spyOn(performance, 'now').mockReturnValue(0);
+  vi.spyOn(performance, 'now').mockReturnValue(0);
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   animationFrameCallback = null;
 });
 
@@ -407,7 +407,7 @@ describe('wheel accumulation cleanup', () => {
     renderer.accumulatePan(50);
 
     // Simulate time passing
-    jest.spyOn(performance, 'now').mockReturnValue(50);
+    vi.spyOn(performance, 'now').mockReturnValue(50);
 
     for (let i = 0; i < 50; i++) {
       if (animationFrameCallback) {

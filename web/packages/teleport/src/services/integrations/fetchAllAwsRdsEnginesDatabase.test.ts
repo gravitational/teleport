@@ -63,7 +63,7 @@ test.each(testCases)('$name', async tc => {
       },
     ];
   }
-  jest
+  vi
     .spyOn(api, 'post')
     .mockResolvedValueOnce({
       databases: instances || [],
@@ -92,7 +92,7 @@ test.each(testCases)('$name', async tc => {
 });
 
 test('failed to fetch both clusters and instances should throw error', async () => {
-  jest.spyOn(api, 'post').mockRejectedValue(new Error('some error'));
+  vi.spyOn(api, 'post').mockRejectedValue(new Error('some error'));
 
   await expect(
     integrationService.fetchAllAwsRdsEnginesDatabases('some-name', {
@@ -106,7 +106,7 @@ test('fetching instances but failed fetch clusters', async () => {
     protocol: 'postgres',
     name: 'rds-instance',
   };
-  jest
+  vi
     .spyOn(api, 'post')
     .mockResolvedValueOnce({
       databases: [instance],
@@ -132,7 +132,7 @@ test('fetching clusters but failed fetch instances', async () => {
     protocol: 'postgres',
     name: 'rds-cluster',
   };
-  jest
+  vi
     .spyOn(api, 'post')
     .mockRejectedValueOnce(new Error('some error'))
     .mockResolvedValue({

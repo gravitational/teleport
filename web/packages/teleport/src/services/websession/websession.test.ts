@@ -24,10 +24,10 @@ import websession from '.';
 import api from '../api';
 
 test('user should be redirected to login even if session delete call fails', async () => {
-  jest.spyOn(console, 'error').mockImplementation();
-  jest.spyOn(api, 'delete').mockRejectedValue(new Error('some error'));
-  const goToLoginSpy = jest.spyOn(history, 'goToLogin').mockImplementation();
-  jest.spyOn(websession, 'clear').mockImplementation();
+  vi.spyOn(console, 'error').mockImplementation();
+  vi.spyOn(api, 'delete').mockRejectedValue(new Error('some error'));
+  const goToLoginSpy = vi.spyOn(history, 'goToLogin').mockImplementation();
+  vi.spyOn(websession, 'clear').mockImplementation();
 
   websession.logout();
 

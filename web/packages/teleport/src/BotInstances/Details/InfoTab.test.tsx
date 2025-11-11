@@ -34,7 +34,7 @@ import { mockGetBotInstanceResponse } from 'teleport/test/helpers/botInstances';
 import { InfoTab } from './InfoTab';
 
 afterEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 describe('InfoTab', () => {
@@ -95,7 +95,7 @@ describe('InfoTab', () => {
 
   it('navigate on bot name link click', async () => {
     const { history, user } = renderComponent();
-    const pushMock = jest.spyOn(history, 'push');
+    const pushMock = vi.spyOn(history, 'push');
 
     const section = screen
       .getByRole('heading', { name: 'Summary' })
@@ -111,7 +111,7 @@ describe('InfoTab', () => {
 
   it('navigate on join token name link click', async () => {
     const { history, user } = renderComponent();
-    const pushMock = jest.spyOn(history, 'push');
+    const pushMock = vi.spyOn(history, 'push');
 
     const section = screen
       .getByRole('heading', { name: 'Join Token' })
@@ -126,7 +126,7 @@ describe('InfoTab', () => {
   });
 
   it('callback on "view services" click', async () => {
-    const callback = jest.fn();
+    const callback = vi.fn();
     const { user } = renderComponent({ onGoToServicesClick: callback });
 
     const section = screen
@@ -155,7 +155,7 @@ function expectFieldAndValue(
 }
 
 function renderComponent(props?: Partial<ComponentProps<typeof InfoTab>>) {
-  const { data = mockGetBotInstanceResponse, onGoToServicesClick = jest.fn() } =
+  const { data = mockGetBotInstanceResponse, onGoToServicesClick = vi.fn() } =
     props ?? {};
   const user = userEvent.setup();
 

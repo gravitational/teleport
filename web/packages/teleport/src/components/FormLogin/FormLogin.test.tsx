@@ -23,12 +23,12 @@ import history from 'teleport/services/history';
 import FormLogin, { Props } from './FormLogin';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
-  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
+  vi.restoreAllMocks();
+  vi.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
 });
 
 test('primary username and password with mfa off', () => {
-  const onLogin = jest.fn();
+  const onLogin = vi.fn();
 
   render(<FormLogin {...props} onLogin={onLogin} />);
 
@@ -52,7 +52,7 @@ test('primary username and password with mfa off', () => {
 });
 
 test('auth2faType: otp', () => {
-  const onLogin = jest.fn();
+  const onLogin = vi.fn();
 
   render(<FormLogin {...props} auth2faType="otp" onLogin={onLogin} />);
 
@@ -75,7 +75,7 @@ test('auth2faType: otp', () => {
 });
 
 test('auth2faType: webauthn', async () => {
-  const onLoginWithWebauthn = jest.fn();
+  const onLoginWithWebauthn = vi.fn();
 
   render(
     <FormLogin
@@ -104,9 +104,9 @@ test('auth2faType: webauthn', async () => {
 });
 
 test('input validation error handling', async () => {
-  const onLogin = jest.fn();
-  const onLoginWithSso = jest.fn();
-  const onLoginWithWebauthn = jest.fn();
+  const onLogin = vi.fn();
+  const onLoginWithSso = vi.fn();
+  const onLoginWithWebauthn = vi.fn();
 
   render(
     <FormLogin
@@ -147,7 +147,7 @@ test('error rendering', () => {
 });
 
 test('primary sso', () => {
-  const onLoginWithSso = jest.fn();
+  const onLoginWithSso = vi.fn();
 
   render(
     <FormLogin
@@ -172,7 +172,7 @@ test('primary sso', () => {
 });
 
 test('primary passwordless', () => {
-  const onLoginWithSso = jest.fn();
+  const onLoginWithSso = vi.fn();
 
   render(
     <FormLogin

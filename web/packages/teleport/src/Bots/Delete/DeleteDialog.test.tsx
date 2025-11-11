@@ -45,7 +45,7 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -65,7 +65,7 @@ describe('DeleteDialog', () => {
   });
 
   it('should cancel', async () => {
-    const onCancel = jest.fn();
+    const onCancel = vi.fn();
     const { user } = renderComponent({
       onCancel,
     });
@@ -74,7 +74,7 @@ describe('DeleteDialog', () => {
   });
 
   it('should request lock', async () => {
-    const onLockRequest = jest.fn();
+    const onLockRequest = vi.fn();
     const { user } = renderComponent({
       onLockRequest,
     });
@@ -83,7 +83,7 @@ describe('DeleteDialog', () => {
   });
 
   it('should disable request lock', async () => {
-    const onLockRequest = jest.fn();
+    const onLockRequest = vi.fn();
     const { user } = renderComponent({
       onLockRequest,
       canLockBot: false,
@@ -107,7 +107,7 @@ describe('DeleteDialog', () => {
 
   it('should submit', async () => {
     withDeleteBotSuccess();
-    const onComplete = jest.fn();
+    const onComplete = vi.fn();
     const { user } = renderComponent({
       onComplete,
     });
@@ -122,7 +122,7 @@ describe('DeleteDialog', () => {
 
   it('should show submit error', async () => {
     withDeleteBotError();
-    const onComplete = jest.fn();
+    const onComplete = vi.fn();
     const { user } = renderComponent({
       onComplete,
     });
@@ -143,12 +143,12 @@ function renderComponent(options?: {
   onLockRequest?: () => void;
 }) {
   const {
-    onCancel = jest.fn(),
-    onComplete = jest.fn(),
+    onCancel = vi.fn(),
+    onComplete = vi.fn(),
     customAcl,
     showLockAlternative = true,
     canLockBot = true,
-    onLockRequest = jest.fn(),
+    onLockRequest = vi.fn(),
   } = options ?? {};
   const user = userEvent.setup();
   return {

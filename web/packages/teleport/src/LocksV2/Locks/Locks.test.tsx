@@ -30,7 +30,7 @@ import { Locks } from './Locks';
 test('lock search', async () => {
   const ctx = createTeleportContext();
 
-  jest.spyOn(lockService, 'fetchLocks').mockResolvedValue(
+  vi.spyOn(lockService, 'fetchLocks').mockResolvedValue(
     makeLocks({
       items: [
         {

@@ -33,25 +33,25 @@ import type { Session } from 'teleport/services/session';
 import { DocumentDb } from './DocumentDb';
 import { Status, useDbSession } from './useDbSession';
 
-jest.mock('./useDbSession');
+vi.mock('./useDbSession');
 
-const mockUseDbSession = useDbSession as jest.MockedFunction<
+const mockUseDbSession = useDbSession as MockedFunction<
   typeof useDbSession
 >;
 
 const setup = (status: Status) => {
   mockUseDbSession.mockReturnValue({
     tty: {
-      sendDbConnectData: jest.fn(),
-      on: jest.fn(),
-      removeListener: jest.fn(),
-      connect: jest.fn(),
-      disconnect: jest.fn(),
-      removeAllListeners: jest.fn(),
+      sendDbConnectData: vi.fn(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      removeAllListeners: vi.fn(),
     } as unknown as Tty,
     status,
-    closeDocument: jest.fn(),
-    sendDbConnectData: jest.fn(),
+    closeDocument: vi.fn(),
+    sendDbConnectData: vi.fn(),
     session: baseSession,
   });
 
@@ -67,10 +67,10 @@ const setup = (status: Status) => {
 };
 
 test('renders loading indicator when status is loading', () => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   setup('loading');
 
-  act(() => jest.runAllTimers());
+  act(() => vi.runAllTimers());
   expect(screen.getByTestId('indicator')).toBeInTheDocument();
 });
 

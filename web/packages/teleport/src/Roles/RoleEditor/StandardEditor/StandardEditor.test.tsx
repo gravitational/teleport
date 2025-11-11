@@ -57,7 +57,7 @@ let user: UserEvent;
 
 beforeEach(() => {
   user = userEvent.setup();
-  jest
+  vi
     .spyOn(ResourceService.prototype, 'fetchRole')
     .mockImplementation(async name => {
       // Make sure that validation never fails because of a role name collision.
@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('adding and removing sections', async () => {
@@ -125,7 +125,7 @@ test('adding and removing sections', async () => {
 });
 
 test('invisible tabs still apply validation', async () => {
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(
     <TestStandardEditor
       originalRole={newRoleWithYaml(newRole())}
@@ -149,7 +149,7 @@ test('invisible tabs still apply validation', async () => {
 });
 
 test('hidden validation errors should not propagate to tab headings', async () => {
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(
     <TestStandardEditor
       originalRole={newRoleWithYaml(newRole())}
@@ -232,7 +232,7 @@ test('edits resource access', async () => {
 });
 
 test('triggers v6 validation for Kubernetes resources', async () => {
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(
     <TestStandardEditor
       originalRole={newRoleWithYaml(newRole())}
@@ -280,7 +280,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
 }, 10000);
 
 test('triggers v7 validation for Kubernetes resources', async () => {
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(
     <TestStandardEditor
       originalRole={newRoleWithYaml(newRole())}
@@ -335,7 +335,7 @@ test('triggers v7 validation for Kubernetes resources', async () => {
 }, 10000);
 
 test('triggers v8 validation for Kubernetes resources', async () => {
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(
     <TestStandardEditor
       originalRole={newRoleWithYaml(newRole())}
@@ -407,7 +407,7 @@ test('creating a new role', async () => {
     expect(tab).toHaveAttribute('aria-selected', 'true');
   }
 
-  const onSave = jest.fn();
+  const onSave = vi.fn();
   render(<TestStandardEditor onSave={onSave} />);
   await user.type(screen.getByLabelText('Description'), 'foo');
   await forwardToTab('Resources');

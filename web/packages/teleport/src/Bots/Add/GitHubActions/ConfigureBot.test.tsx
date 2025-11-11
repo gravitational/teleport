@@ -101,7 +101,7 @@ describe('configureBot Component', () => {
 
   it('shows an error if the bot name already exists', async () => {
     setup({});
-    jest.spyOn(botService, 'getBot').mockResolvedValue({
+    vi.spyOn(botService, 'getBot').mockResolvedValue({
       traits: [],
       kind: 'GitHub Actions',
       name: 'bot-name',

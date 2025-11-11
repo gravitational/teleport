@@ -51,16 +51,16 @@ import 'shared/components/TextEditor/TextEditor.mock';
 import { ContextProvider } from '..';
 import { BotInstances } from './BotInstances';
 
-jest.mock('teleport/services/bot/bot', () => {
-  const actual = jest.requireActual('teleport/services/bot/bot');
+vi.mock('teleport/services/bot/bot', () => {
+  const actual = await vi.importActual('teleport/services/bot/bot');
   return {
-    listBotInstances: jest.fn((...all) => {
+    listBotInstances: vi.fn((...all) => {
       return actual.listBotInstances(...all);
     }),
-    getBotInstance: jest.fn((...all) => {
+    getBotInstance: vi.fn((...all) => {
       return actual.getBotInstance(...all);
     }),
-    getBotInstanceMetrics: jest.fn((...all) => {
+    getBotInstanceMetrics: vi.fn((...all) => {
       return actual.getBotInstanceMetrics(...all);
     }),
   };
@@ -76,8 +76,8 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.useRealTimers();
-  jest.clearAllMocks();
+  vi.useRealTimers();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -167,7 +167,7 @@ describe('BotInstances', () => {
   });
 
   it('Shows a list', async () => {
-    jest.useFakeTimers().setSystemTime(new Date('2025-05-19T08:00:00Z'));
+    vi.useFakeTimers().setSystemTime(new Date('2025-05-19T08:00:00Z'));
 
     server.use(
       listBotInstancesSuccess(
@@ -265,7 +265,7 @@ describe('BotInstances', () => {
   it('Allows paging', async () => {
     server.use(getBotInstanceMetricsSuccess());
 
-    jest.mocked(listBotInstances).mockImplementation(
+    vi.mocked(listBotInstances).mockImplementation(
       ({ pageToken }) =>
         new Promise(resolve => {
           resolve({
@@ -341,7 +341,7 @@ describe('BotInstances', () => {
   it('Allows filtering (search)', async () => {
     server.use(getBotInstanceMetricsSuccess());
 
-    jest.mocked(listBotInstances).mockImplementation(
+    vi.mocked(listBotInstances).mockImplementation(
       ({ pageToken }) =>
         new Promise(resolve => {
           resolve({
@@ -362,7 +362,7 @@ describe('BotInstances', () => {
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
     const { user, history } = renderComponent();
-    jest.spyOn(history, 'push');
+    vi.spyOn(history, 'push');
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -421,7 +421,7 @@ describe('BotInstances', () => {
   it('Allows filtering (query)', async () => {
     server.use(getBotInstanceMetricsSuccess());
 
-    jest.mocked(listBotInstances).mockImplementation(
+    vi.mocked(listBotInstances).mockImplementation(
       ({ pageToken }) =>
         new Promise(resolve => {
           resolve({
@@ -442,7 +442,7 @@ describe('BotInstances', () => {
 
     expect(listBotInstances).toHaveBeenCalledTimes(0);
     const { user, history } = renderComponent();
-    jest.spyOn(history, 'push');
+    vi.spyOn(history, 'push');
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -506,7 +506,7 @@ describe('BotInstances', () => {
   it('Allows a filter to be applied from the dashboard', async () => {
     server.use(getBotInstanceMetricsSuccess());
 
-    jest.mocked(listBotInstances).mockImplementation(
+    vi.mocked(listBotInstances).mockImplementation(
       ({ pageToken }) =>
         new Promise(resolve => {
           resolve({
@@ -517,7 +517,7 @@ describe('BotInstances', () => {
     );
 
     const { user, history } = renderComponent();
-    jest.spyOn(history, 'push');
+    vi.spyOn(history, 'push');
 
     await waitForElementToBeRemoved(() =>
       screen.queryByTestId('loading-dashboard')
@@ -560,7 +560,7 @@ describe('BotInstances', () => {
   it('Allows sorting', async () => {
     server.use(getBotInstanceMetricsSuccess());
 
-    jest.mocked(listBotInstances).mockImplementation(
+    vi.mocked(listBotInstances).mockImplementation(
       ({ pageToken }) =>
         new Promise(resolve => {
           resolve({

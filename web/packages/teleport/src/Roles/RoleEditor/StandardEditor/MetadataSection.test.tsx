@@ -34,7 +34,7 @@ import { StandardModelDispatcher } from './useStandardModel';
 import { MetadataValidationResult } from './validation';
 
 beforeEach(() => {
-  jest
+  vi
     .spyOn(ResourceService.prototype, 'fetchRole')
     .mockImplementation(async (name: string) => {
       if (name === 'existing-role') {
@@ -53,11 +53,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 const setup = () => {
-  const modelRef = jest.fn();
+  const modelRef = vi.fn();
   const ctx = createTeleportContext();
   let validator: Validator;
   let dispatch: StandardModelDispatcher;
@@ -118,17 +118,17 @@ test('basic validation', async () => {
 // with a custom pair of before/after routines.
 describe('asynchronous validation', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   test('checking for existing roles', async () => {
     // Required for userEvent to cooperate nicely with fake timers.
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const { validator } = setup();
     await user.clear(screen.getByLabelText('Role Name *'));
     await user.type(screen.getByLabelText('Role Name *'), 'existing-role');
@@ -136,7 +136,7 @@ describe('asynchronous validation', () => {
     await act(async () => {
       validator.validate();
       // Wait until the fetch is debounced and resolved.
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
     });
     expect(screen.getByLabelText('Role Name *')).toHaveAccessibleDescription(
       'Role with this name already exists'
@@ -146,7 +146,7 @@ describe('asynchronous validation', () => {
     await user.type(screen.getByLabelText('Role Name *'), 'foo');
     await act(async () => {
       // Wait until the fetch is debounced and resolved.
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
     });
     expect(screen.getByLabelText('Role Name *')).toHaveAccessibleDescription(
       ''

@@ -45,12 +45,12 @@ import {
 import { ContextProvider } from '..';
 import { WorkloadIdentities } from './WorkloadIdentities';
 
-jest.mock('teleport/services/workloadIdentity/workloadIdentity', () => {
-  const actual = jest.requireActual(
+vi.mock('teleport/services/workloadIdentity/workloadIdentity', () => {
+  const actual = await vi.importActual(
     'teleport/services/workloadIdentity/workloadIdentity'
   );
   return {
-    listWorkloadIdentities: jest.fn((...all) => {
+    listWorkloadIdentities: vi.fn((...all) => {
       return actual.listWorkloadIdentities(...all);
     }),
   };
@@ -66,7 +66,7 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -173,7 +173,7 @@ describe('WorkloadIdentities', () => {
   });
 
   it('Allows paging', async () => {
-    jest.mocked(listWorkloadIdentities).mockImplementation(
+    vi.mocked(listWorkloadIdentities).mockImplementation(
       ({ pageToken }) =>
         new Promise(resolve => {
           resolve({
@@ -252,7 +252,7 @@ describe('WorkloadIdentities', () => {
   });
 
   it('Allows filtering (search)', async () => {
-    jest.mocked(listWorkloadIdentities).mockImplementation(
+    vi.mocked(listWorkloadIdentities).mockImplementation(
       ({ pageToken }) =>
         new Promise(resolve => {
           resolve({
@@ -318,7 +318,7 @@ describe('WorkloadIdentities', () => {
   });
 
   it('Allows sorting', async () => {
-    jest.mocked(listWorkloadIdentities).mockImplementation(
+    vi.mocked(listWorkloadIdentities).mockImplementation(
       ({ pageToken }) =>
         new Promise(resolve => {
           resolve({

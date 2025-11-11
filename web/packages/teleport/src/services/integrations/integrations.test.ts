@@ -29,12 +29,12 @@ import {
 } from './types';
 
 beforeEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
-  jest.spyOn(api, 'get').mockResolvedValue(awsOidcIntegration);
+  vi.spyOn(api, 'get').mockResolvedValue(awsOidcIntegration);
 
   let response =
     await integrationService.fetchIntegration<IntegrationAwsOidc>(
@@ -57,7 +57,7 @@ test('fetch a single integration: fetchIntegration()', async () => {
   });
 
   // test null response
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   response =
     await integrationService.fetchIntegration<IntegrationAwsOidc>(
@@ -73,7 +73,7 @@ test('fetch a single integration: fetchIntegration()', async () => {
 
 test('fetch integration list: fetchIntegrations()', async () => {
   // test a valid response
-  jest.spyOn(api, 'get').mockResolvedValue({
+  vi.spyOn(api, 'get').mockResolvedValue({
     items: [
       awsOidcIntegration,
       awsOidcIntegrationWithAudience,
@@ -129,7 +129,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
   });
 
   // test null response
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   response = await integrationService.fetchIntegrations();
   expect(response).toEqual({
@@ -140,7 +140,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
 
 test('fetchAwsDatabases response', async () => {
   // test a valid response
-  jest
+  vi
     .spyOn(api, 'post')
     .mockResolvedValue({ databases: mockAwsDbs, nextToken: 'next-token' });
 
@@ -193,7 +193,7 @@ test('fetchAwsDatabases response', async () => {
   });
 
   // test null response
-  jest.spyOn(api, 'post').mockResolvedValue(null);
+  vi.spyOn(api, 'post').mockResolvedValue(null);
 
   response = await integrationService.fetchAwsRdsDatabases(
     'integration-name',
@@ -216,7 +216,7 @@ describe('fetchAwsDatabases() request body formatting', () => {
   `(
     'format protocol $protocol',
     async ({ protocol, expectedEngines, expectedRdsType }) => {
-      jest.spyOn(api, 'post').mockResolvedValue({ databases: [] }); // not testing response here.
+      vi.spyOn(api, 'post').mockResolvedValue({ databases: [] }); // not testing response here.
 
       await integrationService.fetchAwsRdsDatabases(protocol, protocol, {
         region: 'us-east-1',
@@ -238,7 +238,7 @@ describe('fetchAwsDatabases() request body formatting', () => {
 
 test('fetch integration rules: fetchIntegrationRules()', async () => {
   // test a valid response
-  jest.spyOn(api, 'get').mockResolvedValue({
+  vi.spyOn(api, 'get').mockResolvedValue({
     rules: [
       {
         resourceType: 'eks',
@@ -272,7 +272,7 @@ test('fetch integration rules: fetchIntegrationRules()', async () => {
   });
 
   // test null response
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   response = await integrationService.fetchIntegrationRules(
     'name',
@@ -286,7 +286,7 @@ test('fetch integration rules: fetchIntegrationRules()', async () => {
 
 test('fetch integration user task list: fetchIntegrationUserTasksList()', async () => {
   // test a valid response
-  jest.spyOn(api, 'get').mockResolvedValue({
+  vi.spyOn(api, 'get').mockResolvedValue({
     items: [
       {
         name: 'task-name',
@@ -320,7 +320,7 @@ test('fetch integration user task list: fetchIntegrationUserTasksList()', async 
   });
 
   // test null response
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   response = await integrationService.fetchIntegrationUserTasksList(
     'name',

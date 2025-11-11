@@ -33,15 +33,15 @@ import { TeleportProviderBasic } from 'teleport/mocks/providers';
 
 import { BotInstancesList } from './BotInstancesList';
 
-jest.mock('design/utils/copyToClipboard', () => {
+vi.mock('design/utils/copyToClipboard', () => {
   return {
     __esModule: true,
-    copyToClipboard: jest.fn(),
+    copyToClipboard: vi.fn(),
   };
 });
 
 afterEach(async () => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 describe('BotIntancesList', () => {
@@ -54,7 +54,7 @@ describe('BotIntancesList', () => {
   });
 
   it('select an item', async () => {
-    const onItemSelected = jest.fn();
+    const onItemSelected = vi.fn();
 
     const { user } = renderComponent({
       props: {
@@ -115,7 +115,7 @@ describe('BotIntancesList', () => {
   });
 
   it('Allows fetch more action', async () => {
-    const onLoadNextPage = jest.fn();
+    const onLoadNextPage = vi.fn();
 
     const { user } = renderComponent({
       props: {
@@ -131,7 +131,7 @@ describe('BotIntancesList', () => {
   });
 
   it('Prevents next page action when no page', async () => {
-    const onLoadNextPage = jest.fn();
+    const onLoadNextPage = vi.fn();
 
     const { user } = renderComponent({
       props: {
@@ -148,7 +148,7 @@ describe('BotIntancesList', () => {
   });
 
   it('Prevents next page action when loading next page', async () => {
-    const onLoadNextPage = jest.fn();
+    const onLoadNextPage = vi.fn();
 
     const { user } = renderComponent({
       props: {
@@ -166,7 +166,7 @@ describe('BotIntancesList', () => {
   });
 
   it('Allows sort change', async () => {
-    const onSortChanged = jest.fn();
+    const onSortChanged = vi.fn();
 
     const { user } = renderComponent({
       props: {
@@ -202,7 +202,7 @@ describe('BotIntancesList', () => {
   });
 
   it('Shows an unsupported sort error', async () => {
-    const onSortChanged = jest.fn();
+    const onSortChanged = vi.fn();
 
     const { user } = renderComponent({
       props: {
@@ -267,9 +267,9 @@ const renderComponent = (options?: {
     sortField = 'bot_name',
     sortDir = 'ASC',
     selectedItem = null,
-    onSortChanged = jest.fn(),
-    onLoadNextPage = jest.fn(),
-    onItemSelected = jest.fn(),
+    onSortChanged = vi.fn(),
+    onLoadNextPage = vi.fn(),
+    onItemSelected = vi.fn(),
     isFiltering = false,
   } = props ?? {};
 

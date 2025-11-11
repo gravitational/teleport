@@ -33,20 +33,20 @@ import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserC
 import { ContextProvider } from '..';
 import { Preferences } from './Preferences';
 
-jest.mock(
+vi.mock(
   '../../../shared/components/ToastNotification/ToastNotificationContext',
   () => {
-    const originalContext = jest.requireActual(
+    const originalContext = await vi.importActual(
       '../../../shared/components/ToastNotification/ToastNotificationContext'
     );
     return {
       ...originalContext,
-      useToastNotifications: jest.fn(),
+      useToastNotifications: vi.fn(),
     };
   }
 );
 
-function renderComponent(ctx: TeleportContext, setErrorMessageFn = jest.fn()) {
+function renderComponent(ctx: TeleportContext, setErrorMessageFn = vi.fn()) {
   render(
     <ContextProvider ctx={ctx}>
       <ToastNotificationProvider>
@@ -68,8 +68,8 @@ describe('Account/Preferences', () => {
         return { success: true };
       });
 
-    (useToastNotifications as jest.Mock).mockReturnValue({
-      add: jest.fn(),
+    (useToastNotifications as Mock).mockReturnValue({
+      add: vi.fn(),
     });
 
     mockUserContextProviderWith(userContext);
@@ -91,7 +91,7 @@ describe('Account/Preferences', () => {
       .mockRejectedValue(new Error('error'));
     mockUserContextProviderWith(userContext);
 
-    const setErrorMessageFn = jest.fn();
+    const setErrorMessageFn = vi.fn();
     renderComponent(createTeleportContext(), setErrorMessageFn);
 
     fireEvent.click(screen.getByRole('radio', { name: /dark/i }));
@@ -115,8 +115,8 @@ describe('Account/Preferences', () => {
       });
     mockUserContextProviderWith(userContext);
 
-    const addNotification = jest.fn();
-    (useToastNotifications as jest.Mock).mockReturnValue({
+    const addNotification = vi.fn();
+    (useToastNotifications as Mock).mockReturnValue({
       add: addNotification,
     });
 
@@ -149,7 +149,7 @@ describe('Account/Preferences', () => {
   });
 
   it("theme selection isn't shown if a custom theme is set", () => {
-    jest.spyOn(styledComponents, 'useTheme').mockReturnValue({
+    vi.spyOn(styledComponents, 'useTheme').mockReturnValue({
       ...lightTheme,
       isCustomTheme: true,
     });
@@ -161,6 +161,6 @@ describe('Account/Preferences', () => {
 
     expect(screen.queryByText(/theme/i)).not.toBeInTheDocument();
 
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 });

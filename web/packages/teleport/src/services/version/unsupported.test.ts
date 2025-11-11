@@ -30,11 +30,11 @@ import {
 } from './unsupported';
 
 afterEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test('with non upgrade proxy related error, re-throws error', async () => {
-  jest.spyOn(integrationService, 'createAwsAppAccess');
+  vi.spyOn(integrationService, 'createAwsAppAccess');
 
   let { result } = renderHook(() => useV1Fallback());
 
@@ -51,7 +51,7 @@ test('with non upgrade proxy related error, re-throws error', async () => {
 });
 
 test('with upgrade proxy error, with labels, re-throws error', async () => {
-  jest.spyOn(integrationService, 'createAwsAppAccess');
+  vi.spyOn(integrationService, 'createAwsAppAccess');
 
   let { result } = renderHook(() => useV1Fallback());
 
@@ -68,7 +68,7 @@ test('with upgrade proxy error, with labels, re-throws error', async () => {
 });
 
 test('with upgrade proxy error, without labels, runs fallback', async () => {
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+  vi.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
 
   let { result } = renderHook(() => useV1Fallback());
 

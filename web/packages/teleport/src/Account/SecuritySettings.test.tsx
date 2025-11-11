@@ -38,7 +38,7 @@ const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;
 
 afterEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   cfg.auth.second_factor = defaultAuthType;
   cfg.auth.allowPasswordless = defaultPasswordless;
 });
@@ -127,7 +127,7 @@ test.each`
   'passkey + mfa button state: 2fa($mfa) with pwdless($pwdless) => passkey($pkEnabled) mfa($mfaEnabled)',
   async ({ mfa, pwdless, pkEnabled, mfaEnabled }) => {
     const ctx = createTeleportContext();
-    jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
+    vi.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
     cfg.auth.second_factor = mfa;
     cfg.auth.allowPasswordless = pwdless;
 
@@ -158,7 +158,7 @@ test.each`
   "Passkey state pill: passwordless=$pwdless, $passkeys.length passkey(s) => state='$state'",
   async ({ pwdless, passkeys, state }) => {
     const ctx = createTeleportContext();
-    jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue(passkeys);
+    vi.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue(passkeys);
     cfg.auth.second_factor = 'on';
     cfg.auth.allowPasswordless = pwdless;
 
@@ -186,7 +186,7 @@ test.each`
   "MFA state pill: mfa=$mfa, $methods.length MFA method(s) => state='$state'",
   async ({ mfa, methods, state }) => {
     const ctx = createTeleportContext();
-    jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue(methods);
+    vi.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue(methods);
     cfg.auth.second_factor = mfa;
 
     await renderComponent(ctx);
@@ -205,7 +205,7 @@ test.each`
   async ({ passwordState, state }) => {
     const ctx = createTeleportContext();
     ctx.storeUser.setState({ passwordState });
-    jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
+    vi.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
 
     await renderComponent(ctx);
 
@@ -217,16 +217,16 @@ test('password change', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   ctx.storeUser.setState({ passwordState: PasswordState.PASSWORD_STATE_UNSET });
-  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
-  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+  vi.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([]);
+  vi.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
     webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
     totpChallenge: true,
   });
-  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
-  jest
+  vi.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+  vi
     .spyOn(auth, 'createPrivilegeToken')
     .mockResolvedValueOnce('privilege-token');
-  jest.spyOn(auth, 'changePassword').mockResolvedValueOnce(undefined);
+  vi.spyOn(auth, 'changePassword').mockResolvedValueOnce(undefined);
 
   await renderComponent(ctx);
   expect(screen.getByTestId('password-state-pill')).toHaveTextContent(
@@ -253,7 +253,7 @@ test('password change', async () => {
 
 test('loading state', async () => {
   const ctx = createTeleportContext();
-  jest
+  vi
     .spyOn(ctx.mfaService, 'fetchDevices')
     .mockReturnValue(new Promise(() => {})); // Never resolve
   cfg.auth.second_factor = 'on';
@@ -282,20 +282,20 @@ test('loading state', async () => {
 test('adding an MFA device', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
-  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testPasskey]);
-  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+  vi.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testPasskey]);
+  vi.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
     webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
     totpChallenge: true,
     ssoChallenge: null,
   });
-  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
-  jest
+  vi.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+  vi
     .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
-  jest
+  vi
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
     .mockResolvedValueOnce(undefined);
-  jest
+  vi
     .spyOn(auth, 'createPrivilegeToken')
     .mockResolvedValueOnce('privilege-token');
   cfg.auth.second_factor = 'on';
@@ -334,20 +334,20 @@ test('adding an MFA device', async () => {
 test('adding a passkey', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
-  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
-  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+  vi.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
+  vi.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
     webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
     totpChallenge: true,
     ssoChallenge: null,
   });
-  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
-  jest
+  vi.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+  vi
     .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
-  jest
+  vi
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
     .mockResolvedValueOnce(undefined);
-  jest
+  vi
     .spyOn(auth, 'createPrivilegeToken')
     .mockResolvedValueOnce('privilege-token');
   cfg.auth.second_factor = 'on';
@@ -383,17 +383,17 @@ test('adding a passkey', async () => {
 test('removing an MFA method', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
-  jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
-  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
+  vi.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
+  vi.spyOn(auth, 'getMfaChallenge').mockResolvedValue({
     webauthnPublicKey: {} as PublicKeyCredentialRequestOptions,
     totpChallenge: true,
     ssoChallenge: null,
   });
-  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
-  jest
+  vi.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+  vi
     .spyOn(auth, 'createPrivilegeToken')
     .mockResolvedValueOnce('privilege-token');
-  jest
+  vi
     .spyOn(MfaService.prototype, 'removeDevice')
     .mockResolvedValueOnce(undefined);
   cfg.auth.second_factor = 'on';

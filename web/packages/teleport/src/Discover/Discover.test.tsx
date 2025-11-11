@@ -50,7 +50,7 @@ import { getGuideTileId } from './testUtils';
 import { DiscoverUpdateProps, useDiscover } from './useDiscover';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 type createProps = {
@@ -59,7 +59,7 @@ type createProps = {
 };
 
 const create = ({ initialEntry = '', preferredResource }: createProps) => {
-  jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
+  vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
 
   const defaultPref = makeDefaultUserPreferences();
   defaultPref.onboard.preferredResources = preferredResource

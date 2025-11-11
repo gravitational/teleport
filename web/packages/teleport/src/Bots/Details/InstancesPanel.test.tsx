@@ -49,7 +49,7 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -57,7 +57,7 @@ afterAll(() => server.close());
 describe('InstancesPanel', () => {
   it('should show a fetch error state', async () => {
     withFetchError();
-    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
+    render(<InstancesPanel botName="test-bot" onItemSelected={vi.fn()} />, {
       wrapper: makeWrapper(),
     });
     await waitForLoading();
@@ -67,7 +67,7 @@ describe('InstancesPanel', () => {
 
   it('should show a no permissions state', async () => {
     withFetchError();
-    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
+    render(<InstancesPanel botName="test-bot" onItemSelected={vi.fn()} />, {
       wrapper: makeWrapper({
         customAcl: makeAcl({
           botInstances: {
@@ -88,7 +88,7 @@ describe('InstancesPanel', () => {
   it('renders instance items', async () => {
     withFetchSuccess();
 
-    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
+    render(<InstancesPanel botName="test-bot" onItemSelected={vi.fn()} />, {
       wrapper: makeWrapper(),
     });
     await waitForLoading();

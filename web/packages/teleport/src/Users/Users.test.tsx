@@ -104,7 +104,7 @@ describe('invite collaborators integration', () => {
   test('displays the Enroll Users button when configured', async () => {
     server.use(successGetUsersV2([]));
 
-    const startMock = jest.fn();
+    const startMock = vi.fn();
     props = {
       ...props,
       InviteCollaborators: () => (
@@ -169,7 +169,7 @@ test('Users not equal to MAU Notice', async () => {
     onEmailPasswordResetClose: () => undefined,
     EmailPasswordReset: null,
     showMauInfo: true,
-    onDismissUsersMauNotice: jest.fn(),
+    onDismissUsersMauNotice: vi.fn(),
     usersAcl: defaultAcl,
   };
 

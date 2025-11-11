@@ -35,21 +35,21 @@ import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
 import { CreateAppAccess } from './CreateAppAccess';
 
 beforeEach(() => {
-  jest
+  vi
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
-  jest.spyOn(integrationService, 'createAwsAppAccessV2').mockResolvedValue(app);
-  jest
+  vi.spyOn(integrationService, 'createAwsAppAccessV2').mockResolvedValue(app);
+  vi
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('create app access', async () => {
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+  vi.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
 
   renderCreateAppAccess();
   await screen.findByText(/bash/i);
@@ -61,10 +61,10 @@ test('create app access', async () => {
 });
 
 test('create app access with v1 endpoint auto retry', async () => {
-  jest
+  vi
     .spyOn(integrationService, 'createAwsAppAccessV2')
     .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+  vi.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
 
   renderCreateAppAccess();
   await screen.findByText(/bash/i);

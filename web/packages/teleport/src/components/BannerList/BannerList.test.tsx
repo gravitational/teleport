@@ -56,7 +56,7 @@ describe('components/BannerList/Banner', () => {
   });
 
   it('hides banner when the banner close is clicked', () => {
-    const dismiss = jest.fn();
+    const dismiss = vi.fn();
     banners.pop();
     render(<BannerList banners={banners} onBannerDismiss={dismiss} />);
     expect(screen.getByText(banners[0].message)).toBeInTheDocument();

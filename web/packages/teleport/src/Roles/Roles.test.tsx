@@ -32,10 +32,10 @@ import { State } from './useRoles';
 
 describe('Roles list', () => {
   const defaultState: State = {
-    create: jest.fn(),
-    fetch: jest.fn(),
-    remove: jest.fn(),
-    update: jest.fn(),
+    create: vi.fn(),
+    fetch: vi.fn(),
+    remove: vi.fn(),
+    update: vi.fn(),
     rolesAcl: {
       read: true,
       remove: true,
@@ -46,7 +46,7 @@ describe('Roles list', () => {
   };
 
   beforeEach(() => {
-    jest.spyOn(defaultState, 'fetch').mockResolvedValue({
+    vi.spyOn(defaultState, 'fetch').mockResolvedValue({
       startKey: '',
       items: [
         {
@@ -61,7 +61,7 @@ describe('Roles list', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('button is enabled if user has create perms', async () => {
@@ -280,8 +280,8 @@ describe('Roles list', () => {
 test('renders the role diff component', async () => {
   const ctx = createTeleportContext();
   const defaultState = (): State => ({
-    create: jest.fn(),
-    fetch: jest.fn().mockResolvedValue({
+    create: vi.fn(),
+    fetch: vi.fn().mockResolvedValue({
       startKey: '',
       items: [
         {
@@ -293,8 +293,8 @@ test('renders the role diff component', async () => {
         },
       ],
     }),
-    remove: jest.fn(),
-    update: jest.fn(),
+    remove: vi.fn(),
+    update: vi.fn(),
     rolesAcl: {
       read: true,
       remove: true,
@@ -303,7 +303,7 @@ test('renders the role diff component', async () => {
       list: true,
     },
   });
-  jest.spyOn(yamlService, 'parse').mockImplementation(async () => {
+  vi.spyOn(yamlService, 'parse').mockImplementation(async () => {
     return withDefaults({});
   });
 

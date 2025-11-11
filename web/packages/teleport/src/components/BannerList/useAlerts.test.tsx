@@ -64,11 +64,11 @@ const ALERTS = [
   },
 ];
 
-jest.mock('teleport/services/alerts', () => ({
+vi.mock('teleport/services/alerts', () => ({
   fetchClusterAlerts: () => Promise.resolve(ALERTS),
 }));
 
-jest.mock('teleport/useStickyClusterId', () => () => ({ clusterId: 42 }));
+vi.mock('teleport/useStickyClusterId', () => () => ({ clusterId: 42 }));
 
 afterEach(() => {
   cfg.isDashboard = false;

@@ -27,13 +27,13 @@ describe('services/history', () => {
   beforeEach(() => {
     history.init(createMemoryHistory());
     browserHistory = history.original(/* be default returns inMemory history*/);
-    jest.spyOn(browserHistory, 'push');
-    jest.spyOn(history, 'getRoutes');
-    jest.spyOn(history, '_pageRefresh').mockImplementation();
+    vi.spyOn(browserHistory, 'push');
+    vi.spyOn(history, 'getRoutes');
+    vi.spyOn(history, '_pageRefresh').mockImplementation();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('ensureBaseUrl', () => {
@@ -73,7 +73,7 @@ describe('services/history', () => {
 
     // eslint-disable-next-line jest/expect-expect
     it('should push if allowed else fallback to default route', () => {
-      jest
+      vi
         .spyOn(history, 'getRoutes')
         .mockReturnValue([
           '/valid',
@@ -106,7 +106,7 @@ describe('services/history', () => {
 
     it('should refresh a page if called withRefresh=true', () => {
       let route = '/';
-      jest.spyOn(history, 'getRoutes').mockReturnValue([route]);
+      vi.spyOn(history, 'getRoutes').mockReturnValue([route]);
       history.push(route, true);
       expect(history._pageRefresh).toHaveBeenCalledWith(route);
     });
@@ -114,7 +114,7 @@ describe('services/history', () => {
 
   describe('goToLogin()', () => {
     it('should navigate to login with URL that has redirect parameter with current location', () => {
-      jest
+      vi
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/current-location']);
       history.original().location.pathname = '/current-location';
@@ -126,7 +126,7 @@ describe('services/history', () => {
     });
 
     it('should navigate to login with access_changed param and no redirect_uri', () => {
-      jest
+      vi
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/current-location']);
       history.original().location.pathname = '/current-location';
@@ -137,7 +137,7 @@ describe('services/history', () => {
     });
 
     it('should navigate to login with access_changed param and redirect_uri', () => {
-      jest
+      vi
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/current-location']);
       history.original().location.pathname = '/current-location';
@@ -152,7 +152,7 @@ describe('services/history', () => {
     });
 
     it('should navigate to login with no params', () => {
-      jest
+      vi
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/current-location']);
       history.original().location.pathname = '/current-location';
@@ -163,7 +163,7 @@ describe('services/history', () => {
     });
 
     it('should preserve query params in the redirect_uri', () => {
-      jest
+      vi
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/current-location']);
       history.original().location.pathname = '/current-location?test=value';

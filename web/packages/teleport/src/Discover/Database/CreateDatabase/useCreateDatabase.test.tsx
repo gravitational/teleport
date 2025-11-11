@@ -239,14 +239,14 @@ const newDatabaseReq: CreateDatabaseRequest = {
   labels: dbLabels,
 };
 
-jest.useFakeTimers();
+vi.useFakeTimers();
 const defaultIsCloud = cfg.isCloud;
 
 describe('registering new databases, mainly error checking', () => {
   const discoverCtx: DiscoverContextState = {
     agentMeta: {} as any,
     currentStep: 0,
-    nextStep: jest.fn(x => x),
+    nextStep: vi.fn(x => x),
     prevStep: () => null,
     onSelectResource: () => null,
     resourceSpec: resourceSpecAwsRdsAuroraMysql,
@@ -254,7 +254,7 @@ describe('registering new databases, mainly error checking', () => {
     viewConfig: null,
     indexedViews: [],
     setResourceSpec: () => null,
-    updateAgentMeta: jest.fn(x => x),
+    updateAgentMeta: vi.fn(x => x),
     emitErrorEvent: () => null,
     emitEvent: () => null,
     eventState: null,
@@ -265,21 +265,21 @@ describe('registering new databases, mainly error checking', () => {
 
   beforeEach(() => {
     cfg.isCloud = true;
-    jest.spyOn(api, 'get').mockResolvedValue([]); // required for fetchClusterAlerts
+    vi.spyOn(api, 'get').mockResolvedValue([]); // required for fetchClusterAlerts
 
-    jest
+    vi
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(null as never); // return value does not matter but required by ts
-    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+    vi.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
       agents: [{ name: 'new-db', labels: dbLabels } as any],
     });
-    jest
+    vi
       .spyOn(teleCtx.databaseService, 'createDatabase')
       .mockResolvedValue(null); // ret val not used
-    jest
+    vi
       .spyOn(teleCtx.databaseService, 'updateDatabase')
       .mockResolvedValue(null); // ret val not used
-    jest
+    vi
       .spyOn(teleCtx.databaseService, 'fetchDatabaseServices')
       .mockResolvedValue({ services });
 
@@ -297,7 +297,7 @@ describe('registering new databases, mainly error checking', () => {
 
   afterEach(() => {
     cfg.isCloud = defaultIsCloud;
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('polling until result returns (non aws)', async () => {
@@ -316,7 +316,7 @@ describe('registering new databases, mainly error checking', () => {
       1
     );
 
-    await act(async () => jest.advanceTimersByTime(3000));
+    await act(async () => vi.advanceTimersByTime(3000));
     expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
     expect(discoverCtx.updateAgentMeta).toHaveBeenCalledWith({
       resourceName: 'db-name',
@@ -334,7 +334,7 @@ describe('registering new databases, mainly error checking', () => {
   });
 
   test('continue polling when poll result returns with iamPolicyStatus field set to "pending"', async () => {
-    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+    vi.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
       agents: [
         {
           name: 'new-db',
@@ -356,13 +356,13 @@ describe('registering new databases, mainly error checking', () => {
 
     // The first result will not have the aws marker we are looking for.
     // Polling should continue.
-    await act(async () => jest.advanceTimersByTime(3000));
+    await act(async () => vi.advanceTimersByTime(3000));
     expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
     expect(discoverCtx.updateAgentMeta).not.toHaveBeenCalled();
 
     // Set the marker we are looking for in the next api reply.
-    jest.clearAllMocks();
-    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+    vi.clearAllMocks();
+    vi.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
       agents: [
         {
           name: 'new-db',
@@ -372,7 +372,7 @@ describe('registering new databases, mainly error checking', () => {
     });
 
     // The second poll result has the marker that should cancel polling.
-    await act(async () => jest.advanceTimersByTime(3000));
+    await act(async () => vi.advanceTimersByTime(3000));
     expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
     expect(discoverCtx.updateAgentMeta).toHaveBeenCalledWith({
       resourceName: 'db-name',
@@ -392,7 +392,7 @@ describe('registering new databases, mainly error checking', () => {
   });
 
   test('stops polling when poll result returns with iamPolicyStatus field set to "unspecified"', async () => {
-    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+    vi.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
       agents: [
         {
           name: 'new-db',
@@ -412,7 +412,7 @@ describe('registering new databases, mainly error checking', () => {
       1
     );
 
-    await act(async () => jest.advanceTimersByTime(3000));
+    await act(async () => vi.advanceTimersByTime(3000));
     expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
     expect(discoverCtx.updateAgentMeta).toHaveBeenCalledWith({
       resourceName: 'db-name',
@@ -427,7 +427,7 @@ describe('registering new databases, mainly error checking', () => {
   });
 
   test('when there are no services, skips polling', async () => {
-    jest
+    vi
       .spyOn(teleCtx.databaseService, 'fetchDatabaseServices')
       .mockResolvedValue({ services: [] } as any);
     const { result } = renderHook(() => useCreateDatabase(), {
@@ -463,7 +463,7 @@ describe('registering new databases, mainly error checking', () => {
   });
 
   test('when failed to create db, stops flow', async () => {
-    jest
+    vi
       .spyOn(teleCtx.databaseService, 'createDatabase')
       .mockRejectedValue(null);
     const { result } = renderHook(() => useCreateDatabase(), {
@@ -480,7 +480,7 @@ describe('registering new databases, mainly error checking', () => {
   });
 
   test('when failed to fetch services, stops flow and retries properly', async () => {
-    jest
+    vi
       .spyOn(teleCtx.databaseService, 'fetchDatabaseServices')
       .mockRejectedValue(null);
     const { result } = renderHook(() => useCreateDatabase(), {
@@ -500,7 +500,7 @@ describe('registering new databases, mainly error checking', () => {
     expect(result.current.attempt.status).toBe('failed');
 
     // Test retrying with same request, skips creating database since it's been already created.
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     await act(async () => {
       result.current.registerDatabase({ ...newDatabaseReq, labels: [] });
     });
@@ -511,7 +511,7 @@ describe('registering new databases, mainly error checking', () => {
     expect(result.current.attempt.status).toBe('failed');
 
     // Test retrying with updated field, triggers create database.
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     await act(async () => {
       result.current.registerDatabase({
         ...newDatabaseReq,
@@ -528,7 +528,7 @@ describe('registering new databases, mainly error checking', () => {
   });
 
   test('when polling timeout, retries properly', async () => {
-    jest
+    vi
       .spyOn(teleCtx.databaseService, 'fetchDatabases')
       .mockResolvedValue({ agents: [] });
     const { result } = renderHook(() => useCreateDatabase(), {
@@ -539,7 +539,7 @@ describe('registering new databases, mainly error checking', () => {
       result.current.registerDatabase(newDatabaseReq);
     });
 
-    act(() => jest.advanceTimersByTime(WAITING_TIMEOUT + 1));
+    act(() => vi.advanceTimersByTime(WAITING_TIMEOUT + 1));
 
     expect(teleCtx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
     expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
@@ -551,11 +551,11 @@ describe('registering new databases, mainly error checking', () => {
     expect(result.current.attempt.statusText).toContain('could not detect');
 
     // Test retrying with same request, skips creating database.
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     await act(async () => {
       result.current.registerDatabase(newDatabaseReq);
     });
-    act(() => jest.advanceTimersByTime(WAITING_TIMEOUT + 1));
+    act(() => vi.advanceTimersByTime(WAITING_TIMEOUT + 1));
 
     expect(teleCtx.databaseService.createDatabase).not.toHaveBeenCalled();
     expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
@@ -565,14 +565,14 @@ describe('registering new databases, mainly error checking', () => {
     expect(result.current.attempt.status).toBe('failed');
 
     // Test retrying with request with updated fields, updates db and fetches new services.
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     await act(async () => {
       result.current.registerDatabase({
         ...newDatabaseReq,
         uri: 'diff-uri',
       });
     });
-    act(() => jest.advanceTimersByTime(WAITING_TIMEOUT + 1));
+    act(() => vi.advanceTimersByTime(WAITING_TIMEOUT + 1));
 
     expect(teleCtx.databaseService.updateDatabase).toHaveBeenCalledTimes(1);
     expect(teleCtx.databaseService.createDatabase).not.toHaveBeenCalled();

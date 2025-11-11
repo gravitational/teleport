@@ -36,8 +36,8 @@ test('no user remembered in localstorage renders username input form', () => {
 
   render(
     <FormIdentifierFirst
-      onLoginWithSso={jest.fn()}
-      onUseLocalLogin={jest.fn()}
+      onLoginWithSso={vi.fn()}
+      onUseLocalLogin={vi.fn()}
       isLocalAuthEnabled={true}
       title={'Sign in to Teleport'}
       ssoTitle={'Sign in to Teleport with SSO'}
@@ -60,8 +60,8 @@ test('user remembered in localstorage shows welcome screen with connectors', asy
 
   render(
     <FormIdentifierFirst
-      onLoginWithSso={jest.fn()}
-      onUseLocalLogin={jest.fn()}
+      onLoginWithSso={vi.fn()}
+      onUseLocalLogin={vi.fn()}
       isLocalAuthEnabled={true}
       title={'Sign in to Teleport'}
       ssoTitle={'Sign in to Teleport with SSO'}
@@ -82,14 +82,14 @@ test('if there is only one connector returned after submitting username, the use
     )
   );
 
-  const mockOnLoginWithSso = jest.fn();
+  const mockOnLoginWithSso = vi.fn();
 
   const user = userEvent.setup();
 
   render(
     <FormIdentifierFirst
       onLoginWithSso={mockOnLoginWithSso}
-      onUseLocalLogin={jest.fn()}
+      onUseLocalLogin={vi.fn()}
       isLocalAuthEnabled={true}
       title={'Sign in to Teleport'}
       ssoTitle={'Sign in to Teleport with SSO'}

@@ -32,7 +32,7 @@ import { AdminRuleValidationResult } from './validation';
 
 describe('AdminRules', () => {
   const setup = () => {
-    const modelRef = jest.fn();
+    const modelRef = vi.fn();
     let validator: Validator;
     let dispatch: StandardModelDispatcher;
     render(

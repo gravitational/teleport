@@ -20,7 +20,7 @@ import api from 'teleport/services/api';
 import desktops from 'teleport/services/desktops';
 
 test('correct formatting of desktops fetch response', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(mockResponse);
+  vi.spyOn(api, 'get').mockResolvedValue(mockResponse);
   const response = await desktops.fetchDesktops('does-not-matter', {
     search: 'does-not-matter',
   });
@@ -42,7 +42,7 @@ test('correct formatting of desktops fetch response', async () => {
 });
 
 test('null response from desktops fetch', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   const response = await desktops.fetchDesktops('does-not-matter', {
     search: 'does-not-matter',
@@ -56,7 +56,7 @@ test('null response from desktops fetch', async () => {
 });
 
 test('null labels field in desktops fetch response', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
+  vi.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
   const response = await desktops.fetchDesktops('does-not-matter', {
     search: 'does-not-matter',
   });

@@ -77,13 +77,13 @@ const launcherPathTestCases: {
 
 describe('app launcher path is properly formed', () => {
   beforeEach(() => {
-    global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
-    jest.spyOn(api, 'get').mockResolvedValue({});
-    jest.spyOn(api, 'post').mockResolvedValue({});
-    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+    global.fetch = vi.fn(() => Promise.resolve({})) as Mock;
+    vi.spyOn(api, 'get').mockResolvedValue({});
+    vi.spyOn(api, 'post').mockResolvedValue({});
+    vi.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'grafana.localhost',
     });
-    jest.spyOn(service, 'createAppSession').mockResolvedValue({
+    vi.spyOn(service, 'createAppSession').mockResolvedValue({
       cookieValue: 'cookie-value',
       subjectCookieValue: 'subject-cookie-value',
       fqdn: '',
@@ -91,7 +91,7 @@ describe('app launcher path is properly formed', () => {
   });
 
   const windowLocation = {
-    replace: jest.fn(),
+    replace: vi.fn(),
   };
 
   test.each(launcherPathTestCases)(
@@ -247,8 +247,8 @@ const appSessionTestCases: {
 
 describe('fqdn is matched', () => {
   beforeEach(() => {
-    jest.spyOn(api, 'get').mockResolvedValue({});
-    jest.spyOn(api, 'post').mockResolvedValue({});
+    vi.spyOn(api, 'get').mockResolvedValue({});
+    vi.spyOn(api, 'post').mockResolvedValue({});
   });
 
   test.each(appSessionTestCases)(
@@ -260,12 +260,12 @@ describe('fqdn is matched', () => {
       expectedPublicAddr,
       expectedArn,
     }) => {
-      jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+      vi.spyOn(service, 'getAppDetails').mockResolvedValue({
         fqdn: returnedFqdn,
       });
-      jest.spyOn(service, 'createAppSession');
+      vi.spyOn(service, 'createAppSession');
       const windowLocation = {
-        replace: jest.fn(),
+        replace: vi.fn(),
       };
 
       render(
@@ -291,11 +291,11 @@ describe('fqdn is matched', () => {
   );
 
   test('not matching FQDN throws error', async () => {
-    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+    vi.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'different.fqdn',
     });
     const windowLocation = {
-      replace: jest.fn(),
+      replace: vi.fn(),
     };
 
     render(
@@ -320,11 +320,11 @@ describe('fqdn is matched', () => {
   });
 
   test('invalid URL when constructing a new URL with a malformed FQDN', async () => {
-    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+    vi.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'invalid.fqdn:3080:3090',
     });
     const windowLocation = {
-      replace: jest.fn(),
+      replace: vi.fn(),
     };
 
     render(

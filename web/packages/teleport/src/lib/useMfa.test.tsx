@@ -62,12 +62,12 @@ const mockChallengeReq: CreateAuthenticateChallengeRequest = {
 
 describe('useMfa', () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('mfa required', async () => {
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
-    jest
+    vi.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
+    vi
       .spyOn(auth, 'getMfaChallengeResponse')
       .mockResolvedValueOnce(mockResponse);
     const { result: mfa } = renderHook(() =>
@@ -100,7 +100,7 @@ describe('useMfa', () => {
   });
 
   test('mfa not required', async () => {
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue(null);
+    vi.spyOn(auth, 'getMfaChallenge').mockResolvedValue(null);
 
     const { result: mfa } = renderHook(() =>
       useMfa({
@@ -128,8 +128,8 @@ describe('useMfa', () => {
   });
 
   test('adaptable mfa requirement', async () => {
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
-    jest
+    vi.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
+    vi
       .spyOn(auth, 'getMfaChallengeResponse')
       .mockResolvedValueOnce(mockResponse);
 
@@ -180,7 +180,7 @@ describe('useMfa', () => {
 
   test('mfa challenge error', async () => {
     const err = new Error('an error has occurred');
-    jest.spyOn(auth, 'getMfaChallenge').mockImplementation(() => {
+    vi.spyOn(auth, 'getMfaChallenge').mockImplementation(() => {
       throw err;
     });
 
@@ -200,8 +200,8 @@ describe('useMfa', () => {
 
   test('mfa response error', async () => {
     const err = new Error('an error has occurred');
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
-    jest.spyOn(auth, 'getMfaChallengeResponse').mockImplementation(async () => {
+    vi.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(mockChallenge);
+    vi.spyOn(auth, 'getMfaChallengeResponse').mockImplementation(async () => {
       throw err;
     });
 
@@ -228,7 +228,7 @@ describe('useMfa', () => {
 
     // After an error, the mfa response promise remains in an unresolved state,
     // allowing for retries.
-    jest
+    vi
       .spyOn(auth, 'getMfaChallengeResponse')
       .mockResolvedValueOnce(mockResponse);
 
@@ -237,7 +237,7 @@ describe('useMfa', () => {
   });
 
   test('cancel mfa attempt', async () => {
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue(mockChallenge);
+    vi.spyOn(auth, 'getMfaChallenge').mockResolvedValue(mockChallenge);
     const { result: mfa } = renderHook(() =>
       useMfa({
         req: mockChallengeReq,
@@ -266,7 +266,7 @@ describe('useMfa', () => {
   });
 
   test('reset mfa state', async () => {
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValue(mockChallenge);
+    vi.spyOn(auth, 'getMfaChallenge').mockResolvedValue(mockChallenge);
     const { result: mfa } = renderHook(() =>
       useMfa({
         req: mockChallengeReq,

@@ -26,22 +26,22 @@ import { HeadlessRequest } from 'teleport/HeadlessRequest/HeadlessRequest';
 import { shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
 
-const mockGetChallengeResponse = jest.fn();
+const mockGetChallengeResponse = vi.fn();
 
-jest.mock('teleport/lib/useMfa', () => ({
+vi.mock('teleport/lib/useMfa', () => ({
   useMfa: () => ({
     getChallengeResponse: mockGetChallengeResponse,
     attempt: { status: '' },
   }),
-  shouldShowMfaPrompt: jest.fn(),
+  shouldShowMfaPrompt: vi.fn(),
 }));
 
 function setup({ mfaPrompt = false, path = '/web/headless/123' } = {}) {
-  (shouldShowMfaPrompt as jest.Mock).mockReturnValue(mfaPrompt);
+  (shouldShowMfaPrompt as Mock).mockReturnValue(mfaPrompt);
 
   mockGetChallengeResponse.mockResolvedValue({ webauthn_response: {} });
 
-  jest
+  vi
     .spyOn(auth, 'headlessSsoGet')
     .mockResolvedValue({ clientIpAddress: '1.2.3.4' });
 
@@ -58,7 +58,7 @@ function setup({ mfaPrompt = false, path = '/web/headless/123' } = {}) {
 
 describe('HeadlessRequest', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('shows the headless request approve/reject dialog', async () => {

@@ -31,7 +31,7 @@ const defaultIsEnterpriseFlag = cfg.isEnterprise;
 
 describe('buttonLockedFeature', () => {
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
 
     cfg.isEnterprise = defaultIsEnterpriseFlag;
   });
@@ -113,12 +113,12 @@ describe('buttonLockedFeature', () => {
 
   describe('userEventService', () => {
     beforeEach(() => {
-      jest.spyOn(userEventService, 'captureCtaEvent');
+      vi.spyOn(userEventService, 'captureCtaEvent');
     });
 
     afterEach(() => {
-      jest.resetAllMocks();
-      jest.clearAllMocks();
+      vi.resetAllMocks();
+      vi.clearAllMocks();
     });
 
     test('does not invoke userEventService for oss', async () => {

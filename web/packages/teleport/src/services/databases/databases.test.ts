@@ -22,7 +22,7 @@ import DatabaseService from './databases';
 import { Database, IamPolicyStatus } from './types';
 
 test('correct formatting of database fetch response', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(mockResponse);
+  vi.spyOn(api, 'get').mockResolvedValue(mockResponse);
 
   const database = new DatabaseService();
   const response = await database.fetchDatabases('im-a-cluster', {
@@ -79,7 +79,7 @@ test('correct formatting of database fetch response', async () => {
 });
 
 test('null response from database fetch', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   const database = new DatabaseService();
   const response = await database.fetchDatabases('im-a-cluster', {
@@ -122,7 +122,7 @@ describe('correct formatting of all type and protocol combos', () => {
   `(
     'should combine type: $type and protocol: $protocol correctly',
     async ({ type, protocol, combined }) => {
-      jest.spyOn(api, 'get').mockResolvedValue({ items: [{ type, protocol }] });
+      vi.spyOn(api, 'get').mockResolvedValue({ items: [{ type, protocol }] });
 
       const database = new DatabaseService();
       const response = await database.fetchDatabases('im-a-cluster', {
@@ -136,7 +136,7 @@ describe('correct formatting of all type and protocol combos', () => {
 });
 
 test('null labels field in database fetch response', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
+  vi.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
 
   const database = new DatabaseService();
   const response = await database.fetchDatabases('im-a-cluster', {
@@ -149,7 +149,7 @@ test('null labels field in database fetch response', async () => {
 test('database services fetch response', async () => {
   const database = new DatabaseService();
 
-  jest.spyOn(api, 'get').mockResolvedValue(mockServiceResponse);
+  vi.spyOn(api, 'get').mockResolvedValue(mockServiceResponse);
   const response = await database.fetchDatabaseServices('im-a-cluster');
   expect(response.services).toEqual([
     {
@@ -171,11 +171,11 @@ test('database services fetch response', async () => {
 test('null array fields in database services fetch response', async () => {
   const database = new DatabaseService();
 
-  jest.spyOn(api, 'get').mockResolvedValue({});
+  vi.spyOn(api, 'get').mockResolvedValue({});
   let response = await database.fetchDatabaseServices('im-a-cluster');
   expect(response.services).toEqual([]);
 
-  jest.spyOn(api, 'get').mockResolvedValue({ items: [{ name: '' }] });
+  vi.spyOn(api, 'get').mockResolvedValue({ items: [{ name: '' }] });
   response = await database.fetchDatabaseServices('im-a-cluster');
   expect(response.services).toEqual([{ name: '', matcherLabels: {} }]);
 });

@@ -253,7 +253,7 @@ describe('GitlabJoinTokenForm', () => {
 
 function renderComponent(options?: { state?: NewJoinTokenState }) {
   const { state = baseState() } = options ?? {};
-  const onUpdate = jest.fn();
+  const onUpdate = vi.fn();
   const user = userEvent.setup();
   return {
     ...render(

@@ -21,7 +21,7 @@ import NodesService from 'teleport/services/nodes';
 
 test('correct formatting of nodes fetch response', async () => {
   const nodesService = new NodesService();
-  jest.spyOn(api, 'get').mockResolvedValue(mockResponse);
+  vi.spyOn(api, 'get').mockResolvedValue(mockResponse);
   const response = await nodesService.fetchNodes('does-not-matter');
 
   expect(response).toEqual({
@@ -46,7 +46,7 @@ test('correct formatting of nodes fetch response', async () => {
 
 test('null response from nodes fetch', async () => {
   const nodesService = new NodesService();
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   const response = await nodesService.fetchNodes('does-not-matter');
 
@@ -59,7 +59,7 @@ test('null response from nodes fetch', async () => {
 
 test('null fields in nodes fetch response', async () => {
   const nodesService = new NodesService();
-  jest.spyOn(api, 'get').mockResolvedValue({
+  vi.spyOn(api, 'get').mockResolvedValue({
     items: [{ tags: null, sshLogins: null }],
   });
   const response = await nodesService.fetchNodes('does-not-matter');

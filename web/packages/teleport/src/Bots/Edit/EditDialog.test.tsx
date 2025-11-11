@@ -58,7 +58,7 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -123,7 +123,7 @@ describe('EditDialog', () => {
   });
 
   it('should allow roles to be edited', async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
 
     withFetchBotSuccess();
     withFetchRolesSuccess({ items: ['test-role'] });
@@ -163,7 +163,7 @@ describe('EditDialog', () => {
   });
 
   it('should allow traits to be edited', async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
 
     withFetchBotSuccess();
     withFetchRolesSuccess();
@@ -212,7 +212,7 @@ describe('EditDialog', () => {
   });
 
   it('should allow max session ttl to be edited', async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
 
     withFetchBotSuccess();
     withFetchRolesSuccess();
@@ -252,7 +252,7 @@ describe('EditDialog', () => {
   });
 
   it('should allow description to be edited', async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
 
     withFetchBotSuccess({
       description: '',
@@ -294,7 +294,7 @@ describe('EditDialog', () => {
   });
 
   it('should show a save error state', async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
 
     withFetchBotSuccess();
     withFetchRolesSuccess();
@@ -315,7 +315,7 @@ describe('EditDialog', () => {
   });
 
   it('should show a version mismatch warning', async () => {
-    const onSuccess = jest.fn();
+    const onSuccess = vi.fn();
 
     withFetchBotSuccess();
     withFetchRolesSuccess({ items: ['test-role'] });
@@ -432,8 +432,8 @@ function renderComponent(options?: {
   customAcl?: ReturnType<typeof makeAcl>;
 }) {
   const {
-    onCancel = jest.fn(),
-    onSuccess = jest.fn(),
+    onCancel = vi.fn(),
+    onSuccess = vi.fn(),
     customAcl,
   } = options ?? {};
   const user = userEvent.setup();

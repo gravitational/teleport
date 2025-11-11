@@ -31,11 +31,11 @@ import { Login } from './Login';
 let user: UserEvent;
 
 beforeEach(() => {
-  jest.restoreAllMocks();
-  jest.spyOn(history, 'push').mockImplementation();
-  jest.spyOn(history, 'replace').mockImplementation();
-  jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
-  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
+  vi.restoreAllMocks();
+  vi.spyOn(history, 'push').mockImplementation();
+  vi.spyOn(history, 'replace').mockImplementation();
+  vi.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
+  vi.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
   user = userEvent.setup();
 });
 
@@ -48,7 +48,7 @@ test('basic rendering', () => {
 });
 
 test('login with redirect', async () => {
-  jest.spyOn(auth, 'login').mockResolvedValue({});
+  vi.spyOn(auth, 'login').mockResolvedValue({});
 
   render(<Login />);
 
@@ -67,8 +67,8 @@ test('login with redirect', async () => {
 });
 
 test('login with MFA, changing method to OTP', async () => {
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
-  jest.spyOn(auth, 'login').mockResolvedValue({});
+  vi.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
+  vi.spyOn(auth, 'login').mockResolvedValue({});
 
   render(<Login />);
 
@@ -95,9 +95,9 @@ test('login with MFA, changing method to OTP', async () => {
 });
 
 test('login with SSO', () => {
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
-  jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'sso');
-  jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
+  vi.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
+  vi.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'sso');
+  vi.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
     {
       displayName: 'With GitHub',
       type: 'github',
@@ -117,8 +117,8 @@ test('login with SSO', () => {
 });
 
 test('passwordless login', async () => {
-  jest.spyOn(cfg, 'getPrimaryAuthType').mockReturnValue('passwordless');
-  jest.spyOn(auth, 'loginWithWebauthn').mockResolvedValue({});
+  vi.spyOn(cfg, 'getPrimaryAuthType').mockReturnValue('passwordless');
+  vi.spyOn(auth, 'loginWithWebauthn').mockResolvedValue({});
 
   render(<Login />);
 
@@ -140,7 +140,7 @@ describe('test MOTD', () => {
     unmount();
 
     // now set motd
-    jest
+    vi
       .spyOn(cfg, 'getMotd')
       .mockImplementation(
         () => 'Welcome to cluster, your activity will be recorded.'
@@ -155,7 +155,7 @@ describe('test MOTD', () => {
   });
 
   test('show login form after modt acknowledge', async () => {
-    jest
+    vi
       .spyOn(cfg, 'getMotd')
       .mockImplementation(
         () => 'Welcome to cluster, your activity will be recorded.'
@@ -170,12 +170,12 @@ describe('test MOTD', () => {
   });
 
   test('skip motd if login initiated from headless auth', async () => {
-    jest
+    vi
       .spyOn(cfg, 'getMotd')
       .mockImplementation(
         () => 'Welcome to cluster, your activity will be recorded.'
       );
-    jest
+    vi
       .spyOn(history, 'getRedirectParam')
       .mockReturnValue(
         'https://teleport.example.com/web/headless/5c5c1f73-ac5c-52ee-bc9e-0353094dcb4a'
@@ -189,7 +189,7 @@ describe('test MOTD', () => {
   });
 
   test('access changed message renders when the URL param is set', () => {
-    jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => true);
+    vi.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => true);
 
     render(<Login />);
 
@@ -199,8 +199,8 @@ describe('test MOTD', () => {
 });
 
 test('redirect to root if session is valid and path is not "/enterprise/saml-idp/sso"', () => {
-  jest.spyOn(session, 'isValid').mockImplementation(() => true);
-  jest
+  vi.spyOn(session, 'isValid').mockImplementation(() => true);
+  vi
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(
       'http://localhost/web/login?redirect_url=http://localhost/web/cluster/localhost/resources'
@@ -212,8 +212,8 @@ test('redirect to root if session is valid and path is not "/enterprise/saml-idp
 
 test('redirect if session is valid and path matches "/enterprise/saml-idp/sso"', () => {
   const samlIdPPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
-  jest.spyOn(session, 'isValid').mockImplementation(() => true);
-  jest
+  vi.spyOn(session, 'isValid').mockImplementation(() => true);
+  vi
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdPPath.toString());
   render(<Login />);

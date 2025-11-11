@@ -35,11 +35,11 @@ import {
 import { createMetadataHandler } from './mock';
 import { ViewSessionRecordingRoute } from './ViewSessionRecordingRoute';
 
-jest.spyOn(cfg, 'getSessionRecordingMetadataUrl').mockImplementation(() => {
+vi.spyOn(cfg, 'getSessionRecordingMetadataUrl').mockImplementation(() => {
   return 'ws://localhost/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws';
 });
 
-jest.mock('teleport/lib/AuthenticatedWebSocket', () => ({
+vi.mock('teleport/lib/AuthenticatedWebSocket', () => ({
   AuthenticatedWebSocket: MockAuthenticatedWebSocket,
 }));
 
@@ -52,7 +52,7 @@ beforeAll(() => {
 afterEach(() => {
   server.resetHandlers();
   testQueryClient.clear();
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => {
@@ -73,7 +73,7 @@ const mockMetadata: SessionRecordingMetadata = {
 };
 
 // mock the RecordingPlayer component
-jest.mock('./RecordingPlayer', () => ({
+vi.mock('./RecordingPlayer', () => ({
   RecordingPlayer: ({ clusterId, sessionId, durationMs, recordingType }) => (
     <div data-testid="recording-player">
       RecordingPlayer: {clusterId}/{sessionId}/{durationMs}/{recordingType}
@@ -233,7 +233,7 @@ test('falls back to loading the duration if metadata is not available and no URL
 });
 
 test('falls back to the session player if metadata is not available', async () => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(
     createMetadataHandler(mockMetadata, [], {
@@ -259,7 +259,7 @@ test('falls back to the session player if metadata is not available', async () =
 });
 
 test('shows error if metadata and duration are not available', async () => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(
     createMetadataHandler(mockMetadata, [], {

@@ -25,7 +25,7 @@ test('fetch events', async () => {
   const audit = new AuditService();
 
   // Test null response gives empty array.
-  jest.spyOn(api, 'get').mockResolvedValue({ events: null });
+  vi.spyOn(api, 'get').mockResolvedValue({ events: null });
   let response = await audit.fetchEvents('clusterId', params);
 
   expect(api.get).toHaveBeenCalledTimes(1);
@@ -34,7 +34,7 @@ test('fetch events', async () => {
 
   // Test normal response.
   audit.maxFetchLimit = 2;
-  jest.spyOn(api, 'get').mockResolvedValue(normalJson);
+  vi.spyOn(api, 'get').mockResolvedValue(normalJson);
   response = await audit.fetchEvents('clusterId', params);
 
   expect(response.startKey).toEqual(normalJson.startKey);
@@ -82,7 +82,7 @@ test('fetch events', async () => {
   ]);
 
   // Test unknown event code returns unknown format
-  jest.spyOn(api, 'get').mockResolvedValue(unknownEvent);
+  vi.spyOn(api, 'get').mockResolvedValue(unknownEvent);
   response = await audit.fetchEvents('clusterId', params);
 
   expect(response.events[0].codeDesc).toBe('Unknown');

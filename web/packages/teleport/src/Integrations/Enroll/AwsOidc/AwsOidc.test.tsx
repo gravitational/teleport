@@ -33,7 +33,7 @@ import { userEventService } from 'teleport/services/userEvent';
 import { AwsOidc } from './AwsOidc';
 
 test('render', async () => {
-  jest
+  vi
     .spyOn(userEventService, 'captureIntegrationEnrollEvent')
     .mockImplementation();
   render(
@@ -55,7 +55,7 @@ test('render', async () => {
 
 test('generate command', async () => {
   const user = userEvent.setup({ delay: null });
-  jest
+  vi
     .spyOn(userEventService, 'captureIntegrationEnrollEvent')
     .mockImplementation();
 
@@ -67,7 +67,7 @@ test('generate command', async () => {
     .spyOn(integrationService, 'createIntegration')
     .mockResolvedValue({} as any); // response doesn't matter
 
-  window.prompt = jest.fn();
+  window.prompt = vi.fn();
 
   render(
     <MemoryRouter>
@@ -124,7 +124,7 @@ test('generate command', async () => {
   expect(pingOrder).toBeLessThan(createOrder);
 
   // Test create is still called with 404 ping error.
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   let error = new ApiError({
     message: '',
     response: { status: 404 } as Response,
@@ -138,7 +138,7 @@ test('generate command', async () => {
   await waitFor(() => expect(spyCreate).toHaveBeenCalledTimes(1));
 
   // Test create isn't called with non 404 error
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   error = new ApiError({ message: '', response: { status: 400 } as Response });
   spyPing = jest
     .spyOn(integrationService, 'pingAwsOidcIntegration')

@@ -38,7 +38,7 @@ describe('teleport/LabelSelector', () => {
   });
 
   it('allows new labels to be added and sends them to the onchange handler', () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     render(<LabelSelector onChange={onChange} />);
     fireEvent.click(screen.getByTestId('label-container'));
     const labelInput: HTMLInputElement = screen.getByRole('textbox');
@@ -48,7 +48,7 @@ describe('teleport/LabelSelector', () => {
   });
 
   it('prevents invalid labels to be submitted', () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     render(<LabelSelector onChange={onChange} />);
     fireEvent.click(screen.getByTestId('label-container'));
     const labelInput: HTMLInputElement = screen.getByRole('textbox');

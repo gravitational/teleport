@@ -29,17 +29,17 @@ const ctx = new TeleportContext();
 
 beforeEach(() => {
   ctx.storeUser.setState({ ...userContext });
-  jest
+  vi
     .spyOn(ctx.joinTokenService, 'fetchJoinToken')
     .mockResolvedValue(tokenResp);
 });
 
 afterEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test('create token without labels', async () => {
-  jest
+  vi
     .spyOn(ctx.joinTokenService, 'fetchJoinTokenV2')
     .mockResolvedValue(tokenResp);
 
@@ -59,7 +59,7 @@ test('create token without labels', async () => {
 });
 
 test('create token without labels with v1 fallback', async () => {
-  jest
+  vi
     .spyOn(ctx.joinTokenService, 'fetchJoinTokenV2')
     .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
 

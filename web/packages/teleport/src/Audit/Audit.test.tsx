@@ -49,13 +49,13 @@ describe('Audit', () => {
 
   it('adds search to URL when searching', async () => {
     const ctx = createTeleportContext();
-    jest
+    vi
       .spyOn(ctx.auditService, 'fetchEventsV2')
       .mockResolvedValue({ events: [], startKey: '' });
-    jest.spyOn(ctx.clusterService, 'fetchClusters').mockResolvedValue([]);
+    vi.spyOn(ctx.clusterService, 'fetchClusters').mockResolvedValue([]);
 
     const { history, user } = renderComponent(ctx);
-    jest.spyOn(history, 'push');
+    vi.spyOn(history, 'push');
     act(mio.enterAll);
 
     const search = await screen.findByPlaceholderText('Search...');
@@ -89,13 +89,13 @@ describe('Audit', () => {
       },
     };
 
-    jest
+    vi
       .spyOn(ctx.auditService, 'fetchEventsV2')
       .mockResolvedValue({ events: [makeEvent(mockEvent)], startKey: '' });
-    jest.spyOn(ctx.clusterService, 'fetchClusters').mockResolvedValue([]);
+    vi.spyOn(ctx.clusterService, 'fetchClusters').mockResolvedValue([]);
 
     const { history, user } = renderComponent(ctx);
-    jest.spyOn(history, 'replace');
+    vi.spyOn(history, 'replace');
     act(mio.enterAll);
 
     const timeHeader = await screen.findByText(/Created \(UTC\)/i);

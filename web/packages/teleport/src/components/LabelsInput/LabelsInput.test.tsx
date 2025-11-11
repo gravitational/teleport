@@ -143,7 +143,7 @@ test('at least one row', async () => {
   }
 
   const user = userEvent.setup();
-  const onLabelsChange = jest.fn();
+  const onLabelsChange = vi.fn();
   render(<TestCase onLabelsChange={onLabelsChange} />);
 
   expect(screen.getByTitle(/remove label/i)).toBeDisabled();

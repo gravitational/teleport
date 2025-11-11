@@ -33,7 +33,7 @@ const authVersion = 'v15.0.0';
 
 describe('gitHub component', () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   type SetupProps = {
@@ -57,13 +57,13 @@ describe('gitHub component', () => {
       },
     });
 
-    jest.spyOn(ctx.resourceService, 'createRole').mockResolvedValue({
+    vi.spyOn(ctx.resourceService, 'createRole').mockResolvedValue({
       id: 'role-id',
       kind: 'role',
       name: 'role-name',
       content: '',
     });
-    jest.spyOn(ctx.joinTokenService, 'fetchJoinToken').mockResolvedValue({
+    vi.spyOn(ctx.joinTokenService, 'fetchJoinToken').mockResolvedValue({
       id: tokenName,
       expiry: new Date('2020-01-01'),
       safeName: '',
@@ -72,13 +72,13 @@ describe('gitHub component', () => {
       roles: [],
       content: '',
     });
-    jest.spyOn(botService, 'createBot').mockResolvedValue();
-    jest.spyOn(botService, 'createBotToken').mockResolvedValue({
+    vi.spyOn(botService, 'createBot').mockResolvedValue();
+    vi.spyOn(botService, 'createBotToken').mockResolvedValue({
       integrationName: 'test-integration',
       joinMethod: 'github',
       webFlowLabel: 'github-actions-ssh',
     });
-    jest.spyOn(botService, 'getBot').mockResolvedValue(null);
+    vi.spyOn(botService, 'getBot').mockResolvedValue(null);
 
     render(
       <MemoryRouter>

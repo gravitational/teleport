@@ -36,8 +36,8 @@ describe('emitting events', () => {
   let wrapper;
 
   beforeEach(() => {
-    jest.spyOn(api, 'get').mockResolvedValue([]); // required for fetchClusterAlerts
-    jest
+    vi.spyOn(api, 'get').mockResolvedValue([]); // required for fetchClusterAlerts
+    vi
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(null as never); // return value does not matter but required by ts
 
@@ -49,7 +49,7 @@ describe('emitting events', () => {
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   test('first render, init event state and emits started event', async () => {
@@ -78,14 +78,14 @@ describe('emitting events', () => {
         },
       })
     );
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   test('onSelectResource emits resource selected event', async () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-    jest.resetAllMocks(); // discount the init event
+    vi.resetAllMocks(); // discount the init event
 
     await act(async () => {
       result.current.onSelectResource(SERVERS[0]);
@@ -111,7 +111,7 @@ describe('emitting events', () => {
         },
       })
     );
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   test('incrementing view by one, emits success events', async () => {
@@ -123,7 +123,7 @@ describe('emitting events', () => {
     await act(async () => {
       result.current.onSelectResource(SERVERS[0]);
     });
-    jest.resetAllMocks(); // discount the events from init and select resource
+    vi.resetAllMocks(); // discount the events from init and select resource
     const id = result.current.eventState.id;
 
     // Test next step gets incremented by 1, passing in a non-number.
@@ -151,7 +151,7 @@ describe('emitting events', () => {
       id,
       currEventName: DiscoverEvent.PrincipalsConfigure,
     });
-    jest.resetAllMocks();
+    vi.resetAllMocks();
 
     // Test passing in nothing, increments by 1.
     await act(async () => {
@@ -180,7 +180,7 @@ describe('emitting events', () => {
     await act(async () => {
       result.current.onSelectResource(SERVERS[0]);
     });
-    jest.resetAllMocks(); // discount the events from init and select resource
+    vi.resetAllMocks(); // discount the events from init and select resource
 
     const id = result.current.eventState.id;
 
@@ -241,7 +241,7 @@ describe('emitting events', () => {
     await act(async () => {
       result.current.onSelectResource(SERVERS[0]);
     });
-    jest.resetAllMocks(); // discount the events from init and select resource
+    vi.resetAllMocks(); // discount the events from init and select resource
 
     const id = result.current.eventState.id;
 
@@ -274,7 +274,7 @@ describe('emitting events', () => {
     await act(async () => {
       result.current.onSelectResource(SERVERS[0]);
     });
-    jest.resetAllMocks(); // discount the events from init and select resource
+    vi.resetAllMocks(); // discount the events from init and select resource
 
     await act(async () => {
       result.current.emitErrorEvent('some error message');

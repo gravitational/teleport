@@ -25,16 +25,16 @@ import session from 'teleport/services/websession';
 import useLogin from './useLogin';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
-  jest.spyOn(session, 'isValid').mockImplementation(() => true);
-  jest.spyOn(history, 'push').mockImplementation();
-  jest.spyOn(history, 'replace').mockImplementation();
-  jest.mock('shared/hooks', () => ({
+  vi.restoreAllMocks();
+  vi.spyOn(session, 'isValid').mockImplementation(() => true);
+  vi.spyOn(history, 'push').mockImplementation();
+  vi.spyOn(history, 'replace').mockImplementation();
+  vi.mock('shared/hooks', () => ({
     useAttempt: () => {
       return [
         { status: 'success', statusText: 'Success Text' },
         {
-          clear: jest.fn(),
+          clear: vi.fn(),
         },
       ];
     },
@@ -42,15 +42,15 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 it('redirect to root on path not matching "/enterprise/saml-idp/sso"', () => {
-  jest.spyOn(history, 'getRedirectParam').mockReturnValue('http://localhost');
+  vi.spyOn(history, 'getRedirectParam').mockReturnValue('http://localhost');
   renderHook(() => useLogin());
   expect(history.replace).toHaveBeenCalledWith('/web');
 
-  jest
+  vi
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue('http://localhost/web/cluster/name/resources');
   renderHook(() => useLogin());
@@ -60,7 +60,7 @@ it('redirect to root on path not matching "/enterprise/saml-idp/sso"', () => {
 it('redirect to SAML SSO path on matching "/enterprise/saml-idp/sso"', () => {
   const samlIdpPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
   cfg.baseUrl = 'http://localhost';
-  jest
+  vi
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdpPath.toString());
   renderHook(() => useLogin());
@@ -69,7 +69,7 @@ it('redirect to SAML SSO path on matching "/enterprise/saml-idp/sso"', () => {
 
 it('non-base domain redirects with base domain for a matching "/enterprise/saml-idp/sso"', async () => {
   const samlIdpPath = new URL('http://different-base' + cfg.routes.samlIdpSso);
-  jest
+  vi
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdpPath.toString());
   renderHook(() => useLogin());
@@ -79,7 +79,7 @@ it('non-base domain redirects with base domain for a matching "/enterprise/saml-
 
 it('base domain with different path is redirected to root', async () => {
   const nonSamlIdpPath = new URL('http://localhost/web/cluster/name/resources');
-  jest
+  vi
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(nonSamlIdpPath.toString());
   renderHook(() => useLogin());
@@ -90,10 +90,10 @@ it('invalid session does nothing', async () => {
   const samlIdpPathWithDifferentBase = new URL(
     'http://different-base' + cfg.routes.samlIdpSso
   );
-  jest
+  vi
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdpPathWithDifferentBase.toString());
-  jest.spyOn(session, 'isValid').mockImplementation(() => false);
+  vi.spyOn(session, 'isValid').mockImplementation(() => false);
   renderHook(() => useLogin());
   expect(history.replace).not.toHaveBeenCalled();
   expect(history.push).not.toHaveBeenCalled();

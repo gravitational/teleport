@@ -32,29 +32,29 @@ import { AddAuthDeviceWizardStepProps } from './AddAuthDeviceWizard';
 const dummyCredential: Credential = { id: 'cred-id', type: 'public-key' };
 let ctx: TeleportContext;
 let user: UserEvent;
-let onSuccess: jest.Mock;
+let onSuccess: any;
 
 beforeEach(() => {
   ctx = new TeleportContext();
   user = userEvent.setup();
-  onSuccess = jest.fn();
+  onSuccess = vi.fn();
 
-  jest
+  vi
     .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
-  jest
+  vi
     .spyOn(MfaService.prototype, 'saveNewWebAuthnDevice')
     .mockResolvedValueOnce(undefined);
-  jest.spyOn(auth, 'createMfaRegistrationChallenge').mockResolvedValueOnce({
+  vi.spyOn(auth, 'createMfaRegistrationChallenge').mockResolvedValueOnce({
     qrCode: 'dummy-qr-code',
     webauthnPublicKey: {} as PublicKeyCredentialCreationOptions,
   });
-  jest
+  vi
     .spyOn(MfaService.prototype, 'addNewTotpDevice')
     .mockResolvedValueOnce(undefined);
 });
 
-afterEach(jest.resetAllMocks);
+afterEach(vi.resetAllMocks);
 
 function TestWizard(props: Partial<AddAuthDeviceWizardStepProps> = {}) {
   return (
@@ -72,8 +72,8 @@ function TestWizard(props: Partial<AddAuthDeviceWizardStepProps> = {}) {
 
 describe('flow without reauthentication', () => {
   beforeEach(() => {
-    jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({});
-    jest
+    vi.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce({});
+    vi
       .spyOn(auth, 'createPrivilegeToken')
       .mockResolvedValueOnce('privilege-token');
   });
@@ -176,11 +176,11 @@ describe('flow with reauthentication', () => {
   };
 
   beforeEach(() => {
-    jest
+    vi
       .spyOn(auth, 'getMfaChallenge')
       .mockResolvedValueOnce(dummyMfaChallenge);
-    jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
-    jest
+    vi.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+    vi
       .spyOn(auth, 'createPrivilegeToken')
       .mockResolvedValueOnce('privilege-token');
   });

@@ -85,7 +85,7 @@ describe('StandardBanner', () => {
 
   it('calls onDismiss when the X is clicked', () => {
     const id = 'test-banner';
-    const onDismiss = jest.fn();
+    const onDismiss = vi.fn();
     render(
       <StandardBanner
         message="I am steve banner"
@@ -138,7 +138,7 @@ describe('StandardBanner', () => {
     });
 
     it('captures click events', () => {
-      jest.spyOn(userEventService, 'captureUserEvent');
+      vi.spyOn(userEventService, 'captureUserEvent');
       render(
         <StandardBanner
           message="some message"

@@ -32,7 +32,7 @@ import { dummyHardwareDevice, dummyPasskey } from './deviceCases';
 
 let ctx: TeleportContext;
 let user: UserEvent;
-let onSuccess: jest.Mock;
+let onSuccess: any;
 
 const dummyMfaChallenge = {
   totpChallenge: true,
@@ -43,19 +43,19 @@ const dummyMfaChallenge = {
 beforeEach(() => {
   ctx = new TeleportContext();
   user = userEvent.setup();
-  onSuccess = jest.fn();
+  onSuccess = vi.fn();
 
-  jest.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(dummyMfaChallenge);
-  jest.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
-  jest
+  vi.spyOn(auth, 'getMfaChallenge').mockResolvedValueOnce(dummyMfaChallenge);
+  vi.spyOn(auth, 'getMfaChallengeResponse').mockResolvedValueOnce({});
+  vi
     .spyOn(auth, 'createPrivilegeToken')
     .mockResolvedValueOnce('privilege-token');
-  jest
+  vi
     .spyOn(MfaService.prototype, 'removeDevice')
     .mockResolvedValueOnce(undefined);
 });
 
-afterEach(jest.resetAllMocks);
+afterEach(vi.resetAllMocks);
 
 function TestWizard(props: Partial<DeleteAuthDeviceWizardStepProps>) {
   return (

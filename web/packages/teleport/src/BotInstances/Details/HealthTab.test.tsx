@@ -28,13 +28,13 @@ import { mockGetBotInstanceResponse } from 'teleport/test/helpers/botInstances';
 import { HealthTab } from './HealthTab';
 
 beforeAll(() => {
-  jest.useFakeTimers({
+  vi.useFakeTimers({
     now: new Date('2025-10-10T11:00:00Z'),
   });
 });
 
 afterAll(() => {
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
 describe('HealthTab', () => {

@@ -27,7 +27,7 @@ import TeleportContext from 'teleport/teleportContext';
 
 test('renders ec2 impacts', async () => {
   const ctx = new TeleportContext();
-  jest.spyOn(integrationService, 'fetchUserTask').mockResolvedValue({
+  vi.spyOn(integrationService, 'fetchUserTask').mockResolvedValue({
     name: 'df4d8288-7106-5a50-bb50-4b5858e48ad5',
     taskType: 'discover-ec2',
     state: 'OPEN',
@@ -82,12 +82,12 @@ test('renders ec2 impacts', async () => {
 
   expect(screen.getByRole('link')).toHaveAttribute('href', 'some-run-url');
 
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test('renders eks impacts', async () => {
   const ctx = new TeleportContext();
-  jest.spyOn(integrationService, 'fetchUserTask').mockResolvedValue({
+  vi.spyOn(integrationService, 'fetchUserTask').mockResolvedValue({
     name: 'df4d8288-7106-5a50-bb50-4b5858e48ad5',
     taskType: 'discover-eks',
     state: 'OPEN',
@@ -134,12 +134,12 @@ test('renders eks impacts', async () => {
     header: ['Name'],
     rows: [['i-016e32a5882f5ee81'], ['i-065818031835365cc']],
   });
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test('renders rds impacts', async () => {
   const ctx = new TeleportContext();
-  jest.spyOn(integrationService, 'fetchUserTask').mockResolvedValue({
+  vi.spyOn(integrationService, 'fetchUserTask').mockResolvedValue({
     name: 'df4d8288-7106-5a50-bb50-4b5858e48ad5',
     taskType: 'discover-rds',
     state: 'OPEN',
@@ -194,7 +194,7 @@ test('renders rds impacts', async () => {
     'href',
     'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html'
   );
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 function getTableCellContents() {

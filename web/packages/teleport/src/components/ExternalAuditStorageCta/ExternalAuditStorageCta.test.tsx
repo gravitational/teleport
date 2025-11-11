@@ -30,7 +30,7 @@ import { ExternalAuditStorageCta } from './ExternalAuditStorageCta';
 
 describe('externalAuditStorageCta', () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   type SetupParams = {
@@ -49,7 +49,7 @@ describe('externalAuditStorageCta', () => {
     cfg.isCloud = isCloud;
     cfg.externalAuditStorage = !lockedFeature;
 
-    jest
+    vi
       .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')
       .mockReturnValue(false);
 

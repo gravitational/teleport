@@ -48,7 +48,7 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -111,7 +111,7 @@ describe('BotInstanceDashboard', () => {
   });
 
   it('items are selectable', async () => {
-    const onFilterSelected = jest.fn();
+    const onFilterSelected = vi.fn();
 
     withSuccessResponse();
 
@@ -153,7 +153,7 @@ describe('BotInstanceDashboard', () => {
   });
 
   it('refreshes', async () => {
-    const onFilterSelected = jest.fn();
+    const onFilterSelected = vi.fn();
 
     withSuccessResponse();
 
@@ -199,7 +199,7 @@ function renderComponent(options?: {
   props?: ComponentProps<typeof BotInstancesDashboard>;
 }) {
   const { props } = options ?? {};
-  const { onFilterSelected = jest.fn() } = props ?? {};
+  const { onFilterSelected = vi.fn() } = props ?? {};
 
   const user = userEvent.setup();
 

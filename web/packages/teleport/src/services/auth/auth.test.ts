@@ -22,7 +22,7 @@ import auth from 'teleport/services/auth';
 
 describe('services/auth', () => {
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // sample data
@@ -30,7 +30,7 @@ describe('services/auth', () => {
   const email = 'user@example.com';
 
   test('login()', async () => {
-    jest.spyOn(api, 'post').mockResolvedValue({});
+    vi.spyOn(api, 'post').mockResolvedValue({});
 
     await auth.login(email, password, '');
     expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, {
@@ -41,7 +41,7 @@ describe('services/auth', () => {
   });
 
   test('login() OTP', async () => {
-    jest.spyOn(api, 'post').mockResolvedValue({});
+    vi.spyOn(api, 'post').mockResolvedValue({});
     const data = {
       user: email,
       pass: password,
@@ -53,7 +53,7 @@ describe('services/auth', () => {
   });
 
   test('resetPassword()', async () => {
-    jest.spyOn(api, 'put').mockResolvedValue({});
+    vi.spyOn(api, 'put').mockResolvedValue({});
     const submitData = {
       token: 'tokenId',
       second_factor_token: '2fa_token',

@@ -27,7 +27,7 @@ import * as useTeleport from 'teleport/useTeleport';
 import { usePollForConnectMyComputerNode } from './SetupConnect';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe('usePollForConnectMyComputerNode', () => {
@@ -49,15 +49,15 @@ describe('usePollForConnectMyComputerNode', () => {
     const expectedNode = nodes[0];
 
     const nodeService = {
-      fetchNodes: jest.fn(),
+      fetchNodes: vi.fn(),
     } as Partial<NodeService> as NodeService;
 
-    jest
+    vi
       .mocked(nodeService)
       .fetchNodes.mockResolvedValue({ agents: [...initialNodes, expectedNode] })
       .mockResolvedValueOnce({ agents: initialNodes });
 
-    jest
+    vi
       .spyOn(useTeleport, 'default')
       .mockReturnValue({ nodeService } as TeleportContext);
 
@@ -84,10 +84,10 @@ describe('usePollForConnectMyComputerNode', () => {
     let hasReloadedUser = false;
 
     const nodeService = {
-      fetchNodes: jest.fn(),
+      fetchNodes: vi.fn(),
     } as Partial<NodeService> as NodeService;
 
-    jest.mocked(nodeService).fetchNodes.mockImplementation(async () => {
+    vi.mocked(nodeService).fetchNodes.mockImplementation(async () => {
       if (hasReloadedUser) {
         return { agents: [expectedNode] };
       } else {
@@ -96,14 +96,14 @@ describe('usePollForConnectMyComputerNode', () => {
     });
 
     const userService = {
-      reloadUser: jest.fn(),
+      reloadUser: vi.fn(),
     } as Partial<typeof UserService> as typeof UserService;
 
-    jest.mocked(userService).reloadUser.mockImplementation(async () => {
+    vi.mocked(userService).reloadUser.mockImplementation(async () => {
       hasReloadedUser = true;
     });
 
-    jest
+    vi
       .spyOn(useTeleport, 'default')
       .mockReturnValue({ nodeService, userService } as TeleportContext);
 

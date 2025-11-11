@@ -75,8 +75,8 @@ describe('flowButtons component', () => {
   });
 
   it('triggers the correct click handler', async () => {
-    const prevMock = jest.fn();
-    const nextMock = jest.fn();
+    const prevMock = vi.fn();
+    const nextMock = vi.fn();
     render(
       <MemoryRouter>
         <FlowButtons {...props} prevStep={prevMock} nextStep={nextMock} />
@@ -94,7 +94,7 @@ describe('flowButtons component', () => {
     const history = createMemoryHistory({
       initialEntries: [{ state: { previousPathname: 'web/random/route' } }],
     });
-    history.push = jest.fn();
+    history.push = vi.fn();
 
     render(
       <Router history={history}>
@@ -108,7 +108,7 @@ describe('flowButtons component', () => {
 
   test('when useLocation.state is NOT defined, the first step back button defaults to bots pathname', async () => {
     const history = createMemoryHistory();
-    history.push = jest.fn();
+    history.push = vi.fn();
 
     render(
       <Router history={history}>

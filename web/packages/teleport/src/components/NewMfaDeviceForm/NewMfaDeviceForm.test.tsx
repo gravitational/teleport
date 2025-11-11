@@ -53,8 +53,8 @@ test('back arrow', async () => {
     screen.queryByRole('button', { name: /back/i })
   ).not.toBeInTheDocument();
 
-  const prev = jest.fn();
-  const clearSubmitAttempt = jest.fn();
+  const prev = vi.fn();
+  const clearSubmitAttempt = vi.fn();
   render(<NewMfaDeviceForm {...formProps({ prev, clearSubmitAttempt })} />);
   await user.click(screen.getByRole('button', { name: /back/i }));
   expect(prev).toHaveBeenCalled();
@@ -70,8 +70,8 @@ test('MFA options', () => {
 
 test('WebAuthn', async () => {
   const user = userEvent.setup();
-  const createNewWebAuthnDevice = jest.fn();
-  const onSubmitWithWebAuthn = jest.fn();
+  const createNewWebAuthnDevice = vi.fn();
+  const onSubmitWithWebAuthn = vi.fn();
   let props = formProps({ createNewWebAuthnDevice, onSubmitWithWebAuthn });
   const { rerender } = render(<NewMfaDeviceForm {...props} />);
 
@@ -92,7 +92,7 @@ test('WebAuthn', async () => {
 
 test('OTP', async () => {
   const user = userEvent.setup();
-  const onSubmit = jest.fn();
+  const onSubmit = vi.fn();
   render(<NewMfaDeviceForm {...formProps({ onSubmit, qrCode: 'qr-code' })} />);
 
   await user.click(screen.getByLabelText(/authenticator app/i));

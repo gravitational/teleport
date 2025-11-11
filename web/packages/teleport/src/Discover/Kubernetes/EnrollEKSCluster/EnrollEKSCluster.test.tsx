@@ -48,13 +48,13 @@ describe('test EnrollEksCluster.tsx', () => {
   let createDiscoveryConfig;
   beforeEach(() => {
     cfg.isCloud = true;
-    jest
+    vi
       .spyOn(KubeService.prototype, 'fetchKubernetes')
       .mockResolvedValue({ agents: [] });
-    jest
+    vi
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(undefined as never);
-    jest
+    vi
       .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
       .mockResolvedValue(undefined);
     createDiscoveryConfig = jest
@@ -68,11 +68,11 @@ describe('test EnrollEksCluster.tsx', () => {
 
   afterEach(() => {
     cfg.isCloud = defaultIsCloud;
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   test('without EKS clusters available, does not attempt to fetch kube clusters', async () => {
-    jest
+    vi
       .spyOn(integrationService, 'fetchEksClusters')
       .mockResolvedValue({ clusters: [] });
 
@@ -92,7 +92,7 @@ describe('test EnrollEksCluster.tsx', () => {
   });
 
   test('with EKS clusters available, makes a fetch request for kube clusters', async () => {
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
 
@@ -112,10 +112,10 @@ describe('test EnrollEksCluster.tsx', () => {
   });
 
   test('auto enroll (cloud) is on by default', async () => {
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest.spyOn(integrationService, 'enrollEksClustersV2');
+    vi.spyOn(integrationService, 'enrollEksClustersV2');
 
     render(<Component />);
 
@@ -152,10 +152,10 @@ describe('test EnrollEksCluster.tsx', () => {
 
   test('auto enroll (self-hosted) is on by default', async () => {
     cfg.isCloud = false;
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest.spyOn(integrationService, 'enrollEksClustersV2');
+    vi.spyOn(integrationService, 'enrollEksClustersV2');
 
     render(<Component />);
 
@@ -192,13 +192,13 @@ describe('test EnrollEksCluster.tsx', () => {
   });
 
   test('auto enroll disabled, enrolls cluster without labels', async () => {
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest
+    vi
       .spyOn(integrationService, 'enrollEksClustersV2')
       .mockResolvedValue({} as any); // value doesn't matter
-    jest
+    vi
       .spyOn(integrationService, 'enrollEksClusters')
       .mockResolvedValue({} as any); // value doesn't matter
 
@@ -225,13 +225,13 @@ describe('test EnrollEksCluster.tsx', () => {
   });
 
   test('enroll eks without labels with v1 fallback', async () => {
-    jest.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
+    vi.spyOn(integrationService, 'fetchEksClusters').mockResolvedValue({
       clusters: mockEKSClusters,
     });
-    jest
+    vi
       .spyOn(integrationService, 'enrollEksClustersV2')
       .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
-    jest.spyOn(integrationService, 'enrollEksClusters');
+    vi.spyOn(integrationService, 'enrollEksClusters');
 
     render(<Component />);
 

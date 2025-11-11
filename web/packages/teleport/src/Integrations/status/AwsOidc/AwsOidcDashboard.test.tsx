@@ -34,7 +34,7 @@ import {
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
-jest.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
+vi.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
   items: [],
   nextKey: '',
 });

@@ -48,7 +48,7 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -57,7 +57,7 @@ describe('ResourceLockDialog', () => {
   it('should cancel', async () => {
     withListLocksSuccess();
 
-    const onCancel = jest.fn();
+    const onCancel = vi.fn();
 
     const { user } = renderComponent({ onCancel });
 
@@ -74,7 +74,7 @@ describe('ResourceLockDialog', () => {
   it('should submit', async () => {
     withListLocksSuccess();
 
-    const onComplete = jest.fn();
+    const onComplete = vi.fn();
 
     const { user } = renderComponent({ onComplete });
 
@@ -117,7 +117,7 @@ function renderComponent(
     'onCancel' | 'onComplete'
   >
 ) {
-  const { onCancel = jest.fn(), onComplete = jest.fn() } = params ?? {};
+  const { onCancel = vi.fn(), onComplete = vi.fn() } = params ?? {};
   const user = userEvent.setup();
   return {
     ...render(

@@ -43,10 +43,10 @@ function makeMockState(partial: Partial<MfaState>): MfaState {
 }
 
 describe('AuthnDialog', () => {
-  const mockOnCancel = jest.fn();
+  const mockOnCancel = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('renders single option dialog', () => {
@@ -125,7 +125,7 @@ describe('AuthnDialog', () => {
         statusText: '',
         data: null,
       },
-      submit: jest.fn(),
+      submit: vi.fn(),
     });
     render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
     const ssoButton = screen.getByText('Okta');
@@ -143,7 +143,7 @@ describe('AuthnDialog', () => {
         statusText: '',
         data: null,
       },
-      submit: jest.fn(),
+      submit: vi.fn(),
     });
     render(<AuthnDialog mfaState={mfa} onClose={mockOnCancel} />);
     const webauthn = screen.getByText('Passkey or MFA Device');

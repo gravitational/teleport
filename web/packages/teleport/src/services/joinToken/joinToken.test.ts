@@ -23,12 +23,12 @@ import JoinTokenService from './joinToken';
 import type { JoinTokenRequest } from './types';
 
 beforeEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 test('fetchJoinToken with an empty request properly sets defaults', () => {
   const svc = new JoinTokenService();
-  jest.spyOn(api, 'post').mockResolvedValue(null);
+  vi.spyOn(api, 'post').mockResolvedValue(null);
 
   // Test with all empty fields.
   svc.fetchJoinTokenV2({} as any);
@@ -48,7 +48,7 @@ test('fetchJoinToken with an empty request properly sets defaults', () => {
 
 test('fetchJoinToken request fields are set as requested', () => {
   const svc = new JoinTokenService();
-  jest.spyOn(api, 'post').mockResolvedValue(null);
+  vi.spyOn(api, 'post').mockResolvedValue(null);
 
   const mock: JoinTokenRequest = {
     roles: ['Node'],

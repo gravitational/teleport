@@ -78,7 +78,7 @@ function makeWrapper(route: string = '/') {
 
 describe('IntegrationPicker', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('filtering', () => {
@@ -202,7 +202,7 @@ describe('IntegrationPicker', () => {
     });
 
     test('uses initial sort when no sort specified', () => {
-      const jenkinsSort = jest.fn((a: TestIntegration, b: TestIntegration) => {
+      const jenkinsSort = vi.fn((a: TestIntegration, b: TestIntegration) => {
         return a.title === 'Jenkins' ? -1 : b.title === 'Jenkins' ? 1 : 0;
       });
       render(

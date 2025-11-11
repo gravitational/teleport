@@ -26,11 +26,11 @@ import api, {
 } from './api';
 import { ApiError } from './parseError';
 
-jest.mock('../websession');
-const mockedWebsession = jest.mocked(websession);
+vi.mock('../websession');
+const mockedWebsession = vi.mocked(websession);
 
 describe('api.fetch', () => {
-  let mockedFetch: jest.SpiedFunction<typeof fetch>;
+  let mockedFetch: MockedFunction<typeof fetch>;
   beforeEach(() => {
     mockedFetch = jest
       .spyOn(global, 'fetch')
@@ -38,7 +38,7 @@ describe('api.fetch', () => {
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   const mfaResp: MfaChallengeResponse = {
@@ -84,7 +84,7 @@ describe('api.fetch', () => {
   });
 
   test('no json in response', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
+    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
     const resp = await api.fetch('/something');
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
@@ -229,11 +229,11 @@ test('isUserSessionRoleNotFoundError correctly identifies user session role not 
 
 describe('handling of role not found errors', () => {
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   test('sign out on user session role not found error', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValue({
+    vi.spyOn(global, 'fetch').mockResolvedValue({
       json: async () => ({
         error: {
           message: 'role foo is not found',
@@ -252,7 +252,7 @@ describe('handling of role not found errors', () => {
   });
 
   test("don't sign out on regular role not found error", async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValue({
+    vi.spyOn(global, 'fetch').mockResolvedValue({
       json: async () => ({ error: { message: 'role foo is not found' } }),
       ok: false,
       status: 404,

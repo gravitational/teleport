@@ -25,10 +25,10 @@ import session from 'teleport/services/websession';
 
 import Authenticated from './Authenticated';
 
-jest.mock('shared/libs/logger', () => {
+vi.mock('shared/libs/logger', () => {
   const mockLogger = {
-    error: jest.fn(),
-    warn: jest.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
   };
 
   return {
@@ -38,18 +38,18 @@ jest.mock('shared/libs/logger', () => {
 
 describe('session', () => {
   beforeEach(() => {
-    jest.spyOn(session, 'isValid').mockImplementation(() => true);
-    jest.spyOn(session, 'validateCookieAndSession').mockResolvedValue({});
-    jest.spyOn(session, 'ensureSession').mockImplementation();
-    jest.spyOn(session, 'getInactivityTimeout').mockImplementation(() => 0);
-    jest.spyOn(session, 'clear').mockImplementation();
-    jest.spyOn(api, 'get').mockResolvedValue(null);
-    jest.spyOn(api, 'delete').mockResolvedValue(null);
-    jest.spyOn(history, 'goToLogin').mockImplementation();
+    vi.spyOn(session, 'isValid').mockImplementation(() => true);
+    vi.spyOn(session, 'validateCookieAndSession').mockResolvedValue({});
+    vi.spyOn(session, 'ensureSession').mockImplementation();
+    vi.spyOn(session, 'getInactivityTimeout').mockImplementation(() => 0);
+    vi.spyOn(session, 'clear').mockImplementation();
+    vi.spyOn(api, 'get').mockResolvedValue(null);
+    vi.spyOn(api, 'delete').mockResolvedValue(null);
+    vi.spyOn(history, 'goToLogin').mockImplementation();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('valid session and valid cookie', async () => {
@@ -76,7 +76,7 @@ describe('session', () => {
       } as Response,
     });
 
-    jest
+    vi
       .spyOn(session, 'validateCookieAndSession')
       .mockRejectedValue(mockForbiddenError);
 
@@ -95,7 +95,7 @@ describe('session', () => {
   });
 
   test('invalid session', async () => {
-    jest.spyOn(session, 'isValid').mockImplementation(() => false);
+    vi.spyOn(session, 'isValid').mockImplementation(() => false);
 
     render(
       <Authenticated>
@@ -113,7 +113,7 @@ describe('session', () => {
   });
 
   test('non-authenticated related error', async () => {
-    jest
+    vi
       .spyOn(session, 'validateCookieAndSession')
       .mockRejectedValue(new Error('some network error'));
 

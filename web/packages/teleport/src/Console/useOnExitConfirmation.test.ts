@@ -29,8 +29,8 @@ test('confirmation dialog before terminating an active ssh session', () => {
   const event = new Event('beforeunload');
 
   // two prompts that can be called before closing session/window
-  jest.spyOn(window, 'confirm').mockReturnValue(false);
-  jest.spyOn(event, 'preventDefault');
+  vi.spyOn(window, 'confirm').mockReturnValue(false);
+  vi.spyOn(event, 'preventDefault');
 
   ctx.storeDocs.add({
     kind: 'nodes',
@@ -85,7 +85,7 @@ test('confirmation dialog before terminating an active ssh session', () => {
   docTerminal.created = new Date('2019-04-01');
 
   // test that expired session does not prompt
-  jest.spyOn(session, '_timeLeft').mockReturnValue(0);
+  vi.spyOn(session, '_timeLeft').mockReturnValue(0);
   window.dispatchEvent(event);
   expect(event.preventDefault).not.toHaveBeenCalled();
 
@@ -96,7 +96,7 @@ test('confirmation dialog before terminating an active ssh session', () => {
   expect(window.confirm).toHaveReturnedWith(false);
 
   // test aged terminal doc triggers prompt
-  jest.spyOn(session, '_timeLeft').mockReturnValue(5);
+  vi.spyOn(session, '_timeLeft').mockReturnValue(5);
   window.dispatchEvent(event);
   expect(event.preventDefault).toHaveBeenCalledTimes(1);
 });

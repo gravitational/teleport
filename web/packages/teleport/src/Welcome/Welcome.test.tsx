@@ -42,23 +42,23 @@ describe('teleport/components/Welcome', () => {
 
   beforeEach(() => {
     user = userEvent.setup();
-    jest.spyOn(Logger.prototype, 'log').mockImplementation();
-    jest.spyOn(auth, 'fetchPasswordToken').mockImplementation(async () => ({
+    vi.spyOn(Logger.prototype, 'log').mockImplementation();
+    vi.spyOn(auth, 'fetchPasswordToken').mockImplementation(async () => ({
       user: 'sam',
       tokenId: 'test123',
       qrCode: 'test12345',
     }));
-    jest
+    vi
       .spyOn(userEventService, 'capturePreUserEvent')
       .mockImplementation(() => new Promise(() => null));
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should have correct welcome prompt flow for invite', async () => {
-    jest.spyOn(history, 'push').mockImplementation();
+    vi.spyOn(history, 'push').mockImplementation();
 
     const mockHistory = createMemoryHistory({
       initialEntries: [invitePath],
@@ -90,7 +90,7 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('should have correct welcome prompt flow for reset', async () => {
-    jest.spyOn(history, 'push').mockImplementation();
+    vi.spyOn(history, 'push').mockImplementation();
 
     const mockHistory = createMemoryHistory({
       initialEntries: [resetPath],
@@ -124,8 +124,8 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('reset password', async () => {
-    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'off');
-    jest
+    vi.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'off');
+    vi
       .spyOn(auth, 'resetPassword')
       .mockImplementation(() => new Promise(() => null));
 
@@ -152,8 +152,8 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('reset password with otp', async () => {
-    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
-    jest
+    vi.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
+    vi
       .spyOn(auth, 'resetPassword')
       .mockImplementation(() => new Promise(() => null));
 
@@ -186,11 +186,11 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('reset password with webauthn', async () => {
-    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'webauthn');
-    jest
+    vi.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'webauthn');
+    vi
       .spyOn(auth, 'createNewWebAuthnDevice')
       .mockResolvedValueOnce({ id: 'dummy', type: 'public-key' });
-    jest
+    vi
       .spyOn(auth, 'resetPasswordWithWebauthn')
       .mockImplementation(() => new Promise(() => null));
 
@@ -228,13 +228,13 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('reset password with passwordless', async () => {
-    jest
+    vi
       .spyOn(cfg, 'getPrimaryAuthType')
       .mockImplementation(() => 'passwordless');
-    jest
+    vi
       .spyOn(auth, 'createNewWebAuthnDevice')
       .mockResolvedValueOnce({ id: 'dummy', type: 'public-key' });
-    jest
+    vi
       .spyOn(auth, 'resetPasswordWithWebauthn')
       .mockImplementation(() => new Promise(() => null));
 
@@ -263,8 +263,8 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('switch between primary password to passwordless and vice versa', async () => {
-    jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
-    jest.spyOn(cfg, 'isPasswordlessEnabled').mockImplementation(() => true);
+    vi.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
+    vi.spyOn(cfg, 'isPasswordlessEnabled').mockImplementation(() => true);
 
     renderInvite();
 
@@ -278,7 +278,7 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('switch between primary passwordless to password and vice versa', async () => {
-    jest
+    vi
       .spyOn(cfg, 'getPrimaryAuthType')
       .mockImplementation(() => 'passwordless');
 
@@ -294,8 +294,8 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('switch between radio buttons when mfa is optional', async () => {
-    jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
-    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
+    vi.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
+    vi.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
 
     renderInvite();
 

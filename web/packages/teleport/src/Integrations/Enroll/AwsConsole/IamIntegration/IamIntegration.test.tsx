@@ -37,28 +37,28 @@ const queryClient = new QueryClient({
   },
 });
 
-jest.mock('react-router', () => ({
-  ...jest.requireActual('react-router'),
+vi.mock('react-router', () => ({
+  ...await vi.importActual('react-router'),
   useHistory: () => ({
-    goBack: jest.fn(),
-    push: jest.fn(),
+    goBack: vi.fn(),
+    push: vi.fn(),
   }),
 }));
 
 beforeEach(() => {
-  jest
+  vi
     .spyOn(integrationService, 'createIntegration')
     .mockResolvedValue({} as any);
-  jest
+  vi
     .spyOn(integrationService, 'validateAWSRolesAnywhereIntegration')
     .mockResolvedValue({} as any);
-  jest
+  vi
     .spyOn(integrationService, 'awsRolesAnywherePing')
     .mockResolvedValue({} as any);
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('flows through roles anywhere IAM setup', async () => {

@@ -46,7 +46,7 @@ test('undefined values in context response gives proper default values', async (
     },
   };
 
-  jest.spyOn(api, 'get').mockResolvedValue(mockContext);
+  vi.spyOn(api, 'get').mockResolvedValue(mockContext);
 
   const response = await user.fetchUserContext(false);
 
@@ -354,11 +354,11 @@ test('undefined values in context response gives proper default values', async (
 });
 
 test('fetch users, null response values gives empty array', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
   let response = await user.fetchUsers();
   expect(response).toStrictEqual([]);
 
-  jest.spyOn(api, 'get').mockResolvedValue([{ name: '', authType: '' }]);
+  vi.spyOn(api, 'get').mockResolvedValue([{ name: '', authType: '' }]);
 
   response = await user.fetchUsers();
   expect(response).toStrictEqual([
@@ -385,7 +385,7 @@ test('fetch users, null response values gives empty array', async () => {
 
 test('createResetPasswordToken', async () => {
   // Test null response.
-  jest.spyOn(api, 'post').mockResolvedValue(null);
+  vi.spyOn(api, 'post').mockResolvedValue(null);
   let response = await user.createResetPasswordToken('name', 'invite');
   expect(response).toStrictEqual({
     username: '',
@@ -394,7 +394,7 @@ test('createResetPasswordToken', async () => {
   });
 
   // Test with a valid response.
-  jest.spyOn(api, 'post').mockResolvedValue({
+  vi.spyOn(api, 'post').mockResolvedValue({
     expiry: 1677273148317,
     user: 'llama',
     tokenId: 'some-id',
@@ -432,7 +432,7 @@ test('makeTraits', async () => {
 
 test('excludeUserFields when updating user', async () => {
   // we are not testing the reply, so reply doesn't matter.
-  jest.spyOn(api, 'put').mockResolvedValue({} as any);
+  vi.spyOn(api, 'put').mockResolvedValue({} as any);
 
   const userReq: User = {
     name: 'name',
@@ -451,7 +451,7 @@ test('excludeUserFields when updating user', async () => {
     traits: blankTraits,
   });
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 
   await user.updateUser({
     user: userReq,
@@ -466,7 +466,7 @@ test('excludeUserFields when updating user', async () => {
 
 test('excludeUserFields when creating user', async () => {
   // we are not testing the reply, so reply doesn't matter.
-  jest.spyOn(api, 'post').mockResolvedValue({} as any);
+  vi.spyOn(api, 'post').mockResolvedValue({} as any);
 
   const userReq: User = {
     name: 'name',
@@ -490,7 +490,7 @@ test('excludeUserFields when creating user', async () => {
     undefined
   );
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 
   await user.createUser({
     user: userReq,

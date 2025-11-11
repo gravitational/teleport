@@ -47,7 +47,7 @@ describe('play', () => {
   it('should not transition to playing whilst loading', () => {
     const { stream } = setup();
 
-    const stateListener = jest.fn();
+    const stateListener = vi.fn();
     stream.on('state', stateListener);
 
     stream.play();
@@ -122,7 +122,7 @@ describe('pause', () => {
   it('should transition from playing to paused', () => {
     const { stream, ws } = setup();
 
-    const stateListener = jest.fn();
+    const stateListener = vi.fn();
     stream.on('state', stateListener);
 
     stream.loadInitial();
@@ -158,7 +158,7 @@ describe('pause', () => {
   it('should not do anything if already paused', () => {
     const { stream, ws } = setup();
 
-    const stateListener = jest.fn();
+    const stateListener = vi.fn();
 
     stream.loadInitial();
     ws.receiveMessage(
@@ -177,7 +177,7 @@ describe('seek', () => {
   it('should emit time event when seeking', () => {
     const { stream, ws } = setup();
 
-    const timeListener = jest.fn();
+    const timeListener = vi.fn();
     stream.on('time', timeListener);
 
     stream.loadInitial();
@@ -227,7 +227,7 @@ describe('seek', () => {
 
 describe('event handling', () => {
   it('should ignore messages with wrong requestId', () => {
-    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const { stream, ws, player } = setup();
 
@@ -243,7 +243,7 @@ describe('event handling', () => {
   it('should stop when an end event is encountered', () => {
     const { stream, ws } = setup();
 
-    const stateListener = jest.fn();
+    const stateListener = vi.fn();
 
     stream.loadInitial();
 
@@ -255,8 +255,8 @@ describe('event handling', () => {
       ])
     );
 
-    jest.spyOn(performance, 'now').mockReturnValueOnce(0);
-    jest.spyOn(performance, 'now').mockReturnValueOnce(400);
+    vi.spyOn(performance, 'now').mockReturnValueOnce(0);
+    vi.spyOn(performance, 'now').mockReturnValueOnce(400);
 
     stream.on('state', stateListener);
     stream.play();
@@ -269,7 +269,7 @@ describe('time events', () => {
   it('should emit time events during playback', () => {
     const { stream, ws } = setup();
 
-    const timeListener = jest.fn();
+    const timeListener = vi.fn();
     stream.on('time', timeListener);
 
     stream.loadInitial();
@@ -388,10 +388,10 @@ class MockPlayer extends Player<MockEvent> {
     this.events = [];
   }
 
-  onPlay = jest.fn();
-  onPause = jest.fn();
-  onSeek = jest.fn();
-  onStop = jest.fn();
+  onPlay = vi.fn();
+  onPause = vi.fn();
+  onSeek = vi.fn();
+  onStop = vi.fn();
 }
 
 interface WebSocketEventMap {

@@ -75,7 +75,7 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
@@ -107,7 +107,7 @@ describe('BotDetails', () => {
     withFetchInstancesSuccess();
     withListLocksSuccess();
     const { user, history } = renderComponent();
-    jest.spyOn(history, 'goBack');
+    vi.spyOn(history, 'goBack');
     await waitForLoadingBot();
 
     const backButton = screen.getByLabelText('back');
@@ -253,7 +253,7 @@ describe('BotDetails', () => {
     withFetchInstancesSuccess();
     withListLocksSuccess();
     const { user, history } = renderComponent();
-    jest.spyOn(history, 'push');
+    vi.spyOn(history, 'push');
     await waitForLoadingBot();
     await waitForLoadingTokens();
 
@@ -613,7 +613,7 @@ describe('BotDetails', () => {
       });
       withDeleteBotSuccess();
       const { user, history } = renderComponent();
-      jest.spyOn(history, 'replace');
+      vi.spyOn(history, 'replace');
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');

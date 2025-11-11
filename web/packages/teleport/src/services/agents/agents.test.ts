@@ -24,7 +24,7 @@ import { makeLabelMapOfStrArrs } from './make';
 import type { ConnectionDiagnosticRequest } from './types';
 
 test('createConnectionDiagnostic request', () => {
-  jest.spyOn(api, 'post').mockResolvedValue(null);
+  vi.spyOn(api, 'post').mockResolvedValue(null);
 
   // Test with all empty fields.
   agentService.createConnectionDiagnostic({} as any);

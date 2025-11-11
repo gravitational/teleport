@@ -30,19 +30,19 @@ import { userEventService } from 'teleport/services/userEvent';
 import { TestConnection } from './TestConnection';
 
 beforeEach(() => {
-  jest
+  vi
     .spyOn(agentService, 'createConnectionDiagnostic')
     .mockResolvedValue({ id: '', success: true, message: '', traces: [] });
 
-  jest.spyOn(auth, 'checkMfaRequired').mockResolvedValue({ required: false });
+  vi.spyOn(auth, 'checkMfaRequired').mockResolvedValue({ required: false });
 
-  jest
+  vi
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
 });
 
 afterEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('custom db name and user is respected when defined', async () => {

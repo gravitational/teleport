@@ -792,7 +792,7 @@ describe('useRecordingsListState', () => {
 
   it('does not update URL for default empty search params', () => {
     const history = createMemoryHistory();
-    const replaceSpy = jest.spyOn(history, 'replace');
+    const replaceSpy = vi.spyOn(history, 'replace');
 
     function wrapper({ children }: PropsWithChildren) {
       return <Router history={history}>{children}</Router>;

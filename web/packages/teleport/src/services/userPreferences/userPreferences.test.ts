@@ -121,15 +121,15 @@ describe('updateFavicon', () => {
   });
 
   test('set dark favicon when dark theme is preferred', () => {
-    window.matchMedia = jest.fn().mockImplementation(query => ({
+    window.matchMedia = vi.fn().mockImplementation(query => ({
       matches: query === '(prefers-color-scheme: dark)',
       media: query,
       onchange: null,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }));
 
     updateFavicon();
@@ -141,15 +141,15 @@ describe('updateFavicon', () => {
   });
 
   test('set light favicon when light theme is preferred', () => {
-    window.matchMedia = jest.fn().mockImplementation(query => ({
+    window.matchMedia = vi.fn().mockImplementation(query => ({
       matches: query !== '(prefers-color-scheme: dark)',
       media: query,
       onchange: null,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }));
 
     updateFavicon();
@@ -180,7 +180,7 @@ test('getNextTheme', () => {
 function mockMatchMediaWindow(prefers: 'light' | 'dark') {
   return Object.defineProperty(window, 'matchMedia', {
     writable: true,
-    value: jest.fn().mockImplementation(query => ({
+    value: vi.fn().mockImplementation(query => ({
       matches: query === `(prefers-color-scheme: ${prefers})`,
       media: query,
     })),

@@ -29,3 +29,8 @@ if (!global.ResizeObserver) {
 
   global.ResizeObserver = NullResizeObserver as any;
 }
+
+// Add scrollTo polyfill for elements
+if (typeof Element !== 'undefined' && !Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = () => {};
+}

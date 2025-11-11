@@ -108,11 +108,11 @@ test('user acknowledging script was ran when reconfiguring', async () => {
 });
 
 test('health check is called before calling update', async () => {
-  const spyPing = jest
+  const spyPing = vi
     .spyOn(integrationService, 'pingAwsOidcIntegration')
     .mockResolvedValue({} as any); // response doesn't matter
 
-  const spyUpdate = jest
+  const spyUpdate = vi
     .spyOn(integrationService, 'updateIntegration')
     .mockResolvedValue({} as any); // response doesn't matter
 
@@ -148,7 +148,7 @@ test('health check is called before calling update', async () => {
 });
 
 test('render warning when s3 buckets are present', async () => {
-  const edit = jest.fn(() => Promise.resolve());
+  const edit = vi.fn(() => Promise.resolve());
   render(
     <EditAwsOidcIntegrationDialog
       close={() => null}
@@ -220,7 +220,7 @@ test('edit invalid fields', async () => {
 });
 
 test('edit submit called with proper fields', async () => {
-  const mockEditFn = jest.fn(() => Promise.resolve());
+  const mockEditFn = vi.fn(() => Promise.resolve());
   render(
     <EditAwsOidcIntegrationDialog
       close={() => null}

@@ -66,7 +66,7 @@ import { defaultPins } from './utils/pins';
 import { sortResourcesByPreferences } from './utils/sort';
 
 const setUp = () => {
-  jest
+  vi
     .spyOn(window.navigator, 'userAgent', 'get')
     .mockReturnValue(UserAgent.macOS);
 };
@@ -91,7 +91,7 @@ const onboardDiscoverNoResources: OnboardDiscover = {
 };
 
 beforeEach(() => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 test('sortResourcesByPreferences without preferred resources, sorts resources alphabetically with guided resources first', () => {
@@ -500,7 +500,7 @@ describe('os sorted resources', () => {
   let OS;
 
   beforeEach(() => {
-    OS = jest.spyOn(window.navigator, 'userAgent', 'get');
+    OS = vi.spyOn(window.navigator, 'userAgent', 'get');
   });
 
   const testCases: {
@@ -708,10 +708,10 @@ describe('os sorted resources', () => {
 });
 
 describe('sorting Connect My Computer', () => {
-  let OS: jest.SpyInstance;
+  let OS: SpyInstance;
 
   beforeEach(() => {
-    OS = jest.spyOn(window.navigator, 'userAgent', 'get');
+    OS = vi.spyOn(window.navigator, 'userAgent', 'get');
   });
 
   const connectMyComputer = makeResourceSpec({
@@ -1032,7 +1032,7 @@ describe('sorting Connect My Computer', () => {
 });
 
 test('displays an info banner if lacking "all" permissions to add resources', async () => {
-  jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+  vi.spyOn(userUserContext, 'useUser').mockReturnValue({
     preferences: makeDefaultUserPreferences(),
     updatePreferences: () => null,
     updateClusterPinnedResources: () => null,
@@ -1059,13 +1059,13 @@ test('displays an info banner if lacking "all" permissions to add resources', as
 });
 
 test('add and remove pin, and rendering of default pins', async () => {
-  jest
+  vi
     .spyOn(window.navigator, 'userAgent', 'get')
     .mockReturnValue(UserAgent.macOS);
 
   const prefs = makeDefaultUserPreferences();
-  jest.spyOn(service, 'getUserPreferences').mockResolvedValue(prefs);
-  jest.spyOn(service, 'updateUserPreferences').mockResolvedValue(prefs);
+  vi.spyOn(service, 'getUserPreferences').mockResolvedValue(prefs);
+  vi.spyOn(service, 'updateUserPreferences').mockResolvedValue(prefs);
 
   render(
     <MemoryRouter>
@@ -1105,7 +1105,7 @@ test('add and remove pin, and rendering of default pins', async () => {
 });
 
 test('does not display erorr banner if user has "some" permissions to add', async () => {
-  jest.spyOn(userUserContext, 'useUser').mockReturnValue({
+  vi.spyOn(userUserContext, 'useUser').mockReturnValue({
     preferences: makeDefaultUserPreferences(),
     updatePreferences: () => null,
     updateClusterPinnedResources: () => null,

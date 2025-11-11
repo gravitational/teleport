@@ -29,7 +29,7 @@ import { integrationService } from 'teleport/services/integrations';
 import { makeIntegrationDiscoveryRule } from '../testHelpers/makeIntegrationDiscoveryRule';
 
 test('renders region & labels from response', async () => {
-  jest.spyOn(integrationService, 'fetchIntegrationRules').mockResolvedValue({
+  vi.spyOn(integrationService, 'fetchIntegrationRules').mockResolvedValue({
     rules: [
       makeIntegrationDiscoveryRule({
         region: 'us-west-2',
@@ -80,7 +80,7 @@ test('renders region & labels from response', async () => {
     ],
   });
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 function getTableCellContents() {

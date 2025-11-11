@@ -53,14 +53,14 @@ afterEach(async () => {
   server.resetHandlers();
   await testQueryClient.resetQueries();
 
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 afterAll(() => server.close());
 
 describe('BotIntanceDetails', () => {
   it('Allows close action', async () => {
-    const onClose = jest.fn();
+    const onClose = vi.fn();
     withSuccessResponse();
 
     const { user } = renderComponent({ props: { onClose } });
@@ -74,7 +74,7 @@ describe('BotIntanceDetails', () => {
   });
 
   it('Allows switching tab', async () => {
-    const onTabSelected = jest.fn();
+    const onTabSelected = vi.fn();
 
     withSuccessResponse();
 
@@ -173,9 +173,9 @@ const renderComponent = (options?: {
   const {
     botName = 'test-bot-name',
     instanceId = '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
-    onClose = jest.fn(),
+    onClose = vi.fn(),
     activeTab = 'info',
-    onTabSelected = jest.fn(),
+    onTabSelected = vi.fn(),
   } = props ?? {};
 
   const user = userEvent.setup();

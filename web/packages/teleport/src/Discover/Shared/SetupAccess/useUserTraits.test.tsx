@@ -50,22 +50,22 @@ import { useUserTraits } from './useUserTraits';
 
 describe('onProceed correctly deduplicates, removes static traits, updates meta, and calls updateUser', () => {
   const teleCtx = createTeleportContext();
-  jest.spyOn(teleCtx.userService, 'fetchUser').mockResolvedValue(getMockUser());
-  jest.spyOn(teleCtx.userService, 'updateUser').mockResolvedValue(null);
-  jest.spyOn(teleCtx.userService, 'reloadUser').mockResolvedValue(null);
-  jest
+  vi.spyOn(teleCtx.userService, 'fetchUser').mockResolvedValue(getMockUser());
+  vi.spyOn(teleCtx.userService, 'updateUser').mockResolvedValue(null);
+  vi.spyOn(teleCtx.userService, 'reloadUser').mockResolvedValue(null);
+  vi
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(null as never); // return value does not matter but required by ts
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('kubernetes', async () => {
     const discoverCtx = emptyDiscoverContext({
       resourceSpec: resourceSpecSelfHostedKube,
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Kubernetes),
@@ -156,7 +156,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = emptyDiscoverContext({
       resourceSpec: resourceSpecSelfHostedKube,
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Kubernetes),
@@ -240,7 +240,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = emptyDiscoverContext({
       resourceSpec: resourceSpecSelfHostedPostgres,
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Database),
@@ -327,7 +327,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = emptyDiscoverContext({
       resourceSpec: resourceSpecSelfHostedPostgres,
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Database),
@@ -400,7 +400,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = emptyDiscoverContext({
       resourceSpec: resourceSpecServerLinuxUbuntu,
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Server),
@@ -495,7 +495,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
         },
       },
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     const spyUpdateAgentMeta = jest
       .spyOn(discoverCtx, 'updateAgentMeta')
       .mockImplementation(x => x);
@@ -573,7 +573,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = emptyDiscoverContext({
       resourceSpec: resourceSpecAwsEc2Ssm,
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Server),
@@ -641,14 +641,14 @@ describe('static and dynamic traits are correctly separated and correctly create
     ${ResourceKind.Database}   | ${resourceSpecSelfHostedPostgres} | ${'databaseUsers'}
   `('$traitName', async ({ resourceKind, resourceSpec, traitName }) => {
     const teleCtx = createTeleportContext();
-    jest
+    vi
       .spyOn(teleCtx.userService, 'fetchUser')
       .mockResolvedValue(getMockUser());
 
     const discoverCtx = emptyDiscoverContext({
       resourceSpec,
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(resourceKind),
@@ -730,12 +730,12 @@ describe('calls to nextStep respects number of steps to skip', () => {
       awsRoleArns: [],
     };
 
-    jest.spyOn(teleCtx.userService, 'fetchUser').mockResolvedValue(user);
+    vi.spyOn(teleCtx.userService, 'fetchUser').mockResolvedValue(user);
 
     const discoverCtx = emptyDiscoverContext({
       resourceSpec: resourceSpecAwsRdsPostgres,
     });
-    discoverCtx.nextStep = jest.fn();
+    discoverCtx.nextStep = vi.fn();
     discoverCtx.agentMeta.autoDiscovery = {
       config: { name: '', discoveryGroup: '', aws: [] },
     };

@@ -21,7 +21,7 @@ import api from 'teleport/services/api';
 import apps, { CloudInstance } from 'teleport/services/apps';
 
 test('correct formatting of apps fetch response', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(mockResponse);
+  vi.spyOn(api, 'get').mockResolvedValue(mockResponse);
   const response = await apps.fetchApps('does-not-matter', {
     search: 'does-not-matter',
   });
@@ -287,7 +287,7 @@ test('correct formatting of apps fetch response', async () => {
 });
 
 test('null response from apps fetch', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue(null);
+  vi.spyOn(api, 'get').mockResolvedValue(null);
 
   const response = await apps.fetchApps('does-not-matter', {
     search: 'does-not-matter',
@@ -301,7 +301,7 @@ test('null response from apps fetch', async () => {
 });
 
 test('null labels field in apps fetch response', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
+  vi.spyOn(api, 'get').mockResolvedValue({ items: [{ labels: null }] });
   const response = await apps.fetchApps('does-not-matter', {
     search: 'does-not-matter',
   });
@@ -310,7 +310,7 @@ test('null labels field in apps fetch response', async () => {
 });
 
 test('createAppSession', async () => {
-  const backend = jest.spyOn(api, 'post').mockResolvedValue({
+  const backend = vi.spyOn(api, 'post').mockResolvedValue({
     fqdn: 'app-name.example.com',
     cookieValue: 'cookie-value',
     subjectCookieValue: 'subject-cookie-value',

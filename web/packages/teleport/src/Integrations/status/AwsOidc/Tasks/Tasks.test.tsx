@@ -36,7 +36,7 @@ const integrationName = 'integration-test';
 
 test('deep links an open task', async () => {
   const ctx = new TeleportContext();
-  jest
+  vi
     .spyOn(integrationService, 'fetchIntegrationUserTasksList')
     .mockResolvedValue({
       items: [
@@ -58,7 +58,7 @@ test('deep links an open task', async () => {
       cfg.getIntegrationTasksRoute(IntegrationKind.AwsOidc, integrationName),
     ],
   });
-  history.replace = jest.fn();
+  history.replace = vi.fn();
 
   render(
     <Router history={history}>
