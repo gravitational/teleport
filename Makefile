@@ -461,15 +461,16 @@ tctl-app:
 # This is a requirement for building BPF bytecode.
 .PHONY: bpf-bytecode
 bpf-bytecode:
-ifneq ($(or $(wildcard /usr/include/linux/bpf.h),$(wildcard /usr/include/bpf/bpf_helpers.h)),"")
-else
-$(error "libbpf-dev is required to build BPF bytecode")
-endif # libbpf-dev installed
-ifneq ("$(shell command -v clang --version 2>/dev/null)","")
+	@if [ ! -f /usr/include/linux/bpf.h -o  ! -f /usr/include/bpf/bpf_helpers.h ]; then \
+		echo "libbpf-dev is required to build BPF bytecode"; \
+		exit 1; \
+	fi
+	@if ! command clang --version >/dev/null 2>&1; then \
+		echo "clang is required to build BPF bytecode"; \
+		exit 1; \
+	fi
+
 	go generate ./lib/bpf/
-else
-$(error "clang is required to build BPF bytecode")
-endif # clang installed
 
 # bpf-up-to-date checks if the generated BPF bytecode is up to date.
 .PHONY: bpf-up-to-date
