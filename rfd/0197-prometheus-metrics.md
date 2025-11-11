@@ -34,13 +34,13 @@ This poses several challenges:
 
 - Take the local in-process registry as an argument in your service constructor/main routine, like you would receive a
   logger, and register your metrics against it.
-- Pass the registry as a `promtetheus.Registerer`
+- Pass the registry as a `*metrics.Registry`
 
 ```golang
-func NewService(log *slog.Logger, reg prometheus.Registerer) (Service, error) {
+func NewService(log *slog.Logger, reg *metrics.Registry) (Service, error) {
     myMetric := prometheus.NewGauge(prometheus.GaugeOpts{
-        Namespace: teleport.MetricNamespace,
-        Subsystem: metricsSubsystem,
+        Namespace: reg.Namespace(),
+        Subsystem: reg.Subsystem(),
         Name: "my_metric",
         Help: "Measures the number of foos doing bars.",
     }),
@@ -53,7 +53,9 @@ func NewService(log *slog.Logger, reg prometheus.Registerer) (Service, error) {
 
 #### Don't
 
-- Register against the global prometheus registry
+- <details>
+  <summary>Register against the global prometheus registry</summary>
+  
   ```golang
   func NewService(log *slog.Logger) (Service, error) {
       myMetric := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -68,8 +70,9 @@ func NewService(log *slog.Logger, reg prometheus.Registerer) (Service, error) {
       // ...
   }
   ```
-
-- Pass the registry as a `*prometheus.Registry`
+  </details>
+- <details>
+  <summary>Pass the registry as a `*prometheus.Registry` or `prometheus.Registerer`</summary>
 
   ```golang
   func NewService(log *slog.Logger, reg *prometheus.Registry) (Service, error) {
@@ -85,6 +88,7 @@ func NewService(log *slog.Logger, reg prometheus.Registerer) (Service, error) {
       // ...
   }
   ```
+  </details>
 
 ### Storing metrics
 
@@ -93,12 +97,16 @@ func NewService(log *slog.Logger, reg prometheus.Registerer) (Service, error) {
 - Store metrics in a private struct in your package
 
 ```golang
-type metrics struct {
+type fooMetrics struct {
     currentFoo prometheus.Gauge
     barCounter *prometheus.CounterVec
 }
 
-func newMetrics(reg prometheus.Registerer) (*metrics, error) {
+type fooService struct {
+    metrics *fooMetrics
+}
+
+func newMetrics(reg *metrics.Registry) (metrics, error) {
     m := metrics{
         currentFoo: prometheus.NewGauge(prometheus.GaugeOpts{
             Namespace: teleport.MetricNamespace,
@@ -109,15 +117,6 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
         barCounter: // ...
     }
     
-    errs := trace.NewAggregate(
-        reg.Register(m.currentFoo),
-        reg.Register(m.barCounter),
-    )
-    
-    if errs != nil {
-        return trace.Wrap(err, "registering metrics")
-    }
-    
     return &m
 }
 
@@ -125,26 +124,28 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 
 #### Don't
 
-- Store metrics in a package-scoped variable
+- <details>
+  <summary>Store metrics in a package-scoped variable</summary>
 
-```golang
-var (
-    currentFoo = prometheus.NewGauge(prometheus.GaugeOpts{
-            Namespace: teleport.MetricNamespace,
-            Subsystem: metricsSubsystem,
-            Name: "foo_current",
-            Help: "Measures the number of foos.",
-        })
-    // ...
-)
-```
+  ```golang
+  var (
+      currentFoo = prometheus.NewGauge(prometheus.GaugeOpts{
+              Namespace: teleport.MetricNamespace,
+              Subsystem: metricsSubsystem,
+              Name: "foo_current",
+              Help: "Measures the number of foos.",
+          })
+      // ...
+  )
+  ```
+</details>
 
 ### Naming metrics
 
 #### Do
 
-- Use `teleport.MetricsNamespace` as the namespace.
-- Use a subsystem name unique to your component.
+- Honour the namespace and subsystem from the `metrics.Registry`
+- Wrap the `metrics.Registry` to add component-level information to the metrics subsystem. 
 - Follow [the prometheus metrics naming guidelines](https://prometheus.io/docs/practices/naming/),
   especially always specify the unit and use a suffix to clarify the metric type (`_total`, `_info`).
 
@@ -154,9 +155,7 @@ type metrics struct {
     barCounter *prometheus.CounterVec
 }
 
-const metricsSubsystem = "my_service"
-
-func newMetrics(reg prometheus.Registerer) (*metrics, error) {
+func newMetrics(reg *metrics.Registry) (*metrics, error) {
     m := metrics{
         currentFoo: prometheus.NewGauge(prometheus.GaugeOpts{
             Namespace: teleport.MetricNamespace,
@@ -173,40 +172,52 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
     }
     // ...
 }
+
+func newService(reg *metrics.Registry) {
+	go runComponentA(reg.Wrap("component_a"))
+}
+
+func newComponentA(reg *metrics.Registry) {
+    m := newMetrics(reg)
+	err := m.register(reg)
+}
 ```
 
 #### Don't
 
 - Manually namespace metrics
-- Create non-namespaced metrics
-
-```golang
-type metrics struct {
-    currentFoo prometheus.Gauge
-    barCounter *prometheus.CounterVec
-}
-
-func newMetrics(reg prometheus.Registerer) (*metrics, error) {
-    m := metrics{
-        currentFoo: prometheus.NewGauge(prometheus.GaugeOpts{
-            Name: "teleport_foo_timestamp_seconds",
-            Help: "Represents the foo time, in seconds.",
-        }),
-        barCounter: prometheus.NewCounter(prometheus.GaugeOpts{
-            Name: "bar_total",
-            Help: "Number of times bar happened.",
-        }),
-    }
-    // ...
-}
-```
+  <details>
+  <summary>Manually namespace metrics or create non-namespaced metrics</summary>
+  
+  ```golang
+  type metrics struct {
+      currentFoo prometheus.Gauge
+      barCounter *prometheus.CounterVec
+  }
+  
+  func newMetrics(reg prometheus.Registerer) (*metrics, error) {
+      m := metrics{
+          currentFoo: prometheus.NewGauge(prometheus.GaugeOpts{
+  			Namespace: "teleport"
+              Name: "foo_timestamp_seconds",
+              Help: "Represents the foo time, in seconds.",
+          }),
+          barCounter: prometheus.NewCounter(prometheus.GaugeOpts{
+              Name: "bar_total",
+              Help: "Number of times bar happened.",
+          }),
+      }
+      // ...
+  }
+  ```
+  </details>
 
 ### Metric registration
 
 #### Do
 
 - Use `reg.Register()` to register the metric.
-- Aggregate errors and fail early if you can't register metrics.
+- Aggregate errors and fail early if you can't register metrics?
 
 #### Don't
 
@@ -224,12 +235,14 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 
 - Put user input directly in the labels
 - Create large (1k+) metric combinations
+- Create metrics with an ever growing number of labels
 
 ## Enforcing the guidelines
 
 Some guidelines can be enforced by setting up linters:
 - [promlinter](https://golangci-lint.run/usage/linters/#promlinter) to ensure that metric naming and labeling follows 
-  the Prometheus guidelines.
+  the Prometheus guidelines. Note: we might not be able to use the strict mode as namespacesa and subsystems are
+  passed from the caller.
 - [forbidigo](https://golangci-lint.run/usage/linters/#forbidigo) to reject usages of `prometheus.DefaultRegisterer`,
   `prometheus.(Must)Register`. `reg.MustRegister` conflicts with `backend.MustRegister`, we might not be able to detect
   it (`fobidigo.analyze-types` might not be sufficient)
