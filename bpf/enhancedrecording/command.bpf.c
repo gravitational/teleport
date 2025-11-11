@@ -31,7 +31,7 @@ enum event_type {
 struct common_data_t {
     u64 pid;
     u64 ppid;
-    char comm[TASK_COMM_LEN];
+    char command[TASK_COMM_LEN];
     u64 cgroup;
 };
 
@@ -76,7 +76,7 @@ static int __submit_arg(void *ptr, struct common_data_t *common)
     data->pid = common->pid;
     data->cgroup = common->cgroup;
     for (int i = 0; i < TASK_COMM_LEN; i++)
-        data->command[i] = common->comm[i];
+        data->command[i] = common->command[i];
 
     bpf_ringbuf_submit(data, 0);
     return 1;
@@ -113,7 +113,7 @@ static int enter_execve(const char *filename,
 
     task = (struct task_struct *)bpf_get_current_task();
     common.ppid = BPF_CORE_READ(task, real_parent, tgid);
-    bpf_get_current_comm(&common.comm, sizeof(common.comm));
+    bpf_get_current_comm(&common.command, sizeof(common.command));
 
     if(__submit_arg((void *)filename, &common) < 0) {
         INCR_COUNTER(lost);
