@@ -1,6 +1,7 @@
 ---
-title: Machine ID with Ansible AWX
-description: How to use Machine ID with Ansible AWX
+title: Machine & Workload Identity with Ansible AWX
+description: How to use Machine & Workload Identity with Ansible AWX
+sidebar_label: Ansible AWX
 tags:
  - how-to
  - mwi
@@ -56,7 +57,7 @@ To begin, we'll need to create three new Teleport resources:
 
 For this example we'll assume your AWX jobs will run on a Kubernetes cluster
 where bots can join using the [Kubernetes `static_jwks` joining
-mode](../../../reference/deployment/join-methods.mdx#kubernetes-jwks).
+mode](../../reference/deployment/join-methods.mdx#kubernetes-jwks).
 
 <Admonition type="tip" title="OIDC Joining">
 Kubernetes clusters running on cloud providers like Amazon EKS, Azure AKS, and
@@ -196,7 +197,7 @@ data:
 ```
 
 For more information on the possible values in this config file, see Machine
-ID's [configuration reference](../../../reference/machine-workload-identity/configuration.mdx).
+ID's [configuration reference](../../reference/machine-workload-identity/configuration.mdx).
 
 <Admonition type="info" title="About the ssh-multiplexer">
 Machine ID's `ssh-multiplexer` service is used to improve performance when
@@ -205,7 +206,7 @@ opening many SSH connections. It provides a Unix socket which the
 shared connection to Teleport. The SSH config written to
 `/tbot-output/ssh_config` will be automatically configured to do this.
 
-See the [reference page](../../../reference/machine-workload-identity/configuration.mdx#ssh-multiplexer)
+See the [reference page](../../reference/machine-workload-identity/configuration.mdx#ssh-multiplexer)
 to learn more about the `ssh-multiplexer` service.
 </Admonition>
 
@@ -501,7 +502,7 @@ We've configured the `tbot` client to provide its own multiplexer (via the
 ## Next Steps
 
 - Learn more about [deploying Machine ID in Kubernetes](../deployment/kubernetes.mdx)
-- Read the [configuration reference](../../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
   all the available configuration options.
 
 {/* see also: https://github.com/ansible/awx-logos/blob/master/TRADEMARKS.md */}
