@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils/lockmap"
 )
 
 const (
@@ -38,7 +39,8 @@ const (
 
 // ScopedTokenService exposes backend functionality for working with scoped token resources.
 type ScopedTokenService struct {
-	svc *generic.ServiceWrapper[*joiningv1.ScopedToken]
+	svc        *generic.ServiceWrapper[*joiningv1.ScopedToken]
+	tokenLocks *lockmap.LockMap[string]
 }
 
 // NewScopedTokenService creates a new ScopedTokenService.
@@ -57,7 +59,8 @@ func NewScopedTokenService(b backend.Backend) (*ScopedTokenService, error) {
 	}
 
 	return &ScopedTokenService{
-		svc: svc,
+		svc:        svc,
+		tokenLocks: lockmap.New[string](),
 	}, nil
 }
 
@@ -114,6 +117,9 @@ const maxConsumeAttempts = 7
 // error is returned if the token is expired or has no remaining uses, which
 // should be treated as a failure to provision.
 func (s *ScopedTokenService) ConsumeScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error) {
+	lock := s.tokenLocks.Lock(name)
+	defer lock.Unlock()
+
 	for range maxConsumeAttempts {
 		token, err := s.svc.GetResource(ctx, name)
 		if err != nil {
