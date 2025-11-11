@@ -663,7 +663,7 @@ func writeSystemTemplate(path, header, t string, values any) error {
 
 // WriteTeleportService writes the Teleport systemd service for the version of Teleport
 // that matches the version of Teleport compiled into the executing code.
-func (ns *Namespace) WriteTeleportService(_ context.Context, pathDir string, rev Revision) error {
+func (ns *Namespace) WriteTeleportService(_ context.Context, pathDir string, rev Revision, f SetupFeatures) error {
 	if pathDir == "" {
 		pathDir = ns.defaultPathDir
 	}
@@ -679,6 +679,8 @@ func (ns *Namespace) WriteTeleportService(_ context.Context, pathDir string, rev
 			TeleportInstallationFile: filepath.Join(pathDir, "teleport"),
 			TeleportConfigPath:       ns.teleportConfigFile,
 			FIPS:                     rev.Flags&autoupdate.FlagFIPS != 0,
+			SELinux:                  f.SELinuxSSH,
+			CheckSELinuxEnforcing:    f.SELinuxCheckEnforcing,
 		}, w))
 	}))
 }

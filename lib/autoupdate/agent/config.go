@@ -87,6 +87,9 @@ type UpdateSpec struct {
 	// SELinuxSSH controls whether an SELinux module will be installed to
 	// constrain Teleport SSH.
 	SELinuxSSH bool `yaml:"selinux_ssh,omitempty"`
+	// SELinuxSSHEnforcing controls whether Teleport SSH will quit if
+	// SELinux is not in enforcing mode.
+	SELinuxSSHEnforcing bool `yaml:"selinux_ssh_enforcing,omitempty"`
 }
 
 // UpdateStatus describes the status field in update.yaml.
@@ -248,6 +251,12 @@ func updateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	}
 	if spec.SELinuxSSH && runtime.GOOS != "linux" {
 		return trace.BadParameter("SELinux is only supported on Linux")
+	}
+	if override.SELinuxSSHEnforcingChanged {
+		spec.SELinuxSSHEnforcing = override.SELinuxSSHEnforcing
+	}
+	if !spec.SELinuxSSH {
+		spec.SELinuxSSHEnforcing = false
 	}
 	return nil
 }

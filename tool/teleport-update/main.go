@@ -145,6 +145,8 @@ func Run(args []string) int {
 		Hidden().Envar(pathEnvVar).StringVar(&ccfg.Path)
 	enableCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
 		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
+	enableCmd.Flag("selinux-ensure-enforcing", "Force Teleport SSH to quit if SELinux is not in enforcing mode.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnforcingEnvVar).IsSetByUser(&ccfg.SELinuxSSHEnforcingChanged).BoolVar(&ccfg.SELinuxSSHEnforcing)
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
 
@@ -169,6 +171,8 @@ func Run(args []string) int {
 		Hidden().Envar(pathEnvVar).StringVar(&ccfg.Path)
 	pinCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
 		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
+	pinCmd.Flag("selinux-ensure-enforcing", "Force Teleport SSH to quit if SELinux is not in enforcing mode.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnforcingEnvVar).IsSetByUser(&ccfg.SELinuxSSHEnforcingChanged).BoolVar(&ccfg.SELinuxSSHEnforcing)
 
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
@@ -195,6 +199,8 @@ func Run(args []string) int {
 		Envar(autoupdate.SetupFlagsEnvVar).StringsVar(&ccfg.ForceFlags)
 	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").
 		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).BoolVar(&ccfg.SELinuxSSH)
+	setupCmd.Flag("selinux-ensure-enforcing", "Force Teleport SSH to quit if SELinux is not in enforcing mode.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnforcingEnvVar).BoolVar(&ccfg.SELinuxSSHEnforcing)
 	setupCmd.Flag("tbot", "Setup a systemd service for tbot.").
 		Envar(autoupdate.SetupTbotEnvVar).BoolVar(&ccfg.SetupTbot)
 
@@ -493,8 +499,9 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	flags := common.NewInstallFlagsFromStrings(ccfg.ForceFlags)
 	rev := autoupdate.NewRevision(ccfg.ForceVersion, flags)
 	err = updater.Setup(ctx, ccfg.Path, rev, autoupdate.SetupFeatures{
-		SELinuxSSH: ccfg.SELinuxSSH,
-		Tbot:       ccfg.SetupTbot,
+		SELinuxSSH:            ccfg.SELinuxSSH,
+		SELinuxCheckEnforcing: ccfg.SELinuxSSHEnforcing,
+		Tbot:                  ccfg.SetupTbot,
 	}, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)

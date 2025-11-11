@@ -498,6 +498,7 @@ func TestWriteTeleportService(t *testing.T) {
 		configFile string
 		pathDir    string
 		flags      autoupdate.InstallFlags
+		features   SetupFeatures
 	}{
 		{
 			name:       "default",
@@ -518,6 +519,34 @@ func TestWriteTeleportService(t *testing.T) {
 			pathDir:    "/usr/local/bin",
 			flags:      autoupdate.FlagFIPS,
 		},
+		{
+			name:       "SELinux SSH",
+			pidFile:    "/var/run/teleport.pid",
+			configFile: "/etc/teleport.yaml",
+			pathDir:    "/usr/local/bin",
+			features: SetupFeatures{
+				SELinuxSSH: true,
+			},
+		},
+		{
+			name:       "SELinux SSH enforcing",
+			pidFile:    "/var/run/teleport.pid",
+			configFile: "/etc/teleport.yaml",
+			pathDir:    "/usr/local/bin",
+			features: SetupFeatures{
+				SELinuxSSH:            true,
+				SELinuxCheckEnforcing: true,
+			},
+		},
+		{
+			name:       "no SELinux SSH with enforcing",
+			pidFile:    "/var/run/teleport.pid",
+			configFile: "/etc/teleport.yaml",
+			pathDir:    "/usr/local/bin",
+			features: SetupFeatures{
+				SELinuxCheckEnforcing: true,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -528,7 +557,7 @@ func TestWriteTeleportService(t *testing.T) {
 				teleportServiceFile: serviceFile,
 				teleportPIDFile:     tt.pidFile,
 			}
-			err := ns.WriteTeleportService(context.Background(), tt.pathDir, NewRevision("version", tt.flags))
+			err := ns.WriteTeleportService(context.Background(), tt.pathDir, NewRevision("version", tt.flags), tt.features)
 			require.NoError(t, err)
 			data, err := os.ReadFile(serviceFile)
 			require.NoError(t, err)
