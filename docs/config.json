@@ -1716,6 +1716,11 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
+      "permanent": true
+    },
+    {
       "source": "/machine-workload-identity/machine-id/deployment/",
       "destination": "/machine-workload-identity/deployment/",
       "permanent": true
