@@ -108,13 +108,24 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 			errCheck: badParameterCheck,
 		},
 		{
-			name: "missing ssm document",
+			name: "missing ssm document is not an issue because users might want to use a pre-defined one",
 			req: func() EC2SSMIAMConfigureRequest {
 				req := baseReq()
 				req.SSMDocumentName = ""
 				return req
 			},
-			errCheck: badParameterCheck,
+			errCheck: require.NoError,
+			expected: EC2SSMIAMConfigureRequest{
+				Region:                      "us-east-1",
+				IntegrationRole:             "integrationrole",
+				IntegrationRoleEC2SSMPolicy: "EC2DiscoverWithSSM",
+				SSMDocumentName:             "",
+				ProxyPublicURL:              "https://proxy.example.com",
+				ClusterName:                 "my-cluster",
+				IntegrationName:             "my-integration",
+				AccountID:                   "123456789012",
+				AutoConfirm:                 true,
+			},
 		},
 		{
 			name: "missing proxy url",
