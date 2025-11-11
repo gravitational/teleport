@@ -325,6 +325,7 @@ labels: {}
 # - "gcp": will deploy Teleport using Firestore for backend/audit log storage and Google Cloud storage for session recordings. (2)
 # - "azure": will deploy Teleport using Azure Database for PostgreSQL for backend/audit and Azure Blob Storage for session recordings. (3)
 # - "scratch": will deploy Teleport containers but will not provide default configuration file. You must pass your own configuration. (4)
+# - "proxy-standalone" : will deploy Teleport containers for just the proxy service
 # (1) To use "aws" mode, you must also configure the "aws" section below.
 # (2) To use "gcp" mode, you must also configure the "gcp" section below.
 # (3) To use "azure" mode, you must also configure the "azure" section below.
@@ -587,6 +588,10 @@ tls:
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
   # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
+
+##################################################
+# Proxy-Standalone settings (only used in "proxy-standalone" mode)
+##################################################
 
 ##################################################
 # Values that you shouldn't need to change.
