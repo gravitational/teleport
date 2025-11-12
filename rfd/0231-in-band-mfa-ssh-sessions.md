@@ -76,9 +76,9 @@ If MFA is _not required_, the SSH service will then proceed to establish the SSH
 
 If MFA _is required_, the SSH service will send a Protobuf [`MFAPrompt`
 message](#ssh-keyboard-interactive-authentication) via the SSH [keyboard-interactive
-channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. S The client must then call
-the `CreateChallenge` RPC on the MFA service, providing a _Session Identifying Payload (SIP)_ and any relevant metadata.
-The SIP is an SSH session hash computed from SSH session state and is used to bind the MFA challenge to the specific
+channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. The client must then call the
+`CreateChallenge` RPC on the MFA service, providing a _Session Identifying Payload (SIP)_ and any relevant metadata. The
+SIP is an SSH session hash computed from SSH session state and is used to bind the MFA challenge to the specific
 session. Both the SSH client and the SSH server can independently compute the SIP from session state.
 
 The MFA service will [store the SIP](#storing-session-identifying-payloads) and respond with a challenge for the client
@@ -182,7 +182,7 @@ sequenceDiagram
     rMFA-->>Client: MFA challenge
     Client->>Client: Solve MFA challenge
     Client->>rMFA: ValidateChallenge (cluster name,MFA response)
-    rMFA-->>lMFA: UpsertValidatedChallenge (SIP)
+    rMFA-->>lMFA: CreateValidatedChallenge (SIP)
 
     Client->>SSH: Keyboard-interactive (challenge name)
     SSH->>lMFA: GetValidatedChallenge (challenge name)
@@ -219,7 +219,7 @@ Mitigations:
 #### New RPCs Attack Surface Risk
 
 This RFD introduces an MFA service which exposes four RPCs: `CreateChallenge`, `ValidateChallenge`,
-`UpsertValidatedChallenge` and `GetValidatedChallenge`. These could potentially be exploited by an attacker to DoS the
+`CreateValidatedChallenge` and `GetValidatedChallenge`. These could potentially be exploited by an attacker to DoS the
 service by flooding it with requests.
 
 Mitigations:
@@ -228,7 +228,7 @@ Mitigations:
    will be rejected.
 1. Only Teleport instances are authorized to call the `ValidateChallenge` RPC, requests from other sources will be
    rejected.
-1. Only local Teleport instances are authorized to call the `UpsertValidatedChallenge` RPC of a leaf cluster, requests
+1. Only local Teleport instances are authorized to call the `CreateValidatedChallenge` RPC of a leaf cluster, requests
    from other sources will be rejected.
 1. Only leaf Teleport instances are authorized to call the `GetValidatedChallenge` RPC of the same cluster, requests
    from other sources will be rejected.
@@ -348,9 +348,9 @@ service MFAService {
   // ValidateChallenge validates the MFA challenge response for a user session. The client must verify the returned
   // payload matches the expected payload to ensure the response is tied to the correct session.
   rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
-  // UpsertValidatedChallenge stores a previously validated MFA challenge response for a user session. This is used in
+  // CreateValidatedChallenge stores a previously validated MFA challenge response for a user session. This is used in
   // the SSH session establishment process for leaf clusters.
-  rpc UpsertValidatedChallenge(UpsertValidatedChallengeRequest) returns (UpsertValidatedChallengeResponse);
+  rpc CreateValidatedChallenge(CreateValidatedChallengeRequest) returns (CreateValidatedChallengeResponse);
   // GetValidatedChallenge retrieves a previously validated MFA challenge response for a user session. This is used in
   // the SSH session establishment process for leaf clusters.
   rpc GetValidatedChallenge(GetValidatedChallengeRequest) returns (GetValidatedChallengeResponse);
@@ -405,12 +405,12 @@ message ValidateChallengeResponse {
   types.MFADevice device = 2;
 }
 
-// UpsertValidatedChallengeRequest is the request message for UpsertValidatedChallenge.
-message UpsertValidatedChallengeRequest {
+// CreateValidatedChallengeRequest is the request message for CreateValidatedChallenge.
+message CreateValidatedChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the upsert to the correct challenge.
   string name = 1;
-  // payload is a value that uniquely identifies the user's session. The client calling UpsertValidatedChallenge MUST
+  // payload is a value that uniquely identifies the user's session. The client calling CreateValidatedChallenge MUST
   // independently compute this value from session state to verify it matches in order to verify the response is tied to
   // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
   bytes payload = 2;
@@ -418,8 +418,8 @@ message UpsertValidatedChallengeRequest {
   types.MFADevice device = 3;
 }
 
-// UpsertValidatedChallengeResponse is the response message for UpsertValidatedChallenge.
-message UpsertValidatedChallengeResponse {
+// CreateValidatedChallengeResponse is the response message for CreateValidatedChallenge.
+message CreateValidatedChallengeResponse {
   // Empty response but defined for future extensibility.
 }
 
@@ -646,7 +646,7 @@ The existing SSH session audit events will be updated to indicate whether MFA wa
 per-session MFA certificate. This will help with tracking the rollout of the new in-band MFA flow during the transition
 period.
 
-Audit events will not be added for the `UpsertValidatedChallenge` and `GetValidatedChallenge` because these RPCs are
+Audit events will not be added for the `CreateValidatedChallenge` and `GetValidatedChallenge` because these RPCs are
 internal to the SSH session establishment process and do not represent user actions.
 
 ```proto
