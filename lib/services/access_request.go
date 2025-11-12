@@ -2350,7 +2350,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	for _, r := range requestedRoles {
 		requestedRoleMap[r] = struct{}{}
 	}
-	allRoles := append(requestedRoles, m.userState.GetRoles()...)
+	allRoles := slices.Concat(requestedRoles, m.userState.GetRoles())
 	roleSet, err := FetchRoles(allRoles, m.getter, m.userState.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
