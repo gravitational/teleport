@@ -117,9 +117,6 @@ health.
 Once a new connection is established the old connection will be drained gracefully
 and new RPCs will be sent over the new connection.
 
-We will consider enforcing a timeout where streams over the old draining connection
-may be forcefully terminated after some duration + jitter.
-
 Any open RPCs on the old connection will be allowed to run to completetion.
 
 We will explore implementing a gRPC endpoint which will allow for discovering
@@ -288,6 +285,21 @@ auth service continues to receive new connections there may be increased new con
 attempts from clients since each connection will send a single request before being
 instructed to reconnect.
 
+#### Forceful RPC closing
+There was discussion around whether the gRPC load balancer policy should forcefully close streams following the graceful shutdown of a connection.
+
+This would allow old connections to finish draining and reduce the number of
+open connections in the system faster.
+
+For now we have decided we are okay accepting the increased number of connections. Our current thought process is `if it ain't broke, don't fix it`.
+However we may revisit this if we want to make the gRPC load balancing policy a default behavior for all deployments.
+
+There is some additional work to be done to determine the impact of closing these streams.
+
+We do have a path forward for enforcing this behavior if desired in the future.
+This would use a gRPC interceptor to wrap the RPC's context with a cancel context and store the cancel as a value in the context. Then the cancel function can be retreived in the `balancer.Picker`[^13] and associated
+with a specific connection.
+
 #### Periodic Auth Reconnects
 
 > [!NOTE]
@@ -348,3 +360,4 @@ libraries.
 [^11]: https://docs.google.com/spreadsheets/d/1m1FD-xVEqLyc6Boh2XXuJpdjmeLPDwra-ZUDuWxhCOs/edit?gid=0#gid=0
 [^12]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Connection#close
 [^13]: https://pkg.go.dev/net/http#Server:~:text=format.%0A%09Addr%20string-,Handler,-Handler%20//%20handler%20to
+[^14]: https://pkg.go.dev/google.golang.org/grpc/balancer#Picker
