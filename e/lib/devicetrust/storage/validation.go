@@ -7,13 +7,13 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-attestation/attest"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetpm"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
@@ -57,7 +57,7 @@ func ValidateDeviceCredential(cred *devicepb.DeviceCredential, os devicepb.OSTyp
 	}
 
 	if isTPM {
-		akPub, err := attest.ParseAKPublic(attest.TPMVersion20, cred.TpmAkPublic)
+		akPub, err := devicetpm.ParseAKPublic(cred.TpmAkPublic)
 		if err != nil {
 			return nil, trace.BadParameter("invalid TPM credential public key DER")
 		}

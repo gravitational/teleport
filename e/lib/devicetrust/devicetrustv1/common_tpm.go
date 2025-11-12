@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetpm"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
@@ -28,10 +29,7 @@ func platformAttestationChallenge(
 		return nil, nil, trace.Wrap(err, "generating nonce")
 	}
 
-	ak, err := attest.ParseAKPublic(
-		attest.TPMVersion20,
-		akPublic,
-	)
+	ak, err := devicetpm.ParseAKPublic(akPublic)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "parsing ak public")
 	}
@@ -91,11 +89,10 @@ func credentialActivationChallenge(
 	func(clientSolution []byte) error,
 	error,
 ) {
-	activationParameters := attest.ActivationParameters{
-		TPMVersion: attest.TPMVersion20,
-		AK:         attestationParameters,
-		EK:         ek,
-	}
+	activationParameters := devicetpm.ActivationParameters(&attest.ActivationParameters{
+		AK: attestationParameters,
+		EK: ek,
+	})
 	// The generate method completes initial validation that provides the
 	// following assurances:
 	// - The attestation key is of a secure length

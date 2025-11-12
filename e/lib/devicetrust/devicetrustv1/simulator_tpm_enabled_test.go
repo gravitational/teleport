@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetpm"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
@@ -193,8 +194,7 @@ func (e *tpmSimulator) setup() (closer func(), err error) {
 		return nil, fmt.Errorf("getting tpm simulator: %w", err)
 	}
 
-	e.tpm, err = attest.OpenTPM(&attest.OpenConfig{
-		TPMVersion: attest.TPMVersion20,
+	e.tpm, err = devicetpm.OpenTPM(&attest.OpenConfig{
 		CommandChannel: &fakeCmdChannel{
 			ReadWriteCloser: e.sim,
 		},
