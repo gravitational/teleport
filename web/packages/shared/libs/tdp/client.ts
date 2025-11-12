@@ -32,12 +32,10 @@ import  {
   FileType,
   LatencyStats,
   ServerHello,
-  MessageType,
   PointerData,
   Alert,
   Severity,
   SharedDirectoryErrCode,
-  TDPBCodec,
   type ButtonState,
   type ClientScreenSpec,
   type ClipboardData,
@@ -66,6 +64,8 @@ import  {
   RdpConnectionActivated,
   RdpFastPathPdu,
   MfaJson,
+  TdpbCodec,
+  TdpCodec,
 } from './codec';
 import {
   PathDoesNotExistError,
@@ -154,21 +154,22 @@ let wasmReady: Promise<void> | undefined;
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export class TdpClient extends EventEmitter<EventMap> {
   
-  //protected codec: Codec;
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
   private fastPathProcessor: FastPathProcessor | undefined;
   private sharedDirectory: SharedDirectoryAccess | undefined;
+  private keyboardLayout: number | undefined;
+  private screenSpec: ClientScreenSpec | undefined;
+  protected codec: Encoder
 
   private logger = Logger.create('TDPClient');
 
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
-    protected codec: Encoder,
   ) {
     super();
-    //this.codec = new Codec();
+    this.codec = new TdpCodec(this)
   }
 
   /** Connects to the transport and registers event handlers. */
@@ -214,6 +215,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     // and WDS versions that don't support this feature (v17 and earlier), this
     // avoids the connection crashing.
     if (options.keyboardLayout !== undefined && options.keyboardLayout !== 0) {
+      this.keyboardLayout = options.keyboardLayout;
       this.sendClientKeyboardLayout(options.keyboardLayout);
     } else {
       // The proxy expects two messasges (client screen spec and keyboard layout)
@@ -223,6 +225,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       // TODO (danielashare): Remove this once proxy doesn't block on
       // keyboardLayout.
       if (options.screenSpec) {
+        this.screenSpec = options.screenSpec;
         this.sendClientScreenSpec(options.screenSpec);
       }
     }
@@ -377,14 +380,15 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleTDPBUpgrade() {
     // Swap our codec to the TDPB codec.
-    //this.codec = new TDPBCodec(this)
+    this.codec = new TdpbCodec(this)
 
-
-    // Send 'Client Hello' message with our capabilities
-    // Listen for 'Server Hello' (wich *should* contain a
-    // CONNNECTION_ACTIVATED sub-message)
-    // We need to get the client into some state where it will ignore
-    // incoming messages until server_hello/connection_activated is received
+    // Send the TDPB client hello
+    this.send(
+      this.codec.encodeClientHello({
+        keyboardLayout: this.keyboardLayout,
+        screenSpec: this.screenSpec
+      })
+    );
   }
 
   handleServerHello(hello: ServerHello) {

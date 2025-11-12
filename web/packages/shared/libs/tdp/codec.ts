@@ -19,7 +19,7 @@
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 import * as tdpb from 'gen-proto-ts/teleport/desktop/tdp_pb'
 
-export type Message = ArrayBuffer;
+export type Message = ArrayBufferLike;
 
 export enum MessageType {
   CLIENT_SCREEN_SPEC = 1,
@@ -387,7 +387,6 @@ export abstract class Encoder {
   abstract encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
   abstract encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message;
   abstract encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message;
-  abstract encodeFileSystemObject(fso: FileSystemObject): Message;
   abstract encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message;
   abstract encodeSharedDirectoryAnnounce(announce: SharedDirectoryAnnounce): Message;
   abstract encodeSharedDirectoryCreateResponse(resp: SharedDirectoryCreateResponse): Message;
@@ -482,6 +481,7 @@ export class TdpbCodec extends Encoder {
         const clipboardData = tdpb.ClipboardData.fromBinary(messageData).data;
         this.handlers.handleClipboardData({ data: this.decoder.decode(clipboardData) });
         break;
+      // TODO: Implement shared directory message handling
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_ANNOUNCE:
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE:
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_INFO_REQUEST:
@@ -505,6 +505,107 @@ export class TdpbCodec extends Encoder {
       activationEvent: hello.activationSpecs,
     }
   }
+
+  encodeRdpResponsePdu(response: ArrayBufferLike): Message {
+    return tdpb.RDPResponsePDU.toBinary({response: new Uint8Array(response)}).buffer
+  }
+
+  encodeMouseMove(x: number, y: number): Message {
+    return tdpb.MouseMove.toBinary({x,y}).buffer;
+  }
+  encodeMouseButton(button: MouseButton, state: ButtonState): Message {
+    return tdpb.MouseButton.toBinary({button, pressed: state == ButtonState.DOWN}).buffer;
+  }
+
+ encodeKeyboardInput(code: string, state: ButtonState): Message[] {
+    const scancodes = KEY_SCANCODES[code];
+    if (!scancodes) {
+      // eslint-disable-next-line no-console
+      console.warn(`unsupported key code: ${code}`);
+      return [];
+    }
+    return scancodes.map(scancode => this.encodeScancode(scancode, state));
+  }
+
+  private encodeScancode(scancode: number, state: ButtonState): Message {
+    return tdpb.KeyboardButton.toBinary({keyCode: scancode, pressed: state == ButtonState.DOWN}).buffer
+  }
+
+  encodeSyncKeys(syncKeys: SyncKeys): Message {
+    return tdpb.SyncKeys.toBinary({
+      scrollLockPressed: syncKeys.scrollLockState == ButtonState.DOWN,
+      numLockState: syncKeys.numLockState == ButtonState.DOWN,
+      capsLockState: syncKeys.capsLockState == ButtonState.DOWN,
+      kanaLockState: syncKeys.kanaLockState == ButtonState.DOWN
+    }).buffer;
+  }
+  encodeClipboardData(clipboardData: ClipboardData) {
+    return tdpb.ClipboardData.toBinary({data: this.encoder.encode(clipboardData.data)}).buffer;
+  }
+  encodeUsername(username: string): Message {
+    return tdpb.ClientUsername.toBinary({username}).buffer;
+  }
+  encodeClientKeyboardLayout(keyboardLayout: number): Message {
+    return tdpb.ClientKeyboardLayout.toBinary({keyboardLayout}).buffer;
+  }
+  encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message {
+    return tdpb.MouseWheel.toBinary({axis: axis.valueOf() - 1 , delta}).buffer;
+  }
+  encodeMfaJson(mfaJson: MfaJson): Message {
+    return null;
+  }
+
+  encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message {
+    return tdpb.SharedDirectoryInfoResponse.toBinary({
+      completionId: res.completionId,
+      errorCode: res.errCode,
+      fso: res.fso,
+    }).buffer
+  }
+
+  encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
+    return tdpb.SharedDirectoryReadResponse.toBinary({
+      completionId: res.completionId,
+      errorCode: res.errCode,
+      readData: res.readData,
+      readDataLength: res.readDataLength,
+    }).buffer
+  }
+
+  encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message {
+    return tdpb.SharedDirectoryMoveResponse.toBinary({
+      completionId: res.completionId,
+      errorCode: res.errCode,
+    }).buffer
+  }
+  
+  encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message {
+    return tdpb.SharedDirectoryListResponse.toBinary({
+      completionId: res.completionId,
+      errorCode: res.errCode,
+      fsoList: res.fsoList
+    }).buffer
+  }
+
+
+  encodeSharedDirectoryAnnounce(announce: SharedDirectoryAnnounce): Message {
+    return null;
+  }
+  encodeSharedDirectoryCreateResponse(resp: SharedDirectoryCreateResponse): Message{
+    return null;
+  }
+
+  encodeSharedDirectoryDeleteResponse(resp: SharedDirectoryDeleteResponse): Message {
+    return null;
+  }
+
+  encodeSharedDirectoryWriteResponse(resp: SharedDirectoryWriteResponse): Message {
+    return null;
+  }
+  encodeSharedDirectoryTruncateResponse(resp: SharedDirectoryTruncateResponse): Message {
+    return null;
+  }
+    
 }
 
 // Each codec class needs to extend
