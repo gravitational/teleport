@@ -21,7 +21,13 @@ import { JSX } from 'react';
 import styled from 'styled-components';
 
 import { ButtonText, Flex, Label, P3, Stack } from 'design';
-import { Clock, Logout, ShieldCheck, ShieldWarning } from 'design/Icon';
+import {
+  Clock,
+  Logout,
+  Refresh,
+  ShieldCheck,
+  ShieldWarning,
+} from 'design/Icon';
 import Link from 'design/Link';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
@@ -75,7 +81,8 @@ export function ActiveCluster(props: {
               intent="danger"
               size="small"
             >
-              <Logout size="small" />
+              <Logout mr={1} size="small" />
+              Log out
             </ButtonText>
           </Flex>
         </Flex>
@@ -104,24 +111,44 @@ export function ActiveCluster(props: {
         </Flex>
         <Stack gap={0}>
           {validUntil && (
-            <Flex gap={1} color="text.slightlyMuted">
-              <Clock size="small" />
-              <P3>
-                <span title={validUntil.toLocaleString()}>
-                  {isPast(validUntil)
-                    ? 'Session expired.'
-                    : `Session expires ${formatDistanceToNowStrict(validUntil, { addSuffix: true })}.`}
-                </span>
-                <Link
-                  onClick={() => props.onRefresh()}
-                  ml={1}
-                  css={`
-                    cursor: pointer;
-                  `}
-                >
-                  Refresh…
-                </Link>
-              </P3>
+            <Flex
+              justifyContent="space-between"
+              width="100%"
+              alignItems="center"
+              gap={1}
+            >
+              <Flex gap={1} color="text.slightlyMuted">
+                <Clock size="small" />
+                <P3>
+                  {isPast(validUntil) ? (
+                    'Session expired.'
+                  ) : (
+                    <>
+                      Session expires{' '}
+                      <span
+                        title={validUntil.toLocaleString()}
+                        css={`
+                          text-decoration: underline;
+                          text-decoration-style: dotted;
+                        `}
+                      >
+                        {formatDistanceToNowStrict(validUntil, {
+                          addSuffix: true,
+                        })}
+                        .
+                      </span>
+                    </>
+                  )}
+                </P3>
+              </Flex>
+              <ButtonText
+                title={`Refresh session in ${clusterName}`}
+                onClick={() => props.onLogout()}
+                size="small"
+              >
+                <Refresh mr={1} size="small" />
+                Refresh
+              </ButtonText>
             </Flex>
           )}
           <DeviceTrustMessage status={props.deviceTrustStatus} />
