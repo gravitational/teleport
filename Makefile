@@ -1937,9 +1937,13 @@ export rust_toolchain_warning
 .PHONY: rustup-toolchain-warning
 rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
 rustup-toolchain-warning:
+ifeq ($(CI),) # do not run this recipe in CI
 	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
+		echo -en "\033[31m";\
 		echo  "$$rust_toolchain_warning";\
+		echo  -en "\033[0m";\
 	fi
+endif
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
