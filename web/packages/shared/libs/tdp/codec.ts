@@ -17,6 +17,7 @@
  */
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
+import * as tdpb from 'gen-proto-ts/teleport/desktop/tdp_pb'
 
 export type Message = ArrayBuffer;
 
@@ -58,6 +59,8 @@ export enum MessageType {
   LATENCY_STATS = 35,
   // MessageType 36 is a server-side only Ping message
   CLIENT_KEYBOARD_LAYOUT = 37,
+  TDPB_UPGRADE = 38,
+  SERVER_HELLO = 39,
   __LAST, // utility value
 }
 
@@ -332,6 +335,17 @@ export type LatencyStats = {
   server: number;
 };
 
+export type ServerHello = {
+  clipboardSupport: boolean,
+  activationEvent: RdpConnectionActivated
+
+};
+
+export type ClientHello = {
+  keyboardLayout: number,
+  screenSpec: ClientScreenSpec
+};
+
 function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   if (!(errCode in SharedDirectoryErrCode)) {
     throw new Error(`attempted to convert invalid error code ${errCode}`);
@@ -340,6 +354,163 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   return errCode as SharedDirectoryErrCode;
 }
 
+
+// Implement a set of encoding methods that the client will use
+// to send outbound messages
+export abstract class Encoder {
+
+  constructor(
+    protected handlers: ClientEventHandlers
+  ) { }
+
+  // Legacy TDP Messages (optional override)
+  encodeClientScreenSpec(spec: ClientScreenSpec): Message {
+    throw new Error("unimplemented")
+  }
+  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
+    throw new Error("unimplemented")
+  }
+
+  // message processing
+  abstract processMessage(buffer: ArrayBufferLike);
+
+  // Shared TDP/TDPB Messages
+  abstract encodeMouseMove(x: number, y: number): Message;
+  abstract encodeMouseButton(button: MouseButton, state: ButtonState): Message;
+  abstract encodeSyncKeys(syncKeys: SyncKeys): Message;
+  abstract encodeClipboardData(clipboardData: ClipboardData): Message;
+  abstract encodeUsername(username: string): Message;
+  abstract encodeClientKeyboardLayout(keyboardLayout: number): Message;
+  abstract encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
+  abstract encodeMfaJson(mfaJson: MfaJson): Message;
+  abstract encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
+  abstract encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
+  abstract encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message;
+  abstract encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message;
+  abstract encodeFileSystemObject(fso: FileSystemObject): Message;
+  abstract encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message;
+  abstract encodeSharedDirectoryAnnounce(announce: SharedDirectoryAnnounce): Message;
+  abstract encodeSharedDirectoryCreateResponse(resp: SharedDirectoryCreateResponse): Message;
+  abstract encodeSharedDirectoryDeleteResponse(resp: SharedDirectoryDeleteResponse): Message;
+  abstract encodeSharedDirectoryWriteResponse(resp: SharedDirectoryWriteResponse): Message;
+  abstract encodeSharedDirectoryTruncateResponse(resp: SharedDirectoryTruncateResponse): Message;
+
+  // TDPB Messages (optional override)
+  encodeClientHello(hello: ClientHello): Message {
+    throw new Error("unimplemented")
+  }
+}
+
+
+// Define a set of methods that the caller should implement
+// to handle TDP/TDPB events
+export interface ClientEventHandlers {
+  handlePngFrame(frame: PngFrame);
+  handleRdpConnectionActivated(spec: RdpConnectionActivated);
+  handleServerHello(hello: ServerHello);
+  handleRdpFastPathPdu(pdu: RdpFastPathPdu);
+
+  // Unsupported messages
+  //handleClientScreenSpec(spec: ClientScreenSpec);
+  //handleMouseButton(button: MouseButton);
+  //handleMouseMove(move: tdpb.MouseMove);
+
+  handleClipboardData(data: ClipboardData);
+  handleTdpAlert(alert: Alert);
+  handleMfaChallenge(challenge: MfaJson);
+  handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge);
+  handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest);
+  handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest);
+  handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest);
+  handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest);
+  handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest);
+  handleSharedDirectoryMoveRequest(req: SharedDirectoryMoveRequest);
+  handleSharedDirectoryListRequest(req: SharedDirectoryListRequest);
+  handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest);
+  handleLatencyStats(stats: LatencyStats);
+  handleTDPBUpgrade();
+  handleServerHello(hello: ServerHello);
+}
+
+export class TdpbCodec extends Encoder {
+  encoder = new window.TextEncoder();
+  decoder = new window.TextDecoder();
+
+  // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
+  private asBase64Url(buffer: ArrayBufferLike, offset: number): string {
+    return `data:image/png;base64,${arrayBufferToBase64(buffer.slice(offset))}`;
+  }
+
+  public processMessage(buffer: ArrayBufferLike) {
+    const buf = new DataView(buffer);
+    const messageType = buf.getUint32(0, false);
+    const messageLength = buf.getUint32(4, false);
+    const messageData = new Uint8Array(buf.buffer.slice(8, 8 + messageLength));
+
+    switch (messageType) {
+      case tdpb.MessageType.MESSAGE_SERVER_HELLO:
+        this.handlers.handleRdpConnectionActivated(
+          tdpb.ServerHello.fromBinary(messageData).activationSpecs
+        );
+        break;
+      case tdpb.MessageType.MESSAGE_PNG_FRAME:
+        const frame = tdpb.PNGFrame.fromBinary(messageData);
+        let data = new Image()
+        data.src = this.asBase64Url(frame.data.buffer, 0);
+        let pngFrame = {
+          top: frame.coordinates.top,
+          left: frame.coordinates.left,
+          bottom: frame.coordinates.bottom,
+          right: frame.coordinates.right,
+          data: data,
+        };
+        data.onload = this.handlers.handlePngFrame(pngFrame);
+        break;
+      case tdpb.MessageType.MESSAGE_FASTPATH_PDU:
+        this.handlers.handleRdpFastPathPdu(
+          tdpb.FastPathPDU.fromBinary(messageData).pdu
+        );
+        break;
+      case tdpb.MessageType.MESSAGE_ERROR:
+        throw new Error(tdpb.Error.fromBinary(messageData).message);
+      case tdpb.MessageType.MESSAGE_ALERT:
+        // TODO: Go back and fix this typo in the protos
+        let { message, severseverity } = tdpb.Alert.fromBinary(messageData);
+        this.handlers.handleTdpAlert({ message, severity: severseverity.valueOf() })
+        break;
+      case tdpb.MessageType.MESSAGE_CLIPBOARD_DATA:
+        const clipboardData = tdpb.ClipboardData.fromBinary(messageData).data;
+        this.handlers.handleClipboardData({ data: this.decoder.decode(clipboardData) });
+        break;
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_ANNOUNCE:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_INFO_REQUEST:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_LIST_REQUEST:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_READ_REQUEST:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST:
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST:
+      case tdpb.MessageType.MESSAGE_LATENCY_STATS:
+      default:
+        throw new Error(`received unsupported message type", ${messageType}`)
+    }
+  }
+
+  decodeServerHello(buffer: ArrayBufferLike): ServerHello {
+    const hello = tdpb.ServerHello.fromBinary(new Uint8Array(buffer));
+    return {
+      clipboardSupport: true,
+      activationEvent: hello.activationSpecs,
+    }
+  }
+}
+
+// Each codec class needs to extend
+// 1. Encoder (encode outbound messages)
+// 2. Accept input handers
+
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
 // Buffers in TdaCodec are manipulated as DataView's [2] in order to give us low level control
 // of endianness (defaults to big endian, which is what we want), as opposed to using *Array
@@ -347,9 +518,87 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
 // [1] https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 // [2] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView
 // [3] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array
-export default class Codec {
+export class TdpCodec extends Encoder {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
+
+
+  async processMessage(buffer: ArrayBufferLike): Promise<void> {
+    const messageType = this.decodeMessageType(buffer);
+    switch (messageType) {
+      case MessageType.PNG_FRAME:
+        this.decodePngFrame(buffer,
+          (frame: PngFrame) => this.handlers.handlePngFrame(frame)
+        );
+        break;
+      case MessageType.PNG2_FRAME:
+        this.decodePng2Frame(buffer,
+          (frame: PngFrame) => this.handlers.handlePngFrame(frame)
+        );
+        break;
+      case MessageType.RDP_CONNECTION_ACTIVATED:
+        this.handlers.handleRdpConnectionActivated(this.decodeRdpConnectionActivated(buffer));
+        break;
+      case MessageType.RDP_FASTPATH_PDU:
+        this.handlers.handleRdpFastPathPdu(this.decodeRdpFastPathPdu(buffer));
+        break;
+      case MessageType.CLIPBOARD_DATA:
+        this.handlers.handleClipboardData(this.decodeClipboardData(buffer));
+        break;
+      case MessageType.ERROR:
+        throw new Error(this.decodeErrorMessage(buffer));
+      case MessageType.ALERT:
+        this.handlers.handleTdpAlert(this.decodeAlert(buffer));
+        break;
+      case MessageType.MFA_JSON:
+        this.handlers.handleMfaChallenge(this.decodeMfaJson(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_ACKNOWLEDGE:
+        this.handlers.handleSharedDirectoryAcknowledge(this.decodeSharedDirectoryAcknowledge(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_INFO_REQUEST:
+        await this.handlers.handleSharedDirectoryInfoRequest(this.decodeSharedDirectoryInfoRequest(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_CREATE_REQUEST:
+        // A typical sequence is that we receive a SharedDirectoryCreateRequest
+        // immediately followed by a SharedDirectoryWriteRequest. It's important
+        // that we await here so that this client doesn't field the SharedDirectoryWriteRequest
+        // until the create has successfully completed, or else we might get an error
+        // trying to write to a file that hasn't been created yet.
+        await this.handlers.handleSharedDirectoryCreateRequest(this.decodeSharedDirectoryCreateRequest(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_DELETE_REQUEST:
+        await this.handlers.handleSharedDirectoryDeleteRequest(this.decodeSharedDirectoryDeleteRequest(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_READ_REQUEST:
+        await this.handlers.handleSharedDirectoryReadRequest(this.decodeSharedDirectoryReadRequest(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_WRITE_REQUEST:
+        await this.handlers.handleSharedDirectoryWriteRequest(this.decodeSharedDirectoryWriteRequest(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_MOVE_REQUEST:
+        this.handlers.handleSharedDirectoryMoveRequest(this.decodeSharedDirectoryMoveRequest(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
+        await this.handlers.handleSharedDirectoryListRequest(this.decodeSharedDirectoryListRequest(buffer));
+        break;
+      case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
+        await this.handlers.handleSharedDirectoryTruncateRequest(this.decodeSharedDirectoryTruncateRequest(buffer));
+        break;
+      case MessageType.LATENCY_STATS:
+        this.handlers.handleLatencyStats(this.decodeLatencyStats(buffer));
+        break;
+      case MessageType.TDPB_UPGRADE:
+        // Has no message body
+        this.handlers.handleTDPBUpgrade();
+        break;
+      //case MessageType.CLIENT_SCREEN_SPEC:
+      //case MessageType.MOUSE_BUTTON:
+      //case MessageType.MOUSE_MOVE:
+      default:
+        throw new Error(`received unsupported message type", ${messageType}`)
+    }
+  }
 
   // encodeClientScreenSpec encodes the client's screen spec.
   // | message type (1) | width uint32 | height uint32 |

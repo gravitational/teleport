@@ -25,6 +25,7 @@ import {
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
 import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
+import TdpCodec from 'shared/libs/tdp/codec'
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -59,7 +60,10 @@ export function DesktopSession() {
             ),
             abortSignal
           ),
-        selectDirectoryInBrowser
+        selectDirectoryInBrowser,
+        // Start with the TDP codec. Should be able to upgrade
+        // to TDPB later.
+        new TdpCodec(),
       )
   );
   const mfa = useMfaEmitter(client, undefined, {

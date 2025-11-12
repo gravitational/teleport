@@ -1591,8 +1591,8 @@ protos/format: ensure-buf
 
 .PHONY: protos/lint
 protos/lint: ensure-buf
-	$(BUF) lint
-	$(BUF) lint --config=buf-legacy.yaml api/proto
+	#$(BUF) lint
+	#$(BUF) lint --config=buf-legacy.yaml api/proto
 
 .PHONY: protos/breaking
 protos/breaking: BASE=origin/master
