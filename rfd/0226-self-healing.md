@@ -111,7 +111,7 @@ and the old connection will be shutdown.
 We will differentiate between a connection failing due to the service being unhealthy
 and a connection failing due to a network issue.
 
-A connection failing due to a network issue can simply create a new conneciton.
+A connection failing due to a network issue can simply create a new connection.
 
 A connection failing due to an unhealthy service should continue to send RPCs to the
 unhealthy service until a new connection to a healthy service can be established.
@@ -123,7 +123,7 @@ health.
 Once a new connection is established the old connection will be drained gracefully
 and new RPCs will be sent over the new connection.
 
-Any open RPCs on the old connection will be allowed to run to completetion.
+Any open RPCs on the old connection will be allowed to run to completion.
 
 #### Policy Configuration Discovery
 
@@ -173,7 +173,7 @@ Today Proxies will eventually be seen as unhealthy after a Proxy expires from th
 backend and the agent tracker's default Proxy expiry is exceeded.
 
 This can take ~13 minutes based on the Proxy ServerAnnounceTTL = 10 minutes and
-the tracker.DefaultProxyExpirey = 3 minutes. To put this into perspective this is
+the tracker.DefaultProxyExpiry = 3 minutes. To put this into perspective this is
 roughly equal to the quarterly downtime budget when targeting `99.99` availability.
 
 #### Proposed Improvements
@@ -213,7 +213,7 @@ configured at each proxy. This will be stored in the backend `Server` resource
 as `Server.Spec.TTL`. This allows different values to exist on different services
 without running into expiry issues. For example if you are decreasing the heartbeat
 interval and the proxy bases the `TTL` off of its local heartbeat interval
-proxy services on the longer heartbeat inerval could appear to expire.
+proxy services on the longer heartbeat interval could appear to expire.
 
 #### Reducing Discovery Request Traffic
 
@@ -243,7 +243,7 @@ begin creating new connections attempting to reach a non-expired Proxy.
 #### Closing Connections
 
 Today the agent never closes reversetunnel connections. This can lead to more reversetunnel connections open than expected when proxies become unhealthy and recover. 
-To solve this agents will close reversetunnels based on thier configured
+To solve this agents will close reversetunnels based on their configured
 desired connection count.
 
 Connections will only be closed if the Proxy is expired or there are excess connections to the desired Proxy set. This avoids disconnecting from proxies during a rollout. We will only consider closing connections after exceeding these conditions for 30 to 60 minutes to mitigate the chances of an agent becoming unreachable.
@@ -262,9 +262,9 @@ To make a decision on this we've taken inventory of the existing auth http endpo
 
 We can see there are 19 http endpoints. 15 of which are still in use.
 
-Migrating these would be a large undertaking and would still require a intermidiary
-solution for http client reconnects in order to depricate the existing HTTP endpoints
-and support backwards compabilitity across 1 major version.
+Migrating these would be a large undertaking and would still require an intermediary
+solution for http client reconnects in order to deprecate the existing HTTP endpoints
+and support backwards compatibility across 1 major version.
 
 |api                       |used |description                                                |
 |--------------------------|-----|-----------------------------------------------------------|
@@ -316,7 +316,7 @@ However we may revisit this if we want to make the gRPC load balancing policy a 
 There is some additional work to be done to determine the impact of closing these streams.
 
 We do have a path forward for enforcing this behavior if desired in the future.
-This would use a gRPC interceptor to wrap the RPC's context with a cancel context and store the cancel as a value in the context. Then the cancel function can be retreived in the `balancer.Picker`[^14] and associated
+This would use a gRPC interceptor to wrap the RPC's context with a cancel context and store the cancel as a value in the context. Then the cancel function can be retrieved in the `balancer.Picker`[^14] and associated
 with a specific connection.
 
 #### Periodic Auth Reconnects
@@ -344,7 +344,7 @@ graceful than the option described above.
 #### Periodic Tunnel Reconnects
 
 > [!NOTE]
-> Periodic tunnel teconnects was discussed but no decision was made. We will revisit
+> Periodic tunnel reconnects was discussed but no decision was made. We will revisit
 > this after implementing [Proxy Reconnects](#proxy-reconnects) as described above.
 
 Reconnecting reversetunnels during a failure can lead to imbalanced and suboptimal
