@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -132,7 +131,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
-		types.KindToken:                       rc.createToken,
 		types.KindOIDCConnector:               rc.createOIDCConnector,
 		types.KindSAMLConnector:               rc.createSAMLConnector,
 		types.KindLoginRule:                   rc.createLoginRule,
@@ -142,7 +140,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindIntegration:                 rc.createIntegration,
 		types.KindWindowsDesktop:              rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
-		types.KindAccessList:                  rc.createAccessList,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindServerInfo:                  rc.createServerInfo,
@@ -264,7 +261,7 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
 	// Some resources require MFA to list with secrets. Check if we are trying to
 	// get any such resources so we can prompt for MFA preemptively.
-	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
+	mfaKinds := []string{types.KindCertAuthority}
 	for kind, handler := range resources.Handlers() {
 		if handler.MFARequired() {
 			mfaKinds = append(mfaKinds, kind)
@@ -928,20 +925,6 @@ func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	token, err := services.UnmarshalProvisionToken(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = client.UpsertToken(ctx, token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("provision_token %q has been created\n", token.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1210,30 +1193,6 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	accessList, err := services.UnmarshalAccessList(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = client.AccessListClient().GetAccessList(ctx, accessList.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists && !rc.IsForced() {
-		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
-	}
-
-	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.IsForced()))
-
-	return nil
-}
-
 func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	si, err := services.UnmarshalServerInfo(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1323,11 +1282,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 	}
 
 	switch rc.ref.Kind {
-	case types.KindToken:
-		if err = client.DeleteToken(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("token %q has been deleted\n", rc.ref.Name)
 	case types.KindSAMLConnector:
 		if err = client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1573,11 +1527,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
-	case types.KindAccessList:
-		if err := client.AccessListClient().DeleteAccessList(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Access list %q has been deleted\n", rc.ref.Name)
 	case types.KindAuditQuery:
 		if err := client.SecReportsClient().DeleteSecurityAuditQuery(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2064,18 +2013,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
-		if rc.ref.Name == "" {
-			tokens, err := getAllTokens(ctx, client)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &tokenCollection{tokens: tokens}, nil
-		}
-		token, err := client.GetToken(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name
 		listReq := proto.ListResourcesRequest{
@@ -2333,26 +2270,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &serverInfoCollection{serverInfos: serverInfos}, nil
-	case types.KindAccessList:
-		if rc.ref.Name != "" {
-			resource, err := client.AccessListClient().GetAccessList(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
-		}
-		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
-
-		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	case types.KindVnetConfig:
 		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
-	case types.KindAccessRequest:
-		resource, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
-		return &accessRequestCollection{accessRequests: resource}, trace.Wrap(err)
 	case types.KindPlugin:
 		if rc.ref.Name != "" {
 			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})

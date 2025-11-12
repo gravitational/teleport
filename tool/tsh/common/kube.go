@@ -162,7 +162,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(cf.Context, "Re-using existing TLS cert for kubernetes cluster", "cluster", kubeCluster)
+			logger.DebugContext(cf.Context, "Re-using existing TLS cert for Kubernetes cluster", "cluster", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
@@ -852,7 +852,7 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *cli
 
 	cred, ok := keyRing.KubeTLSCredentials[kubeClusterName]
 	if !ok {
-		return trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
+		return trace.NotFound("TLS credential for Kubernetes cluster %q not found", kubeClusterName)
 	}
 
 	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
@@ -1747,7 +1747,7 @@ func formatAmbiguousKubeCluster(cf *CLIConf, selectors resourceSelectors, kubeCl
 func formatKubeNotFound(clusterFlag string, selectors resourceSelectors) string {
 	listCmd := formatKubeListCommand(clusterFlag)
 	if selectors.IsEmpty() {
-		return fmt.Sprintf("no kubernetes clusters found, check '%v' for a list of known clusters",
+		return fmt.Sprintf("no Kubernetes clusters found, check '%v' for a list of known clusters",
 			listCmd)
 	}
 	return fmt.Sprintf("%v not found, check '%v' for a list of known clusters",

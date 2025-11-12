@@ -41,7 +41,6 @@ import (
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -623,27 +622,6 @@ func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) e
 	return trace.Wrap(err)
 }
 
-type tokenCollection struct {
-	tokens []types.ProvisionToken
-}
-
-func (c *tokenCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.tokens {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *tokenCollection) WriteText(w io.Writer, verbose bool) error {
-	for _, token := range c.tokens {
-		_, err := w.Write([]byte(token.String()))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 type kubeServerCollection struct {
 	servers []types.KubeServer
 }
@@ -1087,32 +1065,6 @@ func (c *serverInfoCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type accessListCollection struct {
-	accessLists []*accesslist.AccessList
-}
-
-func (c *accessListCollection) Resources() []types.Resource {
-	r := make([]types.Resource, len(c.accessLists))
-	for i, resource := range c.accessLists {
-		r[i] = resource
-	}
-	return r
-}
-
-func (c *accessListCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Title", "Review Frequency", "Next Audit Date"})
-	for _, al := range c.accessLists {
-		t.AddRow([]string{
-			al.GetName(),
-			al.Spec.Title,
-			al.Spec.Audit.Recurrence.Frequency.String(),
-			al.Spec.Audit.NextAuditDate.Format(time.RFC822),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type vnetConfigCollection struct {
 	vnetConfig *vnet.VnetConfig
 }
@@ -1131,43 +1083,6 @@ func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
 		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
 		strings.Join(dnsZoneSuffixes, ", "),
 	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type accessRequestCollection struct {
-	accessRequests []types.AccessRequest
-}
-
-func (c *accessRequestCollection) Resources() []types.Resource {
-	r := make([]types.Resource, len(c.accessRequests))
-	for i, resource := range c.accessRequests {
-		r[i] = resource
-	}
-	return r
-}
-
-func (c *accessRequestCollection) WriteText(w io.Writer, verbose bool) error {
-	var t asciitable.Table
-	var rows [][]string
-	for _, al := range c.accessRequests {
-		var annotations []string
-		for k, v := range al.GetSystemAnnotations() {
-			annotations = append(annotations, fmt.Sprintf("%s/%s", k, strings.Join(v, ",")))
-		}
-		rows = append(rows, []string{
-			al.GetName(),
-			al.GetUser(),
-			strings.Join(al.GetRoles(), ", "),
-			strings.Join(annotations, ", "),
-		})
-	}
-	if verbose {
-		t = asciitable.MakeTable([]string{"Name", "User", "Roles", "Annotations"}, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "User", "Roles", "Annotations"}, rows, "Annotations")
-	}
-
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

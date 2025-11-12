@@ -185,8 +185,7 @@ Support for disabling multi-factor authentication has been removed
 
 Users with custom `ssh_config` should modify their ProxyCommand to use the new,
 more performant, `tbot ssh-proxy-command`. See the
-[v16 upgrade guide](docs/pages/reference/machine-workload-identity/machine-id/v16-upgrade-guide.mdx) for
-more details.
+v16 upgrade guide for more details.
 
 #### Default keyboard shortcuts in Teleport Connect have been changed
 
@@ -602,7 +601,7 @@ In Teleport 14, `tbot` can now be configured to write artifacts such as
 credentials and configuration files directly to a Kubernetes secret rather than
 a directory on the local file system.
 
-For more information, see [docs](docs/pages/reference/machine-workload-identity/machine-id/configuration.mdx).
+For more information, see [docs](docs/pages/reference/machine-workload-identity/configuration.mdx).
 
 ### Breaking changes and deprecations
 
@@ -1504,7 +1503,7 @@ Visit the individual repositories to find out more and see usage examples:
 - https://github.com/teleport-actions/auth-k8s
 
 For a more in-depth guide, see our
-[documentation](docs/pages/machine-workload-identity/machine-id/deployment/github-actions.mdx) for using
+[documentation](docs/pages/machine-workload-identity/deployment/github-actions.mdx) for using
 Teleport with GitHub Actions.
 
 ### Secure certificate mapping for desktop access
@@ -2042,7 +2041,7 @@ In Teleport 10 we’ve added database access support to Machine ID. Applications
 can use Machine ID to access databases protected by Teleport.
 
 You can find Machine ID guide for database access in the
-[documentation](docs/pages/machine-workload-identity/machine-id/access-guides/databases.mdx).
+[documentation](docs/pages/machine-workload-identity/access-guides/databases.mdx).
 
 ### Breaking changes
 

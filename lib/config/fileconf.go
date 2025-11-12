@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -1640,6 +1641,17 @@ type AccessGraphAWSSync struct {
 	// CloudTrailLogs is the configuration for the SQS queue to poll for
 	// CloudTrail logs.
 	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
+	// EKSAuditLogs is the configuration for fetching audit logs for EKS
+	// clusters discovered.
+	EKSAuditLogs *AccessGraphEKSAuditLogs `yaml:"eks_audit_logs,omitempty"`
+}
+
+// AccessGraphEKSAuditLogs is the configuration for fetching audit logs from
+// clusters discovered for access graph.
+type AccessGraphEKSAuditLogs struct {
+	// Tags are AWS EKS tags to match. Clusters that have tags that match these
+	// will have their audit logs fetched and sent to Access Graph.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
@@ -1837,6 +1849,20 @@ type InstallParams struct {
 	// This value is used to group installations in order to update them in batches.
 	// See --group flag in teleport-update program.
 	UpdateGroup string `yaml:"update_group,omitempty"`
+	// HTTPProxySettings configures HTTP proxy settings for the installation.
+	HTTPProxySettings *HTTPProxySettings `yaml:"http_proxy_settings,omitempty"`
+}
+
+// HTTPProxySettings configures HTTP proxy settings for the installation.
+// When set, the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables will be set when executing the installation script.
+type HTTPProxySettings struct {
+	// HTTPProxy is the HTTP proxy URL.
+	HTTPProxy string `yaml:"http_proxy,omitempty"`
+	// HTTPSProxy is the HTTPS proxy URL.
+	HTTPSProxy string `yaml:"https_proxy,omitempty"`
+	// NoProxy is a comma-separated list of hosts that should be excluded
+	// from proxying.
+	NoProxy string `yaml:"no_proxy,omitempty"`
 }
 
 const (
@@ -1846,7 +1872,7 @@ const (
 
 var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
 
-func (ip *InstallParams) parse() (*types.InstallerParams, error) {
+func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
@@ -1856,6 +1882,19 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
 		Suffix:          ip.Suffix,
 		UpdateGroup:     ip.UpdateGroup,
+		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+	}
+
+	if ip.HTTPProxySettings != nil {
+		install.HTTPProxySettings = &types.HTTPProxySettings{
+			HTTPProxy:  ip.HTTPProxySettings.HTTPProxy,
+			HTTPSProxy: ip.HTTPProxySettings.HTTPSProxy,
+			NoProxy:    ip.HTTPProxySettings.NoProxy,
+		}
+
+		if err := install.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch ip.EnrollMode {
@@ -1867,6 +1906,12 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
 	default:
 		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
+	}
+
+	if ip.Azure != nil {
+		install.Azure = &types.AzureInstallerParams{
+			ClientID: ip.Azure.ClientID,
+		}
 	}
 
 	if ip.InstallTeleport == "" {

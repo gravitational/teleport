@@ -239,6 +239,10 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if m.Params.ScriptName == "" {
 		m.Params.ScriptName = DefaultInstallerScriptNameAgentless
 		if m.Params.InstallTeleport {

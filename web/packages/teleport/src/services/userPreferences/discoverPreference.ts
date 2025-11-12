@@ -47,6 +47,8 @@ export enum DiscoverGuideId {
 
   // MCP Servers:
   MCPServerStdioTransport = 'mcp-stdio',
+  MCPServerSSETransport = 'mcp-sse',
+  MCPServerStreamableHTTPTransport = 'mcp-streamable-http',
 
   // Windows Desktops:
   WindowsDesktopsActiveDirectory = 'windows-desktops-active-directory',

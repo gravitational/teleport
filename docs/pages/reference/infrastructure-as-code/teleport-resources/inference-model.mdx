@@ -1,0 +1,48 @@
+---
+title: Inference Model Resource Reference
+sidebar_label: Inference Model
+description: Provides a comprehensive list of fields for the Teleport inference model resource.
+---
+
+The inference model resource configures which third-party inference provider
+should be accessed and contains both general and provider-specific options that
+control session recording summarization. Multiple models can be configured.
+
+```yaml
+kind: inference_model
+version: v1
+metadata:
+  name: example-model
+spec:
+
+  # openai tells Teleport to use OpenAI for summarizing session recordings
+  # using this model. Currently this is the only option.
+  openai:
+
+    # openai_model_id is the provider-specific model name. If this model
+    # connects to a real OpenAI API, this needs to be a valid OpenAI model
+    # name. If it connects to an OpenAI-compatible proxy, this ID is whatever
+    # the public model name is used by that particular proxy. Required.
+    openai_model_id: gpt-4o
+    
+    # temperature is an optional temperature of the model. Defaults to whatever
+    # is the model's default.
+    temperature: 0.4
+    
+    # api_key_secret_ref is a name of an inference_secret resource containing
+    # the OpenAI API key (in case of direct connection to OpenAI) or other
+    # secret required to authenticate against an LLM proxy. Required.
+    api_key_secret_ref: example-openai-key
+    
+    # base_url allows changing the base URL to point Teleport to an alternate
+    # OpenAI-compatible API, e.g. a proxy. Optional, defaults to the public
+    # OpenAI API endpoint.
+    base_url: "http://my-llm-proxy:4000/"
+  
+  # max_session_length_bytes is the maximum length of a session recording to be
+  # processed using this model configuration. Setting it protects from
+  # incurring additional cost from summarization attempts that fail because of
+  # the model's context window limit. Optional, defaults to 200kB.
+  max_session_length_bytes: 235000
+```
+
