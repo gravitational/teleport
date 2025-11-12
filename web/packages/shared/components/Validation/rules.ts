@@ -107,40 +107,6 @@ const requiredConfirmedPassword =
  */
 const DNS1035_LABEL_REGEX = /^[a-z]([-a-z0-9]*[a-z0-9])?$/;
 const DNS1035_LABEL_MAX_LENGTH = 63;
-const isIntegrationNameValid = (integrationName: string) => {
-  return (
-    integrationName &&
-    integrationName.length <= DNS1035_LABEL_MAX_LENGTH &&
-    integrationName.match(DNS1035_LABEL_REGEX)
-  );
-};
-
-/**
- * IAM_ROLE_NAME_REGEX uses the same regex matcher used in the backend:
- * https://github.com/gravitational/teleport/blob/master/api/utils/aws/identifiers.go#L178
- *
- * The regex checks for alphanumerics and select few characters.
- */
-const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
-const IAM_ROLE_NAME_MAX_LENGTH = 64;
-const isIamRoleNameValid = (roleName: string) => {
-  return (
-    roleName &&
-    roleName.length <= IAM_ROLE_NAME_MAX_LENGTH &&
-    roleName.match(IAM_ROLE_NAME_REGEX)
-  );
-};
-
-/**
- * ROLES_ANYWHERE_NAME_REGEX uses the same regex matcher used in the backend:
- * https://github.com/gravitational/teleport/blob/master/api/utils/aws/identifiers.go#L213
- */
-const ROLES_ANYWHERE_NAME_REGEX = /^[ a-zA-Z0-9-_]{1,255}$/;
-const ROLES_ANYWHERE_NAME_MAX_LENGTH = 255;
-const isRaResourceNameValid = (resourceName: string) => {
-  return resourceName && resourceName.match(ROLES_ANYWHERE_NAME_REGEX);
-};
-
 /**
  * @param name validIntegrationName verifies if the given value is a
  * valid Integration name.
@@ -153,7 +119,7 @@ const validIntegrationName = (name: string): ValidationResult => {
     };
   }
 
-  if (!isIntegrationNameValid(name)) {
+  if (!name.match(DNS1035_LABEL_REGEX)) {
     return {
       valid: false,
       message: 'Name must be a lower case valid DNS subdomain',
@@ -166,6 +132,14 @@ const validIntegrationName = (name: string): ValidationResult => {
 };
 
 /**
+ * IAM_ROLE_NAME_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/8d946146999260578f1a1b250aa87a6008343bab/api/utils/aws/identifiers.go#L178
+ *
+ * The regex checks for alphanumerics and select few characters.
+ */
+const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
+const IAM_ROLE_NAME_MAX_LENGTH = 64;
+/**
  * @param name validAwsIAMRoleName verifies if the given value is a
  * valid AWS IAM role name.
  */
@@ -177,7 +151,7 @@ const validAwsIAMRoleName = (name: string): ValidationResult => {
     };
   }
 
-  if (!isIamRoleNameValid(name)) {
+  if (!name.match(IAM_ROLE_NAME_REGEX)) {
     return {
       valid: false,
       message: 'Name can only contain characters @ = , . + - and alphanumerics',
@@ -189,6 +163,12 @@ const validAwsIAMRoleName = (name: string): ValidationResult => {
   };
 };
 
+/**
+ * ROLES_ANYWHERE_NAME_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/8d946146999260578f1a1b250aa87a6008343bab/api/utils/aws/identifiers.go#L213
+ */
+const ROLES_ANYWHERE_NAME_REGEX = /^[ a-zA-Z0-9-_]{1,255}$/;
+const ROLES_ANYWHERE_NAME_MAX_LENGTH = 255;
 /**
  * @param name validAwsRaResourceName verifies if the given value is a
  * valid AWS Roles Anywhere resource name.
@@ -202,7 +182,15 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
     };
   }
 
-  if (!isRaResourceNameValid(name)) {
+  // Since [space] is allowed in regex matcher, we don't want leading/trailing whitespaces.
+  if (name !== name.trim()) {
+    return {
+      valid: false,
+      message: 'Name contains leading/trailing whitespace characters',
+    };
+  }
+
+  if (!name.match(ROLES_ANYWHERE_NAME_REGEX)) {
     return {
       valid: false,
       message: 'Name can only contain characters [space] - _ and alphanumerics',
@@ -313,6 +301,14 @@ const requiredRoleArn: Rule = roleArn => () => {
   return {
     valid: true,
   };
+};
+
+const isIamRoleNameValid = (roleName: string) => {
+  return (
+    roleName &&
+    roleName.length <= IAM_ROLE_NAME_MAX_LENGTH &&
+    roleName.match(IAM_ROLE_NAME_REGEX)
+  );
 };
 
 export interface EmailValidationResult extends ValidationResult {
