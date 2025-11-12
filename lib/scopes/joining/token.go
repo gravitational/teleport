@@ -144,7 +144,7 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	}
 
 	maxUses := token.Spec.MaxUses
-	if maxUses != nil && token.Spec.AttemptedUses >= *maxUses {
+	if maxUses != nil && token.GetStatus().GetAttemptedUses() >= *maxUses {
 		return trace.Wrap(ErrTokenExhausted)
 	}
 

@@ -133,7 +133,11 @@ func (s *ScopedTokenService) ConsumeScopedToken(ctx context.Context, name string
 		if token.Spec.MaxUses == nil {
 			return token, nil
 		}
-		token.Spec.AttemptedUses++
+
+		if token.Status == nil {
+			token.Status = &joiningv1.ScopedTokenStatus{}
+		}
+		token.Status.AttemptedUses++
 		token, err = s.svc.ConditionalUpdateResource(ctx, token)
 		if err == nil {
 			return token, nil

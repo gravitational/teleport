@@ -42,6 +42,9 @@ message ScopedToken {
 
   // Spec is the token specification.
   ScopedTokenSpec spec = 6;
+
+  // The token's status including how many usage attempts have been made.
+  ScopedTokenStatus status = 7;
 }
 
 // ScopedTokenSpec is the specification of a scoped token.
@@ -63,4 +66,10 @@ message ScopedTokenSpec {
 
   // The number of successful provisioning attempts made using this token.
   int32 attempted_uses = 6;
+}
+
+// The token's status including how many usage attempts have been made.
+message ScopedTokenStatus {
+  // The number of successful provisioning attempts made using this token.
+  int32 attempted_uses = 1;
 }
