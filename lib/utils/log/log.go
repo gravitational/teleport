@@ -64,7 +64,8 @@ const (
 )
 
 // Initialize configures the default global logger based on the
-// provided configuration. The [slog.Logger] and [slog.LevelVar]
+// provided configuration. Returns a [slog.Logger] with its underlying
+// [slog.LevelVar] and [io.Writer]. The writer may be nil.
 func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, error) {
 	level := new(slog.LevelVar)
 	switch strings.ToLower(loggerConfig.Severity) {
@@ -88,14 +89,18 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 		}
 
 		//nolint:staticcheck // SA4023. NewSlogOSLogHandler on unsupported platforms always returns err.
-		handler, w, err := NewSlogOSLogHandler(loggerConfig.OSLogSubsystem, level)
+		handler, err := NewSlogOSLogHandler(loggerConfig.OSLogSubsystem, level)
 		//nolint:staticcheck // SA4023.
 		if err != nil {
 			return nil, nil, nil, trace.Wrap(err)
 		}
 		logger := slog.New(handler)
 		slog.SetDefault(logger)
-		return logger, level, w, nil
+
+		// Return nil writer as the os log does not implement [io.Writer]. This writer would need to be
+		// provided for a teleport reexec child process to record logs, except that the teleport binary
+		// does not currently support os_log anyways.
+		return logger, level, nil, nil
 	}
 
 	const (

@@ -1129,7 +1129,9 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		path := filepath.Join(localUser.HomeDir, ".tsh", "environment")
 		userEnvs, err := readUserEnv(localUser, path)
 		if err != nil {
-			slog.WarnContext(context.Background(), "Could not read user environment", "error", err)
+			if !trace.IsNotFound(err) {
+				slog.WarnContext(context.Background(), "Could not read user environment", "error", err)
+			}
 		} else {
 			env.AddFullUnique(userEnvs...)
 		}
