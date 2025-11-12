@@ -54,6 +54,7 @@ heartbeat health mechanism.
 
 ### Auth Reconnects
 
+#### Health Checking
 Agents create a gRPC client connection to Auth. The transport of this connection
 could be a direct TCP connection to Auth or a tunneled connection through the
 Proxy. The solution should be indifferent to the transport.
@@ -66,6 +67,8 @@ This solves half the problem. Agents can enable health checking and can be aware
 of when they are connected to an unhealthy Auth service. However the client will
 not automatically reconnect in this scenario. Within gRPC client connections are
 maintained by load balancing policies[^2].
+
+#### Exploring Client Load Balancing Policies
 
 Evaluating the default `pick_first` policy. It will only create a new connection
 when the existing TCP connection is disrupted. When health checking is enabled
@@ -82,6 +85,8 @@ to the same server instance.
 In summary, neither the `pick_first` or the `round_robin` load balancing policies
 will work for our use case. Other built-in policies are available but they also
 do not meet our use case[^3].
+
+#### Defining a Custom Policy Behavior
 
 The solution here is to implement our own load balancing policy. The go-grpc library
 conveniently allows you to register custom policies[^2] by implementing the
@@ -101,6 +106,8 @@ heard problem.
 If the new connection reaches the `READY` state it will replace the old connection
 and the old connection will be shutdown.
 
+#### Health Failure vs Network Failure
+
 We will differentiate between a connection failing due to the service being unhealthy
 and a connection failing due to a network issue.
 
@@ -117,6 +124,8 @@ Once a new connection is established the old connection will be drained graceful
 and new RPCs will be sent over the new connection.
 
 Any open RPCs on the old connection will be allowed to run to completetion.
+
+#### Policy Configuration Discovery
 
 We will explore implementing a gRPC endpoint which will allow for discovering
 new load balancing policies via the connected auth server. This endpoint will be
@@ -150,6 +159,8 @@ behavior.
 
 ### Proxy Reconnects
 
+#### Background on reversetunnels
+
 The agent connections we are concerned with for Proxy reconnects are the
 reversetunnel connections. These provide user connectivity to the agent. 
 They are long-lived connections that only disconnect when the Proxy 
@@ -158,14 +169,16 @@ service itself shuts down or the underlying TCP connection is disrupted.
 The reconnect procedure must be graceful as to not disrupt any existing user
 connectivity to the agent and it should not decrease agent availability in the process.
 
-We will use the reversetunnel server's Proxy discovery requests to communicate Proxy health.
-
 Today Proxies will eventually be seen as unhealthy after a Proxy expires from the
 backend and the agent tracker's default Proxy expiry is exceeded.
 
 This can take ~13 minutes based on the Proxy ServerAnnounceTTL = 10 minutes and
 the tracker.DefaultProxyExpirey = 3 minutes. To put this into perspective this is
 roughly equal to the quarterly downtime budget when targeting `99.99` availability.
+
+#### Proposed Improvements
+
+We will continue to use the reversetunnel server's Proxy discovery requests to communicate Proxy health.
 
 To speed up this process we will support configuring a lower `ServerAnnounceTTL`.
 
@@ -202,6 +215,8 @@ without running into expiry issues. For example if you are decreasing the heartb
 interval and the proxy bases the `TTL` off of its local heartbeat interval
 proxy services on the longer heartbeat inerval could appear to expire.
 
+#### Reducing Discovery Request Traffic
+
 Lowering the heartbeat interval for Proxy servers has the negative effect of
 increasing the traffic created by Proxy discovery requests.
 
@@ -225,10 +240,15 @@ This behavior is backwards compatible with existing agent Proxy tracking.
 If one of the Agents reversetunnels is connected to an expired Proxy. The agent will
 begin creating new connections attempting to reach a non-expired Proxy.
 
-Today the agent never closes reversetunnel connections. To solve this Agents will
-evaluate whether they can disconnect from Proxies when they have more than the
-desired connection count. Connections will only be closed if the Proxy is expired
-or there are excess connections to the desired Proxy set.
+#### Closing Connections
+
+Today the agent never closes reversetunnel connections. This can lead to more reversetunnel connections open than expected when proxies become unhealthy and recover. 
+To solve this agents will close reversetunnels based on thier configured
+desired connection count.
+
+Connections will only be closed if the Proxy is expired or there are excess connections to the desired Proxy set. This avoids disconnecting from proxies during a rollout. We will only consider closing connections after exceeding these conditions for 30 to 60 minutes to mitigate the chances of an agent becoming unreachable.
+
+Enabling agent disconnects will be done through the `ClusterNetworkingConfig.GracefulTunnelClosing: true`. This config is used today to push other changes to agents like the reversetunnel connection count so adding an additional field is straight forward.
 
 ### Additonal Thoughts and Considerations
 
