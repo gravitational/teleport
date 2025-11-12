@@ -11,13 +11,13 @@ tags:
 {/* lint disable page-structure remark-lint */}
 
 Ansible is a common tool for managing fleets of Linux hosts via SSH. In order to
-connect to the hosts, it requires a form of authentication. Machine ID can be
-used to provide short-lived certificates to Ansible that allow it to connect
-to SSH nodes enrolled in Teleport in a secure and auditable manner.
+connect to the hosts, it requires a form of authentication. Machine & Workload
+Identity can be used to provide short-lived certificates to Ansible that allow
+it to connect to SSH nodes enrolled in Teleport in a secure and auditable manner.
 
-In this guide, you will configure the Machine ID agent, `tbot`, to produce
-credentials and an OpenSSH configuration, and then configure Ansible to use
-these to connect to your SSH nodes through the Teleport Proxy Service.
+In this guide, you will configure the Machine & Workload Identity agent, `tbot`,
+to produce credentials and an OpenSSH configuration, and then configure Ansible
+to use these to connect to your SSH nodes through the Teleport Proxy Service.
 
 ## Prerequisites
 
@@ -148,7 +148,7 @@ $ cd ansible
 
 Create a file called `ansible.cfg`. We will configure Ansible
 to run the OpenSSH client with the configuration file generated
-by Machine ID, `/opt/machine-id/ssh_config`. Note, `example.com` here is the
+by `tbot`, `/opt/machine-id/ssh_config`. Note, `example.com` here is the
 name of your Teleport cluster.
 
 ```code
