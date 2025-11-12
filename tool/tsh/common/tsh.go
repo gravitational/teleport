@@ -5478,6 +5478,22 @@ func onStatus(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
+	if profile == nil && len(profiles) == 0 {
+		return trace.NotFound("Not logged in.")
+	}
+
+	if err = printLoginInformation(cf, profile, profiles); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if profile == nil {
+		return trace.NotFound("No active profile.")
+	}
+
+	duration := time.Until(profile.ValidUntil)
+	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
+		return trace.NotFound("Active profile expired.")
+	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
 	tc, err := makeClient(cf)
@@ -5490,19 +5506,6 @@ func onStatus(cf *CLIConf) error {
 	// To achieve this, we avoid remote calls that might prompt for
 	// hardware key touch or require a PIN.
 	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
-
-	if err := printLoginInformation(cf, profile, profiles); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if profile == nil {
-		return trace.NotFound("Not logged in.")
-	}
-
-	duration := time.Until(profile.ValidUntil)
-	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
-		return trace.NotFound("Active profile expired.")
-	}
 
 	if hardwareKeyInteractionRequired {
 		logger.DebugContext(cf.Context, "Skipping cluster alerts due to Hardware Key PIN/Touch requirement")

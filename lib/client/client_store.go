@@ -315,13 +315,15 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 //
 // The active profile status is determined from the provided profile if given;
 // otherwise, it is read from the current profile.
+//
+// The active profile status is nil if there is no active profile.
 func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
 	var currentProfileName string
 
 	if proxyAddressOrProfile == "" {
 		currentProfileName, err = s.CurrentProfile()
-		if err != nil {
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
 	} else {
@@ -332,9 +334,12 @@ func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		}
 	}
 
-	currentProfile, err := s.ReadProfileStatus(currentProfileName)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	var currentProfile *ProfileStatus
+	if currentProfileName != "" {
+		currentProfile, err = s.ReadProfileStatus(currentProfileName)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
 
 	profileNames, err := s.ListProfiles()
