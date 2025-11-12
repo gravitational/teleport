@@ -21,6 +21,7 @@ package servicecfg
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -228,6 +230,9 @@ type Config struct {
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
 
+	// LogConfig is the log configuration for handling logs from child processes.
+	LogConfig LogConfig
+
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
 
@@ -284,6 +289,14 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+}
+
+// LogConfig is the log configuration for handling logs from child processes.
+type LogConfig struct {
+	logutils.Config
+
+	// Writer is the output writer to use for the logger.
+	Writer io.Writer
 }
 
 type ConfigTesting struct {

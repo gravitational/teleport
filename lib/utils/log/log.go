@@ -65,7 +65,7 @@ const (
 
 // Initialize configures the default global logger based on the
 // provided configuration. The [slog.Logger] and [slog.LevelVar]
-func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
+func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, error) {
 	level := new(slog.LevelVar)
 	switch strings.ToLower(loggerConfig.Severity) {
 	case "", "info":
@@ -79,23 +79,23 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 	case "trace":
 		level.Set(TraceLevel)
 	default:
-		return nil, nil, trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
+		return nil, nil, nil, trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
 	if loggerConfig.Output == LogOutputOSLog {
 		if loggerConfig.OSLogSubsystem == "" {
-			return nil, nil, trace.BadParameter("OSLogSubsystem must be set when using os_log as output")
+			return nil, nil, nil, trace.BadParameter("OSLogSubsystem must be set when using os_log as output")
 		}
 
 		//nolint:staticcheck // SA4023. NewSlogOSLogHandler on unsupported platforms always returns err.
-		handler, err := NewSlogOSLogHandler(loggerConfig.OSLogSubsystem, level)
+		handler, w, err := NewSlogOSLogHandler(loggerConfig.OSLogSubsystem, level)
 		//nolint:staticcheck // SA4023.
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, nil, trace.Wrap(err)
 		}
 		logger := slog.New(handler)
 		slog.SetDefault(logger)
-		return logger, level, nil
+		return logger, level, w, nil
 	}
 
 	const (
@@ -119,23 +119,23 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 		if err != nil {
 			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
 			slog.SetDefault(slog.New(slog.DiscardHandler))
-			return slog.Default(), level, nil
+			return slog.Default(), level, w, nil
 		}
 	default:
 		// Assume a file path for all other provided output values.
 		sharedWriter, err := NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
-			return nil, nil, trace.Wrap(err, "failed to init the log file shared writer")
+			return nil, nil, nil, trace.Wrap(err, "failed to init the log file shared writer")
 		}
 		w = NewWriterFinalizer(sharedWriter)
 		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, nil, trace.Wrap(err)
 		}
 	}
 
 	configuredFields, err := ValidateFields(loggerConfig.ExtraFields)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	format := strings.ToLower(loggerConfig.Format)
@@ -158,8 +158,8 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 		}))
 		slog.SetDefault(logger)
 	default:
-		return nil, nil, trace.BadParameter("unsupported log output format : %q", loggerConfig.Format)
+		return nil, nil, nil, trace.BadParameter("unsupported log output format : %q", loggerConfig.Format)
 	}
 
-	return logger, level, nil
+	return logger, level, w, nil
 }
