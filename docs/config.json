@@ -2663,6 +2663,11 @@
       "source": "/reference/infrastructure-as-code/resources/",
       "destination": "/reference/infrastructure-as-code/teleport-resources/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/recording-proxy-mode/",
+      "destination": "/reference/architecture/session-recording/",
+      "permanent": true
     }
   ]
 }
