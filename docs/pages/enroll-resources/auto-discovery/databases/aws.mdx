@@ -257,11 +257,7 @@ In this case, it will match auto-discovered AWS databases in the
 <Var name="us-east-1"/> region
 from any AWS account (`"*"` is a wildcard and it can be used as a label key and/or value).
 
-<Admonition type="warning">
-Use more specific label selectors when needed so that a Database Service only
-matches databases it can actually reach. Broad selectors can cause unreachable
-databases to be registered and lead to connection failures in HA deployments.
-</Admonition>
+(!docs/pages/includes/discovery/db-label-warning.mdx!)
 
 The AWS tags attached to AWS databases are imported as Teleport `db` labels
 in addition to some other identifying metadata.
