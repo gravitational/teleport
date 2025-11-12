@@ -12,10 +12,12 @@ import (
 	"github.com/gravitational/teleport"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -130,7 +132,7 @@ func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, htt
 	}
 }
 
-func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, params httprouter.Params) (requestError error) {
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	log := p.Logger.With(
@@ -165,7 +167,33 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 		return trace.BadParameter("invalid page request")
 	}
 
-	log.DebugContext(r.Context(), "Listing resources", "filter", filter, "start", page.StartIndex, "count", page.Count)
+	// We don't emit any audit events before this point as it's an easy vector
+	// for a DoS attack.
+	event := scimNewListAuditEvent(integration, resourceType, r)
+	defer func() {
+		// Don't emit an audit event for access denied as it's an way to spam the
+		// audit log as a DoS attack.
+		if trace.IsAccessDenied(requestError) {
+			return
+		}
+		if requestError != nil {
+			event.Metadata.Code = events.SCIMListResourcesFailureCode
+			event.Status.Success = false
+			event.Status.Error = requestError.Error()
+		}
+		if emitErr := p.EmitAuditEvent(r.Context(), event); emitErr != nil {
+			log.ErrorContext(r.Context(), "failed emitting audit event",
+				"error", emitErr)
+		}
+	}()
+	event.Filter = filter
+	event.StartIndex = int32(page.rawStartIndex)
+	event.Count = int32(page.rawCount)
+
+	log.DebugContext(r.Context(), "Listing resources",
+		"filter", filter,
+		"start", page.validatedPage.StartIndex,
+		"count", page.validatedPage.Count)
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
 	resources, err := scimClient.ListSCIMResources(r.Context(), &scimpb.ListSCIMResourcesRequest{
@@ -174,7 +202,7 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 			PluginId:      integration,
 			ResourceType:  resourceType,
 		},
-		Page:   page,
+		Page:   page.validatedPage,
 		Filter: filter,
 	})
 
@@ -182,6 +210,8 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 		log.ErrorContext(r.Context(), "Failed listing resources", "error", err)
 		return trace.Wrap(err)
 	}
+
+	event.ResourceCount = uint32(len(resources.Resources))
 
 	body, err := scimsdk.MarshalResourceList(resources)
 	if err != nil {
@@ -193,7 +223,8 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 	return nil
 }
 
-func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) (requestError error) {
+	ctx := r.Context()
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	resourceID := params.ByName("resourceID")
@@ -206,8 +237,17 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 	)
 	log.InfoContext(r.Context(), "SCIM Get resource")
 
+	auditEvent := scimNewResourceAuditEvent(integration, resourceType, r, events.SCIMGetEvent, events.SCIMGetResourceSuccessCode)
+	defer func() {
+		err := scimEmitResourceEvent(ctx, p, auditEvent, requestError, events.SCIMGetResourceFailureCode)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed emitting audit event", "error", err)
+		}
+	}()
+	auditEvent.TeleportID = resourceID
+
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	resource, err := scimClient.GetSCIMResource(r.Context(), &scimpb.GetSCIMResourceRequest{
+	resource, err := scimClient.GetSCIMResource(ctx, &scimpb.GetSCIMResourceRequest{
 		Target: &scimpb.RequestTarget{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
@@ -219,6 +259,8 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 		log.ErrorContext(r.Context(), "Failed fetching resource", "error", err)
 		return trace.Wrap(err)
 	}
+	auditEvent.ExternalID = resource.ExternalId
+	auditEvent.Display = extractDisplayName(resource)
 
 	body, err := scimsdk.MarshalResource(resource)
 	if err != nil {
@@ -229,7 +271,21 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 	return nil
 }
 
-func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+func extractDisplayName(r *scimpb.Resource) string {
+	if r.Attributes == nil {
+		return ""
+	}
+
+	displayName, ok := r.Attributes.Fields["displayName"]
+	if !ok {
+		return ""
+	}
+
+	return displayName.GetStringValue()
+}
+
+func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) (requestError error) {
+	ctx := r.Context()
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	log := p.Logger.With(
@@ -242,15 +298,35 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 		return trace.LimitExceeded("content length")
 	}
 
-	res, err := scimsdk.UnmarshalResource(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	res, err := scimsdk.DecodeResource(bodyAttribs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.DebugContext(r.Context(), "Creating new resource")
+	auditEvent := scimNewResourceAuditEvent(integration, resourceType, r, events.SCIMCreateEvent, events.SCIMResourceCreateSuccessCode)
+	auditEvent.ExternalID = res.ExternalId
+	auditEvent.Request.Body, err = apievents.EncodeMap(bodyAttribs)
+	if err != nil {
+		return trace.Wrap(err, "malformed body JSON")
+	}
+
+	// We don't emit any audit events before this point as spamming the auditlog
+	// it's an easy vector for a DoS attack.
+	defer func() {
+		err := scimEmitResourceEvent(ctx, p, auditEvent, requestError, events.SCIMResourceCreateFailureCode)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed emitting audit event", "error", err)
+		}
+	}()
+
+	log.DebugContext(ctx, "Creating new resource")
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	created, err := scimClient.CreateSCIMResource(r.Context(), &scimpb.CreateSCIMResourceRequest{
+	created, err := scimClient.CreateSCIMResource(ctx, &scimpb.CreateSCIMResourceRequest{
 		Target: &scimpb.RequestTarget{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
@@ -262,6 +338,9 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 		log.ErrorContext(r.Context(), "Failed creating new resource", "error", err)
 		return trace.Wrap(err)
 	}
+	auditEvent.ExternalID = created.ExternalId
+	auditEvent.TeleportID = created.Id
+	auditEvent.Display = extractDisplayName(created)
 
 	body, err := scimsdk.MarshalResource(created)
 	if err != nil {
@@ -282,7 +361,8 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	return nil
 }
 
-func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) (requestError error) {
+	ctx := r.Context()
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	resourceID := params.ByName("resourceID")
@@ -298,13 +378,33 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 		return trace.LimitExceeded("content length")
 	}
 
-	res, err := scimsdk.UnmarshalResource(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.InfoContext(r.Context(), "Updating resource")
+	res, err := scimsdk.DecodeResource(bodyAttribs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	auditEvent := scimNewResourceAuditEvent(integration, resourceType, r, events.SCIMUpdateEvent, events.SCIMResourceUpdateSuccessCode)
+	auditEvent.TeleportID = resourceID
+	auditEvent.Request.Body, err = apievents.EncodeMap(bodyAttribs)
+	if err != nil {
+		return trace.Wrap(err, "malformed body JSON")
+	}
+
+	// We don't emit any audit events before this point as spamming the auditlog
+	// it's an easy vector for a DoS attack.
+	defer func() {
+		err := scimEmitResourceEvent(ctx, p, auditEvent, requestError, events.SCIMResourceUpdateFailureCode)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed emitting audit event", "error", err)
+		}
+	}()
+
+	log.InfoContext(r.Context(), "Updating resource")
 	scimClient := p.h.GetProxyClient().SCIMClient()
 	updated, err := scimClient.UpdateSCIMResource(r.Context(), &scimpb.UpdateSCIMResourceRequest{
 		Target: &scimpb.RequestTarget{
@@ -319,6 +419,8 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 		log.ErrorContext(r.Context(), "Failed updating resource", "error", err)
 		return trace.Wrap(err)
 	}
+	auditEvent.ExternalID = updated.ExternalId
+	auditEvent.Display = extractDisplayName(updated)
 
 	body, err := scimsdk.MarshalResource(updated)
 	if err != nil {
@@ -329,7 +431,8 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 	return nil
 }
 
-func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) (requestError error) {
+	ctx := r.Context()
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	resourceID := params.ByName("resourceID")
@@ -340,6 +443,15 @@ func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, para
 		"resource_type", resourceType,
 		"resource_id", resourceID,
 	)
+
+	auditEvent := scimNewResourceAuditEvent(integration, resourceType, r, events.SCIMDeleteEvent, events.SCIMResourceDeleteSuccessCode)
+	defer func() {
+		err := scimEmitResourceEvent(ctx, p, auditEvent, requestError, events.SCIMResourceDeleteFailureCode)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed emitting audit event", "error", err)
+		}
+	}()
+	auditEvent.TeleportID = resourceID
 
 	log.InfoContext(r.Context(), "Deleting resource")
 
@@ -448,28 +560,45 @@ func writeSCIMResponse(w http.ResponseWriter, statusCode int, body []byte, optio
 	w.Write(body)
 }
 
-func getSCIMPage(r *http.Request) (*scimpb.Page, error) {
-	startIndex, err := getQueryIntOrDefault(r, "startIndex", minSCIMItemIndex)
-	if err != nil {
-		return nil, trace.Wrap(err, "startIndex")
-	}
-	startIndex = max(startIndex, minSCIMItemIndex)
+type scimPage struct {
+	rawStartIndex int
+	rawCount      int
+	validatedPage *scimpb.Page
+}
 
-	count, err := getQueryIntOrDefault(r, "count", defaultSCIMItemCount)
+func getSCIMPage(r *http.Request) (scimPage, error) {
+	rawStartIndex, err := getQueryIntOrDefault(r, "startIndex", -1)
 	if err != nil {
-		return nil, trace.Wrap(err, "count")
+		return scimPage{}, trace.Wrap(err, "malformed startIndex value")
 	}
+	startIndex := max(rawStartIndex, minSCIMItemIndex)
+
+	rawCount, err := getQueryIntOrDefault(r, "count", -1)
+	if err != nil {
+		return scimPage{}, trace.Wrap(err, "malformed count value")
+	}
+
+	// if the count was unspecified, use our default value
+	count := rawCount
+	if count == -1 {
+		count = defaultSCIMItemCount
+	}
+
 	// According to spec, all values < 0 must be treated as 0
-	count = max(count, 0)
+	count = max(0, count)
 
 	// We don't want someone asking us for a billion items, so
 	// we put an upper bound on the number of records we're prepared to
 	// return in one page
 	count = min(count, maxSCIMItemCount)
 
-	return &scimpb.Page{
-		StartIndex: uint64(startIndex),
-		Count:      uint64(count),
+	return scimPage{
+		rawStartIndex: rawStartIndex,
+		rawCount:      rawCount,
+		validatedPage: &scimpb.Page{
+			StartIndex: uint64(startIndex),
+			Count:      uint64(count),
+		},
 	}, nil
 }
 
@@ -484,4 +613,60 @@ func getQueryIntOrDefault(r *http.Request, key string, def int) (int, error) {
 	}
 
 	return 0, trace.BadParameter("not a number: %q", text)
+}
+
+func scimNewEventCommonData(pluginName, resourceType string, req *http.Request) apievents.SCIMCommonData {
+	result := apievents.SCIMCommonData{
+		Integration:  pluginName,
+		ResourceType: resourceType,
+		Request: &apievents.SCIMRequest{
+			ID:            "", // unused as yet
+			SourceAddress: req.RemoteAddr,
+			UserAgent:     req.Header.Get("User-Agent"),
+			Method:        req.Method,
+			Path:          req.URL.Path,
+		},
+	}
+
+	return result
+}
+
+func scimNewResourceAuditEvent(pluginName, resourceType string, req *http.Request, eventType, eventCode string) *apievents.SCIMResourceEvent {
+	return &apievents.SCIMResourceEvent{
+		Metadata: apievents.Metadata{
+			Type: eventType,
+			Code: eventCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		SCIMCommonData: scimNewEventCommonData(pluginName, resourceType, req),
+	}
+}
+
+func scimNewListAuditEvent(pluginName, resourceType string, req *http.Request) *apievents.SCIMListingEvent {
+	return &apievents.SCIMListingEvent{
+		Metadata: apievents.Metadata{
+			Type: events.SCIMListingEvent,
+			Code: events.SCIMListResourcesSuccessCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		SCIMCommonData: scimNewEventCommonData(pluginName, resourceType, req),
+	}
+}
+
+func scimEmitResourceEvent(ctx context.Context, emitter apievents.Emitter, event *apievents.SCIMResourceEvent, eventErr error, failureCode string) error {
+	// Don't emit an audit event for access denied as it's an way to spam the
+	// audit log as a DoS attack.
+	if trace.IsAccessDenied(eventErr) {
+		return nil
+	}
+	if eventErr != nil {
+		event.Metadata.Code = failureCode
+		event.Status.Success = false
+		event.Status.Error = eventErr.Error()
+	}
+	return trace.Wrap(emitter.EmitAuditEvent(ctx, event))
 }

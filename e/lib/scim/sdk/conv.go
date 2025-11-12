@@ -28,6 +28,16 @@ const (
 	ResourceTypeGroup = "Group"
 )
 
+// UnmarshalAttributeSet parses the data in the supplied stream as JSON and marshals it
+// into an arbitrary [AttributeSet]. From there it can be decoded into a SCIM resource.
+func UnmarshalAttributeSet(data io.Reader) (AttributeSet, error) {
+	var attribs AttributeSet
+	if err := json.NewDecoder(data).Decode(&attribs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return attribs, nil
+}
+
 // UnmarshalResourceHeader parses a JSON stream into a valid SCIM resource object.
 // We go through an intermediate attributeSet as we want to collect all of the
 // top-level JSON fields that are not specifically part of the resource metadata
@@ -49,33 +59,45 @@ func UnmarshalResourceHeader(data io.Reader) (*Resource, error) {
 	return jsonFmt, nil
 }
 
+// DecodeResource converts an arbitrary AttributeSet received from a client into a
+// [scimpb.Resource] suitable for sending to the SCIM gRPCservice for prcessing.
+func DecodeResource(attributes AttributeSet) (*scimpb.Resource, error) {
+	header, err := DecodeResourceHeader(attributes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dstAttribs, err := structpb.NewStruct(header.Attributes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dst := &scimpb.Resource{
+		Schemas:    header.Schemas,
+		Id:         header.ID,
+		ExternalId: header.ExternalID,
+		Meta:       convertMetadata(header.Meta),
+		Attributes: dstAttribs,
+	}
+
+	return dst, nil
+}
+
 // UnmarshalResource parses a JSON stream into a valid SCIM resource object.
 // We go through an intermediate attributeSet as we want to collect all of the
 // top-level JSON fields that are not specifically part of the resource metadata
 // and store them for later use, as these define the actual properties of the
 // resource.
 func UnmarshalResource(data io.Reader) (*scimpb.Resource, error) {
-	var jsonFmt *Resource
-	var err error
-
-	jsonFmt, err = UnmarshalResourceHeader(data)
-	if err != nil {
-		return nil, trace.Wrap(err, "un-marshaling SCIM resource header")
-	}
-
-	dstAttribs, err := structpb.NewStruct(jsonFmt.Attributes)
+	attribs, err := UnmarshalAttributeSet(data)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dst := &scimpb.Resource{
-		Schemas:    jsonFmt.Schemas,
-		Id:         jsonFmt.ID,
-		ExternalId: jsonFmt.ExternalID,
-		Meta:       convertMetadata(jsonFmt.Meta),
-		Attributes: dstAttribs,
+	dst, err := DecodeResource(attribs)
+	if err != nil {
+		return nil, trace.Wrap(err, "un-marshaling SCIM resource header")
 	}
-
 	return dst, nil
 }
 

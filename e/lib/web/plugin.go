@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -141,6 +142,12 @@ func (p *Plugin) GetProxyClient() authclient.ClientI {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.h.GetProxyClient()
+}
+
+// EmitAuditEvent implements [apievents.Emitter] for the Plugin, routing the
+// event to the auth server's event log.
+func (p *Plugin) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return trace.Wrap(p.h.GetProxyClient().EmitAuditEvent(ctx, event))
 }
 
 // GetAccessPoint returns the proxy caching access point.

@@ -1,0 +1,506 @@
+package scim
+
+import (
+	"fmt"
+	"log/slog"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/e/tests/common"
+	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils/slices"
+)
+
+func TestAuditEvents(t *testing.T) {
+	logger := slog.Default().With("test", t.Name())
+	ctx := t.Context()
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithLogger(logger),
+	)
+	auth := sut.Teleport.Process.GetAuthServer()
+
+	scimToken := createGenericSCIMPlugin(t, sut)
+	goodScimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
+	badScimClient := createPluginSCIMClient(t, sut, "not-"+scimToken, "generic")
+
+	t.Run("List", func(t *testing.T) {
+		const userCount = 4
+		users := make([]types.User, 0, userCount)
+		for n := range userCount {
+			users = append(users, mustCreateSCIMUser(t, sut, fmt.Sprintf("scim-user-%03d", n)))
+		}
+
+		common.CreateAccessList(t, sut,
+			common.WithCleanup,
+			common.WithName("test-group-001"),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+			common.WithMembers(slices.Map(users, types.User.GetName)...))
+
+		t.Run("Users", func(t *testing.T) {
+			t.Run("OnSuccess", func(t *testing.T) {
+				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				goodScimClient.ListUsers(ctx)
+				eventLog.requireEvent(t, events.SCIMListingEvent,
+					withListingMetadata(
+						withEventCode(events.SCIMListResourcesSuccessCode)),
+					withListingStatus(
+						withSuccess(true),
+						withNoError),
+					withListingCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withFilter(""),
+					withResourceCount(userCount))
+			})
+
+			t.Run("OnAccessDenied", func(t *testing.T) {
+				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				badScimClient.ListUsers(ctx)
+				eventLog.requireNoEvent(t, events.SCIMListingEvent)
+			})
+		})
+
+		t.Run("Groups", func(t *testing.T) {
+			t.Run("OnSuccess", func(t *testing.T) {
+				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				goodScimClient.ListGroups(ctx)
+				eventLog.requireEvent(t, events.SCIMListingEvent,
+					withListingMetadata(
+						withEventCode(events.SCIMListResourcesSuccessCode)),
+					withListingStatus(
+						withSuccess(true),
+						withNoError),
+					withListingCommonData(
+						withIntegration("generic"),
+						withResourceType("Groups")),
+					withFilter(""),
+					withResourceCount(1))
+			})
+		})
+	})
+
+	t.Run("FilteredList", func(t *testing.T) {
+		var users []types.User
+		for n := range 4 {
+			users = append(users, mustCreateSCIMUser(t, sut, fmt.Sprintf("user-%03d", n)))
+		}
+
+		common.CreateAccessList(t, sut,
+			common.WithCleanup,
+			common.WithName("test-group-001"),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+			common.WithMembers(slices.Map(users, types.User.GetName)...))
+
+		t.Run("Users", func(t *testing.T) {
+			t.Run("OnSuccess", func(t *testing.T) {
+				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				goodScimClient.ListUsers(ctx, scimsdk.WithFilter(`userName eq "user-003"`))
+				eventLog.requireEvent(t, events.SCIMListingEvent,
+					withListingMetadata(
+						withEventCode(events.SCIMListResourcesSuccessCode)),
+					withListingStatus(
+						withSuccess(true),
+						withNoError),
+					withListingCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withFilter(`userName eq "user-003"`),
+					withResourceCount(1))
+			})
+
+			t.Run("OnEmptyResponse", func(t *testing.T) {
+				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				goodScimClient.ListUsers(ctx, scimsdk.WithFilter(`userName eq "no-such-user"`))
+				eventLog.requireEvent(t, events.SCIMListingEvent,
+					withListingMetadata(
+						withEventCode(events.SCIMListResourcesSuccessCode)),
+					withListingStatus(
+						withSuccess(true),
+						withNoError),
+					withListingCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withFilter(`userName eq "no-such-user"`),
+					withResourceCount(0))
+			})
+
+			t.Run("OnBadFilter", func(t *testing.T) {
+				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				goodScimClient.ListUsers(ctx, scimsdk.WithFilter("i'm a potato"))
+				eventLog.requireNoEvent(t, events.SCIMListingEvent)
+			})
+
+			t.Run("OnAccessDenied", func(t *testing.T) {
+				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				badScimClient.GetUserByUserName(ctx, "user-003")
+				eventLog.requireNoEvent(t, events.SCIMListingEvent)
+			})
+		})
+
+		t.Run("Groups", func(t *testing.T) {
+			t.Run("OnSuccess", func(t *testing.T) {
+				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
+				goodScimClient.ListGroups(ctx, scimsdk.WithFilter(`displayName eq "test-group-001"`))
+				eventLog.requireEvent(t, events.SCIMListingEvent,
+					withListingMetadata(
+						withEventCode(events.SCIMListResourcesSuccessCode)),
+					withListingStatus(
+						withSuccess(true),
+						withNoError),
+					withListingCommonData(
+						withIntegration("generic"),
+						withResourceType("Groups")),
+					withFilter(`displayName eq "test-group-001"`),
+					withResourceCount(1))
+			})
+		})
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Run("Users", func(t *testing.T) {
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				scimUser := newSCIMUser("create-test-user")
+				goodScimClient.CreateUser(ctx, scimUser)
+				t.Cleanup(func() {
+					require.NoError(t, auth.DeleteUser(ctx, scimUser.UserName))
+				})
+				auditLog.requireEvent(t, events.SCIMCreateEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceCreateSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withExternalID(scimUser.ExternalID),
+					withTeleportID(scimUser.UserName))
+			})
+
+			t.Run("OnInvalidUsername", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				scimUser := newSCIMUser("Gráinne-O'Malley")
+				goodScimClient.CreateUser(ctx, scimUser)
+				auditLog.requireEvent(t, events.SCIMCreateEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceCreateFailureCode)),
+					withResourceStatus(
+						withSuccess(false),
+						withErrorMatching(`.*special characters are not allowed.*`)),
+					withExternalID(scimUser.ExternalID),
+					withTeleportID(""))
+			})
+
+			t.Run("OnAccessDenied", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				scimUser := newSCIMUser("create-test-user")
+				badScimClient.CreateUser(ctx, scimUser)
+				auditLog.requireNoEvent(t, events.SCIMCreateEvent)
+			})
+		})
+
+		t.Run("Groups", func(t *testing.T) {
+			// The Generic SCIM implementation can't create Access Lists for
+			// groups, and needs an existing Access List to bind to or the create
+			// request will fail.
+			common.CreateAccessList(t, sut,
+				common.WithCleanup,
+				common.WithName("test-group-001"),
+				common.WithTitle("Test Group #01"),
+				common.WithOwners("alice-admin"),
+				common.WithAccessListType(accesslist.SCIM),
+				common.WithGrants(accesslist.Grants{Roles: []string{"access"}}))
+
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				scimGroup, err := goodScimClient.CreateGroup(ctx, &scimsdk.Group{
+					DisplayName: "Test Group #01",
+				})
+				require.NoError(t, err)
+				auditLog.requireEvent(t, events.SCIMCreateEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceCreateSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Groups")),
+					withExternalID(""), // we don't know what the upstream system calls groups
+					withTeleportID(scimGroup.ID),
+					withDisplayName(scimGroup.DisplayName))
+			})
+
+			t.Run("OnNoSuchGroup", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+
+				// When I try to create a group that does not have a pre-existing
+				// Access List to back it...
+				goodScimClient.CreateGroup(ctx, &scimsdk.Group{
+					DisplayName: "No Such Group",
+				})
+
+				auditLog.requireEvent(t, events.SCIMCreateEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceCreateFailureCode)),
+					withResourceStatus(
+						withSuccess(false),
+						withErrorMatching("does not exist")),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Groups")),
+					withExternalID(""),
+					withTeleportID(""),
+					withDisplayName(""))
+			})
+		})
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		var users []types.User
+		for n := range 4 {
+			users = append(users, mustCreateSCIMUser(t, sut, fmt.Sprintf("user-%03d", n)))
+		}
+
+		accessList := common.CreateAccessList(t, sut,
+			common.WithCleanup,
+			common.WithName("get-resource-gest-group"),
+			common.WithTitle("Test group for fetching SCIM resources"),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+			common.WithMembers(slices.Map(users, types.User.GetName)...))
+
+		t.Run("Users", func(t *testing.T) {
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				goodScimClient.GetUser(ctx, "user-002")
+				auditLog.requireEvent(t, events.SCIMGetEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMGetResourceSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withExternalID("user-002-external-id"),
+					withTeleportID("user-002"))
+			})
+
+			t.Run("OnNoSuchResource", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				goodScimClient.GetUser(ctx, "no-such-user")
+				auditLog.requireEvent(t, events.SCIMGetEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMGetResourceFailureCode)),
+					withResourceStatus(
+						withSuccess(false),
+						withError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withTeleportID("no-such-user"),
+					withExternalID(""))
+			})
+
+			t.Run("OnUnauthorized", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				badScimClient.GetUser(ctx, "no-such-user")
+				auditLog.requireNoEvent(t, events.SCIMGetEvent)
+			})
+		})
+
+		t.Run("Groups", func(t *testing.T) {
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				goodScimClient.GetGroup(ctx, accessList.GetName())
+				auditLog.requireEvent(t, events.SCIMGetEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMGetResourceSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Groups")),
+					withExternalID(""),
+					withTeleportID(accessList.GetName()),
+					withDisplayName("Test group for fetching SCIM resources"))
+			})
+		})
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		t.Run("Users", func(t *testing.T) {
+			mustCreateSCIMUser(t, sut, "update-test-user")
+
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				goodScimClient.UpdateUser(ctx, &scimsdk.User{
+					ID:         "update-test-user",
+					ExternalID: "update-test-user-external-id",
+					UserName:   "update-test-user",
+					Active:     false,
+				})
+				auditLog.requireEvent(t, events.SCIMUpdateEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceUpdateSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withExternalID("update-test-user-external-id"),
+					withTeleportID("update-test-user"))
+			})
+
+			t.Run("OnNoSuchResource", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				goodScimClient.UpdateUser(ctx, &scimsdk.User{
+					ID:         "no-such-user-to-update",
+					ExternalID: "no-such-user-to-update-external-id",
+					UserName:   "no-such-user-to-update",
+					Active:     true,
+				})
+				auditLog.requireEvent(t, events.SCIMUpdateEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceUpdateFailureCode)),
+					withResourceStatus(
+						withSuccess(false),
+						withError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withTeleportID("no-such-user-to-update"),
+					withExternalID(""))
+			})
+
+			t.Run("OnUnauthorized", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				badScimClient.UpdateUser(ctx, &scimsdk.User{
+					ID:         "update-test-user",
+					ExternalID: "update-test-user-external-id",
+					UserName:   "update-test-user",
+					Active:     false,
+				})
+				auditLog.requireNoEvent(t, events.SCIMUpdateEvent)
+			})
+		})
+
+		t.Run("Groups", func(t *testing.T) {
+			accessList := common.CreateAccessList(t, sut,
+				common.WithCleanup,
+				common.WithName("update-resource-test-group"),
+				common.WithTitle("Test group for udating SCIM resources"),
+				common.WithAccessListType(accesslist.SCIM),
+				common.WithOwners("alice-admin"),
+				common.WithGrants(accesslist.Grants{Roles: []string{"access"}}))
+
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				goodScimClient.UpdateGroup(ctx, &scimsdk.Group{
+					ID:          accessList.GetName(),
+					DisplayName: "Updated Access List!",
+				})
+				auditLog.requireEvent(t, events.SCIMUpdateEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceUpdateSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Groups")),
+					withExternalID(""),
+					withTeleportID("update-resource-test-group"),
+					withDisplayName("Updated Access List!"))
+			})
+		})
+	})
+
+	t.Run("DeleteResource", func(t *testing.T) {
+		t.Run("Users", func(t *testing.T) {
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				scimUser := mustCreateSCIMUser(t, sut, "delete-test-user")
+				goodScimClient.DeleteUser(ctx, scimUser.GetName())
+				auditLog.requireEvent(t, events.SCIMDeleteEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceDeleteSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withTeleportID("delete-test-user"),
+					withExternalID(""))
+			})
+
+			t.Run("OnNoSuchResource", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				goodScimClient.DeleteUser(ctx, "no-such-user")
+				auditLog.requireEvent(t, events.SCIMDeleteEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceDeleteFailureCode)),
+					withResourceStatus(
+						withSuccess(false),
+						withError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withExternalID(""),
+					withTeleportID("no-such-user"))
+			})
+
+			t.Run("OnUnauthorized", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				badScimClient.DeleteUser(ctx, "delete-test-user")
+				auditLog.requireNoEvent(t, events.SCIMDeleteEvent)
+			})
+		})
+
+		t.Run("Groups", func(t *testing.T) {
+			accessList := common.CreateAccessList(t, sut,
+				common.WithCleanup,
+				common.WithName("delete-resource-test-group"),
+				common.WithTitle("Test group for deleting SCIM resources"),
+				common.WithAccessListType(accesslist.SCIM),
+				common.WithOwners("alice-admin"),
+				common.WithGrants(accesslist.Grants{Roles: []string{"access"}}))
+
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+				goodScimClient.DeleteGroup(ctx, accessList.GetName())
+				auditLog.requireEvent(t, events.SCIMDeleteEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourceDeleteSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Groups")),
+					withTeleportID("delete-resource-test-group"),
+					withDisplayName(""),
+					withExternalID(""))
+			})
+		})
+	})
+}

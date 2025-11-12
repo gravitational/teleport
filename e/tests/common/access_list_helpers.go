@@ -27,6 +27,7 @@ type AccessListConfig struct {
 	SubKind   string
 	AuditDate time.Time
 	Type      accesslist.Type
+	Cleanup   bool
 }
 
 // AccessListOption configures an AccessListConfig.
@@ -88,6 +89,12 @@ func WithAuditDate(date time.Time) AccessListOption {
 	}
 }
 
+// WithCleanu adds a cleanup hook to the current test that will automatically
+// delete the Access List at the end of the test.
+func WithCleanup(cfg *AccessListConfig) {
+	cfg.Cleanup = true
+}
+
 // CreateAccessList creates an access list with members using flexible options.
 func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accesslist.AccessList {
 	t.Helper()
@@ -133,10 +140,17 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 		accessListMembers = append(accessListMembers, NewAccessListMember(t, accessList.GetName(), member, accesslist.MembershipKindUser))
 	}
 
-	_, _, err = sut.Teleport.Process.GetAuthServer().AccessListsInternal.UpsertAccessListWithMembers(t.Context(), accessList, accessListMembers)
+	accessListsSvc := sut.Teleport.Process.GetAuthServer().AccessListsInternal
+	createdAccessList, _, err := accessListsSvc.UpsertAccessListWithMembers(t.Context(), accessList, accessListMembers)
 	require.NoError(t, err)
 
-	return accessList
+	if cfg.Cleanup {
+		t.Cleanup(func() {
+			require.NoError(t, accessListsSvc.DeleteAccessList(context.Background(), createdAccessList.GetName()))
+		})
+	}
+
+	return createdAccessList
 }
 
 func NewAccessListMember(t *testing.T, aclName, memberName string, memberType string) *accesslist.AccessListMember {

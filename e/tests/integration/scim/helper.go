@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
@@ -17,8 +18,10 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	scimcommon "github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/tests/common"
 )
 
@@ -240,4 +243,29 @@ func createPluginSCIMClient(t *testing.T, sut *common.SUT, scimToken string, plu
 	})
 	require.NoError(t, err)
 	return scimClient
+}
+
+func mustCreateSCIMUser(t *testing.T, sut *common.SUT, name string) types.User {
+	ctx := context.Background()
+	auth := sut.Teleport.Process.GetAuthServer()
+
+	newUser, err := types.NewUser(name)
+	require.NoError(t, err, "failed creating empty user")
+	newUser.AddRole("requester")
+	newUser.SetStaticLabels(map[string]string{
+		scimcommon.ExternalIDLabel: name + "-external-id",
+		types.OriginLabel:          apicommon.OriginSCIM,
+	})
+
+	created, err := auth.CreateUser(ctx, newUser)
+	require.NoError(t, err, "failed creating new user")
+
+	t.Cleanup(func() {
+		err := auth.DeleteUser(ctx, created.GetName())
+		if !trace.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+	})
+
+	return created
 }
