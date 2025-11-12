@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"bytes"
+	"cmp"
 	"io"
 	"net/http"
 	"path"
@@ -282,14 +283,19 @@ func extractResourceNameFromPostRequest(
 		return "", trace.Wrap(err)
 	}
 
-	newBody := bytes.NewBuffer(make([]byte, 0, 2048))
+	newBody := bytes.NewBuffer(
+		make([]byte, 0, cmp.Or(max(req.ContentLength, 0), 2048)),
+	)
 	if _, err := io.Copy(newBody, req.Body); err != nil {
 		return "", trace.Wrap(err)
 	}
 	if err := req.Body.Close(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	req.Body = io.NopCloser(newBody)
+	req.Body = io.NopCloser(bytes.NewReader(newBody.Bytes()))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(newBody.Bytes())), nil
+	}
 	// decode memory rw body.
 	obj, err := decodeAndSetGVK(decoder, newBody.Bytes(), defaults)
 	if err != nil {
