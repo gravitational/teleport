@@ -2384,18 +2384,6 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 
-		if resource.GetKind() == types.KindSAMLIdPServiceProvider {
-			// During time of access, all of user roles- standing roles and
-			// access request roles are used to check access. As such, its
-			// possible for ser to pass access request validation with allowing
-			// v7 role, but denied access during login due to restricting v8 role.
-			// Therefore checking access here gives user an early feedback on
-			// whether they eventually would be able to access resource.
-			if err := canAccessSaml(localClusterName, roleSet, resource, m.userState.GetTraits(), matchers...); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-
 		for _, role := range roleSet {
 			// limit access checker to the scope of originally requested roles.
 			if _, ok := requestedRoleMap[role.GetName()]; !ok {
@@ -2425,6 +2413,14 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 					`access to at least one requested resources. `+
 					`resources: %s roles: %v unmatched resources: %v`,
 				resourcesStr, requestedRoles, kubeResourceMatcher.Unmatched())
+		}
+		if resource.GetKind() == types.KindSAMLIdPServiceProvider {
+			// Access precheck to validate if there is a restricting standing
+			// role for this user, which may otherwise deny access to this
+			// resource even after assuming roles granted by this access request.
+			if err := canAccessSaml(localClusterName, roleSet, resource, m.userState.GetTraits(), matchers...); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
@@ -2456,9 +2452,23 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	return prunedRoles, nil
 }
 
-// canAccessSaml checks access to saml resource with both requested role+existing role.
-func canAccessSaml(clusterName string, roleSet RoleSet, r types.ResourceWithLabels, traits map[string][]string, matchers ...RoleMatcher) error {
-	if err := roleSet.CheckAccessToSAMLIdP(r, traits, nil /*AuthPreference, checked during login*/, AccessState{MFAVerified: true}, matchers...); err != nil {
+// canAccessSaml checks access to saml resource based on given [roleSet].
+// AccessDenied error is returned as a BadParameter to indicate error is
+// related to the access request configuration.
+func canAccessSaml(
+	clusterName string,
+	roleSet RoleSet,
+	r types.ResourceWithLabels,
+	traits map[string][]string,
+	matchers ...RoleMatcher,
+) error {
+	if err := roleSet.CheckAccessToSAMLIdP(
+		r,
+		traits,
+		nil, /*AuthPreference, checked during login*/
+		AccessState{MFAVerified: true},
+		matchers...,
+	); err != nil {
 		if trace.IsAccessDenied(err) {
 			return trace.BadParameter(
 				`no roles configured in the "search_as_roles" for this user allow `+
