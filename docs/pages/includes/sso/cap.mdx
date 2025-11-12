@@ -1,0 +1,50 @@
+By editing the `cluster_auth_preference` resource we can make the authentication
+connector you configured in this guide the default authentication method for
+your Teleport cluster.
+
+Configure Teleport to use your identity provider as the default authentication
+method instead of the local user database.
+
+Use `tctl` to edit the `cluster_auth_preference` value:
+
+```code
+$ tctl edit cluster_auth_preference
+```
+
+Set the value of `spec.type` to `{{ type }}`:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  ...
+  name: cluster-auth-preference
+spec:
+  ...
+  type: {{ type }}
+  ...
+version: v2
+```
+
+After you save and exit the editor, `tctl` will update the resource:
+
+```text
+cluster auth preference has been updated
+```
+
+<details>
+<summary>Static configuration file</summary>
+
+You can also edit your Teleport configuration file to include the following:
+
+```yaml
+# Snippet from /etc/teleport.yaml
+auth_service:
+  authentication:
+    type: {{ type }}
+```
+
+</details>
+
+If you need to log in again before configuring your identity provider, use the
+flag <nobr>`--auth=local`</nobr>.
+
