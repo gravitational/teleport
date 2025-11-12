@@ -5283,7 +5283,7 @@ func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock
 }
 
 // printStatus prints the status of the profile.
-func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string, isActive bool) {
 	clock := clockwork.NewRealClock()
 	var prefix string
 	proxyURL := p.getProxyURLLine(isActive, env)
@@ -5295,40 +5295,40 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		prefix = "  "
 	}
 
-	fmt.Printf("%vProfile URL:        %v\n", prefix, proxyURL)
+	fmt.Fprintf(w, "%vProfile URL:        %v\n", prefix, proxyURL)
 	if debug {
 		switch {
 		case p.RelayAddr == "" && p.DefaultRelayAddr != "":
-			fmt.Printf("  Relay address:      %v (default)\n", p.DefaultRelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (default)\n", p.DefaultRelayAddr)
 		case p.RelayAddr != "" && p.DefaultRelayAddr != "":
-			fmt.Printf("  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
 		case p.RelayAddr != "" && p.DefaultRelayAddr == "":
-			fmt.Printf("  Relay address:      %v (no default)\n", p.RelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (no default)\n", p.RelayAddr)
 		default:
-			fmt.Printf("  Relay address:      (none)\n")
+			fmt.Fprintf(w, "  Relay address:      (none)\n")
 		}
 	} else if relayAddr := cmp.Or(p.RelayAddr, p.DefaultRelayAddr); relayAddr != "" {
-		fmt.Printf("  Relay address:      %v\n", relayAddr)
+		fmt.Fprintf(w, "  Relay address:      %v\n", relayAddr)
 	}
-	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	fmt.Fprintf(w, "  Logged in as:       %v\n", p.Username)
 	if len(p.ActiveRequests) != 0 {
-		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
+		fmt.Fprintf(w, "  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
 	}
 
 	if cluster != "" {
-		fmt.Printf("  Cluster:            %v\n", cluster)
+		fmt.Fprintf(w, "  Cluster:            %v\n", cluster)
 	}
 	if p.Scope != "" {
-		fmt.Printf("  Scope:              %v\n", p.Scope)
-		fmt.Printf("  Scoped Roles:\n")
+		fmt.Fprintf(w, "  Scope:              %v\n", p.Scope)
+		fmt.Fprintf(w, "  Scoped Roles:\n")
 
 		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
 		slices.Sort(assignedScopes)
 		for _, scope := range assignedScopes {
-			fmt.Printf("    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
+			fmt.Fprintf(w, "    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
 		}
 	} else {
-		fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
+		fmt.Fprintf(w, "  Roles:              %v\n", rolesToString(debug, p.Roles))
 	}
 	if debug {
 		var count int
@@ -5337,60 +5337,60 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 				continue
 			}
 			if count == 0 {
-				fmt.Printf("  Traits:             %v: %v\n", k, v)
+				fmt.Fprintf(w, "  Traits:             %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
+				fmt.Fprintf(w, "                      %v: %v\n", k, v)
 			}
 			count = count + 1
 		}
 	}
 	if len(p.Logins) > 0 {
-		fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+		fmt.Fprintf(w, "  Logins:             %v\n", strings.Join(p.Logins, ", "))
 	}
 	if p.KubernetesEnabled {
-		fmt.Printf("  Kubernetes:         enabled\n")
+		fmt.Fprintf(w, "  Kubernetes:         enabled\n")
 		if kubeCluster != "" {
-			fmt.Printf("  Kubernetes cluster: %q\n", kubeCluster)
+			fmt.Fprintf(w, "  Kubernetes cluster: %q\n", kubeCluster)
 		}
 		if len(p.KubernetesUsers) > 0 {
-			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
+			fmt.Fprintf(w, "  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
 		}
 		if len(p.KubernetesGroups) > 0 {
-			fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
+			fmt.Fprintf(w, "  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
 		}
 	} else {
-		fmt.Printf("  Kubernetes:         disabled\n")
+		fmt.Fprintf(w, "  Kubernetes:         disabled\n")
 	}
 	if len(p.Databases) != 0 {
-		fmt.Printf("  Databases:          %v\n", strings.Join(p.Databases, ", "))
+		fmt.Fprintf(w, "  Databases:          %v\n", strings.Join(p.Databases, ", "))
 	}
 	if len(p.AllowedResourceIDs) > 0 {
 		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
 		if err != nil {
 			logger.WarnContext(context.Background(), "failed to marshal allowed resource IDs to string", "error", err)
 		} else {
-			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
+			fmt.Fprintf(w, "  Allowed Resources:  %s\n", allowedResourcesStr)
 		}
 	}
 	if p.GitHubIdentity != nil {
-		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
+		fmt.Fprintf(w, "  GitHub username:    %s\n", p.GitHubIdentity.Username)
 	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
-	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
+	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
+	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
 			if first {
-				fmt.Printf("  Critical options:   %v: %v\n", k, v)
+				fmt.Fprintf(w, "  Critical options:   %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
+				fmt.Fprintf(w, "                      %v: %v\n", k, v)
 			}
 			first = false
 		}
 	}
 
-	fmt.Printf("\n")
+	fmt.Fprintf(w, "\n")
 }
 
 func isOktaRole(role string) bool {
@@ -5442,12 +5442,12 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 		// Print the active profile.
 		if profile != nil {
-			printStatus(cf.Debug, active, env, true)
+			printStatus(cf.Stdout(), cf.Debug, active, env, true)
 		}
 
 		// Print all other profiles.
 		for _, p := range others {
-			printStatus(cf.Debug, p, env, false)
+			printStatus(cf.Stdout(), cf.Debug, p, env, false)
 		}
 
 		// Print relevant active env vars, if they are set.
