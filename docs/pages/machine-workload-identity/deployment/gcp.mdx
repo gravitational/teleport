@@ -133,8 +133,9 @@ Replace:
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step.
-- `/opt/machine-id` with the directory you created earlier for `tbot` to write
-  the example credentials to.
+- `/opt/machine-id` with a path to a directory where `tbot` should write the
+  short-lived credentials. Ensure that the user `tbot` is running as has the
+  appropriate permissions to create this directory.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
