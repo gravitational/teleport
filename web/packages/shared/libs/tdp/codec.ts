@@ -18,6 +18,7 @@
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 import * as tdpb from 'gen-proto-ts/teleport/desktop/tdp_pb'
+import {IMessageType, readMessageOption} from "@protobuf-ts/runtime";
 
 export type Message = ArrayBufferLike;
 
@@ -440,6 +441,23 @@ export class TdpbCodec extends Encoder {
     return `data:image/png;base64,${arrayBufferToBase64(buffer.slice(offset))}`;
   }
 
+  protected marshal<T extends object>(data: T, type: IMessageType<T>): Message {
+    const marshalledMessage = type.toBinary(data);
+    const messageType = tdpb.MessageType[readMessageOption(type, "teleport.desktop.tdp_type_option").toString()];
+    return this.prependWireHeader(marshalledMessage, messageType)
+  }
+
+  private prependWireHeader(message: Uint8Array, type: tdpb.MessageType): Message {
+    const len = message.byteLength;
+    let buf = new Uint8Array(len + 8);
+    let outbuf = new DataView(buf.buffer);
+    outbuf.setUint32(0, type, false)
+    outbuf.setUint32(4, len, false)
+
+    buf.set(message, 8);
+    return buf.buffer
+  }
+
   public processMessage(buffer: ArrayBufferLike) {
     const buf = new DataView(buffer);
     const messageType = buf.getUint32(0, false);
@@ -507,14 +525,14 @@ export class TdpbCodec extends Encoder {
   }
 
   encodeRdpResponsePdu(response: ArrayBufferLike): Message {
-    return tdpb.RDPResponsePDU.toBinary({response: new Uint8Array(response)}).buffer
+    return this.marshal({response: new Uint8Array(response)}, tdpb.RDPResponsePDU)
   }
 
   encodeMouseMove(x: number, y: number): Message {
-    return tdpb.MouseMove.toBinary({x,y}).buffer;
+    return this.marshal({x,y}, tdpb.MouseMove)
   }
   encodeMouseButton(button: MouseButton, state: ButtonState): Message {
-    return tdpb.MouseButton.toBinary({button, pressed: state == ButtonState.DOWN}).buffer;
+    return this.marshal({button, pressed: state == ButtonState.DOWN}, tdpb.MouseButton)
   }
 
  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
@@ -528,63 +546,64 @@ export class TdpbCodec extends Encoder {
   }
 
   private encodeScancode(scancode: number, state: ButtonState): Message {
-    return tdpb.KeyboardButton.toBinary({keyCode: scancode, pressed: state == ButtonState.DOWN}).buffer
+    return this.marshal({keyCode: scancode, pressed: state == ButtonState.DOWN}, tdpb.KeyboardButton)
   }
 
   encodeSyncKeys(syncKeys: SyncKeys): Message {
-    return tdpb.SyncKeys.toBinary({
+    return this.marshal({
       scrollLockPressed: syncKeys.scrollLockState == ButtonState.DOWN,
       numLockState: syncKeys.numLockState == ButtonState.DOWN,
       capsLockState: syncKeys.capsLockState == ButtonState.DOWN,
       kanaLockState: syncKeys.kanaLockState == ButtonState.DOWN
-    }).buffer;
+    }, tdpb.SyncKeys);
   }
   encodeClipboardData(clipboardData: ClipboardData) {
-    return tdpb.ClipboardData.toBinary({data: this.encoder.encode(clipboardData.data)}).buffer;
+    return this.marshal({data: this.encoder.encode(clipboardData.data)}, tdpb.ClipboardData)
   }
   encodeUsername(username: string): Message {
-    return tdpb.ClientUsername.toBinary({username}).buffer;
+    return this.marshal({username},tdpb.ClientUsername);
   }
   encodeClientKeyboardLayout(keyboardLayout: number): Message {
-    return tdpb.ClientKeyboardLayout.toBinary({keyboardLayout}).buffer;
+    return this.marshal({keyboardLayout},tdpb.ClientKeyboardLayout);
   }
   encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message {
-    return tdpb.MouseWheel.toBinary({axis: axis.valueOf() - 1 , delta}).buffer;
+    return this.marshal({axis: axis.valueOf() - 1 , delta},tdpb.MouseWheel);
   }
+
   encodeMfaJson(mfaJson: MfaJson): Message {
     return null;
   }
 
   encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message {
-    return tdpb.SharedDirectoryInfoResponse.toBinary({
+    return this.marshal({
       completionId: res.completionId,
       errorCode: res.errCode,
       fso: res.fso,
-    }).buffer
+    },tdpb.SharedDirectoryInfoResponse);
   }
 
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
-    return tdpb.SharedDirectoryReadResponse.toBinary({
+    return this.marshal({
       completionId: res.completionId,
       errorCode: res.errCode,
       readData: res.readData,
       readDataLength: res.readDataLength,
-    }).buffer
+    }, tdpb.SharedDirectoryReadResponse);
   }
 
   encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message {
-    return tdpb.SharedDirectoryMoveResponse.toBinary({
+    return this.marshal({
       completionId: res.completionId,
       errorCode: res.errCode,
-    }).buffer
+    },tdpb.SharedDirectoryMoveResponse);
   }
   
   encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message {
-    return tdpb.SharedDirectoryListResponse.toBinary({
+    return this.marshal({
       completionId: res.completionId,
       errorCode: res.errCode,
       fsoList: res.fsoList
-    }).buffer
+    },tdpb.SharedDirectoryListResponse);
   }
 
 
