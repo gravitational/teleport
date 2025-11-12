@@ -318,28 +318,29 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 //
 // The active profile status is nil if there is no active profile.
 func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, []*ProfileStatus, error) {
-	var err error
 	var currentProfileName string
-
 	if proxyAddressOrProfile == "" {
-		currentProfileName, err = s.CurrentProfile()
+		profileName, err := s.CurrentProfile()
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, nil, trace.Wrap(err)
 		}
+		currentProfileName = profileName
 	} else {
 		// Remove ports from proxy host, profile name is stored by host name.
-		currentProfileName, err = utils.Host(proxyAddressOrProfile)
+		profileName, err := utils.Host(proxyAddressOrProfile)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		currentProfileName = profileName
 	}
 
 	var currentProfile *ProfileStatus
 	if currentProfileName != "" {
-		currentProfile, err = s.ReadProfileStatus(currentProfileName)
+		profileStatus, err := s.ReadProfileStatus(currentProfileName)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		currentProfile = profileStatus
 	}
 
 	profileNames, err := s.ListProfiles()
