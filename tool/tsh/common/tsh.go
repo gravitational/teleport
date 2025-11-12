@@ -5057,7 +5057,7 @@ func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
 }
 
 func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
-	currentProfile, profiles, err := c.getClientStore().FullProfileStatus()
+	currentProfile, profiles, err := c.getClientStore().FullProfileStatus(c.Proxy)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

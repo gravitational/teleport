@@ -238,16 +238,17 @@ func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKey
 
 // ReadProfileStatus returns the profile status for the given profile name.
 // If no profile name is provided, return the current profile.
-func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
+func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, error) {
 	var err error
-	if profileName == "" {
+	var profileName string
+	if proxyAddressOrProfile == "" {
 		profileName, err = s.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
 		// remove ports from proxy host, because profile name is stored by host name
-		profileName, err = utils.Host(profileName)
+		profileName, err = utils.Host(proxyAddressOrProfile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -309,12 +310,26 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	})
 }
 
-// FullProfileStatus returns the name of the current profile with a
-// a list of all profile statuses.
-func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
-	currentProfileName, err := s.CurrentProfile()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+// FullProfileStatus returns the status of the active profile along with the
+// statuses of all profiles.
+//
+// The active profile status is determined from the provided profile if given;
+// otherwise, it is read from the current profile.
+func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, []*ProfileStatus, error) {
+	var err error
+	var currentProfileName string
+
+	if proxyAddressOrProfile == "" {
+		currentProfileName, err = s.CurrentProfile()
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	} else {
+		// Remove ports from proxy host, profile name is stored by host name.
+		currentProfileName, err = utils.Host(proxyAddressOrProfile)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
 
 	currentProfile, err := s.ReadProfileStatus(currentProfileName)
