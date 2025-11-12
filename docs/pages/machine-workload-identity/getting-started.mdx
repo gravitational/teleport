@@ -1,6 +1,7 @@
 ---
-title: Machine ID Getting Started Guide
+title: Machine & Workload Identity Getting Started Guide
 description: Getting started with Teleport Machine ID
+sidebar_label: Getting Started
 tags:
  - get-started
  - mwi
@@ -44,7 +45,7 @@ binaries, including `teleport`, `tctl`, `tsh`,`tbot`, and `fdpass-teleport`:
 - `tbot` is the Machine ID tool you will use to associate a bot user with a machine (step 3/4)
 - `fdpass-teleport` is used to integrate Machine ID with OpenSSH to enable higher performance and reduced resource consumption when establishing SSH connections; this binary is not used in this guide
 
-Download the appropriate Teleport package for your platform: 
+Download the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
@@ -88,10 +89,10 @@ editor                                                            user:list,crea
 The `internal.logins` trait is replaced with values from the Teleport local user
 database. For full details on how traits work in Teleport roles, see the
 [Access Controls
-Reference](../../reference/access-controls/roles.mdx).
+Reference](../reference/access-controls/roles.mdx).
 
-Assuming that you are using the default `access` role, ensure that you use the 
-`--logins` flag when adding your bot to specify the SSH logins that you wish to 
+Assuming that you are using the default `access` role, ensure that you use the
+`--logins` flag when adding your bot to specify the SSH logins that you wish to
 allow the bot to access on hosts. For our example, we will be using `root`.
 
 Use `tctl bots add` to create our bot:
@@ -156,7 +157,7 @@ This directory contains private key material in the `key.*` files, SSH
 certificates in the `identity` file, X.509 certificates in the `tls*` and
 `*.crt` files, OpenSSH configuration in the `ssh_config` and
 `known_hosts` files to make it easy to integrate Machine ID with external
- applications and tools.
+applications and tools.
 
 ## Step 4/4. Use certificates issued by Machine ID
 
@@ -171,9 +172,9 @@ node-name  127.0.0.1:3022 arch=x86_64,group=api-servers
 ```
 
 <details>
-<summary>Not seeing Nodes?</summary>
+    <summary>Not seeing Nodes?</summary>
 
-(!docs/pages/includes/node-logins.mdx!)
+    (!docs/pages/includes/node-logins.mdx!)
 
 </details>
 
@@ -185,32 +186,32 @@ $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 ```
 
 In addition to the `ssh` client you can use `tsh`. Replace the `--proxy` parameter
-with your proxy address. 
+with your proxy address.
 
 ```code
 $ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-name
 ```
 
 <Admonition type="note" title="Roles must have logins defined">
-  The below error can occur when the bot does not have permission to log in to
-  a node as the requested user:
+    The below error can occur when the bot does not have permission to log in to
+    a node as the requested user:
 
-  ```code
-  $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
-  root@node-name: Permission denied (publickey).
-  kex_exchange_identification: Connection closed by remote host
-  ```
-  This can happen in two circumstances:
-  - The user you are trying to log in as is not specified under `logins` in the
-   role you are using
-  - If you have used `--logins` when creating the bot user, the role the bot is 
-  impersonating does not have the `{{ internal.logins }}` variable specified.
+    ```code
+    $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
+    root@node-name: Permission denied (publickey).
+    kex_exchange_identification: Connection closed by remote host
+    ```
+    This can happen in two circumstances:
+    - The user you are trying to log in as is not specified under `logins` in the
+    role you are using
+    - If you have used `--logins` when creating the bot user, the role the bot is
+    impersonating does not have the `{{ internal.logins }}` variable specified.
 
-  If you have been following along with the `access` role, do the following.
+    If you have been following along with the `access` role, do the following.
 
-  - Export the role by running `tctl get roles/access > access.yaml`
-  - Edit the `logins` field in `access.yaml`
-  - Update the role by running `tctl create -f access.yaml`
+    - Export the role by running `tctl get roles/access > access.yaml`
+    - Edit the `logins` field in `access.yaml`
+    - Update the role by running `tctl create -f access.yaml`
 </Admonition>
 
 Now you can replace any invocations of `ssh` with the above command to provide
@@ -219,13 +220,12 @@ and controlled with access controls.
 
 ## Next Steps
 
-- Read the [architecture overview](../../reference/architecture/machine-id-architecture.mdx) to learn about how
-  Machine ID works in more detail.
+- Read the [architecture overview](../reference/architecture/machine-id-architecture.mdx) to learn about how
+Machine ID works in more detail.
 - Check out the [deployment guides](deployment/deployment.mdx) to learn about
-  configuring `tbot` in a production-ready way for your platform.
+configuring `tbot` in a production-ready way for your platform.
 - Check out the [access guides](access-guides/access-guides.mdx) to learn about configuring
-  `tbot` for different use cases than SSH.
-- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
-  all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-id/telemetry.mdx)
-
+`tbot` for different use cases than SSH.
+- Read the [configuration reference](../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/machine-id/telemetry.mdx)

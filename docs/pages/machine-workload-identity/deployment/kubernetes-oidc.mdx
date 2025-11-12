@@ -1,6 +1,7 @@
 ---
 title: Deploying tbot on Kubernetes with OIDC
 description: How to install and configure Machine ID on Kubernetes with OIDC
+sidebar_label: Kubernetes (OIDC)
 tags:
  - how-to
  - mwi
@@ -154,7 +155,7 @@ Refer to your cloud provider documentation to enable this feature, including:
 
 If your provider does not support this feature, consider using either [Static
 JWKS joining](./kubernetes.mdx) or an [alternative Teleport join
-method](../../../reference/join-methods.mdx) better suited to your cloud provider.
+method](../../reference/join-methods.mdx) better suited to your cloud provider.
 </Admonition>
 
 ## Step 2/5. Create a Bot
@@ -296,11 +297,11 @@ out more about how to configure `tbot` for your use case.
 
 ## Next steps
 
-- Explore the [Helm chart configuration reference](../../../reference/helm-reference/tbot.mdx).
+- Explore the [Helm chart configuration reference](../../reference/helm-reference/tbot.mdx).
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish
 configuring `tbot` for your environment.
-- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
 all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-id/telemetry.mdx)
 
 [said]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-issuer-discovery
