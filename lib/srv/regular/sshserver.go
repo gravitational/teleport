@@ -1675,7 +1675,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		// inform the client of the session ID that is going to be used in a new
 		// goroutine to reduce latency.
 		go func() {
-			s.logger.DebugContext(ctx, "Sending current session ID")
+			s.logger.DebugContext(ctx, "Sending current session ID", "sid", sid)
 			_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sid))
 			if err != nil {
 				s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)

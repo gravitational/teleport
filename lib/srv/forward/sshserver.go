@@ -1176,7 +1176,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// events, and session trackers) to avoid duplicates.
 	//
 	// Register handler to receive the current session ID before starting the session.
-	var newSessionIDFromServer chan session.ID
+	var newSessionIDFromServer chan string
 	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
 		// Check if the Teleport Node is outdated and won't actually send the session ID.
 		//
@@ -1197,19 +1197,13 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 			return
 		}
 
-		if reply {
-			newSessionIDFromServer = make(chan session.ID, 1)
+		if err == nil && reply {
+			newSessionIDFromServer = make(chan string, 1)
 			var receiveSessionIDOnce sync.Once
 			s.remoteClient.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
 				// Only handle the first request - only one is expected.
 				receiveSessionIDOnce.Do(func() {
-					sid, err := session.ParseID(string(req.Payload))
-					if err != nil {
-						s.logger.WarnContext(ctx, "Unable to parse session ID", "error", err)
-						return
-					}
-
-					newSessionIDFromServer <- *sid
+					newSessionIDFromServer <- string(req.Payload)
 				})
 			})
 		} else {
@@ -1239,10 +1233,23 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	if newSessionIDFromServer != nil {
 		// Wait for the session ID to be reported by the target node.
 		select {
-		case sid := <-newSessionIDFromServer:
-			scx.SetNewSessionID(ctx, sid)
+		case sidString := <-newSessionIDFromServer:
+			sid, err := session.ParseID(sidString)
+			if err != nil {
+				s.logger.WarnContext(ctx, "Unable to parse session ID reported by target Teleport Node", "error", err)
+				if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+					s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+				}
+				return
+			}
+			scx.SetNewSessionID(ctx, *sid)
 		case <-time.After(10 * time.Second):
 			s.logger.WarnContext(ctx, "Failed to receive session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
+			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		case <-ctx.Done():
 			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
 				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
 			}
@@ -1270,8 +1277,9 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// inform the client of the session ID that is going to be used in a new
 	// goroutine to reduce latency.
 	go func() {
-		s.logger.DebugContext(ctx, "Sending current session ID")
-		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(scx.GetNewSessionID()))
+		sid := scx.GetNewSessionID()
+		s.logger.DebugContext(ctx, "Sending current session ID", "sid", sid)
+		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sid))
 		if err != nil {
 			s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
 		}
