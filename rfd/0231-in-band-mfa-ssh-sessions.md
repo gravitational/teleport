@@ -74,32 +74,35 @@ service will then check if MFA is required for the session by examining the perm
 
 If MFA is _not required_, the SSH service will then proceed to establish the SSH session.
 
-If MFA _is required_, the SSH service will send a Protobuf [`MFAPrompt` message](#ssh-keyboard-interactive-messages) via
-the SSH [keyboard-interactive channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed.
+If MFA _is required_, the SSH service will send a Protobuf [`MFAPrompt`
+message](#ssh-keyboard-interactive-authentication) via the SSH [keyboard-interactive
+channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed.
 
-The client must then invoke the `CreateChallenge` RPC of the MFA service, providing a _session identifying payload
-(SIP)_ along with any relevant request metadata. The MFA service will respond to the client with a challenge that must
-be solved. The client must solve the MFA challenge and send a Protobuf
-[`MFAPromptAnswer`](#ssh-keyboard-interactive-messages) message back to the SSH service via the keyboard-interactive
-channel.
+The client must then call the `CreateChallenge` RPC on the MFA service, providing a _session identifying payload (SIP)_
+and any relevant metadata. The SIP is an SSH session hash computed from SSH session state and is used to bind the MFA
+challenge to the specific session. The MFA service will [store the SIP](#storing-session-identifying-payloads) and
+respond with a challenge for the client to solve.
 
-Once the MFA challenge response is received from the client, the SSH service will invoke the `ValidateChallenge` RPC
-with the client's MFA challenge response. If the MFA response is valid, the MFA service will return a response to the
-SSH service with the session identifying payload that the challenge was originally created for. If the MFA response is
-invalid, the MFA service will return an `Access Denied: Invalid MFA response` error.
+Depending on whether the target SSH host is in a local or leaf cluster, the MFA verification flow will differ.
 
-Although the SSH service receives a successful response from the MFA service, it still must independently compute the
-session identifying payload and ensure it matches the payload in the response from `ValidateChallenge`. This two-step
-verification ensures that MFA verification was performed for the same SSH session that it was requested for.
+#### Local Cluster Flow
 
-If the session identifying payload does not match, the SSH service will deny access to the client with an `Access
-Denied: Invalid MFA response`.
-
-If the client fails to complete the MFA challenge within a specified timeout (e.g., default 1 minute), the SSH service
-will terminate the connection with an `Access Denied: MFA verification timed out` error. If the client wishes to retry,
-it must initiate a new SSH connection.
+1. The client solves the MFA challenge and sends a Protobuf
+   [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message back to the SSH service via the
+   keyboard-interactive channel.
+1. The SSH service calls the `ValidateChallenge` RPC with the client's MFA response.
+1. If the response is valid, the MFA service returns the original SIP to the SSH service.
+1. The SSH service independently computes the SIP from session state and verifies it matches the SIP returned by
+   `ValidateChallenge`.
+1. If validation succeeds, the SSH session is established. If not, access is denied with an `Access Denied: Invalid MFA
+response` error. If the client does not complete MFA within a specified timeout (e.g., 1 minute), the SSH service
+   terminates the connection with an `Access Denied: MFA verification timed out` error. To retry, the client must start
+   a new SSH connection.
 
 ```mermaid
+---
+title: SSH MFA Connection Flow (Local Cluster)
+---
 sequenceDiagram
   autoNumber
 
@@ -110,23 +113,84 @@ sequenceDiagram
   participant Decision Service
   participant Host as Target SSH Host
 
-  Client->>Proxy: Dial SSH (client cert)
-  Proxy->>Decision Service: EvaluateSSHAccess(client cert)
+  Client->>Proxy: Dial SSH
+  Proxy->>Decision Service: EvaluateSSHAccess
   Decision Service-->>Proxy: Permit
   Proxy->>SSH: Proxy SSH connection (stapled permit)
   SSH->>SSH: Is MFA required?
 
   alt MFA required
     SSH->>Client: Keyboard-interactive (MFA required)
-    Client->>MFA: CreateChallenge (session ID payload)
-    MFA-->>MFA: Generate and store MFA challenge (session ID payload)
+    Client->>MFA: CreateChallenge (SIP)
+    MFA-->>MFA: Generate and store MFA challenge (SIP)
     MFA-->>Client: MFA challenge
     Client->>Client: Solve MFA challenge
     Client->>SSH: Keyboard-interactive (MFA response)
     SSH->>MFA: ValidateChallenge (MFA response)
     MFA-->>SSH: MFA valid
-    SSH-->>SSH: Compute session ID payload
-    SSH-->>SSH: Verify session ID payload matches
+    SSH-->>SSH: Compute SIP
+    SSH-->>SSH: Verify SIP matches
+  end
+
+  SSH->>Host: Establish SSH connection
+  Host-->>SSH: SSH connection established
+  SSH-->>Proxy: SSH connection established
+  Proxy-->>Client: SSH session established
+```
+
+#### Leaf Cluster Flow
+
+1. The client solves the MFA challenge and calls `ValidateChallenge` with the MFA response, SIP, and `route_to_cluster`
+   metadata.
+1. The MFA service validates the MFA response and forwards the MFA response and SIP to the leaf cluster's Auth service
+   for temporary storage.
+1. The client then sends a [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message to the SSH service,
+   instructing it to retrieve and validate the MFA response and SIP from the leaf cluster's Auth service.
+1. The SSH service retrieves the MFA response and SIP from the leaf cluster's Auth service using the
+   `GetValidatedChallenge` RPC.
+1. The SSH service independently computes the SIP from session state and verifies it matches the SIP retrieved from the
+   leaf cluster's Auth service.
+1. If validation succeeds, the SSH session is established. If not, access is denied with an `Access Denied: Invalid MFA
+response` error. If the client does not complete MFA within a specified timeout (e.g., 1 minute), the SSH service
+   terminates the connection with an `Access Denied: MFA verification timed out` error. To retry, the client must start
+   a new SSH connection.
+
+```mermaid
+---
+title: SSH MFA Connection Flow (Leaf Cluster)
+---
+sequenceDiagram
+  autoNumber
+
+  participant Client
+  participant rMFA as Local MFA Service
+  participant Proxy as Leaf Proxy Service
+  participant Dec as Leaf Decision Service
+  participant lMFA as Leaf MFA Service
+  participant SSH as Leaf SSH Service
+
+  participant Host as Target SSH Host
+
+  Client->>Proxy: Dial SSH
+  Proxy->>Dec: EvaluateSSHAccess
+  Dec-->>Proxy: Permit
+  Proxy->>SSH: Proxy SSH connection (stapled permit)
+  SSH->>SSH: Is MFA required?
+
+  alt MFA required
+    SSH->>Client: Keyboard-interactive (MFA required)
+    Client->>rMFA: CreateChallenge (SIP)
+    rMFA-->>rMFA: Generate and store MFA challenge with SIP
+    rMFA-->>Client: MFA challenge
+    Client->>Client: Solve MFA challenge
+    Client->>rMFA: ValidateChallenge (MFA response, route_to_cluster)
+    rMFA-->>lMFA: UpsertValidatedChallenge (SIP)
+
+    Client->>SSH: Keyboard-interactive (check_auth_for_MFA, challenge name)
+    SSH->>lMFA: GetValidatedChallenge (challenge name)
+    lMFA-->>SSH: ValidatedChallengeResponse and SIP
+    SSH-->>SSH: Compute SIP
+    SSH-->>SSH: Verify SIP matches
   end
 
   SSH->>Host: Establish SSH connection
@@ -152,19 +216,24 @@ Mitigations:
 1. MFA challenges and their responses will be single-use only. Once a challenge has been successfully validated, it
    cannot be reused.
 1. The MFA challenge is time-bound and will expire after a duration (e.g., 5 minutes).
-1. Each MFA challenge will include a session identifying payload that binds the challenge to a specific user session.
+1. Each MFA challenge will include a SIP that binds the challenge to a specific user session.
 
 #### New RPCs Attack Surface Risk
 
-This RFD introduces two new RPCs `CreateChallenge` and `ValidateChallenge` in the MFA service, which could potentially
-be exploited by an attacker to DoS the service by flooding it with requests.
+This RFD introduces an MFA service which exposes four RPCs: `CreateChallenge`, `ValidateChallenge`,
+`UpsertValidatedChallenge` and `GetValidatedChallenge`. These could potentially be exploited by an attacker to DoS the
+service by flooding it with requests.
 
 Mitigations:
 
-1. Only authenticated clients are authorized to call the `CreateChallenge` RPC, requests from other sources will be
-   rejected.
+1. Only authenticated end user clients are authorized to call the `CreateChallenge` RPC, requests from other sources
+   will be rejected.
 1. Only Teleport instances are authorized to call the `ValidateChallenge` RPC, requests from other sources will be
    rejected.
+1. Only local Teleport instances are authorized to call the `UpsertValidatedChallenge` RPC of a leaf cluster, requests
+   from other sources will be rejected.
+1. Only leaf Teleport instances are authorized to call the `GetValidatedChallenge` RPC of the same cluster, requests
+   from other sources will be rejected.
 1. Ensure that the MFA service validates all inputs before processing the request to avoid unnecessary processing of
    invalid requests.
 
@@ -226,10 +295,25 @@ message MFAPrompt {
   string message = 1;
 }
 
-// MFAPromptAnswer is the user's answer to an MFA prompt.
-message MFAPromptAnswer {
-  // User's response to the MFA challenge.
+// MFAPromptResponse is the user's response to an MFA prompt.
+message MFAPromptResponse {
+  oneof response {
+    MFAPromptResponseDirect direct = 1;
+    MFAPromptResponseReference reference = 2;
+  }
+}
+
+// MFAPromptResponseDirect contains the MFA response provided directly by the user. Used for local cluster targets.
+message MFAPromptResponseDirect {
+  // mfa_response is the user's response to the MFA challenge.
   teleport.mfa.v1.AuthenticateResponse mfa_response = 1;
+}
+
+// MFAPromptResponseReference instructs the SSH service to retrieve the MFA response from the MFA service. Used for leaf
+// cluster targets.
+message MFAPromptResponseReference {
+  // challenge_name is the name of the MFA challenge created by the client.
+  string challenge_name = 1;
 }
 
 // SessionPayload contains identification information about an SSH session.
@@ -254,8 +338,8 @@ clear separation of concerns and to avoid continuing to bloat the `AuthService` 
 complexity. Additionally, the RPCs defined in this new service are specifically focused on MFA challenges for user
 sessions, instead of further expanding the existing `CreateAuthenticateChallenge` RPC which is more general-purpose.
 
-It will implement the following RPC and messages for creating and validating MFA challenges tied to specific user
-sessions:
+It will implement the following RPC and messages for creating, validating, upserting and retrieving MFA challenges tied
+to specific user sessions:
 
 ```proto
 // MFAService defines the Multi-Factor Authentication (MFA) service. New MFA related RPCs should be added here instead
@@ -266,6 +350,12 @@ service MFAService {
   // ValidateChallenge validates the MFA challenge response for a user session. The client must verify the returned
   // payload matches the expected payload to ensure the response is tied to the correct session.
   rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
+  // UpsertValidatedChallenge stores a previously validated MFA challenge response for a user session. This is used in
+  // the SSH session establishment process for leaf clusters.
+  rpc UpsertValidatedChallenge(UpsertValidatedChallengeRequest) returns (UpsertValidatedChallengeResponse);
+  // GetValidatedChallenge retrieves a previously validated MFA challenge response for a user session. This is used in
+  // the SSH session establishment process for leaf clusters.
+  rpc GetValidatedChallenge(GetValidatedChallengeRequest) returns (GetValidatedChallengeResponse);
 }
 
 // CreateChallengeRequest is the request message for CreateChallenge.
@@ -297,13 +387,52 @@ message ValidateChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the validation to the correct challenge.
   string name = 1;
+
+  // cluster_name is the optional target cluster name where the SSH session is being established.
+  // If not set, the validation is assumed to be for the local cluster.
+  // This is required when validating challenges for leaf cluster SSH sessions.
+  string cluster_name = 2;
+
   // mfa_response contains the MFA challenge response provided by the user.
-  AuthenticateResponse mfa_response = 2;
+  AuthenticateResponse mfa_response = 3;
 }
 
 // ValidateChallengeResponse is the response message for ValidateChallenge.
 message ValidateChallengeResponse {
   // payload is a value that uniquely identifies the user's session. The client calling ValidateChallenge MUST
+  // independently compute this value from session state to verify it matches in order to verify the response is tied to
+  // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
+  bytes payload = 1;
+  // device contains information about the user's MFA device used to authenticate.
+  types.MFADevice device = 2;
+}
+
+// UpsertValidatedChallengeRequest is the request message for UpsertValidatedChallenge.
+message UpsertValidatedChallengeRequest {
+  // name is the resource name for the issued challenge.
+  // This must match the 'name' returned in CreateChallengeResponse to tie the upsert to the correct challenge.
+  string name = 1;
+  // payload is a value that uniquely identifies the user's session. The client calling UpsertValidatedChallenge MUST
+  // independently compute this value from session state to verify it matches in order to verify the response is tied to
+  // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
+  bytes payload = 2;
+}
+
+// UpsertValidatedChallengeResponse is the response message for UpsertValidatedChallenge.
+message UpsertValidatedChallengeResponse {
+  // Empty response but defined for future extensibility.
+}
+
+// GetValidatedChallengeRequest is the request message for GetValidatedChallenge.
+message GetValidatedChallengeRequest {
+  // name is the resource name for the issued challenge.
+  // This must match the 'name' returned in CreateChallengeResponse to tie the retrieval to the correct challenge.
+  string name = 1;
+}
+
+// GetValidatedChallengeResponse is the response message for GetValidatedChallenge.
+message GetValidatedChallengeResponse {
+  // payload is a value that uniquely identifies the user's session. The client calling GetValidatedChallenge MUST
   // independently compute this value from session state to verify it matches in order to verify the response is tied to
   // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
   bytes payload = 1;
@@ -377,6 +506,45 @@ type SSOMFASessionData struct {
   Payload []byte `json:"payload,omitempty"`
 }
 ```
+
+After the MFA challenge is validated or has expired, the challenge and SIP will be removed.
+
+##### Storing Validated MFA Responses in Leaf Clusters
+
+In leaf clusters, the validated MFA responses and SIPs will be temporarily stored in the leaf cluster's MFA service for
+the leaf SSH service to retrieve during session establishment.
+
+A new data model `ValidatedChallenge` will be created to store the validated MFA response and SIP.
+
+```go
+// ValidatedChallenge represents a validated MFA challenge tied to a user session.
+type ValidatedChallenge struct {
+  // Name is the unique resource name for the issued challenge.
+  Name string
+  // Payload is a value that uniquely identifies the user's session.
+  Payload []byte
+  // Device is information about the user's MFA device used to authenticate.
+  Device types.MFADevice
+  // Expires is the expiration time of the validated challenge.
+  Expires time.Time
+}
+```
+
+A new watcher `ValidatedChallengeWatcher` will be created to allow the leaf SSH service to watch for validated MFA
+challenge events. The watcher will support filtering by events by type `KindValidatedChallenge` and the challenge name.
+
+```go
+// KindValidatedChallenge is the resource kind for ValidatedChallenge.
+const KindValidatedChallenge = "validated_challenge"
+
+// ValidatedChallengeFilter is a filter for ValidatedChallenge resources.
+type ValidatedChallengeFilter struct {
+  // Name is the name of the ValidatedChallenge to filter by.
+  Name string
+}
+```
+
+When an event matching the filter is received, the leaf Agent will store the validated challenge in the backend.
 
 ### Backwards Compatibility
 
@@ -473,7 +641,30 @@ in‑band MFA flow.
 
 ### Audit Events
 
-No changes to audit events are needed.
+The existing SSH session audit events will be updated to indicate whether MFA was completed via the in-band flow or
+per-session MFA certificate. This will help with tracking the rollout of the new in-band MFA flow during the transition
+period.
+
+Audit events will not be added for the `UpsertValidatedChallenge` and `GetValidatedChallenge` because these RPCs are
+internal to the SSH session establishment process and do not represent user actions.
+
+```proto
+// CreateMFAAuthChallenge records the creation of an MFA auth challenge.
+message CreateMFAAuthChallenge {
+  // ... existing fields ...
+
+  // in_band optionally indicates whether the MFA challenge was completed via the in-band flow.
+  bool in_band = 5 [(gogoproto.jsontag) = "in_band,omitempty"];
+}
+
+// ValidateMFAAuthResponse records the validation of an MFA auth challenge response.
+message ValidateMFAAuthResponse {
+  // ... existing fields ...
+
+  // in_band optionally indicates whether the MFA challenge was completed via the in-band flow.
+  bool in_band = 7 [(gogoproto.jsontag) = "in_band,omitempty"];
+}
+```
 
 ### Observability
 
@@ -516,7 +707,8 @@ The following are assumed to be completed before starting work on this RFD:
 #### Phase 1 (Transition Period - at least 2 major releases)
 
 1. Update the Decision service to return a permit containing a `preconditions` field.
-1. Add `MFAService` to support creating and validating MFA challenges tied to specific user sessions.
+1. Add `MFAService` to support creating, validating, upserting and retrieving MFA challenges tied to specific user
+   sessions.
 1. Update the SSH service to implement the in-band MFA flow during session establishment.
 1. Update the SSH service auth handler to use `VerifiedPublicKeyCallback` instead of `PublicKeyCallback` to ensure that
    the client has confirmed possession of the private key associated with the client certificate.
@@ -525,6 +717,7 @@ The following are assumed to be completed before starting work on this RFD:
 1. Update modern agents to support the in-band MFA flow while still supporting per-session MFA SSH certificates for
    legacy clients.
 1. Add tests to ensure both legacy and modern clients can connect to both legacy and modern agents as expected.
+1. Update audit events to indicate whether MFA was completed via the in-band flow or per-session MFA certificate.
 
 #### Phase 2 (Post Transition Period - after at least 2 major releases)
 
