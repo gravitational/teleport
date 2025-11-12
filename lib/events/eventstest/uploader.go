@@ -48,12 +48,13 @@ type MemoryUploaderConfig struct {
 // upload
 func NewMemoryUploader(cfg ...MemoryUploaderConfig) *MemoryUploader {
 	up := &MemoryUploader{
-		mtx:        &sync.RWMutex{},
-		uploads:    make(map[string]*MemoryUpload),
-		sessions:   make(map[session.ID][]byte),
-		summaries:  make(map[session.ID][]byte),
-		metadata:   make(map[session.ID][]byte),
-		thumbnails: make(map[session.ID][]byte),
+		mtx:              &sync.RWMutex{},
+		uploads:          make(map[string]*MemoryUpload),
+		sessions:         make(map[session.ID][]byte),
+		summaries:        make(map[session.ID][]byte),
+		pendingSummaries: make(map[session.ID][]byte),
+		metadata:         make(map[session.ID][]byte),
+		thumbnails:       make(map[session.ID][]byte),
 	}
 	if len(cfg) != 0 {
 		up.cfg = cfg[0]
@@ -65,12 +66,13 @@ func NewMemoryUploader(cfg ...MemoryUploaderConfig) *MemoryUploader {
 type MemoryUploader struct {
 	cfg MemoryUploaderConfig
 
-	mtx        *sync.RWMutex
-	uploads    map[string]*MemoryUpload
-	sessions   map[session.ID][]byte
-	summaries  map[session.ID][]byte
-	metadata   map[session.ID][]byte
-	thumbnails map[session.ID][]byte
+	mtx              *sync.RWMutex
+	uploads          map[string]*MemoryUpload
+	sessions         map[session.ID][]byte
+	summaries        map[session.ID][]byte
+	pendingSummaries map[session.ID][]byte
+	metadata         map[session.ID][]byte
+	thumbnails       map[session.ID][]byte
 
 	// Clock is an optional [clockwork.Clock] to determine the time to associate
 	// with uploads and parts.
@@ -114,6 +116,7 @@ func (m *MemoryUploader) Reset() {
 	m.uploads = make(map[string]*MemoryUpload)
 	m.sessions = make(map[session.ID][]byte)
 	m.summaries = make(map[session.ID][]byte)
+	m.pendingSummaries = make(map[session.ID][]byte)
 	m.metadata = make(map[session.ID][]byte)
 	m.thumbnails = make(map[session.ID][]byte)
 }
@@ -288,8 +291,23 @@ func (m *MemoryUploader) Upload(ctx context.Context, sessionID session.ID, readC
 	return string(sessionID), nil
 }
 
-// UploadSummary uploads session summary and returns URL with uploaded file in
-// case of success.
+// UploadPendingSummary uploads a pending session summary. This function can be
+// called multiple times for a given sessionID to update the state.
+func (m *MemoryUploader) UploadPendingSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	// Pending summary can be overridden, so skip checking for existing one.
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.pendingSummaries[sessionID] = data
+	return string(sessionID), nil
+}
+
+// UploadSummary uploads final version of session summary and returns URL with
+// uploaded file in case of success. This function can be called only once for
+// a given sessionID; subsequent calls will return an error.
 func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -302,6 +320,7 @@ func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID
 		return "", trace.ConvertSystemError(err)
 	}
 	m.summaries[sessionID] = data
+	delete(m.pendingSummaries, sessionID)
 	return string(sessionID), nil
 }
 
@@ -360,6 +379,9 @@ func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.
 	defer m.mtx.RUnlock()
 
 	data, ok := m.summaries[sessionID]
+	if !ok {
+		data, ok = m.pendingSummaries[sessionID]
+	}
 	if !ok {
 		return trace.NotFound("summary %q is not found", sessionID)
 	}

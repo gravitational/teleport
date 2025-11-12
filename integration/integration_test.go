@@ -5073,10 +5073,16 @@ readLoop:
 	require.True(t, hasLeave, "session leave event not found")
 	require.True(t, hasEnd, "session end event not found")
 
-	// ensure session upload directory is empty
+	// ensure session upload directory is empty, apart from the pending directory
 	fi, err := os.ReadDir(sessionsDir)
 	require.NoError(t, err)
-	require.Empty(t, fi)
+	require.Len(t, fi, 1)
+	assert.Equal(t, "pending", fi[0].Name())
+	assert.True(t, fi[0].IsDir())
+
+	fi, err = os.ReadDir(filepath.Join(sessionsDir, "pending"))
+	require.NoError(t, err)
+	assert.Empty(t, fi)
 }
 
 // testPAM checks that Teleport PAM integration works correctly. In this case

@@ -185,6 +185,26 @@ func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload)
 	// batch delete objects to speed up the process
 	semCh := make(chan struct{}, maxParts)
 	errorsCh := make(chan error, maxParts)
+	// done indicates that all objects have been processed.
+	done := make(chan struct{})
+	var errors []error
+
+	// Start an error collection goroutine. Unless context gets canceled, this
+	// routine collects all the reported results and signals completion on the
+	// done channel.
+	go func() {
+		for range objects {
+			select {
+			case err := <-errorsCh:
+				if !trace.IsNotFound(err) {
+					errors = append(errors, err)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+		done <- struct{}{}
+	}()
 	for i := range objects {
 		select {
 		case semCh <- struct{}{}:
@@ -201,16 +221,11 @@ func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload)
 		}
 	}
 
-	var errors []error
-	for range objects {
-		select {
-		case err := <-errorsCh:
-			if !trace.IsNotFound(err) {
-				errors = append(errors, err)
-			}
-		case <-ctx.Done():
-			return trace.ConnectionProblem(ctx.Err(), "context closed")
-		}
+	// Wait until either ctx is canceled or we're done collecting results.
+	select {
+	case <-ctx.Done():
+		return trace.ConnectionProblem(ctx.Err(), "context closed")
+	case <-done:
 	}
 	return trace.NewAggregate(errors...)
 }
