@@ -228,9 +228,9 @@ Mitigations:
    will be rejected.
 1. Only Teleport instances are authorized to call the `ValidateChallenge` RPC, requests from other sources will be
    rejected.
-1. Only local Teleport instances are authorized to call the `CreateValidatedChallenge` RPC of a leaf cluster, requests
+1. Only the local Teleport Proxy is authorized to call the `CreateValidatedChallenge` RPC of a leaf cluster, requests
    from other sources will be rejected.
-1. Only leaf Teleport instances are authorized to call the `GetValidatedChallenge` RPC of the same cluster, requests
+1. Only the leaf Teleport Proxy is authorized to call the `GetValidatedChallenge` RPC of the same cluster, requests
    from other sources will be rejected.
 1. Ensure that the MFA service validates all inputs before processing the request to avoid unnecessary processing of
    invalid requests.
