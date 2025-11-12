@@ -76,20 +76,19 @@ If MFA is _not required_, the SSH service will then proceed to establish the SSH
 
 If MFA _is required_, the SSH service will send a Protobuf [`MFAPrompt`
 message](#ssh-keyboard-interactive-authentication) via the SSH [keyboard-interactive
-channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed.
+channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. S The client must then call
+the `CreateChallenge` RPC on the MFA service, providing a _Session Identifying Payload (SIP)_ and any relevant metadata.
+The SIP is an SSH session hash computed from SSH session state and is used to bind the MFA challenge to the specific
+session. Both the SSH client and the SSH server can independently compute the SIP from session state.
 
-The client must then call the `CreateChallenge` RPC on the MFA service, providing a _session identifying payload (SIP)_
-and any relevant metadata. The SIP is an SSH session hash computed from SSH session state and is used to bind the MFA
-challenge to the specific session. The MFA service will [store the SIP](#storing-session-identifying-payloads) and
-respond with a challenge for the client to solve.
-
-Depending on whether the target SSH host is in a local or leaf cluster, the MFA verification flow will differ.
+The MFA service will [store the SIP](#storing-session-identifying-payloads) and respond with a challenge for the client
+to solve. Depending on whether the target SSH host is in a [local cluster](#local-cluster-flow) or [leaf
+cluster](#leaf-cluster-flow), the remaining MFA verification flow will differ.
 
 #### Local Cluster Flow
 
-1. The client solves the MFA challenge and sends a Protobuf
-   [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message back to the SSH service via the
-   keyboard-interactive channel.
+1. The client solves the MFA challenge and sends a [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication)
+   message back to the SSH service via the keyboard-interactive channel.
 1. The SSH service calls the `ValidateChallenge` RPC with the client's MFA response.
 1. If the response is valid, the MFA service returns the original SIP to the SSH service.
 1. The SSH service independently computes the SIP from session state and verifies it matches the SIP returned by
@@ -140,16 +139,15 @@ sequenceDiagram
 
 #### Leaf Cluster Flow
 
-1. The client solves the MFA challenge and calls `ValidateChallenge` with the MFA response, SIP, and `route_to_cluster`
-   metadata.
-1. The MFA service validates the MFA response and forwards the MFA response and SIP to the leaf cluster's Auth service
+1. The client solves the MFA challenge and calls `ValidateChallenge` with the cluster name, MFA response, SIP.
+1. The MFA service validates the MFA response and forwards the MFA response and SIP to the leaf cluster's MFA service
    for temporary storage.
 1. The client then sends a [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message to the SSH service,
-   instructing it to retrieve and validate the MFA response and SIP from the leaf cluster's Auth service.
-1. The SSH service retrieves the MFA response and SIP from the leaf cluster's Auth service using the
+   instructing it to retrieve and validate the MFA response and SIP from the leaf cluster's MFA service.
+1. The SSH service retrieves the MFA response and SIP from the leaf cluster's MFA service using the
    `GetValidatedChallenge` RPC.
 1. The SSH service independently computes the SIP from session state and verifies it matches the SIP retrieved from the
-   leaf cluster's Auth service.
+   leaf cluster's MFA service.
 1. If validation succeeds, the SSH session is established. If not, access is denied with an `Access Denied: Invalid MFA
 response` error. If the client does not complete MFA within a specified timeout (e.g., 1 minute), the SSH service
    terminates the connection with an `Access Denied: MFA verification timed out` error. To retry, the client must start
@@ -183,10 +181,10 @@ sequenceDiagram
     rMFA-->>rMFA: Generate and store MFA challenge with SIP
     rMFA-->>Client: MFA challenge
     Client->>Client: Solve MFA challenge
-    Client->>rMFA: ValidateChallenge (MFA response, route_to_cluster)
+    Client->>rMFA: ValidateChallenge (cluster name,MFA response)
     rMFA-->>lMFA: UpsertValidatedChallenge (SIP)
 
-    Client->>SSH: Keyboard-interactive (check_auth_for_MFA, challenge name)
+    Client->>SSH: Keyboard-interactive (challenge name)
     SSH->>lMFA: GetValidatedChallenge (challenge name)
     lMFA-->>SSH: ValidatedChallengeResponse and SIP
     SSH-->>SSH: Compute SIP
@@ -416,6 +414,8 @@ message UpsertValidatedChallengeRequest {
   // independently compute this value from session state to verify it matches in order to verify the response is tied to
   // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
   bytes payload = 2;
+  // device contains information about the user's MFA device used to authenticate.
+  types.MFADevice device = 3;
 }
 
 // UpsertValidatedChallengeResponse is the response message for UpsertValidatedChallenge.
@@ -514,7 +514,7 @@ After the MFA challenge is validated or has expired, the challenge and SIP will 
 In leaf clusters, the validated MFA responses and SIPs will be temporarily stored in the leaf cluster's MFA service for
 the leaf SSH service to retrieve during session establishment.
 
-A new data model `ValidatedChallenge` will be created to store the validated MFA response and SIP.
+A new backend resource `ValidatedChallenge` will be created to store the validated challenge metadata.
 
 ```go
 // ValidatedChallenge represents a validated MFA challenge tied to a user session.
@@ -525,7 +525,8 @@ type ValidatedChallenge struct {
   Payload []byte
   // Device is information about the user's MFA device used to authenticate.
   Device types.MFADevice
-  // Expires is the expiration time of the validated challenge.
+  // Expires is the expiration time of the validated challenge. Validated challenges expire after they have been
+  // retrieved or after 5 minutes, whichever comes first.
   Expires time.Time
 }
 ```
