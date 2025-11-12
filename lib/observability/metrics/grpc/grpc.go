@@ -19,7 +19,7 @@
 package grpcmetrics
 
 import (
-	prometheus2 "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -27,39 +27,39 @@ import (
 // in an openmetrics unary and/or stream interceptor
 func CreateGRPCServerMetrics(
 	latencyEnabled bool, labels prometheus.Labels,
-) *prometheus2.ServerMetrics {
-	serverOpts := []prometheus2.ServerMetricsOption{
-		prometheus2.WithServerCounterOptions(prometheus2.WithConstLabels(labels)),
+) *grpcprom.ServerMetrics {
+	serverOpts := []grpcprom.ServerMetricsOption{
+		grpcprom.WithServerCounterOptions(grpcprom.WithConstLabels(labels)),
 	}
 	if latencyEnabled {
 		histOpts := grpcHistogramOpts(labels)
 		serverOpts = append(
-			serverOpts, prometheus2.WithServerHandlingTimeHistogram(histOpts...),
+			serverOpts, grpcprom.WithServerHandlingTimeHistogram(histOpts...),
 		)
 	}
-	return prometheus2.NewServerMetrics(serverOpts...)
+	return grpcprom.NewServerMetrics(serverOpts...)
 }
 
 // CreateGRPCClientMetrics creates client gRPC metrics configuration that is to be registered and used by the caller
 // in an openmetrics unary and/or stream interceptor
 func CreateGRPCClientMetrics(
 	latencyEnabled bool, labels prometheus.Labels,
-) *prometheus2.ClientMetrics {
-	clientOpts := []prometheus2.ClientMetricsOption{
-		prometheus2.WithClientCounterOptions(prometheus2.WithConstLabels(labels)),
+) *grpcprom.ClientMetrics {
+	clientOpts := []grpcprom.ClientMetricsOption{
+		grpcprom.WithClientCounterOptions(grpcprom.WithConstLabels(labels)),
 	}
 	if latencyEnabled {
 		histOpts := grpcHistogramOpts(labels)
 		clientOpts = append(
-			clientOpts, prometheus2.WithClientHandlingTimeHistogram(histOpts...),
+			clientOpts, grpcprom.WithClientHandlingTimeHistogram(histOpts...),
 		)
 	}
-	return prometheus2.NewClientMetrics(clientOpts...)
+	return grpcprom.NewClientMetrics(clientOpts...)
 }
 
-func grpcHistogramOpts(labels prometheus.Labels) []prometheus2.HistogramOption {
-	return []prometheus2.HistogramOption{
-		prometheus2.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 16)),
-		prometheus2.WithHistogramConstLabels(labels),
+func grpcHistogramOpts(labels prometheus.Labels) []grpcprom.HistogramOption {
+	return []grpcprom.HistogramOption{
+		grpcprom.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 16)),
+		grpcprom.WithHistogramConstLabels(labels),
 	}
 }

@@ -94,29 +94,29 @@ func NewRegistry(reg prometheus.Registerer, namespace, subsystem string) (*Regis
 	}, nil
 }
 
-// BlackHoleRegistry returns a Registry that doesn't register metrics.
+// NoopRegistry returns a Registry that doesn't register metrics.
 // This can be used in tests, or to provide backward compatibility when a nil
 // Registry is passed.
-func BlackHoleRegistry() *Registry {
+func NoopRegistry() *Registry {
 	return &Registry{
-		Registerer: blackHoleRegistry{},
-		namespace:  "blackhole",
+		Registerer: noopRegistry{},
+		namespace:  "noop",
 		subsystem:  "",
 	}
 }
 
-type blackHoleRegistry struct{}
+type noopRegistry struct{}
 
 // Register implements [prometheus.Registerer].
-func (b blackHoleRegistry) Register(collector prometheus.Collector) error {
+func (b noopRegistry) Register(collector prometheus.Collector) error {
 	return nil
 }
 
 // MustRegister implements [prometheus.Registerer].
-func (b blackHoleRegistry) MustRegister(collector ...prometheus.Collector) {
+func (b noopRegistry) MustRegister(collector ...prometheus.Collector) {
 }
 
 // Unregister implements [prometheus.Registerer].
-func (b blackHoleRegistry) Unregister(collector prometheus.Collector) bool {
+func (b noopRegistry) Unregister(collector prometheus.Collector) bool {
 	return true
 }
