@@ -30,7 +30,6 @@ type DynamicBatchSizeIterator[T any] struct {
 	items        []T
 	currentSize  int
 	currentChunk []T
-	shouldRetry  bool
 }
 
 // DynamicBatchSize creates a new iterator that yields batches of items with dynamic size adjustment.
@@ -55,7 +54,6 @@ func DynamicBatchSize[T any](items []T, defaultChunkSize int) *DynamicBatchSizeI
 	return &DynamicBatchSizeIterator[T]{
 		items:       items,
 		currentSize: defaultChunkSize,
-		shouldRetry: false,
 	}
 }
 
@@ -63,11 +61,10 @@ func DynamicBatchSize[T any](items []T, defaultChunkSize int) *DynamicBatchSizeI
 // false if the iterator is exhausted. If ReduceSize() was called on the previous iteration,
 // Next() will retry the current batch with the reduced size.
 func (it *DynamicBatchSizeIterator[T]) Next() bool {
-	// If not retrying, advance to the next chunk
-	if !it.shouldRetry && it.currentChunk != nil {
+	// If currentChunk is not nil, advance past it
+	if it.currentChunk != nil {
 		it.items = it.items[len(it.currentChunk):]
 	}
-	it.shouldRetry = false
 
 	if len(it.items) == 0 {
 		return false
@@ -90,6 +87,6 @@ func (it *DynamicBatchSizeIterator[T]) ReduceSize() error {
 		return ErrCannotReduceBatchSize
 	}
 	it.currentSize = (it.currentSize + 1) / 2
-	it.shouldRetry = true
+	it.currentChunk = nil
 	return nil
 }
