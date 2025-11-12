@@ -206,6 +206,7 @@ const cfg = {
     loginErrorLegacy: '/web/msg/error/login_failed',
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
+    loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
     loginErrorUnauthorized: '/web/msg/error/login/auth',
     samlSloFailed: '/web/msg/error/slo',
     userInvite: '/web/invite/:tokenId',
