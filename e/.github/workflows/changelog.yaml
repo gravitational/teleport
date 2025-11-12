@@ -1,0 +1,38 @@
+# The changelog workflow checks that a PR message has a line of the form
+# `changelog: <text>` or a `no-changelog` label. If neither are present,
+# the workflow run will fail, and as this workflow job is a required check,
+# the PR cannot be merged.
+name: Validate changelog entry
+on:
+  pull_request:
+    types:
+      - edited
+      - labeled
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
+      - unlabeled
+
+permissions:
+  pull-requests: write
+
+jobs:
+  validate-changelog:
+    name: Validate the changelog entry
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout main branch of shared-workflow repository.
+      - name: Checkout shared-workflow
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
+      - name: Installing Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - name: Validate the changelog entry
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
