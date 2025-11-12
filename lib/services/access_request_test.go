@@ -2040,7 +2040,7 @@ func TestValidateSAMLIdPAccessRequest(t *testing.T) {
 			errorAssertion: require.NoError,
 		},
 		{
-			desc: "requesting with v7 role succeeds",
+			desc: "requesting with v7 role fails",
 			requestResourceIDs: []types.ResourceID{
 				{
 					ClusterName: g.clusterName,
@@ -2048,8 +2048,10 @@ func TestValidateSAMLIdPAccessRequest(t *testing.T) {
 					Name:        "samlapp1",
 				},
 			},
-			overrideRoles:  []string{"saml-rolev7-requester"},
-			errorAssertion: require.NoError,
+			overrideRoles: []string{"saml-rolev7-requester"},
+			errorAssertion: func(t require.TestingT, err error, args ...interface{}) {
+				require.ErrorContains(t, err, "user may already have access")
+			},
 		},
 		{
 			desc: "requesting with v8 role succeeds",

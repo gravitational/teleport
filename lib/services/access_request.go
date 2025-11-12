@@ -1665,11 +1665,17 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 	// Filter out resources the user requested but doesn't have access to.
 	filteredResources := make([]types.ResourceWithLabels, 0, len(resources))
 	for _, resource := range resources {
-		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
-			filteredResources = append(filteredResources, resource)
+		switch resource.GetKind() {
+		case types.KindSAMLIdPServiceProvider:
+			if err = accessChecker.CheckAccessToSAMLIdP(resource, nil /*AuthPreference*/, AccessState{MFAVerified: true}); err != nil {
+				filteredResources = append(filteredResources, resource)
+			}
+		default:
+			if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
+				filteredResources = append(filteredResources, resource)
+			}
 		}
 	}
-
 	var expanded []string
 	for _, role := range allRoles {
 		n := role.GetName()
@@ -2521,6 +2527,11 @@ func (m *RequestValidator) roleAllowsResource(
 	matchers = append(matchers, extraMatchers...)
 	var err error
 	if resource.GetKind() == types.KindSAMLIdPServiceProvider {
+		if types.IsLegacySAMLRBAC(role.GetVersion()) {
+			// legacy roles grant implicit access to saml resource
+			// and can be removed from the reqeust.
+			return false, nil
+		}
 		err = roleSet.CheckAccessToSAMLIdP(
 			resource,
 			m.userState.GetTraits(),
