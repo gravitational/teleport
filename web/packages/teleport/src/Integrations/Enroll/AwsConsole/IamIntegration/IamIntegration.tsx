@@ -275,7 +275,7 @@ export function IamIntegration() {
                   onChange={(e: ChangeEvent<HTMLInputElement>) => {
                     return setFormState(prev => ({
                       ...prev,
-                      integrationName: e.target.value,
+                      integrationName: e.target.value.trim(),
                     }));
                   }}
                 />
@@ -305,7 +305,7 @@ export function IamIntegration() {
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
                       return setFormState(prev => ({
                         ...prev,
-                        syncRoleName: e.target.value,
+                        syncRoleName: e.target.value.trim(),
                       }));
                     }}
                   />
