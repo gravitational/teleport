@@ -308,5 +308,5 @@ func (p *streamableHTTPResponseReplacer) ProcessNotification(ctx context.Context
 }
 
 func isWellKnownPath(urlPath string) bool {
-	return strings.Contains(urlPath, "/.well-known/")
+	return strings.HasPrefix(urlPath, "/.well-known/")
 }
