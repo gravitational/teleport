@@ -123,10 +123,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
 		types.KindTrustedCluster:              rc.createTrustedCluster,
 		types.KindCertAuthority:               rc.createCertAuthority,
-		types.KindClusterAuthPreference:       rc.createAuthPreference,
-		types.KindClusterNetworkingConfig:     rc.createClusterNetworkingConfig,
 		types.KindClusterMaintenanceConfig:    rc.createClusterMaintenanceConfig,
-		types.KindSessionRecordingConfig:      rc.createSessionRecordingConfig,
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
@@ -154,9 +151,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:             rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
-		types.KindClusterNetworkingConfig:     rc.updateClusterNetworkingConfig,
-		types.KindClusterAuthPreference:       rc.updateAuthPreference,
-		types.KindSessionRecordingConfig:      rc.updateSessionRecordingConfig,
 		types.KindAccessMonitoringRule:        rc.updateAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.updateCrownJewel,
 		types.KindVnetConfig:                  rc.updateVnetConfig,
@@ -468,93 +462,6 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *auth
 	return nil
 }
 
-// createAuthPreference implements `tctl create cap.yaml` command.
-func (rc *ResourceCommand) createAuthPreference(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	storedAuthPref, err := client.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := checkCreateResourceWithOrigin(storedAuthPref, "cluster auth preference", rc.force, rc.confirm); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpsertAuthPreference(ctx, newAuthPref); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("cluster auth preference has been created\n")
-	return nil
-}
-
-func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newAuthPref, err := services.UnmarshalAuthPreference(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	storedAuthPref, err := client.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := checkUpdateResourceWithOrigin(storedAuthPref, "cluster auth preference", rc.confirm); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpdateAuthPreference(ctx, newAuthPref); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("cluster auth preference has been updated\n")
-	return nil
-}
-
-// createClusterNetworkingConfig implements `tctl create netconfig.yaml` command.
-func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := checkCreateResourceWithOrigin(storedNetConfig, "cluster networking configuration", rc.force, rc.confirm); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpsertClusterNetworkingConfig(ctx, newNetConfig); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("cluster networking configuration has been updated\n")
-	return nil
-}
-
-// updateClusterNetworkingConfig
-func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := checkUpdateResourceWithOrigin(storedNetConfig, "cluster networking configuration", rc.confirm); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpdateClusterNetworkingConfig(ctx, newNetConfig); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("cluster networking configuration has been updated\n")
-	return nil
-}
-
 func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	var cmc types.ClusterMaintenanceConfigV1
 	if err := utils.FastUnmarshal(raw.Raw, &cmc); err != nil {
@@ -575,49 +482,6 @@ func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, c
 	}
 
 	fmt.Println("maintenance window has been updated")
-	return nil
-}
-
-// createSessionRecordingConfig implements `tctl create recconfig.yaml` command.
-func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := checkCreateResourceWithOrigin(storedRecConfig, "session recording configuration", rc.force, rc.confirm); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpsertSessionRecordingConfig(ctx, newRecConfig); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("session recording configuration has been updated\n")
-	return nil
-}
-
-func (rc *ResourceCommand) updateSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := checkUpdateResourceWithOrigin(storedRecConfig, "session recording configuration", rc.confirm); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpdateSessionRecordingConfig(ctx, newRecConfig); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("session recording configuration has been updated\n")
 	return nil
 }
 
@@ -1131,9 +995,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 
 	// Else fallback to the legacy logic
 	singletonResources := []string{
-		types.KindClusterAuthPreference,
 		types.KindClusterMaintenanceConfig,
-		types.KindClusterNetworkingConfig,
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 		types.KindUIConfig,
@@ -1174,26 +1036,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
-	case types.KindClusterAuthPreference:
-		if err = resetAuthPreference(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("cluster auth preference has been reset to defaults\n")
 	case types.KindClusterMaintenanceConfig:
 		if err := client.DeleteClusterMaintenanceConfig(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("cluster maintenance configuration has been deleted\n")
-	case types.KindClusterNetworkingConfig:
-		if err = resetClusterNetworkingConfig(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("cluster networking configuration has been reset to defaults\n")
-	case types.KindSessionRecordingConfig:
-		if err = resetSessionRecordingConfig(ctx, client); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("session recording configuration has been reset to defaults\n")
 	case types.KindExternalAuditStorage:
 		if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
 			if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
@@ -1440,48 +1287,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 	return nil
 }
 
-func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
-	storedAuthPref, err := client.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
-	if managedByStaticConfig {
-		return trace.BadParameter("%s", managedByStaticDeleteMsg)
-	}
-
-	return trace.Wrap(client.ResetAuthPreference(ctx))
-}
-
-func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client) error {
-	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
-	if managedByStaticConfig {
-		return trace.BadParameter("%s", managedByStaticDeleteMsg)
-	}
-
-	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
-}
-
-func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client) error {
-	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
-	if managedByStaticConfig {
-		return trace.BadParameter("%s", managedByStaticDeleteMsg)
-	}
-
-	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
-}
-
 func resetNetworkRestrictions(ctx context.Context, client *authclient.Client) error {
 	return trace.Wrap(client.DeleteNetworkRestrictions(ctx))
 }
@@ -1648,24 +1453,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &semaphoreCollection{sems: sems}, nil
-	case types.KindClusterAuthPreference:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
-		}
-		authPref, err := client.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &authPrefCollection{authPref}, nil
-	case types.KindClusterNetworkingConfig:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterNetworkingConfig)
-		}
-		netConfig, err := client.GetClusterNetworkingConfig(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &netConfigCollection{netConfig}, nil
 	case types.KindClusterMaintenanceConfig:
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterMaintenanceConfig)
@@ -1678,14 +1465,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &maintenanceWindowCollection{cmc}, nil
 	case types.KindSessionRecordingConfig:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)
-		}
-		recConfig, err := client.GetSessionRecordingConfig(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &recConfigCollection{recConfig}, nil
 	case types.KindDatabaseServer:
 		servers, err := client.GetDatabaseServers(ctx, rc.namespace)
 		if err != nil {
@@ -2253,25 +2032,6 @@ func UpsertVerb(exists bool, force bool) string {
 	}
 	return "created"
 }
-
-func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, force, confirm bool) error {
-	if exists := (storedRes.Origin() != types.OriginDefaults); exists && !force {
-		return trace.AlreadyExists("non-default %s already exists", resDesc)
-	}
-	return checkUpdateResourceWithOrigin(storedRes, resDesc, confirm)
-}
-
-func checkUpdateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, confirm bool) error {
-	managedByStatic := storedRes.Origin() == types.OriginConfigFile
-	if managedByStatic && !confirm {
-		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
-
-If you would still like to proceed, re-run the command with the --confirm flag.`, resDesc)
-	}
-	return nil
-}
-
-const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`
 
 func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) ([]*devicepb.Device, error) {
 	resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
