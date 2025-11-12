@@ -32,7 +32,8 @@ export const useRoleWithAccessGraph = () => {
       } catch (err) {
         if (err instanceof ApiError && err.response.status === 404) {
           throw new Error(
-            'Your graph is taking a few minutes to generate. After the initial generation, you will be able to preview access updates based on your role changes. Please try again in a few minutes.'
+            'Your graph is taking a few minutes to generate. After the initial generation, you will be able to preview access updates based on your role changes. Please try again in a few minutes.',
+            { cause: err }
           );
         }
         throw new Error(unableToUpdatePreviewMessage, { cause: err });
