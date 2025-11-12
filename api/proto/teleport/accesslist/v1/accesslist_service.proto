@@ -90,9 +90,9 @@ service AccessListService {
   // UpsertAccessListWithMembers creates or updates an access list with members.
   rpc UpsertAccessListWithMembers(UpsertAccessListWithMembersRequest) returns (UpsertAccessListWithMembersResponse);
 
-  // CreateAccessListWithPreset creates an access list (with members) where Teleport performs automatic
-  // actions depending on the preset requested. E.g. creating role resources and then assigning them as grants.
-  rpc CreateAccessListWithPreset(CreateAccessListWithPresetRequest) returns (CreateAccessListWithPresetResponse);
+  // UpsertAccessListWithPreset upserts an access list (with members) with a preset. A preset is a pre-determined
+  // set of actions that Teleport performs depending on the "preset_type" requested.
+  rpc UpsertAccessListWithPreset(UpsertAccessListWithPresetRequest) returns (UpsertAccessListWithPresetResponse);
 
   // ListAccessListReviews will list access list reviews for a particular access
   // list.
@@ -303,67 +303,135 @@ message UpsertAccessListWithMembersResponse {
   repeated Member members = 2;
 }
 
-// CreateAccessListWithPresetRequest is the request for creating
-// an access list with a preset.
-message CreateAccessListWithPresetRequest {
-  // access_list is the access list to create.
-  AccessList access_list = 1;
-  // members is the list of access list members to create.
-  repeated Member members = 2;
-  // preset_spec describes what type of preset was requested.
-  PresetSpec preset_spec = 3;
-}
-
-// CreateAccessListWithMembersAndPresetResponse is the response for creating
-// an access list with members and roles.
-message CreateAccessListWithPresetResponse {
-  // access_list is the access list that was created.
-  AccessList access_list = 1;
-  // members is the list of access list members that were created.
-  repeated Member members = 2;
-}
-
 // PresetType describes what type of preset was requested.
 enum PresetType {
   // PRESET_TYPE_UNSPECIFIED is the zero value.
   PRESET_TYPE_UNSPECIFIED = 0;
-  // PRESET_TYPE_LONG_TERM describes a preset where members are granted
-  // roles that grants long term access.
+  // PRESET_TYPE_LONG_TERM describes a preset where members are granted roles
+  // that grants long term access to resources. Teleport will create the
+  // following type of roles and modify the access list accordingly:
+  //  - access: Roles related to allowing access to resources (there can be
+  //    more than one role created). The access specs is determined by admin
+  //    input. These roles are directly assigned to members of this access list
+  //    (as member grants).
+  //  - requester: A role that allows requesting for the resources defined in
+  //    the "access" roles. This role is not automatically assigned to any user
+  //    and is a role an admin can optionally assign to any user not assigned
+  //    as a member to this access list.
+  //  - reviewer: A role that allows reviewing access requests to resources
+  //    defined in the "access" roles. This role is directly assigned to owners
+  //    of this access list (as owner grants).
   PRESET_TYPE_LONG_TERM = 1;
   // GRANT_TYPE_SHORT_TERM describes a preset where members are granted
   // roles that require them to request for access and upon approval gain short
-  // term access. And owners are granted roles that allows them to review those
-  // access requests.
+  // term access. Teleport will create the following type of roles and modify
+  // the access list accordingly:
+  //  - access: Roles related to allowing access to resources (there can be
+  //    more than one role created). The access specs is determined by admin
+  //    input. These roles are NOT directly assigned to anyone.
+  //  - requester: A role that allows requesting for the resources defined in
+  //    the "access" roles. This role is directly assigned to members of this
+  //    access list (as member grants).
+  //  - reviewer: A role that allows reviewing access requests to resources
+  //    defined in the "access" roles. This role is directly assigned to owners
+  //    of this access list (as owner grants).
   PRESET_TYPE_SHORT_TERM = 2;
 }
 
-// PresetSpec defines the fields necessary for Teleport to perform actions
-// based on preset.
-message PresetSpec {
-  PresetType type = 1;
-  // access_roles is a list of role specs that defines access to resources.
-  // Teleport will create a role per spec. Multi specs can be provided to
-  // provide flexibility in defining access.
-  // For example, with application access:
-  //  - One role specifies access to applications with general labels (a label
-  //    that could target access to different types of applications).
-  //  - Another role specifies access to AWS IC application specifically.
-  //    AWS IC applications have a very specific label that is set by Teleport.
-  // Since multi labels is an AND operation, if we didn't allow multi roles to
-  // be created then that one role is limited to a very specific type of app.
-  repeated Role access_roles = 2;
-}
-
-// Role describes a role to be created by Teleport for an access list.
+// Role describes a role to be upserted by Teleport for an access list.
 message Role {
-  // name of role, Teleport will add a identifiable suffix to this role name
-  // that will:
+  // prefix_name is the prefix of the role name and allows the client to
+  // control part of the role name so clients like the web UI can make some
+  // assumptions based on this prefix e.g. what purpose the access role was
+  // created for. For the final role name however, Teleport will add a suffix
+  // to this prefix_name before upserting the role. The suffix serves to:
   //  - ensure uniqueness by including the access list UID which also
   //    ties this role to that access list making it easier to query.
   //  - add a infix like "acl-preset" that easily identifies that this role
-  //    belongs to an access list and was created using a preset.
-  string name = 1;
+  //    belongs to an access list that was created using a preset.
+  string prefix_name = 1;
+  // spec defines the access to resources. If this is a nil spec,
+  // a role delete operation will be performed (if exists) and:
+  //  - if this role was assigned as grants, it will be removed
+  //    from access list
+  //  - if this role was assigned in another role (e.g. reviewer/requester)
+  //    it will be removed from that role
   types.RoleSpecV6 spec = 2;
+}
+
+// UpsertAccessListWithPresetRequest is the request for upserting an access
+// list with a preset. Using this API will not allow certain access list fields
+// to be set or updated:
+//  - Member and owner grants: Teleport will always overwrite these fields
+//    with the roles Teleport upserted.
+message UpsertAccessListWithPresetRequest {
+  // preset_type describes what preset type was requested and determines
+  // what set of actions Teleport will perform.
+  PresetType preset_type = 1;
+  // access_roles is a list of role specs that defines the "access" to
+  // resources. Teleport will perform role create/update/delete (CUD) per
+  // spec. The role CUD operations will depend on if the request was for a
+  // "create" or an "update" to an access list.
+  //
+  // If a create request, only role create operation is performed. Then
+  // depending on the "preset_type" requested, Teleport will assign these
+  // roles either:
+  //   - directly: where Teleport assigns the `access_roles` as member or
+  //     owner grants in the access list
+  //   - indirectly: where Teleport creates extra set of roles meant for:
+  //       - requesting access: Teleport will assign the `access_roles` as
+  //         `allow.request.search_as_roles`, then assign this requester role
+  //         as a grant typically meant for members of the access list
+  //       - reviewing access: Teleport will assign the `access_roles` as
+  //         `allow.review_requests.roles`, then assign this reviewer role
+  //         as a grant typically meant for owners of the access list.
+  //
+  // If the request was for an "update", then the role operations are as below.
+  // The updates applied to an access list as a result of these operations will
+  // depend on the "preset_type" set on the access list:
+  //  - create: If a role didn't exist, it will be created. Member/owner grants
+  //    or other related roles (e.g. requester/reviewer roles) will be updated
+  //    to include this new role.
+  //  - delete: If a prefix was defined but the role spec is set to nil, then
+  //    the role will be deleted. This role will also be removed from any
+  //    member/owner grants or other related roles referencing it
+  //    (e.g. requester/reviewer roles)
+  //  - partial update: If a role exists, a new role will replace it but
+  //    the version will be preserved to prevent unintended behavioral changes
+  //    that can result with different role versions. No updates to an access
+  //    list is needed.
+  //
+  // Defining multiple role specs is allowed to support defining access
+  // to resources where it's metadata (e.g. labels) cannot be modified
+  // by a user. One such resource is an application resource sub_kind
+  // `aws_ic_account`. AWS IC app labels are set by Teleport and does
+  // not support modifying labels.
+  //
+  // Example use case of multi roles:
+  // Lets say user wants to define access to application resource with app
+  // label `env: staging`. A user also wants to define access to a AWS IC app
+  // with a Teleport defined label `origin: aws-ic`. Since multi labels is an
+  // "AND" operation, we cannot merge these two labels in one role, so two
+  // roles are created:
+  //   - first role defines access to apps with app_labels set to `env: staging`
+  //     giving access to any apps with `env: staging`
+  //   - second role defines access to apps with app_labels set to `origin: aws-ic`
+  //     giving access specifically for AWS IC app
+  // With these two roles, users can now have access to both types of apps.
+  repeated Role access_roles = 2;
+  // access_list is the access list to upsert.
+  AccessList access_list = 3;
+  // members is the list of access list members to upsert.
+  repeated Member members = 4;
+}
+
+// UpsertAccessListWithPresetResponse is the response for upserting
+// an access list with members and roles.
+message UpsertAccessListWithPresetResponse {
+  // access_list is the access list that was created.
+  AccessList access_list = 1;
+  // members is the list of access list members that were created.
+  repeated Member members = 2;
 }
 
 // GetAccessListMemberRequest is the request for retrieving an access_list_member.

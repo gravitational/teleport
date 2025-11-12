@@ -371,10 +371,10 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 	return accessList, updatedMembers, nil
 }
 
-// CreateAccessListWithPreset creates an access list (with members) where Teleport performs automatic
-// actions depending on the preset requested. E.g. creating role resources and then assigning them as grants.
-func (c *Client) CreateAccessListWithPreset(ctx context.Context, req *accesslistv1.CreateAccessListWithPresetRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	resp, err := c.grpcClient.CreateAccessListWithPreset(ctx, req)
+// UpsertAccessListWithPreset upserts an access list (with members) with a preset. A preset is a pre-determined
+// set of actions that Teleport performs depending on the "preset_type" requested.
+func (c *Client) UpsertAccessListWithPreset(ctx context.Context, req *accesslistv1.UpsertAccessListWithPresetRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertAccessListWithPreset(ctx, req)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
