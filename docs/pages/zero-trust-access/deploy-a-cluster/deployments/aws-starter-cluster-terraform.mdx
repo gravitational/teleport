@@ -1,7 +1,7 @@
 ---
 title: Teleport Single-Instance Deployment on AWS
+sidebar_label: Single-Instance
 description: How to quickly configure Teleport on a single instance for testing in AWS.
-tocDepth: 3
 tags:
  - infrastructure-as-code
  - how-to
@@ -29,6 +29,13 @@ More details are [provided below](#reference-deployment-defaults).
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
+
+This guide assumes that your infrastructure is **not** hosted in AWS GovCloud or
+in an air-gapped AWS environment (EKS Anywhere). If it is, [contact the Teleport
+team](https://goteleport.com/contact-us) for assistance planning your
+deployment.
+
+This guide also requires the following:
 
 - Terraform installed on your system. Visit [Install
   Terraform](https://developer.hashicorp.com/terraform/install) for

@@ -621,6 +621,7 @@ func NewPresetAccessPluginRole() types.Role {
 					types.NewRule(types.KindAccessList, RO()),
 					types.NewRule(types.KindRole, RO()),
 					types.NewRule(types.KindUser, RO()),
+					types.NewRule(types.KindUserLoginState, RO()),
 				},
 				ReviewRequests: &types.AccessReviewConditions{
 					PreviewAsRoles: []string{

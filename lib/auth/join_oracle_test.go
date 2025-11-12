@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/oracle/oci-go-sdk/v65/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -135,166 +136,6 @@ func makeInstanceID(region, id string) string {
 	return makeOCID("instance", region, id)
 }
 
-func TestCheckOracleAllowRules(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name       string
-		claims     oracle.Claims
-		allowRules []*types.ProvisionTokenSpecV2Oracle_Rule
-		assert     require.ErrorAssertionFunc
-	}{
-		{
-			name: "ok",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("foo"),
-				CompartmentID: makeCompartmentID("bar"),
-				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy:            makeTenancyID("foo"),
-					ParentCompartments: []string{makeCompartmentID("bar")},
-					Regions:            []string{"us-phoenix-1"},
-				},
-			},
-			assert: require.NoError,
-		},
-		{
-			name: "ok with compartment wildcard",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("foo"),
-				CompartmentID: makeCompartmentID("bar"),
-				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy: makeTenancyID("foo"),
-					Regions: []string{"us-phoenix-1"},
-				},
-			},
-			assert: require.NoError,
-		},
-		{
-			name: "ok with region wildcard",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("foo"),
-				CompartmentID: makeCompartmentID("bar"),
-				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy:            makeTenancyID("foo"),
-					ParentCompartments: []string{makeCompartmentID("bar")},
-				},
-			},
-			assert: require.NoError,
-		},
-		{
-			name: "ok with region abbreviation in id",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("foo"),
-				CompartmentID: makeCompartmentID("bar"),
-				InstanceID:    makeInstanceID("phx", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy:            makeTenancyID("foo"),
-					ParentCompartments: []string{makeCompartmentID("bar")},
-					Regions:            []string{"us-phoenix-1"},
-				},
-			},
-			assert: require.NoError,
-		},
-		{
-			name: "ok with region abbreviation in token",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("foo"),
-				CompartmentID: makeCompartmentID("bar"),
-				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy:            makeTenancyID("foo"),
-					ParentCompartments: []string{makeCompartmentID("bar")},
-					Regions:            []string{"phx"},
-				},
-			},
-			assert: require.NoError,
-		},
-		{
-			name: "wrong tenancy",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("something-else"),
-				CompartmentID: makeCompartmentID("bar"),
-				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy:            makeTenancyID("foo"),
-					ParentCompartments: []string{makeCompartmentID("bar")},
-					Regions:            []string{"us-phoenix-1"},
-				},
-			},
-			assert: require.Error,
-		},
-		{
-			name: "wrong compartment",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("foo"),
-				CompartmentID: makeCompartmentID("something-else"),
-				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy:            makeTenancyID("foo"),
-					ParentCompartments: []string{makeCompartmentID("bar")},
-					Regions:            []string{"us-phoenix-1"},
-				},
-			},
-			assert: require.Error,
-		},
-		{
-			name: "wrong region",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("foo"),
-				CompartmentID: makeCompartmentID("bar"),
-				InstanceID:    makeInstanceID("us-ashburn-1", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy:            makeTenancyID("foo"),
-					ParentCompartments: []string{makeCompartmentID("bar")},
-					Regions:            []string{"us-phoenix-1"},
-				},
-			},
-			assert: require.Error,
-		},
-		{
-			name: "block match across rules",
-			claims: oracle.Claims{
-				TenancyID:     makeTenancyID("foo"),
-				CompartmentID: makeCompartmentID("bar"),
-				InstanceID:    makeInstanceID("us-phoenix-1", "baz"),
-			},
-			allowRules: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy: makeTenancyID("foo"),
-					Regions: []string{"us-ashburn-1"},
-				},
-				{
-					Tenancy: makeTenancyID("something-else"),
-				},
-			},
-			assert: require.Error,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tc.assert(t, auth.CheckOracleAllowRules(tc.claims, "mytoken", tc.allowRules))
-		})
-	}
-}
-
 func mapFromHeader(header http.Header) map[string]string {
 	out := make(map[string]string, len(header))
 	for k := range header {
@@ -303,11 +144,105 @@ func mapFromHeader(header http.Header) map[string]string {
 	return out
 }
 
+func TestOracleTokenValidation(t *testing.T) {
+	t.Parallel()
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+	a, err := server.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc      string
+		rule      types.ProvisionTokenSpecV2Oracle_Rule
+		assertion assert.ErrorAssertionFunc
+	}{
+		{
+			desc: "valid",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.tenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.compartment.oc1..mycompartment"},
+				Regions:            []string{"us-phoenix-1"},
+				Instances:          []string{"ocid1.instance.oc1.phx.myinstance"},
+			},
+			assertion: assert.NoError,
+		},
+		{
+			desc: "invalid tenant",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.badtenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.compartment.oc1..mycompartment"},
+				Regions:            []string{"us-phoenix-1"},
+				Instances:          []string{"ocid1.instance.oc1.phx.myinstance"},
+			},
+			assertion: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				return assert.ErrorAs(t, err, new(*trace.BadParameterError), msgAndArgs...) &&
+					assert.ErrorContains(t, err, "invalid tenant", msgAndArgs...)
+			},
+		},
+		{
+			desc: "invalid compartment",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.tenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.badcompartment.oc1..mycompartment"},
+				Regions:            []string{"us-phoenix-1"},
+				Instances:          []string{"ocid1.instance.oc1.phx.myinstance"},
+			},
+			assertion: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				return assert.ErrorAs(t, err, new(*trace.BadParameterError), msgAndArgs...) &&
+					assert.ErrorContains(t, err, "invalid compartment", msgAndArgs...)
+			},
+		},
+		{
+			desc: "invalid region",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.tenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.compartment.oc1..mycompartment"},
+				Regions:            []string{"badregion"},
+				Instances:          []string{"ocid1.instance.oc1.phx.myinstance"},
+			},
+			assertion: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				return assert.ErrorAs(t, err, new(*trace.BadParameterError), msgAndArgs...) &&
+					assert.ErrorContains(t, err, "invalid region", msgAndArgs...)
+			},
+		},
+		{
+			desc: "invalid instance",
+			rule: types.ProvisionTokenSpecV2Oracle_Rule{
+				Tenancy:            "ocid1.tenancy.oc1..mytenant",
+				ParentCompartments: []string{"ocid1.compartment.oc1..mycompartment"},
+				Regions:            []string{"us-phoenix-1"},
+				Instances:          []string{"ocid1.badinstance.oc1.phx.myinstance"},
+			},
+			assertion: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				return assert.ErrorAs(t, err, new(*trace.BadParameterError), msgAndArgs...) &&
+					assert.ErrorContains(t, err, "invalid instance", msgAndArgs...)
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			tokenSpec := types.ProvisionTokenSpecV2{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: types.JoinMethodOracle,
+				Oracle: &types.ProvisionTokenSpecV2Oracle{
+					Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{&tc.rule},
+				},
+			}
+			token, err := types.NewProvisionTokenFromSpec("my-token", time.Now().Add(time.Minute), tokenSpec)
+			require.NoError(t, err)
+			err = a.UpsertToken(t.Context(), token)
+			tc.assertion(t, err)
+		})
+	}
+}
+
 func TestRegisterUsingOracleMethod(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 	a := p.a
 
 	pemBytes, ok := fixtures.PEMBytes["rsa"]

@@ -1,7 +1,6 @@
 ---
 title: Teleport Authentication
 description: This chapter explains how Teleport uses certificate authorities to authenticate users and services.
-h1: Teleport Authentication with Certificates
 tags:
  - conceptual
  - platform-wide
@@ -101,15 +100,15 @@ We recommend using SSO with GitHub, Okta or any other identity provider and get 
 
 ### Short-lived Certs for Services
 
-Deployment automation services, such as Jenkins, can use Teleport's Machine ID
-service to receive and renew certificates. Teleport Machine ID's bot runs alongside
-services and rotates SSH and X.509 certificates.
+Deployment automation services, such as Jenkins, can use Teleport's Machine &
+Workload Identity to receive and renew certificates. Teleport Machine & Workload
+Identity's Bot runs alongside services and rotates SSH and X.509 certificates.
 
 ![Certificates for services](../../../img/architecture/certs-machine-id@1.8x.svg)
 
 ### Internal certificates
 
-Teleport internal services - the Auth Service, Proxy Service, Agents, and Machine ID Bots - use certificates to identify themselves
+Teleport internal services - the Auth Service, Proxy Service, Agents, and Machine & Workload Identity Bots - use certificates to identify themselves
 within a cluster. To join services to the cluster and receive certificates, admins should use
 [short-lived tokens or cloud identity services](../../enroll-resources/agents/join-token.mdx).
 

@@ -1,5 +1,6 @@
 ---
 title: "Export Teleport Audit Events to the Elastic Stack"
+sidebar_label: "Elastic Stack"
 description: "How to configure Teleport's Event Handler plugin to send audit events to the Elastic Stack"
 tags:
  - how-to
@@ -85,7 +86,7 @@ locally.
 ### Enable issuing of credentials for the Event Handler role
 
 <Tabs>
-<TabItem label="Machine ID">
+<TabItem label="Machine & Workload Identity">
 (!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
 </TabItem>
 <TabItem label="Long-lived identity files">
@@ -101,7 +102,7 @@ dangerous if exfiltrated, though in demo deployments, you can generate
 longer-lived identity files with `tctl`:
 
 <Tabs>
-<TabItem label="Machine ID">
+<TabItem label="Machine & Workload Identity">
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-event-handler-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
@@ -471,6 +472,6 @@ Now that you are exporting your audit events to the Elastic Stack, consult our
 visualizations and alerts.
 
 While this guide uses the `tctl auth sign` command to issue credentials for the
-Teleport Event Handler, production clusters should use Machine ID for safer,
-more reliable renewals. Read [our guide](../../machine-workload-identity/getting-started.mdx)
-to getting started with Machine ID.
+Teleport Event Handler, production clusters should use Machine & Workload
+Identity for safer, more reliable renewals. Read [our guide](../../machine-workload-identity/getting-started.mdx)
+to getting started with Machine & Workload Identity.

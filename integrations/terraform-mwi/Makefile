@@ -58,7 +58,7 @@ endif
 
 PHONY: test
 test:
-	go test -v -timeout=120s -parallel=10 ./...
+	gotestsum -- -v -timeout=120s -parallel=10
 
 PHONY: testacc
 testacc:

@@ -455,8 +455,8 @@ loop:
 func TestSessionAuditLog(t *testing.T) {
 	ctx := context.Background()
 	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
 
+	f := newFixtureWithoutDiskBasedLogging(t)
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
 	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
@@ -482,16 +482,6 @@ func TestSessionAuditLog(t *testing.T) {
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	nextEvent := func() apievents.AuditEvent {
-		select {
-		case event := <-emitter.C():
-			return event
-		case <-time.After(time.Second):
-			require.Fail(t, "timed out waiting for event")
-		}
-		return nil
-	}
-
 	// Start a new session
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
@@ -500,7 +490,7 @@ func TestSessionAuditLog(t *testing.T) {
 	err = se.Shell(ctx)
 	require.NoError(t, err)
 
-	e := nextEvent()
+	e := <-emitter.C()
 	startEvent, ok := e.(*apievents.SessionStart)
 	require.True(t, ok, "expected SessionStart event but got event of type %T", e)
 	require.NotEmpty(t, startEvent.SessionID, "expected non empty sessionID")
@@ -516,7 +506,7 @@ func TestSessionAuditLog(t *testing.T) {
 	err = x11.RequestForwarding(ctx, se, clientXAuthEntry)
 	require.NoError(t, err)
 
-	x11Event := nextEvent()
+	x11Event := <-emitter.C()
 	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
 
 	// LOCAL PORT FORWARDING
@@ -533,7 +523,7 @@ func TestSessionAuditLog(t *testing.T) {
 	localConn, err := f.ssh.clt.DialContext(context.Background(), "tcp", nonForwardServer.Listener.Addr().String())
 	require.NoError(t, err)
 
-	e = nextEvent()
+	e = <-emitter.C()
 	localForwardStart, ok := e.(*apievents.PortForward)
 	require.True(t, ok, "expected PortForward event but got event of type %T", e)
 	require.Equal(t, events.PortForwardLocalEvent, localForwardStart.GetType())
@@ -542,7 +532,7 @@ func TestSessionAuditLog(t *testing.T) {
 
 	// closed connections should result in PortForwardLocal stop events
 	localConn.Close()
-	e = nextEvent()
+	e = <-emitter.C()
 	localForwardStop, ok := e.(*apievents.PortForward)
 	require.True(t, ok, "expected PortForward event but got event of type %T", e)
 	require.Equal(t, events.PortForwardLocalEvent, localForwardStop.GetType())
@@ -554,7 +544,7 @@ func TestSessionAuditLog(t *testing.T) {
 	listener, err := f.ssh.clt.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	e = nextEvent()
+	e = <-emitter.C()
 	remoteForwardStart, ok := e.(*apievents.PortForward)
 	require.True(t, ok, "expected PortForward event but got event of type %T", e)
 	require.Equal(t, listener.Addr().String(), remoteForwardStart.Addr)
@@ -574,14 +564,14 @@ func TestSessionAuditLog(t *testing.T) {
 	// addr field.
 	remoteConn, err := net.Dial("tcp", listener.Addr().String())
 	require.NoError(t, err)
-	e = nextEvent()
+	e = <-emitter.C()
 	remoteConnStart, ok := e.(*apievents.PortForward)
 	require.True(t, ok, "expected PortForward event but got event of type %T", e)
 	require.Equal(t, events.PortForwardRemoteConnEvent, remoteConnStart.GetType())
 	require.Equal(t, events.PortForwardCode, remoteConnStart.GetCode())
 
 	remoteConn.Close()
-	e = nextEvent()
+	e = <-emitter.C()
 	remoteConnStop, ok := e.(*apievents.PortForward)
 	require.True(t, ok, "expected PortForward event but got event of type %T", e)
 	require.Equal(t, events.PortForwardRemoteConnEvent, remoteConnStop.GetType())
@@ -589,7 +579,7 @@ func TestSessionAuditLog(t *testing.T) {
 
 	// Closing the server (and therefore the listener) should generate an PortForwardRemote stop event
 	remoteForwardServer.Close()
-	e = nextEvent()
+	e = <-emitter.C()
 	remoteForwardStop, ok := e.(*apievents.PortForward)
 	require.True(t, ok, "expected PortForward event but got event of type %T", e)
 	require.Equal(t, events.PortForwardRemoteEvent, remoteForwardStop.GetType())
@@ -599,17 +589,17 @@ func TestSessionAuditLog(t *testing.T) {
 	// End the session. Session leave, data, and end events should be emitted.
 	se.Close()
 
-	e = nextEvent()
+	e = <-emitter.C()
 	leaveEvent, ok := e.(*apievents.SessionLeave)
 	require.True(t, ok, "expected SessionLeave event but got event of type %T", e)
 	require.Equal(t, sessionID, leaveEvent.SessionID)
 
-	e = nextEvent()
+	e = <-emitter.C()
 	dataEvent, ok := e.(*apievents.SessionData)
 	require.True(t, ok, "expected SessionData event but got event of type %T", e)
 	require.Equal(t, sessionID, dataEvent.SessionID)
 
-	e = nextEvent()
+	e = <-emitter.C()
 	endEvent, ok := e.(*apievents.SessionEnd)
 	require.True(t, ok, "expected SessionEnd event but got event of type %T", e)
 	require.Equal(t, sessionID, endEvent.SessionID)
@@ -2421,7 +2411,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 			DNSNames:             []string{hostname},
 			PublicSSHKey:         pub,
 			PublicTLSKey:         tlsPub,
-		})
+		}, "")
 	require.NoError(t, err)
 
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
@@ -3305,7 +3295,7 @@ func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) s
 			Role:         types.RoleNode,
 			PublicSSHKey: pub,
 			PublicTLSKey: tlsPub,
-		})
+		}, "")
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
@@ -3720,4 +3710,13 @@ func TestSessionParams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServerInfo(t *testing.T) {
+	scope := "/aa"
+	f := newFixtureWithoutDiskBasedLogging(t, SetScope(scope))
+	require.Equal(t, f.ssh.srv.scope, scope)
+	info, err := f.ssh.srv.getServerInfo(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, scope, info.Scope)
 }

@@ -24,17 +24,17 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // oidcTokenValidator is a function type that validates an OIDC token and checks that
 // it matches an allow rule configured in the provision token.
 type oidcTokenValidator func(
 	ctx context.Context,
-	provisionToken types.ProvisionToken,
+	provisionToken provision.Token,
 	idToken []byte,
 ) (rawClaims any, joinAttrs *workloadidentityv1.JoinAttrs, err error)
 
@@ -43,7 +43,7 @@ func (s *Server) handleOIDCJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	provisionToken types.ProvisionToken,
+	provisionToken provision.Token,
 	validator oidcTokenValidator,
 ) (messages.Response, error) {
 	// Receive the OIDCInit message from the client.

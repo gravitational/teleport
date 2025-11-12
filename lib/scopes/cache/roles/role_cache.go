@@ -74,6 +74,12 @@ func (c *RoleCache) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetSc
 
 // ListScopedRoles returns a paginated list of scoped roles.
 func (c *RoleCache) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	return c.ListScopedRolesWithFilter(ctx, req, func(role *scopedaccessv1.ScopedRole) bool { return true })
+}
+
+// ListScopedRolesWithFilter returns a paginated list of scoped roles filtered by the provided filter function. This
+// method is used internally to implement access-controls on the ListScopedRoles grpc method.
+func (c *RoleCache) ListScopedRolesWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest, filter func(*scopedaccessv1.ScopedRole) bool) (*scopedaccessv1.ListScopedRolesResponse, error) {
 	pageSize := int(req.GetPageSize())
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
@@ -122,7 +128,7 @@ func (c *RoleCache) ListScopedRoles(ctx context.Context, req *scopedaccessv1.Lis
 	var out []*scopedaccessv1.ScopedRole
 	var nextCursor cache.Cursor[string]
 Outer:
-	for scope := range getter(scope, c.cache.WithCursor(cursor)) {
+	for scope := range getter(scope, c.cache.WithCursor(cursor), c.cache.WithFilter(filter)) {
 		for role := range scope.Items() {
 			if len(out) == pageSize {
 				nextCursor = cache.Cursor[string]{

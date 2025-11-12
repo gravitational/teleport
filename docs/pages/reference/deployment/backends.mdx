@@ -145,7 +145,7 @@ teleport:
      # Required path to TLS client certificate and key files to connect to etcd.
      #
      # To create these, follow
-     # https://coreos.com/os/docs/latest/generate-self-signed-certificates.html
+     # https://github.com/coreos/docs/blob/master/os/generate-self-signed-certificates.md
      # or use the etcd-provided script
      # https://github.com/etcd-io/etcd/tree/master/hack/tls-setup.
      tls_cert_file: /var/lib/teleport/etcd-cert.pem
@@ -219,7 +219,8 @@ the dataset to be at least:
 
 An additional 20-40% safety margin is recommended for metadata and fragmentation overhead.
 
-Given an existing resource you can estimate its size with the following command:
+Given an existing resource you can estimate its size with the following command,
+assigning <Var name="resource" /> to the resource name, e.g., `role/editor`:
 
 ```code
 tctl get <Var name="resource" /> --format=json | awk '{ total += length($0) } END { print total * 2 }'
@@ -1256,7 +1257,7 @@ instance with a disk size at least 2x bigger than the table size in Amazon
 DynamoDB.
 
 Instructions for how to use the migration tool can be found
-[on GitHub](https://github.com/gravitational/teleport/blob/master/examples/dynamoathenamigration/README.md).
+[on GitHub](https://github.com/gravitational/teleport/blob/branch/v(=teleport.major_version=)/examples/dynamoathenamigration/README.md).
 
 You should set `exportTime` to the time when dual writing began.
 

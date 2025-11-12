@@ -75,7 +75,8 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	autoupdateagent "github.com/gravitational/teleport/lib/autoupdate/agent"
+	autoupdatetools "github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -469,6 +470,14 @@ type CLIConf struct {
 	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
+	// AppLoginAWSEnvOutput indicates whether tsh will output the AWS credentials as an export shell script instead of writing them to `~/.aws/config`.
+	// Only applicable to apps using AWS Roles Anywhere integration.
+	// E.g.,
+	//
+	//   export AWS_ACCESS_KEY_ID=ABCD
+	//   export AWS_SECRET_ACCESS_KEY=1234
+	//   export AWS_SESSION_TOKEN=abcd
+	AppLoginAWSEnvOutput bool
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
 	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
@@ -845,7 +854,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 	// Check local update for specific proxy from configuration.
 	name := utils.TryHost(strings.TrimPrefix(strings.ToLower(proxyArg), "https://"))
-	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
+	if err := autoupdatetools.CheckAndUpdateLocal(ctx, name, args); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1031,6 +1040,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
+	appLogin.Flag("env", "(For AWS CLI access only) Obtain credentials as plain text in order to load into environments variables. Required when using per-session MFA.").Hidden().BoolVar(&cf.AppLoginAWSEnvOutput)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogin.Flag("target-port", "Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.").Uint16Var(&cf.TargetPort)
@@ -1358,7 +1368,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).", strings.Join(types.RequestableResourceKinds, ", "))).Required().StringVar(&cf.ResourceKind)
-	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployements, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
+	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployments, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
 		// TODO(@creack): DELETE IN v20.0.0. Allow legacy kinds with a warning for now.
@@ -1466,13 +1476,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		bench.Hidden()
 	}
 
-	var err error
-	cf.executablePath, err = os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if reExecPath := tools.GetReExecPath(); reExecPath != "" {
+	if reExecPath := autoupdatetools.GetReExecPath(); reExecPath != "" {
+		// Always prefer Client Tools Managed Updates re-exec path (~/.tsh/bin/) if set
 		cf.executablePath = reExecPath
+	} else {
+		// Otherwise, use the Agent Managed Updates stable path, if available
+		var err error
+		cf.executablePath, err = autoupdateagent.StableExecutable()
+		if errors.Is(err, autoupdateagent.ErrUnstableExecutable) {
+			logger.WarnContext(ctx, "Templates may be rendered with an unstable path to the tsh executable; reinstall tsh with Managed Updates to prevent instability")
+		} else if err != nil {
+			return trace.Wrap(err, "determining executable path")
+		}
 	}
 
 	// configs
@@ -2070,7 +2085,7 @@ func onVersion(cf *CLIConf) error {
 		proxyPublicAddr = ppa
 	}
 
-	reExecFromVersion := tools.GetReExecFromVersion(cf.Context)
+	reExecFromVersion := autoupdatetools.GetReExecFromVersion(cf.Context)
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
@@ -2241,7 +2256,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+		if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2259,7 +2274,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -2279,7 +2294,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -2355,7 +2370,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -4512,7 +4527,7 @@ func wrapInitClientWithUpdateCheck(clientInitFunc ClientInitFunc, reExecArgs []s
 			return nil, trace.Wrap(err)
 		}
 		if cf.checkManagedUpdates {
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -5713,7 +5728,11 @@ func awaitRequestResolution(ctx context.Context, clt authclient.ClientI, req typ
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 			case types.OpDelete:
-				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				// Delete events are not filtered, only return if the deleted
+				// request matches the request we're waiting for.
+				if event.Resource.GetName() == req.GetName() {
+					return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				}
 			default:
 				logger.WarnContext(ctx, "Skipping unknown event type", "event_type", event.Type)
 			}

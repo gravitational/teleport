@@ -2158,6 +2158,13 @@ message AuthAttempt {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ServerMetadata holds information about the target host server
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // UserTokenCreate is emitted when a user token is created.
@@ -8730,6 +8737,12 @@ message MCPSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // MCPJSONRPCMessage includes details of a MCP request or notification.
@@ -8785,6 +8798,12 @@ message MCPSessionRequest {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "message,omitempty"
   ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // MCPSessionNotification is emitted when a notification is sent by client
@@ -8825,6 +8844,12 @@ message MCPSessionNotification {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // MCPSessionListenSSEStream is emitted when client sends a GET request to a
@@ -8860,6 +8885,12 @@ message MCPSessionListenSSEStream {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
 }
 

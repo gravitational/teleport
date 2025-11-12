@@ -204,7 +204,7 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 }
 
 func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
-	s.emitNotificationEvent(ctx, notification, nil)
+	s.emitNotificationEvent(ctx, notification)
 	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
@@ -249,7 +249,7 @@ const (
 func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, replyDirection) {
 	s.idTracker.PushRequest(req)
 	reply, authErr := s.processClientRequestNoAudit(ctx, req)
-	s.emitRequestEvent(ctx, req, authErr)
+	s.emitRequestEvent(ctx, req, eventWithError(authErr))
 
 	// Not forwarding to server. Just send the auth error to client.
 	if authErr != nil {

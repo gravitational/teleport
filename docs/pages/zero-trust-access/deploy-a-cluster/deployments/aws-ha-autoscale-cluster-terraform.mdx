@@ -1,8 +1,7 @@
 ---
 title: Teleport High Availability mode on AWS
+sidebar_label: High Availability
 description: How to configure Teleport in High Availability mode for AWS deployments.
-h1: Running Teleport Enterprise in High Availability mode on AWS
-tocDepth: 3
 tags:
  - infrastructure-as-code
  - how-to
@@ -16,6 +15,13 @@ and describe how to manage the resulting Teleport deployment.
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
+
+This guide assumes that your infrastructure is **not** hosted in AWS GovCloud or
+in an air-gapped AWS environment (EKS Anywhere). If it is, [contact the Teleport
+team](https://goteleport.com/contact-us) for assistance planning your
+deployment.
+
+This guide also requires the following:
 
 - Terraform installed on your system. Visit [Install
   Terraform](https://developer.hashicorp.com/terraform/install) for

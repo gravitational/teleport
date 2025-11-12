@@ -1,7 +1,6 @@
 ---
 title: Teleport Authorization
 description: This chapter explains how Teleport authorizes users and roles.
-h1: Teleport Authorization
 tags:
  - conceptual
  - platform-wide
@@ -68,8 +67,8 @@ running in your organization.
 
 Local non-interactive users also have a user entry that maps their name to roles,
 but they do not have credentials stored in the database.
-Non-interactive users have to use Teleport's machine ID product to receive and renew certificates.
-Teleport Machine ID's bot runs alongside services and rotates SSH and X.509 certificates on behalf
+Non-interactive users have to use Teleport Machine & Workload Identity product to receive and renew certificates.
+Teleport Machine & Workload Identity's Bot runs alongside services and rotates SSH and X.509 certificates on behalf
 of non-interactive users:
 
 ![Certificates for services](../../../img/architecture/certs-machine-id@1.8x.svg)

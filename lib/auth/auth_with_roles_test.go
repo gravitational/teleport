@@ -926,6 +926,19 @@ func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
 	pub, err := keys.MarshalPublicKey(priv.Public())
 	require.NoError(t, err)
 
+	// Impersonating the requester name fails.
+	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       appName,
+			AWSRoleARN: roleARN,
+		},
+		RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
+	})
+	require.Error(t, err)
+
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: pub,
 		Username:     user.GetName(),
@@ -3850,7 +3863,9 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
-			want: proto.MFARequired_MFA_REQUIRED_NO,
+			// MFA should be required if the role says so, regardless of whether
+			// the database name matches or not.
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
 			name:       "RequireSessionMFA on Postgres protocol database name matches",
@@ -3874,6 +3889,32 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, []string{"example"})
 			},
+			want: proto.MFARequired_MFA_REQUIRED_YES,
+		},
+		{
+			name:       "RequireSessionMFA database user does not match",
+			dbProtocol: defaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    defaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, nil)
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, []string{"example"})
+			},
+			// MFA should be required if the role says so, regardless of whether
+			// the database user matches or not.
 			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 	}
@@ -7244,6 +7285,66 @@ func TestGenerateHostCert(t *testing.T) {
 			require.True(t, test.expect(err))
 		})
 	}
+}
+
+// newScopedTestServerForHost creates a self-cleaning `ServerWithRoles`, configured
+// for a given host
+func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, role types.SystemRole) *auth.ServerWithRoles {
+	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, role).I)
+	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
+	require.NoError(t, err)
+
+	authWithRole := auth.NewServerWithRoles(
+		srv.AuthServer,
+		srv.AuditLog,
+		*ctxIdentity,
+	)
+
+	t.Cleanup(func() { authWithRole.Close() })
+
+	return authWithRole
+}
+
+func TestGenerateHostCertsScoped(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	scope := "/aa/bb"
+	hostID := "testhost"
+	roles := types.SystemRoles{types.RoleNode}
+
+	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
+
+	_, sshPub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	certs, err := s.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+		PublicTLSKey: tlsPubPEM,
+		PublicSSHKey: sshPub,
+		HostID:       hostID,
+		Role:         types.RoleInstance,
+		SystemRoles:  roles,
+	})
+	require.NoError(t, err)
+
+	// ensure scope encoded in TLS cert matches the auth identity
+	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, scope, tlsIdent.AgentScope)
+
+	// ensure scope encoded in SSH cert matches the auth identity
+	sshCert, err := sshutils.ParseCertificate(certs.SSH)
+	require.NoError(t, err)
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
+	require.Equal(t, scope, sshIdent.AgentScope)
 }
 
 // TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's

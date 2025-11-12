@@ -213,9 +213,22 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 
 // addAccessListsToState will add the user's applicable access lists to the user login state after validating them, returning any inherited roles and traits.
 func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) (inheritedRoles []string, inheritedTraits map[string][]string, err error) {
-	locks, err := g.accessLists.GetLocks(ctx, true, types.LockTarget{
-		User: user.GetName(),
-	})
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return g.accessLists.ListLocks(ctx, limit, start, &types.LockFilter{
+				InForceOnly: true,
+				Targets:     []*types.LockTarget{{User: user.GetName()}},
+			})
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			const inForceOnlyTrue = true
+			return g.accessLists.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+				User: user.GetName(),
+			})
+		},
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

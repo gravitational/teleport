@@ -26,11 +26,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
@@ -357,9 +360,8 @@ func (p *DatabasePack) testMongoRootCluster(t *testing.T) {
 // testMongoConnectionCount tests if mongo service releases
 // resource after a mongo client disconnect.
 func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
-	connectMongoClient := func(t *testing.T) (serverConnectionCount int32) {
-		// Connect to the database service in root cluster.
-		client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+	makeClient := func(t *testing.T, dbUser string) (*mongo.Client, error) {
+		return mongodb.MakeTestClient(t.Context(), common.TestClientConfig{
 			AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
 			AuthServer: p.Root.Cluster.Process.GetAuthServer(),
 			Address:    p.Root.Cluster.Web,
@@ -368,27 +370,31 @@ func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
 			RouteToDatabase: tlsca.RouteToDatabase{
 				ServiceName: p.Root.MongoService.Name,
 				Protocol:    p.Root.MongoService.Protocol,
-				Username:    "admin",
+				Username:    dbUser,
 			},
 		})
+	}
+
+	connectMongoClient := func(t *testing.T, dbUser string) (serverConnectionCount int32) {
+		client, err := makeClient(t, dbUser)
 		require.NoError(t, err)
 
 		// Execute a query.
-		_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+		_, err = client.Database("test").Collection("test").Find(t.Context(), bson.M{})
 		require.NoError(t, err)
 
 		// Get a server connection count before disconnect.
 		serverConnectionCount = p.Root.mongo.GetActiveConnectionsCount()
 
 		// Disconnect.
-		err = client.Disconnect(context.Background())
+		err = client.Disconnect(t.Context())
 		require.NoError(t, err)
 
 		return serverConnectionCount
 	}
 
 	// Get connection count while the first client is connected.
-	initialConnectionCount := connectMongoClient(t)
+	initialConnectionCount := connectMongoClient(t, "admin")
 
 	// Check if active connections count is not growing over time when new
 	// clients connect to the mongo server.
@@ -396,22 +402,59 @@ func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
 	for range clientCount {
 		// Note that connection count per client fluctuates between 6 and 9.
 		// Use InDelta to avoid flaky test.
-		require.InDelta(t, initialConnectionCount, connectMongoClient(t), 3)
+		got := connectMongoClient(t, "admin")
+		require.InDelta(t, initialConnectionCount, got, 3)
 	}
+
+	client, err := makeClient(t, "nonexistent")
+	if !assert.Error(t, err) {
+		require.NoError(t, client.Disconnect(t.Context()))
+		return
+	}
+	require.ErrorContains(t, err, "does not exist")
+
+	t.Run("Connection pool is shared", func(t *testing.T) {
+		var eg errgroup.Group
+		for i := range 100 {
+			eg.Go(func() error {
+				client, err := makeClient(t, "admin")
+				if err != nil {
+					return trace.Wrap(err, "failed to create client %d", i)
+				}
+				t.Cleanup(func() {
+					assert.NoError(t, client.Disconnect(t.Context()))
+				})
+				return nil
+			})
+		}
+		require.NoError(t, eg.Wait())
+		require.LessOrEqual(t, int32(9), p.Root.mongo.GetActiveConnectionsCount())
+	})
 
 	// Wait until the server reports no more connections. This usually happens
 	// really quick but wait a little longer just in case.
-	waitUntilNoConnections := func() bool {
-		return p.Root.mongo.GetActiveConnectionsCount() == 0
-	}
-	require.Eventually(t, waitUntilNoConnections, 5*time.Second, 100*time.Millisecond)
+	var activeConns int32
+	require.Eventually(t, func() bool {
+		conns := p.Root.mongo.GetActiveConnectionsCount()
+		if conns != activeConns {
+			t.Logf("active connections to MongoDB changed from %d to %d", activeConns, conns)
+			activeConns = conns
+		}
+		return activeConns == 0
+	}, 5*time.Second, 100*time.Millisecond)
+
+	start := time.Now()
+	require.Never(t, func() bool {
+		return p.Root.mongo.GetActiveConnectionsCount() > 0
+	}, time.Second*5, time.Millisecond*100, "no connections should be left open. Found after %v", time.Since(start))
 }
 
 // testMongoLeafCluster tests a scenario where a user connects
 // to a Mongo database running in a leaf cluster.
 func (p *DatabasePack) testMongoLeafCluster(t *testing.T) {
+	ctx := t.Context()
 	// Connect to the database service in root cluster.
-	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+	client, err := mongodb.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
 		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
 		Address:    p.Root.Cluster.Web, // Connecting via root cluster.
@@ -426,18 +469,18 @@ func (p *DatabasePack) testMongoLeafCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute a query.
-	_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+	_, err = client.Database("test").Collection("test").Find(ctx, bson.M{})
 	require.NoError(t, err)
 
 	// Disconnect.
-	err = client.Disconnect(context.Background())
+	err = client.Disconnect(ctx)
 	require.NoError(t, err)
 }
 
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
 // trusted cluster setup.
 func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
-	clock := clockwork.NewFakeClockAt(time.Now())
+	clock := clockwork.NewFakeClock()
 	pack := SetupDatabaseTest(t, WithClock(clock))
 	pack.WaitForLeaf(t)
 
@@ -449,9 +492,6 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 
 		idleTimeout = time.Minute
 	)
-
-	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
-	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 
 	mkMySQLLeafDBClient := func(t *testing.T) mysql.TestClientConn {
 		// Connect to the database service in leaf cluster via root cluster.

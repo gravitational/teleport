@@ -42,7 +42,7 @@ type Fetcher interface {
 	GetInstances(ctx context.Context, rotation bool) ([]Instances, error)
 	// GetMatchingInstances finds Instances from the list of nodes
 	// that the fetcher matches.
-	GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error)
+	GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]Instances, error)
 	// GetDiscoveryConfigName returns the DiscoveryConfig name that created this fetcher.
 	// Empty for Fetchers created from `teleport.yaml/discovery_service.aws.<Matcher>` matchers.
 	GetDiscoveryConfigName() string
@@ -129,7 +129,7 @@ func (w *Watcher) Run() {
 		select {
 		case insts := <-w.missedRotation:
 			for _, fetcher := range w.fetchersFn() {
-				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(insts, true))
+				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(w.ctx, insts, true))
 			}
 
 		case <-pollTimer.Chan():

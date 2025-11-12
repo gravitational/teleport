@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/dns"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/winpki"
@@ -788,14 +790,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 	log = log.With("computer_name", computerName)
 
-	kdcAddr := s.cfg.KDCAddr
-	if !desktop.NonAD() && kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
-		if kdcAddr, err = utils.Host(s.cfg.LDAPConfig.Addr); err != nil {
-			return trace.Wrap(err, "KDC address is unspecified and LDAP address is invalid")
+	nla := s.enableNLA && !desktop.NonAD()
+
+	var kdcAddr string
+	if nla {
+		var err error
+		kdcAddr, err = s.getKDCAddress(ctx)
+		if err != nil {
+			return trace.Wrap(err, "getting KDC address")
 		}
 	}
-
-	nla := s.enableNLA && !desktop.NonAD()
 
 	log = log.With("kdc_addr", kdcAddr, "nla", nla)
 	log.InfoContext(context.Background(), "initiating RDP client")
@@ -1329,4 +1333,76 @@ func (s *WindowsService) runCRLUpdateLoop(tlsConfig *tls.Config) {
 			continue
 		}
 	}
+}
+
+// getKDCAddress gets the KDC address that should be used for NLA in
+// this priority order:
+// 1. Explicitly specified kdc_address
+// 2. If enabled, using locate_server DNS lookups
+// 3. If all else fails, ldap's addr
+func (s *WindowsService) getKDCAddress(ctx context.Context) (string, error) {
+	if s.cfg.KDCAddr != "" {
+		if s.cfg.LocateServer.Enabled {
+			s.cfg.Logger.WarnContext(ctx, "Both locate_server and kdc_address are set, kdc_address takes priority", "kdc_address", s.cfg.KDCAddr)
+		} else {
+			s.cfg.Logger.DebugContext(ctx, "Using hardcoded KDC address", "kdc_address", s.cfg.KDCAddr)
+		}
+		return s.cfg.KDCAddr, nil
+	}
+
+	if !s.cfg.LocateServer.Enabled && s.cfg.LDAPConfig.Addr != "" {
+		kdcAddr, err := utils.Host(s.cfg.LDAPConfig.Addr)
+		if err != nil {
+			return "", trace.Wrap(err, "KDC address is unspecified, locate server is disabled, and LDAP address is invalid")
+		}
+		s.cfg.Logger.DebugContext(ctx, "locate_server and kdc_address unspecified, assuming that KDC is available on the same host as LDAP", "address", s.cfg.LDAPConfig.Addr)
+		return kdcAddr, nil
+	}
+
+	s.cfg.Logger.DebugContext(
+		ctx,
+		"Looking for KDC server",
+		"domain", s.cfg.Domain,
+		"site", s.cfg.LocateServer.Site,
+	)
+
+	// In development environments, the system's default resolver is unlikely to be
+	// able to resolve the Active Directory SRV records needed for server location,
+	// so we allow overriding the resolver. If the TELEPORT_KDC_RESOLVER parameter
+	// is not set, the default resolver will be used.
+	resolver := dns.NewResolver(ctx, os.Getenv("TELEPORT_KDC_RESOLVER"), s.cfg.Logger)
+
+	servers, err := dns.LocateServerBySRV(
+		ctx,
+		s.cfg.Domain,
+		s.cfg.LocateServer.Site,
+		resolver,
+		"kerberos",
+		"", // Use port returned by SRV record
+	)
+	if err != nil {
+		return "", trace.Wrap(err, "locating KDC server")
+	}
+
+	if len(servers) == 0 {
+		return "", trace.NotFound("no KDC servers found for domain %q", s.cfg.Domain)
+	}
+
+	var lastErr error
+	for _, server := range servers {
+		conn, err := net.DialTimeout("tcp", server, 5*time.Second)
+		if conn != nil {
+			conn.Close()
+		}
+
+		if err == nil {
+			s.cfg.Logger.InfoContext(ctx, "Found KDC server", "server", server)
+			return server, nil
+		}
+		lastErr = err
+
+		s.cfg.Logger.InfoContext(ctx, "Error connecting to KDC server, trying next available server", "server", server, "error", err)
+	}
+
+	return "", trace.NotFound("no KDC servers responded successfully for domain %q: %v", s.cfg.Domain, lastErr)
 }

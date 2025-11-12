@@ -898,6 +898,14 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 func (g *GRPCServer) GetClusterAlerts(ctx context.Context, query *types.GetClusterAlertsRequest) (*authpb.GetClusterAlertsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
+		if errors.Is(err, authz.ErrScopedIdentity) {
+			// NOTE: scoped alerts do not currently exist. a lot of client logic wants to incidentally load cluster alerts
+			// as part of other operations. ordinarily we just return an access denied when a scoped identity is used to
+			// call an API that doesn't support scoping yet, but doing so here would complicate client logic a lot. it is
+			// therefore preferable to instead consider a scoped invocation a valid call that just happens to not match
+			// any alerts.
+			return &authpb.GetClusterAlertsResponse{}, nil
+		}
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -1279,7 +1287,7 @@ func (g *GRPCServer) UpdatePluginData(ctx context.Context, params *types.PluginD
 }
 
 func (g *GRPCServer) Ping(ctx context.Context, req *authpb.PingRequest) (*authpb.PingResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1352,6 +1360,34 @@ func (g *GRPCServer) GetSemaphores(ctx context.Context, req *types.SemaphoreFilt
 	return &authpb.Semaphores{
 		Semaphores: ss,
 	}, nil
+}
+
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (g *GRPCServer) ListSemaphores(ctx context.Context, req *authpb.ListSemaphoresRequest) (*authpb.ListSemaphoresResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	semaphores, next, err := auth.ListSemaphores(ctx, int(req.GetPageSize()), req.GetPageToken(), req.GetFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSemaphoresResponse{
+		Semaphores:    make([]*types.SemaphoreV3, 0, len(semaphores)),
+		NextPageToken: next,
+	}
+
+	for _, sem := range semaphores {
+		v3, ok := sem.(*types.SemaphoreV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected semaphore type: %T", sem)
+		}
+		resp.Semaphores = append(resp.Semaphores, v3)
+	}
+
+	return resp, nil
 }
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
@@ -2668,11 +2704,10 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 }
 
 func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
-	if isLocalProxyCertReq(req) {
-		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
-		// because the certs will be kept in-memory by the client to protect
-		// against cert/key exfiltration. When MFA is required, cert expiration
-		// time is bounded by the lifetime of the local proxy process or the mfa verification interval.
+	if !isCertWrittenToDiskFlow(req) {
+		// Don't limit the cert expiry to 1 minute for certs that are not written to disk.
+		// When MFA is required, cert expiration time is bounded by the lifetime of the local proxy process
+		// or the mfa verification interval.
 		return
 	}
 
@@ -2682,14 +2717,31 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 	}
 }
 
-// isLocalProxyCertReq returns whether a cert request is for a local proxy cert.
-func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
+// isInMemoryCertRequest returns whether a cert request is for a flow where the certificate is kept in-memory by the client.
+// The certificate should not be exposed through disk, stdout, a socket, etc.
+// For those scenarios, we can issue certs with longer TTLs even when they are single-use certs.
+// This is the case for cert requests made by tsh db/kube/app local proxy.
+func isInMemoryCertRequest(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
 			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
 			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
+}
+
+// isCredentialsStdoutCertRequest returns whether a cert request is for a flow where the credentials are not written to disk, but are sent to stdout.
+// For those scenarios, we can issue certs with longer TTLs even when they are single-use certs.
+// This is the case for cert requests made by tsh for an AWS App access which writes the credentials to stdout.
+// Note: this is different from isInMemoryCertRequest because the credentials are written to stdout instead of being kept in-memory.
+func isCredentialsStdoutCertRequest(req *authpb.UserCertsRequest) bool {
+	return req.Usage == authpb.UserCertsRequest_App && req.RequesterName == authpb.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS
+}
+
+// isCertWrittenToDiskFlow returns whether a cert request is for a flow where the certificate is written to disk.
+// For those scenarios, we need to limit the cert TTL to avoid long-lived single-use certs.
+func isCertWrittenToDiskFlow(req *authpb.UserCertsRequest) bool {
+	return !isInMemoryCertRequest(req) && !isCredentialsStdoutCertRequest(req)
 }
 
 func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {
@@ -3877,6 +3929,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		Limit:      int(req.Limit),
 		Order:      types.EventOrder(req.Order),
 		StartKey:   req.StartKey,
+		Search:     req.Search,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3975,6 +4028,39 @@ func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) 
 	}
 	return &authpb.GetLocksResponse{
 		Locks: lockV2s,
+	}, nil
+}
+
+// ListLocks returns a page of locks matching a filter
+func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest) (*authpb.ListLocksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	locks, next, err := auth.ListLocks(
+		ctx,
+		int(req.PageSize),
+		req.PageToken,
+		req.Filter,
+	)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+
+	return &authpb.ListLocksResponse{
+		Locks:         lockV2s,
+		NextPageToken: next,
 	}, nil
 }
 
@@ -4624,10 +4710,43 @@ func (g *GRPCServer) GetAccountRecoveryCodes(ctx context.Context, req *authpb.Ge
 	return rc, nil
 }
 
+// isScopePinnedLocalUserCredential returns true if the credentials associated with a given context
+// are specifically for a local user with a scope pin. this is used to help determine if it is safe to
+// perform a fallback operation when an API that isn't ported to scopes gets called with a scoped identity.
+// In theory, this check is redundant as this is the only condition where Authorizer.Authorize currently
+// returns ErrScopedIdentity, but having this extra check here helps us better describe the *security model*
+// of the fallback, which may not be sane in potential future scenarios where scoped identity errors are produced
+// for system roles or non-local users.
+func isScopePinnedLocalUserCredential(ctx context.Context) bool {
+	userI, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return false
+	}
+
+	if user, ok := userI.(authz.LocalUser); ok && user.Identity.ScopePin != nil {
+		return true
+	}
+
+	return false
+}
+
 // CreateAuthenticateChallenge is implemented by AuthService.CreateAuthenticateChallenge.
 func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authpb.CreateAuthenticateChallengeRequest) (*authpb.MFAAuthenticateChallenge, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
+		if errors.Is(err, authz.ErrScopedIdentity) && isScopePinnedLocalUserCredential(ctx) && req.MFARequiredCheck != nil {
+			if _, ok := req.MFARequiredCheck.Target.(*authpb.IsMFARequiredRequest_AdminAction); ok {
+				// NOTE: scopes don't currently have a concept of admin action MFA. a lot of client logic wants to do a preemtive
+				// check to see if MFA is required. ordinarily we just return an access denied when a scoped identity is used to
+				// call an API that doesn't support scoping yet, but doing so here would complicate client logic a lot. it is
+				// therefore preferable to instead consider a scoped invocation a valid call that just happens to result in a
+				// no mfa required result.
+				return &authpb.MFAAuthenticateChallenge{
+					MFARequired: authpb.MFARequired_MFA_REQUIRED_NO,
+				}, nil
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -5101,7 +5220,6 @@ func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end stri
 				return
 			}
 		}
-
 	}
 }
 
@@ -5121,7 +5239,6 @@ func (g *GRPCServer) ListInstallers(ctx context.Context, req *authpb.ListInstall
 		int(req.PageSize),
 		types.Installer.GetName,
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5953,10 +6070,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	)
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
-		Authorizer: cfg.Authorizer,
-		Reader:     cfg.AuthServer.ScopedAccessCache,
-		Writer:     cfg.AuthServer.scopedAccessBackend,
-		Logger:     logger,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Reader:           cfg.AuthServer.ScopedAccessCache,
+		Writer:           cfg.AuthServer.scopedAccessBackend,
+		Logger:           logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped access control service")
@@ -6029,9 +6146,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
 
 	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-		Authorizer:  cfg.Authorizer,
-		AuthService: cfg.AuthServer,
-		FIPS:        cfg.AuthServer.fips,
+		Authorizer:         cfg.Authorizer,
+		AuthService:        cfg.AuthServer,
+		FIPS:               cfg.AuthServer.fips,
+		ScopedTokenService: cfg.AuthServer.Services,
+		OracleHTTPClient:   cfg.OracleHTTPClient,
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
@@ -6134,10 +6253,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	userloginstatev1pb.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
 	recordingEncryptionService, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Uploader:   cfg.AuthServer.Services,
-		KeyRotater: cfg.AuthServer.Services,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+		Authorizer:                cfg.Authorizer,
+		Uploader:                  cfg.AuthServer.Services,
+		KeyRotater:                cfg.AuthServer.Services,
+		Logger:                    cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
+		SessionSummarizerProvider: cfg.APIConfig.AuthServer.sessionSummarizerProvider,
+		RecordingMetadataProvider: cfg.AuthServer.recordingMetadataProvider,
+		SessionStreamer:           cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6268,6 +6390,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		),
 		Streamer:        cfg.AuthServer,
 		DownloadHandler: cfg.AuthServer,
+		Decrypter:       cfg.AuthServer.EncryptedIO,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating recording metadata service")
@@ -6315,6 +6438,29 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			context:    *authContext,
 			alog:       g.AuthServer,
+		},
+	}, nil
+}
+
+// scopedGRPCContext servers the same role as [grpcContext] but for scoped identities. It is currently
+// a thin wrapper around [ServerWithRoles] since we don't have any need to embed an [authz.Context] yet,
+// but we may embed one in the future.
+type scopedGRPCContext struct {
+	*ServerWithRoles
+}
+
+// scopedAuthenticate functions similarly to authenticate but supports scoped identities. It returns an initialized auth server
+// that has been set up with a scoped access checker, which may be based off of either a scoped or unscoped identity.
+func (g *GRPCServer) scopedAuthenticate(ctx context.Context) (*scopedGRPCContext, error) {
+	authContext, err := g.ScopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &scopedGRPCContext{
+		ServerWithRoles: &ServerWithRoles{
+			authServer:    g.AuthServer,
+			scopedContext: authContext,
+			alog:          g.AuthServer,
 		},
 	}, nil
 }
