@@ -7,7 +7,7 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-pagerduty
-        app.kubernetes.io/version: 19.0.0-dev-rhammonds.fixtoolchainwarn.4
+        app.kubernetes.io/version: 19.0.0-dev-rhammonds.fixtoolchainwarn.5
         helm.sh/chart: teleport-plugin-pagerduty-19.0.0-dev-rhammonds.fixtoolchainwarn
       name: RELEASE-NAME-teleport-plugin-pagerduty
     spec:
@@ -22,7 +22,7 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-pagerduty
-            app.kubernetes.io/version: 19.0.0-dev-rhammonds.fixtoolchainwarn.4
+            app.kubernetes.io/version: 19.0.0-dev-rhammonds.fixtoolchainwarn.5
             helm.sh/chart: teleport-plugin-pagerduty-19.0.0-dev-rhammonds.fixtoolchainwarn
         spec:
           containers:
