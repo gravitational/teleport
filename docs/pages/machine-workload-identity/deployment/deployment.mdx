@@ -1,0 +1,181 @@
+---
+title: Deploy tbot
+description: Explains how to deploy tbot on your platform and join it to your Teleport cluster.
+tags:
+ - conceptual
+ - mwi
+ - infrastructure-identity
+---
+
+The first step to set up Machine ID is to deploy the `tbot` binary and join a
+Machine ID bot to your Teleport cluster. You can run the `tbot` binary on a
+number of platforms, from AWS and GitHub Actions to a generic Linux server or
+Kubernetes cluster. This guide shows you how to deploy Machine ID on your
+infrastructure.
+
+## Choosing a deployment method
+
+There are two considerations to make when determining how to deploy Machine ID on
+your infrastructure.
+
+### Your infrastructure
+
+The `tbot` binary runs as a container or on a Linux virtual machine. If you run
+`tbot` on GitHub Actions, you can use one of the ready-made [Teleport GitHub
+Actions workflows](https://github.com/teleport-actions).
+
+### Join method
+
+Machine ID joins your Teleport cluster by using one of the following
+authentication methods:
+
+- **Platform-signed document:** The platform that hosts `tbot`, such as a
+  Kubernetes cluster or Amazon EC2 instance, provides a signed identity document
+  that Teleport can verify using the platform's certificate authority. This is
+  the recommended approach because it avoids the use of shared secrets.
+- **Static join token:** Your Teleport client tool generates a string and stores
+  it on the Teleport Auth Service. Machine ID provides this string when it first
+  connects to your Teleport cluster, demonstrating to the Auth Service that it
+  belongs in the cluster. From then on, Machine ID authenticates to your
+  Teleport cluster with a renewable certificate.
+
+## Deployment guides
+
+The guides in this section show you how to deploy Machine ID and join it to your cluster.
+Choose a guide based on the platform where you intend to run Machine ID.
+
+If a specific guide does not exist for your platform, the [Linux
+guide](linux.mdx) is compatible with most platforms. For
+custom approaches, you can also read the [Machine ID Reference](../../reference/machine-workload-identity/machine-workload-identity.mdx)
+and [Architecture](../../reference/architecture/machine-id-architecture.mdx) to plan your deployment.
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="aws" size="xl" />,
+      to: "./aws",
+      name: "AWS",
+    },
+    {
+      icon: <Icon name="azure" size="xl" />,
+      to: "./azure",
+      name: "Azure",
+    },
+    {
+      icon: <Icon name="azureDevops" size="xl" />,
+      to: "./azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "./bitbucket",
+      name: "BitBucket Pipelines",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "./circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="gitlab" size="xl" />,
+      to: "./gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="githubActions" size="xl" />,
+      to: "./github-actions",
+      name: "GitHub Actions",
+    },
+    {
+      icon: <Icon name="googleCloud" size="xl" />,
+      to: "./gcp",
+      name: "Google Cloud",
+    },
+    {
+      icon: <Icon name="kubernetes2" size="xl" />,
+      to: "./kubernetes",
+      name: "Kubernetes",
+    },
+    {
+      icon: <Icon name="kubernetes" size="xl" />,
+      to: "./kubernetes-oidc",
+      name: "Kubernetes OIDC",
+    },
+    {
+      icon: <Icon name="linux" size="xl" />,
+      to: "./linux",
+      name: "Linux",
+    },
+    {
+      icon: <Icon name="linux-servers" size="xl" />,
+      to: "./linux-tpm",
+      name: "Linux TPM",
+    },
+    {
+      icon: <Icon name="lock" size="xl" />,
+      to: "../../reference/machine-workload-identity/bound-keypair/getting-started",
+      name: "Bound Keypair Joining",
+    }
+  ]}
+/>
+
+### CI/CD
+
+Read the following guides for how to deploy Machine ID on a continuous integration and continuous deployment platform.
+
+<TileGrid
+  tiles={[
+    {
+      icon: <Icon name="azureDevops" size="xl" />,
+      to: "./azure-devops",
+      name: "Azure DevOps",
+    },
+    {
+      icon: <Icon name="bitbucket" size="xl" />,
+      to: "./bitbucket",
+      name: "BitBucket Pipelines",
+    },
+    {
+      icon: <Icon name="circleci" size="xl" />,
+      to: "./circleci",
+      name: "CircleCI",
+    },
+    {
+      icon: <Icon name="gitlab" size="xl" />,
+      to: "./gitlab",
+      name: "GitLab CI",
+    },
+    {
+      icon: <Icon name="githubActions" size="xl" />,
+      to: "./github-actions",
+      name: "GitHub Actions",
+    },
+    {
+      icon: <Icon name="jenkins" size="xl" />,
+      to: "./jenkins",
+      name: "Jenkins",
+    },
+    {
+      icon: <Icon name="spacelift" size="xl" />,
+      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      name: "Spacelift",
+    },
+    {
+      icon: <Icon name="terraform" size="xl" />,
+      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud",
+      name: "Terraform Cloud",
+    },
+    {
+      icon: <Icon name="lock" size="xl" />,
+      to: "../../reference/machine-workload-identity/bound-keypair/static-keys",
+      name: "Bound Keypair static keys (Generic)",
+    }
+  ]}
+/>
+
+<Admonition type="tip" title="Unsupported Provider?">
+If your CI/CD provider does not have a dedicated join method listed above,
+consider using [Bound Keypair static keys][bound-keypair-static] as a fallback.
+</Admonition>
+
+[bound-keypair-static]: ../../reference/machine-workload-identity/bound-keypair/static-keys.mdx

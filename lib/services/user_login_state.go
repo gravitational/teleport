@@ -105,7 +105,7 @@ type UserOrLoginStateGetter interface {
 // GetUserOrLoginState will return the given user or the login state associated with the user.
 func GetUserOrLoginState(ctx context.Context, getter UserOrLoginStateGetter, username string) (UserState, error) {
 	uls, err := getter.GetUserLoginState(ctx, username)
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err)
 	}
 

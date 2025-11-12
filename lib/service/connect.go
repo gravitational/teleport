@@ -250,7 +250,8 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		if role == types.RoleAdmin || role == types.RoleAuth {
 			return newConnector(identity, identity)
 		}
-		process.logger.InfoContext(process.ExitContext(), "Connecting to the cluster with TLS client certificate.", "cluster", identity.ClusterName)
+		process.logger.InfoContext(process.ExitContext(), "Connecting to the cluster with TLS client certificate.",
+			"cluster", identity.ClusterName, "role", role.String())
 		connector, err := process.getConnector(identity, identity)
 		if err != nil {
 			// In the event that a user is attempting to connect a machine to

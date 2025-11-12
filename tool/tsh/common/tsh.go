@@ -470,6 +470,14 @@ type CLIConf struct {
 	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
+	// AppLoginAWSEnvOutput indicates whether tsh will output the AWS credentials as an export shell script instead of writing them to `~/.aws/config`.
+	// Only applicable to apps using AWS Roles Anywhere integration.
+	// E.g.,
+	//
+	//   export AWS_ACCESS_KEY_ID=ABCD
+	//   export AWS_SECRET_ACCESS_KEY=1234
+	//   export AWS_SESSION_TOKEN=abcd
+	AppLoginAWSEnvOutput bool
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
 	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
@@ -1032,6 +1040,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
+	appLogin.Flag("env", "(For AWS CLI access only) Obtain credentials as plain text in order to load into environments variables. Required when using per-session MFA.").Hidden().BoolVar(&cf.AppLoginAWSEnvOutput)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogin.Flag("target-port", "Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.").Uint16Var(&cf.TargetPort)
@@ -5719,7 +5728,11 @@ func awaitRequestResolution(ctx context.Context, clt authclient.ClientI, req typ
 					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 			case types.OpDelete:
-				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				// Delete events are not filtered, only return if the deleted
+				// request matches the request we're waiting for.
+				if event.Resource.GetName() == req.GetName() {
+					return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				}
 			default:
 				logger.WarnContext(ctx, "Skipping unknown event type", "event_type", event.Type)
 			}
