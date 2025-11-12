@@ -147,7 +147,7 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
+		collection := resources.NewConnectorCollection(nil, nil, []types.GithubConnector{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -432,7 +432,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
+		collection := resources.NewConnectorCollection([]types.OIDCConnector{expected}, nil, nil)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -500,7 +500,7 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetSigningKeyPair(created.GetSigningKeyPair())
 		expected.SetAssertionConsumerService("updated-acs")
 
-		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
+		collection := resources.NewConnectorCollection(nil, []types.SAMLConnector{expected}, nil)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
