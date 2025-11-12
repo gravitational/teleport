@@ -237,14 +237,56 @@ or there are excess connections to the desired Proxy set.
 ### Additonal Thoughts and Considerations
 
 #### Auth HTTP Clients
-HTTP clients should also reconnect when an auth becomes unhealthy. A `http.RoundTripper`[^10]
-can be used to close[^11] the underlying connection when the client gets a `5xx` response.
+HTTP client connections to auth need to be handled during failures.
 
-This assumes that a client will get a `5xx` response when the connected auth server
-is unhealthy. Testing needs to be done to validate this behavior. The backup plan
-is a more heavy handed approach of setting `DisableKeepAlives`[^12] for the
-transport. This is not the preferred approach beacuse it will create a new
-connection for every request.
+There was discussion on whether we should migrate all auth http endpoints to gRPC
+then focus on solving failover for gRPC alone.
+
+To make a decision on this we've taken inventory of the existing auth http endpoints.
+
+We can see there are 19 http endpoints. 15 of which are still in use.
+
+Migrating these would be a large undertaking and would still require a intermidiary
+solution for http client reconnects in order to depricate the existing HTTP endpoints
+and support backwards compabilitity across 1 major version.
+
+|api                       |used |description                                                |
+|--------------------------|-----|-----------------------------------------------------------|
+|UpsertTunnelConnection    |TRUE |used by leaf cluster reversetunnel                         |
+|GetTunnelConnections      |TRUE |used by remote cluster cache                               |
+|GetAllTunnelConnections   |TRUE |used by remote cluster cache and leaf cluster reversetunnel|
+|DeleteTunnelConnection    |TRUE |used by leaf cluster reversetunnel                         |
+|DeleteTunnelConnections   |FALSE|unused except in testing                                   |
+|UpsertAuthServer          |FALSE|unused except in testing                                   |
+|GetAuthServers            |TRUE |used by tctl and proxy webapi                              |
+|UpsertProxy               |TRUE |used by proxy heartbeat                                    |
+|GetProxies                |TRUE |used all over                                              |
+|DeleteAllProxies          |FALSE|unused except in testing                                   |
+|DeleteProxy               |TRUE |used by proxy and tctl                                     |
+|ExtendWebSession          |TRUE |used by proxy webapi                                       |
+|AuthenticateWebUser       |TRUE |used py proxy webapi                                       |
+|AuthenticateSSHUser       |TRUE |used by proxy webapi                                       |
+|GetWebSessionInfo         |FALSE|unused except in testing                                   |
+|DeleteWebSession          |TRUE |used by proxy webapi                                       |
+|ValidateOIDCAuthCallback  |TRUE |used by proxy webapi                                       |
+|ValidateSAMLResponse      |TRUE |used by proxy webapi                                       |
+|ValidateGithubAuthCallback|TRUE |used by proxy webapi                                       |
+
+For the sake of time and scope of this project we will handle http client reconnects
+but it is generally agreed that migrating these endpoints to grpc would be a better
+solution.
+
+HTTP reconnects will be enforced server side by setting the `Connection: close`[^12] header
+when the auth server is unhealthy. The `TELEPORT_UNSTABLE_HTTP_CLOSE_UNHEALTHY=true`
+environment variable must be specified to opt-in to this behavior.
+
+This will be implemented by wrapping the `http.Server.Handler`[^13]. For each response
+we can check the state of the auth service and set the `Connection: close`[^12] response
+header accordingly. It is expected that service routing will eventually stop
+sending new connections to the unhealthy service. During this time if the unhealthy
+auth service continues to receive new connections there may be increased new connection
+attempts from clients since each connection will send a single request before being
+instructed to reconnect.
 
 #### Periodic Auth Reconnects
 
@@ -303,5 +345,6 @@ libraries.
 [^8]: https://github.com/gravitational/teleport/blob/4e19f750520d0ccf2c49ed109dc3c94383ec4765/lib/reversetunnel/local_cluster.go#L809
 [^9]: https://github.com/gravitational/teleport/blob/4e19f750520d0ccf2c49ed109dc3c94383ec4765/lib/reversetunnel/agent.go#L545-L550
 [^10]: https://pkg.go.dev/net/http#RoundTripper
-[^11]: https://pkg.go.dev/net/http#RoundTripper:~:text=//%20Close%20indicates%20whether,set.%0A%09Close%20bool
-[^12]: https://pkg.go.dev/net/http#:~:text=//%20DisableKeepAlives%2C%20if%20true%2C%20disables%20HTTP%20keep%2Dalives%20and%0A%09//%20will%20only%20use%20the%20connection%20to%20the%20server%20for%20a%20single%0A%09//%20HTTP%20request.%0A%09//%0A%09//%20This%20is%20unrelated%20to%20the%20similarly%20named%20TCP%20keep%2Dalives.%0A%09DisableKeepAlives%20bool
+[^11]: https://docs.google.com/spreadsheets/d/1m1FD-xVEqLyc6Boh2XXuJpdjmeLPDwra-ZUDuWxhCOs/edit?gid=0#gid=0
+[^12]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Connection#close
+[^13]: https://pkg.go.dev/net/http#Server:~:text=format.%0A%09Addr%20string-,Handler,-Handler%20//%20handler%20to
