@@ -1283,9 +1283,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 			require.NoError(t, err)
 
-			t.Cleanup(func() {
-				discServer.Stop()
-			})
+			t.Cleanup(discServer.Stop)
 			go discServer.Start()
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -1300,6 +1298,97 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
+}
+
+// TestDiscoveryKubeServicesInterval tests that the poll interval is honored for Kube App Discovery.
+func TestDiscoveryKubeServicesInterval(t *testing.T) {
+	const mainDiscoveryGroup = "main"
+	clock := clockwork.NewFakeClock()
+	waitForReconcileTimeout := 5 * time.Second
+	tickDuration := 200 * time.Millisecond
+	ctx := context.Background()
+
+	mockKubeServices := []*corev1.Service{
+		newMockKubeService("service1", "ns1", "",
+			map[string]string{"test-label": "testval"},
+			map[string]string{
+				types.DiscoveryPublicAddr:  "custom.example.com",
+				types.DiscoveryPathLabel:   "foo/bar baz",
+				types.DiscoveryDescription: "example description",
+			},
+			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
+	}
+
+	app1 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
+
+	// Create and start test auth server.
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+	// Auth client for discovery service.
+	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
+	authClient, err := tlsServer.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+	// Kubernetes app matcher
+	kubernetesMatchers := []types.KubernetesMatcher{
+		{
+			Types:      []string{"app"},
+			Namespaces: []string{types.Wildcard},
+			Labels:     map[string]utils.Strings{"test-label": {"testval"}},
+		},
+	}
+
+	pollInterval := 1 * time.Minute
+	discServer, err := New(
+		authz.ContextWithUser(ctx, identity.I),
+		&Config{
+			ClusterFeatures:  func() proto.Features { return proto.Features{} },
+			KubernetesClient: fake.NewSimpleClientset(mockKubeServices[0]),
+			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+			Matchers: Matchers{
+				Kubernetes: kubernetesMatchers,
+			},
+			Emitter:        authClient,
+			DiscoveryGroup: mainDiscoveryGroup,
+			PollInterval:   pollInterval,
+			clock:          clock,
+		})
+	require.NoError(t, err)
+
+	t.Cleanup(discServer.Stop)
+	go discServer.Start()
+
+	// First reconcile should have 1 app
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		existingApps, err := tlsServer.Auth().GetApps(ctx)
+		require.NoError(t, err)
+		require.Len(t, existingApps, 1)
+	}, waitForReconcileTimeout, tickDuration)
+
+	// After deleting in auth server, should have no apps
+	err = tlsServer.Auth().DeleteApp(ctx, app1.GetName())
+	require.NoError(t, err)
+	actualApps, err := tlsServer.Auth().GetApps(ctx)
+	require.NoError(t, err)
+	require.Empty(t, actualApps)
+
+	clock.Advance(pollInterval)
+
+	// Second reconcile should have 1 app
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		existingApps, err := tlsServer.Auth().GetApps(ctx)
+		require.NoError(t, err)
+		require.Len(t, existingApps, 1)
+	}, waitForReconcileTimeout, tickDuration)
 }
 
 func TestDiscoveryInCloudKube(t *testing.T) {
