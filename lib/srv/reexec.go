@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -68,6 +69,9 @@ const (
 	// CommandFile is used to pass the command and arguments that the
 	// child process should execute from the parent process.
 	CommandFile FileFD = 3 + iota
+	// LogFile is used to emit logs from the child process to the parent
+	// process.
+	LogFile
 	// ContinueFile is used to communicate to the child process that
 	// it can continue after the parent process assigns a cgroup to the
 	// child process.
@@ -101,6 +105,9 @@ func fdName(f FileFD) string {
 // ExecCommand contains the payload to "teleport exec" which will be used to
 // construct and execute a shell.
 type ExecCommand struct {
+	// LogConfig is the log configuration for the child process.
+	LogConfig ExecLogConfig `json:"log_config"`
+
 	// Command is the command to execute. If an interactive session is being
 	// requested, will be empty. If a subsystem is requested, it will contain
 	// the subsystem name.
@@ -166,6 +173,21 @@ type ExecCommand struct {
 	// SetSELinuxContext is true when the SELinux context should be set
 	// for the child.
 	SetSELinuxContext bool `json:"set_selinux_context"`
+}
+
+// ExecLogConfig represents all the logging configuration data that
+// needs to be passed to the child.
+type ExecLogConfig struct {
+	// Level is the log level to use.
+	Level *slog.LevelVar
+	// Format defines the output format. Possible values are 'text' and 'json'.
+	Format string
+	// ExtraFields lists the output fields from KnownFormatFields. Example format: [timestamp, component, caller].
+	ExtraFields []string
+	// EnableColors dictates if output should be colored when Format is set to "text".
+	EnableColors bool
+	// Padding to use for various components when Format is set to "text".
+	Padding int
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -253,6 +275,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return io.Discard, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
+	initLogger("reexec", c.LogConfig)
+
 	auditdMsg := auditd.Message{
 		SystemUser:   c.Login,
 		TeleportUser: c.Username,
@@ -267,6 +291,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	defer func() {
 		if err != nil {
+			slog.ErrorContext(ctx, "failed to run command", "error", err)
+
 			if errors.Is(err, user.UnknownUserError(c.Login)) {
 				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
 					slog.DebugContext(ctx, "failed to send UserErr event to auditd", "error", err)
@@ -594,6 +620,8 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+
+	initLogger("networking", c.LogConfig)
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
 	// else because PAM is sometimes used to create the local user used for
@@ -1243,6 +1271,11 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	env := &envutils.SafeEnv{}
 	env.AddExecEnvironment()
 
+	// If the log reader is set, we need to copy the logs to the log writer.
+	if ctx.logr != nil {
+		go copyLogs(ctx)
+	}
+
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
 		Path: executable,
@@ -1251,6 +1284,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
+			ctx.logw,
 			ctx.contr,
 			ctx.readyw,
 			ctx.killShellr,
@@ -1285,6 +1319,18 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
 		slog.ErrorContext(ctx.CancelContext(), "Failed to copy command over pipe", "error", err)
 		return
+	}
+}
+
+// copyLogs copies logs from the child process to the parent process
+// over the pipe attached to the context. It will exit when the pipe
+// is closed.
+func copyLogs(ctx *ServerContext) {
+	logWriter := ctx.srv.LogConfig().Writer
+
+	_, err := io.Copy(logWriter, ctx.logr)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+		slog.ErrorContext(ctx.CancelContext(), "Failed to copy logs over pipe", "error", err)
 	}
 }
 
@@ -1415,4 +1461,38 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	go cmd.Wait()
 
 	return nil
+}
+
+func initLogger(name string, cfg ExecLogConfig) {
+	logWriter := os.NewFile(LogFile, fdName(LogFile))
+	if logWriter == nil {
+		return
+	}
+
+	fields, err := logutils.ValidateFields(cfg.ExtraFields)
+	if err != nil {
+		return
+	}
+
+	var logger *slog.Logger
+	switch cfg.Format {
+	case "":
+		fallthrough // not set. defaults to 'text'
+	case "text":
+		logger = slog.New(logutils.NewSlogTextHandler(logWriter, logutils.SlogTextHandlerConfig{
+			Level:            cfg.Level,
+			EnableColors:     cfg.EnableColors,
+			ConfiguredFields: fields,
+			Padding:          cfg.Padding,
+		}))
+		slog.SetDefault(logger.With(teleport.ComponentKey, name))
+	case "json":
+		logger = slog.New(logutils.NewSlogJSONHandler(logWriter, logutils.SlogJSONHandlerConfig{
+			Level:            cfg.Level,
+			ConfiguredFields: fields,
+		}))
+		slog.SetDefault(logger.With(teleport.ComponentKey, name))
+	default:
+		return
+	}
 }

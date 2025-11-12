@@ -561,6 +561,16 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
 }
 
+// LogConfig returns the log configuration for handling logs from
+// child processes.
+func (s *Server) LogConfig() srv.LogConfig {
+	return srv.LogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+	}
+}
+
 func (s *Server) Serve() {
 	var (
 		succeeded bool

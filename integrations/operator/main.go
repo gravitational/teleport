@@ -44,9 +44,7 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var (
-	scheme = controllers.Scheme
-)
+var scheme = controllers.Scheme
 
 var extraFields = []string{logutils.LevelField, logutils.ComponentField, logutils.TimestampField}
 
@@ -54,7 +52,7 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 
 	// Setup early logger, using INFO level by default.
-	slogLogger, slogLeveler, err := logutils.Initialize(logutils.Config{
+	slogLogger, slogLeveler, _, err := logutils.Initialize(logutils.Config{
 		Severity:    slog.LevelInfo.String(),
 		Format:      "json",
 		ExtraFields: extraFields,

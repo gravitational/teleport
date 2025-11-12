@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -327,6 +328,15 @@ func (m *mockServer) GetHostSudoers() HostSudoers {
 // GetSELinuxEnabled
 func (m *mockServer) GetSELinuxEnabled() bool {
 	return false
+}
+
+// LogConfig
+func (m *mockServer) LogConfig() LogConfig {
+	return LogConfig{
+		ExecLogConfig: ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+	}
 }
 
 // Implementation of ssh.Conn interface.

@@ -18,12 +18,13 @@
 package log
 
 import (
+	"io"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 )
 
 //nolint:staticcheck // SA4023. NewOSLogWriter on unsupported platforms always returns err.
-func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler, error) {
-	return nil, trace.NotImplemented("os_log is not supported on this platform")
+func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler, io.Writer, error) {
+	return nil, nil, trace.NotImplemented("os_log is not supported on this platform")
 }

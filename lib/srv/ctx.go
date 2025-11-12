@@ -198,6 +198,18 @@ type Server interface {
 
 	// EventMetadata returns [events.ServerMetadata] for this server.
 	EventMetadata() apievents.ServerMetadata
+
+	// LogConfig returns the log configuration for handling logs from
+	// child processes.
+	LogConfig() LogConfig
+}
+
+// LogConfig is the log configuration for handling logs from child processes.
+type LogConfig struct {
+	ExecLogConfig
+
+	// Writer is the output writer to use for the logger.
+	Writer io.Writer
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -402,6 +414,12 @@ type ServerContext struct {
 	cmdr *os.File
 	cmdw *os.File
 
+	// log{r,w} are used to send logs from the child process to the parent process.
+	// logr will be nil if the log output writer is an [*os.File] and copying
+	// logs from logr to the log writer is not needed.
+	logr *os.File
+	logw *os.File
+
 	// cont{r,w} is used to send the continue signal from the parent process
 	// to the child process.
 	contr *os.File
@@ -587,6 +605,23 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.killShellr)
 	child.AddCloser(child.killShellw)
+
+	// If the log writer is a file, we can pass it directly to the child
+	// process to write to. Otherwise, we need to create a pipe to the child
+	// process and stream the logs to the log writer.
+	logCfg := child.srv.LogConfig()
+	fileWriter, ok := logCfg.Writer.(*os.File)
+	if ok {
+		child.logw = fileWriter
+	} else {
+		child.logr, child.logw, err = os.Pipe()
+		if err != nil {
+			childErr := child.Close()
+			return nil, trace.NewAggregate(err, childErr)
+		}
+		child.AddCloser(child.logr)
+		child.AddCloser(child.logw)
+	}
 
 	return child, nil
 }
@@ -1115,6 +1150,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
+		LogConfig:             c.srv.LogConfig().ExecLogConfig,
 		Command:               command,
 		DestinationAddress:    c.DstAddr,
 		Username:              c.Identity.TeleportUser,

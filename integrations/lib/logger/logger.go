@@ -63,7 +63,7 @@ func Setup(conf Config) error {
 	default:
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
+	_, _, _, err := logutils.Initialize(logutils.Config{
 		Output:       conf.Output,
 		Severity:     conf.Severity,
 		Format:       conf.Format,
