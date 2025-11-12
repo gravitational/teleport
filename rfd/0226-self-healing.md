@@ -1,9 +1,8 @@
-# 0226 - Availability, Failure and Self-Healing
+# 0226 - Stranded Connection Recovery
 
 ## What
 Explore improvements to how Teleport responds to failure scenarios with a focus
-on availability and self-healing. This involves ensuring that agents can detect
-issues and recover without manual intervention.
+on moving connections and requests away from unhealthy services and towards healthy services.
 
 ## Why
 
@@ -12,7 +11,7 @@ unreachable or unavailable. This risks disrupting customer access. While Telepor
 has mechanisms to recover in many cases, there are still gaps where recovery is
 slow or requires manual intervention.
 
-Improving self-healing behavior in these scenarios will increase availability and
+Improving reconnect behavior in these scenarios will increase availability and
 provide a better customer experience when failures inevitably occur.
 
 ## Details
@@ -297,7 +296,7 @@ However we may revisit this if we want to make the gRPC load balancing policy a 
 There is some additional work to be done to determine the impact of closing these streams.
 
 We do have a path forward for enforcing this behavior if desired in the future.
-This would use a gRPC interceptor to wrap the RPC's context with a cancel context and store the cancel as a value in the context. Then the cancel function can be retreived in the `balancer.Picker`[^13] and associated
+This would use a gRPC interceptor to wrap the RPC's context with a cancel context and store the cancel as a value in the context. Then the cancel function can be retreived in the `balancer.Picker`[^14] and associated
 with a specific connection.
 
 #### Periodic Auth Reconnects
