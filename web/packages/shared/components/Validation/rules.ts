@@ -17,15 +17,6 @@
  */
 
 /**
- * ROLE_ARN_REGEX uses the same regex matcher used in the backend:
- * https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
- *
- * The regex checks for alphanumerics and select few characters.
- */
-const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
-const ROLES_ANYWHERE_NAME_REGEX = /^[ a-zA-Z0-9-_]{1,255}$/;
-
-/**
  * The result of validating a field.
  */
 export interface ValidationResult {
@@ -108,14 +99,70 @@ const requiredConfirmedPassword =
     };
   };
 
-const isIamRoleNameValid = (roleName: string) => {
+/**
+ * DNS1035_LABEL_REGEX uses the same regex matcher as documented here:
+ * https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names
+ *
+ * This matches how the backend validates integration names to satisfy a lowercase valid DNS subdomain.
+ */
+const DNS1035_LABEL_REGEX = /^[a-z]([-a-z0-9]*[a-z0-9])?$/;
+const DNS1035_LABEL_MAX_LENGTH = 63;
+const isIntegrationNameValid = (integrationName: string) => {
   return (
-    roleName && roleName.length <= 64 && roleName.match(IAM_ROLE_NAME_REGEX)
+    integrationName &&
+    integrationName.length <= DNS1035_LABEL_MAX_LENGTH &&
+    integrationName.match(DNS1035_LABEL_REGEX)
   );
 };
 
+/**
+ * IAM_ROLE_NAME_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/master/api/utils/aws/identifiers.go#L178
+ *
+ * The regex checks for alphanumerics and select few characters.
+ */
+const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
+const IAM_ROLE_NAME_MAX_LENGTH = 64;
+const isIamRoleNameValid = (roleName: string) => {
+  return (
+    roleName &&
+    roleName.length <= IAM_ROLE_NAME_MAX_LENGTH &&
+    roleName.match(IAM_ROLE_NAME_REGEX)
+  );
+};
+
+/**
+ * ROLES_ANYWHERE_NAME_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/master/api/utils/aws/identifiers.go#L213
+ */
+const ROLES_ANYWHERE_NAME_REGEX = /^[ a-zA-Z0-9-_]{1,255}$/;
+const ROLES_ANYWHERE_NAME_MAX_LENGTH = 255;
 const isRaResourceNameValid = (resourceName: string) => {
   return resourceName && resourceName.match(ROLES_ANYWHERE_NAME_REGEX);
+};
+
+/**
+ * @param name validIntegrationName verifies if the given value is a
+ * valid Integration name.
+ */
+const validIntegrationName = (name: string): ValidationResult => {
+  if (name.length > DNS1035_LABEL_MAX_LENGTH) {
+    return {
+      valid: false,
+      message: 'Name should be <= ' + DNS1035_LABEL_MAX_LENGTH + ' characters',
+    };
+  }
+
+  if (!isIntegrationNameValid(name)) {
+    return {
+      valid: false,
+      message: 'Name must be a lower case valid DNS subdomain',
+    };
+  }
+
+  return {
+    valid: true,
+  };
 };
 
 /**
@@ -123,10 +170,10 @@ const isRaResourceNameValid = (resourceName: string) => {
  * valid AWS IAM role name.
  */
 const validAwsIAMRoleName = (name: string): ValidationResult => {
-  if (name.length > 64) {
+  if (name.length > IAM_ROLE_NAME_MAX_LENGTH) {
     return {
       valid: false,
-      message: 'Name should be <= 64 characters',
+      message: 'Name should be <= ' + IAM_ROLE_NAME_MAX_LENGTH + ' characters',
     };
   }
 
@@ -142,11 +189,16 @@ const validAwsIAMRoleName = (name: string): ValidationResult => {
   };
 };
 
+/**
+ * @param name validAwsRaResourceName verifies if the given value is a
+ * valid AWS Roles Anywhere resource name.
+ */
 const validAwsRaResourceName = (name: string): ValidationResult => {
-  if (name.length > 255) {
+  if (name.length > ROLES_ANYWHERE_NAME_MAX_LENGTH) {
     return {
       valid: false,
-      message: 'Name should be <= 255 characters',
+      message:
+        'Name should be <= ' + ROLES_ANYWHERE_NAME_MAX_LENGTH + ' characters',
     };
   }
 
@@ -159,6 +211,23 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
   return {
     valid: true,
   };
+};
+
+/**
+ * requiredIntegrationName is a required field and checks for a
+ * value which should also be a valid Integration name.
+ * @param name is an integration name.
+ * @returns ValidationResult
+ */
+const requiredIntegrationName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'Integration name is required',
+    };
+  }
+
+  return validIntegrationName(name);
 };
 
 /**
@@ -459,6 +528,7 @@ export {
   requiredConfirmedPassword,
   requiredField,
   requiredRoleArn,
+  requiredIntegrationName,
   requiredIamRoleName,
   requiredIamTrustAnchorName,
   requiredIamProfileName,

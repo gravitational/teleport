@@ -43,10 +43,10 @@ import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
-  requiredField,
   requiredIamProfileName,
   requiredIamRoleName,
   requiredIamTrustAnchorName,
+  requiredIntegrationName,
 } from 'shared/components/Validation/rules';
 
 import { FeatureBox } from 'teleport/components/Layout';
@@ -270,7 +270,7 @@ export function IamIntegration() {
                 <FieldInput
                   label="Integration Name"
                   placeholder="teleport-aws-prod"
-                  rule={requiredField('Name is required')}
+                  rule={requiredIntegrationName}
                   value={formState.integrationName}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => {
                     return setFormState(prev => ({

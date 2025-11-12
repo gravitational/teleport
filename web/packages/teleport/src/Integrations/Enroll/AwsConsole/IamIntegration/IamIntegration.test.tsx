@@ -83,10 +83,10 @@ test('flows through roles anywhere IAM setup', async () => {
   ).toBeDisabled();
 
   fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
-  expect(screen.getByText('Name is required')).toBeInTheDocument();
+  expect(screen.getByText('Integration name is required')).toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText('Integration Name'), {
-    target: { value: 'some-integration-name' },
+    target: { value: 'invalid(((***' },
   });
 
   fireEvent.click(
@@ -121,10 +121,16 @@ test('flows through roles anywhere IAM setup', async () => {
     }
   );
   fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
+  expect(
+    screen.getByText('Name must be a lower case valid DNS subdomain')
+  ).toBeInTheDocument();
   expect(screen.getAllByText(/Name can only contain characters/i)).toHaveLength(
     3
   );
 
+  fireEvent.change(screen.getByLabelText('Integration Name'), {
+    target: { value: 'some-integration-name' },
+  });
   fireEvent.change(
     screen.getByLabelText('IAM Roles Anywhere Trust Anchor Name'),
     {
