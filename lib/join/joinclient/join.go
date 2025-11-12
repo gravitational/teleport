@@ -203,6 +203,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		types.JoinMethodBoundKeypair,
 		types.JoinMethodEC2,
 		types.JoinMethodEnv0,
+		types.JoinMethodGCP,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
 		types.JoinMethodIAM,
