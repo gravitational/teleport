@@ -41,7 +41,7 @@ func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler
 		withCaller: true,
 	}
 
-	return &handler, w, nil
+	return &handler, nil
 }
 
 // osLogWriter is an [outputWriter] that writes to os_log, the
