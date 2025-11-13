@@ -1,5 +1,22 @@
 # Changelog
 
+# 17.7.10 (11/13/15)
+
+* Improved reverse tunnel dialing recovery from default route changes by 1min on average. [#61318](https://github.com/gravitational/teleport/pull/61318)
+* Fixed an issue with the Identity Center resource cache that could cause the account resources to be deleted from the cache. [#61313](https://github.com/gravitational/teleport/pull/61313)
+* Fixed an issue Postgres database cannot be accessed via Teleport Connect when per-session MFA is enabled and the role does not have wildcard `db_names`. [#61300](https://github.com/gravitational/teleport/pull/61300)
+* Improved conflict detection of application public address and Teleport cluster addresses. [#61292](https://github.com/gravitational/teleport/pull/61292)
+* Fixed rare error in the `authorized_keys` secret scanner when running the Teleport agent on MacOS. [#61267](https://github.com/gravitational/teleport/pull/61267)
+* Updated Go to v1.24.10. [#61210](https://github.com/gravitational/teleport/pull/61210)
+* Instrumented tbot to better support teleport-update. [#61190](https://github.com/gravitational/teleport/pull/61190)
+* Improved error message of `tsh` when there is a certificate DNS SAN mismatch when connecting to Auth via Proxy. [#61187](https://github.com/gravitational/teleport/pull/61187)
+* Improved error handling during desktop sessions that encounter unknown/invalid smartcard commands. This prevents abrupt desktop session termination with a "PDU error" message when using certain applications. [#61179](https://github.com/gravitational/teleport/pull/61179)
+* Updated github.com/containerd/containerd dependency to fix https://github.com/advisories/GHSA-pwhc-rpq9-4c8w. [#61145](https://github.com/gravitational/teleport/pull/61145)
+* Updated quic-go dependency to fix CVE-2025-59530. [#61111](https://github.com/gravitational/teleport/pull/61111)
+* Fixed a bug causing `tsh` to stop waiting for access request approval and incorrectly report that the request had been deleted. [#61110](https://github.com/gravitational/teleport/pull/61110)
+* Fixed an issue where resources in Teleport Connect were not always refreshed correctly after re-logging in as a different user. [#61100](https://github.com/gravitational/teleport/pull/61100)
+* Fixed an issue which could lead to session recordings saved on disk being truncated. [#60965](https://github.com/gravitational/teleport/pull/60965)
+
 ## 17.7.9 (11/05/25)
 
 * Fixed configuration files such as `.kube/config` referring to non-existent `tsh` binaries. [#60872](https://github.com/gravitational/teleport/pull/60872)
