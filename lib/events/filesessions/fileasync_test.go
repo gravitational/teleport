@@ -540,11 +540,25 @@ func TestMinimumUpload(t *testing.T) {
 	// Before completing the file stream, which writes upload part files into a .tar, check that
 	// each file part was within specific size expectations.
 	var partFiles []fs.FileInfo
-	err = filepath.Walk(p.scanDir, func(path string, info fs.FileInfo, err error) error {
+	filepath.WalkDir(p.scanDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err, "walking directory tree")
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return trace.Wrap(err, "retrieving file info")
+		}
+
 		// skip non-part files.
 		if ext := filepath.Ext(info.Name()); ext == ".part" {
 			partFiles = append(partFiles, info)
 		}
+
 		return nil
 	})
 	require.NoError(t, err)

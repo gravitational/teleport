@@ -58,7 +58,6 @@
     "jsdom-testing-mocks": "^1.13.1",
     "msw": "^2.7.6",
     "msw-storybook-addon": "^2.0.5",
-    "node-gyp": "^11.4.2",
     "playwright": "^1.55.1",
     "prettier": "^3.5.3",
     "react-select-event": "^5.5.1",
@@ -107,7 +106,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.18.0+sha512.e804f889f1cecc40d572db084eec3e4881739f8dec69c0ff10d2d1beff9a4e309383ba27b5b750059d7f4c149535b6cd0d2cb1ed3aeb739239a4284a68f40cfa",
+  "packageManager": "pnpm@10.20.0+sha512.cf9998222162dd85864d0a8102e7892e7ba4ceadebbf5a31f9c2fce48dfce317a9c53b9f6464d1ef9042cba2e02ae02a9f7c143a2b438cd93c91840f0192b9dd",
   "engines": {
     "node": "^22"
   }

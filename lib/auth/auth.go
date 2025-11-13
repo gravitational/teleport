@@ -2648,6 +2648,8 @@ type certRequest struct {
 	// joinAttributes holds attributes derived from attested metadata from the
 	// join process, should any exist.
 	joinAttributes *workloadidentityv1pb.JoinAttrs
+	// requesterName is the name of the service that sent the request.
+	requesterName proto.UserCertsRequest_Requester
 }
 
 // check verifies the cert request is valid.
@@ -3784,6 +3786,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
 	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
+		// Requesting AWS credential_process credentials for Apps without AWS client side credentials is a client error.
+		if req.requesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS {
+			return nil, trace.BadParameter("client requested aws credentials for an invalid resource")
+		}
+
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}

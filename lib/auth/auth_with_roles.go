@@ -3412,9 +3412,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
 				req.Expires = maxTime
 			}
-		} else if isLocalProxyCertReq(&req) {
-			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl
-			// or mfa_verification_interval or req.Expires.
+		} else if !isCertWrittenToDiskFlow(&req) {
+			// If requested certificate is for a flow that does not involve writing the certificate to disk
+			// (e.g. tsh proxy of DB, Kube, App, and AWS App Access using credential process)
+			// it is limited by max session ttl or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
 			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
@@ -3595,6 +3596,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		tlsPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:                   req.RouteToCluster,
+		requesterName:                    req.RequesterName,
 		kubernetesCluster:                req.KubernetesCluster,
 		dbService:                        req.RouteToDatabase.ServiceName,
 		dbProtocol:                       req.RouteToDatabase.Protocol,
@@ -6287,6 +6289,15 @@ func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, target
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.Cache.GetLocks(ctx, inForceOnly, targets...)
+}
+
+// ListLocks returns a page of locks
+func (a *ServerWithRoles) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	if err := a.authorizeAction(types.KindLock, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.Cache.ListLocks(ctx, limit, startKey, filter)
 }
 
 // UpsertLock upserts a lock.

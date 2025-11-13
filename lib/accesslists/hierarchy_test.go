@@ -20,6 +20,7 @@ package accesslists
 
 import (
 	"context"
+	"iter"
 	"sort"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // Mock implementation of AccessListAndMembersGetter.
@@ -83,6 +85,40 @@ func (m *mockLocksGetter) GetLocks(ctx context.Context, inForceOnly bool, target
 		locks = append(locks, m.targets[target.User]...)
 	}
 	return locks, nil
+}
+
+func (m *mockLocksGetter) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	if limit > 0 || startKey != "" {
+		return nil, "", trace.NotImplemented("limit and start are not supported")
+	}
+
+	if filter == nil {
+		return nil, "", trace.BadParameter("missing filter")
+	}
+
+	var locks []types.Lock
+	for _, target := range filter.Targets {
+		locks = append(locks, m.targets[target.User]...)
+	}
+	return locks, "", nil
+}
+
+func (m *mockLocksGetter) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
+	if start != "" || end != "" {
+		return stream.Fail[types.Lock](trace.NotImplemented("start and end are not supported"))
+	}
+
+	if filter == nil {
+		return stream.Fail[types.Lock](trace.BadParameter("missing filter"))
+	}
+
+	var sliceStreams []stream.Stream[types.Lock]
+
+	for _, target := range filter.Targets {
+		sliceStreams = append(sliceStreams, stream.Slice(m.targets[target.User]))
+	}
+
+	return stream.Chain(sliceStreams...)
 }
 
 const (

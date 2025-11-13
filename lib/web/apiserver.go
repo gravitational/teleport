@@ -872,7 +872,16 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
+	// TODO (avatus): delete in v21
+	// Deprecated: Use the v2 endpoint instead.
+	//
+	// clusterSearchEvents handles audit event retrieval for a given site.
+	// This legacy endpoint returns event listings without advanced search capabilities.
+	// Prefer using /v2/webapi/sites/:site/events/search for full query-based filtering.
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents)) // search site events
+	// clusterSearchEventsV2 handles audit event retrieval for a given site with support for
+	// advanced search filters and query parameters.
+	h.GET("/v2/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEventsV2))            // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
@@ -2403,6 +2412,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			CSRFToken:         response.Req.CSRFToken,
 			Username:          response.Username,
 			SessionName:       response.Session.GetName(),
+			SessionExpiry:     response.Session.Expiry(),
 			ClientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
@@ -2749,7 +2759,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("invalid credentials")
 	}
 
-	if err := websession.SetCookie(w, req.User, webSession.GetName()); err != nil {
+	if err := websession.SetCookie(w, req.User, webSession.GetName(), webSession.Expiry()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2873,7 +2883,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := websession.SetCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
+	if err := websession.SetCookie(w, newSession.GetUser(), newSession.GetName(), newSession.Expiry()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2950,7 +2960,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	if err := websession.SetCookie(w, sess.GetUser(), sess.GetName()); err != nil {
+	if err := websession.SetCookie(w, sess.GetUser(), sess.GetName(), sess.Expiry()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3155,7 +3165,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Fetch user from session, user is empty for passwordless requests.
 	user := session.GetUser()
-	if err := websession.SetCookie(w, user, session.GetName()); err != nil {
+	if err := websession.SetCookie(w, user, session.GetName(), session.Expiry()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3668,7 +3678,19 @@ func (h *Handler) getClusterLocks(
 		return nil, trace.Wrap(err)
 	}
 
-	locks, err := clt.GetLocks(ctx, false)
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			var noFilter *types.LockFilter
+			return clt.ListLocks(ctx, limit, start, noFilter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			const inForceOnlyFalse = false
+			return clt.GetLocks(ctx, inForceOnlyFalse)
+		},
+	)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3693,7 +3715,10 @@ func (h *Handler) getClusterLocksV2(
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(okraport): DELETE IN v21
 	var targets []types.LockTarget
+	filter := &types.LockFilter{}
+
 	if r.URL.Query().Has("target") {
 		ts := r.URL.Query()["target"]
 		for _, ts := range ts {
@@ -3727,15 +3752,26 @@ func (h *Handler) getClusterLocksV2(
 				return nil, trace.BadParameter("invalid target type %q", parts[0])
 			}
 			targets = append(targets, target)
+			filter.Targets = append(filter.Targets, &target)
 		}
 	}
 
 	inForceOnly := false
 	if r.URL.Query().Has("in_force_only") {
 		inForceOnly = r.URL.Query().Get("in_force_only") == "true"
+		filter.InForceOnly = inForceOnly
 	}
 
-	locks, err := clt.GetLocks(ctx, inForceOnly, targets...)
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return clt.ListLocks(ctx, limit, start, filter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			return clt.GetLocks(ctx, inForceOnly, targets...)
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4363,6 +4399,47 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 	return el, nil
 }
 
+// clusterSearchEventsV2 returns all audit log events matching the provided criteria
+//
+// GET /v2/webapi/sites/:site/events/search
+//
+// Query parameters:
+//
+//	"from"    : date range from, encoded as RFC3339
+//	"to"      : date range to, encoded as RFC3339
+//	"limit"   : optional maximum number of events to return on each fetch
+//	"startKey": resume events search from the last event received,
+//	            empty string means start search from beginning
+//	"include" : optional comma-separated list of event names to return e.g.
+//	            include=session.start,session.end, all are returned if empty
+//	"order":    optional ordering of events. Can be either "asc" or "desc"
+//	            for ascending and descending respectively.
+//	            If no order is provided it defaults to descending.
+//	"search":   optional search term to filter events by (case-insensitive substring match)
+func (h *Handler) clusterSearchEventsV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	values := r.URL.Query()
+
+	var eventTypes []string
+	if include := values.Get("include"); include != "" {
+		eventTypes = strings.Split(include, ",")
+	}
+
+	search := values.Get("search")
+
+	searchEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
+			From:       from,
+			To:         to,
+			EventTypes: eventTypes,
+			Limit:      limit,
+			Order:      order,
+			StartKey:   startKey,
+			Search:     search,
+		})
+	}
+	return clusterEventsList(r.Context(), sctx, cluster, r.URL.Query(), searchEvents)
+}
+
 // clusterSearchEvents returns all audit log events matching the provided criteria
 //
 // GET /v1/webapi/sites/:site/events/search
@@ -4521,7 +4598,7 @@ func QueryLimitAsInt32(query url.Values, name string, def int32) (int32, error) 
 // queryOrder returns the order parameter with the specified name from the
 // query string or a default if the parameter is not provided.
 func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
-	value := query.Get(name)
+	value := strings.ToLower(query.Get(name))
 	switch value {
 	case "desc":
 		return types.EventOrderDescending, nil
@@ -5409,6 +5486,10 @@ type SSOCallbackResponse struct {
 	// SessionName is the name of the session generated by auth server if
 	// requested in the SSO request.
 	SessionName string
+	// SessionExpiry is the expiration of the session. This is used
+	// to set the expiration time of the cookie. If no expiraton is set,
+	// the cookie with be a "session cookie", which is removed when the browser closes.
+	SessionExpiry time.Time
 	// ClientRedirectURL is the URL to redirect back to on completion of
 	// the SSO login process.
 	ClientRedirectURL string
@@ -5433,7 +5514,7 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		}
 	}
 
-	if err := websession.SetCookie(w, response.Username, response.SessionName); err != nil {
+	if err := websession.SetCookie(w, response.Username, response.SessionName, response.SessionExpiry); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -2789,7 +2789,7 @@ func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string,
 }
 
 // SearchEvents allows searching for events with a full pagination support.
-func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, search string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetEventsRequest{
 		Namespace:  namespace,
 		StartDate:  fromUTC,
@@ -2798,6 +2798,7 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 		Limit:      int32(limit),
 		StartKey:   startKey,
 		Order:      proto.Order(order),
+		Search:     search,
 	}
 
 	response, err := c.grpc.GetEvents(ctx, request)
@@ -3458,6 +3459,41 @@ func (c *Client) GetLocks(ctx context.Context, inForceOnly bool, targets ...type
 		locks = append(locks, lock)
 	}
 	return locks, nil
+}
+
+// ListLocks returns a page of locks matching a filter
+func (c *Client) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	resp, err := c.grpc.ListLocks(
+		ctx,
+		&proto.ListLocksRequest{
+			PageSize:  int32(limit),
+			PageToken: startKey,
+			Filter:    filter,
+		},
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	locks := make([]types.Lock, 0, len(resp.Locks))
+	for _, lock := range resp.Locks {
+		locks = append(locks, lock)
+	}
+	return locks, resp.NextPageToken, nil
+
+}
+
+// RangeLocks returns locks within the range [start, end) matching a filter
+func (c *Client) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
+	return clientutils.RangeResources(
+		ctx,
+		start,
+		end,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return c.ListLocks(ctx, limit, start, filter)
+		},
+		types.Lock.GetName,
+	)
 }
 
 // UpsertLock upserts a lock.

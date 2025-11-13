@@ -1,5 +1,15 @@
 # Changelog
 
+## 18.3.2 (11/07/25)
+
+* Updated github.com/containerd/containerd dependency to fix https://github.com/advisories/GHSA-pwhc-rpq9-4c8w. [#61143](https://github.com/gravitational/teleport/pull/61143)
+* Fixed regression when connecting to non-AD desktops. [#61117](https://github.com/gravitational/teleport/pull/61117)
+* Fixed a bug causing `tsh` to stop waiting for access request approval and incorrectly report that the request had been deleted. [#61109](https://github.com/gravitational/teleport/pull/61109)
+* Fixed an issue where resources in Teleport Connect were not always refreshed correctly after re-logging in as a different user. [#61099](https://github.com/gravitational/teleport/pull/61099)
+
+Enterprise:
+* Added support for Amazon Bedrock to session recording summarizer (unavailable in Teleport Cloud). [#7463](https://github.com/gravitational/teleport.e/pull/7463)
+
 ## 18.3.1 (11/04/25)
 
 * Fixed an issue MCP session end event is not being sent sometimes. [#61009](https://github.com/gravitational/teleport/pull/61009)

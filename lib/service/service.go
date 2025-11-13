@@ -58,7 +58,6 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -179,6 +178,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
@@ -1621,7 +1621,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		if err := createLockedPIDFile(cfg.PIDFile); err != nil {
+		if err := procutils.CreateLockedPIDFile(cfg.PIDFile); err != nil {
 			return nil, trace.Wrap(err, "creating pidfile")
 		}
 	}
@@ -3573,7 +3573,7 @@ func (process *TeleportProcess) initSSH() error {
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
 			ctx := payloadContext(event.Payload)
-			restartingOnGracefulShutdown = services.IsProcessReloading(ctx) || services.HasProcessForked(ctx)
+			restartingOnGracefulShutdown = services.HasProcessForked(ctx)
 			warnOnErr(ctx, s.Shutdown(ctx), logger)
 		}
 
@@ -7267,36 +7267,4 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	}
 	statusService := local.NewStatusService(process.backend)
 	return externalauditstorage.NewConfigurator(process.ExitContext(), easSvc, integrationSvc, statusService)
-}
-
-// createLockedPIDFile creates a PID file in the path specified by pidFile
-// containing the current PID, atomically swapping it in the final place and
-// leaving it with an exclusive advisory lock that will get released when the
-// process ends, for the benefit of "pkill -L".
-func createLockedPIDFile(pidFile string) error {
-	pending, err := renameio.NewPendingFile(pidFile, renameio.WithPermissions(0o644))
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	defer pending.Cleanup()
-	if _, err := fmt.Fprintf(pending, "%v\n", os.Getpid()); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	const minimumDupFD = 3 // skip stdio
-	locker, err := unix.FcntlInt(pending.Fd(), unix.F_DUPFD_CLOEXEC, minimumDupFD)
-	runtime.KeepAlive(pending)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	if err := unix.Flock(locker, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		_ = unix.Close(locker)
-		return trace.ConvertSystemError(err)
-	}
-	// deliberately leak the fd to hold the lock until the process dies
-
-	if err := pending.CloseAtomicallyReplace(); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
 }

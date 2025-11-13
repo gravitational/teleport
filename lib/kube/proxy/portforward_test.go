@@ -454,8 +454,10 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 		}
 	}, 5*time.Second, 100*time.Millisecond, "streams werent properly removed from targetConn")
 
-	require.True(t, sourceConn.streamsClosed(), "sourceConn streams not closed")
-	require.True(t, targetConn.streamsClosed(), "targetConn streams not closed")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.True(t, sourceConn.streamsClosed(), "sourceConn streams not closed")
+		assert.True(t, targetConn.streamsClosed(), "targetConn streams not closed")
+	}, 15*time.Second, 100*time.Millisecond, "streams not closed")
 }
 
 type fakeSPDYStream struct {
