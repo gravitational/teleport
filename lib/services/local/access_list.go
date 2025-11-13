@@ -1178,3 +1178,59 @@ func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Contex
 	}
 	return nil
 }
+
+// InsertAccessListCollection inserts a complete collection of access lists and their members from a single
+// upstream source (e.g. EntraID) using a batch operation for improved performance.
+//
+// This method is designed for bulk import scenarios where an entire set of access lists collection needs to be
+// synchronized from an external source. All access lists and members in the collection are
+// inserted using single batch operation, minimizing the number of write operations.
+// Due to the batch nature of this operation (access list hierarchy is known upfront)
+// we can avoid per-access-list locking, global locks to improve performance.
+//
+// Important: This method assumes the collection is self-contained. Access lists in the collection
+// cannot reference access lists outside the collection as members or owners. This is intentional for
+// collections representing a complete snapshot from a single upstream source.
+// The function should be used only once during initial import where
+// we are sure that teleport don't have any pre-existing access lists from the upstream and the
+// internal relation between upstream access lists adn internal access lists don't exist yet.
+//
+// Operation can fail due to backend shutdown. In that case if the partial state was created
+// calling the UpsertAccessListWithMembers/ DeleteAccessListMember and reconciling to deside state.
+func (a *AccessListService) InsertAccessListCollection(ctx context.Context, collection *accesslists.Collection) error {
+	if err := collection.Validate(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	items, err := a.collectionToBackendItems(collection)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = backend.PutBatch(ctx, a.backend, items)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (a *AccessListService) collectionToBackendItems(collection *accesslists.Collection) ([]backend.Item, error) {
+	var out []backend.Item
+	for aclName, members := range collection.MembersByAccessList {
+		for _, member := range members {
+			item, err := a.memberService.WithPrefix(member.Spec.AccessList).MakeBackendItem(member)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out = append(out, item)
+		}
+		acl, ok := collection.AccessListsByName[aclName]
+		if !ok {
+			return nil, trace.BadParameter("access list '%s' not found", aclName)
+		}
+		item, err := a.service.MakeBackendItem(acl)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}

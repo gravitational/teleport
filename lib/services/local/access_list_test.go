@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -2270,4 +2271,92 @@ func assertMemberOf(t *testing.T, ctx context.Context, svc *AccessListService, n
 	item, err := svc.GetAccessList(ctx, name)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expected, item.Status.MemberOf)
+}
+
+func TestInsertAccessListCollection(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	t.Run("memberOf and ownerOf check", func(t *testing.T) {
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+		list1 := newAccessList(t, "list1", clock)
+		list2 := newAccessList(t, "list2", clock)
+		list3 := newAccessList(t, "list3", clock)
+		list4 := newAccessList(t, "list4", clock)
+
+		list1.Spec.Owners = append(list1.Spec.Owners, accesslist.Owner{
+			Name:           list2.GetName(),
+			MembershipKind: accesslist.MembershipKindList,
+		})
+
+		collection := &accesslists.Collection{}
+		require.NoError(t, collection.AddAccessList(list1, nil))
+		require.NoError(t, collection.AddAccessList(list2, nil))
+		require.NoError(t, collection.AddAccessList(list3, []*accesslist.AccessListMember{
+			newAccessListMember(t, list3.GetName(), list1.GetName(), withMembershipKind(accesslist.MembershipKindList))}),
+		)
+		require.NoError(t, collection.AddAccessList(list4, []*accesslist.AccessListMember{
+			newAccessListMember(t, list4.GetName(), list2.GetName(), withMembershipKind(accesslist.MembershipKindList))}),
+		)
+
+		err = service.InsertAccessListCollection(ctx, collection)
+		require.NoError(t, err)
+
+		// list1: no ownerOf, memberOf list3
+		result1, err := service.GetAccessList(ctx, list1.GetName())
+		require.NoError(t, err)
+		require.Empty(t, result1.Status.OwnerOf)
+		require.Equal(t, []string{list3.GetName()}, result1.Status.MemberOf)
+
+		// list2: ownerOf list1, memberOf list4
+		result2, err := service.GetAccessList(ctx, list2.GetName())
+		require.NoError(t, err)
+		require.Equal(t, []string{list1.GetName()}, result2.Status.OwnerOf)
+		require.Equal(t, []string{list4.GetName()}, result2.Status.MemberOf)
+
+		// list3 and list4: no ownerOf, no memberOf
+		result3, err := service.GetAccessList(ctx, list3.GetName())
+		require.NoError(t, err)
+		require.Empty(t, result3.Status.OwnerOf)
+		require.Empty(t, result3.Status.MemberOf)
+		result4, err := service.GetAccessList(ctx, list4.GetName())
+		require.NoError(t, err)
+		require.Empty(t, result4.Status.OwnerOf)
+		require.Empty(t, result4.Status.MemberOf)
+	})
+
+	t.Run("circular reference in nested lists", func(t *testing.T) {
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+		list1 := newAccessList(t, "list1", clock)
+		list2 := newAccessList(t, "list2", clock)
+
+		// Create circular reference: list1 -> list2 -> list1
+		member1 := newAccessListMember(t, list1.GetName(), list2.GetName(), withMembershipKind(accesslist.MembershipKindList))
+		member2 := newAccessListMember(t, list2.GetName(), list1.GetName(), withMembershipKind(accesslist.MembershipKindList))
+
+		collection := &accesslists.Collection{
+			MembersByAccessList: make(map[string][]*accesslist.AccessListMember),
+			AccessListsByName:   make(map[string]*accesslist.AccessList),
+		}
+		err = collection.AddAccessList(list1, []*accesslist.AccessListMember{member1})
+		require.NoError(t, err)
+		err = collection.AddAccessList(list2, []*accesslist.AccessListMember{member2})
+		require.NoError(t, err)
+
+		require.Error(t, service.InsertAccessListCollection(ctx, collection))
+	})
 }
