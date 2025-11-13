@@ -64,10 +64,11 @@ See [all message definitions](#appendix-a-example-message-definitions) below.
 
 ### Framing
 All TDPB messages will be preceded by a simple framing header consisting of
-two unsigned varint encoded integers representing the message type and message length respectively.
+two, unsigned, 32-bit, big-endian encoded integers representing the message
+type and message length respectively.
 
 ```
-| message type (uvarint) | message_length (uvarint) | message_data []byte |
+| message type (uint32) | message_length (uint32) | message_data []byte |
 ```
 
 ### Proxy/Agent Protocol Selection via ALPN
