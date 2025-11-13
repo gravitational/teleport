@@ -97,7 +97,7 @@ type CheckIDTokenParams struct {
 	Validator      Validator
 }
 
-func (p *CheckIDTokenParams) checkAndSetDefaults() error {
+func (p *CheckIDTokenParams) validate() error {
 	switch {
 	case p.ProvisionToken == nil:
 		return trace.BadParameter("ProvisionToken is required")
@@ -114,7 +114,7 @@ func CheckIDToken(
 	ctx context.Context,
 	params *CheckIDTokenParams,
 ) (*IDTokenClaims, error) {
-	if err := params.checkAndSetDefaults(); err != nil {
+	if err := params.validate(); err != nil {
 		return nil, trace.AccessDenied("%s", err.Error())
 	}
 
