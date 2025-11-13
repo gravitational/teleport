@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform-mwi
 
-go 1.24.9
+go 1.24.10
 
 require (
 	github.com/gravitational/teleport v0.0.0 // replaced
@@ -142,7 +142,7 @@ require (
 	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
-	github.com/containerd/containerd v1.7.27 // indirect
+	github.com/containerd/containerd v1.7.29 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
