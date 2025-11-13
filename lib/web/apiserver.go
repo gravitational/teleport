@@ -2791,10 +2791,21 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	return res, trace.Wrap(err)
 }
 
+const headerMaxTouchPoints = "Max-Touch-Points"
+
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
+	var maxTouchPoints int
+	rawMaxTouchPoints := r.Header.Get(headerMaxTouchPoints)
+	if rawMaxTouchPoints != "" {
+		if value, err := strconv.Atoi(rawMaxTouchPoints); err == nil {
+			maxTouchPoints = value
+		}
+	}
+
 	return &authclient.ForwardedClientMetadata{
-		UserAgent:  r.UserAgent(),
-		RemoteAddr: r.RemoteAddr,
+		UserAgent:      r.UserAgent(),
+		RemoteAddr:     r.RemoteAddr,
+		MaxTouchPoints: maxTouchPoints,
 	}
 }
 

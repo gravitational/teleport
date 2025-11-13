@@ -128,7 +128,9 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 		Id:    fakeWebToken.Id,
 		Token: fakeWebToken.Token,
 	}
+	var receivedWebToken *devicepb.DeviceWebToken
 	authServer.SetCreateDeviceWebTokenFunc(func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+		receivedWebToken = dwt
 		return fakeWebToken, nil
 	})
 
@@ -139,12 +141,14 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 	// Arbitrary, real-looking values.
 	const loginIP = "40.89.244.232"
 	const loginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+	const loginMaxTouchPoints = 5
 
 	t.Run("ok", func(t *testing.T) {
 		session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
 			User:                 userLlama,
 			LoginIP:              loginIP,
 			LoginUserAgent:       loginUserAgent,
+			LoginMaxTouchPoints:  loginMaxTouchPoints,
 			Roles:                user.GetRoles(),
 			Traits:               user.GetTraits(),
 			SessionTTL:           1 * time.Minute,
@@ -157,5 +161,8 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 		if diff := cmp.Diff(wantToken, gotToken); diff != "" {
 			t.Errorf("CreateWebSessionFromReq DeviceWebToken mismatch (-want +got)\n%s", diff)
 		}
+		require.Equal(t, loginIP, receivedWebToken.BrowserIp)
+		require.Equal(t, loginUserAgent, receivedWebToken.BrowserUserAgent)
+		require.Equal(t, loginMaxTouchPoints, int(receivedWebToken.BrowserMaxTouchPoints))
 	})
 }
