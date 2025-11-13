@@ -166,8 +166,7 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 			client:  newClient,
 			tlsCert: keyRing.TLSCert,
 			getProfile: func() (profile, error) {
-				pr, err := tc.GetProfile(tc.WebProxyAddr)
-				return pr, trace.Wrap(err)
+				return tc.GetProfile(tc.WebProxyAddr)
 			},
 		})
 
