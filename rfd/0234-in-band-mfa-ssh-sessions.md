@@ -503,8 +503,7 @@ session establishment. For local clusters, this storage is local to the same clu
 service forwards the validated challenge to the leaf cluster's MFA service for storage.
 
 A new backend resource `ValidatedChallenge` will be created following the [resource
-guidelines](/rfd/0153-resource-guidelines.md). The only operations supported by this resource are: creation via
-`CreateValidatedChallenge` and retrieval via `GetValidatedChallenge`. The resource will be automatically deleted after
+guidelines](/rfd/0153-resource-guidelines.md). The only operations supported by this resource are: retrieval via `GetValidatedChallenge` and replication to leaf clusters via `ReplicateValidatedChallenge`. The resource will be automatically deleted after
 retrieval or expiration.
 
 ```proto
