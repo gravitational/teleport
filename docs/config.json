@@ -2863,6 +2863,11 @@
       "source": "/reference/agent-services/okta/",
       "destination": "/identity-governance/integrations/okta/reference/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/introduction/",
+      "destination": "/enroll-resources/application-access/",
+      "permanent": true
     }
   ]
 }
