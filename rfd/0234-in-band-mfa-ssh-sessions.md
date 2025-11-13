@@ -495,7 +495,7 @@ type SSOMFASessionData struct {
 }
 ```
 
-After the MFA challenge is validated or has expired, the challenge and SIP will be removed.
+After the MFA challenge has expired, the challenge and SIP will be removed.
 
 ##### Storing Validated MFA Responses
 
@@ -522,8 +522,9 @@ message ValidatedChallenge {
   teleport.header.v1.Metadata metadata = 4;
   // The validated challenge specification.
   ValidatedChallengeSpec spec = 5;
-  // Dynamic state of the validated challenge.
-  ValidatedChallengeStatus status = 6;
+  // Reserved for future dynamic state of the validated challenge.
+  reserved 6;
+  reserved "status";
 }
 
 // ValidatedChallengeSpec contains the validated challenge data that is set once
@@ -533,13 +534,6 @@ message ValidatedChallengeSpec {
   bytes payload = 1;
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 2;
-}
-
-// ValidatedChallengeStatus contains dynamic properties that are modified by Teleport
-// during the resource lifecycle.
-message ValidatedChallengeStatus {
-  // retrieved indicates whether the validated challenge has been retrieved by an SSH service.
-  bool retrieved = 1;
 }
 ```
 
