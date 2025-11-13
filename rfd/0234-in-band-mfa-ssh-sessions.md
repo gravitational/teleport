@@ -334,8 +334,10 @@ clear separation of concerns and to avoid continuing to bloat the `AuthService` 
 complexity. Additionally, the RPCs defined in this new service are specifically focused on MFA challenges for user
 sessions, instead of further expanding the existing `CreateAuthenticateChallenge` RPC which is more general-purpose.
 
-It will implement the following RPC and messages for creating, validating, upserting and retrieving MFA challenges tied
-to specific user sessions:
+The RPCs will mirror the existing headless authentication flow. Like `GetHeadlessAuthentication`, the
+`GetValidatedChallenge` method will create a watcher with a timeout to wait for the [ValidatedChallenge
+resource](#storing-validated-mfa-responses) to exist in the backend, rather than requiring the client to poll repeatedly
+until the resource exists in the local backend or for replication to complete to the leaf backend.
 
 ```proto
 // MFAService defines the Multi-Factor Authentication (MFA) service. New MFA related RPCs should be added here instead
@@ -344,14 +346,16 @@ service MFAService {
   // CreateChallenge creates an MFA challenge that is tied to a user session.
   rpc CreateChallenge(CreateChallengeRequest) returns (CreateChallengeResponse);
   // ValidateChallenge validates the MFA challenge response for a user session and stores the validated response for
-  // retrieval by the target cluster's SSH service. For local clusters, this internally calls CreateValidatedChallenge
-  // on the same cluster. For leaf clusters, this forwards the validated response to the leaf cluster's MFA service.
+  // retrieval by the target cluster's SSH service.
   rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
   // CreateValidatedChallenge stores a previously validated MFA challenge response for a user session.
   rpc CreateValidatedChallenge(CreateValidatedChallengeRequest) returns (ValidatedChallenge);
   // GetValidatedChallenge retrieves a previously validated MFA challenge response for a user session.
+  // If the challenge does not yet exist, this method will block until the resource appears or until the timeout is
+  // reached.
   rpc GetValidatedChallenge(GetValidatedChallengeRequest) returns (ValidatedChallenge);
 }
+
 
 // CreateChallengeRequest is the request message for CreateChallenge.
 message CreateChallengeRequest {
