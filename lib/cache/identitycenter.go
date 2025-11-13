@@ -97,7 +97,7 @@ func (identityCenterPrincipalAssignmentExecutor) delete(ctx context.Context, cac
 }
 
 func (identityCenterPrincipalAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx))
+	return trace.Wrap(cache.identityCenterCache.DeleteAllPrincipalAssignments(ctx))
 }
 
 func (identityCenterPrincipalAssignmentExecutor) getReader(cache *Cache, cacheOK bool) identityCenterPrincipalAssignmentGetter {

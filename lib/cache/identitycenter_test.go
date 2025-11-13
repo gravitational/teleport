@@ -18,13 +18,17 @@ package cache
 
 import (
 	"context"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -176,4 +180,126 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 			return r.AccountAssignment, trace.Wrap(err)
 		},
 	}, withSkipPaginationTest())
+}
+
+func TestIdentityCenterCacheCompleteness(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	p := newTestPackWithoutCache(t)
+	t.Cleanup(p.Close)
+
+	accounts := make([]string, 0, 2)
+	accountAssignments := make([]string, 0, 2)
+	principalAssignments := make([]string, 0, 2)
+	var err error
+	for i := range 2 {
+		aName := "account" + strconv.Itoa(i)
+		_, err = p.identityCenter.CreateIdentityCenterAccount(ctx, newIdentityCenterAccount(aName))
+		require.NoError(t, err)
+		accounts = append(accounts, aName)
+
+		aaName := "account_assignment" + strconv.Itoa(i)
+		_, err = p.identityCenter.CreateIdentityCenterAccountAssignment(ctx, newIdentityCenterAccountAssignment(aaName))
+		require.NoError(t, err)
+		accountAssignments = append(accountAssignments, aaName)
+
+		paName := "principal_assignment" + strconv.Itoa(i)
+		_, err = p.identityCenter.CreatePrincipalAssignment(ctx, newIdentityCenterPrincipalAssignment(paName))
+		require.NoError(t, err)
+		principalAssignments = append(principalAssignments, paName)
+	}
+
+	p.cacheBackend, err = memory.New(
+		memory.Config{
+			Context: ctx,
+			Mirror:  true,
+		})
+	require.NoError(t, err)
+	p.cache, err = New(ForAuth(Config{
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
+		WebToken:                p.webTokenS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
+		DiscoveryConfigs:        p.discoveryConfigs,
+		UserLoginStates:         p.userLoginStates,
+		SecReports:              p.secReports,
+		AccessLists:             p.accessLists,
+		KubeWaitingContainers:   p.kubeWaitingContainers,
+		Notifications:           p.notifications,
+		AccessMonitoringRules:   p.accessMonitoringRules,
+		CrownJewels:             p.crownJewels,
+		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
+		StaticHostUsers:         p.staticHostUsers,
+		AutoUpdateService:       p.autoUpdateService,
+		ProvisioningStates:      p.provisioningStates,
+		WorkloadIdentity:        p.workloadIdentity,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		IdentityCenter:          p.identityCenter,
+		PluginStaticCredentials: p.pluginStaticCredentials,
+		EventsC:                 p.eventsC,
+		GitServers:              p.gitServers,
+		BotInstanceService:      p.botInstanceService,
+		Plugin:                  p.plugin,
+	}))
+	require.NoError(t, err)
+
+	accountsOut, _, err := p.cache.ListIdentityCenterAccounts(ctx, 0, "")
+	require.NoError(t, err)
+	require.ElementsMatch(t, accounts, aNames(accountsOut))
+
+	assignmentsOut, _, err := p.cache.ListIdentityCenterAccountAssignments(ctx, 0, "")
+	require.NoError(t, err)
+	require.ElementsMatch(t, accountAssignments, aaNames(assignmentsOut))
+
+	pAssignmentsOut, _, err := p.cache.ListPrincipalAssignments(ctx, 0, "")
+	require.NoError(t, err)
+	require.ElementsMatch(t, principalAssignments, paNames(pAssignmentsOut))
+
+	require.NoError(t, p.cache.Close())
+	require.NoError(t, p.cacheBackend.Close())
+}
+
+func aNames(in []*identitycenterv1.Account) (out []string) {
+	for _, i := range in {
+		out = append(out, i.GetMetadata().GetName())
+	}
+	return
+}
+
+func aaNames(in []*identitycenterv1.AccountAssignment) (out []string) {
+	for _, i := range in {
+		out = append(out, i.GetMetadata().GetName())
+	}
+	return
+}
+
+func paNames(in []*identitycenterv1.PrincipalAssignment) (out []string) {
+	for _, i := range in {
+		out = append(out, i.GetMetadata().GetName())
+	}
+	return
 }
