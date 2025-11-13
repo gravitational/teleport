@@ -42,9 +42,10 @@ role "access-plugin-impersonator" has been created
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-If you are providing identity files to the plugin with Machine & Workload
-Identity, assign the `access-plugin` role to the bot user. Otherwise, assign
-this role to the user you plan to use to generate credentials for the
+Assign this role to the user you plan to use to generate credentials for the
 `access-plugin` role and user:
 
 (!docs/pages/includes/add-role-to-user.mdx role="access-plugin-impersonator"!)
+
+You will now be able to generate signed certificates for the `access-plugin`
+role and user.
