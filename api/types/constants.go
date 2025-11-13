@@ -687,6 +687,9 @@ const (
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
 
+	// KindDelegationProfile is the resource kind for Delegation Profiles.
+	KindDelegationProfile = "delegation_profile"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -1829,3 +1832,9 @@ const (
 // BuiltInAutomaticReview is used within access monitoring rules and indicates
 // that the automatic_review rule should be monitored by Teleport.
 const BuiltInAutomaticReview = "builtin"
+
+const (
+	// DelegationUserTypeBot means the entity authorized to use a Delegation
+	// Session is a Bot.
+	DelegationUserTypeBot = "bot"
+)
