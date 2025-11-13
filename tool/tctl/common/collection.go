@@ -41,7 +41,6 @@ import (
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -142,107 +141,6 @@ func (r *reverseTunnelCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type oidcCollection struct {
-	connectors []types.OIDCConnector
-}
-
-func (c *oidcCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.connectors {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *oidcCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Issuer URL", "Additional Scope"})
-	for _, conn := range c.connectors {
-		t.AddRow([]string{
-			conn.GetName(), conn.GetIssuerURL(), strings.Join(conn.GetScope(), ","),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type samlCollection struct {
-	connectors []types.SAMLConnector
-}
-
-func (c *samlCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.connectors {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *samlCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "SSO URL"})
-	for _, conn := range c.connectors {
-		t.AddRow([]string{conn.GetName(), conn.GetSSO()})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type connectorsCollection struct {
-	oidc   []types.OIDCConnector
-	saml   []types.SAMLConnector
-	github []types.GithubConnector
-}
-
-func (c *connectorsCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.oidc {
-		r = append(r, resource)
-	}
-	for _, resource := range c.saml {
-		r = append(r, resource)
-	}
-	for _, resource := range c.github {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *connectorsCollection) WriteText(w io.Writer, verbose bool) error {
-	if len(c.oidc) > 0 {
-		_, err := io.WriteString(w, "\nOIDC:\n")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		oc := &oidcCollection{connectors: c.oidc}
-		err = oc.WriteText(w, verbose)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if len(c.saml) > 0 {
-		_, err := io.WriteString(w, "\nSAML:\n")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sc := &samlCollection{connectors: c.saml}
-		err = sc.WriteText(w, verbose)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if len(c.github) > 0 {
-		_, err := io.WriteString(w, "\nGitHub:\n")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		gc := &githubCollection{connectors: c.github}
-		err = gc.WriteText(w, verbose)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
 type trustedClusterCollection struct {
 	trustedClusters []types.TrustedCluster
 }
@@ -270,36 +168,6 @@ func (c *trustedClusterCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-type githubCollection struct {
-	connectors []types.GithubConnector
-}
-
-func (c *githubCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.connectors {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *githubCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Teams To Logins"})
-	for _, conn := range c.connectors {
-		t.AddRow([]string{conn.GetName(), formatTeamsToLogins(
-			conn.GetTeamsToLogins())})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func formatTeamsToLogins(mappings []types.TeamMapping) string {
-	var result []string
-	for _, m := range mappings {
-		result = append(result, fmt.Sprintf("@%v/%v: %v",
-			m.Organization, m.Team, strings.Join(m.Logins, ", ")))
-	}
-	return strings.Join(result, ", ")
 }
 
 type remoteClusterCollection struct {
@@ -621,27 +489,6 @@ func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) e
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-type tokenCollection struct {
-	tokens []types.ProvisionToken
-}
-
-func (c *tokenCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.tokens {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *tokenCollection) WriteText(w io.Writer, verbose bool) error {
-	for _, token := range c.tokens {
-		_, err := w.Write([]byte(token.String()))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 type kubeServerCollection struct {
@@ -1087,32 +934,6 @@ func (c *serverInfoCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type accessListCollection struct {
-	accessLists []*accesslist.AccessList
-}
-
-func (c *accessListCollection) Resources() []types.Resource {
-	r := make([]types.Resource, len(c.accessLists))
-	for i, resource := range c.accessLists {
-		r[i] = resource
-	}
-	return r
-}
-
-func (c *accessListCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Title", "Review Frequency", "Next Audit Date"})
-	for _, al := range c.accessLists {
-		t.AddRow([]string{
-			al.GetName(),
-			al.Spec.Title,
-			al.Spec.Audit.Recurrence.Frequency.String(),
-			al.Spec.Audit.NextAuditDate.Format(time.RFC822),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type vnetConfigCollection struct {
 	vnetConfig *vnet.VnetConfig
 }
@@ -1131,43 +952,6 @@ func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
 		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
 		strings.Join(dnsZoneSuffixes, ", "),
 	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type accessRequestCollection struct {
-	accessRequests []types.AccessRequest
-}
-
-func (c *accessRequestCollection) Resources() []types.Resource {
-	r := make([]types.Resource, len(c.accessRequests))
-	for i, resource := range c.accessRequests {
-		r[i] = resource
-	}
-	return r
-}
-
-func (c *accessRequestCollection) WriteText(w io.Writer, verbose bool) error {
-	var t asciitable.Table
-	var rows [][]string
-	for _, al := range c.accessRequests {
-		var annotations []string
-		for k, v := range al.GetSystemAnnotations() {
-			annotations = append(annotations, fmt.Sprintf("%s/%s", k, strings.Join(v, ",")))
-		}
-		rows = append(rows, []string{
-			al.GetName(),
-			al.GetUser(),
-			strings.Join(al.GetRoles(), ", "),
-			strings.Join(annotations, ", "),
-		})
-	}
-	if verbose {
-		t = asciitable.MakeTable([]string{"Name", "User", "Roles", "Annotations"}, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "User", "Roles", "Annotations"}, rows, "Annotations")
-	}
-
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

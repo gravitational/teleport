@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -123,7 +122,6 @@ Same as above, but using JSON output:
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
 		types.KindTrustedCluster:              rc.createTrustedCluster,
-		types.KindGithubConnector:             rc.createGithubConnector,
 		types.KindCertAuthority:               rc.createCertAuthority,
 		types.KindClusterAuthPreference:       rc.createAuthPreference,
 		types.KindClusterNetworkingConfig:     rc.createClusterNetworkingConfig,
@@ -132,9 +130,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
-		types.KindToken:                       rc.createToken,
-		types.KindOIDCConnector:               rc.createOIDCConnector,
-		types.KindSAMLConnector:               rc.createSAMLConnector,
 		types.KindLoginRule:                   rc.createLoginRule,
 		types.KindSAMLIdPServiceProvider:      rc.createSAMLIdPServiceProvider,
 		types.KindDevice:                      rc.createDevice,
@@ -142,7 +137,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindIntegration:                 rc.createIntegration,
 		types.KindWindowsDesktop:              rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
-		types.KindAccessList:                  rc.createAccessList,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindServerInfo:                  rc.createServerInfo,
@@ -160,9 +154,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:             rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
-		types.KindGithubConnector:             rc.updateGithubConnector,
-		types.KindOIDCConnector:               rc.updateOIDCConnector,
-		types.KindSAMLConnector:               rc.updateSAMLConnector,
 		types.KindClusterNetworkingConfig:     rc.updateClusterNetworkingConfig,
 		types.KindClusterAuthPreference:       rc.updateAuthPreference,
 		types.KindSessionRecordingConfig:      rc.updateSessionRecordingConfig,
@@ -264,7 +255,7 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
 	// Some resources require MFA to list with secrets. Check if we are trying to
 	// get any such resources so we can prompt for MFA preemptively.
-	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
+	mfaKinds := []string{types.KindCertAuthority}
 	for kind, handler := range resources.Handlers() {
 		if handler.MFARequired() {
 			mfaKinds = append(mfaKinds, kind)
@@ -474,50 +465,6 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *auth
 		return trace.Wrap(err)
 	}
 	fmt.Printf("certificate authority %q has been updated\n", certAuthority.GetName())
-	return nil
-}
-
-// createGithubConnector creates a Github connector
-func (rc *ResourceCommand) createGithubConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	connector, err := services.UnmarshalGithubConnector(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.force {
-		upserted, err := client.UpsertGithubConnector(ctx, connector)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		fmt.Printf("authentication connector %q has been updated\n", upserted.GetName())
-		return nil
-	}
-
-	created, err := client.CreateGithubConnector(ctx, connector)
-	if err != nil {
-		if trace.IsAlreadyExists(err) {
-			return trace.AlreadyExists("authentication connector %q already exists", connector.GetName())
-		}
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("authentication connector %q has been created\n", created.GetName())
-
-	return nil
-}
-
-// updateGithubConnector updates an existing Github connector.
-func (rc *ResourceCommand) updateGithubConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	connector, err := services.UnmarshalGithubConnector(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpdateGithubConnector(ctx, connector); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
 	return nil
 }
 
@@ -928,108 +875,6 @@ func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclien
 	return nil
 }
 
-func (rc *ResourceCommand) createToken(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	token, err := services.UnmarshalProvisionToken(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = client.UpsertToken(ctx, token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("provision_token %q has been created\n", token.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	conn, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.force {
-		upserted, err := client.UpsertOIDCConnector(ctx, conn)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("authentication connector %q has been updated\n", upserted.GetName())
-		return nil
-	}
-
-	created, err := client.CreateOIDCConnector(ctx, conn)
-	if err != nil {
-		if trace.IsAlreadyExists(err) {
-			return trace.AlreadyExists("connector %q already exists, use -f flag to override", conn.GetName())
-		}
-
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("authentication connector %q has been created\n", created.GetName())
-	return nil
-}
-
-// updateGithubConnector updates an existing OIDC connector.
-func (rc *ResourceCommand) updateOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	connector, err := services.UnmarshalOIDCConnector(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.UpdateOIDCConnector(ctx, connector); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("authentication connector %q has been updated\n", connector.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	// Create services.SAMLConnector from raw YAML to extract the connector name.
-	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	connectorName := conn.GetName()
-	foundConn, err := client.GetSAMLConnector(ctx, connectorName, true)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("connector %q already exists, use -f flag to override", connectorName)
-	}
-
-	// If the connector being pushed to the backend does not have a signing key
-	// in it and an existing connector was found in the backend, extract the
-	// signing key from the found connector and inject it into the connector
-	// being injected into the backend.
-	if conn.GetSigningKeyPair() == nil && exists {
-		conn.SetSigningKeyPair(foundConn.GetSigningKeyPair())
-	}
-
-	if _, err = client.UpsertSAMLConnector(ctx, conn); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("authentication connector %q has been %s\n", connectorName, UpsertVerb(exists, rc.IsForced()))
-	return nil
-}
-
-func (rc *ResourceCommand) updateSAMLConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	// Create services.SAMLConnector from raw YAML to extract the connector name.
-	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err = client.UpdateSAMLConnector(ctx, conn); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("authentication connector %q has been updated\n", conn.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
 	if err != nil {
@@ -1210,30 +1055,6 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	accessList, err := services.UnmarshalAccessList(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = client.AccessListClient().GetAccessList(ctx, accessList.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists && !rc.IsForced() {
-		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
-	}
-
-	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.IsForced()))
-
-	return nil
-}
-
 func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	si, err := services.UnmarshalServerInfo(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1323,26 +1144,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 	}
 
 	switch rc.ref.Kind {
-	case types.KindToken:
-		if err = client.DeleteToken(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("token %q has been deleted\n", rc.ref.Name)
-	case types.KindSAMLConnector:
-		if err = client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("SAML connector %v has been deleted\n", rc.ref.Name)
-	case types.KindOIDCConnector:
-		if err = client.DeleteOIDCConnector(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("OIDC connector %v has been deleted\n", rc.ref.Name)
-	case types.KindGithubConnector:
-		if err = client.DeleteGithubConnector(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("github connector %q has been deleted\n", rc.ref.Name)
 	case types.KindReverseTunnel:
 		if err := client.DeleteReverseTunnel(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1573,11 +1374,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
-	case types.KindAccessList:
-		if err := client.AccessListClient().DeleteAccessList(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Access list %q has been deleted\n", rc.ref.Name)
 	case types.KindAuditQuery:
 		if err := client.SecReportsClient().DeleteSecurityAuditQuery(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1767,46 +1563,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	// The resource hasn't been migrated yet, falling back to the old logic.
 
 	switch rc.ref.Kind {
-	case types.KindConnectors:
-		sc, scErr := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		oc, ocErr := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		gc, gcErr := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		errs := []error{scErr, ocErr, gcErr}
-		allEmpty := len(sc) == 0 && len(oc) == 0 && len(gc) == 0
-		reportErr := false
-		for _, err := range errs {
-			if err != nil && !trace.IsNotFound(err) {
-				reportErr = true
-				break
-			}
-		}
-		var finalErr error
-		if allEmpty || reportErr {
-			finalErr = trace.NewAggregate(errs...)
-		}
-		return &connectorsCollection{
-			saml:   sc,
-			oidc:   oc,
-			github: gc,
-		}, finalErr
-	case types.KindSAMLConnector:
-		connectors, err := getSAMLConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &samlCollection{connectors}, nil
-	case types.KindOIDCConnector:
-		connectors, err := getOIDCConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &oidcCollection{connectors}, nil
-	case types.KindGithubConnector:
-		connectors, err := getGithubConnectors(ctx, client, rc.ref.Name, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &githubCollection{connectors}, nil
 	case types.KindReverseTunnel:
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("reverse tunnel cannot be searched by name")
@@ -2064,18 +1820,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
-		if rc.ref.Name == "" {
-			tokens, err := getAllTokens(ctx, client)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &tokenCollection{tokens: tokens}, nil
-		}
-		token, err := client.GetToken(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name
 		listReq := proto.ListResourcesRequest{
@@ -2333,26 +2077,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &serverInfoCollection{serverInfos: serverInfos}, nil
-	case types.KindAccessList:
-		if rc.ref.Name != "" {
-			resource, err := client.AccessListClient().GetAccessList(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
-		}
-		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
-
-		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	case types.KindVnetConfig:
 		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
-	case types.KindAccessRequest:
-		resource, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{ID: rc.ref.Name})
-		return &accessRequestCollection{accessRequests: resource}, trace.Wrap(err)
 	case types.KindPlugin:
 		if rc.ref.Name != "" {
 			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
@@ -2514,76 +2244,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return policies, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
-}
-
-func getSAMLConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.SAMLConnector, error) {
-	if name == "" {
-		// TODO(okraport): DELETE IN v21.0.0, remove GetSAMLConnectors
-		connectors, err := clientutils.CollectWithFallback(ctx,
-			func(ctx context.Context, limit int, start string) ([]types.SAMLConnector, string, error) {
-				return client.ListSAMLConnectorsWithOptions(ctx, limit, start, withSecrets)
-			},
-			func(ctx context.Context) ([]types.SAMLConnector, error) {
-				//nolint:staticcheck // support older backends during migration
-				return client.GetSAMLConnectors(ctx, withSecrets)
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return connectors, nil
-	}
-	connector, err := client.GetSAMLConnector(ctx, name, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []types.SAMLConnector{connector}, nil
-}
-
-func getOIDCConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.OIDCConnector, error) {
-	if name == "" {
-		// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
-		connectors, err := clientutils.CollectWithFallback(ctx,
-			func(ctx context.Context, limit int, start string) ([]types.OIDCConnector, string, error) {
-				return client.ListOIDCConnectors(ctx, limit, start, withSecrets)
-			},
-			func(ctx context.Context) ([]types.OIDCConnector, error) {
-				return client.GetOIDCConnectors(ctx, withSecrets)
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return connectors, nil
-	}
-	connector, err := client.GetOIDCConnector(ctx, name, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []types.OIDCConnector{connector}, nil
-}
-
-func getGithubConnectors(ctx context.Context, client *authclient.Client, name string, withSecrets bool) ([]types.GithubConnector, error) {
-	if name == "" {
-		// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
-		connectors, err := clientutils.CollectWithFallback(ctx,
-			func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
-				return client.ListGithubConnectors(ctx, limit, start, withSecrets)
-			},
-			func(ctx context.Context) ([]types.GithubConnector, error) {
-				return client.GetGithubConnectors(ctx, withSecrets)
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return connectors, nil
-	}
-	connector, err := client.GetGithubConnector(ctx, name, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []types.GithubConnector{connector}, nil
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken

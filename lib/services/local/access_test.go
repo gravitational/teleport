@@ -22,6 +22,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func TestRoleNotFound(t *testing.T) {
@@ -52,20 +54,36 @@ func TestRoleNotFound(t *testing.T) {
 }
 
 func TestLockCRUD(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
 
+	newLockFilter := func(inForceOnly bool, targets ...types.LockTarget) *types.LockFilter {
+		filter := &types.LockFilter{
+			InForceOnly: inForceOnly,
+			Targets:     make([]*types.LockTarget, 0, len(targets)),
+		}
+		for _, tgt := range targets {
+			filter.Targets = append(filter.Targets, &tgt)
+		}
+		return filter
+	}
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
-		Clock:   clockwork.NewFakeClock(),
+		Clock:   clock,
 	})
 	require.NoError(t, err)
 
 	access := NewAccessService(backend)
+	expireTime1 := clock.Now().Add(1 * time.Hour)
+	expireTime2 := clock.Now().Add(5 * time.Hour)
 
 	lock1, err := types.NewLock("lock1", types.LockSpecV2{
 		Target: types.LockTarget{
 			User: "user-A",
 		},
+		Expires: &expireTime1,
 	})
 	require.NoError(t, err)
 
@@ -73,6 +91,7 @@ func TestLockCRUD(t *testing.T) {
 		Target: types.LockTarget{
 			ServerID: "node",
 		},
+		Expires: &expireTime2,
 	})
 	require.NoError(t, err)
 
@@ -81,6 +100,15 @@ func TestLockCRUD(t *testing.T) {
 		locks, err := access.GetLocks(ctx, false)
 		require.NoError(t, err)
 		require.Empty(t, locks)
+
+		locks, err = stream.Collect(access.RangeLocks(ctx, "", "", nil /* no filter */))
+		require.NoError(t, err)
+		require.Empty(t, locks)
+
+		locks, next, err := access.ListLocks(ctx, 0, "", nil /* no filter */)
+		require.NoError(t, err)
+		require.Empty(t, locks)
+		require.Empty(t, next)
 
 		// Create locks.
 		err = access.UpsertLock(ctx, lock1)
@@ -98,6 +126,58 @@ func TestLockCRUD(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, locks, 2)
 				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			}
+		})
+		t.Run("ListLocks", func(t *testing.T) {
+			t.Parallel()
+			for _, inForceOnly := range []bool{true, false} {
+				locks, next, err := access.ListLocks(ctx, 0, "", newLockFilter(inForceOnly))
+				require.Empty(t, next)
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+				page1, page2Start, err := access.ListLocks(ctx, 1, "", newLockFilter(inForceOnly))
+				require.NotEmpty(t, page2Start)
+				require.NoError(t, err)
+				require.Len(t, page1, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+				page2, next, err := access.ListLocks(ctx, 0, page2Start, newLockFilter(inForceOnly))
+				require.Empty(t, next)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, append(page1, page2...),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			}
+		})
+		t.Run("RangeLocks", func(t *testing.T) {
+			t.Parallel()
+			for _, inForceOnly := range []bool{true, false} {
+				locks, err := stream.Collect(access.RangeLocks(ctx, "", "", newLockFilter(inForceOnly)))
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+				_, page2Start, _ := access.ListLocks(ctx, 1, "", newLockFilter(inForceOnly))
+
+				page1, err := stream.Collect(access.RangeLocks(ctx, "", page2Start, newLockFilter(inForceOnly)))
+				require.NoError(t, err)
+				require.Len(t, page1, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+				page2, err := stream.Collect(access.RangeLocks(ctx, page2Start, "", newLockFilter(inForceOnly)))
+				require.NoError(t, err)
+				require.Len(t, page2, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
 					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			}
 		})
@@ -123,6 +203,53 @@ func TestLockCRUD(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, locks)
 		})
+		t.Run("ListLocks with targets", func(t *testing.T) {
+			t.Parallel()
+			// Match both locks with the targets.
+			locks, next, err := access.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), lock2.Target()))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Match only one of the locks.
+			roleTarget := types.LockTarget{Role: "role-A"}
+			locks, next, err = access.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), roleTarget))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Match none of the locks.
+			locks, next, err = access.ListLocks(ctx, 0, "", newLockFilter(false, roleTarget))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Empty(t, locks)
+		})
+		t.Run("RangeLocks with targets", func(t *testing.T) {
+			t.Parallel()
+			// Match both locks with the targets.
+			locks, err := stream.Collect(access.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), lock2.Target())))
+			require.NoError(t, err)
+			require.Len(t, locks, 2)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Match only one of the locks.
+			roleTarget := types.LockTarget{Role: "role-A"}
+			locks, err = stream.Collect(access.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), roleTarget)))
+			require.NoError(t, err)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Match none of the locks.
+			locks, err = stream.Collect(access.RangeLocks(ctx, "", "", newLockFilter(false, roleTarget)))
+			require.NoError(t, err)
+			require.Empty(t, locks)
+		})
 		t.Run("GetLock", func(t *testing.T) {
 			t.Parallel()
 			// Get one of the locks.
@@ -135,6 +262,118 @@ func TestLockCRUD(t *testing.T) {
 			_, err = access.GetLock(ctx, "lock3")
 			require.Error(t, err)
 			require.True(t, trace.IsNotFound(err))
+		})
+	})
+
+	// Advance time and check some locks are no longer in force
+	clock.Advance(2 * time.Hour)
+
+	t.Run("LockGettersInForce", func(t *testing.T) {
+		t.Run("GetLocks", func(t *testing.T) {
+			t.Parallel()
+			locks, err := access.GetLocks(ctx, true)
+			require.NoError(t, err)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		})
+		t.Run("ListLocks", func(t *testing.T) {
+			t.Parallel()
+			// Only return in force locks
+			locks, next, err := access.ListLocks(ctx, 0, "", newLockFilter(true))
+			require.Empty(t, next)
+			require.NoError(t, err)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// No filter returns all
+			locks, next, err = access.ListLocks(ctx, 0, "", nil)
+			require.Empty(t, next)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		})
+		t.Run("RangeLocks", func(t *testing.T) {
+			t.Parallel()
+			// Only return in force locks
+			locks, err := stream.Collect(access.RangeLocks(ctx, "", "", newLockFilter(true)))
+			require.NoError(t, err)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// No filter returns all
+			locks, err = stream.Collect(access.RangeLocks(ctx, "", "", nil))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		})
+
+		t.Run("GetLocks with targets", func(t *testing.T) {
+			t.Parallel()
+			locks, err := access.GetLocks(ctx, true, lock1.Target(), lock2.Target())
+			require.NoError(t, err)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			roleTarget := types.LockTarget{Role: "role-A"}
+			locks, err = access.GetLocks(ctx, true, lock1.Target(), roleTarget)
+			require.NoError(t, err)
+			require.Empty(t, locks)
+			require.Empty(t, locks)
+
+			// Match none of the locks.
+			locks, err = access.GetLocks(ctx, true, roleTarget)
+			require.NoError(t, err)
+			require.Empty(t, locks)
+		})
+		t.Run("ListLocks with targets", func(t *testing.T) {
+			t.Parallel()
+
+			// Match all but only lock2 is in force
+			locks, next, err := access.ListLocks(ctx, 0, "", newLockFilter(true, lock1.Target(), lock2.Target()))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Target match but not in force
+			roleTarget := types.LockTarget{Role: "role-A"}
+			locks, next, err = access.ListLocks(ctx, 0, "", newLockFilter(true, lock1.Target(), roleTarget))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Empty(t, locks)
+
+			// Nothing matched when some locks are in force
+			locks, next, err = access.ListLocks(ctx, 0, "", newLockFilter(true, roleTarget))
+			require.NoError(t, err)
+			require.Empty(t, next)
+			require.Empty(t, locks)
+		})
+		t.Run("RangeLocks with targets", func(t *testing.T) {
+			t.Parallel()
+			// Match all but only lock2 is in force
+			locks, err := stream.Collect(access.RangeLocks(ctx, "", "", newLockFilter(true, lock1.Target(), lock2.Target())))
+			require.NoError(t, err)
+			require.Len(t, locks, 1)
+			require.Empty(t, cmp.Diff([]types.Lock{lock2}, locks,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Target match but not in force
+			roleTarget := types.LockTarget{Role: "role-A"}
+			locks, err = stream.Collect(access.RangeLocks(ctx, "", "", newLockFilter(true, lock1.Target(), roleTarget)))
+			require.NoError(t, err)
+			require.Empty(t, locks)
+
+			// Nothing matched when some locks are in force
+			locks, err = stream.Collect(access.RangeLocks(ctx, "", "", newLockFilter(true, roleTarget)))
+			require.NoError(t, err)
+			require.Empty(t, locks)
 		})
 	})
 
@@ -212,4 +451,140 @@ func TestLockCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, locks)
 	})
+}
+
+func Test_matchLock(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	expiredTime := clock.Now().Add(-2 * time.Hour)
+	futureTime := clock.Now().Add(time.Hour)
+	nowTime := clock.Now()
+
+	tests := []struct {
+		name   string
+		lock   types.Lock
+		filter *types.LockFilter
+		want   bool
+	}{
+		{
+			name: "nil filter matches",
+			want: true,
+		},
+		{
+			name: "inactive lock is not matched when InForceOnly is set",
+			lock: &types.LockV2{
+				Spec: types.LockSpecV2{
+					Expires: &expiredTime,
+				},
+			},
+			filter: &types.LockFilter{
+				InForceOnly: true,
+			},
+			want: false,
+		},
+		{
+			name: "active lock is matched when InForceOnly is set",
+			lock: &types.LockV2{
+				Spec: types.LockSpecV2{
+					Expires: &futureTime,
+				},
+			},
+			filter: &types.LockFilter{
+				InForceOnly: true,
+			},
+			want: true,
+		},
+		{
+			name: "no targets is a match when InForceOnly is false regardless of lock",
+			filter: &types.LockFilter{
+				InForceOnly: false,
+			},
+			want: true,
+		},
+		{
+			name: "targets given do not match",
+			filter: &types.LockFilter{
+				InForceOnly: false,
+				Targets: []*types.LockTarget{
+					{
+						User: "alice",
+					},
+					{
+						User: "bob",
+					},
+				},
+			},
+			lock: &types.LockV2{
+				Spec: types.LockSpecV2{
+					Expires: &futureTime,
+					Target: types.LockTarget{
+						User: "charlie",
+					},
+				},
+			},
+
+			want: false,
+		},
+		{
+			name: "targets given match",
+			filter: &types.LockFilter{
+				InForceOnly: false,
+				Targets: []*types.LockTarget{
+					{
+						User: "alice",
+					},
+					{
+						User: "bob",
+					},
+					{
+						User: "charlie",
+					},
+				},
+			},
+			lock: &types.LockV2{
+				Spec: types.LockSpecV2{
+					Expires: &futureTime,
+					Target: types.LockTarget{
+						User: "charlie",
+					},
+				},
+			},
+
+			want: true,
+		},
+		{
+			name: "targets given match but lock is expired with InForceOnly set",
+			filter: &types.LockFilter{
+				InForceOnly: true,
+				Targets: []*types.LockTarget{
+					{
+						User: "alice",
+					},
+					{
+						User: "bob",
+					},
+					{
+						User: "charlie",
+					},
+				},
+			},
+			lock: &types.LockV2{
+				Spec: types.LockSpecV2{
+					Expires: &expiredTime,
+					Target: types.LockTarget{
+						User: "charlie",
+					},
+				},
+			},
+
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, got := matchLock(tt.lock, tt.filter, nowTime)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

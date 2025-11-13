@@ -201,20 +201,12 @@ func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenVali
 	a.azureDevopsIDTokenValidator = validator
 }
 
-func (a *Server) SetBitbucketIDTokenValidator(validator bitbucketIDTokenValidator) {
-	a.bitbucketIDTokenValidator = validator
-}
-
 func (a *Server) SetCircleCITokenValidate(validator func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)) {
 	a.circleCITokenValidate = validator
 }
 
 func (a *Server) SetGCPIDTokenValidator(validator gcpIDTokenValidator) {
 	a.gcpIDTokenValidator = validator
-}
-
-func (a *Server) SetGitlabIDTokenValidator(validator gitlabIDTokenValidator) {
-	a.gitlabIDTokenValidator = validator
 }
 
 func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
@@ -231,14 +223,6 @@ func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenVal
 
 func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
 	a.tpmValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenValidator(validator ghaIDTokenValidator) {
-	a.ghaIDTokenValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenJWKSValidator(validator ghaIDTokenJWKSValidator) {
-	a.ghaIDTokenJWKSValidator = validator
 }
 
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
@@ -379,10 +363,6 @@ func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diag
 
 func IsGCPZoneInLocation(rawLocation, rawZone string) bool {
 	return isGCPZoneInLocation(rawLocation, rawZone)
-}
-
-func JoinRuleGlobMatch(want string, got string) (bool, error) {
-	return joinRuleGlobMatch(want, got)
 }
 
 func FormatHeaderFromMap(m map[string]string) http.Header {

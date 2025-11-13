@@ -20,7 +20,6 @@ import { useState } from 'react';
 
 import { ButtonBorder, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { SearchPanel } from 'shared/components/Search';
 
 import { Event } from 'teleport/services/audit';
 
@@ -30,16 +29,10 @@ import renderTypeCell from './EventTypeCell';
 import { ViewInPolicyButton } from './ViewInPolicyButton';
 
 export default function EventList(props: Props) {
-  const { events = [], search, setSearch, sort, setSort } = props;
+  const { events = [], sort, setSort } = props;
   const [detailsToShow, setDetailsToShow] = useState<Event>();
   return (
     <>
-      <SearchPanel
-        updateSearch={setSearch}
-        updateQuery={null}
-        hideAdvancedSearch={true}
-        filter={{ search }}
-      />
       <Table
         data={events}
         columns={[

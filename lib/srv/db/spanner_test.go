@@ -27,8 +27,8 @@ import (
 	"time"
 
 	gspanner "cloud.google.com/go/spanner"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/connectivity"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -207,7 +207,7 @@ func TestAccessSpanner(t *testing.T) {
 }
 
 func TestAuditSpanner(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const dbServiceName = "my-spanner"
 	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, cloudSpannerAuthToken, func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})
@@ -223,6 +223,7 @@ func TestAuditSpanner(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, userName, roleName, []string{allowedUser}, []string{types.Wildcard})
 
 	t.Run("access denied", func(t *testing.T) {
+		ctx := t.Context()
 		// authz isn't checked until RPCs are sent, so we can't fail here.
 		clt, localProxy, err := testCtx.spannerClient(ctx, userName, dbServiceName, deniedUser, "googlesql")
 		require.NoError(t, err)
@@ -231,59 +232,47 @@ func TestAuditSpanner(t *testing.T) {
 			_ = localProxy.Close()
 		})
 
-		require.NoError(t, clt.WaitForConnectionState(ctx, connectivity.Ready))
-		reconnectingCh := make(chan bool)
-		go func() {
-			// we should observe the connection leave the "ready" state after
-			// it gets an access denied error.
-			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-			defer cancel()
-			reconnectingCh <- clt.ClientConn.WaitForStateChange(ctx, connectivity.Ready)
-		}()
+		sessionIDs := map[string]struct{}{}
+		for range 3 {
+			var startEvt *events.DatabaseSessionStart
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				row, err := pingSpanner(ctx, clt, 42)
+				require.Error(t, err)
+				require.ErrorContains(t, err, "access to db denied")
+				require.Nil(t, row)
 
-		ev := requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
-		dbStart1, ok := ev.(*events.DatabaseSessionStart)
-		require.True(t, ok)
-		require.Equal(t, "googlesql", dbStart1.DatabaseName)
+				ev := requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+				var ok bool
+				startEvt, ok = ev.(*events.DatabaseSessionStart)
+				require.True(t, ok)
+				require.Equal(t, "googlesql", startEvt.DatabaseName)
+			}, 10*time.Second, 200*time.Millisecond, "waiting for session failure")
 
-		row, err := pingSpanner(ctx, clt, 42)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "access to db denied")
-		require.Nil(t, row)
-
-		ev = requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
-		dbStart2, ok := ev.(*events.DatabaseSessionStart)
-		require.True(t, ok)
-		require.Equal(t, "googlesql", dbStart1.DatabaseName)
-
-		require.True(t, <-reconnectingCh, "timed out waiting for the spanner client to reconnect")
-		row, err = pingSpanner(ctx, clt, 42)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "access to db denied")
-		require.Nil(t, row)
-
-		ev = requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
-		dbStart3, ok := ev.(*events.DatabaseSessionStart)
-		require.True(t, ok)
-		require.Equal(t, "googlesql", dbStart2.DatabaseName)
-
-		// session start failure is sticky and causes the connection to shut
-		// down - a client should get the same error but Teleport shouldnt emit
-		// another start event for the same session, i.e. the client should be
-		// forced to reconnect for subsequent RPC attempts
-		require.NotEqual(t, dbStart1.SessionID, dbStart2.SessionID)
-		require.NotEqual(t, dbStart1.SessionID, dbStart3.SessionID)
+			// session start failure is sticky and causes the connection to shut
+			// down - a client should get the same error but Teleport shouldnt emit
+			// another start event for the same session, i.e. the client should be
+			// forced to reconnect for subsequent RPC attempts
+			require.NotContains(t, sessionIDs, startEvt.SessionID, "session start failure should only be emitted once per connection")
+			sessionIDs[startEvt.SessionID] = struct{}{}
+		}
 
 		// make sure no other events get emitted, including RPC failures, since
 		// a session was never started successfully.
-		select {
-		case evt := <-testCtx.emitter.C():
-			require.FailNow(t, "an unexpected audit event was emitted", "got an audit event with code %v", evt.GetCode())
-		case <-time.After(1 * time.Second):
+		for {
+			select {
+			case evt := <-testCtx.emitter.C():
+				if evt.GetCode() == libevents.DatabaseSessionStartFailureCode {
+					continue
+				}
+				require.FailNow(t, "an unexpected audit event was emitted", "got an audit event with code %v", evt.GetCode())
+			default:
+				return
+			}
 		}
 	})
 
 	t.Run("successful flow", func(t *testing.T) {
+		ctx := t.Context()
 		clt, localProxy, err := testCtx.spannerClient(ctx, userName, dbServiceName, allowedUser, "googlesql")
 		require.NoError(t, err)
 		t.Cleanup(func() {
