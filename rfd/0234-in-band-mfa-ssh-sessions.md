@@ -106,7 +106,7 @@ service independently computes the SIP from session state and verifies it matche
 in the validated challenge.
 
 If validation succeeds, the SSH session is established. If not, access is denied with an `Access Denied: Invalid MFA
-response` error. If the client does not complete MFA within a specified timeout (e.g., 1 minute), the SSH service
+response` error. If the client does not complete MFA within a specified timeout (e.g., 3 minutes), the SSH service
 terminates the connection with an `Access Denied: MFA verification timed out` error. To retry, the client must start a
 new SSH connection.
 
