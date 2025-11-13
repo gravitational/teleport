@@ -6433,12 +6433,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	delegationv1pb.RegisterDelegationProfileServiceServer(server, delegationProfileService)
 
 	delegationSessionService, err := delegationv1.NewSessionService(delegationv1.SessionServiceConfig{
-		Authorizer:     cfg.Authorizer,
-		ProfileReader:  cfg.AuthServer.Cache,
-		SessionWriter:  cfg.AuthServer.Services.DelegationSessions,
-		ResourceLister: cfg.AuthServer,
-		RoleGetter:     cfg.AuthServer.Cache,
-		UserGetter:     cfg.AuthServer.Cache,
+		Authorizer:        cfg.Authorizer,
+		ProfileReader:     cfg.AuthServer.Cache,
+		SessionReader:     cfg.AuthServer.Services.DelegationSessions,
+		SessionWriter:     cfg.AuthServer.Services.DelegationSessions,
+		ResourceLister:    cfg.AuthServer,
+		RoleGetter:        cfg.AuthServer.Cache,
+		UserGetter:        cfg.AuthServer.Cache,
+		ClusterNameGetter: cfg.AuthServer,
+		CertGenerator:     delegationv1.CertGeneratorFunc(cfg.AuthServer.generateUserCert),
+		AppSessionCreator: delegationv1.AppSessionCreatorFunc(cfg.AuthServer.CreateAppSessionFromReq),
 		Logger: logger.With(teleport.ComponentKey,
 			teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC, "delegation-session"),
 		),

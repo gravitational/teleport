@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/internal"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -777,19 +778,19 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
-	certReq := certRequest{
-		user:                             user,
-		ttl:                              req.TTL,
-		sshPublicKey:                     req.SSHPublicKey,
-		tlsPublicKey:                     req.TLSPublicKey,
-		compatibility:                    req.CompatibilityMode,
-		checker:                          checker,
-		traits:                           user.GetTraits(),
-		routeToCluster:                   req.RouteToCluster,
-		kubernetesCluster:                req.KubernetesCluster,
-		loginIP:                          clientIP,
-		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
-		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
+	certReq := internal.CertRequest{
+		User:                             user,
+		TTL:                              req.TTL,
+		SSHPublicKey:                     req.SSHPublicKey,
+		TLSPublicKey:                     req.TLSPublicKey,
+		Compatibility:                    req.CompatibilityMode,
+		Checker:                          checker,
+		Traits:                           user.GetTraits(),
+		RouteToCluster:                   req.RouteToCluster,
+		KubernetesCluster:                req.KubernetesCluster,
+		LoginIP:                          clientIP,
+		SSHPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		TLSPublicKeyAttestationStatement: req.TLSAttestationStatement,
 	}
 
 	// For headless authentication, a short-lived mfa-verified cert should be generated.
@@ -804,8 +805,8 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		if !bytes.Equal(req.TLSPublicKey, ha.TlsPublicKey) {
 			return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
 		}
-		certReq.mfaVerified = ha.MfaDevice.Metadata.Name
-		certReq.ttl = time.Minute
+		certReq.MFAVerified = ha.MfaDevice.Metadata.Name
+		certReq.TTL = time.Minute
 	}
 
 	certs, err := a.generateUserCert(ctx, certReq)

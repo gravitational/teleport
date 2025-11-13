@@ -72,7 +72,6 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	mfa "github.com/gravitational/teleport/api/mfa"
@@ -89,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/internal"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
@@ -2538,173 +2538,19 @@ func (a *Server) GetKeyStore() *keystore.Manager {
 	return a.keyStore
 }
 
-type certRequest struct {
-	// sshPublicKey is a public key in SSH authorized_keys format. If set it
-	// will be used as the subject public key for the returned SSH certificate.
-	sshPublicKey []byte
-	// tlsPublicKey is a PEM-encoded public key in PKCS#1 or PKIX ASN.1 DER
-	// form. If set it will be used as the subject public key for the returned
-	// TLS certificate.
-	tlsPublicKey []byte
-	// sshPublicKeyAttestationStatement is an attestation statement associated with sshPublicKey.
-	sshPublicKeyAttestationStatement *hardwarekey.AttestationStatement
-	// tlsPublicKeyAttestationStatement is an attestation statement associated with tlsPublicKey.
-	tlsPublicKeyAttestationStatement *hardwarekey.AttestationStatement
-
-	// user is a user to generate certificate for
-	user services.UserState
-	// impersonator is a user who generates the certificate,
-	// is set when different from the user in the certificate
-	impersonator string
-
-	// checker is an access checker that may either be scoped or unscoped. used to generate various
-	// certificate parameters, some of which differ depending on whether the cert being generated
-	// is scoped or not.
-	checker *services.SplitAccessChecker
-
-	// ttl is Duration of the certificate
-	ttl time.Duration
-	// compatibility is compatibility mode
-	compatibility string
-	// overrideRoleTTL is used for requests when the requested TTL should not be
-	// adjusted based off the role of the user. This is used by tctl to allow
-	// creating long lived user certs.
-	overrideRoleTTL bool
-	// usage is a list of acceptable usages to be encoded in X509 certificate,
-	// is used to limit ways the certificate can be used, for example
-	// the cert can be only used against kubernetes endpoint, and not auth endpoint,
-	// no usage means unrestricted (to keep backwards compatibility)
-	usage []string
-	// routeToCluster is an optional teleport cluster name to route the
-	// certificate requests to, this teleport cluster name will be used to
-	// route the requests to in case of kubernetes
-	routeToCluster string
-	// kubernetesCluster specifies the target kubernetes cluster for TLS
-	// identities. This can be empty on older Teleport clients.
-	kubernetesCluster string
-	// traits hold claim data used to populate a role at runtime.
-	traits wrappers.Traits
-	// activeRequests tracks privilege escalation requests applied
-	// during the construction of the certificate.
-	activeRequests []string
-	// appSessionID is the session ID of the application session.
-	appSessionID string
-	// appPublicAddr is the public address of the application.
-	appPublicAddr string
-	// appClusterName is the name of the cluster this application is in.
-	appClusterName string
-	// appName is the name of the application to generate cert for.
-	appName string
-	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
-	appURI string
-	// appTargetPort signifies that the cert should grant access to a specific port in a multi-port
-	// TCP app, as long as the port is defined in the app spec. Used only for routing, should not be
-	// used in other contexts (e.g., access requests).
-	appTargetPort int
-	// awsRoleARN is the role ARN to generate certificate for.
-	awsRoleARN string
-	// azureIdentity is the Azure identity to generate certificate for.
-	azureIdentity string
-	// gcpServiceAccount is the GCP service account to generate certificate for.
-	gcpServiceAccount string
-	// dbService identifies the name of the database service requests will
-	// be routed to.
-	dbService string
-	// dbProtocol specifies the protocol of the database a certificate will
-	// be issued for.
-	dbProtocol string
-	// dbUser is the optional database user which, if provided, will be used
-	// as a default username.
-	dbUser string
-	// dbName is the optional database name which, if provided, will be used
-	// as a default database.
-	dbName string
-	// dbRoles is the optional list of database roles which, if provided, will
-	// be used instead of all database roles granted for the target database.
-	dbRoles []string
-	// mfaVerified is the UUID of an MFA device when this certRequest was
-	// created immediately after an MFA check.
-	mfaVerified string
-	// previousIdentityExpires is the expiry time of the identity/cert that this
-	// identity/cert was derived from. It is used to determine a session's hard
-	// deadline in cases where both require_session_mfa and disconnect_expired_cert
-	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
-	previousIdentityExpires time.Time
-	// loginIP is an IP of the client requesting the certificate.
-	loginIP string
-	// pinIP flags that client's login IP should be pinned in the certificate
-	pinIP bool
-	// disallowReissue flags that a cert should not be allowed to issue future
-	// certificates.
-	disallowReissue bool
-	// renewable indicates that the certificate can be renewed,
-	// having its TTL increased
-	renewable bool
-	// includeHostCA indicates that host CA certs should be included in the
-	// returned certs
-	includeHostCA bool
-	// generation indicates the number of times this certificate has been
-	// renewed.
-	generation uint64
-	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
-	// The Node/Agent will append connection traces to this instance.
-	connectionDiagnosticID string
-	// deviceExtensions holds device-aware user certificate extensions.
-	deviceExtensions DeviceExtensions
-	// botName is the name of the bot requesting this cert, if any
-	botName string
-	// botInstanceID is the unique identifier of the bot instance associated
-	// with this cert, if any
-	botInstanceID string
-	// joinToken is the name of the join token used to join, set only for bot
-	// identities. It is unset for token-joined bots, whose token names are
-	// secret values.
-	joinToken string
-	// joinAttributes holds attributes derived from attested metadata from the
-	// join process, should any exist.
-	joinAttributes *workloadidentityv1pb.JoinAttrs
-	// requesterName is the name of the service that sent the request.
-	requesterName proto.UserCertsRequest_Requester
-}
-
-// check verifies the cert request is valid.
-func (r *certRequest) check() error {
-	if r.user == nil {
-		return trace.BadParameter("missing parameter user")
-	}
-	if r.checker == nil {
-		return trace.BadParameter("missing parameter checker")
-	}
-
-	// When generating certificate for MongoDB access, database username must
-	// be encoded into it. This is required to be able to tell which database
-	// user to authenticate the connection as.
-	if r.dbProtocol == defaults.ProtocolMongoDB {
-		if r.dbUser == "" {
-			return trace.BadParameter("must provide database user name to generate certificate for database %q", r.dbService)
-		}
-	}
-
-	if r.sshPublicKey == nil && r.tlsPublicKey == nil {
-		return trace.BadParameter("must provide a public key")
-	}
-
-	return nil
-}
-
-type certRequestOption func(*certRequest)
+type certRequestOption func(*internal.CertRequest)
 
 func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certRequestOption {
-	return func(r *certRequest) { r.previousIdentityExpires = previousIdentityExpires }
+	return func(r *internal.CertRequest) { r.PreviousIdentityExpires = previousIdentityExpires }
 }
 
 func certRequestLoginIP(ip string) certRequestOption {
-	return func(r *certRequest) { r.loginIP = ip }
+	return func(r *internal.CertRequest) { r.LoginIP = ip }
 }
 
 func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
-	return func(r *certRequest) {
-		r.deviceExtensions = DeviceExtensions(ext)
+	return func(r *internal.CertRequest) {
+		r.DeviceExtensions = tlsca.DeviceExtensions(ext)
 	}
 }
 
@@ -2778,15 +2624,15 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateOpenSSHCert(ctx, certRequest{
-		user:            req.User,
-		sshPublicKey:    req.PublicKey,
-		compatibility:   constants.CertificateFormatStandard,
-		checker:         services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
-		ttl:             sessionTTL,
-		traits:          req.User.GetTraits(),
-		routeToCluster:  req.Cluster,
-		disallowReissue: true,
+	certs, err := a.generateOpenSSHCert(ctx, internal.CertRequest{
+		User:            req.User,
+		SSHPublicKey:    req.PublicKey,
+		Compatibility:   constants.CertificateFormatStandard,
+		Checker:         services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
+		TTL:             sessionTTL,
+		Traits:          req.User.GetTraits(),
+		RouteToCluster:  req.Cluster,
+		DisallowReissue: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2843,33 +2689,33 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certReq := certRequest{
-		user:                             userState,
-		ttl:                              req.TTL,
-		compatibility:                    req.Compatibility,
-		sshPublicKey:                     req.SSHPubKey,
-		tlsPublicKey:                     req.TLSPubKey,
-		routeToCluster:                   req.RouteToCluster,
-		checker:                          services.NewUnscopedSplitAccessChecker(checker),
-		traits:                           userState.GetTraits(),
-		loginIP:                          req.PinnedIP,
-		pinIP:                            req.PinnedIP != "",
-		mfaVerified:                      req.MFAVerified,
-		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
-		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
-		appName:                          req.AppName,
-		appSessionID:                     req.AppSessionID,
-		deviceExtensions:                 req.DeviceExtensions,
-		generation:                       req.Generation,
-		renewable:                        req.Renewable,
-		activeRequests:                   req.ActiveRequests,
-		kubernetesCluster:                req.KubernetesCluster,
-		usage:                            req.Usage,
+	certReq := internal.CertRequest{
+		User:                             userState,
+		TTL:                              req.TTL,
+		Compatibility:                    req.Compatibility,
+		SSHPublicKey:                     req.SSHPubKey,
+		TLSPublicKey:                     req.TLSPubKey,
+		RouteToCluster:                   req.RouteToCluster,
+		Checker:                          services.NewUnscopedSplitAccessChecker(checker),
+		Traits:                           userState.GetTraits(),
+		LoginIP:                          req.PinnedIP,
+		PinIP:                            req.PinnedIP != "",
+		MFAVerified:                      req.MFAVerified,
+		SSHPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		TLSPublicKeyAttestationStatement: req.TLSAttestationStatement,
+		AppName:                          req.AppName,
+		AppSessionID:                     req.AppSessionID,
+		DeviceExtensions:                 tlsca.DeviceExtensions(req.DeviceExtensions),
+		Generation:                       req.Generation,
+		Renewable:                        req.Renewable,
+		ActiveRequests:                   req.ActiveRequests,
+		KubernetesCluster:                req.KubernetesCluster,
+		Usage:                            req.Usage,
 	}
 
 	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
-		certReq.botName = botName
-		certReq.botInstanceID = uuid.NewString()
+		certReq.BotName = botName
+		certReq.BotInstanceID = uuid.NewString()
 	}
 
 	certs, err := a.generateUserCert(ctx, certReq)
@@ -2934,29 +2780,29 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		login = uuid.New().String()
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:         userState,
-		tlsPublicKey: req.PublicKey,
-		checker:      services.NewUnscopedSplitAccessChecker(checker),
-		ttl:          req.TTL,
+	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+		User:         userState,
+		TLSPublicKey: req.PublicKey,
+		Checker:      services.NewUnscopedSplitAccessChecker(checker),
+		TTL:          req.TTL,
 		// Set the login to be a random string. Application certificates are never
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
-		traits: wrappers.Traits(map[string][]string{
+		Traits: wrappers.Traits(map[string][]string{
 			constants.TraitLogins: {login},
 		}),
 		// Only allow this certificate to be used for applications.
-		usage: []string{teleport.UsageAppsOnly},
+		Usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:      sessionID,
-		appPublicAddr:     req.PublicAddr,
-		appTargetPort:     req.TargetPort,
-		appClusterName:    req.ClusterName,
-		awsRoleARN:        req.AWSRoleARN,
-		azureIdentity:     req.AzureIdentity,
-		gcpServiceAccount: req.GCPServiceAccount,
-		pinIP:             req.PinnedIP != "",
-		loginIP:           req.PinnedIP,
+		AppSessionID:      sessionID,
+		AppPublicAddr:     req.PublicAddr,
+		AppTargetPort:     req.TargetPort,
+		AppClusterName:    req.ClusterName,
+		AWSRoleARN:        req.AWSRoleARN,
+		AzureIdentity:     req.AzureIdentity,
+		GCPServiceAccount: req.GCPServiceAccount,
+		PinIP:             req.PinnedIP != "",
+		LoginIP:           req.PinnedIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2996,22 +2842,22 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:         userState,
-		tlsPublicKey: req.PublicKey,
-		loginIP:      req.PinnedIP,
-		pinIP:        req.PinnedIP != "",
-		checker:      services.NewUnscopedSplitAccessChecker(checker),
-		ttl:          time.Hour,
-		traits: map[string][]string{
+	certs, err := a.generateUserCert(ctx, internal.CertRequest{
+		User:         userState,
+		TLSPublicKey: req.PublicKey,
+		LoginIP:      req.PinnedIP,
+		PinIP:        req.PinnedIP != "",
+		Checker:      services.NewUnscopedSplitAccessChecker(checker),
+		TTL:          time.Hour,
+		Traits: map[string][]string{
 			constants.TraitLogins: {req.Username},
 		},
-		routeToCluster: req.Cluster,
-		dbService:      req.RouteToDatabase.ServiceName,
-		dbProtocol:     req.RouteToDatabase.Protocol,
-		dbUser:         req.RouteToDatabase.Username,
-		dbName:         req.RouteToDatabase.Database,
-		dbRoles:        req.RouteToDatabase.Roles,
+		RouteToCluster: req.Cluster,
+		DBService:      req.RouteToDatabase.ServiceName,
+		DBProtocol:     req.RouteToDatabase.Protocol,
+		DBUser:         req.RouteToDatabase.Username,
+		DBName:         req.RouteToDatabase.Database,
+		DBRoles:        req.RouteToDatabase.Roles,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3401,28 +3247,28 @@ func (a *Server) augmentUserCertificates(
 
 // submitCertificateIssuedEvent submits a certificate issued usage event to the
 // usage reporting service.
-func (a *Server) submitCertificateIssuedEvent(req *certRequest, attestedKeyPolicy keys.PrivateKeyPolicy) {
+func (a *Server) submitCertificateIssuedEvent(req *internal.CertRequest, attestedKeyPolicy keys.PrivateKeyPolicy) {
 	var database, app, kubernetes, desktop bool
 
-	if req.dbService != "" {
+	if req.DBService != "" {
 		database = true
 	}
 
-	if req.appName != "" {
+	if req.AppName != "" {
 		app = true
 	}
 
-	if req.kubernetesCluster != "" {
+	if req.KubernetesCluster != "" {
 		kubernetes = true
 	}
 
 	// Bot users are regular Teleport users, but have a special internal label.
-	bot := req.user.IsBot()
+	bot := req.User.IsBot()
 
 	// Unfortunately the only clue we have about Windows certs is the usage
 	// restriction: `RouteToWindowsDesktop` isn't actually passed along to the
 	// certRequest.
-	for _, usage := range req.usage {
+	for _, usage := range req.Usage {
 		switch usage {
 		case teleport.UsageWindowsDesktopOnly:
 			desktop = true
@@ -3431,48 +3277,48 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest, attestedKeyPolic
 
 	// For usage reporting, we care about the impersonator rather than the user
 	// being impersonated (if any).
-	user := req.user.GetName()
-	if req.impersonator != "" {
-		user = req.impersonator
+	user := req.User.GetName()
+	if req.Impersonator != "" {
+		user = req.Impersonator
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
 		UserName:         user,
-		Ttl:              durationpb.New(req.ttl),
+		Ttl:              durationpb.New(req.TTL),
 		IsBot:            bot,
 		UsageDatabase:    database,
 		UsageApp:         app,
 		UsageKubernetes:  kubernetes,
 		UsageDesktop:     desktop,
 		PrivateKeyPolicy: string(attestedKeyPolicy),
-		BotInstanceId:    req.botInstanceID,
+		BotInstanceId:    req.BotInstanceID,
 	})
 }
 
 // generateUserCert generates certificates signed with User CA
-func (a *Server) generateUserCert(ctx context.Context, req certRequest) (*proto.Certs, error) {
+func (a *Server) generateUserCert(ctx context.Context, req internal.CertRequest) (*proto.Certs, error) {
 	return generateCert(ctx, a, req, types.UserCA)
 }
 
 // generateOpenSSHCert generates certificates signed with OpenSSH CA
-func (a *Server) generateOpenSSHCert(ctx context.Context, req certRequest) (*proto.Certs, error) {
+func (a *Server) generateOpenSSHCert(ctx context.Context, req internal.CertRequest) (*proto.Certs, error) {
 	return generateCert(ctx, a, req, types.OpenSSHCA)
 }
 
-func generateCert(ctx context.Context, a *Server, req certRequest, caType types.CertAuthType) (*proto.Certs, error) {
-	err := req.check()
+func generateCert(ctx context.Context, a *Server, req internal.CertRequest, caType types.CertAuthType) (*proto.Certs, error) {
+	err := req.Check()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, ok := req.checker.Scoped(); ok {
+	if _, ok := req.Checker.Scoped(); ok {
 		// require that the scope feature is enabled for scoped certificate creation
 		if err := scopes.AssertFeatureEnabled(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if unscopedChecker, ok := req.checker.Unscoped(); ok {
+	if unscopedChecker, ok := req.Checker.Unscoped(); ok {
 		if len(unscopedChecker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.Errorf("resource access requests: %w", ErrRequiresEnterprise)
 		}
@@ -3484,28 +3330,28 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-		checker:              req.checker,
+		checker:              req.Checker,
 		defaultMode:          readOnlyAuthPref.GetLockingMode(),
-		username:             req.user.GetName(),
-		mfaVerified:          req.mfaVerified,
-		activeAccessRequests: req.activeRequests,
-		deviceID:             req.deviceExtensions.DeviceID,
-		botInstanceID:        req.botInstanceID,
-		joinToken:            req.joinToken,
+		username:             req.User.GetName(),
+		mfaVerified:          req.MFAVerified,
+		activeAccessRequests: req.ActiveRequests,
+		deviceID:             req.DeviceExtensions.DeviceID,
+		botInstanceID:        req.BotInstanceID,
+		joinToken:            req.JoinToken,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// extract the passed in certificate format. if nothing was passed in, fetch
 	// the certificate format from the role.
-	certificateFormat, err := utils.CheckCertificateFormatFlag(req.compatibility)
+	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// scoped identities must use the standard certificate format, unscoped identities may have their
 	// certificate format customized by request parameters and/or role settings.
-	if unscopedChecker, ok := req.checker.Unscoped(); ok {
+	if unscopedChecker, ok := req.Checker.Unscoped(); ok {
 		if certificateFormat == teleport.CertificateFormatUnspecified {
 			certificateFormat = unscopedChecker.CertificateFormat()
 		}
@@ -3522,19 +3368,19 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	var sessionTTL time.Duration
 	var allowedLogins []string
 
-	if req.ttl == 0 {
-		req.ttl = time.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
+	if req.TTL == 0 {
+		req.TTL = time.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 
 	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
 	// The only caller setting this parameter should be "tctl auth sign".
 	// Otherwise, set the session TTL to the smallest of all roles and
 	// then only grant access to allowed logins based on that.
-	if req.overrideRoleTTL {
+	if req.OverrideRoleTTL {
 		// Take whatever was passed in. Pass in 0 to CheckLoginDuration so all
 		// logins are returned for the role set.
-		sessionTTL = req.ttl
-		allowedLogins, err = req.checker.Common().CheckLoginDuration(0)
+		sessionTTL = req.TTL
+		allowedLogins, err = req.Checker.Common().CheckLoginDuration(0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3542,11 +3388,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		// Adjust session TTL to the smaller of two values: the session TTL requested
 		// in tsh (possibly using default_session_ttl) or the session TTL for the
 		// role.
-		sessionTTL = req.checker.Common().AdjustSessionTTL(req.ttl)
+		sessionTTL = req.Checker.Common().AdjustSessionTTL(req.TTL)
 		// Return a list of logins that meet the session TTL limit. This means if
 		// the requested session TTL is larger than the max session TTL for a login,
 		// that login will not be included in the list of allowed logins.
-		allowedLogins, err = req.checker.Common().CheckLoginDuration(sessionTTL)
+		allowedLogins, err = req.Checker.Common().CheckLoginDuration(sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3554,7 +3400,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	notAfter := a.clock.Now().UTC().Add(sessionTTL)
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy, err := req.checker.Common().PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
+	requiredKeyPolicy, err := req.Checker.Common().PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3564,43 +3410,43 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			sshAttestedKeyPolicy keys.PrivateKeyPolicy
 			tlsAttestedKeyPolicy keys.PrivateKeyPolicy
 		)
-		if req.sshPublicKey != nil {
-			sshCryptoPubKey, err := sshutils.CryptoPublicKey(req.sshPublicKey)
+		if req.SSHPublicKey != nil {
+			sshCryptoPubKey, err := sshutils.CryptoPublicKey(req.SSHPublicKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			sshAttestedKeyPolicy, err = a.attestHardwareKey(ctx, &attestHardwareKeyParams{
 				requiredKeyPolicy:    requiredKeyPolicy,
 				pubKey:               sshCryptoPubKey,
-				attestationStatement: req.sshPublicKeyAttestationStatement,
+				attestationStatement: req.SSHPublicKeyAttestationStatement,
 				sessionTTL:           sessionTTL,
 				readOnlyAuthPref:     readOnlyAuthPref,
-				userName:             req.user.GetName(),
-				userTraits:           req.checker.Common().Traits(),
+				userName:             req.User.GetName(),
+				userTraits:           req.Checker.Common().Traits(),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err, "attesting SSH key")
 			}
 		}
-		if req.tlsPublicKey != nil {
-			tlsCryptoPubKey, err := keys.ParsePublicKey(req.tlsPublicKey)
+		if req.TLSPublicKey != nil {
+			tlsCryptoPubKey, err := keys.ParsePublicKey(req.TLSPublicKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			tlsAttestedKeyPolicy, err = a.attestHardwareKey(ctx, &attestHardwareKeyParams{
 				requiredKeyPolicy:    requiredKeyPolicy,
 				pubKey:               tlsCryptoPubKey,
-				attestationStatement: req.tlsPublicKeyAttestationStatement,
+				attestationStatement: req.TLSPublicKeyAttestationStatement,
 				sessionTTL:           sessionTTL,
 				readOnlyAuthPref:     readOnlyAuthPref,
-				userName:             req.user.GetName(),
-				userTraits:           req.checker.Common().Traits(),
+				userName:             req.User.GetName(),
+				userTraits:           req.Checker.Common().Traits(),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err, "attesting TLS key")
 			}
 		}
-		if req.sshPublicKey != nil && req.tlsPublicKey != nil && sshAttestedKeyPolicy != tlsAttestedKeyPolicy {
+		if req.SSHPublicKey != nil && req.TLSPublicKey != nil && sshAttestedKeyPolicy != tlsAttestedKeyPolicy {
 			return nil, trace.BadParameter("SSH attested key policy %q does not match TLS attested key policy %q, this not supported",
 				sshAttestedKeyPolicy, tlsAttestedKeyPolicy)
 		}
@@ -3611,23 +3457,23 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if req.routeToCluster == "" {
-		req.routeToCluster = clusterName
+	if req.RouteToCluster == "" {
+		req.RouteToCluster = clusterName
 	}
-	if req.routeToCluster != clusterName {
-		unscopedChecker, ok := req.checker.Unscoped()
+	if req.RouteToCluster != clusterName {
+		unscopedChecker, ok := req.Checker.Unscoped()
 		if !ok {
-			return nil, trace.BadParameter("cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.routeToCluster)
+			return nil, trace.BadParameter("cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
 		}
 
 		// Authorize access to a remote cluster.
-		rc, err := a.GetRemoteCluster(ctx, req.routeToCluster)
+		rc, err := a.GetRemoteCluster(ctx, req.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := unscopedChecker.CheckAccessToRemoteCluster(rc); err != nil {
 			if trace.IsAccessDenied(err) {
-				return nil, trace.NotFound("remote cluster %q not found", req.routeToCluster)
+				return nil, trace.NotFound("remote cluster %q not found", req.RouteToCluster)
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -3638,12 +3484,12 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
 	pinnedIP := ""
-	if caType == types.UserCA && (req.checker.Common().PinSourceIP() || req.pinIP) {
-		if req.loginIP == "" {
-			return nil, trace.BadParameter("IP pinning is enabled for user %q but there is no client IP information", req.user.GetName())
+	if caType == types.UserCA && (req.Checker.Common().PinSourceIP() || req.PinIP) {
+		if req.LoginIP == "" {
+			return nil, trace.BadParameter("IP pinning is enabled for user %q but there is no client IP information", req.User.GetName())
 		}
 
-		pinnedIP = req.loginIP
+		pinnedIP = req.LoginIP
 	}
 
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
@@ -3656,7 +3502,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 
 	// At most one GitHub identity expected.
 	var githubUserID, githubUsername string
-	if githubIdentities := req.user.GetGithubIdentities(); len(githubIdentities) > 0 {
+	if githubIdentities := req.User.GetGithubIdentities(); len(githubIdentities) > 0 {
 		githubUserID = githubIdentities[0].UserID
 		githubUsername = githubIdentities[0].Username
 	}
@@ -3668,17 +3514,17 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		allowedResourceIDs []types.ResourceID
 	)
 
-	if scopedChecker, ok := req.checker.Scoped(); ok {
+	if scopedChecker, ok := req.Checker.Scoped(); ok {
 		scopePin = scopedChecker.ScopePin()
 	}
 
-	if unscopedChecker, ok := req.checker.Unscoped(); ok {
+	if unscopedChecker, ok := req.Checker.Unscoped(); ok {
 		roleNames = unscopedChecker.RoleNames()
 		allowedResourceIDs = unscopedChecker.GetAllowedResourceIDs()
 	}
 
 	var signedSSHCert []byte
-	if req.sshPublicKey != nil {
+	if req.SSHPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3686,44 +3532,44 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 
 		// certificate extensions are only supported for unscoped ssh certs
 		var certificateExtensions []*types.CertExtension
-		if unscopedChecker, ok := req.checker.Unscoped(); ok {
+		if unscopedChecker, ok := req.Checker.Unscoped(); ok {
 			certificateExtensions = unscopedChecker.CertificateExtensions()
 		}
 
 		params := sshca.UserCertificateRequest{
 			CASigner:          sshSigner,
-			PublicUserKey:     req.sshPublicKey,
+			PublicUserKey:     req.SSHPublicKey,
 			TTL:               sessionTTL,
 			CertificateFormat: certificateFormat,
 			Identity: sshca.Identity{
-				Username:                req.user.GetName(),
-				Impersonator:            req.impersonator,
+				Username:                req.User.GetName(),
+				Impersonator:            req.Impersonator,
 				Principals:              allowedLogins,
 				ScopePin:                scopePin,
 				Roles:                   roleNames,
-				PermitPortForwarding:    req.checker.Common().CanPortForward(),
-				PermitAgentForwarding:   req.checker.Common().CanForwardAgents(),
-				PermitX11Forwarding:     req.checker.Common().PermitX11Forwarding(),
-				RouteToCluster:          req.routeToCluster,
-				Traits:                  req.traits,
-				ActiveRequests:          req.activeRequests,
-				MFAVerified:             req.mfaVerified,
-				PreviousIdentityExpires: req.previousIdentityExpires,
-				LoginIP:                 req.loginIP,
+				PermitPortForwarding:    req.Checker.Common().CanPortForward(),
+				PermitAgentForwarding:   req.Checker.Common().CanForwardAgents(),
+				PermitX11Forwarding:     req.Checker.Common().PermitX11Forwarding(),
+				RouteToCluster:          req.RouteToCluster,
+				Traits:                  req.Traits,
+				ActiveRequests:          req.ActiveRequests,
+				MFAVerified:             req.MFAVerified,
+				PreviousIdentityExpires: req.PreviousIdentityExpires,
+				LoginIP:                 req.LoginIP,
 				PinnedIP:                pinnedIP,
-				DisallowReissue:         req.disallowReissue,
-				Renewable:               req.renewable,
-				Generation:              req.generation,
-				BotName:                 req.botName,
-				BotInstanceID:           req.botInstanceID,
-				JoinToken:               req.joinToken,
+				DisallowReissue:         req.DisallowReissue,
+				Renewable:               req.Renewable,
+				Generation:              req.Generation,
+				BotName:                 req.BotName,
+				BotInstanceID:           req.BotInstanceID,
+				JoinToken:               req.JoinToken,
 				CertificateExtensions:   certificateExtensions,
 				AllowedResourceIDs:      allowedResourceIDs,
-				ConnectionDiagnosticID:  req.connectionDiagnosticID,
+				ConnectionDiagnosticID:  req.ConnectionDiagnosticID,
 				PrivateKeyPolicy:        attestedKeyPolicy,
-				DeviceID:                req.deviceExtensions.DeviceID,
-				DeviceAssetTag:          req.deviceExtensions.AssetTag,
-				DeviceCredentialID:      req.deviceExtensions.CredentialID,
+				DeviceID:                req.DeviceExtensions.DeviceID,
+				DeviceAssetTag:          req.DeviceExtensions.AssetTag,
+				DeviceCredentialID:      req.DeviceExtensions.CredentialID,
 				GitHubUserID:            githubUserID,
 				GitHubUsername:          githubUsername,
 			},
@@ -3738,20 +3584,20 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// when the certificate is intended for a local Kubernetes cluster.
 	// If the certificate is targeting a trusted Teleport cluster, it is the
 	// responsibility of the cluster to ensure its existence.
-	if req.routeToCluster == clusterName && req.kubernetesCluster != "" {
+	if req.RouteToCluster == clusterName && req.KubernetesCluster != "" {
 		var found bool
 		for ks, err := range a.UnifiedResourceCache.KubernetesServers(a.closeCtx, services.UnifiedResourcesIterateParams{}) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			if ks.GetCluster().GetName() == req.kubernetesCluster {
+			if ks.GetCluster().GetName() == req.KubernetesCluster {
 				found = true
 				break
 			}
 		}
 		if !found {
-			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", req.kubernetesCluster)
+			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", req.KubernetesCluster)
 		}
 	}
 
@@ -3764,8 +3610,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	)
 
 	// only unscoped identities currently support kube groups/users.
-	if unscopedChecker, ok := req.checker.Unscoped(); ok {
-		kubeGroups, kubeUsers, err = unscopedChecker.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
+	if unscopedChecker, ok := req.Checker.Unscoped(); ok {
+		kubeGroups, kubeUsers, err = unscopedChecker.CheckKubeGroupsAndUsers(sessionTTL, req.OverrideRoleTTL)
 		// NotFound errors are acceptable - this user may have no k8s access
 		// granted and that shouldn't prevent us from issuing a TLS cert.
 		if err != nil && !trace.IsNotFound(err) {
@@ -3773,25 +3619,25 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 
 		// See which database names and users this user is allowed to use.
-		dbNames, dbUsers, err = unscopedChecker.CheckDatabaseNamesAndUsers(sessionTTL, req.overrideRoleTTL)
+		dbNames, dbUsers, err = unscopedChecker.CheckDatabaseNamesAndUsers(sessionTTL, req.OverrideRoleTTL)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 
 		// See which AWS role ARNs this user is allowed to assume.
-		roleARNs, err = unscopedChecker.CheckAWSRoleARNs(sessionTTL, req.overrideRoleTTL)
+		roleARNs, err = unscopedChecker.CheckAWSRoleARNs(sessionTTL, req.OverrideRoleTTL)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 
 		// See which Azure identities this user is allowed to assume.
-		azureIdentities, err = unscopedChecker.CheckAzureIdentities(sessionTTL, req.overrideRoleTTL)
+		azureIdentities, err = unscopedChecker.CheckAzureIdentities(sessionTTL, req.OverrideRoleTTL)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 
 		// Enumerate allowed GCP service accounts.
-		gcpAccounts, err = unscopedChecker.CheckGCPServiceAccounts(sessionTTL, req.overrideRoleTTL)
+		gcpAccounts, err = unscopedChecker.CheckGCPServiceAccounts(sessionTTL, req.OverrideRoleTTL)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
@@ -3802,7 +3648,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	switch {
 	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
 		// Requesting AWS credential_process credentials for Apps without AWS client side credentials is a client error.
-		if req.requesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS {
+		if req.RequesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS {
 			return nil, trace.BadParameter("client requested aws credentials for an invalid resource")
 		}
 
@@ -3811,70 +3657,70 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	identity := tlsca.Identity{
-		Username:          req.user.GetName(),
-		Impersonator:      req.impersonator,
+		Username:          req.User.GetName(),
+		Impersonator:      req.Impersonator,
 		ScopePin:          scopePin,
 		Groups:            roleNames,
 		Principals:        allowedLogins,
-		Usage:             req.usage,
-		RouteToCluster:    req.routeToCluster,
-		KubernetesCluster: req.kubernetesCluster,
-		Traits:            req.traits,
+		Usage:             req.Usage,
+		RouteToCluster:    req.RouteToCluster,
+		KubernetesCluster: req.KubernetesCluster,
+		Traits:            req.Traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:                       req.appSessionID,
-			URI:                             req.appURI,
-			TargetPort:                      req.appTargetPort,
-			PublicAddr:                      req.appPublicAddr,
-			ClusterName:                     req.appClusterName,
-			Name:                            req.appName,
-			AWSRoleARN:                      req.awsRoleARN,
+			SessionID:                       req.AppSessionID,
+			URI:                             req.AppURI,
+			TargetPort:                      req.AppTargetPort,
+			PublicAddr:                      req.AppPublicAddr,
+			ClusterName:                     req.AppClusterName,
+			Name:                            req.AppName,
+			AWSRoleARN:                      req.AWSRoleARN,
 			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
-			AzureIdentity:                   req.azureIdentity,
-			GCPServiceAccount:               req.gcpServiceAccount,
+			AzureIdentity:                   req.AzureIdentity,
+			GCPServiceAccount:               req.GCPServiceAccount,
 		},
 		TeleportCluster:   clusterName,
 		OriginClusterName: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: req.dbService,
-			Protocol:    req.dbProtocol,
-			Username:    req.dbUser,
-			Database:    req.dbName,
-			Roles:       req.dbRoles,
+			ServiceName: req.DBService,
+			Protocol:    req.DBProtocol,
+			Username:    req.DBUser,
+			Database:    req.DBName,
+			Roles:       req.DBRoles,
 		},
 		DatabaseNames:           dbNames,
 		DatabaseUsers:           dbUsers,
-		MFAVerified:             req.mfaVerified,
-		PreviousIdentityExpires: req.previousIdentityExpires,
-		LoginIP:                 req.loginIP,
+		MFAVerified:             req.MFAVerified,
+		PreviousIdentityExpires: req.PreviousIdentityExpires,
+		LoginIP:                 req.LoginIP,
 		PinnedIP:                pinnedIP,
 		AWSRoleARNs:             roleARNs,
 		AzureIdentities:         azureIdentities,
 		GCPServiceAccounts:      gcpAccounts,
-		ActiveRequests:          req.activeRequests,
-		DisallowReissue:         req.disallowReissue,
-		Renewable:               req.renewable,
-		Generation:              req.generation,
-		BotName:                 req.botName,
-		BotInstanceID:           req.botInstanceID,
-		JoinToken:               req.joinToken,
+		ActiveRequests:          req.ActiveRequests,
+		DisallowReissue:         req.DisallowReissue,
+		Renewable:               req.Renewable,
+		Generation:              req.Generation,
+		BotName:                 req.BotName,
+		BotInstanceID:           req.BotInstanceID,
+		JoinToken:               req.JoinToken,
 		AllowedResourceIDs:      allowedResourceIDs,
 		PrivateKeyPolicy:        attestedKeyPolicy,
-		ConnectionDiagnosticID:  req.connectionDiagnosticID,
+		ConnectionDiagnosticID:  req.ConnectionDiagnosticID,
 		DeviceExtensions: tlsca.DeviceExtensions{
-			DeviceID:     req.deviceExtensions.DeviceID,
-			AssetTag:     req.deviceExtensions.AssetTag,
-			CredentialID: req.deviceExtensions.CredentialID,
+			DeviceID:     req.DeviceExtensions.DeviceID,
+			AssetTag:     req.DeviceExtensions.AssetTag,
+			CredentialID: req.DeviceExtensions.CredentialID,
 		},
-		UserType:       req.user.GetUserType(),
-		JoinAttributes: req.joinAttributes,
+		UserType:       req.User.GetUserType(),
+		JoinAttributes: req.JoinAttributes,
 	}
 
 	var signedTLSCert []byte
 	var tlsIssuer *tlsca.CertAuthority
-	if req.tlsPublicKey != nil {
-		tlsCryptoPubKey, err := keys.ParsePublicKey(req.tlsPublicKey)
+	if req.TLSPublicKey != nil {
+		tlsCryptoPubKey, err := keys.ParsePublicKey(req.TLSPublicKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3915,7 +3761,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	cas := []types.CertAuthority{ca}
 
 	// also include host CA certs if requested
-	if req.includeHostCA {
+	if req.IncludeHostCA {
 		hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName,

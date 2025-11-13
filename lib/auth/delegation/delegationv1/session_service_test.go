@@ -21,436 +21,26 @@ package delegationv1_test
 import (
 	"context"
 	"testing"
-	"testing/synctest"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
-	"github.com/gravitational/teleport/api/mfa"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/delegation/delegationv1"
+	"github.com/gravitational/teleport/lib/auth/internal"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/trace"
 )
-
-func TestSessionService_CreateSession(t *testing.T) {
-	t.Parallel()
-
-	t.Run("success with profile", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			service, pack := sessionServiceTestPack(t)
-
-			// Create user with role that allows the use of any profile and
-			// any application (to match the profile's required_resources).
-			pack.authenticate(t,
-				"bob",
-				authz.AdminActionAuthMFAVerified,
-				types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						DelegationProfileLabels: types.Labels{
-							types.Wildcard: {types.Wildcard},
-						},
-						AppLabels: types.Labels{
-							types.Wildcard: {types.Wildcard},
-						},
-					},
-				},
-			)
-
-			// Create delegation profile.
-			profile, err := pack.profiles.CreateDelegationProfile(
-				t.Context(),
-				newDelegationProfile("my-profile"),
-			)
-			require.NoError(t, err)
-
-			// Call endpoint to create session.
-			session, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
-				From: &delegationv1pb.CreateDelegationSessionRequest_Profile{
-					Profile: &delegationv1pb.DelegationProfileReference{
-						Name:     profile.GetMetadata().GetName(),
-						Revision: profile.GetMetadata().GetRevision(),
-					},
-				},
-				Ttl: durationpb.New(5 * time.Minute),
-			})
-			require.NoError(t, err)
-
-			// Check user name is captured.
-			assert.Equal(t,
-				pack.user.GetName(),
-				session.GetSpec().GetUser(),
-			)
-
-			// Check resources and authorized users copied from profile.
-			assert.Empty(t,
-				cmp.Diff(
-					profile.GetSpec().GetRequiredResources(),
-					session.GetSpec().GetResources(),
-					protocmp.Transform(),
-				),
-			)
-			assert.Empty(t,
-				cmp.Diff(
-					profile.GetSpec().GetAuthorizedUsers(),
-					session.GetSpec().GetAuthorizedUsers(),
-					protocmp.Transform(),
-				),
-			)
-
-			// Check TTL is applied.
-			assert.Equal(t,
-				5*time.Minute,
-				session.GetMetadata().GetExpires().AsTime().Sub(time.Now()),
-			)
-		})
-	})
-
-	t.Run("success with manual parameters", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			service, pack := sessionServiceTestPack(t)
-
-			// Create user with role that allows the use of any application.
-			pack.authenticate(t,
-				"bob",
-				authz.AdminActionAuthMFAVerified,
-				types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						AppLabels: types.Labels{
-							types.Wildcard: {types.Wildcard},
-						},
-					},
-				},
-			)
-
-			// Call endpoint to create session.
-			session, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
-				From: &delegationv1pb.CreateDelegationSessionRequest_Parameters{
-					Parameters: &delegationv1pb.DelegationSessionParameters{
-						Resources: []*delegationv1pb.DelegationResourceSpec{
-							{
-								Kind: types.KindApp,
-								Name: "hr-system",
-							},
-						},
-						AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-							{
-								Type: types.DelegationUserTypeBot,
-								Matcher: &delegationv1pb.DelegationUserSpec_BotName{
-									BotName: "payroll-agent",
-								},
-							},
-						},
-					},
-				},
-				Ttl: durationpb.New(5 * time.Minute),
-			})
-			require.NoError(t, err)
-
-			// Check user name is captured.
-			assert.Equal(t,
-				pack.user.GetName(),
-				session.GetSpec().GetUser(),
-			)
-
-			// Check resources and authorized users copied from profile.
-			assert.Empty(t,
-				cmp.Diff(
-					[]*delegationv1pb.DelegationResourceSpec{
-						{
-							Kind: types.KindApp,
-							Name: "hr-system",
-						},
-					},
-					session.GetSpec().GetResources(),
-					protocmp.Transform(),
-				),
-			)
-			assert.Empty(t,
-				cmp.Diff(
-					[]*delegationv1pb.DelegationUserSpec{
-						{
-							Type: types.DelegationUserTypeBot,
-							Matcher: &delegationv1pb.DelegationUserSpec_BotName{
-								BotName: "payroll-agent",
-							},
-						},
-					},
-					session.GetSpec().GetAuthorizedUsers(),
-					protocmp.Transform(),
-				),
-			)
-
-			// Check TTL is applied.
-			assert.Equal(t,
-				5*time.Minute,
-				session.GetMetadata().GetExpires().AsTime().Sub(time.Now()),
-			)
-		})
-	})
-
-	t.Run("not allowed to use profile", func(t *testing.T) {
-		service, pack := sessionServiceTestPack(t)
-
-		// Create user with role that allows the use of any application but not
-		// the delegation profile.
-		pack.authenticate(t,
-			"bob",
-			authz.AdminActionAuthMFAVerified,
-			types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					AppLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-				},
-			},
-		)
-
-		// Create delegation profile.
-		profile, err := pack.profiles.CreateDelegationProfile(
-			t.Context(),
-			newDelegationProfile("my-profile"),
-		)
-		require.NoError(t, err)
-
-		// Call endpoint to create session.
-		_, err = service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
-			From: &delegationv1pb.CreateDelegationSessionRequest_Profile{
-				Profile: &delegationv1pb.DelegationProfileReference{
-					Name:     profile.GetMetadata().GetName(),
-					Revision: profile.GetMetadata().GetRevision(),
-				},
-			},
-			Ttl: durationpb.New(5 * time.Minute),
-		})
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-	})
-
-	t.Run("not allowed to use resources", func(t *testing.T) {
-		service, pack := sessionServiceTestPack(t)
-
-		// Create user with role that allows the use of any delegation profile
-		// but not the required resources.
-		pack.authenticate(t,
-			"bob",
-			authz.AdminActionAuthMFAVerified,
-			types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					DelegationProfileLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-				},
-			},
-		)
-
-		// Create delegation profile.
-		profile, err := pack.profiles.CreateDelegationProfile(
-			t.Context(),
-			newDelegationProfile("my-profile"),
-		)
-		require.NoError(t, err)
-
-		// Call endpoint to create session.
-		_, err = service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
-			From: &delegationv1pb.CreateDelegationSessionRequest_Profile{
-				Profile: &delegationv1pb.DelegationProfileReference{
-					Name:     profile.GetMetadata().GetName(),
-					Revision: profile.GetMetadata().GetRevision(),
-				},
-			},
-			Ttl: durationpb.New(5 * time.Minute),
-		})
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-		require.ErrorContains(t, err, "You do not have permission to delegate access to all of the required resources")
-	})
-
-	t.Run("resource does not exist", func(t *testing.T) {
-		service, pack := sessionServiceTestPack(t)
-
-		// Create user with role that allows the use of any profile and
-		// any application (to match the profile's required_resources).
-		pack.authenticate(t,
-			"bob",
-			authz.AdminActionAuthMFAVerified,
-			types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					DelegationProfileLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					AppLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-				},
-			},
-		)
-
-		profile := newDelegationProfile("my-profile")
-		profile.Spec.RequiredResources = []*delegationv1pb.DelegationResourceSpec{
-			{
-				Kind: types.KindApp,
-				Name: "unknown-app",
-			},
-		}
-
-		// Create delegation profile.
-		profile, err := pack.profiles.CreateDelegationProfile(t.Context(), profile)
-		require.NoError(t, err)
-
-		// Call endpoint to create session.
-		_, err = service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
-			From: &delegationv1pb.CreateDelegationSessionRequest_Profile{
-				Profile: &delegationv1pb.DelegationProfileReference{
-					Name:     profile.GetMetadata().GetName(),
-					Revision: profile.GetMetadata().GetRevision(),
-				},
-			},
-			Ttl: durationpb.New(5 * time.Minute),
-		})
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-		require.ErrorContains(t, err, "You do not have permission to delegate access to all of the required resources")
-	})
-
-	t.Run("profile revision changed", func(t *testing.T) {
-		service, pack := sessionServiceTestPack(t)
-
-		// Create user with role that allows the use of any profile and
-		// any application (to match the profile's required_resources).
-		pack.authenticate(t,
-			"bob",
-			authz.AdminActionAuthMFAVerified,
-			types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					DelegationProfileLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					AppLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-				},
-			},
-		)
-
-		// Create delegation profile.
-		profile, err := pack.profiles.CreateDelegationProfile(
-			t.Context(),
-			newDelegationProfile("my-profile"),
-		)
-		require.NoError(t, err)
-
-		// Call endpoint to create session.
-		_, err = service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
-			From: &delegationv1pb.CreateDelegationSessionRequest_Profile{
-				Profile: &delegationv1pb.DelegationProfileReference{
-					Name:     profile.GetMetadata().GetName(),
-					Revision: "not-the-same-revision",
-				},
-			},
-			Ttl: durationpb.New(5 * time.Minute),
-		})
-		require.Error(t, err)
-		require.True(t, trace.IsCompareFailed(err))
-	})
-
-	t.Run("requires MFA", func(t *testing.T) {
-		service, pack := sessionServiceTestPack(t)
-
-		// Create user with role that allows the use of any profile and
-		// any application (to match the profile's required_resources).
-		pack.authenticate(t,
-			"bob",
-			authz.AdminActionAuthUnauthorized,
-			types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					DelegationProfileLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					AppLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-				},
-			},
-		)
-
-		// Call endpoint to create session.
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
-			From: &delegationv1pb.CreateDelegationSessionRequest_Parameters{
-				Parameters: &delegationv1pb.DelegationSessionParameters{
-					Resources: []*delegationv1pb.DelegationResourceSpec{
-						{
-							Kind: types.KindApp,
-							Name: "hr-system",
-						},
-					},
-					AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-						{
-							Type: types.DelegationUserTypeBot,
-							Matcher: &delegationv1pb.DelegationUserSpec_BotName{
-								BotName: "payroll-agent",
-							},
-						},
-					},
-				},
-			},
-			Ttl: durationpb.New(5 * time.Minute),
-		})
-		require.Error(t, err)
-		require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
-	})
-
-	t.Run("no TTL or default session length", func(t *testing.T) {
-		service, pack := sessionServiceTestPack(t)
-
-		// Create user with role that allows the use of any profile and
-		// any application (to match the profile's required_resources).
-		pack.authenticate(t,
-			"bob",
-			authz.AdminActionAuthMFAVerified,
-			types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					DelegationProfileLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					AppLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-				},
-			},
-		)
-
-		profile := newDelegationProfile("my-profile")
-		profile.Spec.DefaultSessionLength = nil
-
-		// Create delegation profile.
-		profile, err := pack.profiles.CreateDelegationProfile(t.Context(), profile)
-		require.NoError(t, err)
-
-		// Call endpoint to create session.
-		_, err = service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
-			From: &delegationv1pb.CreateDelegationSessionRequest_Profile{
-				Profile: &delegationv1pb.DelegationProfileReference{
-					Name:     profile.GetMetadata().GetName(),
-					Revision: profile.GetMetadata().GetRevision(),
-				},
-			},
-		})
-		require.Error(t, err)
-		require.True(t, trace.IsBadParameter(err))
-		require.ErrorContains(t, err, "ttl is require")
-	})
-}
 
 func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessionTestPack) {
 	t.Helper()
@@ -498,27 +88,54 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 
 	service, err := delegationv1.NewSessionService(delegationv1.SessionServiceConfig{
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
-			checker, err := services.NewAccessChecker(
-				&services.AccessInfo{
-					Roles: pack.user.GetRoles(),
-				},
-				"test.teleport.sh",
-				accessService,
-			)
-			require.NoError(t, err)
+			if pack.botName != "" {
+				return &authz.Context{
+					Identity: authz.LocalUser{
+						Identity: tlsca.Identity{BotName: pack.botName},
+					},
+					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
+				}, nil
+			}
 
-			return &authz.Context{
-				User:                 pack.user,
-				AdminActionAuthState: pack.adminActionAuthState,
-				Checker:              checker,
-			}, nil
+			if pack.user != nil {
+				checker, err := services.NewAccessChecker(
+					&services.AccessInfo{
+						Roles: pack.user.GetRoles(),
+					},
+					"test.teleport.sh",
+					accessService,
+				)
+				require.NoError(t, err)
+
+				return &authz.Context{
+					User:                 pack.user,
+					AdminActionAuthState: pack.adminActionAuthState,
+					Checker:              checker,
+				}, nil
+			}
+
+			return nil, trace.AccessDenied("remember to call authenticateUser or authenticateBot on the test pack")
 		}),
 		ProfileReader:  profileUpstream,
+		SessionReader:  sessionUpstream,
 		SessionWriter:  sessionUpstream,
 		ResourceLister: presenceService,
 		RoleGetter:     accessService,
 		UserGetter:     identityService,
-		Logger:         logtest.NewLogger(),
+		CertGenerator: delegationv1.CertGeneratorFunc(func(ctx context.Context, req internal.CertRequest) (*proto.Certs, error) {
+			if pack.onGenerateCert != nil {
+				return pack.onGenerateCert(ctx, req)
+			}
+			return nil, trace.NotImplemented("Certificate generation not implemented")
+		}),
+		ClusterNameGetter: testClusterNameGetter{clusterName: "test.teleport.sh"},
+		AppSessionCreator: delegationv1.AppSessionCreatorFunc(func(ctx context.Context, req internal.NewAppSessionRequest) (types.WebSession, error) {
+			if pack.onCreateAppSession != nil {
+				return pack.onCreateAppSession(ctx, req)
+			}
+			return nil, trace.NotImplemented("App session creation not implemented")
+		}),
+		Logger: logtest.NewLogger(),
 	})
 
 	return service, pack
@@ -533,14 +150,29 @@ type sessionTestPack struct {
 
 	user                 types.User
 	adminActionAuthState authz.AdminActionAuthState
+	botName              string
+
+	onCreateAppSession func(context.Context, internal.NewAppSessionRequest) (types.WebSession, error)
+	onGenerateCert     func(context.Context, internal.CertRequest) (*proto.Certs, error)
 }
 
-func (p *sessionTestPack) authenticate(
+func (p *sessionTestPack) authenticateUser(
 	t *testing.T,
 	name string,
 	mfaState authz.AdminActionAuthState,
 	roleSpec types.RoleSpecV6,
 ) {
+	t.Helper()
+
+	p.user = p.createUser(t, name, roleSpec)
+	p.adminActionAuthState = mfaState
+}
+
+func (p *sessionTestPack) createUser(
+	t *testing.T,
+	name string,
+	roleSpec types.RoleSpecV6,
+) types.User {
 	t.Helper()
 
 	user, err := types.NewUser(name)
@@ -556,6 +188,37 @@ func (p *sessionTestPack) authenticate(
 	_, err = p.identity.CreateUser(t.Context(), user)
 	require.NoError(t, err)
 
-	p.user = user
-	p.adminActionAuthState = mfaState
+	return user
+}
+
+func (p *sessionTestPack) authenticateBot(botName string) {
+	p.botName = botName
+}
+
+func (p *sessionTestPack) createSession(t *testing.T, spec *delegationv1pb.DelegationSessionSpec) *delegationv1pb.DelegationSession {
+	t.Helper()
+
+	session, err := p.sessions.CreateDelegationSession(t.Context(), &delegationv1pb.DelegationSession{
+		Kind:    types.KindDelegationProfile,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:    uuid.NewString(),
+			Expires: timestamppb.New(time.Now().Add(time.Hour)),
+		},
+		Spec: spec,
+	})
+	require.NoError(t, err)
+
+	return session
+}
+
+type testClusterNameGetter struct {
+	clusterName string
+}
+
+func (g testClusterNameGetter) GetClusterName(context.Context) (types.ClusterName, error) {
+	return types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: g.clusterName,
+		ClusterID:   g.clusterName,
+	})
 }
