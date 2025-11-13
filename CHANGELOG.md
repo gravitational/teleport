@@ -3180,7 +3180,7 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
-You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/introduction.mdx).
+You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/application-access.mdx).
 
 ##### Teleport Kubernetes access
 

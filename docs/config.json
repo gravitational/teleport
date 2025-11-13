@@ -2919,6 +2919,11 @@
       "source": "/enroll-resources/server-access/guides/vscode/",
       "destination": "/connect-your-client/third-party/vscode/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/introduction/",
+      "destination": "/enroll-resources/application-access/",
+      "permanent": true
     }
   ]
 }
