@@ -370,11 +370,11 @@ func (t *terminal) closeTTY() error {
 func (t *terminal) closePTY() {
 	defer t.log.Debug("Closed PTY")
 
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	if t.pty == nil {
 		return
