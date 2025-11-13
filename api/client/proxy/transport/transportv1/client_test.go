@@ -322,15 +322,18 @@ func TestClient_DialHost(t *testing.T) {
 					return trail.ToGRPC(trace.Wrap(err, "failed constructing ssh agent streamer"))
 				}
 
+				done := make(chan error, 1)
 				// read in agent frames
 				go func() {
+					defer close(done)
 					for {
 						req, err := server.Recv()
 						if err != nil {
 							if errors.Is(err, io.EOF) {
+								done <- nil
 								return
 							}
-
+							done <- err
 							return
 						}
 
@@ -361,6 +364,10 @@ func TestClient_DialHost(t *testing.T) {
 					Details: nil,
 					Frame:   &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: keys[0].Blob}},
 				}); err != nil && !errors.Is(err, io.EOF) {
+					return trail.ToGRPC(trace.Wrap(err))
+				}
+				err = <-done
+				if err != nil {
 					return trail.ToGRPC(trace.Wrap(err))
 				}
 				return nil
