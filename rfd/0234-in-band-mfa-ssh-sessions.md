@@ -84,18 +84,19 @@ session. Both the SSH client and the SSH server can independently compute the SI
 The MFA service will [store the Session Identifying Payload (SIP)](#storing-session-identifying-payloads) and respond
 with an MFA challenge for the client to solve.
 
-Next, the client solves the MFA challenge and calls `ValidateChallenge` with the MFA response.
+Next, the client solves the MFA challenge and calls `ValidateChallenge` with the MFA response. The MFA service validates
+the MFA response and stores the `ValidatedChallenge` to the local backend.
 
-The MFA service validates the MFA response and stores the validated challenge response and SIP for temporary storage.
+In addition, if the target cluster is a leaf cluster, a watcher in the reverse tunnel server monitors
+`ValidateChallenge` events for its cluster. When a `ValidateChallenge` is created for a leaf cluster, the reverse tunnel
+server calls the `CreateValidatedChallenge` RPC using its auth client to forward the challenge to the leaf cluster's MFA
+service.
 
-Depending on the target cluster, the MFA service's validation step differs slightly:
-
-- **Local clusters**: Uses the `CreateValidatedChallenge` RPC internally on the same cluster.
-- **Leaf clusters**: Forwards the validated response to the leaf cluster's MFA service using the
-  `CreateValidatedChallenge` RPC.
+This ensures that validated MFA challenges are available in the appropriate cluster for retrieval during SSH session
+establishment.
 
 If validation is successful, the MFA service responds to the client with a confirmation that the challenge has been
-validated.
+validated. If validation fails, the MFA service responds with an `Access Denied: Invalid MFA response` error.
 
 The client then sends a [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message to the SSH service,
 instructing it to retrieve the validated challenge from the MFA service.
@@ -140,7 +141,6 @@ sequenceDiagram
     Client->>Client: Solve MFA challenge
     Client->>MFA: ValidateChallenge (MFA response)
     MFA-->>MFA: Validate MFA response
-    MFA-->>MFA: CreateValidatedChallenge (SIP)
     MFA-->>Client: Challenge validated
 
     Client->>SSH: Keyboard-interactive (challenge name)
@@ -234,8 +234,8 @@ Mitigations:
 
 1. Only authenticated end user clients are authorized to call the `CreateChallenge` and `ValidateChallenge` RPCs,
    requests from other sources will be rejected.
-1. Only the Teleport Proxy and MFA service is authorized to call the `CreateValidatedChallenge` RPC, requests from other
-   sources will be rejected.
+1. Only the Teleport Proxy is authorized to call the `CreateValidatedChallenge` RPC, requests from other sources will be
+   rejected.
 1. Only the Teleport SSH service is authorized to call the `GetValidatedChallenge` RPC on the MFA service within its own
    cluster. Requests from other sources will be rejected.
 1. Ensure that the MFA service validates all inputs before processing the request to avoid unnecessary processing of
