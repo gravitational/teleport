@@ -287,6 +287,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.6.0
 )
 
+require github.com/aws/aws-sdk-go-v2/service/account v1.29.3
+
 require (
 	cel.dev/expr v0.25.0 // indirect
 	cloud.google.com/go v0.121.6 // indirect
