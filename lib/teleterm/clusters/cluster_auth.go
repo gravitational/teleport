@@ -145,10 +145,6 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.SSHLoginResponse, error)
 
 func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) error {
-	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
-	// existing profile for the first time (investigate why)
-	c.clusterClient.SiteName = ""
-
 	key, err := c.clusterClient.SSHLogin(ctx, sshLoginFunc)
 	if err != nil {
 		return trace.Wrap(err)
