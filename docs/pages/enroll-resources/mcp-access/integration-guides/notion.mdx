@@ -1,0 +1,143 @@
+---
+title: Notion
+description: Configure a Notion MCP server for access via Teleport
+tags:
+- how-to
+- mcp
+- zero-trust
+---
+
+This guide demonstrates how to run a Notion MCP server and connect it via
+Teleport.
+
+## How it works
+
+(!docs/pages/includes/mcp-access/integration-how-it-works-service-token.mdx serviceName="Notion" token="a Notion integration token"!)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)" clients="\`tsh\` client"!)
+- Access to your Notion workspace and sufficient privileges to manage integrations.
+- A host to run the MCP server that is reachable by the Teleport Application Service.
+- Running [Teleport Application Service](../getting-started.mdx).
+- A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
+  MCP servers.
+
+## Step 1/3. Create an integration in Notion
+
+Go to https://www.notion.so/profile/integrations and create a new **internal
+integration**.
+
+![Notion integration](../../../../img/mcp-access/notion-integration.png)
+
+To limit the scope available to LLMs, disable all permissions except "Read
+Content" in the "Capabilities" section.
+
+Next, open "Access" tab and select the pages you want the integration to be able
+to access.
+
+![Notion access](../../../../img/mcp-access/notion-access.png)
+
+Finally, return to the "Configuration" tab, copy the "Internal Integration
+Secret" for use in the next step.
+
+## Step 2/3. Run the Notion MCP server
+
+To run the Notion MCP server in streamable-http transport with the integration
+token <Var name="ntn_your_internal_integration_secret" />:
+```code
+$ export NOTION_TOKEN=<Var name="ntn_your_internal_integration_secret" />
+$ npx @notionhq/notion-mcp-server --transport http --port 3000 --auth-token teleport-local-connection
+```
+
+The Notion MCP server listens on all network interfaces by default, so it
+**must** be run in a private network that is not publicly accessible but
+reachable by the Teleport Application Service.
+
+The `--auth-token` is used for Teleport to authenticate with the MCP server.
+Because the Notion MCP server is not exposed to the public internet, a
+hard-coded value is sufficient.
+
+## Step 3/3. Connect via Teleport
+
+Once the Notion MCP server is running, add the following resource to the
+Teleport Application Service:
+<Tabs>
+<TabItem label="YAML configuration">
+Replace <Var name="MCP_HOST" initial="localhost" /> with the host running the Notion MCP server:
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "notion-mcp"
+    uri: "mcp+http://<Var name="MCP_HOST"/>:3000/mcp"
+    labels:
+      env: dev
+      service: notion
+    rewrite:
+      headers:
+      - "Authorization: Bearer teleport-local-connection"
+```
+
+Restart the Application Service.
+</TabItem>
+
+<TabItem label="Dynamic Registration">
+Replace `localhost` with the host running the Notion MCP server:
+```yaml
+kind: app
+version: v3
+metadata:
+  name: notion-mcp
+  labels:
+    env: dev
+    service: notion
+spec:
+  uri: "mcp+http://<Var name="MCP_HOST" />:3000/mcp"
+  rewrite:
+    headers:
+    - name:  "Authorization"
+      value: "Bearer teleport-local-connection"
+```
+</TabItem>
+</Tabs>
+
+<Admonition type="tip" title="Limiting MCP Tools">
+You can restrict which MCP tools Teleport users can access by refining the
+`mcp.tools` list in their role. Only the tools you include will be available to
+that role. For example:
+```yaml
+kind: role
+version: v8
+metadata:
+  name: notion-mcp-readonly
+spec:
+  allow:
+    app_labels:
+      'service': 'notion'
+    mcp:
+      tools:
+      - API-get-*
+      - API-retrieve-*
+      - API-post-database-query
+      - API-post-search
+```
+</Admonition>
+
+Now configure your MCP clients to access the MCP server via Teleport, for example:
+```code
+$ tsh mcp config notion-mcp --client-config claude
+```
+
+After configuring your MCP client, you will find Notion tools from
+`teleport-mcp-notion-mcp`. You can now use these tools to interactive Notion via
+Teleport in your MCP clients:
+
+![Notion Claude](../../../../img/mcp-access/notion-claude.png)
+
+## Next Steps
+
+- [Enroll a Streamable-HTTP MCP Server](../streamable-http.mdx).
+- Learn more about [notion-mcp-server](https://github.com/makenotion/notion-mcp-server).
+- Configuration and CLI [reference](../../../reference/agent-services/mcp-access.mdx).
+
