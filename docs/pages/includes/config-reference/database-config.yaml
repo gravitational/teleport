@@ -7,8 +7,8 @@ db_service:
   resources:
     # Resource labels to match.
     #
-    # Use specific label selectors so each Database Service only matches
-    # databases it can actually reach.
+    # Use specific label selectors so each Database Service instance only
+    # matches databases it can actually reach.
   - labels:
       "env": "staging"
     # Optional AWS role that the Database Service will assume to access the
@@ -46,8 +46,8 @@ db_service:
     external_id: "example-external-id"
     # AWS resource tags to match when registering databases.
     #
-    # Use specific tag selectors so each Database Service only matches databases
-    # it can actually reach.
+    # Use specific tag selectors so each Database Service instance only matches
+    # databases it can actually reach.
     tags:
       "env": "staging"
 
@@ -75,8 +75,8 @@ db_service:
     resource_groups: ["group1", "group2"]
     # Azure resource tags to match when registering databases.
     #
-    # Use specific tag selectors so each Database Service only matches databases
-    # it can actually reach.
+    # Use specific tag selectors so each Database Service instance only matches
+    # databases it can actually reach.
     tags:
       "env": "staging"
 
