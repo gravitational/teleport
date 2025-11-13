@@ -676,10 +676,12 @@ type Config struct {
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
 	WebToken services.WebToken
-	// WindowsDesktops is a windows desktop service.
+	// WindowsDesktops is a Windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
+	// LinuxDesktops is a Linux desktop service.
+	LinuxDesktops services.LinuxDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.

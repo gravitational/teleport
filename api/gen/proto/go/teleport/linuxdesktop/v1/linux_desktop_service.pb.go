@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        (unknown)
-// source: teleport/linuxdesktop/v1/desktop_service.proto
+// source: teleport/linuxdesktop/v1/linux_desktop_service.proto
 
 package linuxdesktopv1
 
@@ -33,7 +33,7 @@ type CreateLinuxDesktopRequest struct {
 
 func (x *CreateLinuxDesktopRequest) Reset() {
 	*x = CreateLinuxDesktopRequest{}
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[0]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -45,7 +45,7 @@ func (x *CreateLinuxDesktopRequest) String() string {
 func (*CreateLinuxDesktopRequest) ProtoMessage() {}
 
 func (x *CreateLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[0]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58,7 +58,7 @@ func (x *CreateLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLinuxDesktopRequest.ProtoReflect.Descriptor instead.
 func (*CreateLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescGZIP(), []int{0}
+	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CreateLinuxDesktopRequest) GetDesktop() *LinuxDesktop {
@@ -79,7 +79,7 @@ type UpdateLinuxDesktopRequest struct {
 
 func (x *UpdateLinuxDesktopRequest) Reset() {
 	*x = UpdateLinuxDesktopRequest{}
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[1]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -91,7 +91,7 @@ func (x *UpdateLinuxDesktopRequest) String() string {
 func (*UpdateLinuxDesktopRequest) ProtoMessage() {}
 
 func (x *UpdateLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[1]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -104,7 +104,7 @@ func (x *UpdateLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateLinuxDesktopRequest.ProtoReflect.Descriptor instead.
 func (*UpdateLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescGZIP(), []int{1}
+	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *UpdateLinuxDesktopRequest) GetLinuxDesktop() *LinuxDesktop {
@@ -125,7 +125,7 @@ type GetLinuxDesktopRequest struct {
 
 func (x *GetLinuxDesktopRequest) Reset() {
 	*x = GetLinuxDesktopRequest{}
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[2]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -137,7 +137,7 @@ func (x *GetLinuxDesktopRequest) String() string {
 func (*GetLinuxDesktopRequest) ProtoMessage() {}
 
 func (x *GetLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[2]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -150,7 +150,7 @@ func (x *GetLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetLinuxDesktopRequest.ProtoReflect.Descriptor instead.
 func (*GetLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetLinuxDesktopRequest) GetName() string {
@@ -174,7 +174,7 @@ type ListLinuxDesktopsRequest struct {
 
 func (x *ListLinuxDesktopsRequest) Reset() {
 	*x = ListLinuxDesktopsRequest{}
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[3]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -186,7 +186,7 @@ func (x *ListLinuxDesktopsRequest) String() string {
 func (*ListLinuxDesktopsRequest) ProtoMessage() {}
 
 func (x *ListLinuxDesktopsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[3]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -199,7 +199,7 @@ func (x *ListLinuxDesktopsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLinuxDesktopsRequest.ProtoReflect.Descriptor instead.
 func (*ListLinuxDesktopsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListLinuxDesktopsRequest) GetPageSize() int32 {
@@ -230,7 +230,7 @@ type ListLinuxDesktopsResponse struct {
 
 func (x *ListLinuxDesktopsResponse) Reset() {
 	*x = ListLinuxDesktopsResponse{}
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[4]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -242,7 +242,7 @@ func (x *ListLinuxDesktopsResponse) String() string {
 func (*ListLinuxDesktopsResponse) ProtoMessage() {}
 
 func (x *ListLinuxDesktopsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[4]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -255,7 +255,7 @@ func (x *ListLinuxDesktopsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListLinuxDesktopsResponse.ProtoReflect.Descriptor instead.
 func (*ListLinuxDesktopsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListLinuxDesktopsResponse) GetLinuxDesktops() []*LinuxDesktop {
@@ -275,16 +275,15 @@ func (x *ListLinuxDesktopsResponse) GetNextPageToken() string {
 // DeleteLinuxDesktopRequest is request for DeleteLinuxDesktop method
 type DeleteLinuxDesktopRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name of the LinuxDesktop to remove. Some resource may require more parameters to match and
-	// may not use the name at all.
-	LinuxDesktopId string `protobuf:"bytes,1,opt,name=linux_desktop_id,json=linuxDesktopId,proto3" json:"linux_desktop_id,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Name of the LinuxDesktop to remove.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteLinuxDesktopRequest) Reset() {
 	*x = DeleteLinuxDesktopRequest{}
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[5]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -296,7 +295,7 @@ func (x *DeleteLinuxDesktopRequest) String() string {
 func (*DeleteLinuxDesktopRequest) ProtoMessage() {}
 
 func (x *DeleteLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes[5]
+	mi := &file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -309,21 +308,21 @@ func (x *DeleteLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteLinuxDesktopRequest.ProtoReflect.Descriptor instead.
 func (*DeleteLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescGZIP(), []int{5}
+	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *DeleteLinuxDesktopRequest) GetLinuxDesktopId() string {
+func (x *DeleteLinuxDesktopRequest) GetName() string {
 	if x != nil {
-		return x.LinuxDesktopId
+		return x.Name
 	}
 	return ""
 }
 
-var File_teleport_linuxdesktop_v1_desktop_service_proto protoreflect.FileDescriptor
+var File_teleport_linuxdesktop_v1_linux_desktop_service_proto protoreflect.FileDescriptor
 
-const file_teleport_linuxdesktop_v1_desktop_service_proto_rawDesc = "" +
+const file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDesc = "" +
 	"\n" +
-	".teleport/linuxdesktop/v1/desktop_service.proto\x12\x18teleport.linuxdesktop.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a&teleport/linuxdesktop/v1/desktop.proto\"]\n" +
+	"4teleport/linuxdesktop/v1/linux_desktop_service.proto\x12\x18teleport.linuxdesktop.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\"]\n" +
 	"\x19CreateLinuxDesktopRequest\x12@\n" +
 	"\adesktop\x18\x01 \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopR\adesktop\"h\n" +
 	"\x19UpdateLinuxDesktopRequest\x12K\n" +
@@ -336,9 +335,9 @@ const file_teleport_linuxdesktop_v1_desktop_service_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"\x92\x01\n" +
 	"\x19ListLinuxDesktopsResponse\x12M\n" +
 	"\x0elinux_desktops\x18\x01 \x03(\v2&.teleport.linuxdesktop.v1.LinuxDesktopR\rlinuxDesktops\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"E\n" +
-	"\x19DeleteLinuxDesktopRequest\x12(\n" +
-	"\x10linux_desktop_id\x18\x01 \x01(\tR\x0elinuxDesktopId2\xc9\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"/\n" +
+	"\x19DeleteLinuxDesktopRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name2\xc9\x04\n" +
 	"\x13LinuxDesktopService\x12q\n" +
 	"\x12CreateLinuxDesktop\x123.teleport.linuxdesktop.v1.CreateLinuxDesktopRequest\x1a&.teleport.linuxdesktop.v1.LinuxDesktop\x12q\n" +
 	"\x12UpdateLinuxDesktop\x123.teleport.linuxdesktop.v1.UpdateLinuxDesktopRequest\x1a&.teleport.linuxdesktop.v1.LinuxDesktop\x12k\n" +
@@ -347,19 +346,19 @@ const file_teleport_linuxdesktop_v1_desktop_service_proto_rawDesc = "" +
 	"\x12DeleteLinuxDesktop\x123.teleport.linuxdesktop.v1.DeleteLinuxDesktopRequest\x1a\x16.google.protobuf.EmptyB\\ZZgithub.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1;linuxdesktopv1b\x06proto3"
 
 var (
-	file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescOnce sync.Once
-	file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescData []byte
+	file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescOnce sync.Once
+	file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescData []byte
 )
 
-func file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescGZIP() []byte {
-	file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescOnce.Do(func() {
-		file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_linuxdesktop_v1_desktop_service_proto_rawDesc), len(file_teleport_linuxdesktop_v1_desktop_service_proto_rawDesc)))
+func file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP() []byte {
+	file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescOnce.Do(func() {
+		file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDesc), len(file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDesc)))
 	})
-	return file_teleport_linuxdesktop_v1_desktop_service_proto_rawDescData
+	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescData
 }
 
-var file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_teleport_linuxdesktop_v1_desktop_service_proto_goTypes = []any{
+var file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_linuxdesktop_v1_linux_desktop_service_proto_goTypes = []any{
 	(*CreateLinuxDesktopRequest)(nil), // 0: teleport.linuxdesktop.v1.CreateLinuxDesktopRequest
 	(*UpdateLinuxDesktopRequest)(nil), // 1: teleport.linuxdesktop.v1.UpdateLinuxDesktopRequest
 	(*GetLinuxDesktopRequest)(nil),    // 2: teleport.linuxdesktop.v1.GetLinuxDesktopRequest
@@ -369,7 +368,7 @@ var file_teleport_linuxdesktop_v1_desktop_service_proto_goTypes = []any{
 	(*LinuxDesktop)(nil),              // 6: teleport.linuxdesktop.v1.LinuxDesktop
 	(*emptypb.Empty)(nil),             // 7: google.protobuf.Empty
 }
-var file_teleport_linuxdesktop_v1_desktop_service_proto_depIdxs = []int32{
+var file_teleport_linuxdesktop_v1_linux_desktop_service_proto_depIdxs = []int32{
 	6, // 0: teleport.linuxdesktop.v1.CreateLinuxDesktopRequest.desktop:type_name -> teleport.linuxdesktop.v1.LinuxDesktop
 	6, // 1: teleport.linuxdesktop.v1.UpdateLinuxDesktopRequest.linux_desktop:type_name -> teleport.linuxdesktop.v1.LinuxDesktop
 	6, // 2: teleport.linuxdesktop.v1.ListLinuxDesktopsResponse.linux_desktops:type_name -> teleport.linuxdesktop.v1.LinuxDesktop
@@ -390,27 +389,27 @@ var file_teleport_linuxdesktop_v1_desktop_service_proto_depIdxs = []int32{
 	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_teleport_linuxdesktop_v1_desktop_service_proto_init() }
-func file_teleport_linuxdesktop_v1_desktop_service_proto_init() {
-	if File_teleport_linuxdesktop_v1_desktop_service_proto != nil {
+func init() { file_teleport_linuxdesktop_v1_linux_desktop_service_proto_init() }
+func file_teleport_linuxdesktop_v1_linux_desktop_service_proto_init() {
+	if File_teleport_linuxdesktop_v1_linux_desktop_service_proto != nil {
 		return
 	}
-	file_teleport_linuxdesktop_v1_desktop_proto_init()
+	file_teleport_linuxdesktop_v1_linux_desktop_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_linuxdesktop_v1_desktop_service_proto_rawDesc), len(file_teleport_linuxdesktop_v1_desktop_service_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDesc), len(file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_teleport_linuxdesktop_v1_desktop_service_proto_goTypes,
-		DependencyIndexes: file_teleport_linuxdesktop_v1_desktop_service_proto_depIdxs,
-		MessageInfos:      file_teleport_linuxdesktop_v1_desktop_service_proto_msgTypes,
+		GoTypes:           file_teleport_linuxdesktop_v1_linux_desktop_service_proto_goTypes,
+		DependencyIndexes: file_teleport_linuxdesktop_v1_linux_desktop_service_proto_depIdxs,
+		MessageInfos:      file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes,
 	}.Build()
-	File_teleport_linuxdesktop_v1_desktop_service_proto = out.File
-	file_teleport_linuxdesktop_v1_desktop_service_proto_goTypes = nil
-	file_teleport_linuxdesktop_v1_desktop_service_proto_depIdxs = nil
+	File_teleport_linuxdesktop_v1_linux_desktop_service_proto = out.File
+	file_teleport_linuxdesktop_v1_linux_desktop_service_proto_goTypes = nil
+	file_teleport_linuxdesktop_v1_linux_desktop_service_proto_depIdxs = nil
 }

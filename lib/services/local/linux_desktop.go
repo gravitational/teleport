@@ -32,8 +32,8 @@ func NewLinuxDesktopService(b backend.Backend) (*LinuxDesktopService, error) {
 	return &LinuxDesktopService{service: service}, nil
 }
 
-func (s *LinuxDesktopService) ListLinuxDesktops(ctx context.Context, pagesize int64, lastKey string) ([]*linuxdesktopv1.LinuxDesktop, string, error) {
-	r, nextToken, err := s.service.ListResources(ctx, int(pagesize), lastKey)
+func (s *LinuxDesktopService) ListLinuxDesktops(ctx context.Context, pagesize int, lastKey string) ([]*linuxdesktopv1.LinuxDesktop, string, error) {
+	r, nextToken, err := s.service.ListResources(ctx, pagesize, lastKey)
 	return r, nextToken, trace.Wrap(err)
 }
 

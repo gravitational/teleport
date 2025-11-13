@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: teleport/linuxdesktop/v1/desktop_service.proto
+// source: teleport/linuxdesktop/v1/linux_desktop_service.proto
 
 package linuxdesktopv1
 
@@ -284,5 +284,5 @@ var LinuxDesktopService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleport/linuxdesktop/v1/desktop_service.proto",
+	Metadata: "teleport/linuxdesktop/v1/linux_desktop_service.proto",
 }

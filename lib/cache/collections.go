@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 
 	"github.com/gravitational/trace"
 
@@ -89,6 +90,7 @@ type collections struct {
 	windowsDesktops                    *collection[types.WindowsDesktop, windowsDesktopIndex]
 	windowsDesktopServices             *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
 	dynamicWindowsDesktops             *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
+	linuxDesktops                      *collection[*linuxdesktopv1.LinuxDesktop, linuxDesktopIndex]
 	userGroups                         *collection[types.UserGroup, userGroupIndex]
 	identityCenterAccounts             *collection[*identitycenterv1.Account, identityCenterAccountIndex]
 	identityCenterAccountAssignments   *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
@@ -333,6 +335,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.dynamicWindowsDesktops = collect
 			out.byKind[resourceKind] = out.dynamicWindowsDesktops
+		case types.KindLinuxDesktop:
+			collect, err := newLinuxDesktopCollection(c.LinuxDesktops, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.linuxDesktops = collect
+			out.byKind[resourceKind] = out.linuxDesktops
 		case types.KindUserGroup:
 			collect, err := newUserGroupCollection(c.UserGroups, watch)
 			if err != nil {

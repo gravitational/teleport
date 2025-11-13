@@ -3,7 +3,7 @@ syntax = "proto3";
 package teleport.linuxdesktop.v1;
 
 import "google/protobuf/empty.proto";
-import "teleport/linuxdesktop/v1/desktop.proto";
+import "teleport/linuxdesktop/v1/linux_desktop.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1;linuxdesktopv1";
 
@@ -63,7 +63,6 @@ message ListLinuxDesktopsResponse {
 
 // DeleteLinuxDesktopRequest is request for DeleteLinuxDesktop method
 message DeleteLinuxDesktopRequest {
-  // Name of the LinuxDesktop to remove. Some resource may require more parameters to match and
-  // may not use the name at all.
-  string linux_desktop_id = 1;
+  // Name of the LinuxDesktop to remove.
+  string name = 1;
 }
