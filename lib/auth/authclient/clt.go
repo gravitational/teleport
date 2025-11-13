@@ -44,6 +44,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -1910,4 +1911,12 @@ type ClientI interface {
 	// SummarizerServiceClient returns a client for the session recording
 	// summarizer service.
 	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
+
+	// DelegationSessionServiceClient returns a client for the delegation
+	// session service.
+	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
+
+	// DelegationProfileServiceClient returns a client for the delegation profile
+	// resource service.
+	DelegationProfileServiceClient() delegationv1.DelegationProfileServiceClient
 }

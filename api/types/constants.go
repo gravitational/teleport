@@ -690,6 +690,9 @@ const (
 	// KindDelegationProfile is the resource kind for Delegation Profiles.
 	KindDelegationProfile = "delegation_profile"
 
+	// KindDelegationSession is the resource kind for Delegation Sessions.
+	KindDelegationSession = "delegation_session"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 

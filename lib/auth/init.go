@@ -196,6 +196,9 @@ type InitConfig struct {
 	// DelegationProfiles is a service that manages delegation profiles.
 	DelegationProfiles services.DelegationProfiles
 
+	// DelegationSessions is a service that manages delegation sessions.
+	DelegationSessions services.DelegationSessions
+
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 

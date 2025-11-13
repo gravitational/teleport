@@ -1,0 +1,65 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.delegation.v1;
+
+import "google/protobuf/duration.proto";
+import "teleport/delegation/v1/delegation_session_resource.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
+
+// DelegationSessionService allows users to delegate a subset of their access to
+// a workload or bot.
+service DelegationSessionService {
+  // CreateDelegationSession creates a delegation session.
+  rpc CreateDelegationSession(CreateDelegationSessionRequest) returns (DelegationSession);
+}
+
+// CreateDelegationSessionRequest are the parameters to CreateDelegationSession.
+message CreateDelegationSessionRequest {
+  oneof from {
+    // Profile the session will be based on.
+    DelegationProfileReference profile = 1;
+
+    // Manually provided parameters from which a delegation session will be
+    // created.
+    DelegationSessionParameters parameters = 2;
+  }
+
+  // For how long the created session will be valid.
+  optional google.protobuf.Duration ttl = 3;
+}
+
+// DelegationProfileReference is the name (and revision) of a delegation profile
+// the session will be created from.
+message DelegationProfileReference {
+  // Name of the profile
+  string name = 1;
+
+  // Revision of the profile (i.e. the one displayed when gathering the user's
+  // consent) to prevent TOCTOU vulnerabilities.
+  string revision = 2;
+}
+
+// DelegationSessionParameters are manually provided parameters from which a
+// delegation session will be created.
+message DelegationSessionParameters {
+  // Teleport Protected Resources that will be accessible in the session.
+  repeated DelegationResourceSpec resources = 1;
+
+  // Users (i.e. bots or workloads) authorized to use the session.
+  repeated DelegationUserSpec authorized_users = 2;
+}

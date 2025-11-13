@@ -6432,6 +6432,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	delegationv1pb.RegisterDelegationProfileServiceServer(server, delegationProfileService)
 
+	delegationSessionService, err := delegationv1.NewSessionService(delegationv1.SessionServiceConfig{
+		Authorizer:     cfg.Authorizer,
+		ProfileReader:  cfg.AuthServer.Cache,
+		SessionWriter:  cfg.AuthServer.Services.DelegationSessions,
+		ResourceLister: cfg.AuthServer,
+		RoleGetter:     cfg.AuthServer.Cache,
+		UserGetter:     cfg.AuthServer.Cache,
+		Logger: logger.With(teleport.ComponentKey,
+			teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC, "delegation-session"),
+		),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	delegationv1pb.RegisterDelegationSessionServiceServer(server, delegationSessionService)
+
 	return authServer, nil
 }
 

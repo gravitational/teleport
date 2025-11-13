@@ -957,6 +957,12 @@ func (c *Client) DelegationProfileServiceClient() delegationv1.DelegationProfile
 	return delegationv1.NewDelegationProfileServiceClient(c.conn)
 }
 
+// DelegationSessionServiceClient returns a client for the delegation session
+// service.
+func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
+	return delegationv1.NewDelegationSessionServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
