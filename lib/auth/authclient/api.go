@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -1402,6 +1403,17 @@ type Cache interface {
 
 	// ListProvisionTokens returns a paginated list of provision tokens.
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
+
+	// GetDelegationProfile gets a DelegationProfile by name.
+	GetDelegationProfile(
+		ctx context.Context, name string,
+	) (*delegationv1.DelegationProfile, error)
+
+	// ListDelegationProfiles lists all DelegationProfile resources using Google
+	// style pagination.
+	ListDelegationProfiles(
+		ctx context.Context, pageSize int, lastToken string,
+	) ([]*delegationv1.DelegationProfile, string, error)
 
 	// UserLoginStatesGetter defines methods for fetching user login states.
 	services.UserLoginStatesGetter
