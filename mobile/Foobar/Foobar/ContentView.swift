@@ -240,7 +240,7 @@ struct ScannedURLView: View {
       Button("Open Configuration Profile") {
         configProfileURL =
           URL(
-            string: "https://teleport-mbp.ocelot-paradise.ts.net:3030/webapi/profile.mobileconfig"
+            string: "https://teleport-mbp.ocelot-paradise.ts.net:3030/webapi/profile.mobileconfig?device_key_id=1234&public_key_der=ABCD"
           )!
       }.sheet(item: $configProfileURL) { url in
         SafariView(url: url)

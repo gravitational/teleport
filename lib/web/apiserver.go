@@ -1229,6 +1229,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	})
 
 	h.Handle("GET", "/webapi/profile.mobileconfig", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		// https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/profile-service/profile-service.html
 		// 1. The mobile app opens this endpoint with the credential ID and the public key DER as query
 		//    params.
 		// 2. The auth server creates a temporary resource with three fields: a random token, a
@@ -1261,6 +1262,8 @@ func (h *Handler) bindDefaultEndpoints() {
 <array>
 <string>SERIAL</string>
 </array>
+<key>Challenge</key>
+<string>super-secret-challenge</string>
 </dict>
 <key>PayloadOrganization</key>
 <string>Gravitational</string>
@@ -1280,8 +1283,6 @@ func (h *Handler) bindDefaultEndpoints() {
 </plist>`
 		w.WriteHeader(200)
 		w.Header().Set("Content-Type", "application/x-apple-aspen-config")
-		// TODO: Sign the plist.
-		// https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/profile-service/profile-service.html#//apple_ref/doc/uid/TP40009505-CH2-SW1
 		w.Write([]byte(plist))
 	})
 
@@ -1299,13 +1300,19 @@ func (h *Handler) bindDefaultEndpoints() {
 			return
 		}
 		h.logger.InfoContext(r.Context(), "Got profile request", "content", p7.Content)
-		w.WriteHeader(200)
-		// TODO: Try returning 200 first and then a redirect? Figure out what /profile does from the
-		// companion file.
-		// Also:
+		// NOTE: In theory, the device first sends its identifiers to this endpoint, then it gets back
+		// encryption_cert_payload and scep_cert_payload which tells it how to complete the enrollment.
+		// Based on the scep cert payload, it sends some encrypted data back to this endpoint again.
+		// However, we don't need to go through the whole SCEP ceremony and can redirect the user back
+		// to the app after just the first step – once we got the serial number there's nothing else we
+		// need from the SCEP ceremony for the rest of Device Trust to work.
+		// The cert installation will fail but the user will not even see that because they'll be
+		// immediately brought back to the app.
+		//
+		// Some SO threads which gave me the idea about the redirect.
 		// https://stackoverflow.com/questions/2338035/installing-a-configuration-profile-on-iphone-programmatically
 		// https://stackoverflow.com/questions/18598452/profile-mobileconfig-install-from-safari-then-return-back-to-app
-		// http.Redirect(w, r, "teleport://teleport-mbp.ocelot-paradise.ts.net:3030/profile_done", http.StatusFound)
+		http.Redirect(w, r, "teleport://teleport-mbp.ocelot-paradise.ts.net:3030/profile_done", http.StatusMovedPermanently)
 	})
 }
 
