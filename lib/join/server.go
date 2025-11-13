@@ -77,6 +77,7 @@ type AuthService interface {
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
+	GetEnv0IDTokenValidator() Env0TokenValidator
 	services.Presence
 }
 
@@ -215,6 +216,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleIAMJoin(stream, authCtx, clientInit, provisionToken)
 	case types.JoinMethodEC2:
 		return s.handleEC2Join(stream, authCtx, clientInit, provisionToken)
+	case types.JoinMethodEnv0:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, provisionToken, s.validateEnv0Token)
 	case types.JoinMethodOracle:
 		return s.handleOracleJoin(stream, authCtx, clientInit, provisionToken)
 	default:
