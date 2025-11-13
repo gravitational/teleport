@@ -226,6 +226,134 @@ func TestJoin(t *testing.T) {
 	})
 }
 
+// TestJoinError asserts that attempts to join with an invalid token return an
+// AccessDenied error and do not fall back to joining via the legacy join
+// service.
+func TestJoinError(t *testing.T) {
+	t.Parallel()
+
+	token, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{
+			types.RoleNode,
+			types.RoleProxy,
+		},
+	})
+	require.NoError(t, err)
+
+	authService := newFakeAuthService(t)
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token))
+
+	proxy := newFakeProxy(authService)
+	proxy.join(t)
+	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { proxyListener.Close() })
+	proxy.runGRPCServer(t, proxyListener)
+
+	// List on a free port just to guarantee an address that will reject/close
+	// all connection attempts.
+	badListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	testutils.RunTestBackgroundTask(t.Context(), t, &testutils.TestBackgroundTask{
+		Name: "bad listener",
+		Task: func(ctx context.Context) error {
+			for {
+				conn, err := badListener.Accept()
+				if err != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					return err
+				}
+				conn.Close()
+			}
+		},
+		Terminate: badListener.Close,
+	})
+
+	// Assert that the real AccessDenied error is returned with various
+	// configurations joining via an auth or proxy address.
+	for _, tc := range []struct {
+		desc       string
+		joinParams joinclient.JoinParams
+		assertErr  assert.ErrorAssertionFunc
+	}{
+		{
+			desc: "auth direct",
+			joinParams: joinclient.JoinParams{
+				AuthServers: []utils.NetAddr{utils.FromAddr(authService.TLS.Listener.Addr())},
+			},
+			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				// Should get AccessDenied and should not fall back to joining
+				// via the legacy service.
+				return assert.ErrorAs(t, err, new(*trace.AccessDeniedError)) &&
+					assert.NotErrorAs(t, err, new(*joinclient.LegacyJoinError))
+			},
+		},
+		{
+			// With teleport config v2 or certain bot configurations a proxy
+			// address is passed in AuthServers, which supports both auth and
+			// proxy addresses.
+			desc: "proxy as auth",
+			joinParams: joinclient.JoinParams{
+				AuthServers: []utils.NetAddr{utils.FromAddr(proxyListener.Addr())},
+				Insecure:    true,
+			},
+			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				// Should get AccessDenied and should not fall back to joining
+				// via the legacy service.
+				return assert.ErrorAs(t, err, new(*trace.AccessDeniedError)) &&
+					assert.NotErrorAs(t, err, new(*joinclient.LegacyJoinError))
+			},
+		},
+		{
+			desc: "proxy direct",
+			joinParams: joinclient.JoinParams{
+				ProxyServer: utils.FromAddr(proxyListener.Addr()),
+				Insecure:    true,
+			},
+			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				// Should get AccessDenied and should not fall back to joining
+				// via the legacy service.
+				return assert.ErrorAs(t, err, new(*trace.AccessDeniedError)) &&
+					assert.NotErrorAs(t, err, new(*joinclient.LegacyJoinError))
+			},
+		},
+		{
+			desc: "bad auth address",
+			joinParams: joinclient.JoinParams{
+				AuthServers: []utils.NetAddr{utils.FromAddr(badListener.Addr())},
+			},
+			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				// Should fall back to a legacy join attempt before failing.
+				return assert.ErrorAs(t, err, new(*joinclient.LegacyJoinError))
+			},
+		},
+		{
+			desc: "bad proxy address",
+			joinParams: joinclient.JoinParams{
+				ProxyServer: utils.FromAddr(badListener.Addr()),
+			},
+			assertErr: func(t assert.TestingT, err error, msgAndArgs ...any) bool {
+				// Should fall back to a legacy join attempt before failing.
+				return assert.ErrorAs(t, err, new(*joinclient.LegacyJoinError))
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			joinParams := tc.joinParams
+			joinParams.ID = state.IdentityID{
+				Role:     types.RoleInstance,
+				NodeName: "test",
+			}
+
+			joinParams.Token = "invalid"
+			_, err = joinclient.Join(t.Context(), joinParams)
+			tc.assertErr(t, err)
+		})
+	}
+}
+
 type fakeAuthService struct {
 	*authtest.Server
 }
