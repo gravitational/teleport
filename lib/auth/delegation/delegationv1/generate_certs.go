@@ -192,7 +192,6 @@ func (s *SessionService) generateCertificates(
 
 	callerIdentity := authCtx.Identity.GetIdentity()
 
-	// TODO(boxofrad): Add the Delegation Session ID to the certificate.
 	certReq := internal.CertRequest{
 		SSHPublicKey: req.GetSshPublicKey(),
 		TLSPublicKey: req.GetTlsPublicKey(),
@@ -210,8 +209,9 @@ func (s *SessionService) generateCertificates(
 		Renewable:       true,
 		IncludeHostCA:   true,
 
-		BotName:       callerIdentity.BotName,
-		BotInstanceID: callerIdentity.BotInstanceID,
+		BotName:             callerIdentity.BotName,
+		BotInstanceID:       callerIdentity.BotInstanceID,
+		DelegationSessionID: session.GetMetadata().GetName(),
 	}
 
 	// Add the protocol-specific routing hints to the certificate.
@@ -241,6 +241,7 @@ func (s *SessionService) generateCertificates(
 				Roles:                delegatingUser.GetRoles(),
 				RequestedResourceIDs: resourceIDs,
 				AttestWebSession:     true,
+				DelegationSessionID:  session.GetMetadata().GetName(),
 			},
 			PublicAddr:        certReq.AppPublicAddr,
 			ClusterName:       certReq.AppClusterName,

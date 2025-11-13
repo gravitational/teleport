@@ -167,6 +167,10 @@ message SSHIdentity {
 
   // The scope associated with a host identity.
   string agent_scope = 36;
+
+  // DelegationSessionID is the identifier of the DelegationSession, when access
+  // delegation is being used to lend the user's access to a bot or workload.
+  string delegation_session_id = 37;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type

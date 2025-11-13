@@ -60,6 +60,24 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				},
 			})
 
+			session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
+				User: "bob",
+				Resources: []*delegationv1pb.DelegationResourceSpec{
+					{
+						Kind: types.KindApp,
+						Name: "hr-system",
+					},
+				},
+				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
+					{
+						Type: types.DelegationUserTypeBot,
+						Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+							BotName: "payroll-agent",
+						},
+					},
+				},
+			})
+
 			appSession, err := types.NewWebSession(
 				uuid.NewString(),
 				types.KindAppSession,
@@ -81,6 +99,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 					},
 					req.RequestedResourceIDs,
 				)
+				require.Equal(t, session.GetMetadata().GetName(), req.DelegationSessionID)
 				return appSession, nil
 			}
 
@@ -89,6 +108,7 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				require.Equal(t, sshPublicKey, req.SSHPublicKey)
 				require.Equal(t, tlsPublicKey, req.TLSPublicKey)
 				require.Equal(t, 5*time.Minute, req.TTL)
+				require.Equal(t, session.GetMetadata().GetName(), req.DelegationSessionID)
 
 				// Check roles and resource IDs.
 				checker, ok := req.Checker.Unscoped()
@@ -117,24 +137,6 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 				}, nil
 			}
 			pack.authenticateBot("payroll-agent")
-
-			session := pack.createSession(t, &delegationv1pb.DelegationSessionSpec{
-				User: "bob",
-				Resources: []*delegationv1pb.DelegationResourceSpec{
-					{
-						Kind: types.KindApp,
-						Name: "hr-system",
-					},
-				},
-				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-					{
-						Type: types.DelegationUserTypeBot,
-						Matcher: &delegationv1pb.DelegationUserSpec_BotName{
-							BotName: "payroll-agent",
-						},
-					},
-				},
-			})
 
 			rsp, err := service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
 				DelegationSessionId: session.GetMetadata().GetName(),

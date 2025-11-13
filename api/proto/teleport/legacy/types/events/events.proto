@@ -5036,6 +5036,9 @@ message Identity {
   string JoinToken = 30 [(gogoproto.jsontag) = "join_token,omitempty"];
   // ScopePin pins a certificate to a specific scope and set of scoped roles.
   ScopePin ScopePin = 31 [(gogoproto.jsontag) = "scope_pin,omitempty"];
+  // DelegationSessionID is the identifier of the DelegationSession, when access
+  // delegation is being used to lend the user's access to a bot or workload.
+  string DelegationSessionID = 36 [(gogoproto.jsontag) = "delegation_session_id,omitempty"];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant

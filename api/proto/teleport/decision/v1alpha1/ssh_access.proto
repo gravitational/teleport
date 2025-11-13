@@ -167,6 +167,10 @@ message LockTarget {
   // joined. This only applies to bot identities, and cannot be used to target
   // bots that joined via the `token` join method.
   string join_token = 10;
+
+  // DelegationSessionID is the identifier of the DelegationSession, when access
+  // delegation is being used to lend the user's access to a bot or workload.
+  string delegation_session_id = 11;
 }
 
 // HostUserMode determines how host users should be created.

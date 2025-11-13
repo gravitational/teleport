@@ -139,9 +139,12 @@ type TLSIdentity struct {
 	JoinToken string `protobuf:"bytes,36,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
 	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
 	// set, the Roles field must not be set.
-	ScopePin      *v11.Pin `protobuf:"bytes,37,opt,name=scope_pin,json=scopePin,proto3" json:"scope_pin,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ScopePin *v11.Pin `protobuf:"bytes,37,opt,name=scope_pin,json=scopePin,proto3" json:"scope_pin,omitempty"`
+	// DelegationSessionID is the identifier of the DelegationSession, when access
+	// delegation is being used to lend the user's access to a bot or workload.
+	DelegationSessionId string `protobuf:"bytes,38,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *TLSIdentity) Reset() {
@@ -431,6 +434,13 @@ func (x *TLSIdentity) GetScopePin() *v11.Pin {
 		return x.ScopePin
 	}
 	return nil
+}
+
+func (x *TLSIdentity) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
+	}
+	return ""
 }
 
 // RouteToApp holds routing information for applications.
@@ -807,7 +817,7 @@ var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x8b\r\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xbf\r\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -852,7 +862,8 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\tuser_type\x18# \x01(\tR\buserType\x12\x1d\n" +
 	"\n" +
 	"join_token\x18$ \x01(\tR\tjoinToken\x124\n" +
-	"\tscope_pin\x18% \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\"\xfb\x02\n" +
+	"\tscope_pin\x18% \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\x122\n" +
+	"\x15delegation_session_id\x18& \x01(\tR\x13delegationSessionId\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +

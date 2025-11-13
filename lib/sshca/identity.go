@@ -146,6 +146,9 @@ type Identity struct {
 	GitHubUsername string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// certificate was created for.
+	DelegationSessionID string
 }
 
 // Encode encodes the identity into an ssh certificate. Note that the returned certificate is incomplete
@@ -263,6 +266,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if credID := i.DeviceCredentialID; credID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
+	}
+	if i.DelegationSessionID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDelegationSessionID] = i.DelegationSessionID
 	}
 	if i.GitHubUserID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
@@ -461,6 +467,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DeviceID = takeValue(teleport.CertExtensionDeviceID)
 	ident.DeviceAssetTag = takeValue(teleport.CertExtensionDeviceAssetTag)
 	ident.DeviceCredentialID = takeValue(teleport.CertExtensionDeviceCredentialID)
+	ident.DelegationSessionID = takeValue(teleport.CertExtensionDelegationSessionID)
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
 

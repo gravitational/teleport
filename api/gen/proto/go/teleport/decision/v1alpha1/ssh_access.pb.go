@@ -589,9 +589,12 @@ type LockTarget struct {
 	// JoinToken is the name of the join token used when this identity originally
 	// joined. This only applies to bot identities, and cannot be used to target
 	// bots that joined via the `token` join method.
-	JoinToken     string `protobuf:"bytes,10,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	JoinToken string `protobuf:"bytes,10,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
+	// DelegationSessionID is the identifier of the DelegationSession, when access
+	// delegation is being used to lend the user's access to a bot or workload.
+	DelegationSessionId string `protobuf:"bytes,11,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *LockTarget) Reset() {
@@ -690,6 +693,13 @@ func (x *LockTarget) GetBotInstanceId() string {
 func (x *LockTarget) GetJoinToken() string {
 	if x != nil {
 		return x.JoinToken
+	}
+	return ""
+}
+
+func (x *LockTarget) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
 	}
 	return ""
 }
@@ -814,7 +824,7 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\fmapped_roles\x18\x17 \x03(\tR\vmappedRoles\x12Q\n" +
 	"\x0fhost_users_info\x18\x18 \x01(\v2).teleport.decision.v1alpha1.HostUsersInfoR\rhostUsersInfoJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\a\x10\bJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12\"Y\n" +
 	"\x0fSSHAccessDenial\x12F\n" +
-	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xb5\x02\n" +
+	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xe9\x02\n" +
 	"\n" +
 	"LockTarget\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x12\n" +
@@ -829,7 +839,8 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x0fbot_instance_id\x18\t \x01(\tR\rbotInstanceId\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\n" +
-	" \x01(\tR\tjoinToken\"\x9f\x01\n" +
+	" \x01(\tR\tjoinToken\x122\n" +
+	"\x15delegation_session_id\x18\v \x01(\tR\x13delegationSessionId\"\x9f\x01\n" +
 	"\rHostUsersInfo\x12\x16\n" +
 	"\x06groups\x18\x01 \x03(\tR\x06groups\x12<\n" +
 	"\x04mode\x18\x02 \x01(\x0e2(.teleport.decision.v1alpha1.HostUserModeR\x04mode\x12\x10\n" +

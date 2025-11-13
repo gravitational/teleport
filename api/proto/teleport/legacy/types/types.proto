@@ -6355,6 +6355,10 @@ message LockTarget {
   // joined. This is only valid for bot identities, and cannot be used to target
   // `token`-joined bots.
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
+
+  // DelegationSessionID is the identifier of the Delegation Session, when using
+  // access delegation to lend user access to a bot or workload.
+  string DelegationSessionID = 12 [(gogoproto.jsontag) = "delegation_session_id,omitempty"];
 }
 
 // LockFilter encodes optional filters to apply when listing Lock resources

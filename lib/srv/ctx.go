@@ -281,6 +281,11 @@ type IdentityContext struct {
 	// `token` join method.
 	JoinToken string
 
+	// DelegationSessionID is the identifier of the Delegation Session this
+	// identity belongs to, when using access delegation to lend a user's access
+	// to a bot or workload.
+	DelegationSessionID string
+
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
 	// identity/cert was derived from. It is used to determine a session's hard
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert

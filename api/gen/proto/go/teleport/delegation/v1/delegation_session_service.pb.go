@@ -24,6 +24,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -647,11 +648,57 @@ func (x *GenerateCertsResponse) GetTlsCas() [][]byte {
 	return nil
 }
 
+// TerminateDelegationSessionRequest are the parameters to TerminateDelegationSession.
+type TerminateDelegationSessionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ID of the delegation session that will be terminated.
+	DelegationSessionId string `protobuf:"bytes,1,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *TerminateDelegationSessionRequest) Reset() {
+	*x = TerminateDelegationSessionRequest{}
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TerminateDelegationSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TerminateDelegationSessionRequest) ProtoMessage() {}
+
+func (x *TerminateDelegationSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TerminateDelegationSessionRequest.ProtoReflect.Descriptor instead.
+func (*TerminateDelegationSessionRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *TerminateDelegationSessionRequest) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
+	}
+	return ""
+}
+
 var File_teleport_delegation_v1_delegation_session_service_proto protoreflect.FileDescriptor
 
 const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" +
 	"\n" +
-	"7teleport/delegation/v1/delegation_session_service.proto\x12\x16teleport.delegation.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a8teleport/delegation/v1/delegation_session_resource.proto\"\x89\x02\n" +
+	"7teleport/delegation/v1/delegation_session_service.proto\x12\x16teleport.delegation.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a8teleport/delegation/v1/delegation_session_resource.proto\"\x89\x02\n" +
 	"\x1eCreateDelegationSessionRequest\x12N\n" +
 	"\aprofile\x18\x01 \x01(\v22.teleport.delegation.v1.DelegationProfileReferenceH\x00R\aprofile\x12U\n" +
 	"\n" +
@@ -699,10 +746,13 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\x03ssh\x18\x01 \x01(\fR\x03ssh\x12\x10\n" +
 	"\x03tls\x18\x02 \x01(\fR\x03tls\x12\x17\n" +
 	"\assh_cas\x18\x03 \x03(\fR\x06sshCas\x12\x17\n" +
-	"\atls_cas\x18\x04 \x03(\fR\x06tlsCas2\x86\x02\n" +
+	"\atls_cas\x18\x04 \x03(\fR\x06tlsCas\"W\n" +
+	"!TerminateDelegationSessionRequest\x122\n" +
+	"\x15delegation_session_id\x18\x01 \x01(\tR\x13delegationSessionId2\xf7\x02\n" +
 	"\x18DelegationSessionService\x12|\n" +
 	"\x17CreateDelegationSession\x126.teleport.delegation.v1.CreateDelegationSessionRequest\x1a).teleport.delegation.v1.DelegationSession\x12l\n" +
-	"\rGenerateCerts\x12,.teleport.delegation.v1.GenerateCertsRequest\x1a-.teleport.delegation.v1.GenerateCertsResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
+	"\rGenerateCerts\x12,.teleport.delegation.v1.GenerateCertsRequest\x1a-.teleport.delegation.v1.GenerateCertsResponse\x12o\n" +
+	"\x1aTerminateDelegationSession\x129.teleport.delegation.v1.TerminateDelegationSessionRequest\x1a\x16.google.protobuf.EmptyBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
 
 var (
 	file_teleport_delegation_v1_delegation_session_service_proto_rawDescOnce sync.Once
@@ -716,36 +766,40 @@ func file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP() 
 	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescData
 }
 
-var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_delegation_v1_delegation_session_service_proto_goTypes = []any{
-	(*CreateDelegationSessionRequest)(nil), // 0: teleport.delegation.v1.CreateDelegationSessionRequest
-	(*DelegationProfileReference)(nil),     // 1: teleport.delegation.v1.DelegationProfileReference
-	(*DelegationSessionParameters)(nil),    // 2: teleport.delegation.v1.DelegationSessionParameters
-	(*GenerateCertsRequest)(nil),           // 3: teleport.delegation.v1.GenerateCertsRequest
-	(*RouteToDatabase)(nil),                // 4: teleport.delegation.v1.RouteToDatabase
-	(*RouteToApp)(nil),                     // 5: teleport.delegation.v1.RouteToApp
-	(*GenerateCertsResponse)(nil),          // 6: teleport.delegation.v1.GenerateCertsResponse
-	(*durationpb.Duration)(nil),            // 7: google.protobuf.Duration
-	(*DelegationResourceSpec)(nil),         // 8: teleport.delegation.v1.DelegationResourceSpec
-	(*DelegationUserSpec)(nil),             // 9: teleport.delegation.v1.DelegationUserSpec
-	(*timestamppb.Timestamp)(nil),          // 10: google.protobuf.Timestamp
-	(*DelegationSession)(nil),              // 11: teleport.delegation.v1.DelegationSession
+	(*CreateDelegationSessionRequest)(nil),    // 0: teleport.delegation.v1.CreateDelegationSessionRequest
+	(*DelegationProfileReference)(nil),        // 1: teleport.delegation.v1.DelegationProfileReference
+	(*DelegationSessionParameters)(nil),       // 2: teleport.delegation.v1.DelegationSessionParameters
+	(*GenerateCertsRequest)(nil),              // 3: teleport.delegation.v1.GenerateCertsRequest
+	(*RouteToDatabase)(nil),                   // 4: teleport.delegation.v1.RouteToDatabase
+	(*RouteToApp)(nil),                        // 5: teleport.delegation.v1.RouteToApp
+	(*GenerateCertsResponse)(nil),             // 6: teleport.delegation.v1.GenerateCertsResponse
+	(*TerminateDelegationSessionRequest)(nil), // 7: teleport.delegation.v1.TerminateDelegationSessionRequest
+	(*durationpb.Duration)(nil),               // 8: google.protobuf.Duration
+	(*DelegationResourceSpec)(nil),            // 9: teleport.delegation.v1.DelegationResourceSpec
+	(*DelegationUserSpec)(nil),                // 10: teleport.delegation.v1.DelegationUserSpec
+	(*timestamppb.Timestamp)(nil),             // 11: google.protobuf.Timestamp
+	(*DelegationSession)(nil),                 // 12: teleport.delegation.v1.DelegationSession
+	(*emptypb.Empty)(nil),                     // 13: google.protobuf.Empty
 }
 var file_teleport_delegation_v1_delegation_session_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.delegation.v1.CreateDelegationSessionRequest.profile:type_name -> teleport.delegation.v1.DelegationProfileReference
 	2,  // 1: teleport.delegation.v1.CreateDelegationSessionRequest.parameters:type_name -> teleport.delegation.v1.DelegationSessionParameters
-	7,  // 2: teleport.delegation.v1.CreateDelegationSessionRequest.ttl:type_name -> google.protobuf.Duration
-	8,  // 3: teleport.delegation.v1.DelegationSessionParameters.resources:type_name -> teleport.delegation.v1.DelegationResourceSpec
-	9,  // 4: teleport.delegation.v1.DelegationSessionParameters.authorized_users:type_name -> teleport.delegation.v1.DelegationUserSpec
-	10, // 5: teleport.delegation.v1.GenerateCertsRequest.expires:type_name -> google.protobuf.Timestamp
+	8,  // 2: teleport.delegation.v1.CreateDelegationSessionRequest.ttl:type_name -> google.protobuf.Duration
+	9,  // 3: teleport.delegation.v1.DelegationSessionParameters.resources:type_name -> teleport.delegation.v1.DelegationResourceSpec
+	10, // 4: teleport.delegation.v1.DelegationSessionParameters.authorized_users:type_name -> teleport.delegation.v1.DelegationUserSpec
+	11, // 5: teleport.delegation.v1.GenerateCertsRequest.expires:type_name -> google.protobuf.Timestamp
 	4,  // 6: teleport.delegation.v1.GenerateCertsRequest.route_to_database:type_name -> teleport.delegation.v1.RouteToDatabase
 	5,  // 7: teleport.delegation.v1.GenerateCertsRequest.route_to_app:type_name -> teleport.delegation.v1.RouteToApp
 	0,  // 8: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:input_type -> teleport.delegation.v1.CreateDelegationSessionRequest
 	3,  // 9: teleport.delegation.v1.DelegationSessionService.GenerateCerts:input_type -> teleport.delegation.v1.GenerateCertsRequest
-	11, // 10: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:output_type -> teleport.delegation.v1.DelegationSession
-	6,  // 11: teleport.delegation.v1.DelegationSessionService.GenerateCerts:output_type -> teleport.delegation.v1.GenerateCertsResponse
-	10, // [10:12] is the sub-list for method output_type
-	8,  // [8:10] is the sub-list for method input_type
+	7,  // 10: teleport.delegation.v1.DelegationSessionService.TerminateDelegationSession:input_type -> teleport.delegation.v1.TerminateDelegationSessionRequest
+	12, // 11: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:output_type -> teleport.delegation.v1.DelegationSession
+	6,  // 12: teleport.delegation.v1.DelegationSessionService.GenerateCerts:output_type -> teleport.delegation.v1.GenerateCertsResponse
+	13, // 13: teleport.delegation.v1.DelegationSessionService.TerminateDelegationSession:output_type -> google.protobuf.Empty
+	11, // [11:14] is the sub-list for method output_type
+	8,  // [8:11] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
@@ -772,7 +826,7 @@ func file_teleport_delegation_v1_delegation_session_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc), len(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

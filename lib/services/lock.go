@@ -72,6 +72,9 @@ func ProxyingLockTargets(localClusterName, serverID string, accessInfo *AccessIn
 	if botInstanceID := unmappedIdentity.BotInstanceID; botInstanceID != "" {
 		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: botInstanceID})
 	}
+	if delegationSessionID := unmappedIdentity.DelegationSessionID; delegationSessionID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{DelegationSessionID: delegationSessionID})
+	}
 	roles := apiutils.Deduplicate(append(accessInfo.Roles, unmappedIdentity.Roles...))
 	lockTargets = append(lockTargets, RolesToLockTargets(roles)...)
 	lockTargets = append(lockTargets, AccessRequestsToLockTargets(unmappedIdentity.ActiveRequests)...)
@@ -98,6 +101,9 @@ func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
 	}
 	if id.BotInstanceID != "" {
 		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
+	}
+	if id.DelegationSessionID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{DelegationSessionID: id.DelegationSessionID})
 	}
 	lockTargets = append(lockTargets, AccessRequestsToLockTargets(id.ActiveRequests)...)
 	return lockTargets

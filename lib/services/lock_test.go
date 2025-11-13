@@ -40,8 +40,9 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 			DeviceExtensions: tlsca.DeviceExtensions{
 				DeviceID: "trusted-device-id",
 			},
-			JoinToken:     "example",
-			BotInstanceID: "a-b-c-d",
+			JoinToken:           "example",
+			BotInstanceID:       "a-b-c-d",
+			DelegationSessionID: "delegation-session-id",
 		}
 
 		// Test.
@@ -53,6 +54,7 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 			{Device: identity.DeviceExtensions.DeviceID},
 			{JoinToken: "example"},
 			{BotInstanceID: "a-b-c-d"},
+			{DelegationSessionID: "delegation-session-id"}
 		}
 		// Insert roles at the start to match `got`s order.
 		// The test itself doesn't care about the order, it's just easier to test
@@ -77,6 +79,7 @@ func TestSSHAccessLockTargets(t *testing.T) {
 		const teleportUser = "llama"
 		const joinToken = "some-join-token"
 		const botInstanceID = "a-b-c-d"
+		const delegationSessionID = "delegation-session-id"
 		mappedRoles := []string{"access", "editor"}
 		unmappedRoles := []string{"unmapped-role-1", "unmapped-role-2", "access"}
 		accessRequests := []string{"access-request-1", "access-request-2"}
@@ -89,6 +92,7 @@ func TestSSHAccessLockTargets(t *testing.T) {
 			ActiveRequests: accessRequests,
 			JoinToken:      joinToken,
 			BotInstanceID:  botInstanceID,
+			DelegationSessionID: delegationSessionID,
 		}
 
 		accessInfo := &services.AccessInfo{
@@ -105,6 +109,7 @@ func TestSSHAccessLockTargets(t *testing.T) {
 			{Device: trustedDevice},
 			{JoinToken: joinToken},
 			{BotInstanceID: botInstanceID},
+			{DelegationSessionID: delegationSessionID}
 		}
 		for _, role := range mappedRoles {
 			want = append(want, types.LockTarget{Role: role})

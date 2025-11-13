@@ -11687,6 +11687,7 @@ func TestGetLocksV2(t *testing.T) {
 			User: "test-user-1",
 			Role: "test-role-1",
 		}),
+		newLock(t, "test-lock-11", false, types.LockTarget{DelegationSessionID: "test-delegation-session-id-1"}),
 	}
 
 	for _, l := range locks {

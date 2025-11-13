@@ -6443,6 +6443,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		ClusterNameGetter: cfg.AuthServer,
 		CertGenerator:     delegationv1.CertGeneratorFunc(cfg.AuthServer.generateUserCert),
 		AppSessionCreator: delegationv1.AppSessionCreatorFunc(cfg.AuthServer.CreateAppSessionFromReq),
+		LockWriter:        cfg.AuthServer,
 		Logger: logger.With(teleport.ComponentKey,
 			teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC, "delegation-session"),
 		),

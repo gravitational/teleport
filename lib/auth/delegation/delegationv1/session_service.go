@@ -45,6 +45,7 @@ type SessionService struct {
 	certGenerator     CertGenerator
 	clusterNameGetter ClusterNameGetter
 	appSessionCreator AppSessionCreator
+	lockWriter        LockWriter
 	logger            *slog.Logger
 }
 
@@ -79,6 +80,9 @@ type SessionServiceConfig struct {
 
 	// AppSessionCreator is used to create web sessions for application access.
 	AppSessionCreator AppSessionCreator
+
+	// LockWriter is used to create locks targeting delegation sessions.
+	LockWriter LockWriter
 
 	// Logger to which errors and messages are written.
 	Logger *slog.Logger
@@ -130,6 +134,11 @@ func (fn AppSessionCreatorFunc) CreateAppSession(ctx context.Context, req intern
 	return fn(ctx, req)
 }
 
+// LockWrite is used to create locks targeting delegation sessions.
+type LockWriter interface {
+	UpsertLock(ctx context.Context, lock types.Lock) error
+}
+
 // NewSessionService creates a SessionService with the given configuration.
 func NewSessionService(cfg SessionServiceConfig) (*SessionService, error) {
 	if cfg.Authorizer == nil {
@@ -162,6 +171,9 @@ func NewSessionService(cfg SessionServiceConfig) (*SessionService, error) {
 	if cfg.AppSessionCreator == nil {
 		return nil, trace.BadParameter("missing parameter AppSessionCreator")
 	}
+	if cfg.LockWriter == nil {
+		return nil, trace.BadParameter("missing parameter LockWriter")
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -176,6 +188,7 @@ func NewSessionService(cfg SessionServiceConfig) (*SessionService, error) {
 		certGenerator:     cfg.CertGenerator,
 		appSessionCreator: cfg.AppSessionCreator,
 		clusterNameGetter: cfg.ClusterNameGetter,
+		lockWriter:        cfg.LockWriter,
 		logger:            cfg.Logger,
 	}, nil
 }

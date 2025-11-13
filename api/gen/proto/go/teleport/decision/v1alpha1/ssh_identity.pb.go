@@ -291,9 +291,12 @@ type SSHIdentity struct {
 	// set, the Roles field must not be set.
 	ScopePin *v11.Pin `protobuf:"bytes,35,opt,name=scope_pin,json=scopePin,proto3" json:"scope_pin,omitempty"`
 	// The scope associated with a host identity.
-	AgentScope    string `protobuf:"bytes,36,opt,name=agent_scope,json=agentScope,proto3" json:"agent_scope,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AgentScope string `protobuf:"bytes,36,opt,name=agent_scope,json=agentScope,proto3" json:"agent_scope,omitempty"`
+	// DelegationSessionID is the identifier of the DelegationSession, when access
+	// delegation is being used to lend the user's access to a bot or workload.
+	DelegationSessionId string `protobuf:"bytes,37,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *SSHIdentity) Reset() {
@@ -578,6 +581,13 @@ func (x *SSHIdentity) GetAgentScope() string {
 	return ""
 }
 
+func (x *SSHIdentity) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
+	}
+	return ""
+}
+
 // CertExtension represents a key/value for a certificate extension. This type must
 // be kept up to date with types.CertExtension.
 type CertExtension struct {
@@ -663,7 +673,7 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
 	"\fSSHAuthority\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
-	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\x90\f\n" +
+	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\xc4\f\n" +
 	"\vSSHIdentity\x12\x1f\n" +
 	"\vvalid_after\x18\x01 \x01(\x04R\n" +
 	"validAfter\x12!\n" +
@@ -709,7 +719,8 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"join_token\x18\" \x01(\tR\tjoinToken\x124\n" +
 	"\tscope_pin\x18# \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\x12\x1f\n" +
 	"\vagent_scope\x18$ \x01(\tR\n" +
-	"agentScope\"\xbf\x01\n" +
+	"agentScope\x122\n" +
+	"\x15delegation_session_id\x18% \x01(\tR\x13delegationSessionId\"\xbf\x01\n" +
 	"\rCertExtension\x12A\n" +
 	"\x04type\x18\x01 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionTypeR\x04type\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionModeR\x04mode\x12\x12\n" +
