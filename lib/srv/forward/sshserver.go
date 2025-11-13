@@ -28,6 +28,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -987,8 +989,23 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 		}
 		// Pass request on unchanged.
 	case teleport.SessionIDQueryRequest:
+		// TODO(Joerger): DELETE IN v20.0.0
+		// All v17+ servers set the session ID. v19+ clients stop checking.
+
 		// Reply true to session ID query requests, we will set new
-		// session IDs for new sessions
+		// session IDs for new sessions during the shel/exec channel
+		// request.
+		if err := req.Reply(true, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
+		}
+		return
+	case teleport.SessionIDQueryRequestV2:
+		// TODO(Joerger): DELETE IN v21.0.0
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions directly after accepting the
+		// session channel request.
 		if err := req.Reply(true, nil); err != nil {
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
 		}
@@ -1173,6 +1190,47 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	scx.SetAllowFileCopying(true)
 	defer scx.Close()
 
+	// If this is a Teleport node server, it should send the session ID
+	// right after the session channel is accepted. We should reuse this
+	// session ID and delegate session responsibilities (recordings, audit
+	// events, and session trackers) to avoid duplicates.
+	//
+	// Register handler to receive the current session ID before starting the session.
+	var newSessionIDFromServer chan string
+	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
+		// Check if the Teleport Node is outdated and won't actually send the session ID.
+		//
+		// TODO(Joerger): DELETE IN v20.0.0
+		// all v19+ servers set and share the session ID directly after accepting the session channel.
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+		reply, payload, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to send session ID query request", "error", err)
+		} else if !reply && payload != nil {
+			// If the target node replies with a payload, this means that the connection itself has been rejected,
+			// presumably due to an authz error, and the server is trying to communicate the error with the first
+			// req/chan received.
+			s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
+			if err := nch.Reject(ssh.Prohibited, fmt.Sprintf("remote session open failed: %v", string(payload))); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		}
+
+		if err == nil && reply {
+			newSessionIDFromServer = make(chan string, 1)
+			var receiveSessionIDOnce sync.Once
+			s.remoteClient.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+				// Only handle the first request - only one is expected.
+				receiveSessionIDOnce.Do(func() {
+					newSessionIDFromServer <- string(req.Payload)
+				})
+			})
+		} else {
+			s.logger.WarnContext(ctx, "Failed to query session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
+		}
+	}
+
 	// Create a "session" channel on the remote host. Note that we
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
@@ -1192,6 +1250,38 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	}
 	scx.RemoteSession = remoteSession
 
+	if newSessionIDFromServer != nil {
+		// Wait for the session ID to be reported by the target node.
+		select {
+		case sidString := <-newSessionIDFromServer:
+			sid, err := session.ParseID(sidString)
+			if err != nil {
+				s.logger.WarnContext(ctx, "Unable to parse session ID reported by target Teleport Node", "error", err)
+				if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+					s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+				}
+				return
+			}
+			scx.SetNewSessionID(ctx, *sid)
+		case <-time.After(10 * time.Second):
+			s.logger.WarnContext(ctx, "Failed to receive session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
+			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		case <-ctx.Done():
+			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		}
+	} else {
+		// The target node is not expected to report session ID, either because it's
+		// outdated or an agentless node. Continue with a random session ID and ensure
+		// we create a new session tracker.
+		scx.SetNewSessionID(ctx, session.NewID())
+	}
+
 	// Accept the session channel request
 	ch, in, err := nch.Accept()
 	if err != nil {
@@ -1202,8 +1292,18 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		return
 	}
 	scx.AddCloser(ch)
-
 	ch = scx.TrackActivity(ch)
+
+	// inform the client of the session ID that is going to be used in a new
+	// goroutine to reduce latency.
+	go func() {
+		sid := scx.GetNewSessionID()
+		s.logger.DebugContext(ctx, "Sending current session ID", "sid", sid)
+		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sid))
+		if err != nil {
+			s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+		}
+	}()
 
 	s.logger.DebugContext(ctx, "Opening session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 	defer s.logger.DebugContext(ctx, "Closing session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())

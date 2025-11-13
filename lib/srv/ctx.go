@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
@@ -318,6 +319,12 @@ type ServerContext struct {
 
 	// sessionParams are parameters associated with this server session.
 	sessionParams *tracessh.SessionParams
+
+	// newSessionID is set if this server context is going to create a new session.
+	// This field must be set through [ServerContext.SetNewSessionID] for non-join
+	// sessions as soon as a session channel is accepted in order to inform
+	// the client of the to-be session ID.
+	newSessionID rsession.ID
 
 	// session holds the active session (if there's an active one).
 	session *session
@@ -692,21 +699,25 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	return sessionParams
 }
 
+// SetNewSessionID sets the ID for a new session in this server context.
+func (c *ServerContext) SetNewSessionID(ctx context.Context, sid rsession.ID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.newSessionID = sid
+}
+
+// GetNewSessionID gets the ID for a new session in this server context.
+func (c *ServerContext) GetNewSessionID() rsession.ID {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.newSessionID
+}
+
 // setSession sets the context's session
-func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Channel) {
+func (c *ServerContext) setSession(ctx context.Context, sess *session) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.session = sess
-
-	// inform the client of the session ID that is being used in a new
-	// goroutine to reduce latency
-	go func() {
-		c.Logger.DebugContext(ctx, "Sending current session ID")
-		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
-		if err != nil {
-			c.Logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
-		}
-	}()
 }
 
 // getSession returns the context's session
@@ -920,6 +931,15 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// Emit TX and RX bytes to their respective Prometheus counters.
 	serverTX.Add(float64(txBytes))
 	serverRX.Add(float64(rxBytes))
+}
+
+// ShouldHandleRecording returns whether this server context is responsible for
+// recording session events, including session recording, audit events, and session tracking.
+func (c *ServerContext) ShouldHandleSessionRecording() bool {
+	// The only time this server is not responsible for recording the session is when this
+	// is a Teleport Node with Proxy recording mode turned on, where the forwarding node will
+	// handle the recording.
+	return c.srv.Component() != teleport.ComponentNode || !services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode())
 }
 
 func (c *ServerContext) Close() error {
