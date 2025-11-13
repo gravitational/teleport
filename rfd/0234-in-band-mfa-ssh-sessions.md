@@ -564,13 +564,13 @@ func (p *validatedChallengeParser) parse(event backend.Event) (types.Resource, e
 }
 ```
 
-Additionally, a filter will be defined to allow querying `ValidatedChallenge` resources by name.
+Additionally, a filter will be defined to allow querying `ValidatedChallenge` resources by target cluster name.
 
 ```go
 // ValidatedChallengeFilter is a filter for ValidatedChallenge resources.
 type ValidatedChallengeFilter struct {
-  // Name is the name of the ValidatedChallenge to filter by.
-  Name string
+  // ClusterName is the name of the cluster to filter by.
+  ClusterName string
 }
 ```
 
