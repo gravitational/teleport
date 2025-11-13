@@ -4606,10 +4606,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	// Handle gracefully if the profile is empty, the key cannot
 	// be found, or the key isn't supported as an agent key.
 	profile, profileError := c.GetProfile(proxy)
-	if profileError == nil && profile.SiteName == "" {
-		logger.InfoContext(ctx, "Could not load key for cluster into the local agent, no cluster set")
-	}
-	if profileError == nil && profile.SiteName != "" {
+	if profileError == nil {
 		if err := tc.LoadKeyForCluster(ctx, profile.SiteName); err != nil {
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 				return nil, trace.Wrap(err)

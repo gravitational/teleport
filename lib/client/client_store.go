@@ -261,9 +261,14 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		}
 		return nil, trace.Wrap(err)
 	}
+	idx := KeyRingIndex{
+		ProxyHost:   profileName,
+		ClusterName: profile.SiteName,
+		Username:    profile.Username,
+	}
 
-	// If we can't construct KeyRingIndex, find a keyRing to match the profile.
-	// If we can't connect to the keyRing (hardware key), return a partial status.
+	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),
+	// or read the full profile status, return a partial status.
 	// This is used for some superficial functions `tsh logout` and `tsh status`.
 	partialStatus := &ProfileStatus{
 		Name: profileName,
@@ -281,15 +286,6 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		SSOHost:                 profile.SSOHost,
 	}
 
-	if profile.SiteName == "" || profile.Username == "" {
-		return partialStatus, nil
-	}
-
-	idx := KeyRingIndex{
-		ProxyHost:   profileName,
-		ClusterName: profile.SiteName,
-		Username:    profile.Username,
-	}
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {

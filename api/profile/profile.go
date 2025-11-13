@@ -389,6 +389,16 @@ func profileFromFile(filePath string) (*Profile, error) {
 
 	p.Dir = filepath.Dir(filePath)
 
+	// Older versions of tsh did not always store the cluster name in the
+	// profile. If no cluster name is found, fallback to the name of the profile
+	// for backward compatibility.
+	//
+	// TODO: A profile name is not the same thing as a site name - they only match in certain setups (e.g., Cloud)
+	// Instead, tsh should be able to handle an empty site name, or this default should be changed.
+	if p.SiteName == "" {
+		p.SiteName = p.Name()
+	}
+
 	// For backwards compatibility, if the dial timeout was not set,
 	// then use the DefaultIOTimeout.
 	if p.SSHDialTimeout == 0 {

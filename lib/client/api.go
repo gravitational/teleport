@@ -302,7 +302,8 @@ type Config struct {
 	Stderr io.Writer
 	Stdin  io.Reader
 
-	// SiteName specifies site to execute operation.
+	// SiteName specifies site to execute operation,
+	// if omitted, first available site will be selected
 	SiteName string
 
 	// KubernetesCluster specifies the kubernetes cluster for any relevant
