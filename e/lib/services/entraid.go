@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/service"
 )
@@ -30,7 +31,7 @@ const (
 	EntraIDStoppedEvent = "EntraIDStopped"
 )
 
-func startEntraIDService(ctx context.Context, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) error {
+func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) error {
 	logger := process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraID, process.GetID()))
 	features := modules.GetModules().Features()
 	if !features.GetEntitlement(entitlements.Identity).Enabled {
@@ -80,7 +81,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		return trace.BadParameter("Azure OIDC integration spec is required for Entra ID service when system credentials are not used")
 	}
 
-	graphClient, err := constructGraphClient(credential)
+	graphClient, err := constructGraphClient(credential, reg.Wrap("msgraph"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -121,7 +122,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
 		Clock:           process.Clock,
 		Logger:          logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
-		MetricsRegistry: process.MetricsRegistry(),
+		MetricsRegistry: reg.Wrap("directory"),
 		GraphClient:     graphClient,
 		UserSvc:         authServer,
 		AccessListSvc:   authServer,
@@ -192,7 +193,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 
 // EntraIDPluginInit initializes hosted Entra ID service (hosted plugin).
 // Returns immediately.
-func EntraIDPluginInit(ctx context.Context, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) (string, error) {
+func EntraIDPluginInit(ctx context.Context, reg *metrics.Registry, process *service.TeleportProcess, statusSink common.StatusSink, spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) (string, error) {
 	if process == nil {
 		return "", trace.BadParameter("process required")
 	}
@@ -201,17 +202,21 @@ func EntraIDPluginInit(ctx context.Context, process *service.TeleportProcess, st
 	process.SetExpectedInstanceRole(types.RoleAccessGraphPlugin, entraIDIdentityEvent)
 
 	process.RegisterFunc("entraid.init", func() error {
-		return startEntraIDService(ctx, process, statusSink, spec, integrationSpec)
+		return startEntraIDService(ctx, reg, process, statusSink, spec, integrationSpec)
 	})
 
 	return EventWithComponents(EntraIDStoppedEvent), nil
 }
 
 // constructGraphClient returns a new MS Graph API client using the given function to retrieve the client assertion.
-func constructGraphClient(credential msgraph.AzureTokenProvider) (*msgraph.Client, error) {
+func constructGraphClient(credential msgraph.AzureTokenProvider, reg *metrics.Registry) (*msgraph.Client, error) {
+	if reg != nil {
+		reg = reg.Wrap("msclient")
+	}
 
 	graphClient, err := msgraph.NewClient(msgraph.Config{
-		TokenProvider: credential,
+		TokenProvider:   credential,
+		MetricsRegistry: reg,
 	})
 
 	return graphClient, trace.Wrap(err)

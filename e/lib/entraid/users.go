@@ -92,6 +92,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 		OnDelete: func(ctx context.Context, u types.User) error {
 			return trace.Wrap(r.userSvc.DeleteUser(ctx, u.GetName()))
 		},
+		Metrics: r.metrics.userReconcilerMetrics,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

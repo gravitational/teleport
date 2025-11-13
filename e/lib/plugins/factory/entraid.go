@@ -30,7 +30,7 @@ func EntraID(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (De
 			}
 		}
 
-		closeEvent, err := services.EntraIDPluginInit(ctx, deps.ParentProcess, deps.StatusSink, entraSpec, azureSpec)
+		closeEvent, err := services.EntraIDPluginInit(ctx, deps.MetricsRegistry, deps.ParentProcess, deps.StatusSink, entraSpec, azureSpec)
 		if err != nil {
 			return trace.Wrap(err)
 		}

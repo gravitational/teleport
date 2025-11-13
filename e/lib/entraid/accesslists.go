@@ -108,6 +108,7 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 			err := r.accessListSvc.DeleteAccessList(ctx, a.AccessList.GetName())
 			return trace.Wrap(err)
 		},
+		Metrics: r.metrics.accessListReconcilerMetrics,
 	})
 	if err != nil {
 		return trace.Wrap(err)

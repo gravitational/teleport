@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/plugins/filter"
 )
 
@@ -80,7 +81,7 @@ type DirectoryReconcilerConfig struct {
 	Clock  clockwork.Clock
 	Logger *slog.Logger
 	// MetricsRegistry is used to register metrics. When nil, metrics are not registered.
-	MetricsRegistry prometheus.Registerer
+	MetricsRegistry *metrics.Registry
 	// GraphClient is the instantiated Microsoft Graph API client.
 	GraphClient GraphClient
 	// UserSvc is the service used to read and modify Teleport users.
@@ -147,6 +148,10 @@ func (cfg *DirectoryReconcilerConfig) Validate() error {
 		cfg.DefaultOwners[i].IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()
 	}
 
+	if cfg.MetricsRegistry == nil {
+		cfg.MetricsRegistry = metrics.NoopRegistry()
+	}
+
 	return nil
 }
 
@@ -156,12 +161,14 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 		return nil, trace.Wrap(err)
 	}
 
-	metrics := newMetrics()
-	// gracefully handle not being given a metric registry
-	if cfg.MetricsRegistry != nil {
-		if err := metrics.register(cfg.MetricsRegistry); err != nil {
-			return nil, trace.Wrap(err, "registering metrics")
-		}
+	metrics, err := newMetrics(cfg.MetricsRegistry)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating metrics")
+	}
+	if err := metrics.register(cfg.MetricsRegistry); err != nil {
+		cfg.Logger.ErrorContext(context.Background(), "Failed to register metrics.", "err", err)
+		// killing the process because we cannot expose metrics would cause more harm
+		// than continuing.
 	}
 
 	return &DirectoryReconciler{
