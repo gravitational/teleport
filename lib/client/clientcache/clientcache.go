@@ -44,22 +44,24 @@ type Cache struct {
 
 type clientWithMetadata struct {
 	client *client.ClusterClient
-	// coreTLSCert is the contents of the cert at the time of creating the client.
-	coreTLSCert []byte
+	// tlsCert is the certificate that was loaded when the client was created.
+	tlsCert []byte
 	// getProfile reads the fresh profile for the client from disk.
 	getProfile func() (profile, error)
 }
 
 type profile interface {
-	// TLSCert returns the profile's TLS certificate.
+	// TLSCert returns the current TLS cert, stored in the agent.
 	TLSCert() ([]byte, error)
 }
 
-func (c *clientWithMetadata) isCoreTLSCertUnchanged() (bool, error) {
+// isTLSCertStale checks if the cached client uses the current TLS cert
+// (read from the agent). If not, the TLS is considered "stale".
+func (c *clientWithMetadata) isTLSCertStale() (bool, error) {
 	pr, err := c.getProfile()
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return false, nil
+			return true, nil
 		}
 		return false, trace.Wrap(err)
 	}
@@ -67,12 +69,12 @@ func (c *clientWithMetadata) isCoreTLSCertUnchanged() (bool, error) {
 	tlsCert, err := pr.TLSCert()
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return false, nil
+			return true, nil
 		}
 		return false, trace.Wrap(err)
 	}
 
-	return bytes.Equal(c.coreTLSCert, tlsCert), nil
+	return !bytes.Equal(c.tlsCert, tlsCert), nil
 }
 
 // NewClientFunc is a function that will return a new [*client.TeleportClient] for a given profile and leaf
@@ -161,8 +163,8 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 
 		// Save the client in the cache, so we don't have to build a new connection next time.
 		c.addToCache(k, &clientWithMetadata{
-			client:      newClient,
-			coreTLSCert: keyRing.TLSCert,
+			client:  newClient,
+			tlsCert: keyRing.TLSCert,
 			getProfile: func() (profile, error) {
 				pr, err := tc.GetProfile(tc.WebProxyAddr)
 				return pr, trace.Wrap(err)
@@ -217,11 +219,11 @@ func (c *Cache) ClearForRoot(profileName string, opts ...ClearOption) error {
 			continue
 		}
 		if cfg.onlyClearClientsWithStaleCert {
-			unchanged, err := clt.isCoreTLSCertUnchanged()
+			stale, err := clt.isTLSCertStale()
+			// If an error occurs, close the client as well.
 			if err != nil {
 				errors = append(errors, err)
-			}
-			if unchanged {
+			} else if !stale {
 				continue
 			}
 		}
