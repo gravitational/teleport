@@ -274,15 +274,34 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 		clusterClient.SiteName = rootClusterName
 	}
 
-	if err == nil && clusterClient.Username != "" {
-		status, err = clusterClient.ProfileStatus()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// TODO(gzdunek): If the key doesn't exist, we should still try to read
+	// the profile status.
+	// This creates an inconsistency in how the profile is interpreted after running
+	//`tsh logout --proxy=... --user=...`  by `tsh status` versus Connect.
+	//
+	// tsh will still show a profile that includes the username, while Connect
+	// receives an empty profile status and therefore has no username.
+	// Fixing this requires updating how ClusterLifecycleManager detects logouts.
+	// Right now it assumes that a logout results in an empty username.
+	// After the fix, the username would still be present, so we'll need to rely on
+	// a different field of LoggedInUser (or introduce a new one) to determine logout
+	// state reliably.
+	if err != nil || clusterClient.Username == "" {
+		return status, nil
+	}
 
-		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	status, err = clusterClient.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if status.Cluster == "" {
+		s.Logger.InfoContext(context.Background(), "Could not load key for cluster into the local agent, no cluster set")
+		return status, nil
+	}
+
+	if err = clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return status, nil

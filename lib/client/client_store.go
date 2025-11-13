@@ -261,6 +261,31 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		}
 		return nil, trace.Wrap(err)
 	}
+
+	// If we can't construct KeyRingIndex, find a keyRing to match the profile,
+	// or can't connect to the keyRing (hardware key), return a partial status.
+	// This is used for some superficial functions `tsh logout` and `tsh status`.
+	partialStatus := &ProfileStatus{
+		Name: profileName,
+		Dir:  profile.Dir,
+		ProxyURL: url.URL{
+			Scheme: "https",
+			Host:   profile.WebProxyAddr,
+		},
+		Username:    profile.Username,
+		Cluster:     profile.SiteName,
+		KubeEnabled: profile.KubeProxyAddr != "",
+		// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
+		ValidUntil:              time.Now(),
+		GetKeyRingError:         err,
+		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		SSOHost:                 profile.SSOHost,
+	}
+
+	if profile.SiteName == "" || profile.Username == "" {
+		return partialStatus, nil
+	}
+
 	idx := KeyRingIndex{
 		ProxyHost:   profileName,
 		ClusterName: profile.SiteName,
@@ -269,25 +294,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
-			// If we can't find a keyRing to match the profile, or can't connect to
-			// the keyRing (hardware key), return a partial status. This is used for
-			// some superficial functions `tsh logout` and `tsh status`.
-			return &ProfileStatus{
-				Name: profileName,
-				Dir:  profile.Dir,
-				ProxyURL: url.URL{
-					Scheme: "https",
-					Host:   profile.WebProxyAddr,
-				},
-				Username:    profile.Username,
-				Cluster:     profile.SiteName,
-				KubeEnabled: profile.KubeProxyAddr != "",
-				// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
-				ValidUntil:              time.Now(),
-				GetKeyRingError:         err,
-				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
-				SSOHost:                 profile.SSOHost,
-			}, nil
+			return partialStatus, nil
 		}
 		return nil, trace.Wrap(err)
 	}

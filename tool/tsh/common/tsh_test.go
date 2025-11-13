@@ -6679,8 +6679,7 @@ func TestStatusPrintsProfilesIfNoActiveProfile(t *testing.T) {
 
 	require.Contains(t, buf.String(),
 		` Profile URL:        https://proxy:3080
-  Logged in as:       testuser
-  Cluster:            proxy`)
+  Logged in as:       testuser`)
 	require.True(t, trace.IsNotFound(err))
 	require.ErrorContains(t, err, "No active profile.")
 }
@@ -6737,7 +6736,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 				conf.UserHost = "node-1.cn.example.com:3022"
 			}),
 			outHost:    "node-1.cn.example.com:3022",
-			outCluster: "proxy",
+			outCluster: "",
 		},
 		{
 			name: "does not match template with -J {{proxy}}",
