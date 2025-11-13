@@ -160,8 +160,6 @@ func (t *teleportPickHealthyBalancer) UpdateClientConnState(state balancer.Clien
 	t.resolvedState = state.ResolverState
 	t.mu.Unlock()
 
-	state.ResolverState = pickfirstleaf.EnableHealthListener(state.ResolverState)
-
 	return bal.UpdateClientConnState(state)
 }
 
@@ -182,12 +180,143 @@ func (t *teleportPickHealthyBalancer) UpdateSubConnState(sc balancer.SubConn, sc
 		return
 	}
 
-	if scs.ConnectivityState == connectivity.Shutdown {
+	t.log.InfoContext(context.Background(), "UpdateSubConnState invoked", slog.String("state", scs.ConnectivityState.String()))
+
+	switch scs.ConnectivityState {
+	case connectivity.Shutdown:
 		delete(bal.subConns, sc)
+	case connectivity.Ready:
+		sc.RegisterHealthListener(func(state balancer.SubConnState) {
+			t.healthListener(sc, state)
+		})
 	}
 
 	// Do not invoke bal.UpdateSubConnState since the pick_first_leaf does not expect UpdateSubConnState to be invoked,
 	// since it uses state listeners instead. Invoking will only emit error logs from the pick_first_leaf load balancer.
+}
+
+func (t *teleportPickHealthyBalancer) healthListener(sc balancer.SubConn, scs balancer.SubConnState) {
+	t.mu.Lock()
+
+	var bal *wrappedBalancer
+
+	attrs := []any{
+		slog.String("state", scs.ConnectivityState.String()),
+	}
+
+	if t.current != nil && t.current.subConns[sc] {
+		bal = t.current
+		attrs = append(attrs, slog.String("balancer", "current"))
+	} else if t.pending != nil && t.pending.subConns[sc] {
+		bal = t.pending
+		attrs = append(attrs, slog.String("balancer", "pending"))
+	} else {
+		attrs = append(attrs, slog.String("balancer", "stale"))
+	}
+
+	t.log.InfoContext(context.Background(), "healthListener invoked", attrs...)
+
+	if bal == nil {
+		t.mu.Unlock()
+		return
+	}
+
+	if bal == t.pending && scs.ConnectivityState == connectivity.TransientFailure {
+		t.log.InfoContext(context.Background(), "Pending balancer is unhealthy, waiting before creating new balancer")
+
+		t.mu.Unlock()
+
+		// TODO(dustin.specker): use a backoff approach
+		time.Sleep(1 * time.Second)
+
+		t.mu.Lock()
+	}
+
+	switch bal {
+	case t.current:
+		switch scs.ConnectivityState {
+		case connectivity.Ready:
+			if t.pending != nil {
+				t.log.InfoContext(context.Background(), "current balancer became healthy, closing pending balancer")
+
+				t.pending.Close()
+
+				t.pending = nil
+
+				current := t.current
+				resolvedState := t.resolvedState
+
+				t.mu.Unlock()
+
+				current.UpdateClientConnState(balancer.ClientConnState{
+					ResolverState: resolvedState,
+				})
+			} else {
+				t.mu.Unlock()
+			}
+		case connectivity.TransientFailure:
+			t.log.InfoContext(context.Background(), "current balancer is unhealthy, creating new balancer")
+
+			wb := newWrappedBalancer(t)
+
+			t.pending = wb
+
+			resolvedState := t.resolvedState
+
+			t.mu.Unlock()
+
+			// invoke UpdateClientConnState so that the new load balancer begins
+			// creating a new subconnection
+			wb.UpdateClientConnState(balancer.ClientConnState{
+				ResolverState: resolvedState,
+			})
+		default:
+			t.mu.Unlock()
+		}
+	case t.pending:
+		switch scs.ConnectivityState {
+		case connectivity.Ready:
+			t.log.InfoContext(context.Background(), "pending balancer is ready, migrating to pending balancer")
+			oldCurrent := t.current
+
+			t.current = t.pending
+			t.pending = nil
+
+			t.mu.Unlock()
+
+			// instruct the client connection to use this now ready subconnection
+			t.cc.UpdateState(balancer.State{
+				ConnectivityState: connectivity.Ready,
+				Picker: &picker{
+					sc: sc,
+				},
+			})
+
+			oldCurrent.Close()
+		case connectivity.TransientFailure:
+			t.log.InfoContext(context.Background(), "pending balancer is unhealthy, creating a new one")
+
+			t.pending.Close()
+
+			wb := newWrappedBalancer(t)
+
+			t.pending = wb
+
+			resolvedState := t.resolvedState
+
+			t.mu.Unlock()
+
+			// invoke UpdateClientConnState so that the new load balancer begins
+			// creating a new subconnection
+			wb.UpdateClientConnState(balancer.ClientConnState{
+				ResolverState: resolvedState,
+			})
+		default:
+			t.mu.Unlock()
+		}
+	default:
+		t.mu.Unlock()
+	}
 }
 
 // newestBalancer returns the pending load balancer if existing, otherwise the current load balancer is returned.
@@ -301,86 +430,30 @@ func (t *wrappedBalancer) RemoveSubConn(sc balancer.SubConn) {
 
 // UpdateState handles creating new pick_first_leaf balancers in the case one becomes unhealthy.
 func (t *wrappedBalancer) UpdateState(state balancer.State) {
-	// TODO(dustin.specker): refactor to remove nesting and simply unlocking mutex
+	t.log.InfoContext(context.Background(), "UpdateState invoked", slog.String("state", state.ConnectivityState.String()))
 	t.tlb.mu.Lock()
 
-	if t != t.tlb.current && t != t.tlb.pending {
+	// do not pass state changes for the pending load balancer because it's desired to only use
+	// the new sub connections once the pending load balancer is ready and passing health checks
+	if t != t.tlb.current {
 		t.tlb.mu.Unlock()
 		return
 	}
 
-	// always pass UpdateState to ClientConn if the current or pending balancer experiences a state change
-	defer t.tlb.cc.UpdateState(state)
+	t.tlb.mu.Unlock()
 
-	if t == t.tlb.pending && state.ConnectivityState == connectivity.TransientFailure {
-		t.log.InfoContext(context.Background(), "Pending balancer is unhealthy, waiting before creating new balancer")
+	// always pass UpdateState to ClientConn if the current balancer experiences a state change
+	t.tlb.cc.UpdateState(state)
+}
 
-		t.tlb.mu.Unlock()
+// picker is used only to provide a [balancer.SubConn] for a client connection to use.
+type picker struct {
+	sc balancer.SubConn
+}
 
-		time.Sleep(1 * time.Second)
-
-		t.tlb.mu.Lock()
-	}
-
-	switch t {
-	case t.tlb.current:
-		if state.ConnectivityState == connectivity.TransientFailure {
-			t.log.InfoContext(context.Background(), "Current balancer is unhealthy, creating pending balancer")
-			wb := newWrappedBalancer(t.tlb)
-
-			t.tlb.pending = wb
-
-			resolvedState := t.tlb.resolvedState
-
-			t.tlb.mu.Unlock()
-
-			wb.UpdateClientConnState(balancer.ClientConnState{
-				ResolverState: pickfirstleaf.EnableHealthListener(resolvedState),
-			})
-		} else if state.ConnectivityState == connectivity.Ready && t.tlb.pending != nil {
-			t.log.InfoContext(context.Background(), "Current balancer became healthy, closing pending balancer")
-
-			pending := t.tlb.pending
-
-			t.tlb.pending = nil
-
-			t.tlb.mu.Unlock()
-
-			pending.Close()
-		} else {
-			t.tlb.mu.Unlock()
-		}
-	case t.tlb.pending:
-		switch state.ConnectivityState {
-		case connectivity.Ready:
-			t.log.InfoContext(context.Background(), "Pending balancer is ready, migrating to new balancer")
-
-			oldCurrent := t.tlb.current
-
-			t.tlb.current = t.tlb.pending
-			t.tlb.pending = nil
-
-			t.tlb.mu.Unlock()
-
-			oldCurrent.Close()
-		case connectivity.TransientFailure:
-			t.log.InfoContext(context.Background(), "Pending balancer is unhealthy, recreating new balancer")
-
-			t.tlb.pending.Close()
-
-			wb := newWrappedBalancer(t.tlb)
-
-			t.tlb.pending = wb
-
-			resolvedState := t.tlb.resolvedState
-
-			t.tlb.mu.Unlock()
-
-			wb.UpdateClientConnState(balancer.ClientConnState{
-				ResolverState: pickfirstleaf.EnableHealthListener(resolvedState),
-			})
-		default:
-			t.tlb.mu.Unlock()
-		}
-	}
+// Pick returns the picker's [balancer.SubConn]
+func (p *picker) Pick(balancer.PickInfo) (balancer.PickResult, error) {
+	return balancer.PickResult{
+		SubConn: p.sc,
+	}, nil
 }
