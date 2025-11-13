@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/utils/hostid"
@@ -197,11 +198,12 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		// leave joinMethodPtr nil to let the server pick based on the token
 	case types.JoinMethodToken,
 		types.JoinMethodBoundKeypair,
-		types.JoinMethodIAM,
 		types.JoinMethodEC2,
 		types.JoinMethodEnv0,
-		types.JoinMethodOracle,
-		types.JoinMethodGitHub:
+		types.JoinMethodGitHub,
+		types.JoinMethodGitLab,
+		types.JoinMethodIAM,
+		types.JoinMethodOracle:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -313,6 +315,17 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodGitLab:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{
+				EnvVarName: joinParams.GitlabParams.EnvVarName,
+			}).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		return oidcJoin(stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.

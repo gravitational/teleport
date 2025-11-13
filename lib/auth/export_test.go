@@ -213,10 +213,6 @@ func (a *Server) SetGCPIDTokenValidator(validator gcpIDTokenValidator) {
 	a.gcpIDTokenValidator = validator
 }
 
-func (a *Server) SetGitlabIDTokenValidator(validator gitlabIDTokenValidator) {
-	a.gitlabIDTokenValidator = validator
-}
-
 func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
 	a.k8sTokenReviewValidator = validator
 }
@@ -371,10 +367,6 @@ func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diag
 
 func IsGCPZoneInLocation(rawLocation, rawZone string) bool {
 	return isGCPZoneInLocation(rawLocation, rawZone)
-}
-
-func JoinRuleGlobMatch(want string, got string) (bool, error) {
-	return joinRuleGlobMatch(want, got)
 }
 
 func FormatHeaderFromMap(m map[string]string) http.Header {

@@ -54,8 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/jwt"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/spacelift"
@@ -327,11 +327,13 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			}
 		}
 	case types.JoinMethodGitLab:
-		params.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{
-			EnvVarName: params.GitlabParams.EnvVarName,
-		}).GetIDToken()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{
+				EnvVarName: params.GitlabParams.EnvVarName,
+			}).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodCircleCI:
 		params.IDToken, err = circleci.GetIDToken(os.Getenv)
