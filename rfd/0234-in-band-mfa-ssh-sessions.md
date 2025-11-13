@@ -89,8 +89,8 @@ the MFA response and stores the `ValidatedChallenge` to the local backend.
 
 In addition, if the target cluster is a leaf cluster, a watcher in the reverse tunnel server monitors
 `ValidateChallenge` events for its cluster. When a `ValidateChallenge` is created for a leaf cluster, the reverse tunnel
-server calls the `CreateValidatedChallenge` RPC using its auth client to forward the challenge to the leaf cluster's MFA
-service.
+server calls the `ReplicateValidatedChallenge` RPC using its auth client to forward the challenge to the leaf cluster's
+MFA service.
 
 This ensures that validated MFA challenges are available in the appropriate cluster for retrieval during SSH session
 establishment.
@@ -189,7 +189,7 @@ sequenceDiagram
     Client->>Client: Solve MFA challenge
     Client->>rMFA: ValidateChallenge (MFA response)
     rMFA-->>rMFA: Validate MFA response
-    rMFA-->>lMFA: CreateValidatedChallenge (SIP)
+    rMFA-->>lMFA: ReplicateValidatedChallenge (SIP)
     rMFA-->>Client: Challenge validated
 
     Client->>SSH: Keyboard-interactive (challenge name)
@@ -227,15 +227,15 @@ Mitigations:
 #### New RPCs Attack Surface Risk
 
 This RFD introduces an MFA service which exposes four RPCs: `CreateChallenge`, `ValidateChallenge`,
-`CreateValidatedChallenge` and `GetValidatedChallenge`. These could potentially be exploited by an attacker to DoS the
-service by flooding it with requests.
+`ReplicateValidatedChallenge` and `GetValidatedChallenge`. These could potentially be exploited by an attacker to DoS
+the service by flooding it with requests.
 
 Mitigations:
 
 1. Only authenticated end user clients are authorized to call the `CreateChallenge` and `ValidateChallenge` RPCs,
    requests from other sources will be rejected.
-1. Only the Teleport Proxy is authorized to call the `CreateValidatedChallenge` RPC, requests from other sources will be
-   rejected.
+1. Only the Teleport Proxy is authorized to call the `ReplicateValidatedChallenge` RPC, requests from other sources will
+   be rejected.
 1. Only the Teleport SSH service is authorized to call the `GetValidatedChallenge` RPC on the MFA service within its own
    cluster. Requests from other sources will be rejected.
 1. Ensure that the MFA service validates all inputs before processing the request to avoid unnecessary processing of
@@ -348,8 +348,9 @@ service MFAService {
   // ValidateChallenge validates the MFA challenge response for a user session and stores the validated response for
   // retrieval by the target cluster's SSH service.
   rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
-  // CreateValidatedChallenge stores a previously validated MFA challenge response for a user session.
-  rpc CreateValidatedChallenge(CreateValidatedChallengeRequest) returns (ValidatedChallenge);
+  // ReplicateValidatedChallenge replicates a validated MFA challenge to a leaf cluster for retrieval during SSH session
+  // establishment. It is a NOOP when used in the root cluster.
+  rpc ReplicateValidatedChallenge(ReplicateValidatedChallengeRequest) returns (ValidatedChallenge);
   // GetValidatedChallenge retrieves a previously validated MFA challenge response for a user session.
   // If the challenge does not yet exist, this method will block until the resource appears or until the timeout is
   // reached.
@@ -407,12 +408,12 @@ message ValidateChallengeResponse {
   types.MFADevice device = 2;
 }
 
-// CreateValidatedChallengeRequest is the request message for CreateValidatedChallenge.
-message CreateValidatedChallengeRequest {
+// ReplicateValidatedChallengeRequest is the request message for ReplicateValidatedChallenge.
+message ReplicateValidatedChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the upsert to the correct challenge.
   string name = 1;
-  // payload is a value that uniquely identifies the user's session. The client calling CreateValidatedChallenge MUST
+  // payload is a value that uniquely identifies the user's session. The client calling ReplicateValidatedChallenge MUST
   // independently compute this value from session state to verify it matches in order to verify the response is tied to
   // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
   bytes payload = 2;
@@ -504,8 +505,8 @@ service forwards the validated challenge to the leaf cluster's MFA service for s
 
 A new backend resource `ValidatedChallenge` will be created following the [resource
 guidelines](/rfd/0153-resource-guidelines.md). The only operations supported by this resource are: creation via
-`CreateValidatedChallenge` and retrieval via `GetValidatedChallenge`. The resource will be automatically deleted after
-retrieval or expiration.
+`ReplicateValidatedChallenge` and retrieval via `GetValidatedChallenge`. The resource will be automatically deleted
+after retrieval or expiration.
 
 ```proto
 // ValidatedChallenge represents a validated MFA challenge tied to a user session.
@@ -672,7 +673,7 @@ The existing SSH session audit events will be updated to indicate whether MFA wa
 per-session MFA certificate. This will help with tracking the rollout of the new in-band MFA flow during the transition
 period.
 
-Audit events will not be added for the `CreateValidatedChallenge` and `GetValidatedChallenge` because these RPCs are
+Audit events will not be added for the `ReplicateValidatedChallenge` and `GetValidatedChallenge` because these RPCs are
 internal to the SSH session establishment process and do not represent user actions.
 
 ```proto
