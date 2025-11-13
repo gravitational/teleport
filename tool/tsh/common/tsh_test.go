@@ -5799,7 +5799,12 @@ func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
 }
 
 func TestBenchmarkPostgres(t *testing.T) {
-	t.Parallel()
+	// Set insecure mode to allow db agent to establish reverse tunnel.
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
 
 	// Canceling the context right after the test ensures the local proxy
 	// started by the benchmark command is closed and the remaining connections
@@ -5853,7 +5858,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
-	benchmarkErrorLineParser := regexp.MustCompile("`host=(.+) +user=(.+) database=(.+)`: (.+)$")
+	benchmarkErrorLineParser := regexp.MustCompile("`host=(.+?) +user=(.+?) database=(.+?)`: (.+)$")
 	args := []string{
 		"bench", "postgres", "--insecure",
 		// Benchmark options to limit benchmark to a single execution.
@@ -5872,16 +5877,16 @@ func TestBenchmarkPostgres(t *testing.T) {
 		"connect to database": {
 			database:            "postgres-local",
 			additionalFlags:     []string{"--db-user", "username", "--db-name", "database"},
-			expectedErrContains: "server error",
+			expectedErrContains: "lookup external-pg",
 			// When connecting to Teleport databases, it will use a local proxy.
 			expectedHost:     "127.0.0.1",
 			expectedUser:     "username",
 			expectedDatabase: "database",
 		},
 		"direct connection": {
-			database:            "postgres://direct_user@test:5432/direct_database",
-			expectedErrContains: "hostname resolving error",
-			expectedHost:        "test",
+			database:            "postgres://direct_user@direct-pg:5432/direct_database",
+			expectedErrContains: "lookup direct-pg",
+			expectedHost:        "direct-pg",
 			expectedUser:        "direct_user",
 			expectedDatabase:    "direct_database",
 		},
