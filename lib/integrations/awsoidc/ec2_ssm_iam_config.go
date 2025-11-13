@@ -28,6 +28,7 @@ import (
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
@@ -55,6 +56,7 @@ type EC2SSMIAMConfigureRequest struct {
 
 	// SSMDocumentName is the SSM Document to be created.
 	// This document calls the installer scripts in the target host.
+	// Empty if using a pre-existing document.
 	SSMDocumentName string
 
 	// ProxyPublicURL is Proxy's Public URL.
@@ -92,10 +94,6 @@ func (r *EC2SSMIAMConfigureRequest) CheckAndSetDefaults() error {
 
 	if r.IntegrationRoleEC2SSMPolicy == "" {
 		r.IntegrationRoleEC2SSMPolicy = defaultPolicyNameForEC2SSM
-	}
-
-	if r.SSMDocumentName == "" {
-		return trace.BadParameter("ssm document name is required")
 	}
 
 	if r.ProxyPublicURL == "" {
@@ -182,21 +180,25 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 		return trace.Wrap(err)
 	}
 
-	content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL,
-		awslib.WithInsecureSkipInstallPathRandomization(req.insecureSkipInstallPathRandomization),
-	)
-	tags := defaultResourceCreationTags(req.ClusterName, req.IntegrationName)
-	createDoc, err := awsactions.CreateDocument(clt, req.SSMDocumentName, content, ssmtypes.DocumentTypeCommand, ssmtypes.DocumentFormatYaml, tags)
-	if err != nil {
-		return trace.Wrap(err)
+	actions := []provisioning.Action{*putRolePolicy}
+
+	// If using an existing document, the SSMDocumentName is empty.
+	// If using the pre-existing Document AWS-RunShellScript, the SSM Document already exists, so no need to create it.
+	if req.SSMDocumentName != "" || req.SSMDocumentName == types.AWSSSMDocumentRunShellScript {
+		content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL,
+			awslib.WithInsecureSkipInstallPathRandomization(req.insecureSkipInstallPathRandomization),
+		)
+		tags := defaultResourceCreationTags(req.ClusterName, req.IntegrationName)
+		createDoc, err := awsactions.CreateDocument(clt, req.SSMDocumentName, content, ssmtypes.DocumentTypeCommand, ssmtypes.DocumentFormatYaml, tags)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		actions = append(actions, *createDoc)
 	}
 
 	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
-		Name: "ec2-ssm-iam",
-		Actions: []provisioning.Action{
-			*putRolePolicy,
-			*createDoc,
-		},
+		Name:        "ec2-ssm-iam",
+		Actions:     actions,
 		AutoConfirm: req.AutoConfirm,
 		Output:      req.stdout,
 	}))
