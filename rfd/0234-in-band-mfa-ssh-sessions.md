@@ -399,14 +399,7 @@ message ValidateChallengeRequest {
 }
 
 // ValidateChallengeResponse is the response message for ValidateChallenge.
-message ValidateChallengeResponse {
-  // payload is a value that uniquely identifies the user's session. The client calling ValidateChallenge MUST
-  // independently compute this value from session state to verify it matches in order to verify the response is tied to
-  // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
-  bytes payload = 1;
-  // device contains information about the user's MFA device used to authenticate.
-  types.MFADevice device = 2;
-}
+message ValidateChallengeResponse {}
 
 // ReplicateValidatedChallengeRequest is the request message for ReplicateValidatedChallenge.
 message ReplicateValidatedChallengeRequest {
