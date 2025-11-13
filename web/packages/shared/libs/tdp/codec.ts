@@ -405,31 +405,31 @@ export abstract class Encoder {
 // Define a set of methods that the caller should implement
 // to handle TDP/TDPB events
 export interface ClientEventHandlers {
-  handlePngFrame(frame: PngFrame);
-  handleRdpConnectionActivated(spec: RdpConnectionActivated);
-  handleServerHello(hello: ServerHello);
-  handleRdpFastPathPdu(pdu: RdpFastPathPdu);
+  handlePngFrame(frame: PngFrame): void;
+  handleRdpConnectionActivated(spec: RdpConnectionActivated): void;
+  handleServerHello(hello: ServerHello): void;
+  handleRdpFastPathPdu(pdu: RdpFastPathPdu): void;
 
   // Unsupported messages
   //handleClientScreenSpec(spec: ClientScreenSpec);
   //handleMouseButton(button: MouseButton);
   //handleMouseMove(move: tdpb.MouseMove);
 
-  handleClipboardData(data: ClipboardData);
-  handleTdpAlert(alert: Alert);
-  handleMfaChallenge(challenge: MfaJson);
-  handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge);
-  handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest);
-  handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest);
-  handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest);
-  handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest);
-  handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest);
-  handleSharedDirectoryMoveRequest(req: SharedDirectoryMoveRequest);
-  handleSharedDirectoryListRequest(req: SharedDirectoryListRequest);
-  handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest);
-  handleLatencyStats(stats: LatencyStats);
-  handleTDPBUpgrade();
-  handleServerHello(hello: ServerHello);
+  handleClipboardData(data: ClipboardData): void;
+  handleTdpAlert(alert: Alert): void;
+  handleMfaChallenge(challenge: MfaJson): void;
+  handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge): void;
+  handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest): void;
+  handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest): void;
+  handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest): void;
+  handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest): void;
+  handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest): void;
+  handleSharedDirectoryMoveRequest(req: SharedDirectoryMoveRequest): void;
+  handleSharedDirectoryListRequest(req: SharedDirectoryListRequest): void;
+  handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest): void;
+  handleLatencyStats(stats: LatencyStats): void;
+  handleTDPBUpgrade(): void;
+  handleServerHello(hello: ServerHello): void;
 }
 
 export class TdpbCodec extends Encoder {
@@ -474,14 +474,18 @@ export class TdpbCodec extends Encoder {
         const frame = tdpb.PNGFrame.fromBinary(messageData);
         let data = new Image()
         data.src = this.asBase64Url(frame.data.buffer, 0);
-        let pngFrame = {
+        let png = {
           top: frame.coordinates.top,
           left: frame.coordinates.left,
           bottom: frame.coordinates.bottom,
           right: frame.coordinates.right,
           data: data,
         };
-        data.onload = this.handlers.handlePngFrame(pngFrame);
+
+        // TODO: Figure out why I had to do this
+        let load: (pngFrame: PngFrame) => any = 
+          (theFrame: PngFrame) => this.handlers.handlePngFrame(theFrame);
+        data.onload = load(png);
         break;
       case tdpb.MessageType.MESSAGE_FASTPATH_PDU:
         this.handlers.handleRdpFastPathPdu(
