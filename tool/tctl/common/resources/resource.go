@@ -50,6 +50,7 @@ func Handlers() map[string]Handler {
 		types.KindDatabase:                           databaseHandler(),
 		types.KindDatabaseObject:                     databaseObjectHandler(),
 		types.KindDatabaseObjectImportRule:           databaseObjectImportRuleHandler(),
+		types.KindDelegationProfile:                  delegationProfileHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindInstaller:                          installerHandler(),
