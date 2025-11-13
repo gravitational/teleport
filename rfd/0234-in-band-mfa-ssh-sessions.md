@@ -75,11 +75,11 @@ service will then check if MFA is required for the session by examining the perm
 If MFA is _not required_, the SSH service will then proceed to establish the SSH session.
 
 If MFA _is required_, the SSH service will send a Protobuf [`MFAPrompt`
-message](#ssh-keyboard-interactive-authentication) via the SSH [keyboard-interactive
-channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA is needed. The client must then call the
-`CreateChallenge` RPC on the MFA service, providing a _Session Identifying Payload (SIP)_ and any relevant metadata. The
-SIP is an SSH session hash computed from SSH session state and is used to bind the MFA challenge to the specific
-session. Both the SSH client and the SSH server can independently compute the SIP from session state.
+message](#ssh-keyboard-interactive-authentication) as a Question via the SSH [keyboard-interactive
+authentication](https://www.rfc-editor.org/rfc/rfc4256) method to inform the client that MFA is needed. The client must
+then call the `CreateChallenge` RPC on the MFA service, providing a _Session Identifying Payload (SIP)_ and any relevant
+metadata. The SIP is an SSH session hash computed from SSH session state and is used to bind the MFA challenge to the
+specific session. Both the SSH client and the SSH server can independently compute the SIP from session state.
 
 The MFA service will [store the Session Identifying Payload (SIP)](#storing-session-identifying-payloads) and respond
 with an MFA challenge for the client to solve.
