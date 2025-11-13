@@ -311,7 +311,7 @@ message ServerHello {
     option (tdp_type_option) = MESSAGE_SERVER_HELLO;
     // Future initialization fields
     // or capability advertisements here
-    bool clipboard_enabled = 3;
+    bool clipboard_enabled = 1;
 }
 
 
