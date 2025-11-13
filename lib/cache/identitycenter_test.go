@@ -28,7 +28,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -182,6 +184,8 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 	}, withSkipPaginationTest())
 }
 
+// TestIdentityCenterCacheCompleteness asserts that Identity Center
+// resources are properly mirrored in the cache on first start.
 func TestIdentityCenterCacheCompleteness(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -192,6 +196,7 @@ func TestIdentityCenterCacheCompleteness(t *testing.T) {
 	accountAssignments := make([]string, 0, 2)
 	principalAssignments := make([]string, 0, 2)
 	var err error
+	// create resources in the backend
 	for i := range 2 {
 		aName := "account" + strconv.Itoa(i)
 		_, err = p.identityCenter.CreateIdentityCenterAccount(ctx, newIdentityCenterAccount(aName))
@@ -215,6 +220,8 @@ func TestIdentityCenterCacheCompleteness(t *testing.T) {
 			Mirror:  true,
 		})
 	require.NoError(t, err)
+	// starting new cache should pull resources from
+	// backend to the cache.
 	p.cache, err = New(ForAuth(Config{
 		Context:                 ctx,
 		Backend:                 p.cacheBackend,
@@ -267,15 +274,15 @@ func TestIdentityCenterCacheCompleteness(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	accountsOut, _, err := p.cache.ListIdentityCenterAccounts(ctx, 0, "")
+	accountsOut, err := stream.Collect(clientutils.Resources(ctx, p.cache.ListIdentityCenterAccounts))
 	require.NoError(t, err)
 	require.ElementsMatch(t, accounts, aNames(accountsOut))
 
-	assignmentsOut, _, err := p.cache.ListIdentityCenterAccountAssignments(ctx, 0, "")
+	assignmentsOut, err := stream.Collect(clientutils.Resources(ctx, p.cache.ListIdentityCenterAccountAssignments))
 	require.NoError(t, err)
 	require.ElementsMatch(t, accountAssignments, aaNames(assignmentsOut))
 
-	pAssignmentsOut, _, err := p.cache.ListPrincipalAssignments(ctx, 0, "")
+	pAssignmentsOut, err := stream.Collect(clientutils.Resources(ctx, p.cache.ListPrincipalAssignments))
 	require.NoError(t, err)
 	require.ElementsMatch(t, principalAssignments, paNames(pAssignmentsOut))
 
@@ -284,22 +291,22 @@ func TestIdentityCenterCacheCompleteness(t *testing.T) {
 }
 
 func aNames(in []*identitycenterv1.Account) (out []string) {
-	for _, i := range in {
-		out = append(out, i.GetMetadata().GetName())
+	for _, v := range in {
+		out = append(out, v.GetMetadata().GetName())
 	}
 	return
 }
 
 func aaNames(in []*identitycenterv1.AccountAssignment) (out []string) {
-	for _, i := range in {
-		out = append(out, i.GetMetadata().GetName())
+	for _, v := range in {
+		out = append(out, v.GetMetadata().GetName())
 	}
 	return
 }
 
 func paNames(in []*identitycenterv1.PrincipalAssignment) (out []string) {
-	for _, i := range in {
-		out = append(out, i.GetMetadata().GetName())
+	for _, v := range in {
+		out = append(out, v.GetMetadata().GetName())
 	}
 	return
 }
