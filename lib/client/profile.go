@@ -297,7 +297,7 @@ type ProfileStatus struct {
 
 	// AllowedResourceIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
-	AllowedResourceIDs []types.ResourceID
+	AllowedResourceIDs []types.ResourceAccessID
 
 	// IsVirtual is set when this profile does not actually exist on disk,
 	// probably because it was constructed from an identity file. When set,
@@ -462,7 +462,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		AzureIdentities:         tlsID.AzureIdentities,
 		GCPServiceAccounts:      tlsID.GCPServiceAccounts,
 		IsVirtual:               opts.IsVirtual,
-		AllowedResourceIDs:      sshIdent.AllowedResourceIDs,
+		AllowedResourceIDs:      types.CombineAsResourceAccessIDs(sshIdent.AllowedResourceIDs, sshIdent.AllowedResourceAccessIDs),
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
 		SSOHost:                 opts.SSOHost,
 		GitHubIdentity:          gitHubIdentity,

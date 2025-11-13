@@ -1283,8 +1283,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 				clusterName: "my-cluster",
 			}
 
-			req, err := types.NewAccessRequestWithResources(
-				"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+			req, err := types.NewAccessRequestWithResources("some-id", uls.GetName(), tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClock()
@@ -1678,7 +1677,7 @@ func TestPruneMappedSearchAs(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			req, err := NewAccessRequestWithResources(user, nil, tc.requestResourceIDs)
+			req, err := NewAccessRequestWithResources(user, nil, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			req.SetLoginHint(tc.loginHint)
@@ -1949,7 +1948,7 @@ func TestPruneMappedRoles(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.desc, func(t *testing.T) {
 			clock := clockwork.NewFakeClock()
-			caps, err := PruneMappedSearchAsRoles(ctx, clock, g, userState, localSearchAsRoles, testCase.requestResourceIDs, testCase.loginHint)
+			caps, err := PruneMappedSearchAsRoles(ctx, clock, g, userState, localSearchAsRoles, types.ResourceIDsToResourceAccessIDs(testCase.requestResourceIDs), testCase.loginHint)
 			testCase.errorAssertion(t, err)
 			testCase.capsAssertion(t, caps)
 		})
@@ -2700,7 +2699,7 @@ func TestReasonRequired(t *testing.T) {
 				require.NoError(t, err)
 
 				req, err := types.NewAccessRequestWithResources(
-					"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+					"some-id", uls.GetName(), tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 				require.NoError(t, err)
 
 				// No reason in the request.
@@ -2805,18 +2804,20 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 	}
 
 	req, err := types.NewAccessRequestWithResources("name", user, nil, /* roles */
-		[]types.ResourceID{
-			{ClusterName: "someCluster", Kind: "node", Name: "resource1"},
-			{ClusterName: "someCluster", Kind: "node", Name: "resource1"}, // a  duplicate
-			{ClusterName: "someCluster", Kind: "node", Name: "resource2"}, // not a duplicate
+		[]types.ResourceAccessID{
+			{ID: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource1"}},
+			{ID: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource1"}}, // a  duplicate
+			{ID: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource2"}}, // not a duplicate
 		})
 	require.NoError(t, err)
 
 	err = ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, WithExpandVars(true))
 	require.NoError(t, err)
 	require.Len(t, req.GetRequestedResourceIDs(), 2)
-	require.Equal(t, "/someCluster/node/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[0]))
-	require.Equal(t, "/someCluster/node/resource2", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
+	expectedRidStr0 := types.ResourceIDToString(req.GetRequestedResourceIDs()[0])
+	require.Equal(t, "/someCluster/node/resource1", expectedRidStr0)
+	expectedRidStr1 := types.ResourceIDToString(req.GetRequestedResourceIDs()[1])
+	require.Equal(t, "/someCluster/node/resource2", expectedRidStr1)
 
 	var requestedResourceIDs []types.ResourceID
 	for i := range 200 {
@@ -2872,8 +2873,8 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 				localCluster:   localCluster,
 				remoteClusters: remoteClusters,
 			}
-			req, err := types.NewAccessRequestWithResources("name", "user", []string{}, []types.ResourceID{
-				{ClusterName: "someCluster"},
+			req, err := types.NewAccessRequestWithResources("name", "user", []string{}, []types.ResourceAccessID{
+				{ID: types.ResourceID{ClusterName: "someCluster"}},
 			})
 			require.NoError(t, err)
 
@@ -3927,7 +3928,7 @@ func TestValidate_WithAllowRequestKubernetesResources_LegacyRequestFormat(t *tes
 			g := newMockGetter(t, userName, tc.userStaticRoles)
 
 			// Create the access request.
-			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, tc.requestResourceIDs)
+			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			// Create the request validator.
@@ -4624,7 +4625,7 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			g := newMockGetter(t, userName, tc.userStaticRoles)
 
 			// Create the access request.
-			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, tc.requestResourceIDs)
+			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			// Create the request validator.

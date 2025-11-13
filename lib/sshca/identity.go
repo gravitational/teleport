@@ -127,6 +127,9 @@ type Identity struct {
 	JoinToken string
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs []types.ResourceID
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with ResourceConstraints or additional information.
+	AllowedResourceAccessIDs []types.ResourceAccessID
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
 	ConnectionDiagnosticID string
 	// PrivateKeyPolicy is the private key policy supported by this certificate.
@@ -248,6 +251,19 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 			return nil, trace.Wrap(err)
 		}
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = requestedResourcesStr
+	} else if len(i.AllowedResourceAccessIDs) != 0 {
+		sentinelResourceIDStr, err := types.ResourceIDsToString([]types.ResourceID{types.CreateSentinelResourceID()})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = sentinelResourceIDStr
+	}
+	if len(i.AllowedResourceAccessIDs) != 0 {
+		allowedResourceAccessIDsStr, err := types.ResourceAccessIDsToString(i.AllowedResourceAccessIDs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs] = allowedResourceAccessIDsStr
 	}
 	if i.ConnectionDiagnosticID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionConnectionDiagnosticID] = i.ConnectionDiagnosticID
@@ -453,7 +469,21 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse value %q for extension %q as resource IDs: %v", v, teleport.CertExtensionAllowedResources, err)
 		}
-		ident.AllowedResourceIDs = resourceIDs
+		filteredResourceIDs := make([]types.ResourceID, 0, len(resourceIDs))
+		for _, rid := range resourceIDs {
+			if types.IsSentinelResourceID(rid) {
+				continue
+			}
+			filteredResourceIDs = append(filteredResourceIDs, rid)
+		}
+		ident.AllowedResourceIDs = filteredResourceIDs
+	}
+	if v, ok := takeExtension(teleport.CertExtensionAllowedResourceAccessIDs); ok {
+		resourceAccessIDs, err := types.ResourceAccessIDsFromString(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to parse value %q for extension %q as resourceAccessIDs: %v", v, teleport.CertExtensionAllowedResourceAccessIDs, err)
+		}
+		ident.AllowedResourceAccessIDs = resourceAccessIDs
 	}
 
 	ident.ConnectionDiagnosticID = takeValue(teleport.CertExtensionConnectionDiagnosticID)

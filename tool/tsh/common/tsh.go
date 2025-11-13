@@ -3011,7 +3011,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
+	req, err := services.NewAccessRequestWithResources(cf.Username, roles, types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3933,7 +3933,7 @@ func accessRequestForSSH(ctx context.Context, cf *CLIConf, tc *client.TeleportCl
 
 func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requestResourceIDs []types.ResourceID) (types.AccessRequest, error) {
 	// Roles to request will be automatically determined on the backend.
-	req, err := services.NewAccessRequestWithResources(tc.Username, nil, requestResourceIDs)
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5365,7 +5365,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		fmt.Printf("  Databases:          %v\n", strings.Join(p.Databases, ", "))
 	}
 	if len(p.AllowedResourceIDs) > 0 {
-		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
+		allowedResourcesStr, err := types.ResourceIDsToString(types.ExtractResourceIDs(p.AllowedResourceIDs))
 		if err != nil {
 			logger.WarnContext(context.Background(), "failed to marshal allowed resource IDs to string", "error", err)
 		} else {
@@ -5517,27 +5517,27 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL           string                 `json:"profile_url"`
-	RelayAddr          string                 `json:"relay_addr,omitempty"`
-	DefaultRelayAddr   string                 `json:"default_relay_addr,omitempty"`
-	Username           string                 `json:"username"`
-	ActiveRequests     []string               `json:"active_requests,omitempty"`
-	Cluster            string                 `json:"cluster"`
-	Roles              []string               `json:"roles,omitempty"`
-	Scope              string                 `json:"scope,omitempty"`
-	ScopedRoles        map[string][]string    `json:"scoped_roles,omitempty"`
-	Traits             wrappers.Traits        `json:"traits,omitempty"`
-	Logins             []string               `json:"logins,omitempty"`
-	KubernetesEnabled  bool                   `json:"kubernetes_enabled"`
-	KubernetesCluster  string                 `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers    []string               `json:"kubernetes_users,omitempty"`
-	KubernetesGroups   []string               `json:"kubernetes_groups,omitempty"`
-	Databases          []string               `json:"databases,omitempty"`
-	ValidUntil         time.Time              `json:"valid_until"`
-	Extensions         []string               `json:"extensions,omitempty"`
-	CriticalOptions    map[string]string      `json:"critical_options,omitempty"`
-	AllowedResourceIDs []types.ResourceID     `json:"allowed_resources,omitempty"`
-	GitHubIdentity     *client.GitHubIdentity `json:"github_identity,omitempty"`
+	ProxyURL           string                   `json:"profile_url"`
+	RelayAddr          string                   `json:"relay_addr,omitempty"`
+	DefaultRelayAddr   string                   `json:"default_relay_addr,omitempty"`
+	Username           string                   `json:"username"`
+	ActiveRequests     []string                 `json:"active_requests,omitempty"`
+	Cluster            string                   `json:"cluster"`
+	Roles              []string                 `json:"roles,omitempty"`
+	Scope              string                   `json:"scope,omitempty"`
+	ScopedRoles        map[string][]string      `json:"scoped_roles,omitempty"`
+	Traits             wrappers.Traits          `json:"traits,omitempty"`
+	Logins             []string                 `json:"logins,omitempty"`
+	KubernetesEnabled  bool                     `json:"kubernetes_enabled"`
+	KubernetesCluster  string                   `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers    []string                 `json:"kubernetes_users,omitempty"`
+	KubernetesGroups   []string                 `json:"kubernetes_groups,omitempty"`
+	Databases          []string                 `json:"databases,omitempty"`
+	ValidUntil         time.Time                `json:"valid_until"`
+	Extensions         []string                 `json:"extensions,omitempty"`
+	CriticalOptions    map[string]string        `json:"critical_options,omitempty"`
+	AllowedResourceIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
+	GitHubIdentity     *client.GitHubIdentity   `json:"github_identity,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {

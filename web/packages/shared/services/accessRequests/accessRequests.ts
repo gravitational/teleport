@@ -105,9 +105,14 @@ export interface AccessRequestReviewer {
   state: RequestState;
 }
 
+/**
+ * Resource represents a {@link ResourceId} with optional additional details
+ * such as {@link ResourceDetails} and/or {@link ResourceConstraints} set by Proxy.
+ */
 export type Resource = {
   id: ResourceId;
   details?: ResourceDetails;
+  constraints?: ResourceConstraints;
 };
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -130,3 +135,108 @@ export type ResourceDetails = {
   hostname?: string;
   friendlyName?: string;
 };
+
+/**
+ * Represents a {@link ResourceId} in an Access Request-related context,
+ * where additional information such as {@link ResourceConstraints} may be provided.
+ */
+export type ResourceAccessId = {
+  id: ResourceId;
+  constraints?: ResourceConstraints;
+};
+
+/**
+ * Represents the domain that interprets the {@link ResourceConstraints} payload.
+ */
+export enum ConstraintDomain {
+  Unspecified = 0,
+  AWS_CONSOLE = 1,
+}
+
+type AwsConsoleConstraints = {
+  RoleARNs: string[];
+};
+
+type BaseResourceConstraints = {
+  Version?: 'v1';
+};
+
+/**
+ * Domain-specific payload that narrows what principals or options are allowed
+ * on the associated {@link ResourceId}. Contents are set based on the {@link ConstraintDomain}.
+ */
+export type ResourceConstraints = BaseResourceConstraints &
+  (
+    | {
+        Domain: ConstraintDomain.AWS_CONSOLE;
+        AWSConsole: AwsConsoleConstraints;
+      }
+    | {
+        Domain: ConstraintDomain.Unspecified;
+        AWSConsole?: never;
+      }
+  );
+
+type ExtractByConstraintDomain<D extends ConstraintDomain> = Extract<
+  ResourceConstraints,
+  { Domain: D }
+>;
+
+/**
+ * Augments a resource-like object `R` with strongly-typed {@link ResourceConstraints}
+ * based on the specified {@link ConstraintDomain}.
+ */
+export type WithResourceConstraints<
+  D extends ConstraintDomain,
+  R extends object = object,
+> = R & { constraints: ExtractByConstraintDomain<D> };
+
+const isResourceConstraints = <D extends ConstraintDomain>(
+  c: ResourceConstraints | undefined,
+  d: D
+): c is ExtractByConstraintDomain<D> => !!c && c.Domain === d;
+
+/**
+ * Type guard that narrows the `constraints` property of `item` to the specified
+ * {@link ConstraintDomain}.
+ */
+export const hasResourceConstraints = <
+  D extends ConstraintDomain,
+  T extends { constraints?: ResourceConstraints },
+>(
+  item: T,
+  d: D
+): item is T & { constraints: ExtractByConstraintDomain<D> } =>
+  isResourceConstraints(item?.constraints, d);
+
+declare const __resourceIDBrand: unique symbol;
+
+/**
+ * Resource identifier in the format "cluster/kind/name".
+ * Use {@link getResourceIDString} to construct; this is a branded type
+ * to ensure compile-time type safety.
+ */
+export type ResourceIDString = string & {
+  [__resourceIDBrand]: 'ResourceIDString';
+};
+
+/**
+ * Creates a {@link ResourceIDString} from its component parts.
+ */
+export const getResourceIDString = ({
+  cluster,
+  kind,
+  name,
+}: {
+  cluster: string;
+  kind: string;
+  name: string;
+}): ResourceIDString => `${cluster}/${kind}/${name}` as ResourceIDString;
+
+/**
+ * Maps supported {@link ResourceIDString}s to their {@link ResourceConstraints}.
+ */
+export type ResourceConstraintsMap = Record<
+  ResourceIDString,
+  ResourceConstraints
+>;
