@@ -85,8 +85,7 @@ type Result struct {
 }
 
 // Run is used to run the benchmarks, it is given a generator, command to run,
-// a host, host login, and proxy. If host login or proxy is an empty string, it will
-// use the default login
+// a host, host login, and proxy.
 func Run(ctx context.Context, lg *Linear, host, login, proxy string, suite Suite) ([]Result, error) {
 	lg.config = &Config{}
 	if err := validateConfig(lg); err != nil {
@@ -283,17 +282,12 @@ func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure, workloa
 // makeTeleportClient creates an instance of a teleport client
 func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, error) {
 	c := client.Config{
-		Host:        host,
-		Tracer:      tracing.NoopProvider().Tracer("test"),
-		ClientStore: client.NewFSClientStore(""),
-	}
-
-	if login != "" {
-		c.HostLogin = login
-		c.Username = login
-	}
-	if proxy != "" {
-		c.SSHProxyAddr = proxy
+		Host:         host,
+		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewFSClientStore(""),
+		HostLogin:    login,
+		Username:     login,
+		SSHProxyAddr: proxy,
 	}
 
 	if err := c.LoadProfile(proxy); err != nil {

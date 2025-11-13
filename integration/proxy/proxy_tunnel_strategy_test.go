@@ -234,6 +234,7 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 
 		client, err := proxy.NewClientWithCreds(
 			helpers.ClientConfig{
+				Login:   p.username,
 				Cluster: p.cluster,
 				Host:    nodeID,
 			},
