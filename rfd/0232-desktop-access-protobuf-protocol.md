@@ -80,19 +80,22 @@ signal the Teleport Proxy to use legacy TDP messages for the connection.
 ALPN may also be useful if we ever need to make breaking changes to the protocol,
 such as changes to the envelope message structure.
 
-### Web Client/Proxy Protocol Selection via Websocket Handshake
+### Web Client/Proxy Protocol Selection
 Typically, Teleport Agents and Clients are expected to connect to a Proxy instance whose
 version is greater than or equal to its own, however, the Desktop Access web client is a
 special case. During the rollout of a Proxy upgrade, "modern" Proxy instances will serve
 "modern" web clients who may in turn establish websocket connections to "legacy" Proxies.
+Likewise, "modern" Proxy instances may receive connections from "legacy" web clients.
 In order to gracefully handle this pathological upgrade scenario, the web client will need
 to support both TDP and TDPB implementations.
 
-Web clients will need a way to detect whether or not they've connected to a "legacy" Proxy.
-Similar to the ALPN approach above, clients and Proxies will negotiate TDPB as a subprotocol
-via the `Sec-WebSocket-Protocol` header during the websocket handshake. Modern Proxy instances
-will attempt to negotiate `teleport-tdpb-1.0` as a subprotocol, while legacy instances will
-provide no selection. Web clients will default to TDP unless TDPB is explicitly negotiated.
+By default, both the Proxy and web client will default to TDP for their leg of the session.
+A new "TDP upgrade" message will be added to the legacy TDP protocol, allowing the proxy
+to initiate an upgrade to TDPB. The Proxy will check for a new query parameter, `tdpb=<version>`,
+on the incoming HTTP upgrade request. If present, the Proxy knows that the client is capable
+of using TDPB and will issue the upgrade message. Any previously received messages are discarded,
+and the connection begins anew with TDPB. "Modern" web clients will supply this new
+query parameter and listen for the new upgrade, but continue with TDP as usual. 
 
 ### Translation/Compatibility layer
 Desktop Clients (both the web client and Teleport Connect) do not have any explicit
