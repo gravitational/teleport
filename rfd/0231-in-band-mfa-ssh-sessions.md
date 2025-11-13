@@ -81,25 +81,33 @@ channel](https://www.rfc-editor.org/rfc/rfc4256) to inform the client that MFA i
 SIP is an SSH session hash computed from SSH session state and is used to bind the MFA challenge to the specific
 session. Both the SSH client and the SSH server can independently compute the SIP from session state.
 
-The MFA service will [store the SIP](#storing-session-identifying-payloads) and respond with a challenge for the client
-to solve. The MFA verification flow is consistent for both local cluster and leaf cluster targets, with the only
-difference being that for leaf clusters the validated challenge is forwarded to the target leaf cluster's MFA service.
+The MFA service will [store the Session Identifying Payload (SIP)](#storing-session-identifying-payloads) and respond
+with an MFA challenge for the client to solve.
 
-1. The client solves the MFA challenge and calls `ValidateChallenge` with the MFA response. For leaf clusters, the
-   cluster name is also provided to indicate the target cluster.
-1. The MFA service validates the MFA response and stores the validated challenge response and SIP for temporary storage:
-   - **Local clusters**: Uses the `CreateValidatedChallenge` RPC internally on the same cluster.
-   - **Leaf clusters**: Forwards the validated response to the leaf cluster's MFA service using the
-     `CreateValidatedChallenge` RPC.
-1. The client then sends a [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message to the SSH service,
-   instructing it to retrieve the validated challenge from the MFA service.
-1. The SSH service retrieves the validated challenge from the MFA service using the `GetValidatedChallenge` RPC.
-1. The SSH service independently computes the SIP from session state and verifies it matches the SIP retrieved from the
-   MFA service in the validated challenge.
-1. If validation succeeds, the SSH session is established. If not, access is denied with an `Access Denied: Invalid MFA
+Next, the client solves the MFA challenge and calls `ValidateChallenge` with the MFA response.
+
+The MFA service validates the MFA response and stores the validated challenge response and SIP for temporary storage.
+
+Depending on the target cluster, the MFA service's validation step differs slightly:
+
+- **Local clusters**: Uses the `CreateValidatedChallenge` RPC internally on the same cluster.
+- **Leaf clusters**: Forwards the validated response to the leaf cluster's MFA service using the
+  `CreateValidatedChallenge` RPC.
+
+If validation is successful, the MFA service responds to the client with a confirmation that the challenge has been
+validated.
+
+The client then sends a [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message to the SSH service,
+instructing it to retrieve the validated challenge from the MFA service.
+
+The SSH service retrieves the validated challenge from the MFA service using the `GetValidatedChallenge` RPC. The SSH
+service independently computes the SIP from session state and verifies it matches the SIP retrieved from the MFA service
+in the validated challenge.
+
+If validation succeeds, the SSH session is established. If not, access is denied with an `Access Denied: Invalid MFA
 response` error. If the client does not complete MFA within a specified timeout (e.g., 1 minute), the SSH service
-   terminates the connection with an `Access Denied: MFA verification timed out` error. To retry, the client must start
-   a new SSH connection.
+terminates the connection with an `Access Denied: MFA verification timed out` error. To retry, the client must start a
+new SSH connection.
 
 #### Local Cluster Flow
 
