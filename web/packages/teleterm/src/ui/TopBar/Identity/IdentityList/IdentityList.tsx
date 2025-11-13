@@ -76,13 +76,19 @@ export function ActiveCluster(props: {
 
           <Flex flexDirection="row" alignItems="flex-start" gap={1}>
             <ButtonText
+              title={`Refresh session in ${clusterName}`}
+              size="small"
+              onClick={() => props.onRefresh()}
+            >
+              <Refresh size="small" />
+            </ButtonText>
+            <ButtonText
               title={`Log out from ${clusterName}`}
               onClick={() => props.onLogout()}
               intent="danger"
               size="small"
             >
-              <Logout mr={1} size="small" />
-              Log out
+              <Logout size="small" />
             </ButtonText>
           </Flex>
         </Flex>
@@ -111,44 +117,29 @@ export function ActiveCluster(props: {
         </Flex>
         <Stack gap={0}>
           {validUntil && (
-            <Flex
-              justifyContent="space-between"
-              width="100%"
-              alignItems="center"
-              gap={1}
-            >
-              <Flex gap={1} color="text.slightlyMuted">
-                <Clock size="small" />
-                <P3>
-                  {isPast(validUntil) ? (
-                    'Session expired.'
-                  ) : (
-                    <>
-                      Session expires{' '}
-                      <span
-                        title={validUntil.toLocaleString()}
-                        css={`
-                          text-decoration: underline;
-                          text-decoration-style: dotted;
-                        `}
-                      >
-                        {formatDistanceToNowStrict(validUntil, {
-                          addSuffix: true,
-                        })}
-                        .
-                      </span>
-                    </>
-                  )}
-                </P3>
-              </Flex>
-              <ButtonText
-                title={`Refresh session in ${clusterName}`}
-                onClick={() => props.onLogout()}
-                size="small"
-              >
-                <Refresh mr={1} size="small" />
-                Refresh
-              </ButtonText>
+            <Flex gap={1} color="text.slightlyMuted">
+              <Clock size="small" />
+              <P3>
+                {isPast(validUntil) ? (
+                  'Session expired.'
+                ) : (
+                  <>
+                    Session expires{' '}
+                    <span
+                      title={validUntil.toLocaleString()}
+                      css={`
+                        text-decoration: underline;
+                        text-decoration-style: dotted;
+                      `}
+                    >
+                      {formatDistanceToNowStrict(validUntil, {
+                        addSuffix: true,
+                      })}
+                      .
+                    </span>
+                  </>
+                )}
+              </P3>
             </Flex>
           )}
           <DeviceTrustMessage status={props.deviceTrustStatus} />
