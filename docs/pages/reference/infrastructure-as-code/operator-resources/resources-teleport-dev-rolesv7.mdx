@@ -52,6 +52,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |db_service_labels|object|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
 |db_service_labels_expression|string|DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.|
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
+|delegation_profile_labels|object|DelegationProfileLabels controls whether or not specific DelegationProfile resources can be used. The ability to use a profile does *not* implicitly grant access to the resources detailed by the profile.|
+|delegation_profile_labels_expression|string|DelegationProfileLabelsExpression is a predicate expression used to allow/deny access to using a DelegationProfile.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
 |github_permissions|[][object](#specallowgithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
@@ -243,6 +245,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |db_service_labels|object|DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.|
 |db_service_labels_expression|string|DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.|
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
+|delegation_profile_labels|object|DelegationProfileLabels controls whether or not specific DelegationProfile resources can be used. The ability to use a profile does *not* implicitly grant access to the resources detailed by the profile.|
+|delegation_profile_labels_expression|string|DelegationProfileLabelsExpression is a predicate expression used to allow/deny access to using a DelegationProfile.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
 |github_permissions|[][object](#specdenygithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|

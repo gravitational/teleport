@@ -2732,6 +2732,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
+						"delegation_profile_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "DelegationProfileLabels controls whether or not specific DelegationProfile resources can be used. The ability to use a profile does *not* implicitly grant access to the resources detailed by the profile.",
+							Optional:    true,
+						}),
+						"delegation_profile_labels_expression": {
+							Description: "DelegationProfileLabelsExpression is a predicate expression used to allow/deny access to using a DelegationProfile.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"desktop_groups": {
 							Description: "DesktopGroups is a list of groups for created desktop users to be added to",
 							Optional:    true,
@@ -3248,6 +3257,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "DatabaseUsers is a list of databases users this role is allowed to connect as.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"delegation_profile_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "DelegationProfileLabels controls whether or not specific DelegationProfile resources can be used. The ability to use a profile does *not* implicitly grant access to the resources detailed by the profile.",
+							Optional:    true,
+						}),
+						"delegation_profile_labels_expression": {
+							Description: "DelegationProfileLabelsExpression is a predicate expression used to allow/deny access to using a DelegationProfile.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"desktop_groups": {
 							Description: "DesktopGroups is a list of groups for created desktop users to be added to",
@@ -29716,6 +29734,30 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["delegation_profile_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.DelegationProfileLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.DelegationProfileLabels)
+									}
+									{
+										a, ok := tf.Attrs["delegation_profile_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.DelegationProfileLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.DelegationProfileLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.DelegationProfileLabelsExpression = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -31837,6 +31879,30 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 														}
 													}
 												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["delegation_profile_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.DelegationProfileLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.DelegationProfileLabels)
+									}
+									{
+										a, ok := tf.Attrs["delegation_profile_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.DelegationProfileLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.DelegationProfileLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.DelegationProfileLabelsExpression = t
 											}
 										}
 									}
@@ -36809,6 +36875,37 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											}
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["delegation_profile_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.DelegationProfileLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.DelegationProfileLabels, t, tf.Attrs["delegation_profile_labels"])
+											tf.Attrs["delegation_profile_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["delegation_profile_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.DelegationProfileLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["delegation_profile_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.DelegationProfileLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.DelegationProfileLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.DelegationProfileLabelsExpression) == ""
+											}
+											v.Value = string(obj.DelegationProfileLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["delegation_profile_labels_expression"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["allow"] = v
@@ -40496,6 +40593,37 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												v.Unknown = false
 												tf.Attrs["mcp"] = v
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["delegation_profile_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.DelegationProfileLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.DelegationProfileLabels, t, tf.Attrs["delegation_profile_labels"])
+											tf.Attrs["delegation_profile_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["delegation_profile_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.DelegationProfileLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["delegation_profile_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.DelegationProfileLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.DelegationProfileLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.DelegationProfileLabelsExpression) == ""
+											}
+											v.Value = string(obj.DelegationProfileLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["delegation_profile_labels_expression"] = v
 										}
 									}
 								}

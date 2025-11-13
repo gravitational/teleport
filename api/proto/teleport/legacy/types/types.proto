@@ -4054,6 +4054,18 @@ message RoleConditions {
 
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
+
+  // DelegationProfileLabels controls whether or not specific DelegationProfile
+  // resources can be used. The ability to use a profile does *not* implicitly
+  // grant access to the resources detailed by the profile.
+  wrappers.LabelValues DelegationProfileLabels = 47 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "delegation_profile_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // DelegationProfileLabelsExpression is a predicate expression used to
+  // allow/deny access to using a DelegationProfile.
+  string DelegationProfileLabelsExpression = 48 [(gogoproto.jsontag) = "delegation_profile_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account

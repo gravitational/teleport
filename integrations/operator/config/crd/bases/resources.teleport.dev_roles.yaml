@@ -142,6 +142,18 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  delegation_profile_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DelegationProfileLabels controls whether or not specific
+                      DelegationProfile resources can be used. The ability to use
+                      a profile does *not* implicitly grant access to the resources
+                      detailed by the profile.
+                    type: object
+                  delegation_profile_labels_expression:
+                    description: DelegationProfileLabelsExpression is a predicate
+                      expression used to allow/deny access to using a DelegationProfile.
+                    type: string
                   desktop_groups:
                     description: DesktopGroups is a list of groups for created desktop
                       users to be added to
@@ -759,6 +771,18 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  delegation_profile_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DelegationProfileLabels controls whether or not specific
+                      DelegationProfile resources can be used. The ability to use
+                      a profile does *not* implicitly grant access to the resources
+                      detailed by the profile.
+                    type: object
+                  delegation_profile_labels_expression:
+                    description: DelegationProfileLabelsExpression is a predicate
+                      expression used to allow/deny access to using a DelegationProfile.
+                    type: string
                   desktop_groups:
                     description: DesktopGroups is a list of groups for created desktop
                       users to be added to
@@ -1673,6 +1697,18 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  delegation_profile_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DelegationProfileLabels controls whether or not specific
+                      DelegationProfile resources can be used. The ability to use
+                      a profile does *not* implicitly grant access to the resources
+                      detailed by the profile.
+                    type: object
+                  delegation_profile_labels_expression:
+                    description: DelegationProfileLabelsExpression is a predicate
+                      expression used to allow/deny access to using a DelegationProfile.
+                    type: string
                   desktop_groups:
                     description: DesktopGroups is a list of groups for created desktop
                       users to be added to
@@ -2290,6 +2326,18 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  delegation_profile_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DelegationProfileLabels controls whether or not specific
+                      DelegationProfile resources can be used. The ability to use
+                      a profile does *not* implicitly grant access to the resources
+                      detailed by the profile.
+                    type: object
+                  delegation_profile_labels_expression:
+                    description: DelegationProfileLabelsExpression is a predicate
+                      expression used to allow/deny access to using a DelegationProfile.
+                    type: string
                   desktop_groups:
                     description: DesktopGroups is a list of groups for created desktop
                       users to be added to
