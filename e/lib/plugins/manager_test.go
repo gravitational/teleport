@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -219,7 +220,9 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 
 		// the following are not used in the test
 		TeleportClient: &auth.Server{},
-		ParentProcess:  &service.TeleportProcess{},
+		ParentProcess: &service.TeleportProcess{
+			SyncGatherers: metrics.NewSyncGatherers(),
+		},
 	}
 
 	manager, err := NewManager(cfg)

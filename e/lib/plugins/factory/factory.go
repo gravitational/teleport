@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -29,7 +30,8 @@ type Dependencies struct {
 	PluginsService    services.Plugins
 	// HTTP client to be used by Plugin.
 	// Leave as `nil` for the plugins to use their own defaults.
-	HTTPClient *http.Client
+	HTTPClient      *http.Client
+	MetricsRegistry *metrics.Registry
 }
 
 // Delegate describes a function that runs a plugin instance.

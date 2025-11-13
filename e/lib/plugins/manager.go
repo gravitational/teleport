@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -130,6 +132,7 @@ type Manager struct {
 	retryConfig             retryutils.RetryV2Config
 	parentProcess           *service.TeleportProcess
 	log                     *slog.Logger
+	metrics                 *hostedPluginsRegistry
 }
 
 // NewManager constructs a new Manager from the given config
@@ -152,7 +155,10 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		retryConfig:             *cfg.RetryConfig,
 		parentProcess:           cfg.ParentProcess,
 		log:                     cfg.Logger,
+		metrics:                 newHostedPluginsRegistry(),
 	}
+
+	cfg.ParentProcess.AddGatherer(m.metrics.registry)
 	return m, nil
 }
 
@@ -390,6 +396,9 @@ func (m *Manager) shutdownInstance(name string) {
 
 	m.log.InfoContext(context.Background(), "Stopping plugin", "plugin_name", name)
 	instance.Cancel()
+	if plugin := instance.Plugin; plugin != nil {
+		m.metrics.remove(plugin)
+	}
 	m.deleteInstance(name)
 }
 
@@ -433,6 +442,20 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		return trace.Wrap(err)
 	}
 
+	pluginMetricsRegistry := prometheus.NewRegistry()
+
+	if err := m.metrics.add(plugin, pluginMetricsRegistry); err != nil {
+		m.log.ErrorContext(ctx, "Failed to register plugin metrics", "error", err)
+		// Failure to expose metrics is not bad enough for us to refuse starting the plugin.
+	}
+	// We wrap the metrics registry to prefix every metric reported by the plugin
+	// with the plugin type and name. This avoids conflicts and properly indicates
+	// who registered the metric.
+	reg, err := metrics.NewRegistry(pluginMetricsRegistry, "teleport_plugin", strings.ReplaceAll(string(plugin.GetType()), "-", "_"))
+	if err != nil {
+		return trace.Wrap(err, "building plugin metrics registry")
+	}
+
 	// Use Background() here for now, no connection to event loop's context.
 	// We rely on cancel() being called correctly in all codepaths.
 	// TODO(justinas): reconsider
@@ -446,6 +469,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		StaticCredentials: staticCreds,
 		Logger:            log,
 		PluginsService:    m.plugins,
+		MetricsRegistry:   reg,
 	}
 
 	// Note that we give a copy of the plugin resource to the plugin factory. If
