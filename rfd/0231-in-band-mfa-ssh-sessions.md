@@ -340,9 +340,9 @@ service MFAService {
   // on the same cluster. For leaf clusters, this forwards the validated response to the leaf cluster's MFA service.
   rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
   // CreateValidatedChallenge stores a previously validated MFA challenge response for a user session.
-  rpc CreateValidatedChallenge(CreateValidatedChallengeRequest) returns (CreateValidatedChallengeResponse);
+  rpc CreateValidatedChallenge(CreateValidatedChallengeRequest) returns (ValidatedChallenge);
   // GetValidatedChallenge retrieves a previously validated MFA challenge response for a user session.
-  rpc GetValidatedChallenge(GetValidatedChallengeRequest) returns (GetValidatedChallengeResponse);
+  rpc GetValidatedChallenge(GetValidatedChallengeRequest) returns (ValidatedChallenge);
 }
 
 // CreateChallengeRequest is the request message for CreateChallenge.
@@ -408,26 +408,11 @@ message CreateValidatedChallengeRequest {
   types.MFADevice device = 3;
 }
 
-// CreateValidatedChallengeResponse is the response message for CreateValidatedChallenge.
-message CreateValidatedChallengeResponse {
-  // Empty response but defined for future extensibility.
-}
-
 // GetValidatedChallengeRequest is the request message for GetValidatedChallenge.
 message GetValidatedChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the retrieval to the correct challenge.
   string name = 1;
-}
-
-// GetValidatedChallengeResponse is the response message for GetValidatedChallenge.
-message GetValidatedChallengeResponse {
-  // payload is a value that uniquely identifies the user's session. The client calling GetValidatedChallenge MUST
-  // independently compute this value from session state to verify it matches in order to verify the response is tied to
-  // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
-  bytes payload = 1;
-  // device contains information about the user's MFA device used to authenticate.
-  types.MFADevice device = 2;
 }
 
 // AuthenticateChallenge is a challenge for all MFA devices registered for a user.
@@ -505,38 +490,76 @@ Validated MFA responses and SIPs will be temporarily stored in the MFA service f
 session establishment. For local clusters, this storage is local to the same cluster. For leaf clusters, the root MFA
 service forwards the validated challenge to the leaf cluster's MFA service for storage.
 
-A new backend resource `ValidatedChallenge` will be created to store the validated challenge metadata.
+A new backend resource `ValidatedChallenge` will be created following the [resource
+guidelines](/rfd/0153-resource-guidelines.md). The only operations supported by this resource are: creation via
+`CreateValidatedChallenge` and retrieval via `GetValidatedChallenge`. The resource will be automatically deleted after
+retrieval or expiration.
 
-```go
+```proto
 // ValidatedChallenge represents a validated MFA challenge tied to a user session.
-type ValidatedChallenge struct {
-  // Name is the unique resource name for the issued challenge.
-  Name string
-  // Payload is a value that uniquely identifies the user's session.
-  Payload []byte
-  // Device is information about the user's MFA device used to authenticate.
-  Device types.MFADevice
-  // Expires is the expiration time of the validated challenge. Validated challenges expire after they have been
-  // retrieved or after 5 minutes, whichever comes first.
-  Expires time.Time
+message ValidatedChallenge {
+  // The kind of resource represented.
+  string kind = 1;
+  // Differentiates variations of the same kind. All resources should
+  // contain one, even if it is never populated.
+  string sub_kind = 2;
+  // The version of the resource being represented.
+  string version = 3;
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+  // The validated challenge specification.
+  ValidatedChallengeSpec spec = 5;
+  // Dynamic state of the validated challenge.
+  ValidatedChallengeStatus status = 6;
+}
+
+// ValidatedChallengeSpec contains the validated challenge data that is set once
+// during creation and never modified.
+message ValidatedChallengeSpec {
+  // payload is a value that uniquely identifies the user's session.
+  bytes payload = 1;
+  // device contains information about the user's MFA device used to authenticate.
+  types.MFADevice device = 2;
+}
+
+// ValidatedChallengeStatus contains dynamic properties that are modified by Teleport
+// during the resource lifecycle.
+message ValidatedChallengeStatus {
+  // retrieved indicates whether the validated challenge has been retrieved by an SSH service.
+  bool retrieved = 1;
 }
 ```
 
-A new watcher `ValidatedChallengeWatcher` will be created to allow the SSH service to watch for validated MFA challenge
-events. The watcher will support filtering by events by type `KindValidatedChallenge` and the challenge name.
+###### Leaf Cluster Resource Stream Handling
+
+A parser will be defined in order to decode `ValidatedChallenge` resources received over the resource stream. The
+function in `lib/services/local/events.go` will be updated to instantiate the new parser.
 
 ```go
-// KindValidatedChallenge is the resource kind for ValidatedChallenge.
-const KindValidatedChallenge = "validated_challenge"
+func newValidatedChallengeParser() *validatedChallengeParser {
+  return &validatedChallengeParser{
+    baseParser: newBaseParser(backend.Key(validatedChallengePrefix)),
+  }
+}
 
+type validatedChallengeParser struct {
+  baseParser
+}
+
+func (p *validatedChallengeParser) parse(event backend.Event) (types.Resource, error) {
+  // Placeholder for parsing logic for the ValidatedChallenge resource here.
+}
+```
+
+Additionally, a filter will be defined to allow querying `ValidatedChallenge` resources by name.
+
+```go
 // ValidatedChallengeFilter is a filter for ValidatedChallenge resources.
 type ValidatedChallengeFilter struct {
   // Name is the name of the ValidatedChallenge to filter by.
   Name string
 }
 ```
-
-When an event matching the filter is received, the Agent will store the validated challenge in the backend.
 
 ### Backwards Compatibility
 
