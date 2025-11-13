@@ -119,7 +119,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 						Type:        types.StringType,
 					},
 				}),
-				Description: "Common metadata that all resources share",
+				Description: "Requires provider v18.4.0 or newer. Common metadata that all resources share",
 				Optional:    true,
 				Validators: []tfsdk.AttributeValidator{
 					requiredUnlessLegacyValidator{},
@@ -142,7 +142,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 						Type:        tfschema.DurationType{},
 					},
 				}),
-				Description: "The configured properties of a bot.",
+				Description: "Requires provider v18.4.0 or newer. The configured properties of a bot.",
 				Optional:    true,
 				Validators: []tfsdk.AttributeValidator{
 					requiredUnlessLegacyValidator{},
@@ -161,7 +161,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 						Computed:    true,
 					},
 				}),
-				Description: "Fields that are set by the server as results of operations. These should not be modified by users.",
+				Description: "Requires provider v18.4.0 or newer. Fields that are set by the server as results of operations. These should not be modified by users.",
 				Computed:    true,
 			},
 
@@ -170,7 +170,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Type:               types.StringType,
 				Optional:           true,
 				Description:        "The name of the bot, i.e. the unprefixed User name",
-				DeprecationMessage: "Deprecated. Used `metadata.name` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Used `metadata.name` instead.",
 				Validators: []tfsdk.AttributeValidator{
 					rfd153OnlyValidator{},
 				},
@@ -180,19 +180,19 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Type:               types.StringType,
 				Computed:           true,
 				Description:        "The name of the generated bot user",
-				DeprecationMessage: "Deprecated. Use `status.user_name` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Use `status.user_name` instead.",
 			},
 			"role_name": {
 				Type:               types.StringType,
 				Computed:           true,
 				Description:        "The name of the generated bot role",
-				DeprecationMessage: "Deprecated. Use `status.role_name` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Use `status.role_name` instead.",
 			},
 			"token_ttl": {
 				Type:               types.StringType,
 				Optional:           true,
 				Computed:           true,
-				DeprecationMessage: "Deprecated. This field is not required anymore and has no effect.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. This field is not required anymore and has no effect.",
 			},
 			"token_id": {
 				Type: types.StringType,
@@ -200,7 +200,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				// This will go away eventually when we'll generate the bot provider instead
 				Optional:           true,
 				Sensitive:          true,
-				DeprecationMessage: "Deprecated. This field is not required anymore and has no effect.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. This field is not required anymore and has no effect.",
 			},
 			"roles": {
 				Type: types.ListType{
@@ -208,13 +208,13 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				},
 				Optional:           true,
 				Description:        "A list of roles the created bot should be allowed to assume via role impersonation.",
-				DeprecationMessage: "Deprecated. Use `spec.roles` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Use `spec.roles` instead.",
 				Validators: []tfsdk.AttributeValidator{
 					rfd153OnlyValidator{},
 				},
 			},
 			"traits": tfschema.GenSchemaTraits(ctx, tfsdk.Attribute{
-				DeprecationMessage: "Deprecated. Use `spec.traits` instead.",
+				DeprecationMessage: "Deprecated in provider v18.4.0. Use `spec.traits` instead.",
 				Validators: []tfsdk.AttributeValidator{
 					rfd153OnlyValidator{},
 				},

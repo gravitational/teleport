@@ -33,10 +33,10 @@ resource "teleport_bot" "example" {
 
 ### Optional
 
-- `metadata` (Attributes) Common metadata that all resources share (see [below for nested schema](#nested-schema-for-metadata))
+- `metadata` (Attributes) Requires provider v18.4.0 or newer. Common metadata that all resources share (see [below for nested schema](#nested-schema-for-metadata))
 - `name` (String, Deprecated) The name of the bot, i.e. the unprefixed User name
 - `roles` (List of String, Deprecated) A list of roles the created bot should be allowed to assume via role impersonation.
-- `spec` (Attributes) The configured properties of a bot. (see [below for nested schema](#nested-schema-for-spec))
+- `spec` (Attributes) Requires provider v18.4.0 or newer. The configured properties of a bot. (see [below for nested schema](#nested-schema-for-spec))
 - `sub_kind` (String) Differentiates variations of the same kind. All resources should contain one, even if it is never populated.
 - `token_id` (String, Sensitive, Deprecated)
 - `token_ttl` (String, Deprecated)
@@ -46,7 +46,7 @@ resource "teleport_bot" "example" {
 ### Read-Only
 
 - `role_name` (String, Deprecated) The name of the generated bot role
-- `status` (Attributes) Fields that are set by the server as results of operations. These should not be modified by users. (see [below for nested schema](#nested-schema-for-status))
+- `status` (Attributes) Requires provider v18.4.0 or newer. Fields that are set by the server as results of operations. These should not be modified by users. (see [below for nested schema](#nested-schema-for-status))
 - `user_name` (String, Deprecated) The name of the generated bot user
 
 ### Nested Schema for `metadata`
