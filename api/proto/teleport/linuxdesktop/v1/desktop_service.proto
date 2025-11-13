@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package teleport.linuxdesktop.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/linuxdesktop/v1/desktop.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1;linuxdesktopv1";
+
+// LinuxDesktopService is a service to fetch information about Linux desktops.
+service LinuxDesktopService {
+  // Creates a new LinuxDesktop resource in the backend.
+  rpc CreateLinuxDesktop(CreateLinuxDesktopRequest) returns (LinuxDesktop);
+
+  // Updates an existing LinuxDesktop in the backend.
+  rpc UpdateLinuxDesktop(UpdateLinuxDesktopRequest) returns (LinuxDesktop);
+
+  // Returns a single LinuxDesktop matching the request
+  rpc GetLinuxDesktop(GetLinuxDesktopRequest) returns (LinuxDesktop);
+
+  // Returns a page of LinuxDesktop and the token to find the next page of items.
+  rpc ListLinuxDesktops(ListLinuxDesktopsRequest) returns (ListLinuxDesktopsResponse);
+
+  // Remove a matching LinuxDesktop resource
+  rpc DeleteLinuxDesktop(DeleteLinuxDesktopRequest) returns (google.protobuf.Empty);
+}
+
+// CreateLinuxDesktopRequest is request for CreateLinuxDesktop method
+message CreateLinuxDesktopRequest {
+  // The desired LinuxDesktop to be created.
+  LinuxDesktop desktop = 1;
+}
+
+// UpdateLinuxDesktopRequest is request for UpdateLinuxDesktop method
+message UpdateLinuxDesktopRequest {
+  // The full LinuxDesktop resource to update in the backend.
+  LinuxDesktop linux_desktop = 1;
+}
+
+// GetLinuxDesktopRequest is request for GetLinuxDesktop method
+message GetLinuxDesktopRequest {
+  // Name of the LinuxDesktop to retrieve
+  string name = 1;
+}
+
+// ListLinuxDesktopRequest is request for ListLinuxDesktops method
+message ListLinuxDesktopsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// ListLinuxDesktopsResponse is response of ListLinuxDesktop method
+message ListLinuxDesktopsResponse {
+  // The page of LinuxDesktop that matched the request.
+  repeated LinuxDesktop linux_desktops = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// DeleteLinuxDesktopRequest is request for DeleteLinuxDesktop method
+message DeleteLinuxDesktopRequest {
+  // Name of the LinuxDesktop to remove. Some resource may require more parameters to match and
+  // may not use the name at all.
+  string linux_desktop_id = 1;
+}

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package teleport.linuxdesktop.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1;linuxdesktopv1";
+
+// LinuxDesktop represents Linux desktop resource.
+message LinuxDesktop {
+  // Kind is the resource kind.
+  string kind = 1;
+
+  // SubKind is the resource sub-kind.
+  string sub_kind = 2;
+
+  // Version is the resource version.
+  string version = 3;
+
+  // Metadata contains the resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // Spec is the Linux desktop specification.
+  LinuxDesktopSpec spec = 5;
+}
+
+// LinuxDesktopSpec is the specification of a Linux desktop.
+message LinuxDesktopSpec {
+  // Address of the server for this desktop.
+  string addr = 1;
+
+  string hostname = 2;
+}
