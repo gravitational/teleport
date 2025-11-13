@@ -80,6 +80,7 @@ type Config struct {
 	DatabaseObjects         services.DatabaseObjects
 	DatabaseServices        services.DatabaseServices
 	Databases               services.Databases
+	DelegationProfiles      services.DelegationProfiles
 	DiscoveryConfigs        services.DiscoveryConfigs
 	DynamicAccess           services.DynamicAccessCore
 	Events                  types.Events
@@ -198,6 +199,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		GitServers:              cfg.GitServers,
 		HealthCheckConfig:       cfg.HealthCheckConfig,
 		BotInstanceService:      cfg.BotInstance,
+		DelegationProfiles:      cfg.DelegationProfiles,
 		RecordingEncryption:     cfg.RecordingEncryption,
 		Plugin:                  cfg.Plugin,
 	}

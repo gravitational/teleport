@@ -20,9 +20,10 @@ import (
 	"context"
 	"net/url"
 
+	"github.com/gravitational/trace"
+
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
 // DelegationProfiles is an interface over the DelegationProfile service. This

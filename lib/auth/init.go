@@ -193,6 +193,9 @@ type InitConfig struct {
 	// DatabaseServices is a service that manages DatabaseService resources.
 	DatabaseServices services.DatabaseServices
 
+	// DelegationProfiles is a service that manages delegation profiles.
+	DelegationProfiles services.DelegationProfiles
+
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 

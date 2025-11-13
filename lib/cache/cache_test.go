@@ -48,6 +48,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -143,6 +144,7 @@ type testPack struct {
 	kubernetes              *local.KubernetesService
 	databases               *local.DatabaseService
 	databaseServices        *local.DatabaseServicesService
+	delegationProfiles      *local.DelegationProfileService
 	webSessionS             types.WebSessionInterface
 	webTokenS               *local.IdentityService
 	windowsDesktops         *local.WindowsDesktopService
@@ -367,6 +369,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	delegationProfileService, err := local.NewDelegationProfileService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
@@ -384,6 +391,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.kubernetes = local.NewKubernetesService(p.backend)
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
+	p.delegationProfiles = delegationProfileService
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 	p.dynamicWindowsDesktops = dynamicWindowsDesktopService
 	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
@@ -556,6 +564,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
 		DatabaseServices:        p.databaseServices,
+		DelegationProfiles:      p.delegationProfiles,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
@@ -822,6 +831,7 @@ func TestCompletenessInit(t *testing.T) {
 			Apps:                    p.apps,
 			Kubernetes:              p.kubernetes,
 			DatabaseServices:        p.databaseServices,
+			DelegationProfiles:      p.delegationProfiles,
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
 			DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
@@ -910,6 +920,7 @@ func TestCompletenessReset(t *testing.T) {
 		Kubernetes:              p.kubernetes,
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
+		DelegationProfiles:      p.delegationProfiles,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
@@ -1069,6 +1080,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Kubernetes:              p.kubernetes,
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
+		DelegationProfiles:      p.delegationProfiles,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
@@ -1168,6 +1180,7 @@ func initStrategy(t *testing.T) {
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
 		DatabaseServices:        p.databaseServices,
+		DelegationProfiles:      p.delegationProfiles,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
@@ -1889,6 +1902,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeServer:                        &types.KubernetesServerV3{},
 		types.KindDatabaseService:                   &types.DatabaseServiceV1{},
 		types.KindDatabaseServer:                    &types.DatabaseServerV3{},
+		types.KindDelegationProfile:                 types.Resource153ToLegacy(newDelegationProfile("payroll-agent")),
 		types.KindDatabase:                          &types.DatabaseV3{},
 		types.KindNetworkRestrictions:               &types.NetworkRestrictionsV4{},
 		types.KindLock:                              &types.LockV2{},
@@ -2011,6 +2025,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*delegationv1.DelegationProfile]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*delegationv1.DelegationProfile]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
