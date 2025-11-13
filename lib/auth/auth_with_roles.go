@@ -2459,6 +2459,11 @@ func validateOracleJoinToken(token types.ProvisionToken) error {
 				return trace.BadParameter("invalid region: %v", region)
 			}
 		}
+		for _, instanceID := range allow.Instances {
+			if _, err := oracle.ParseRegionFromOCID(instanceID); err != nil {
+				return trace.BadParameter("invalid instance OCID: %s", instanceID)
+			}
+		}
 	}
 	return nil
 }
