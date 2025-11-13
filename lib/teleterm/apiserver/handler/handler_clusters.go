@@ -91,7 +91,7 @@ func (s *Handler) ClearStaleClusterClients(_ context.Context, req *api.ClearStal
 		return &api.ClearStaleClusterClientsResponse{}, trace.Wrap(err)
 	}
 
-	err = s.DaemonService.ClearCachedStaleClientsForRoot(parsed)
+	err = s.DaemonService.ClearStaleCachedClientsForRoot(parsed)
 	return &api.ClearStaleClusterClientsResponse{}, trace.Wrap(err)
 }
 

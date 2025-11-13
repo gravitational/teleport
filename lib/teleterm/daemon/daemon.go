@@ -1284,9 +1284,9 @@ func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
-// ClearCachedStaleClientsForRoot closes and removes clients from the cache
+// ClearStaleCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters, if their cert is outdated.
-func (s *Service) ClearCachedStaleClientsForRoot(clusterURI uri.ResourceURI) error {
+func (s *Service) ClearStaleCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	profileName := clusterURI.GetProfileName()
 	err := s.clientCache.ClearForRoot(profileName, clientcache.WithClearingOnlyClientsWithStaleCert())
 	return trace.Wrap(err)

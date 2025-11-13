@@ -556,7 +556,7 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	// Test closing stale clients.
 	fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
-	err = daemonService.ClearCachedStaleClientsForRoot(cluster.URI)
+	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
 	// Ensure the client wasn't closed.
 	fifthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
@@ -571,7 +571,7 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	require.NoError(t, err)
 	// The cert has changed, so after clearing stale clients,
 	// GetCachedClient should return a new client.
-	err = daemonService.ClearCachedStaleClientsForRoot(cluster.URI)
+	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
 	sixthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
