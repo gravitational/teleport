@@ -533,7 +533,6 @@ export {
   requiredAll,
   requiredMatchingRoleNameAndRoleArn,
   validAwsIAMRoleName,
-  validAwsRaResourceName,
   requiredPort,
   arrayOf,
   precomputed,
