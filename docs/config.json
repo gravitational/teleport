@@ -1784,6 +1784,11 @@
       "source": "/linux-demo/",
       "destination": "/get-started/deploy-community/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/introduction/",
+      "destination": "/enroll-resources/application-access/",
+      "permanent": true
     }
   ]
 }

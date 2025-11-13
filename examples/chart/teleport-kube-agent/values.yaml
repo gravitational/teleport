@@ -140,7 +140,7 @@ apps: []
 
 # appResources(list) -- is a set of labels the agent will monitor. Any application
 # matching those labels will be proxied by the agent. See [the Teleport
-# Application access documentation](../../enroll-resources/application-access/introduction.mdx)
+# Application access documentation](../../enroll-resources/application-access/application-access.mdx)
 # for more details.
 #
 # Proxied applications can be defined statically (through [`apps`](#apps)) or
