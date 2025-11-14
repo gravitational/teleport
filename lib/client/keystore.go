@@ -423,10 +423,9 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 		fs.publicKeyPath(idx),
 		fs.tlsCertPath(idx),
 	}
+	var deleteErrs []error
 	for _, fn := range files {
-		if err := utils.RemoveSecure(fn); err != nil {
-			return trace.ConvertSystemError(err)
-		}
+		deleteErrs = append(deleteErrs, trace.ConvertSystemError(utils.RemoveSecure(fn)))
 	}
 	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
 	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
@@ -443,7 +442,8 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
 	idx.ClusterName = ""
-	return fs.DeleteUserCerts(idx, WithAllCerts...)
+	deleteErrs = append(deleteErrs, fs.DeleteUserCerts(idx, WithAllCerts...))
+	return trace.NewAggregate(deleteErrs...)
 }
 
 // DeleteUserCerts deletes only the specified parts of the user's keyring,
