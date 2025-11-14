@@ -19,10 +19,11 @@
 import { IAppContext } from 'teleterm/ui/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-/** Disposes cluster-related resources and then logs out. */
-export async function logoutWithCleanup(
+/** Disposes cluster-related resources. */
+export async function cleanUpBeforeLogout(
   ctx: IAppContext,
-  clusterUri: RootClusterUri
+  clusterUri: RootClusterUri,
+  opts: { removeWorkspace: boolean }
 ): Promise<void> {
   if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
     const [firstConnectedWorkspace] = ctx.workspacesService
@@ -38,7 +39,11 @@ export async function logoutWithCleanup(
   // Remove connections first, they depend both on the cluster and the workspace.
   ctx.connectionTracker.removeItemsBelongingToRootCluster(clusterUri);
   // Remove the workspace next, because it depends on the cluster.
-  ctx.workspacesService.removeWorkspace(clusterUri);
+  if (opts.removeWorkspace) {
+    ctx.workspacesService.removeWorkspace(clusterUri);
+  } else {
+    ctx.workspacesService.clearWorkspace(clusterUri);
+  }
 
   // If there are active ssh connections to the agent, killing it will take a few seconds. To work
   // around this, kill the agent only after removing the workspace. Removing the workspace closes
@@ -46,7 +51,4 @@ export async function logoutWithCleanup(
   await ctx.connectMyComputerService.killAgentAndRemoveData(clusterUri);
 
   await ctx.clustersService.removeClusterGateways(clusterUri);
-
-  // Remove the cluster, it does not depend on anything.
-  await ctx.mainProcessClient.logout(clusterUri);
 }

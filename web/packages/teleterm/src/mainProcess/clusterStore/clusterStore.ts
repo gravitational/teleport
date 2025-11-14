@@ -51,7 +51,10 @@ export class ClusterStore {
     private readonly windowsManager: Pick<WindowsManager, 'crashWindow'>
   ) {}
 
-  /** Adds a cluster. */
+  /**
+   * Adds a cluster.
+   * Should only be called via ClusterLifecycleManager.
+   */
   async add(proxyAddress: string): Promise<Cluster> {
     const client = await this.getTshdClient();
     const { response } = await client.addCluster({
@@ -72,7 +75,10 @@ export class ClusterStore {
     return response;
   }
 
-  /** Logs out of the cluster and removes its profile.*/
+  /**
+   * Logs out of the cluster and removes its profile.
+   * Should only be called via ClusterLifecycleManager.
+   */
   async logoutAndRemove(uri: RootClusterUri): Promise<void> {
     const client = await this.getTshdClient();
     await client.logout({ clusterUri: uri, removeProfile: true });
@@ -131,6 +137,12 @@ export class ClusterStore {
       leafs.forEach(leaf => {
         draft.set(leaf.uri, leaf);
       });
+    });
+  }
+
+  async set(cluster: Cluster): Promise<void> {
+    await this.update(draft => {
+      draft.set(cluster.uri, cluster);
     });
   }
 

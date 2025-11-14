@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
@@ -24,13 +24,15 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/gitlab"
+	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 )
 
 type mockGitLabTokenValidator struct {
@@ -65,7 +67,7 @@ func (m *mockGitLabTokenValidator) ValidateTokenWithJWKS(
 	return &claims, nil
 }
 
-func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
+func TestJoinGitlab(t *testing.T) {
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockGitLabTokenValidator{
 		tokens: map[string]gitlab.IDTokenClaims{
@@ -89,17 +91,19 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetGitlabIDTokenValidator(idTokenValidator)
-		return nil
-	}
+
 	ctx := t.Context()
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir:    t.TempDir(),
-		MutateAuth: withTokenValidator,
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
 	})
 	require.NoError(t, err)
-	auth := p.a
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+	auth := authServer.Auth()
+
+	authServer.Auth().SetGitlabIDTokenValidator(idTokenValidator)
 
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -170,7 +174,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "domain override",
+			name: "domain-override",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -185,7 +189,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "multiple allow rules",
+			name: "multiple-allow-rules",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -202,7 +206,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "incorrect sub",
+			name: "incorrect-sub",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -218,7 +222,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "globby project path match",
+			name: "globby-project-path-match",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -234,7 +238,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "globby project path mismatch",
+			name: "globby-project-path-mismatch",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -250,7 +254,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect project path",
+			name: "incorrect-project-path",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -266,7 +270,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect namespace path",
+			name: "incorrect-namespace-path",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -282,7 +286,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect pipeline source",
+			name: "incorrect-pipeline-source",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -298,7 +302,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect environment",
+			name: "incorrect-environment",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -314,7 +318,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect ref",
+			name: "incorrect-ref",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -330,7 +334,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect ref type",
+			name: "incorrect-ref-type",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -346,7 +350,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect user_login",
+			name: "incorrect-user_login",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -362,7 +366,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect user_id",
+			name: "incorrect-user_id",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -378,7 +382,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect user_email",
+			name: "incorrect-user_email",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -394,7 +398,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect ref_protected",
+			name: "incorrect-ref_protected",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -412,7 +416,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "ref_protected ignored if nil",
+			name: "ref_protected-ignored-if-nil",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -428,7 +432,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "incorrect environment_protected",
+			name: "incorrect-environment_protected",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -446,7 +450,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect ci_config_sha",
+			name: "incorrect-ci_config_sha",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -462,7 +466,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect ci_config_ref_uri",
+			name: "incorrect-ci_config_ref_uri",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -478,7 +482,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect deployment_tier",
+			name: "incorrect-deployment_tier",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -494,7 +498,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "incorrect project_visibility",
+			name: "incorrect-project_visibility",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -510,7 +514,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name: "success with JWKS",
+			name: "success-with-JWKS",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -525,7 +529,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name: "failure with JWKS",
+			name: "failure-with-JWKS",
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodGitLab,
 				Roles:      []types.SystemRole{types.RoleNode},
@@ -549,68 +553,65 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.request.Token = tt.name
 
-			_, err = auth.RegisterUsingToken(ctx, tt.request)
-			tt.assertError(t, err)
-
-			if tt.tokenSpec.GitLab.Domain != "" {
-				require.Equal(
-					t,
-					tt.tokenSpec.GitLab.Domain,
-					idTokenValidator.lastCalledDomain,
-				)
-			}
-			if tt.tokenSpec.GitLab.StaticJWKS != "" {
-				require.Equal(
-					t,
-					[]byte(tt.tokenSpec.GitLab.StaticJWKS),
-					idTokenValidator.lastCalledJWKS,
-				)
-			} else {
-				require.Nil(t, idTokenValidator.lastCalledJWKS)
-			}
-		})
-	}
-}
-
-func Test_joinRuleGlobMatch(t *testing.T) {
-	tests := []struct {
-		name string
-
-		rule  string
-		claim string
-
-		want bool
-	}{
-		{
-			name:  "no rule",
-			rule:  "",
-			claim: "foo",
-			want:  true,
-		},
-		{
-			name:  "non-globby rule matches",
-			rule:  "foo",
-			claim: "foo",
-			want:  true,
-		},
-		{
-			name:  "globby rule matches",
-			rule:  "?est-*-foo",
-			claim: "test-string-foo",
-			want:  true,
-		},
-		{
-			name:  "globby rule mismatch",
-			rule:  "?est-*-foo",
-			claim: "ttest-bar-ffoo",
-			want:  false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := auth.JoinRuleGlobMatch(tt.rule, tt.claim)
+			nopClient, err := authServer.NewClient(authtest.TestNop())
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+
+			t.Run("legacy", func(t *testing.T) {
+				_, err = auth.RegisterUsingToken(ctx, tt.request)
+				tt.assertError(t, err)
+
+				if tt.tokenSpec.GitLab.Domain != "" {
+					require.Equal(
+						t,
+						tt.tokenSpec.GitLab.Domain,
+						idTokenValidator.lastCalledDomain,
+					)
+				}
+				if tt.tokenSpec.GitLab.StaticJWKS != "" {
+					require.Equal(
+						t,
+						[]byte(tt.tokenSpec.GitLab.StaticJWKS),
+						idTokenValidator.lastCalledJWKS,
+					)
+				} else {
+					require.Nil(t, idTokenValidator.lastCalledJWKS)
+				}
+			})
+
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitLab,
+					ID: state.IdentityID{
+						Role:     tt.request.Role,
+						NodeName: "testnode",
+						HostUUID: tt.request.HostID,
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
+
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitLab,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
 		})
 	}
 }

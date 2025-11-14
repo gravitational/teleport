@@ -531,6 +531,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				}
 			}
 
+			// Test streaming events and recording.
 			capturedStream, sessionEvents := streamSession(ctx, t, site, sessionID)
 
 			findByType := func(et string) apievents.AuditEvent {
@@ -541,19 +542,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				}
 				return nil
 			}
-			// helper that asserts that a session event is also included in the
-			// general audit log.
-			requireInAuditLog := func(t *testing.T, sessionEvent apievents.AuditEvent) {
-				t.Helper()
-				auditEvents, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
-					To:         time.Now(),
-					EventTypes: []string{sessionEvent.GetType()},
-				})
-				require.NoError(t, err)
-				require.True(t, slices.ContainsFunc(auditEvents, func(ae apievents.AuditEvent) bool {
-					return ae.GetID() == sessionEvent.GetID()
-				}))
-			}
 
 			// there should always be 'session.start' event (and it must be first)
 			first := sessionEvents[0].(*apievents.SessionStart)
@@ -561,19 +549,16 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, first, start)
 			require.Equal(t, sessionID, start.SessionID)
 			require.NotEmpty(t, start.TerminalSize)
-			requireInAuditLog(t, start)
 
 			// there should always be 'session.end' event
 			end := findByType(events.SessionEndEvent).(*apievents.SessionEnd)
 			require.NotNil(t, end)
 			require.Equal(t, sessionID, end.SessionID)
-			requireInAuditLog(t, end)
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent).(*apievents.SessionLeave)
 			require.NotNil(t, leave)
 			require.Equal(t, sessionID, leave.SessionID)
-			requireInAuditLog(t, leave)
 
 			// all of them should have a proper time
 			for _, e := range sessionEvents {
@@ -584,6 +569,31 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			recorded := replaceNewlines(capturedStream)
 			require.Regexp(t, ".*exit.*", recorded)
 			require.Regexp(t, ".*echo hi.*", recorded)
+
+			sessionEvents, _, err = site.SearchEvents(ctx, events.SearchEventsRequest{
+				From: time.Time{},
+				To:   time.Now(),
+				EventTypes: []string{
+					events.SessionStartEvent,
+					events.SessionLeaveEvent,
+					events.SessionEndEvent,
+				},
+			})
+			require.NoError(t, err)
+
+			// Check that the events found above in the session stream show up in the backend.
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == start.GetID()
+			}), "expected session events to contain session.start event")
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == end.GetID()
+			}), "expected session events to contain session.end event")
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == leave.GetID()
+			}), "expected session events to contain session.leave event")
+
+			// Ensure there are no duplicate events, e.g. from proxy recording mode.
+			require.Len(t, sessionEvents, 3, "%d unexpected duplicate events", len(sessionEvents)-4)
 		})
 	}
 }
@@ -5116,10 +5126,16 @@ readLoop:
 	require.True(t, hasLeave, "session leave event not found")
 	require.True(t, hasEnd, "session end event not found")
 
-	// ensure session upload directory is empty
+	// ensure session upload directory is empty, apart from the pending directory
 	fi, err := os.ReadDir(sessionsDir)
 	require.NoError(t, err)
-	require.Empty(t, fi)
+	require.Len(t, fi, 1)
+	assert.Equal(t, "pending", fi[0].Name())
+	assert.True(t, fi[0].IsDir())
+
+	fi, err = os.ReadDir(filepath.Join(sessionsDir, "pending"))
+	require.NoError(t, err)
+	assert.Empty(t, fi)
 }
 
 // testPAM checks that Teleport PAM integration works correctly. In this case

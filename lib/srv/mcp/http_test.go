@@ -50,6 +50,9 @@ func Test_handleStreamableHTTP(t *testing.T) {
 	remoteMCPServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
 	remoteMCPHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.URL.Path == "/.well-known/oauth-authorization-server":
+			w.Write([]byte("{}"))
+			w.WriteHeader(http.StatusOK)
 		case r.URL.Path != "/mcp":
 			// Unhappy scenario.
 			w.WriteHeader(http.StatusNotFound)
@@ -184,6 +187,20 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		defer response.Body.Close()
 		require.Equal(t, http.StatusMethodNotAllowed, response.StatusCode)
 		require.Equal(t, libevents.MCPSessionInvalidHTTPRequest, emitter.LastEvent().GetType())
+	})
+
+	t.Run("passthrough well-known", func(t *testing.T) {
+		emitter.Reset()
+		httpClient := listener.MakeHTTPClient()
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://localhost/.well-known/oauth-authorization-server", nil)
+		require.NoError(t, err)
+		response, err := httpClient.Do(request)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equal(t, http.StatusOK, response.StatusCode)
+		// No audit events.
+		events := emitter.Events()
+		require.Empty(t, events)
 	})
 }
 
