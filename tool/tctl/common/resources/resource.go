@@ -67,6 +67,7 @@ func Handlers() map[string]Handler {
 		types.KindSessionRecordingConfig:             sessionRecordingConfigHandler(),
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
 		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
+		types.KindStaticHostUser:                     staticHostUserHandler(),
 		types.KindToken:                              tokenHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
