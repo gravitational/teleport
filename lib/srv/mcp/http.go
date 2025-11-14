@@ -90,9 +90,12 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 		reverseproxy.WithLogger(session.logger),
 		reverseproxy.WithRewriter(appcommon.NewHeaderRewriter(delegate)),
 		reverseproxy.WithResponseModifier(func(resp *http.Response) error {
-			if resp.Request != nil && resp.Request.Method == http.MethodDelete {
-				// Nothing to modify here.
-				return nil
+			if resp.Request != nil {
+				// Nothing to modify for these.
+				if resp.Request.Method == http.MethodDelete ||
+					isWellKnownPath(resp.Request.URL.Path) {
+					return nil
+				}
 			}
 			return trace.Wrap(mcputils.ReplaceHTTPResponse(ctx, resp, newHTTPResponseReplacer(session)))
 		}),
@@ -135,6 +138,14 @@ func (t *streamableHTTPTransport) RoundTrip(r *http.Request) (*http.Response, er
 	case http.MethodDelete:
 		return t.handleSessionEndRequest(r)
 	case http.MethodGet:
+		if isWellKnownPath(r.URL.Path) {
+			// TODO(greedy52) we don't send audit for this but we should add
+			// this to recording if we support recording one day.
+			t.logger.DebugContext(r.Context(), "Passthrough HTTP request", "path", r.URL.Path)
+			resp, err := t.rewriteAndSendRequest(r)
+			return resp, trace.Wrap(err)
+		}
+
 		return t.handleListenSSEStreamRequest(r)
 	case http.MethodPost:
 		return t.handleMCPMessage(r)
@@ -294,4 +305,8 @@ func (p *streamableHTTPResponseReplacer) ProcessResponse(ctx context.Context, re
 func (p *streamableHTTPResponseReplacer) ProcessNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) mcp.JSONRPCMessage {
 	p.processServerNotification(ctx, notification)
 	return notification
+}
+
+func isWellKnownPath(urlPath string) bool {
+	return strings.HasPrefix(urlPath, "/.well-known/")
 }

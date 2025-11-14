@@ -263,14 +263,38 @@ export default function createMainProcessClient(): MainProcessClient {
     addCluster: async (proxyAddress: string) => {
       return await ipcRenderer.invoke(MainProcessIpc.AddCluster, proxyAddress);
     },
-    syncRootClusters: async options => {
-      return await ipcRenderer.invoke(MainProcessIpc.SyncRootClusters, options);
+    syncRootClusters: async () => {
+      return await ipcRenderer.invoke(MainProcessIpc.SyncRootClusters);
     },
     syncCluster: (clusterUri: RootClusterUri) => {
       return ipcRenderer.invoke(MainProcessIpc.SyncCluster, { clusterUri });
     },
     logout: (clusterUri: RootClusterUri) => {
       return ipcRenderer.invoke(MainProcessIpc.Logout, { clusterUri });
+    },
+    registerClusterLifecycleHandler(listener): {
+      cleanup: () => void;
+    } {
+      const { close } = startAwaitableSenderListener(
+        MainProcessIpc.RegisterClusterLifecycleHandler,
+        listener
+      );
+
+      return { cleanup: close };
+    },
+    subscribeToProfileWatcherErrors: listener => {
+      const ipcListener = (_, error) => {
+        listener(error);
+      };
+
+      ipcRenderer.addListener(RendererIpc.ProfileWatcherError, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.ProfileWatcherError,
+            ipcListener
+          ),
+      };
     },
   };
 }
@@ -284,23 +308,25 @@ export default function createMainProcessClient(): MainProcessClient {
  */
 function startAwaitableSenderListener<T>(
   channel: string,
-  listener: (value: T) => void
+  listener: (value: T) => void | Promise<void>
 ): {
   close: () => void;
 } {
   const { port1: localPort, port2: transferablePort } = new MessageChannel();
 
-  localPort.onmessage = (event: MessageEvent<Message>) => {
+  localPort.onmessage = async (event: MessageEvent<Message>) => {
     const msg = event.data;
     if (msg.type !== 'data') {
       return;
     }
     const ack: MessageAck = { type: 'ack', id: msg.id };
+
     try {
-      listener(msg.payload as T);
+      await listener(msg.payload as T);
     } catch (e) {
       ack.error = e;
     }
+
     localPort.postMessage(ack);
   };
 
