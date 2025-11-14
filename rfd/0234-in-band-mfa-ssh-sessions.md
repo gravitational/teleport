@@ -775,6 +775,11 @@ The following are assumed to be completed before starting work on this RFD:
 1. New version of `TransportService` is introduced to handle in-band MFA at the Proxy/Relay: While this would separate
    concerns and keep the MFA logic isolated, it would add complexity to the architecture, require significant changes to
    existing services, and break domain boundaries.
+1. Use a JWT to signal that MFA verification has been completed: This approach would involve issuing a JWT after MFA
+   verification, which the client would present during SSH session establishment. However, this would introduce
+   additional complexity in token management and validation, and could potentially expose security vulnerabilities if
+   not implemented correctly. It also does not add significant benefits over the proposed in-band MFA flow as it is just
+   a different way of conveying the same information.
 
 ## Future Considerations
 
