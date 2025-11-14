@@ -160,9 +160,8 @@ func (r *Handler) SupportedCommands() []string {
 	if r.deleteHandler != nil {
 		verbs = append(verbs, "rm")
 	}
-	if r.updateHandler != nil {
-		verbs = append(verbs, "update")
-	}
+	// No check on the update handler for the "update" command because it is not
+	// doing anything useful today: https://github.com/gravitational/teleport/issues/61381
 
 	return verbs
 }
