@@ -97,7 +97,7 @@ check-chart-ref-tbot:
 
 .PHONY: check-chart-ref-tbot-spiffe-daemon-set
 check-chart-ref-tbot-spiffe-daemon-set:
-	@echo "Checking tbot reference"
+	@echo "Checking tbot-spiffe-daemon-set reference"
 	@ cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot-spiffe-daemon-set -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx - || \
 	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
