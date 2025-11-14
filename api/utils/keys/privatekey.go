@@ -244,6 +244,10 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 
 	priv, err := ParsePrivateKey(keyPEM)
 	if err != nil {
+		// Treat malformed keys the same as missing keys.
+		if trace.IsBadParameter(err) {
+			return nil, trace.NotFound("%s", err.Error())
+		}
 		return nil, trace.Wrap(err)
 	}
 	return priv, nil
@@ -307,14 +311,14 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 
 		hwSigner, err := hardwarekey.DecodeSigner(block.Bytes, hwks, appliedOpts.ContextualKeyInfo)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse hardware key signer")
+			return nil, trace.BadParameter("failed to parse hardware key signer: %s", err.Error())
 		}
 
 		return newPrivateKeyWithKeyPEM(hwSigner, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.BadParameter("%s", err.Error())
 		}
 		cryptoSigner, ok := priv.(crypto.Signer)
 		if !ok {
@@ -355,7 +359,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 		// If all three parse functions returned an error, preferedErr is
 		// guaranteed to be set to the error from the parse function that
 		// usually matches the PEM block type.
-		return nil, trace.Wrap(preferredErr, "parsing private key PEM")
+		return nil, trace.BadParameter("parsing private key PEM: %s", preferredErr.Error())
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
 	}
@@ -425,6 +429,10 @@ func LoadKeyPair(privFile, sshPubFile string, opts ...ParsePrivateKeyOpt) (*Priv
 
 	priv, err := ParseKeyPair(privPEM, marshaledSSHPub, opts...)
 	if err != nil {
+		// Treat malformed keys the same as missing keys.
+		if trace.IsBadParameter(err) {
+			return nil, trace.NotFound("%s", err.Error())
+		}
 		return nil, trace.Wrap(err)
 	}
 	return priv, nil
@@ -460,6 +468,10 @@ func LoadX509KeyPair(certFile, keyFile string) (tls.Certificate, error) {
 
 	tlsCert, err := X509KeyPair(certPEMBlock, keyPEMBlock)
 	if err != nil {
+		// Treat malformed keys the same as missing keys.
+		if trace.IsBadParameter(err) {
+			return tls.Certificate{}, trace.NotFound("%s", err.Error())
+		}
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
