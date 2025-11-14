@@ -20,6 +20,7 @@ package metrics
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -60,10 +61,18 @@ func (r *Registry) Subsystem() string {
 //	 go runFooService(ctx, log, reg.Wrap("foo"))
 //	 go runBarService(ctx, log, reg.Wrap("bar"))
 func (r *Registry) Wrap(subsystem string) *Registry {
+	var s []string
+	if r.subsystem != "" {
+		s = append(s, r.subsystem)
+	}
+	if subsystem != "" {
+		s = append(s, subsystem)
+	}
+
 	newReg := &Registry{
 		Registerer: r.Registerer,
 		namespace:  r.namespace,
-		subsystem:  r.subsystem + "_" + subsystem,
+		subsystem:  strings.Join(s, "_"),
 	}
 	return newReg
 }
