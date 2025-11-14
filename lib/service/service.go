@@ -5360,12 +5360,32 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
 		})
 
+		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
+			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
+				Listener: tls.NewListener(listeners.web, tlsConfigWeb),
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			listeners.web = listeners.tls.Web()
+			listeners.db.tls = listeners.tls.DB()
+
+			process.RegisterCriticalFunc("proxy.tls", func() error {
+				logger.InfoContext(process.ExitContext(), "TLS multiplexer is starting.", "listen_address", cfg.Proxy.WebAddr.Addr)
+				if err := listeners.tls.Serve(); !trace.IsConnectionProblem(err) {
+					logger.WarnContext(process.ExitContext(), "TLS multiplexer error.", "error", err)
+				}
+				logger.InfoContext(process.ExitContext(), "TLS multiplexer exited.")
+				return nil
+			})
+		}
+
 		webConfig := web.Config{
 			Proxy:                     tsrv,
 			AuthServers:               cfg.AuthServerAddresses()[0],
 			ProxyClient:               conn.Client,
 			ProxySSHAddr:              proxySSHAddr,
-			ProxyWebAddr:              cfg.Proxy.WebAddr,
+			ProxyWebAddr:              utils.FromAddr(listeners.web.Addr()),
 			ProxyPublicAddrs:          cfg.Proxy.PublicAddrs,
 			CipherSuites:              cfg.CipherSuites,
 			FIPS:                      cfg.FIPS,
@@ -5401,25 +5421,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
-			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
-				Listener: tls.NewListener(listeners.web, tlsConfigWeb),
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			listeners.web = listeners.tls.Web()
-			listeners.db.tls = listeners.tls.DB()
-
-			process.RegisterCriticalFunc("proxy.tls", func() error {
-				logger.InfoContext(process.ExitContext(), "TLS multiplexer is starting.", "listen_address", cfg.Proxy.WebAddr.Addr)
-				if err := listeners.tls.Serve(); !trace.IsConnectionProblem(err) {
-					logger.WarnContext(process.ExitContext(), "TLS multiplexer error.", "error", err)
-				}
-				logger.InfoContext(process.ExitContext(), "TLS multiplexer exited.")
-				return nil
-			})
 		}
 
 		webServer, err = web.NewServer(web.ServerConfig{

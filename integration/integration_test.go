@@ -191,6 +191,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("SessionStreaming", suite.bind(testSessionStreaming))
 	t.Run("SFTP", suite.bind(testSFTP))
+	t.Run("WebSFTP", suite.bind(testWebSFTP))
 	t.Run("SSHExitCode", suite.bind(testSSHExitCode))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("Shutdown", suite.bind(testShutdown))
@@ -8419,6 +8420,67 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, nodeClient.Close())
 			_, err = findEventInLog(teleport, events.SFTPSummaryEvent, start)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func testWebSFTP(t *testing.T, suite *integrationTestSuite) {
+	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
+		multiplexer.PROXYProtocolOff,
+		multiplexer.PROXYProtocolOn,
+	} {
+		t.Run(fmt.Sprintf("proxy protocol %v", proxyProtocolMode), func(t *testing.T) {
+			cfg := suite.defaultServiceConfig()
+			cfg.Auth.Enabled = true
+			cfg.Auth.Preference.SetSecondFactor("off")
+			cfg.Auth.PROXYProtocolMode = proxyProtocolMode
+			cfg.Proxy.DisableWebService = false
+			cfg.Proxy.DisableWebInterface = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
+			teleport := suite.NewTeleportWithConfig(t, []string{"alice"}, nil, cfg)
+			t.Cleanup(func() { require.NoError(t, teleport.StopAll()) })
+			password := uuid.NewString()
+			teleport.CreateWebUser(t, suite.Me.Username, password)
+
+			lbFrontend := utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
+			webAddr, err := teleport.Process.ProxyWebAddr()
+			require.NoError(t, err)
+			lb, err := utils.NewLoadBalancer(context.Background(), *lbFrontend, *webAddr)
+			require.NoError(t, err)
+			if proxyProtocolMode == multiplexer.PROXYProtocolOn {
+				lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n")
+			}
+			require.NoError(t, lb.Listen())
+			t.Cleanup(func() { _ = lb.Close() })
+			*lbFrontend = utils.FromAddr(lb.Addr())
+
+			webClient, err := teleport.NewWebClient(helpers.ClientConfig{
+				Login:    suite.Me.Username,
+				Password: password,
+				Cluster:  helpers.Site,
+				Host:     Loopback,
+				Port:     lbFrontend.Port(0),
+			})
+			require.NoError(t, err)
+			require.NoError(t, teleport.WaitForNodeCount(t.Context(), helpers.Site, 1))
+
+			t.Run("upload", func(t *testing.T) {
+				localFile := filepath.Join(t.TempDir(), "foo.txt")
+				_, err := webClient.SFTP(localFile, []byte("foo"))
+				require.NoError(t, err)
+				require.FileExists(t, localFile)
+				fileContents, err := os.ReadFile(localFile)
+				require.NoError(t, err)
+				require.Equal(t, []byte("foo"), fileContents)
+			})
+			t.Run("download", func(t *testing.T) {
+				localFile := filepath.Join(t.TempDir(), "foo.txt")
+				require.NoError(t, os.WriteFile(localFile, []byte("foo"), 0o644))
+				out, err := webClient.SFTP(localFile, nil)
+				require.NoError(t, err)
+				require.Equal(t, []byte("foo"), out)
+			})
 		})
 	}
 }
