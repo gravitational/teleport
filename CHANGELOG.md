@@ -6,7 +6,7 @@
 MCP Zero-Trust Access users are now able to secure and audit connections to MCP servers that use HTTP-based transport protocols in addition to stdio.
 
 ### Improved Bot Instances Dashboard
-The Bot Instances dashboard now provide a more intuitive interface for managing a fleet of Machine & Workload Identity bot instances. This now includes improved filtering, sorting and searching capabilities, and a high-level overview of the versions of all bot instances in the cluster.
+The Bot Instances dashboard now provides a more intuitive interface for managing a fleet of Machine & Workload Identity bot instances. This includes improved filtering, sorting and searching capabilities, and a high-level overview of the versions of all bot instances in the cluster.
 
 ### Updated Oracle Joining Support
 Oracle compute instances are no longer required to have additional IAM permissions granted to them in order to join. Oracle join tokens will also allow restricting which instances may leverage a token to join.
