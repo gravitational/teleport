@@ -230,50 +230,6 @@ func (c *semaphoreCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type authPrefCollection struct {
-	authPref types.AuthPreference
-}
-
-func (c *authPrefCollection) Resources() (r []types.Resource) {
-	return []types.Resource{c.authPref}
-}
-
-func (c *authPrefCollection) WriteText(w io.Writer, verbose bool) error {
-	var secondFactorStrings []string
-	for _, sf := range c.authPref.GetSecondFactors() {
-		sfString, err := sf.Encode()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		secondFactorStrings = append(secondFactorStrings, sfString)
-	}
-
-	t := asciitable.MakeTable([]string{"Type", "Second Factors"})
-	t.AddRow([]string{c.authPref.GetType(), strings.Join(secondFactorStrings, ", ")})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type netConfigCollection struct {
-	netConfig types.ClusterNetworkingConfig
-}
-
-func (c *netConfigCollection) Resources() (r []types.Resource) {
-	return []types.Resource{c.netConfig}
-}
-
-func (c *netConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Client Idle Timeout", "Keep Alive Interval", "Keep Alive Count Max", "Session Control Timeout"})
-	t.AddRow([]string{
-		c.netConfig.GetClientIdleTimeout().String(),
-		c.netConfig.GetKeepAliveInterval().String(),
-		strconv.FormatInt(c.netConfig.GetKeepAliveCountMax(), 10),
-		c.netConfig.GetSessionControlTimeout().String(),
-	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type maintenanceWindowCollection struct {
 	cmc types.ClusterMaintenanceConfig
 }
@@ -301,21 +257,6 @@ func (c *maintenanceWindowCollection) WriteText(w io.Writer, verbose bool) error
 
 	t.AddRow([]string{"Agent Upgrades", agentUpgradeParams})
 
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type recConfigCollection struct {
-	recConfig types.SessionRecordingConfig
-}
-
-func (c *recConfigCollection) Resources() (r []types.Resource) {
-	return []types.Resource{c.recConfig}
-}
-
-func (c *recConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Mode", "Proxy Checks Host Keys"})
-	t.AddRow([]string{c.recConfig.GetMode(), strconv.FormatBool(c.recConfig.GetProxyChecksHostKeys())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
