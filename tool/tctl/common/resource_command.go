@@ -1118,24 +1118,25 @@ func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *aut
 
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
+	// Connectors is a special case. As it's the only meta-resource we have,
+	// it's easier to special-case it here instead of adding a case in the
+	// generic [resources.Handler].
+	if rc.ref.Kind == types.KindConnectors {
+		return trace.BadParameter(
+			"%q type is ambiguous. To delete the resource, please use its exact type. Possible resource identifiers are: %s",
+			types.KindConnectors,
+			[]string{
+				types.KindGithubConnector + "/" + rc.ref.Name,
+				types.KindOIDCConnector + "/" + rc.ref.Name,
+				types.KindSAMLConnector + "/" + rc.ref.Name,
+			},
+		)
+	}
+
 	// Try looking for a resource handler
 	if resourceHandler, found := resources.Handlers()[rc.ref.Kind]; found {
 		if err := resourceHandler.Delete(ctx, client, rc.ref); err != nil {
 			if trace.IsNotImplemented(err) {
-				// Connectors is a special case. As it's the only meta-resource we have,
-				// it's easier to special-case it here instead of adding a case in the
-				// generic [resources.Handler].
-				if rc.ref.Kind == types.KindConnectors {
-					return trace.BadParameter(
-						"%q type is ambiguous. To delete the resource, please use its exact type. Possible resource identifiers are: %s",
-						types.KindConnectors,
-						[]string{
-							types.KindGithubConnector + "/" + rc.ref.Name,
-							types.KindOIDCConnector + "/" + rc.ref.Name,
-							types.KindSAMLConnector + "/" + rc.ref.Name,
-						},
-					)
-				}
 				return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 			}
 			return trace.Wrap(err, "error deleting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
