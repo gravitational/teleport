@@ -1373,7 +1373,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
 		}
 
-		if upgraderKind == types.UpgraderKindTeleportUpdate {
+		if upgraderKind == types.UpgraderKindTeleportUpdate ||
+			upgraderKind == types.UpgraderKindKubeController {
 			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, hostID)
 			if err != nil {
 				// Failing to detect teleport-update info is not fatal, we continue.
