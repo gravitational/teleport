@@ -29,6 +29,7 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -57,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -93,10 +95,11 @@ type ResourceCommand struct {
 	filename string
 
 	// CLI subcommands:
-	deleteCmd *kingpin.CmdClause
-	getCmd    *kingpin.CmdClause
-	createCmd *kingpin.CmdClause
-	updateCmd *kingpin.CmdClause
+	deleteCmd    *kingpin.CmdClause
+	getCmd       *kingpin.CmdClause
+	createCmd    *kingpin.CmdClause
+	updateCmd    *kingpin.CmdClause
+	listKindsCmd *kingpin.CmdClause
 
 	verbose bool
 
@@ -199,6 +202,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	rc.getCmd.Alias(getHelp)
 
+	rc.listKindsCmd = app.Command("list-kinds", "Lists all resource kinds supported by this tctl version.").Alias("api-resources")
+	rc.listKindsCmd.Flag("wide", "Do not truncate the Description column, even if it exceeds terminal width").BoolVar(&rc.verbose)
+
 	if rc.Stdout == nil {
 		rc.Stdout = os.Stdout
 	}
@@ -221,6 +227,10 @@ func (rc *ResourceCommand) TryRun(ctx context.Context, cmd string, clientFunc co
 		// tctl update
 	case rc.updateCmd.FullCommand():
 		commandFunc = rc.UpdateFields
+	case rc.listKindsCmd.FullCommand():
+		// early return before we try to build a client
+		// we don't need a valid client to run this command
+		return true, trace.Wrap(rc.listKinds())
 	default:
 		return false, nil
 	}
@@ -2180,4 +2190,37 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 	}
 	fmt.Printf("plugin %q has been updated\n", item.GetName())
 	return nil
+}
+
+// UpdateFields updates select resource fields: expiry and labels
+func (rc *ResourceCommand) listKinds() error {
+	// We must compute rows before, and cannot add them as we go
+	// because this breaks the "truncated columns behavior"
+	var rows [][]string
+	for kind, handler := range resources.Handlers() {
+		rows = append(rows, []string{
+			kind,
+			strings.Join(handler.SupportedCommands(), ","),
+			yesOrEmpty(handler.Singleton()),
+			yesOrEmpty(handler.MFARequired()),
+			handler.Description(),
+		})
+	}
+
+	var t asciitable.Table
+	headers := []string{"Kind", "Supported Commands", "Singleton", "MFA", "Description"}
+	if rc.verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Description")
+	}
+	t.SortRowsBy([]int{0}, true)
+	return trace.Wrap(t.WriteTo(rc.Stdout))
+}
+
+func yesOrEmpty(b bool) string {
+	if b {
+		return "yes"
+	}
+	return ""
 }

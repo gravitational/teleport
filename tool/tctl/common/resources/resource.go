@@ -174,6 +174,12 @@ func (r *Handler) Description() string {
 	return r.description
 }
 
+// Singleton indicates if the handled resource is a singleton (only one can
+// exist in the Teleport cluster).
+func (r *Handler) Singleton() bool {
+	return r.singleton
+}
+
 // upsertVerb generates the correct string form of a verb based on the action taken
 func upsertVerb(exists bool, force bool) string {
 	if !force && exists {
