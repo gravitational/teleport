@@ -58,7 +58,7 @@ endif
 
 PHONY: test
 test:
-	gotestsum -- -v -timeout=120s -parallel=10
+	gotestsum --junitfile unit-tests-terraform-mwi.xml --jsonfile unit-tests-terraform-mwi.json
 
 PHONY: testacc
 testacc:
