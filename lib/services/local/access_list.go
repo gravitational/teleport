@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"slices"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -66,6 +68,10 @@ const (
 	// it shares the same string as createAccessListLimitLockName to ensure
 	// backwards compatibility.
 	accessListResourceLockName = createAccessListLimitLockName
+
+	// accessListCollectionInsertChunkSize is the chunk size for batch inserting
+	// access list collections to reduce memory allocation.
+	accessListCollectionInsertChunkSize = 100
 )
 
 // AccessListService manages Access List resources in the Backend. The AccessListService's
@@ -1184,9 +1190,9 @@ func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Contex
 //
 // This method is designed for bulk import scenarios where an entire set of access lists collection needs to be
 // synchronized from an external source. All access lists and members in the collection are
-// inserted using single batch operation, minimizing the number of write operations.
-// Due to the batch nature of this operation (access list hierarchy is known upfront)
-// we can avoid per-access-list locking, global locks to improve performance.
+// inserted using chunked batch operations, minimizing memory allocation while still reducing
+// the number of write operations. Due to the batch nature of this operation (access list hierarchy
+// is known upfront) we can avoid per-access-list locking, global locks to improve performance.
 //
 // Important: This method assumes the collection is self-contained. Access lists in the collection
 // cannot reference access lists outside the collection as members or owners. This is intentional for
@@ -1201,36 +1207,49 @@ func (a *AccessListService) InsertAccessListCollection(ctx context.Context, coll
 	if err := collection.Validate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	items, err := a.collectionToBackendItems(collection)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = backend.PutBatch(ctx, a.backend, items)
-	if err != nil {
-		return trace.Wrap(err)
+	// collect backend items in chunks with size of 800 items
+	// to avoid high memory consumption by constructing a large slice of backend items.
+	// Where the PutBatch method will also leverage chunking to write items to the backend in smaller batches.
+	// TODO(smallinsky) align the chunk size with the one used in backend.PutBatch
+	for chunk, err := range stream.Chunks(a.collectionToBackendItemsIter(collection), 800) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := backend.PutBatch(ctx, a.backend, chunk); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
 
-func (a *AccessListService) collectionToBackendItems(collection *accesslists.Collection) ([]backend.Item, error) {
-	var out []backend.Item
-	for aclName, members := range collection.MembersByAccessList {
-		for _, member := range members {
-			item, err := a.memberService.WithPrefix(member.Spec.AccessList).MakeBackendItem(member)
-			if err != nil {
-				return nil, trace.Wrap(err)
+// collectionToBackendItemsIter converts access list collection to an iterator of backend items.
+// The iterator yields access list members first, followed by their parent access list.
+func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists.Collection) iter.Seq2[backend.Item, error] {
+	return func(yield func(backend.Item, error) bool) {
+		for aclName, members := range collection.MembersByAccessList {
+			acl, ok := collection.AccessListsByName[aclName]
+			if !ok {
+				yield(backend.Item{}, trace.NotFound("access list %q not found", aclName))
+				return
 			}
-			out = append(out, item)
+			for _, member := range members {
+				item, err := a.memberService.WithPrefix(member.Spec.AccessList).MakeBackendItem(member)
+				if err != nil {
+					yield(backend.Item{}, trace.Wrap(err))
+					return
+				}
+				if !yield(item, nil) {
+					return
+				}
+			}
+			item, err := a.service.MakeBackendItem(acl)
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+			if !yield(item, nil) {
+				return
+			}
 		}
-		acl, ok := collection.AccessListsByName[aclName]
-		if !ok {
-			return nil, trace.BadParameter("access list '%s' not found", aclName)
-		}
-		item, err := a.service.MakeBackendItem(acl)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, item)
 	}
-	return out, nil
 }

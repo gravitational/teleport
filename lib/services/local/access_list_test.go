@@ -2359,4 +2359,78 @@ func TestInsertAccessListCollection(t *testing.T) {
 
 		require.Error(t, service.InsertAccessListCollection(ctx, collection))
 	})
+
+	t.Run("insert large collection with 1k+ members", func(t *testing.T) {
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+		collection := &accesslists.Collection{}
+
+		// Create 3 access lists with different member counts to test chunking.
+		// Total members: 500 + 600 + 400 = 1500 members across 3 lists.
+		list1 := newAccessList(t, "large-list-1", clock)
+		members1 := make([]*accesslist.AccessListMember, 500)
+		for i := 0; i < 500; i++ {
+			members1[i] = newAccessListMember(t, list1.GetName(), fmt.Sprintf("list1-%d", i))
+		}
+		require.NoError(t, collection.AddAccessList(list1, members1))
+
+		list2 := newAccessList(t, "large-list-2", clock)
+		members2 := make([]*accesslist.AccessListMember, 600)
+		for i := 0; i < 600; i++ {
+			members2[i] = newAccessListMember(t, list2.GetName(), fmt.Sprintf("list2-%d", i))
+		}
+		require.NoError(t, collection.AddAccessList(list2, members2))
+
+		list3 := newAccessList(t, "large-list-3", clock)
+		members3 := make([]*accesslist.AccessListMember, 400)
+		for i := 0; i < 400; i++ {
+			members3[i] = newAccessListMember(t, list3.GetName(), fmt.Sprintf("list3-%d", i))
+		}
+		require.NoError(t, collection.AddAccessList(list3, members3))
+
+		err = service.InsertAccessListCollection(ctx, collection)
+		require.NoError(t, err)
+
+		result1, err := service.GetAccessList(ctx, list1.GetName())
+		require.NoError(t, err)
+		require.Equal(t, list1.GetName(), result1.GetName())
+
+		result2, err := service.GetAccessList(ctx, list2.GetName())
+		require.NoError(t, err)
+		require.Equal(t, list2.GetName(), result2.GetName())
+
+		result3, err := service.GetAccessList(ctx, list3.GetName())
+		require.NoError(t, err)
+		require.Equal(t, list3.GetName(), result3.GetName())
+
+		allMembers1, err := service.memberService.WithPrefix(list1.GetName()).GetResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, allMembers1, 500)
+
+		allMembers2, err := service.memberService.WithPrefix(list2.GetName()).GetResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, allMembers2, 600)
+
+		allMembers3, err := service.memberService.WithPrefix(list3.GetName()).GetResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, allMembers3, 400)
+
+		member1, err := service.GetAccessListMember(ctx, list1.GetName(), "list1-0")
+		require.NoError(t, err)
+		require.Equal(t, "list1-0", member1.GetName())
+
+		member2, err := service.GetAccessListMember(ctx, list2.GetName(), "list2-0")
+		require.NoError(t, err)
+		require.Equal(t, "list2-0", member2.GetName())
+
+		member3, err := service.GetAccessListMember(ctx, list3.GetName(), "list3-0")
+		require.NoError(t, err)
+		require.Equal(t, "list3-0", member3.GetName())
+	})
 }
