@@ -21,8 +21,9 @@ export const CyclesContainer = styled(Flex)<{ enabled?: boolean }>`
   flex: 1 1 33%;
   min-width: 420px;
   background-color: ${({ theme }) => theme.colors.levels.surface};
-  border-radius: 8px;
+  border-radius: 14px;
   padding: ${({ theme }) => theme.space[4]}px;
   flex-direction: column;
   justify-content: ${({ enabled }) => (enabled ? 'normal' : 'space-between')};
+  border: 1px solid ${({ theme }) => theme.colors.levels.elevated};
 `;

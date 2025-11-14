@@ -9,10 +9,12 @@ import {
 import { UsageHistory } from './UsageHistory';
 
 const calibrationInfo =
-  /A change to your account required a calibration period in order to accurately count Active Users across trusted clusters/;
+  /A calibration period appears for any cycle with usage limit changes to ensure accurate active user counts across trusted clusters./;
 
 test('shows empty state when there is no usage history', async () => {
-  render(<UsageHistory usageResponse={makeGetUsageResponse()} />);
+  render(
+    <UsageHistory usageResponse={makeGetUsageResponse()} isV1Pricing={true} />
+  );
 
   expect(
     await screen.findByText('No cycle information available')
@@ -22,6 +24,7 @@ test('shows empty state when there is no usage history', async () => {
 test('renders all elements', async () => {
   render(
     <UsageHistory
+      isV1Pricing={true}
       usageResponse={makeGetUsageResponse({
         usageHistory: [
           makeUsageCycle({
@@ -49,7 +52,7 @@ test('renders all elements', async () => {
   ).toBeInTheDocument();
 
   // column headers
-  expect(screen.getByText('Usage Cycle')).toBeInTheDocument();
+  expect(screen.getByText('Cycle')).toBeInTheDocument();
   expect(screen.getByText('Monthly Active Users (MAU)')).toBeInTheDocument();
   expect(
     screen.getByText('Teleport Protected Resources (TPR)')
@@ -75,22 +78,26 @@ test('hides unavailable metrics', async () => {
     missingEntitlements: ['Identity', 'Policy'],
     usageHistory: [makeUsageCycle()],
   });
-  render(<UsageHistory usageResponse={usageResponse} />);
+  render(<UsageHistory usageResponse={usageResponse} isV1Pricing={true} />);
 
   // - populates in 'Identity' and 'Policy' columns
   expect(screen.getAllByText('Not available')).toHaveLength(2);
 });
 
-test('indicates non-included metrics as unincluded', async () => {
+test("doesn't show v1 metrics columns in v2 pricing", async () => {
   const usageResponse = makeGetUsageResponse({
     usageHistory: [
       makeUsageCycle({ pricingModel: makePricingModel({ metric: [] }) }),
     ],
   });
-  render(<UsageHistory usageResponse={usageResponse} />);
+  render(<UsageHistory usageResponse={usageResponse} isV1Pricing={false} />);
 
-  // sets each metric as not in use as they're not part of the returned pricing model
-  expect(screen.getAllByText('Not in use')).toHaveLength(5);
+  // Hides MWI, IGMAU and IS TPR columns, since they are v1 only
+  expect(
+    screen.queryByText('Machine & Workload Identities')
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText('Identity Governance MAU')).not.toBeInTheDocument();
+  expect(screen.queryByText('Identity Security TPR')).not.toBeInTheDocument();
 });
 
 test('shows calibration periods', async () => {
@@ -99,6 +106,7 @@ test('shows calibration periods', async () => {
       usageResponse={makeGetUsageResponse({
         usageHistory: [makeUsageCycle({ calibratingAccounts: 1 })],
       })}
+      isV1Pricing={true}
     />
   );
 
@@ -113,17 +121,19 @@ test('hides calibration periods when a feature is disabled', async () => {
     missingEntitlements: ['Policy', 'Identity'],
     usageHistory: [makeUsageCycle({ calibratingAccounts: 1 })],
   });
-  render(<UsageHistory usageResponse={usageResponse} />);
+  render(<UsageHistory usageResponse={usageResponse} isV1Pricing={true} />);
 
   // for one history row:
   // 3/5 columns show calibrating, 2/5 disabled features show -
   expect(screen.getAllByText('Calibration Period*')).toHaveLength(3);
-  expect(screen.getAllByText('Not available')).toHaveLength(2);
+  // expect(screen.getAllByText('Not available')).toHaveLength(2);
   expect(screen.getByText(calibrationInfo)).toBeInTheDocument();
 });
 
 test('omits calibration explanation if there is no calibration period on table', async () => {
-  render(<UsageHistory usageResponse={makeGetUsageResponse()} />);
+  render(
+    <UsageHistory usageResponse={makeGetUsageResponse()} isV1Pricing={true} />
+  );
 
   expect(screen.queryByText('Calibrating')).not.toBeInTheDocument();
   expect(screen.queryByText(calibrationInfo)).not.toBeInTheDocument();

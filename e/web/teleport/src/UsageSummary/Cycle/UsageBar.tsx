@@ -57,15 +57,18 @@ export function UsageBar({
         mb={i == section.usage.length - 1 ? '0' : '4'}
         style={{ flexGrow: 2 }}
       >
-        <Box mt="3" mb="1">
+        <Box mt="3" mb="2">
           {calibrating ? (
             <P1 color="text.slightlyMuted" style={{ fontStyle: 'italic' }}>
               Calibrating
             </P1>
           ) : (
-            <P1 color="text.slightlyMuted">
-              {used || 0} of {limit || 0} ({percentage}%)
-            </P1>
+            <Flex gap={2}>
+              <Text bold fontSize={7}>
+                {used || 0} of {limit || 0}
+              </Text>{' '}
+              <Text color="text.slightlyMuted">({percentage}%)</Text>
+            </Flex>
           )}
         </Box>
         <Box style={{ position: 'relative' }}>
@@ -91,7 +94,7 @@ export function UsageBar({
           />
         </Box>
         <Box mt={2}>
-          <P2>{name}</P2>
+          <P2 fontWeight={700}>{name}</P2>
         </Box>
       </BarContainer>
     )

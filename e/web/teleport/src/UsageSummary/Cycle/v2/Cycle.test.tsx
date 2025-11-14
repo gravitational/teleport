@@ -45,13 +45,11 @@ describe('cycle', () => {
 
     render(<Cycle {...props} />);
 
-    expect(screen.getByText(/Current Usage Cycle:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Current Cycle:/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Jan 06, 2023 - May 02, 2023/i)
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Monthly usage will reset at the end of this cycle/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/days left in cycle./)).toBeInTheDocument();
 
     const zeroTrustSection = screen.getByTestId(/Zero Trust Access/);
     const mau = within(zeroTrustSection).getByTestId(

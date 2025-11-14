@@ -66,6 +66,10 @@ export function Summary() {
     },
   });
 
+  const isV1Pricing =
+    usageResponse?.usageHistory?.length > 0 &&
+    usageResponse.usageHistory[0].pricingModel.version === '1.0.0';
+
   return (
     <Box>
       <StyledContainer>
@@ -120,8 +124,7 @@ export function Summary() {
                   })}
                 </>
                 <Flex gap="5" flexDirection="column">
-                  {usageResponse.usageHistory[0].pricingModel?.version ===
-                  '1.0.0' ? (
+                  {isV1Pricing ? (
                     <V1Cycle
                       usageResponse={usageResponse}
                       customer={customer}
@@ -134,7 +137,10 @@ export function Summary() {
                       aggregate={aggregate}
                     />
                   )}
-                  <UsageHistory usageResponse={usageResponse} />
+                  <UsageHistory
+                    usageResponse={usageResponse}
+                    isV1Pricing={isV1Pricing}
+                  />
                 </Flex>
               </Box>
             )}
