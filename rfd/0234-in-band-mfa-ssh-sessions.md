@@ -253,6 +253,8 @@ The Decision service will return a new field called `preconditions` in `SSHAcces
 condition of access. It is up to the SSH service to enforce the MFA requirement during session establishment.
 
 ```proto
+package teleport.decision.v1alpha1;
+
 // SSHAccessPermit describes the parameters/constraints of a permissible SSH access attempt.
 message SSHAccessPermit {
   // ... existing fields ...
@@ -271,8 +273,8 @@ message Precondition {
 enum PreconditionKind {
   // PreconditionKindUnspecified is an unspecified precondition. This value has no effect.
   PRECONDITION_KIND_UNSPECIFIED = 0;
-  // PreconditionKindPerSessionMFA requires per-session MFA to be completed.
-  PRECONDITION_KIND_PER_SESSION_MFA = 1;
+  // PreconditionKindInBandMFA requires in-band MFA to be completed.
+  PRECONDITION_KIND_IN_BAND_MFA = 1;
 }
 ```
 
@@ -286,6 +288,8 @@ and responses. Because of such, these Protobuf messages will be JSON encoded pri
 keyboard-interactive channel using [protojson](https://pkg.go.dev/google.golang.org/protobuf/encoding/protojson).
 
 ```proto
+package teleport.ssh.v1;
+
 // AuthPrompt is shown to the user during SSH keyboard-interactive authentication.
 message AuthPrompt {
   oneof prompt {
@@ -340,6 +344,8 @@ resource](#storing-validated-mfa-responses) to exist in the backend, rather than
 until the resource exists in the local backend or for replication to complete to the leaf backend.
 
 ```proto
+package teleport.mfa.v1;
+
 // MFAService defines the Multi-Factor Authentication (MFA) service. New MFA related RPCs should be added here instead
 // of the AuthService.
 service MFAService {
@@ -497,6 +503,8 @@ guidelines](/rfd/0153-resource-guidelines.md). The only operations supported by 
 automatically deleted after retrieval or expiration.
 
 ```proto
+package teleport.mfa.v1;
+
 // ValidatedChallenge represents a validated MFA challenge tied to a user session.
 message ValidatedChallenge {
   // The kind of resource represented.
@@ -656,6 +664,8 @@ Audit events will not be added for the `ReplicateValidatedChallenge` and `GetVal
 internal to the SSH session establishment process and do not represent user actions.
 
 ```proto
+package events;
+
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
 message CreateMFAAuthChallenge {
   // ... existing fields ...
