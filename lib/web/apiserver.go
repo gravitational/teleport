@@ -5441,6 +5441,8 @@ type SSORequestParams struct {
 	ConnectorID string
 	// CSRFToken is used to protect against login-CSRF in SSO flows.
 	CSRFToken string
+	// LoginHint is the user's identifier (email) for identifier-first login.
+	LoginHint string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5468,6 +5470,10 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 	}
 
 	query := r.URL.Query()
+	loginHint := query.Get("login_hint")
+	if len(loginHint) > teleport.MaxUsernameLength {
+		loginHint = ""
+	}
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
@@ -5482,6 +5488,7 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
 		CSRFToken:         csrfToken,
+		LoginHint:         loginHint,
 	}, nil
 }
 
