@@ -510,9 +510,6 @@ message ValidatedChallenge {
   teleport.header.v1.Metadata metadata = 4;
   // The validated challenge specification.
   ValidatedChallengeSpec spec = 5;
-  // Reserved for future dynamic state of the validated challenge.
-  reserved 6;
-  reserved "status";
 }
 
 // ValidatedChallengeSpec contains the validated challenge data that is set once
