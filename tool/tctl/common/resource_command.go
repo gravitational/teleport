@@ -49,7 +49,6 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
-	apistream "github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
@@ -136,7 +135,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
-		types.KindServerInfo:                  rc.createServerInfo,
 		types.KindAccessMonitoringRule:        rc.createAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
@@ -884,34 +882,6 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	si, err := services.UnmarshalServerInfo(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Check if the ServerInfo already exists.
-	name := si.GetName()
-	_, err = client.GetServerInfo(ctx, name)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	exists := (err == nil)
-	if !rc.force && exists {
-		return trace.AlreadyExists("server info %q already exists", name)
-	}
-
-	err = client.UpsertServerInfo(ctx, si)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Server info %q has been %s\n",
-		name, UpsertVerb(exists, rc.force),
-	)
-	return nil
-}
-
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
 	// Connectors are a special case. As it's the only meta-resource we have,
@@ -1172,11 +1142,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Security report %q has been deleted\n", rc.ref.Name)
-	case types.KindServerInfo:
-		if err := client.DeleteServerInfo(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
 	case types.KindAccessMonitoringRule:
 		if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1765,19 +1730,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &securityReportCollection{items: resources}, nil
-	case types.KindServerInfo:
-		if rc.ref.Name != "" {
-			si, err := client.GetServerInfo(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &serverInfoCollection{serverInfos: []types.ServerInfo{si}}, nil
-		}
-		serverInfos, err := apistream.Collect(client.GetServerInfos(ctx))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &serverInfoCollection{serverInfos: serverInfos}, nil
 	case types.KindVnetConfig:
 		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
 		if err != nil {
