@@ -1,5 +1,44 @@
 # Changelog
 
+## 18.4.0 (11/13/25)
+
+### Streamable-HTTP and SSE support for MCP Zero-Trust Access
+MCP Zero-Trust Access users are now able to secure and audit connections to MCP servers that use HTTP-based transport protocols in addition to stdio.
+
+### Improved Bot Instances Dashboard
+The Bot Instances dashboard now provides a more intuitive interface for managing a fleet of Machine & Workload Identity bot instances. This includes improved filtering, sorting and searching capabilities, and a high-level overview of the versions of all bot instances in the cluster.
+
+### Updated Oracle Joining Support
+Oracle compute instances are no longer required to have additional IAM permissions granted to them in order to join. Oracle join tokens now also allow restricting which instances may leverage a token to join.
+
+### Other changes and improvements
+
+* Fixed an issue connections to MongoDB Atlas clusters fail if clusters use certs signed by Google Trust Services (GTS). [#61324](https://github.com/gravitational/teleport/pull/61324)
+* Improved reverse tunnel dialing recovery from default route changes by 1min on average. [#61319](https://github.com/gravitational/teleport/pull/61319)
+* Fixed an issue Postgres database cannot be accessed via Teleport Connect when per-session MFA is enabled and the role does not have wildcard `db_names`. [#61299](https://github.com/gravitational/teleport/pull/61299)
+* Improved conflict detection of application public address and Teleport cluster addresses. [#61290](https://github.com/gravitational/teleport/pull/61290)
+* Fixed AWS Roles Anywhere cli access when using per-session MFA. [#61273](https://github.com/gravitational/teleport/pull/61273)
+* Fixed rare error in the `authorized_keys` secret scanner when running the Teleport agent on MacOS. [#61268](https://github.com/gravitational/teleport/pull/61268)
+* Updated Go to v1.24.10. [#61212](https://github.com/gravitational/teleport/pull/61212)
+* Terraform: `teleport_bot` resource now supports import, and follows the standard resource structure. [#61201](https://github.com/gravitational/teleport/pull/61201)
+* Added support for tbot to teleport-update. [#61198](https://github.com/gravitational/teleport/pull/61198)
+* Instrumented tbot to better support teleport-update. [#61189](https://github.com/gravitational/teleport/pull/61189)
+* Improved error message of `tsh` when there is a certificate DNS SAN mismatch when connecting to Auth via Proxy. [#61186](https://github.com/gravitational/teleport/pull/61186)
+* Improved error handling during desktop sessions that encounter unknown/invalid smartcard commands. This prevents abrupt desktop session termination with a "PDU error" message when using certain applications. [#61180](https://github.com/gravitational/teleport/pull/61180)
+* Fixed an issue causing Access Automation Rules to evaluate incorrectly when users are granted traits via Access Lists. [#61169](https://github.com/gravitational/teleport/pull/61169)
+* Added support for tsh copying files between two hosts, i.e. `tsh scp alice@foo:/path/1.txt bob@bar:/path/2.txt`. [#61165](https://github.com/gravitational/teleport/pull/61165)
+* Added support for custom reason prompts for Access Requests, per requested role/resource (`role.spec.allow.request.reason.prompt`). [#61127](https://github.com/gravitational/teleport/pull/61127)
+* Fixed the webUI timeout time to respect the cluster's WebIdleTimeout configuration. [#61103](https://github.com/gravitational/teleport/pull/61103)
+* Added an option to restrict Oracle join tokens to specific instance IDs. [#61078](https://github.com/gravitational/teleport/pull/61078)
+* Stabilized tsh paths when run from agent installation. [#60873](https://github.com/gravitational/teleport/pull/60873)
+* Added advanced search and sorting to the bot instances list in the web UI. [#60761](https://github.com/gravitational/teleport/pull/60761)
+* Added filter and sort flags to `tctl bots instances ls`. [#60761](https://github.com/gravitational/teleport/pull/60761)
+* Added service health to the output `tctl bots instances ls` and `tctl bot instance show` commands. [#60761](https://github.com/gravitational/teleport/pull/60761)
+* Added a dashboard to visualize bot instances by their version compatibility. [#60761](https://github.com/gravitational/teleport/pull/60761)
+* Added bot instance service health to web UI. [#60761](https://github.com/gravitational/teleport/pull/60761)
+* Added new `env0` join method to support joining within Env0 workflows. [#60710](https://github.com/gravitational/teleport/pull/60710)
+* Added a new OCI join method that does not require IAM policies. [#60293](https://github.com/gravitational/teleport/pull/60293)
+
 ## 18.3.2 (11/07/25)
 
 * Updated github.com/containerd/containerd dependency to fix https://github.com/advisories/GHSA-pwhc-rpq9-4c8w. [#61143](https://github.com/gravitational/teleport/pull/61143)
