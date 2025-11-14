@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/net/http2"
@@ -1771,9 +1773,15 @@ func TestGOAWAYHandling(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := forwarderServer.Client().Do(req)
 	require.NoError(t, err)
+
+	t.Cleanup(func() { assert.NoError(t, resp.Body.Close()) })
 	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 	require.Equal(t, "1", resp.Header.Get("Retry-After"))
-	require.NoError(t, resp.Body.Close())
+
+	var status metav1.Status
+	err = json.NewDecoder(resp.Body).Decode(&status)
+	require.NoError(t, err)
+	require.Equal(t, metav1.StatusReasonTooManyRequests, status.Reason)
 }
 
 // goawayServer is a fake [http2.Server] that terminates all received client
