@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"io"
 	"iter"
@@ -5417,8 +5418,8 @@ func (c *Client) CrownJewelServiceClient() *crownjewelapi.Client {
 // Clients connecting to older Teleport versions, still get a LinuxDesktop client
 // when calling this method, but all RPCs will return "not implemented" errors
 // (as per the default gRPC behavior).
-func (c *Client) LinuxDesktopServiceClient() *linuxdesktopapi.Client {
-	return linuxdesktopapi.NewClient(linuxdesktopv1.NewLinuxDesktopServiceClient(c.conn))
+func (c *Client) LinuxDesktopServiceClient() *linuxdesktop.Client {
+	return linuxdesktop.NewClient(linuxdesktopv1.NewLinuxDesktopServiceClient(c.conn))
 }
 
 // UserLoginStateClient returns a user login state client.

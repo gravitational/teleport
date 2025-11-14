@@ -23,7 +23,7 @@ func NewClient(grpcClient linuxdesktopv1.LinuxDesktopServiceClient) *Client {
 // ListLinuxDesktops returns a list of Crown Jewels.
 func (c *Client) ListLinuxDesktops(ctx context.Context, pageSize int, nextToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error) {
 	resp, err := c.grpcClient.ListLinuxDesktops(ctx, &linuxdesktopv1.ListLinuxDesktopsRequest{
-		PageSize:  pageSize,
+		PageSize:  int32(pageSize),
 		PageToken: nextToken,
 	})
 	if err != nil {
