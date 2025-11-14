@@ -21,8 +21,12 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path/filepath"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -31,16 +35,23 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	"github.com/gravitational/teleport/lib/autoupdate/agent"
 )
 
 type StatefulSetVersionUpdater struct {
 	VersionUpdater
 	kclient.Client
 	Scheme *runtime.Scheme
+
+	UpdateID         uuid.UUID
+	UpdateGroup      string
+	UpdateConfigName string
+	ProxyAddress     string
 }
 
 // Reconcile treats a reconciliation request for a StatefulSet object. It gets the
@@ -148,6 +159,44 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 	if err := r.unblockStatefulSetRolloutIfStuck(ctx, &obj); err != nil {
 		log.Error(err, "statefulset unblocking failed, the rollout might get stuck")
 	}
+
+	updateYAML := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.UpdateConfigName,
+			Namespace: req.Namespace,
+		},
+	}
+	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, updateYAML, func() error {
+		const idFile = agent.BinaryName + ".id"
+		updateYAML.Data = map[string]string{
+			idFile: r.UpdateID.String(),
+			agent.UpdateConfigName: fmt.Sprintf("%#v", agent.UpdateConfig{
+				Version: agent.UpdateConfigV1,
+				Kind:    agent.UpdateConfigKind,
+				Spec: agent.UpdateSpec{
+					Enabled: true,
+					Proxy:   r.ProxyAddress,
+					Group:   r.UpdateGroup,
+				},
+				Status: agent.UpdateStatus{
+					IDFile: filepath.Join("/etc/updater-config", idFile),
+					LastUpdate: &agent.LastUpdate{
+						Success: true,
+						Time:    time.Now(),
+						Target: agent.Revision{
+							Version: image.Tag(),
+						},
+					},
+					Active: agent.Revision{
+						Version: image.Tag(),
+					},
+				},
+			}),
+		}
+		return controllerutil.SetOwnerReference(&obj, updateYAML, r.Scheme)
+	})
+	log.V(1).Info("updater configmap "+string(op), "configmap", updateYAML.Name)
+
 	return requeueLater, nil
 }
 
