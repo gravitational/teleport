@@ -2565,62 +2565,65 @@ func onLogout(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
+			if len(usernames) == 0 {
+				fmt.Fprintf(cf.Stdout(), "All users logged out.\n")
+				return nil
+			}
+
 			logger.DebugContext(cf.Context, "No --user flag provided, but identities found for proxy",
 				"proxy_host", proxyHost,
 				"users", usernames)
 
-			if len(usernames) == 1 {
-				cf.Username = usernames[0]
+			if len(usernames) > 1 {
+				fmt.Fprintf(cf.Stdout(), "Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+				return nil
+			}
+
+			cf.Username = usernames[0]
+		}
+
+		tc, err := makeClient(cf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Load profile for the requested proxy/user.
+		profile, err := tc.ProfileStatus()
+		if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
+			return trace.Wrap(err)
+		}
+
+		// Log out user from the databases.
+		if profile != nil {
+			for _, db := range profile.Databases {
+				logger.DebugContext(cf.Context, "Logging user out of database",
+					"user", profile.Name,
+					"database", db,
+				)
+				err = dbprofile.Delete(tc, db)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			}
 		}
 
-		switch {
-		case cf.Username != "":
-			tc, err := makeClient(cf)
-			if err != nil {
-				return trace.Wrap(err)
+		// Remove keys for this user from disk and running agent.
+		err = tc.Logout()
+		if err != nil {
+			if trace.IsNotFound(err) {
+				fmt.Fprintf(cf.Stdout(), "User %v already logged out from %v.\n", cf.Username, proxyHost)
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
-			// Load profile for the requested proxy/user.
-			profile, err := tc.ProfileStatus()
-			if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
-				return trace.Wrap(err)
-			}
-
-			// Log out user from the databases.
-			if profile != nil {
-				for _, db := range profile.Databases {
-					logger.DebugContext(cf.Context, "Logging user out of database",
-						"user", profile.Name,
-						"database", db,
-					)
-					err = dbprofile.Delete(tc, db)
-					if err != nil {
-						return trace.Wrap(err)
-					}
-				}
-			}
-
-			// Remove keys for this user from disk and running agent.
-			err = tc.Logout()
-			if err != nil {
-				if trace.IsNotFound(err) {
-					fmt.Fprintf(cf.Stdout(), "User %v already logged out from %v.\n", cf.Username, proxyHost)
-					return trace.Wrap(&common.ExitCodeError{Code: 1})
-				}
-				return trace.Wrap(err)
-			}
-
-			// Remove Teleport related entries from kubeconfig.
-			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster_addr", tc.KubeClusterAddr())
-			err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			fmt.Fprintf(cf.Stdout(), "Logged out %v from %v.\n", cf.Username, proxyHost)
-		case cf.Username == "":
-			fmt.Fprintf(cf.Stdout(), "Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+			return trace.Wrap(err)
 		}
+
+		// Remove Teleport related entries from kubeconfig.
+		logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster_addr", tc.KubeClusterAddr())
+		err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Fprintf(cf.Stdout(), "Logged out %v from %v.\n", cf.Username, proxyHost)
 	// Remove all keys.
 	case proxyHost == "" && cf.Username == "":
 		tc, err := makeClient(cf)
@@ -2675,7 +2678,7 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(tc.SAMLSingleLogout(ctx, sloURL))
 		})
 		if err != nil {
-			fmt.Fprintf(cf.Stdout(), "We were unable to log you out of your SAML identity provider: %v", err)
+			fmt.Fprintf(cf.Stdout(), "We were unable to log you out of your SAML identity provider: %v\n", err)
 		}
 
 		// Remove all keys from disk and the running agent.
