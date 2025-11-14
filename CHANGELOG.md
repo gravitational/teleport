@@ -1,6 +1,6 @@
 # Changelog
 
-# 17.7.10 (11/13/15)
+## 17.7.10 (11/13/15)
 
 * Improved reverse tunnel dialing recovery from default route changes by 1min on average. [#61318](https://github.com/gravitational/teleport/pull/61318)
 * Fixed an issue with the Identity Center resource cache that could cause the account resources to be deleted from the cache. [#61313](https://github.com/gravitational/teleport/pull/61313)
