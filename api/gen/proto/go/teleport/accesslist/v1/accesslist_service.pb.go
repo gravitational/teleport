@@ -59,7 +59,7 @@ const (
 	//     defined in the "access" roles. This role is directly assigned to owners
 	//     of this access list (as owner grants).
 	PresetType_PRESET_TYPE_LONG_TERM PresetType = 1
-	// GRANT_TYPE_SHORT_TERM describes a preset where members are granted
+	// PRESET_TYPE_SHORT_TERM describes a preset where members are granted
 	// roles that require them to request for access and upon approval gain short
 	// term access. Teleport will create the following type of roles and modify
 	// the access list accordingly:
@@ -1358,22 +1358,18 @@ func (x *UpsertAccessListWithMembersResponse) GetMembers() []*Member {
 // Role describes a role to be upserted by Teleport for an access list.
 type Role struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// prefix_name is the prefix of the role name and allows the client to
+	// name_prefix is the prefix of the role name and allows the client to
 	// control part of the role name so clients like the web UI can make some
 	// assumptions based on this prefix e.g. what purpose the access role was
 	// created for. For the final role name however, Teleport will add a suffix
-	// to this prefix_name before upserting the role. The suffix serves to:
+	// to this name_prefix before upserting the role. The suffix serves to:
 	//   - ensure uniqueness by including the access list UID which also
 	//     ties this role to that access list making it easier to query.
 	//   - add a infix like "acl-preset" that easily identifies that this role
 	//     belongs to an access list that was created using a preset.
-	PrefixName string `protobuf:"bytes,1,opt,name=prefix_name,json=prefixName,proto3" json:"prefix_name,omitempty"`
-	// spec defines the access to resources. If this is a nil spec,
-	// a role delete operation will be performed (if exists) and:
-	//   - if this role was assigned as grants, it will be removed
-	//     from access list
-	//   - if this role was assigned in another role (e.g. reviewer/requester)
-	//     it will be removed from that role
+	NamePrefix string `protobuf:"bytes,1,opt,name=name_prefix,json=namePrefix,proto3" json:"name_prefix,omitempty"`
+	// spec defines the access to resources. A nil spec will be interpreted as
+	// "no role update required".
 	Spec          *types.RoleSpecV6 `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1409,9 +1405,9 @@ func (*Role) Descriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *Role) GetPrefixName() string {
+func (x *Role) GetNamePrefix() string {
 	if x != nil {
-		return x.PrefixName
+		return x.NamePrefix
 	}
 	return ""
 }
@@ -1436,7 +1432,7 @@ type UpsertAccessListWithPresetRequest struct {
 	// access_roles is a list of role specs that defines the "access" to
 	// resources. Teleport will perform role create/update/delete (CUD) per
 	// spec. The role CUD operations will depend on if the request was for a
-	// "create" or an "update" to an access list.
+	// "create" or an "update" to this access list.
 	//
 	// If a create request, only role create operation is performed. Then
 	// depending on the "preset_type" requested, Teleport will assign these
@@ -1452,19 +1448,17 @@ type UpsertAccessListWithPresetRequest struct {
 	//     as a grant typically meant for owners of the access list.
 	//
 	// If the request was for an "update", then the role operations are as below.
-	// The updates applied to an access list as a result of these operations will
-	// depend on the "preset_type" set on the access list:
+	// The updates applied to this access list as a result of these operations
+	// will depend on the "preset_type" set on the access list:
+	//   - delete: Roles tied to this access list not supplied in this request
+	//     will be deleted. All roles that were deleted will also be removed from
+	//     any member/owner grants or other related roles referencing it
+	//     (e.g. requester/reviewer roles)
 	//   - create: If a role didn't exist, it will be created. Member/owner grants
 	//     or other related roles (e.g. requester/reviewer roles) will be updated
 	//     to include this new role.
-	//   - delete: If a prefix was defined but the role spec is set to nil, then
-	//     the role will be deleted. This role will also be removed from any
-	//     member/owner grants or other related roles referencing it
-	//     (e.g. requester/reviewer roles)
-	//   - partial update: If a role exists, a new role will replace it but
-	//     the version will be preserved to prevent unintended behavioral changes
-	//     that can result with different role versions. No updates to an access
-	//     list is needed.
+	//   - update: If a role exists, the role will be updated with the role spec
+	//     replaced. Updates to the access list is not needed.
 	//
 	// Defining multiple role specs is allowed to support defining access
 	// to resources where it's metadata (e.g. labels) cannot be modified
@@ -1478,10 +1472,10 @@ type UpsertAccessListWithPresetRequest struct {
 	// with a Teleport defined label `origin: aws-ic`. Since multi labels is an
 	// "AND" operation, we cannot merge these two labels in one role, so two
 	// roles are created:
-	//   - first role defines access to apps with app_labels set to `env: staging`
-	//     giving access to any apps with `env: staging`
-	//   - second role defines access to apps with app_labels set to `origin: aws-ic`
-	//     giving access specifically for AWS IC app
+	//   - first role defines access to apps with app_labels set to
+	//     `env: staging` giving access to any apps with `env: staging`
+	//   - second role defines access to apps with app_labels set to
+	//     `origin: aws-ic` giving access specifically for AWS IC app
 	//
 	// With these two roles, users can now have access to both types of apps.
 	AccessRoles []*Role `protobuf:"bytes,2,rep,name=access_roles,json=accessRoles,proto3" json:"access_roles,omitempty"`
@@ -3090,8 +3084,8 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"accessList\x128\n" +
 	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"N\n" +
 	"\x04Role\x12\x1f\n" +
-	"\vprefix_name\x18\x01 \x01(\tR\n" +
-	"prefixName\x12%\n" +
+	"\vname_prefix\x18\x01 \x01(\tR\n" +
+	"namePrefix\x12%\n" +
 	"\x04spec\x18\x02 \x01(\v2\x11.types.RoleSpecV6R\x04spec\"\xa8\x02\n" +
 	"!UpsertAccessListWithPresetRequest\x12C\n" +
 	"\vpreset_type\x18\x01 \x01(\x0e2\".teleport.accesslist.v1.PresetTypeR\n" +
