@@ -198,12 +198,10 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 
 	for _, vm := range vms {
 		jsonVM, _ := vm.MarshalJSON()
-		f.Logger.DebugContext(ctx, "processing found VM", "name", *vm.Name)
 		fmt.Println(string(jsonVM))
 
 		location := azure.StringVal(vm.Location)
 		if !slices.Contains(f.Regions, location) && !allowAllLocations {
-			f.Logger.DebugContext(ctx, "skip VM [000] wrong region")
 			continue
 		}
 
@@ -212,7 +210,6 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 			vmTags[key] = azure.StringVal(value)
 		}
 		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
-			f.Logger.DebugContext(ctx, "skip VM [001] label mismatch", "labels", f.Labels, "tags", vmTags)
 			continue
 		}
 
@@ -252,12 +249,6 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 			Integration:    f.Integration,
 		}})
 	}
-
-	// log all instances
-
-	for _, vm := range instances {
-		f.Logger.DebugContext(ctx, "GetInstances: instance data", "instance", vm)
-	}
-
+	
 	return instances, nil
 }
