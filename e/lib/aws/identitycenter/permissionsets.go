@@ -81,7 +81,7 @@ func (svc *Service) reconcilePermissionSets(ctx context.Context, oldPermissionSe
 	deletePS := func(ctx context.Context, ps *identitycenterv1.PermissionSet) error {
 		err := svc.icSvc.DeletePermissionSet(ctx, getPermissionSetID(ps))
 		if err != nil {
-			return trace.Wrap(err, "updating Identity Center permission set")
+			return trace.Wrap(err, "deleting Identity Center permission set")
 		}
 		delete(result, getPermissionSetID(ps))
 		return nil

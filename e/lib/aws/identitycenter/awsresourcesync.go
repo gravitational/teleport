@@ -4,14 +4,13 @@ import (
 	"context"
 	"maps"
 	"slices"
-	"time"
 
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // awsSyncService is the main sync loop of the service. It periodically updates
@@ -22,7 +21,7 @@ func (svc *Service) awsSyncService(ctx context.Context) error {
 	defer svc.log.DebugContext(ctx, "Exiting AWS IAM IdentityCenter service")
 
 	svc.log.DebugContext(ctx, "Starting AWS sync loop", "sync_interval", svc.awsSyncInterval)
-	timer := svc.clock.NewTimer(svc.awsSyncInterval + utils.RandomDuration(10*time.Second))
+	timer := svc.clock.NewTimer(retryutils.DefaultJitter(svc.awsSyncInterval))
 	defer timer.Stop()
 
 	for {
@@ -32,7 +31,7 @@ func (svc *Service) awsSyncService(ctx context.Context) error {
 
 		select {
 		case <-timer.Chan():
-			timer.Reset(svc.awsSyncInterval + utils.RandomDuration(10*time.Second))
+			timer.Reset(retryutils.DefaultJitter(svc.awsSyncInterval))
 
 		case <-ctx.Done():
 			svc.log.InfoContext(ctx, "Exit signaled")

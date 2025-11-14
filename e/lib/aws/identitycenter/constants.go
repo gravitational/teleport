@@ -18,10 +18,6 @@ const (
 	// per normal.
 	principalDeleteModeTeleportOnly = "teleport-only"
 
-	// defaultResourceSyncInterval is the interval between synchronization passes that
-	// pull data into Teleport from AWS
-	defaultResourceSyncInterval = 5 * time.Minute
-
 	// defaultEventEventBufferSize indicates how many events to buffer while
 	// handling resources
 	defaultEventEventBufferSize = 128
@@ -31,4 +27,8 @@ var (
 	// DefaultFullAssignmentSyncInterval is the default interval between full
 	// account assignment re-calculation and re-provisioning
 	DefaultFullAssignmentSyncInterval = 10 * time.Minute
+
+	// DefaultResourceSyncInterval is the interval between synchronization passes that
+	// pull data into Teleport from AWS
+	DefaultResourceSyncInterval = 5 * time.Minute
 )

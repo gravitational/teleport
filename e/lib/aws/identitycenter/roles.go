@@ -3,18 +3,24 @@ package identitycenter
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
-	roleAccountLabel = types.TeleportInternalLabelPrefix + "account_id"
+	roleAccountLabel     = types.TeleportInternalLabelPrefix + "account_id"
+	roleReplacementLabel = types.TeleportInternalLabelPrefix + "replaced_with"
+	roleCreatedByLabel   = types.TeleportInternalLabelPrefix + "created_by"
 )
 
 // A note on role keys and roleAccountLabels.
@@ -38,6 +44,18 @@ type accountAssignmentRoleKey struct {
 	account       services.IdentityCenterAccountID
 	permissionSet string
 	label         string
+}
+
+func (key accountAssignmentRoleKey) String() string {
+	ps := key.permissionSet
+	if psARN, err := arn.Parse(ps); err == nil {
+		ps = psARN.Resource
+	}
+	return ps + "/" + string(key.account)
+}
+
+func (key *accountAssignmentRoleKey) LogValue() any {
+	return slog.StringValue(key.String())
 }
 
 type accountAssignmentRolesMap map[accountAssignmentRoleKey]*types.RoleV6
@@ -67,36 +85,19 @@ func mkRoleKeyForRole(role *types.RoleV6) (accountAssignmentRoleKey, error) {
 }
 
 func (svc *Service) loadAccountAssignmentRoles(ctx context.Context) (accountAssignmentRolesMap, error) {
-	var pageKey string
 	roles := accountAssignmentRolesMap{}
-	for {
-		response, err := svc.rolesSvc.ListRoles(ctx, &proto.ListRolesRequest{
-			StartKey: pageKey,
-			Limit:    200,
-			Filter:   &types.RoleFilter{SkipSystemRoles: true},
-		})
+	for role, err := range iciter.AllAccountAssignmentRoles(ctx, svc.rolesSvc) {
 		if err != nil {
-			return nil, trace.Wrap(err, "enumerating known AWS accounts")
+			return nil, trace.Wrap(err)
 		}
-
-		for _, role := range response.Roles {
-			if role.GetSubKind() != types.KindIdentityCenter {
-				continue
-			}
-
-			roleKey, err := mkRoleKeyForRole(role)
-			if err != nil {
-				svc.log.WarnContext(ctx, "malformed account assignment role",
-					"error", err.Error(),
-					"role", role.GetName())
-			}
-			roles[roleKey] = role
+		roleKey, err := mkRoleKeyForRole(role)
+		if err != nil {
+			svc.log.WarnContext(ctx, "malformed account assignment role",
+				"error", err.Error(),
+				"role", role.GetName())
+			continue
 		}
-
-		if response.NextKey == "" {
-			break
-		}
-		pageKey = response.NextKey
+		roles[roleKey] = role
 	}
 	return roles, nil
 }
@@ -124,27 +125,29 @@ func NewAccountAssignmentRole(acct *identitycenterv1.Account, ps *identitycenter
 		return nil, trace.Wrap(err, "creating account assignment role %q", roleName)
 	}
 
-	// Add a label to mark
+	// Set the role subkind to indicate that the role is under the control of
+	// the Identity Center integration.
+	role.SetSubKind(types.KindIdentityCenter)
+
 	labels := role.GetStaticLabels()
 	if labels == nil {
 		labels = make(map[string]string)
 	}
+	// Mark the role as a new-style IC role that can handle multiple AWS accounts
+	// with the same name.
 	labels[roleAccountLabel] = acct.Spec.Id
-	role.SetStaticLabels(labels)
 
-	role.SetSubKind(types.KindIdentityCenter)
+	// Mark the role as being created by the identity center plugin (we can't
+	// use origin due to backwards compatibility issues) so that we can target
+	// it for deletion even when it gets deprecated (i.e. it's subkind gets reset.)
+	labels[roleCreatedByLabel] = types.KindIdentityCenter
+	role.SetStaticLabels(labels)
 
 	return role.(*types.RoleV6), nil
 }
 
 func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRoles, newRoles accountAssignmentRolesMap) (accountAssignmentRolesMap, error) {
 	result := maps.Clone(oldRoles)
-
-	for k, old := range oldRoles {
-		if new, present := newRoles[k]; present {
-			new.Metadata.Revision = old.Metadata.Revision
-		}
-	}
 
 	createRole := func(ctx context.Context, newRole *types.RoleV6) error {
 		// if we can't make an appropriate key for the map then there is no
@@ -155,8 +158,15 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 			return trace.Wrap(err, "malformed Identity Center Account Assignment Role resource")
 		}
 
-		svc.log.DebugContext(ctx, "Creating new role", "rolename", newRole.GetName())
+		svc.log.DebugContext(ctx, "Creating new Identity Center Account Assignment Role", "rolename", newRole.GetName())
 		created, err := svc.rolesSvc.CreateRole(ctx, newRole)
+		if trace.IsAlreadyExists(err) {
+			// The target role already existing is the most probable cause of
+			// error when creating a new role, so emit an admin-friendly log
+			// message to help diagnosis
+			svc.log.ErrorContext(ctx, "Failed creating Identity Center Account Assignment Role; a role with than name already exists.",
+				"role", newRole.GetName())
+		}
 		if err != nil {
 			return trace.Wrap(err, "creating Identity Center Account Assignment Role resource")
 		}
@@ -170,37 +180,76 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 		return nil
 	}
 
-	updateRole := func(ctx context.Context, newRole, _ *types.RoleV6) error {
-		updated, err := svc.rolesSvc.UpdateRole(ctx, newRole)
-		if err != nil {
-			return trace.Wrap(err, "updating Identity Center Account Assignment Role resource")
-		}
-		rv6, ok := updated.(*types.RoleV6)
-		if !ok {
-			return trace.BadParameter("Expected RoleV6, got %T", rv6)
+	updateRole := func(ctx context.Context, newRole, oldRole *types.RoleV6) error {
+		// A role has been renamed, but still refers to the same underlying PS
+		// and AWS Account. Instead of simply updating the role we need to create
+		// a new role to match the new name and deprecate the old one.
+		if newRole.GetName() != oldRole.GetName() {
+			svc.log.DebugContext(ctx, "Identity Center Account Assignment Role name change detected. A new role will be created and the existing role deprecated.",
+				slog.String("from", oldRole.GetName()),
+				slog.String("to", newRole.GetName()))
+
+			if err := createRole(ctx, newRole); err != nil {
+				return trace.Wrap(err, "handling renamed Identity Center Account Assignment Role")
+			}
+			if err := svc.deprecateRole(ctx, oldRole, withReplacement(newRole.GetName())); err != nil {
+				return trace.Wrap(err, "handling renamed Identity Center Account Assignment Role")
+			}
+			return nil
 		}
 
-		key, err := mkRoleKeyForRole(newRole)
-		if err != nil {
-			return trace.Wrap(err, "malformed Identity Center Account Assignment Role resource")
+		// This is a straight update. Update the "new" role's revision to the
+		// revision of the "old" role we compared against so that the optimistic
+		// locking system can detect and block concurrent writes to the role.
+		// If a write fails on this pass, it should be cleaned up on the next one
+
+		refreshRole := func(ctx context.Context, isRetry bool) (*types.RoleV6, error) {
+			if !isRetry {
+				return oldRole, nil
+			}
+			freshRole, err := svc.rolesSvc.GetRole(ctx, newRole.GetName())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if r, ok := freshRole.(*types.RoleV6); ok {
+				return r, nil
+			}
+			return nil, trace.BadParameter("Unexpected role type %T", freshRole)
 		}
-		result[key] = rv6
-		return nil
+
+		updateRole := func(ctx context.Context, baseRole *types.RoleV6) error {
+			newRole.Metadata.Revision = baseRole.Metadata.Revision
+			updatedRole, err := svc.rolesSvc.UpdateRole(ctx, newRole)
+			if err != nil {
+				return trace.Wrap(err, "updating Identity Center Account Assignment Role resource")
+			}
+			rv6, ok := updatedRole.(*types.RoleV6)
+			if !ok {
+				return trace.BadParameter("expected RoleV6, got %T", rv6)
+			}
+			key, err := mkRoleKeyForRole(rv6)
+			if err != nil {
+				return trace.BadParameter("malformed Identity Center Account Assignment Role")
+			}
+			result[key] = rv6
+			return nil
+		}
+
+		return trace.Wrap(retryutils.UpdateWithRetry(ctx, svc.clock, refreshRole, updateRole))
 	}
 
 	deleteRole := func(ctx context.Context, role *types.RoleV6) error {
-		// TODO(tcsc): make sure all users and access lists have this role
-		// removed before deleting
-
-		if err := svc.rolesSvc.DeleteRole(ctx, role.GetName()); err != nil {
-			return trace.Wrap(err, "deleting Identity Center Account Assignment Role resource")
+		// Completely deleting the role will immediately break any Users, Access
+		// Lists, SAML connectors, etc. To avoid this, we deprecate the role by
+		// excluding it from the set of roles that the reconciler will consider
+		// in future
+		if err := svc.deprecateRole(ctx, role); err != nil {
+			return trace.Wrap(err)
 		}
-
 		key, err := mkRoleKeyForRole(role)
 		if err != nil {
-			return trace.Wrap(err, "malformed Identity Center Account Assignment Role resource")
+			return trace.BadParameter("malformed Identity Center Account Assignment Role")
 		}
-
 		delete(result, key)
 		return nil
 	}
@@ -233,4 +282,56 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 	}
 
 	return result, nil
+}
+
+type deprecateRoleOptions struct {
+	replacement string
+	clock       clockwork.Clock
+}
+
+type deprecateRoleOption func(*deprecateRoleOptions)
+
+func withReplacement(roleName string) deprecateRoleOption {
+	return func(opts *deprecateRoleOptions) {
+		opts.replacement = roleName
+	}
+}
+
+func (svc *Service) deprecateRole(ctx context.Context, role *types.RoleV6, options ...deprecateRoleOption) error {
+	opts := deprecateRoleOptions{
+		clock: clockwork.NewRealClock(),
+	}
+	for _, applyOption := range options {
+		applyOption(&opts)
+	}
+
+	svc.log.DebugContext(ctx, "Deprecating Account Assignment role",
+		slog.String("rolename", role.GetName()),
+		slog.String("replacement", opts.replacement))
+
+	refreshRole := func(ctx context.Context, isRetry bool) (*types.RoleV6, error) {
+		if !isRetry {
+			return role, nil
+		}
+		freshRole, err := svc.rolesSvc.GetRole(ctx, role.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if r, ok := freshRole.(*types.RoleV6); ok {
+			return r, nil
+		}
+		return nil, trace.BadParameter("unexpected role type %T", freshRole)
+	}
+
+	updateRole := func(ctx context.Context, role *types.RoleV6) error {
+		role.SubKind = ""
+		if role.Metadata.Labels == nil {
+			role.Metadata.Labels = map[string]string{}
+		}
+		role.Metadata.Labels[roleReplacementLabel] = opts.replacement
+		_, err := svc.rolesSvc.UpdateRole(ctx, role)
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(retryutils.UpdateWithRetry(ctx, svc.clock, refreshRole, updateRole))
 }

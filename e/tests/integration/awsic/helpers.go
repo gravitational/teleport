@@ -2,6 +2,7 @@ package awsic
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -265,4 +266,34 @@ func mustGetAccessListByTitle(ctx context.Context, t *testing.T, lister iciter.A
 
 func mustUpdateUser(ctx context.Context, t *testing.T, usersSvc services.UsersService, username string, mutateFn func(types.User)) {
 	require.NoError(t, common.UpdateUser(ctx, usersSvc, username, mutateFn))
+}
+
+func isAllowedResourceNameChar(r rune) bool {
+	if r >= '0' && r <= '9' {
+		return true
+	}
+	if r >= 'a' && r <= 'z' {
+		return true
+	}
+	return r == '-' || r == '@' || r == ':'
+}
+
+func normalizeResourceName(name string) string {
+	name = strings.ToLower(name)
+
+	var sb strings.Builder
+	var lastChar rune
+	for _, r := range name {
+		if isAllowedResourceNameChar(r) {
+			sb.WriteRune(r)
+			lastChar = r
+			continue
+		}
+		// Replace runs of disallowed characters with '_'
+		if sb.Len() > 0 && lastChar != '_' {
+			sb.WriteRune('_')
+			lastChar = '_'
+		}
+	}
+	return strings.Trim(sb.String(), "_")
 }

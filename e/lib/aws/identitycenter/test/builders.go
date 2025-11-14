@@ -107,6 +107,12 @@ type AccountAssignmentRole struct {
 	Name             string
 	AccountID        services.IdentityCenterAccountID
 	PermissionSetARN string
+	customizations   []func(*types.RoleV6)
+}
+
+func (a AccountAssignmentRole) Customize(f func(*types.RoleV6)) AccountAssignmentRole {
+	a.customizations = append(a.customizations, f)
+	return a
 }
 
 func (a AccountAssignmentRole) Build(t *testing.T) *types.RoleV6 {
@@ -114,12 +120,13 @@ func (a AccountAssignmentRole) Build(t *testing.T) *types.RoleV6 {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		SubKind: "aws_identity_center",
+		SubKind: types.KindIdentityCenter,
 		Version: types.V7,
 		Metadata: types.Metadata{
 			Name: a.Name,
 			Labels: map[string]string{
 				"teleport.internal/account_id": string(a.AccountID),
+				"teleport.internal/created_by": types.KindIdentityCenter,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -134,6 +141,11 @@ func (a AccountAssignmentRole) Build(t *testing.T) *types.RoleV6 {
 		},
 	}
 	require.NoError(t, role.CheckAndSetDefaults())
+
+	for _, f := range a.customizations {
+		f(role)
+	}
+
 	return role
 }
 

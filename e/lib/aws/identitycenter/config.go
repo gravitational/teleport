@@ -201,7 +201,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "validating import config")
 	}
 	if cfg.AWSSyncInterval == 0 {
-		cfg.AWSSyncInterval = defaultResourceSyncInterval
+		cfg.AWSSyncInterval = DefaultResourceSyncInterval
 	}
 	if cfg.AssignmentSyncInterval == 0 {
 		cfg.AssignmentSyncInterval = DefaultFullAssignmentSyncInterval

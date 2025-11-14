@@ -319,6 +319,19 @@ func hasAllowAccountAssignments(expected ...types.IdentityCenterAccountAssignmen
 	}
 }
 
+func withRoleLabel(key, expectedValue string) roleAssertion {
+	return func(t assert.TestingT, role types.Role) bool {
+		actualValue, ok := role.GetLabel(key)
+		return assert.True(t, ok, "Label %q must be set", key) && assert.Equal(t, expectedValue, actualValue)
+	}
+}
+
+func withRoleSubkind(s string) roleAssertion {
+	return func(t assert.TestingT, role types.Role) bool {
+		return assert.Equal(t, s, role.GetSubKind())
+	}
+}
+
 // assertRole asserts that the names Teleport role exists, and runs the supplied
 // assertions on it.  Takes an [assert.TestingT] rather than a [require.TestingT]
 // in order to be usable inside a [require.EventuallyWithT] callback.

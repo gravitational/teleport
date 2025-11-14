@@ -63,7 +63,7 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 	deleteAccount := func(ctx context.Context, acct *identitycenterv1.Account) error {
 		err := svc.icSvc.DeleteIdentityCenterAccount(ctx, getAccountID(acct))
 		if err != nil {
-			return trace.Wrap(err, "updating Identity Center Account record")
+			return trace.Wrap(err, "deleting Identity Center Account record")
 		}
 		delete(result, getAccountID(acct))
 		return nil

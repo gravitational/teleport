@@ -7,13 +7,14 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	iciter "github.com/gravitational/teleport/e/lib/aws/identitycenter/iter"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -94,31 +95,7 @@ func ListICOriginatedAccessLists(ctx context.Context, service AccessListsService
 
 // ListICOriginatedRoles lists all Identity Center originated roles.
 func ListICOriginatedRoles(ctx context.Context, service RolesService) ([]*types.RoleV6, error) {
-	var pageKey string
-	var out []*types.RoleV6
-	for {
-		response, err := service.ListRoles(ctx, &proto.ListRolesRequest{
-			StartKey: pageKey,
-			Limit:    apidefaults.DefaultChunkSize,
-			Filter:   &types.RoleFilter{SkipSystemRoles: true},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, role := range response.Roles {
-			if role.GetSubKind() == types.KindIdentityCenter {
-				out = append(out, role)
-			}
-		}
-
-		if response.NextKey == "" {
-			break
-		}
-		pageKey = response.NextKey
-	}
-
-	return out, nil
+	return stream.Collect(iciter.AllAccountAssignmentRoles(ctx, service))
 }
 
 // accessListMembersFromTeleport returns all existing members for each accessListNames.
