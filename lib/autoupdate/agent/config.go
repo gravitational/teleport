@@ -40,12 +40,12 @@ const (
 )
 
 const (
-	// updateConfigName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
-	updateConfigName = "update.yaml"
-
-	// UpdateConfig metadata
-	updateConfigVersion = "v1"
-	updateConfigKind    = "update_config"
+	// UpdateConfigName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
+	UpdateConfigName = "update.yaml"
+	// UpdateConfigV1 specifies the version of the update.yaml file.
+	UpdateConfigV1 = "v1"
+	// UpdateConfigKind specifies the kind of the update.yaml file.
+	UpdateConfigKind = "update_config"
 )
 
 // UpdateConfig describes the update.yaml file schema.
@@ -196,8 +196,8 @@ func readConfig(path string) (*UpdateConfig, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return &UpdateConfig{
-			Version: updateConfigVersion,
-			Kind:    updateConfigKind,
+			Version: UpdateConfigV1,
+			Kind:    UpdateConfigKind,
 		}, nil
 	}
 	if err != nil {
@@ -208,10 +208,10 @@ func readConfig(path string) (*UpdateConfig, error) {
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
 		return nil, trace.Wrap(err, "failed to parse")
 	}
-	if k := cfg.Kind; k != updateConfigKind {
+	if k := cfg.Kind; k != UpdateConfigKind {
 		return nil, trace.Errorf("invalid kind %s", k)
 	}
-	if v := cfg.Version; v != updateConfigVersion {
+	if v := cfg.Version; v != UpdateConfigV1 {
 		return nil, trace.Errorf("invalid version %s", v)
 	}
 	return &cfg, nil

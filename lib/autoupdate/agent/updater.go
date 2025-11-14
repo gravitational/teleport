@@ -138,7 +138,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		UpdateConfigFile:   filepath.Join(ns.Dir(), updateConfigName),
+		UpdateConfigFile:   filepath.Join(ns.Dir(), UpdateConfigName),
 		UpdateIDFile:       ns.updaterIDFile,
 		MachineIDFile:      systemdMachineIDFile,
 		TeleportIDFile:     filepath.Join(ns.dataDir, teleportHostIDFileName),
@@ -418,7 +418,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err err
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
-		return trace.Wrap(err, "failed to read %s", updateConfigName)
+		return trace.Wrap(err, "failed to read %s", UpdateConfigName)
 	}
 	origCfg := cfg.Copy()
 	// Set the desired state.
@@ -470,7 +470,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err err
 	// The written file does not contain updated versions, only the desired configuration.
 	// It is reverted if the installation fails to start, so that configuration is not persisted.
 	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
-		return trace.Wrap(err, "failed to write %s", updateConfigName)
+		return trace.Wrap(err, "failed to write %s", UpdateConfigName)
 	}
 	defer func() {
 		if err != nil {
@@ -496,7 +496,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) (err err
 	// Note: skip_version is never set on failed enable, only failed update.
 
 	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
-		return trace.Wrap(err, "failed to write %s", updateConfigName)
+		return trace.Wrap(err, "failed to write %s", UpdateConfigName)
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
 	u.LogConfigWarnings(ctx, cfg.Spec.Path)
@@ -530,7 +530,7 @@ func sameProxies(a, b string) bool {
 func (u *Updater) Remove(ctx context.Context, force bool) error {
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
-		return trace.Wrap(err, "failed to read %s", updateConfigName)
+		return trace.Wrap(err, "failed to read %s", UpdateConfigName)
 	}
 	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
@@ -785,7 +785,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 	// Read configuration from update.yaml.
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
-		return out, trace.Wrap(err, "failed to read %s", updateConfigName)
+		return out, trace.Wrap(err, "failed to read %s", UpdateConfigName)
 	}
 	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return out, trace.Wrap(err)
@@ -812,7 +812,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 func (u *Updater) Disable(ctx context.Context) error {
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
-		return trace.Wrap(err, "failed to read %s", updateConfigName)
+		return trace.Wrap(err, "failed to read %s", UpdateConfigName)
 	}
 	if !cfg.Spec.Enabled {
 		u.Log.InfoContext(ctx, "Automatic updates already disabled.")
@@ -820,7 +820,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 	}
 	cfg.Spec.Enabled = false
 	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
-		return trace.Wrap(err, "failed to write %s", updateConfigName)
+		return trace.Wrap(err, "failed to write %s", UpdateConfigName)
 	}
 	return nil
 }
@@ -830,7 +830,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 func (u *Updater) Unpin(ctx context.Context) error {
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
-		return trace.Wrap(err, "failed to read %s", updateConfigName)
+		return trace.Wrap(err, "failed to read %s", UpdateConfigName)
 	}
 	if !cfg.Spec.Pinned {
 		u.Log.InfoContext(ctx, "Current version not pinned.", activeKey, cfg.Status.Active)
@@ -838,7 +838,7 @@ func (u *Updater) Unpin(ctx context.Context) error {
 	}
 	cfg.Spec.Pinned = false
 	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
-		return trace.Wrap(err, "failed to write %s", updateConfigName)
+		return trace.Wrap(err, "failed to write %s", UpdateConfigName)
 	}
 	return nil
 }
@@ -852,7 +852,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
-		return trace.Wrap(err, "failed to read %s", updateConfigName)
+		return trace.Wrap(err, "failed to read %s", UpdateConfigName)
 	}
 	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
@@ -872,7 +872,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	}
 
 	if cfg.Spec.Path == "" {
-		return trace.Errorf("failed to read destination path for binary links from %s", updateConfigName)
+		return trace.Errorf("failed to read destination path for binary links from %s", UpdateConfigName)
 	}
 	cfg.Status.IDFile = u.UpdateIDFile
 
@@ -945,7 +945,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	}
 	writeErr := writeConfig(u.UpdateConfigFile, cfg)
 	if writeErr != nil {
-		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
+		writeErr = trace.Wrap(writeErr, "failed to write %s", UpdateConfigName)
 	} else {
 		u.Log.InfoContext(ctx, "Configuration updated.")
 	}
@@ -959,7 +959,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 
 func (u *Updater) find(ctx context.Context, cfg *UpdateConfig, id string) (FindResp, error) {
 	if cfg.Spec.Proxy == "" {
-		return FindResp{}, trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", updateConfigName)
+		return FindResp{}, trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", UpdateConfigName)
 	}
 	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
 	if err != nil {
@@ -1381,7 +1381,7 @@ func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revisio
 func (u *Updater) LinkPackage(ctx context.Context) error {
 	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
-		return trace.Wrap(err, "failed to read %s", updateConfigName)
+		return trace.Wrap(err, "failed to read %s", UpdateConfigName)
 	}
 	if err := updateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)

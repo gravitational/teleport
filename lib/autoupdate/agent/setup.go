@@ -577,7 +577,7 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revi
 		InstallSuffix:     ns.name,
 		InstallDir:        ns.installDir,
 		Path:              path,
-		UpdaterConfigFile: filepath.Join(ns.Dir(), updateConfigName),
+		UpdaterConfigFile: filepath.Join(ns.Dir(), UpdateConfigName),
 	}
 
 	for _, v := range []struct {
