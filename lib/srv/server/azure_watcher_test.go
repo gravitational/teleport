@@ -158,7 +158,9 @@ func TestAzureWatcher(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
 			watcher, err := NewAzureWatcher(ctx, func() []Fetcher {
-				return MatchersToAzureInstanceFetchers(logger, []types.AzureMatcher{tc.matcher}, &clients, "" /* discovery config */)
+				return MatchersToAzureInstanceFetchers(logger, []types.AzureMatcher{tc.matcher}, func(integration string) AzureClientGetter {
+					return &clients
+				}, "" /* discovery config */)
 			})
 			require.NoError(t, err)
 

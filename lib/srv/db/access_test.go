@@ -66,6 +66,7 @@ import (
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/cloud/testutil"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -2494,8 +2495,10 @@ func (p *agentParams) setDefaults(c *testContext) {
 	}
 
 	if p.CloudClients == nil {
-		p.CloudClients = &clients.TestCloudClients{
-			GCPSQL: p.GCPSQL,
+		p.CloudClients = &testutil.TestCloudClients{
+			GCP: &testutil.TestGCPClients{
+				GCPSQL: p.GCPSQL,
+			},
 		}
 	}
 	if p.AWSConfigProvider == nil {
@@ -2542,7 +2545,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient:        c.authClient,
 		AccessPoint:       c.authClient,
-		Clients:           &clients.TestCloudClients{},
+		Clients:           &testutil.TestCloudClients{},
 		Clock:             c.clock,
 		AWSConfigProvider: p.AWSConfigProvider,
 	})

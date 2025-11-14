@@ -58,8 +58,10 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 
 	for _, ig := range allIntegrations {
 		t.Run(ig.SubKind, func(t *testing.T) {
-			bs, err := json.Marshal(ig)
+			bs, err := json.MarshalIndent(ig, "", "  ")
 			require.NoError(t, err)
+
+			t.Log(string(bs))
 
 			var ig2 IntegrationV1
 			err = json.Unmarshal(bs, &ig2)

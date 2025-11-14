@@ -84,12 +84,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/cloud/testutil"
 	libevents "github.com/gravitational/teleport/lib/events"
 	libstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -999,7 +999,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		},
 	}
 
-	testCloudClients := &cloud.TestCloudClients{}
+	testCloudClients := &testutil.TestCloudClients{}
 
 	ec2Client := &mockEC2Client{
 		output: &ec2.DescribeInstancesOutput{
@@ -1052,29 +1052,29 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 
 	// Create Server1
 	server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
-		CloudClients:     testCloudClients,
-		GetEC2Client:     getEC2Client,
-		ClusterFeatures:  func() proto.Features { return proto.Features{} },
-		KubernetesClient: fake.NewSimpleClientset(),
-		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-		Matchers:         staticMatcher,
-		Emitter:          emitter,
-		Log:              logger,
-		DiscoveryGroup:   defaultDiscoveryGroup,
+		defaultCloudClients: testCloudClients,
+		GetEC2Client:        getEC2Client,
+		ClusterFeatures:     func() proto.Features { return proto.Features{} },
+		KubernetesClient:    fake.NewSimpleClientset(),
+		AccessPoint:         getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+		Matchers:            staticMatcher,
+		Emitter:             emitter,
+		Log:                 logger,
+		DiscoveryGroup:      defaultDiscoveryGroup,
 	})
 	require.NoError(t, err)
 
 	// Create Server2
 	server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
-		CloudClients:     testCloudClients,
-		GetEC2Client:     getEC2Client,
-		ClusterFeatures:  func() proto.Features { return proto.Features{} },
-		KubernetesClient: fake.NewSimpleClientset(),
-		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-		Matchers:         staticMatcher,
-		Emitter:          emitter,
-		Log:              logger,
-		DiscoveryGroup:   defaultDiscoveryGroup,
+		defaultCloudClients: testCloudClients,
+		GetEC2Client:        getEC2Client,
+		ClusterFeatures:     func() proto.Features { return proto.Features{} },
+		KubernetesClient:    fake.NewSimpleClientset(),
+		AccessPoint:         getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+		Matchers:            staticMatcher,
+		Emitter:             emitter,
+		Log:                 logger,
+		DiscoveryGroup:      defaultDiscoveryGroup,
 	})
 	require.NoError(t, err)
 
@@ -1269,10 +1269,10 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					CloudClients:     &cloud.TestCloudClients{},
-					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(objects...),
-					AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+					defaultCloudClients: &testutil.TestCloudClients{},
+					ClusterFeatures:     func() proto.Features { return proto.Features{} },
+					KubernetesClient:    fake.NewSimpleClientset(objects...),
+					AccessPoint:         getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						Kubernetes: tt.kubernetesMatchers,
 					},
@@ -1535,10 +1535,14 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testCloudClients := &cloud.TestCloudClients{
-				AzureAKSClient: newPopulatedAKSMock(),
-				GCPGKE:         newPopulatedGCPMock(),
-				GCPProjects:    newPopulatedGCPProjectsMock(),
+			testCloudClients := &testutil.TestCloudClients{
+				GCP: &testutil.TestGCPClients{
+					GCPGKE:      newPopulatedGCPMock(),
+					GCPProjects: newPopulatedGCPProjectsMock(),
+				},
+				Azure: &testutil.TestAzureClients{
+					AzureAKSClient: newPopulatedAKSMock(),
+				},
 			}
 
 			ctx := context.Background()
@@ -1609,11 +1613,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			discServer, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
-					CloudClients:       testCloudClients,
-					AWSFetchersClients: mockedClients,
-					ClusterFeatures:    func() proto.Features { return proto.Features{} },
-					KubernetesClient:   fake.NewSimpleClientset(),
-					AccessPoint:        getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+					defaultCloudClients: testCloudClients,
+					AWSFetchersClients:  mockedClients,
+					ClusterFeatures:     func() proto.Features { return proto.Features{} },
+					KubernetesClient:    fake.NewSimpleClientset(),
+					AccessPoint:         getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -2146,14 +2150,16 @@ func TestDiscoveryDatabase(t *testing.T) {
 		return dc
 	}
 
-	testCloudClients := &cloud.TestCloudClients{
-		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
-			Servers: []*armredis.ResourceInfo{azRedisResource},
-		}),
-		AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
-			&azure.ARMRedisEnterpriseClusterMock{},
-			&azure.ARMRedisEnterpriseDatabaseMock{},
-		),
+	testCloudClients := &testutil.TestCloudClients{
+		Azure: &testutil.TestAzureClients{
+			AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
+				Servers: []*armredis.ResourceInfo{azRedisResource},
+			}),
+			AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
+				&azure.ARMRedisEnterpriseClusterMock{},
+				&azure.ARMRedisEnterpriseDatabaseMock{},
+			),
+		},
 	}
 
 	tcs := []struct {
@@ -2555,7 +2561,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						AWSConfigProvider: *fakeConfigProvider,
 						eksClusters:       []*ekstypes.Cluster{eksAWSResource},
 					},
-					CloudClients:              testCloudClients,
+					defaultCloudClients:       testCloudClients,
 					ClusterFeatures:           func() proto.Features { return proto.Features{} },
 					KubernetesClient:          fake.NewSimpleClientset(),
 					AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -3086,11 +3092,13 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testCloudClients := &cloud.TestCloudClients{
-				AzureVirtualMachines: &mockAzureClient{
-					vms: tc.foundAzureVMs,
+			testCloudClients := &testutil.TestCloudClients{
+				Azure: &testutil.TestAzureClients{
+					AzureVirtualMachines: &mockAzureClient{
+						vms: tc.foundAzureVMs,
+					},
+					AzureRunCommand: &mockAzureRunCommandClient{},
 				},
-				AzureRunCommand: &mockAzureRunCommandClient{},
 			}
 
 			ctx := context.Background()
@@ -3124,14 +3132,14 @@ func TestAzureVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:     testCloudClients,
-				ClusterFeatures:  func() proto.Features { return proto.Features{} },
-				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-				Matchers:         tc.staticMatchers,
-				Emitter:          emitter,
-				Log:              logger,
-				DiscoveryGroup:   defaultDiscoveryGroup,
+				defaultCloudClients: testCloudClients,
+				ClusterFeatures:     func() proto.Features { return proto.Features{} },
+				KubernetesClient:    fake.NewSimpleClientset(),
+				AccessPoint:         getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+				Matchers:            tc.staticMatchers,
+				Emitter:             emitter,
+				Log:                 logger,
+				DiscoveryGroup:      defaultDiscoveryGroup,
 			})
 
 			require.NoError(t, err)
@@ -3394,11 +3402,13 @@ func TestGCPVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testCloudClients := &cloud.TestCloudClients{
-				GCPInstances: &mockGCPClient{
-					vms: tc.foundGCPVMs,
+			testCloudClients := &testutil.TestCloudClients{
+				GCP: &testutil.TestGCPClients{
+					GCPInstances: &mockGCPClient{
+						vms: tc.foundGCPVMs,
+					},
+					GCPProjects: newPopulatedGCPProjectsMock(),
 				},
-				GCPProjects: newPopulatedGCPProjectsMock(),
 			}
 
 			ctx := context.Background()
@@ -3431,14 +3441,14 @@ func TestGCPVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:     testCloudClients,
-				ClusterFeatures:  func() proto.Features { return proto.Features{} },
-				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-				Matchers:         tc.staticMatchers,
-				Emitter:          emitter,
-				Log:              logger,
-				DiscoveryGroup:   defaultDiscoveryGroup,
+				defaultCloudClients: testCloudClients,
+				ClusterFeatures:     func() proto.Features { return proto.Features{} },
+				KubernetesClient:    fake.NewSimpleClientset(),
+				AccessPoint:         getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+				Matchers:            tc.staticMatchers,
+				Emitter:             emitter,
+				Log:                 logger,
+				DiscoveryGroup:      defaultDiscoveryGroup,
 			})
 
 			require.NoError(t, err)
@@ -3594,9 +3604,11 @@ func TestServer_onCreate(t *testing.T) {
 
 func TestEmitUsageEvents(t *testing.T) {
 	t.Parallel()
-	testClients := cloud.TestCloudClients{
-		AzureVirtualMachines: &mockAzureClient{},
-		AzureRunCommand:      &mockAzureRunCommandClient{},
+	testClients := testutil.TestCloudClients{
+		Azure: &testutil.TestAzureClients{
+			AzureVirtualMachines: &mockAzureClient{},
+			AzureRunCommand:      &mockAzureRunCommandClient{},
+		},
 	}
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
@@ -3618,9 +3630,9 @@ func TestEmitUsageEvents(t *testing.T) {
 	tlsServer.Auth().SetUsageReporter(reporter)
 
 	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-		CloudClients:    &testClients,
-		ClusterFeatures: func() proto.Features { return proto.Features{} },
-		AccessPoint:     getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
+		defaultCloudClients: &testClients,
+		ClusterFeatures:     func() proto.Features { return proto.Features{} },
+		AccessPoint:         getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers: Matchers{
 			Azure: []types.AzureMatcher{{
 				Types:          []string{"vm"},

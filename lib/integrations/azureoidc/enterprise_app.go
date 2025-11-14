@@ -23,6 +23,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -142,14 +143,14 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 
 // createFederatedAuthCredential creates a new federated (OIDC) auth credential for the given Entra application.
 func createFederatedAuthCredential(ctx context.Context, graphClient *msgraph.Client, appObjectID string, proxyPublicAddr string) error {
-	credential := &msgraph.FederatedIdentityCredential{}
-	name := "teleport-oidc"
-	audiences := []string{azureDefaultJWTAudience}
-	subject := azureSubject
-	credential.Name = &name
-	credential.Issuer = &proxyPublicAddr
-	credential.Audiences = &audiences
-	credential.Subject = &subject
+	const name = "teleport-oidc"
+
+	credential := &msgraph.FederatedIdentityCredential{
+		Name:      to.Ptr(name),
+		Subject:   to.Ptr(azureSubject),
+		Audiences: to.Ptr([]string{azureDefaultJWTAudience}),
+		Issuer:    &proxyPublicAddr,
+	}
 
 	// ByApplicationID here means the object ID,
 	// i.e. app.ID, not app.AppID.

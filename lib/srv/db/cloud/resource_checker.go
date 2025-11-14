@@ -56,11 +56,11 @@ type DiscoveryResourceCheckerConfig struct {
 // CheckAndSetDefaults validates the config and sets default values.
 func (c *DiscoveryResourceCheckerConfig) CheckAndSetDefaults() error {
 	if c.AzureClients == nil {
-		cloudClients, err := cloud.NewClients()
+		var err error
+		c.AzureClients, err = cloud.NewAzureClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.AzureClients = cloudClients
 	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")

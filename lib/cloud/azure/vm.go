@@ -20,6 +20,7 @@ package azure
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -297,24 +298,29 @@ type RunCommandClient interface {
 }
 
 type runCommandClient struct {
-	api *armcompute.VirtualMachineRunCommandsClient
+	api    *armcompute.VirtualMachineRunCommandsClient
+	logger *slog.Logger
 }
 
 // NewRunCommandClient creates a new Azure Run Command client by subscription
 // and credentials.
 func NewRunCommandClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (RunCommandClient, error) {
+	logger := slog.Default()
+
 	runCommandAPI, err := armcompute.NewVirtualMachineRunCommandsClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &runCommandClient{
-		api: runCommandAPI,
+		api:    runCommandAPI,
+		logger: logger,
 	}, nil
 }
 
 // Run runs a command on a virtual machine.
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error {
-	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, "RunShellScript", armcompute.VirtualMachineRunCommand{
+	const commandName = "install-teleport"
+	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, commandName, armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
 			AsyncExecution: to.Ptr(false),

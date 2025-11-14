@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
@@ -34,6 +35,7 @@ import (
 // virtual machines.
 type AzureInstaller struct {
 	Emitter apievents.Emitter
+	Logger  *slog.Logger
 }
 
 // AzureRunRequest combines parameters for running commands on a set of Azure
@@ -50,6 +52,7 @@ type AzureRunRequest struct {
 // Run runs a command on a set of virtual machines and then blocks until the
 // commands have completed.
 func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
+	ai.Logger.DebugContext(ctx, "running installer for request", "instance_count", len(req.Instances), "region", req.Region, "resource_group", req.ResourceGroup)
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
 	// succeeds, but it makes troubleshooting much harder when it fails. To
@@ -64,7 +67,10 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 	// hundreds of nodes at once.
 	g.SetLimit(10)
 
+	//ai.Logger.DebugContext(ctx, "installation script", "script", script, "params", req.Params)
+
 	for _, inst := range req.Instances {
+		ai.Logger.DebugContext(ctx, "running installer for instance", "instance", inst.Name)
 		g.Go(func() error {
 			runRequest := azure.RunCommandRequest{
 				Region:        req.Region,
@@ -72,7 +78,15 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 				VMName:        azure.StringVal(inst.Name),
 				Script:        script,
 			}
-			return trace.Wrap(req.Client.Run(ctx, runRequest))
+			// TODO: refactor to remove req.Client?
+			// TODO: any error returned will break installation?
+			errRun := req.Client.Run(ctx, runRequest)
+			if errRun != nil {
+				ai.Logger.WarnContext(ctx, "🛑 error running installer for instance", "instance", inst.Name, "err", errRun.Error())
+			} else {
+				ai.Logger.DebugContext(ctx, "✅ installed", "instance", inst.Name)
+			}
+			return nil
 		})
 	}
 	return trace.Wrap(g.Wait())

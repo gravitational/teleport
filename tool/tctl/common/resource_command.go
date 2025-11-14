@@ -306,19 +306,22 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
 
+	var errs []error
+
 	var resources []types.Resource
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(ctx, client)
 		if err != nil {
-			return trace.Wrap(err)
+			errs = append(errs, err)
+		} else {
+			resources = append(resources, collection.Resources()...)
 		}
-		resources = append(resources, collection.Resources()...)
 	}
 	if err := utils.WriteYAML(rc.Stdout, resources); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
 func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client) error {
@@ -858,6 +861,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
 		case types.IntegrationSubKindAWSRolesAnywhere:
 			existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
+		case types.IntegrationSubKindAzureOIDC:
+			existingIntegration.SetAzureOIDCIntegrationSpec(integration.GetAzureOIDCIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}

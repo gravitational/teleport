@@ -24,7 +24,12 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
+	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 )
 
 // discoverInstanceMetadataTimeout is the maximum amount of time allowed
@@ -62,4 +67,61 @@ func DiscoverInstanceMetadata(ctx context.Context, providers []func(ctx context.
 	case <-ctx.Done():
 		return nil, trace.NotFound("no instance metadata service found")
 	}
+}
+
+type InstanceMetadataClient interface {
+	// GetInstanceMetadataClient returns instance metadata client based on which
+	// cloud provider Teleport is running on, if any.
+	GetInstanceMetadataClient(ctx context.Context) (imds.Client, error)
+}
+
+type instanceMetadataClient struct {
+	client *clientCache[imds.Client]
+}
+
+func newIMDSClient(ctx context.Context) (imds.Client, error) {
+	providers := []func(ctx context.Context) (imds.Client, error){
+		func(ctx context.Context) (imds.Client, error) {
+			clt, err := awsimds.NewInstanceMetadataClient(ctx)
+			return clt, trace.Wrap(err)
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			return azureimds.NewInstanceMetadataClient(), nil
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			instancesClient, err := gcp.NewInstancesClient(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
+			return clt, trace.Wrap(err)
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			return oracleimds.NewInstanceMetadataClient(), nil
+		},
+	}
+
+	client, err := DiscoverInstanceMetadata(ctx, providers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client, nil
+}
+
+func (mc *instanceMetadataClient) GetInstanceMetadataClient(ctx context.Context) (imds.Client, error) {
+	return mc.client.GetClient(ctx)
+}
+
+func newInstanceMetadataClient() *instanceMetadataClient {
+	return &instanceMetadataClient{
+		client: newClientCache(newIMDSClient),
+	}
+}
+
+var _ InstanceMetadataClient = (*instanceMetadataClient)(nil)
+
+func NewInstanceMetadataClient() InstanceMetadataClient {
+	return newInstanceMetadataClient()
 }

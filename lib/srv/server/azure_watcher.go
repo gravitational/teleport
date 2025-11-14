@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"time"
@@ -32,6 +33,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -49,7 +51,8 @@ type AzureInstances struct {
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered Azure virtual machines.
-	Instances []*armcompute.VirtualMachine
+	Instances   []*armcompute.VirtualMachine
+	Integration string
 }
 
 // MakeEvents generates MakeEvents for these instances.
@@ -69,7 +72,7 @@ func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.Resource
 	return events
 }
 
-type azureClientGetter interface {
+type AzureClientGetter interface {
 	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
 }
 
@@ -92,16 +95,17 @@ func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...O
 }
 
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, clients azureClientGetter, discoveryConfigName string) []Fetcher {
+func MatchersToAzureInstanceFetchers(ctx context.Context, logger *slog.Logger, matchers []types.AzureMatcher, getClient func(ctx context.Context, integration string) (cloud.AzureClients, error), discoveryConfigName string) []Fetcher {
 	ret := make([]Fetcher, 0)
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
+				logger.DebugContext(ctx, "newAzureInstanceFetcher", "subscription", subscription, "resourceGroup", resourceGroup)
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
 					Matcher:             matcher,
 					Subscription:        subscription,
 					ResourceGroup:       resourceGroup,
-					AzureClientGetter:   clients,
+					AzureClientGetter:   getClient,
 					DiscoveryConfigName: discoveryConfigName,
 					Logger:              logger,
 				})
@@ -116,15 +120,15 @@ type azureFetcherConfig struct {
 	Matcher             types.AzureMatcher
 	Subscription        string
 	ResourceGroup       string
-	AzureClientGetter   azureClientGetter
+	AzureClientGetter   func(ctx context.Context, integration string) (cloud.AzureClients, error)
 	DiscoveryConfigName string
-	Integration         string
 	Logger              *slog.Logger
 }
 
 type azureInstanceFetcher struct {
-	InstallerParams     *types.InstallerParams
-	AzureClientGetter   azureClientGetter
+	InstallerParams *types.InstallerParams
+	//AzureClientGetter   azureClientGetter
+	AzureClientGetter   func(ctx context.Context, integration string) (cloud.AzureClients, error)
 	Regions             []string
 	Subscription        string
 	ResourceGroup       string
@@ -143,7 +147,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		ResourceGroup:       cfg.ResourceGroup,
 		Labels:              cfg.Matcher.ResourceTags,
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
-		Integration:         cfg.Integration,
+		Integration:         cfg.Matcher.Integration,
 		Logger:              cfg.Logger,
 	}
 }
@@ -169,7 +173,13 @@ type resourceGroupLocation struct {
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
 func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
-	client, err := f.AzureClientGetter.GetAzureVirtualMachinesClient(f.Subscription)
+	f.Logger.DebugContext(ctx, "GetInstances", "subscription", f.Subscription, "integration", f.IntegrationName())
+	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client, err := azureClients.GetAzureVirtualMachinesClient(f.Subscription)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,14 +189,21 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 		return nil, trace.Wrap(err)
 	}
 
+	f.Logger.DebugContext(ctx, "GetInstances: ListVirtualMachines", "count", len(vms), "vm", vms)
+
 	instancesByRegionAndResourceGroup := make(map[resourceGroupLocation][]*armcompute.VirtualMachine)
 
 	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
 	allowAllResourceGroups := f.ResourceGroup == types.Wildcard
 
 	for _, vm := range vms {
+		jsonVM, _ := vm.MarshalJSON()
+		f.Logger.DebugContext(ctx, "processing found VM", "name", *vm.Name)
+		fmt.Println(string(jsonVM))
+
 		location := azure.StringVal(vm.Location)
 		if !slices.Contains(f.Regions, location) && !allowAllLocations {
+			f.Logger.DebugContext(ctx, "skip VM [000] wrong region")
 			continue
 		}
 
@@ -195,6 +212,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 			vmTags[key] = azure.StringVal(value)
 		}
 		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
+			f.Logger.DebugContext(ctx, "skip VM [001] label mismatch", "labels", f.Labels, "tags", vmTags)
 			continue
 		}
 
@@ -227,12 +245,18 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 	var instances []Instances
 	for batchGroup, vms := range instancesByRegionAndResourceGroup {
 		instances = append(instances, Instances{Azure: &AzureInstances{
-			SubscriptionID:  f.Subscription,
-			Region:          batchGroup.location,
-			ResourceGroup:   batchGroup.resourceGroup,
-			Instances:       vms,
-			InstallerParams: f.InstallerParams,
+			SubscriptionID: f.Subscription,
+			Region:         batchGroup.location,
+			ResourceGroup:  batchGroup.resourceGroup,
+			Instances:      vms,
+			Integration:    f.Integration,
 		}})
+	}
+
+	// log all instances
+
+	for _, vm := range instances {
+		f.Logger.DebugContext(ctx, "GetInstances: instance data", "instance", vm)
 	}
 
 	return instances, nil

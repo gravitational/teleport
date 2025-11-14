@@ -104,6 +104,7 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 			Types:          ts,
 			ResourceTags:   m.ResourceTags,
 			Params:         m.Params,
+			Integration:    m.Integration,
 		})
 	}
 	return result

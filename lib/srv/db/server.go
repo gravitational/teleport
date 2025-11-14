@@ -333,7 +333,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			DatabaseObjectClient: c.AuthClient.DatabaseObjectsClient(),
 			ImportRules:          c.AuthClient,
 			Auth:                 c.Auth,
-			GCPClients:           c.CloudClients,
+			GCPClients:           c.CloudClients.GCPClients(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -343,7 +343,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.discoveryResourceChecker == nil {
 		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
 			ResourceMatchers:  c.ResourceMatchers,
-			AzureClients:      c.CloudClients,
+			AzureClients:      c.CloudClients.AzureClients(),
 			AWSConfigProvider: c.AWSConfigProvider,
 			Context:           ctx,
 		})
@@ -1320,7 +1320,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Audit:             audit,
 		AuthClient:        s.cfg.AuthClient,
 		AWSConfigProvider: s.cfg.AWSConfigProvider,
-		GCPClients:        s.cfg.CloudClients,
+		GCPClients:        s.cfg.CloudClients.GCPClients(),
 		Context:           s.connContext,
 		Clock:             s.cfg.Clock,
 		Log:               sessionCtx.Log,
@@ -1538,7 +1538,7 @@ func (s *Server) getTargetHealth(ctx context.Context, db types.Database) types.T
 // getEndpointsResolver gets a health check endpoint resolver for the database.
 func (s *Server) getEndpointsResolver(ctx context.Context, db types.Database) (healthcheck.EndpointsResolverFunc, error) {
 	resolver, err := endpoints.GetResolver(ctx, db, endpoints.ResolverBuilderConfig{
-		GCPClients: s.cfg.CloudClients,
+		GCPClients: s.cfg.CloudClients.GCPClients(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

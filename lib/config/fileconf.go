@@ -1955,6 +1955,8 @@ type AzureMatcher struct {
 	// InstallParams sets the join method when installing on
 	// discovered Azure nodes.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
+
+	Integration string `yaml:"integration,omitempty"`
 }
 
 // KubernetesMatcher matches Kubernetes resources.
