@@ -1,11 +1,17 @@
 import { useCallback, useState } from 'react';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Mark, Text } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Link,
+  Mark,
+  Text,
+} from 'design';
 import { Danger } from 'design/Alert';
 import { ButtonFileUpload } from 'shared/components/ButtonFileUpload';
-import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
@@ -19,6 +25,7 @@ import {
   IntegrationEnrollStep,
 } from 'teleport/services/userEvent';
 
+import { AWSIC_SAML_SERVICE_PROVIDER } from '../constants';
 import { emitEvent } from '../events';
 import { UserAccountWarning } from '../shared/UserAccountWarning';
 
@@ -35,20 +42,18 @@ export function AwsIcConfigureIdentitySource() {
 
   const { formData, nextStep, prevStep, selectedPlugin, eventId } = usePlugin();
 
-  const [samlServiceProviderName, setSAMLServiceProviderName] =
-    useState<string>(PluginConfigAwsIc.PluginName);
   const [
     validateSAMLIdPServiceProviderAttempt,
     validateSAMLIdPServiceProvider,
   ] = useAsync(
     useCallback(async () => {
       const req = makeSAMLValidationRequest(
-        samlServiceProviderName,
+        AWSIC_SAML_SERVICE_PROVIDER,
         selectedFileContent,
         selectedPlugin.type
       );
       return await pluginsService.validatePlugin(req);
-    }, [samlServiceProviderName, selectedPlugin, selectedFileContent])
+    }, [selectedPlugin, selectedFileContent])
   );
 
   async function handleNext(v: Validator) {
@@ -78,7 +83,7 @@ export function AwsIcConfigureIdentitySource() {
     );
     formData.set(
       PluginConfigAwsIc.SamlServiceProviderName,
-      samlServiceProviderName
+      AWSIC_SAML_SERVICE_PROVIDER
     );
 
     emitEvent(eventId, IntegrationEnrollStep.IdentitySourceUploadSamlMetadata, {
@@ -88,7 +93,7 @@ export function AwsIcConfigureIdentitySource() {
   }
 
   return (
-    <Box minWidth="980px">
+    <Box maxWidth="800px">
       <Header header="Configure Teleport as an Identity Source for AWS IAM Identity Center" />
       <Text>
         Update AWS IAM Identity Center with Teleport as an SAML identity
@@ -133,21 +138,9 @@ export function AwsIcConfigureIdentitySource() {
                   metadata to Teleport
                 </Text>
                 <Flex flexDirection="column" gap={3}>
-                  First, enter the SAML service provider name for Identity
-                  Center.
-                  <FieldInput
-                    rule={requiredField(
-                      'Service provider name for AWS IAM Identity Center is required'
-                    )}
-                    maxWidth={500}
-                    label="SAML service provider name"
-                    onChange={e => setSAMLServiceProviderName(e.target.value)}
-                    value={samlServiceProviderName}
-                    placeholder="Default SAML service provider name for AWS IAM Identity Center"
-                  />
                   <Text>
-                    Next, from the external identity provider configuration page
-                    (Step 1), download the AWS IAM Identity Center SAML service
+                    From the external identity provider configuration page (Step
+                    1), download the AWS IAM Identity Center SAML service
                     provider metadata file by clicking on a button named{' '}
                     <Mark>Download metadata file</Mark> and upload it below.
                   </Text>
@@ -162,6 +155,8 @@ export function AwsIcConfigureIdentitySource() {
                     disabled={false}
                   />
                 </Flex>
+
+                <SamlAppInfo />
               </StyledBox>
 
               <StyledBox mb={2} width="980px">
@@ -227,3 +222,20 @@ function makeSAMLValidationRequest(
   );
   return validationRequest;
 }
+
+const SamlAppInfo = () => (
+  <Box mt={3}>
+    <Text>
+      To be able to access AWS console, user role must&nbsp;
+      <Link
+        href={
+          'https://goteleport.com/docs/identity-governance/integrations/aws-iam-identity-center/guide/#step-67-configure-access'
+        }
+        target="_blank"
+      >
+        allow access
+      </Link>
+      &nbsp;to this SAML service provider resource.
+    </Text>
+  </Box>
+);

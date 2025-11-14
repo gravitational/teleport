@@ -214,6 +214,12 @@ export enum PluginConfigAwsIc {
   InstanceRegion = 'region',
   AccessListDefaultOwners = 'accessListDefaultOwners',
   SamlServiceProviderMetadata = 'samlServiceProviderMetadata',
+  /**
+   * TODO(sshah): DELETE in v20.0.0
+   * The value for this field is now hardcoded in the API handler
+   * but we should continue supplying it for older proxy which
+   * may be expecting this field.
+   * */
   SamlServiceProviderName = 'samlServiceProviderName',
   ScimBaseURL = 'scimBaseURL',
   ScimAccessToken = 'scimAccessToken',

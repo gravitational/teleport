@@ -64,24 +64,24 @@ describe('create integration and validation', () => {
       name: 'successful run',
       failCreateIntegration: false,
       resolveCreateIntegration: () => Promise.resolve(awsIcOidc),
-      resolveValidation: () => Promise.resolve({ message: 'ok' }),
-      validationCount: 1,
+      resolveIntegrationValidation: () => Promise.resolve({ message: 'ok' }),
+      validationCount: 2,
     },
     {
       name: 'successful create integration but validation fails due to unknown reason',
-      validationCount: 1,
+      validationCount: 2,
     },
     {
       name: 'successful create integration but backend failed to fetch integration',
       resolveCreateIntegration: () => Promise.resolve(awsIcOidc),
-      resolveValidation: () =>
+      resolveIntegrationValidation: () =>
         Promise.reject(
           new ApiError({
             message: `integration "${integrationName}" doesn't exist`,
             response: { status: 404 } as Response,
           })
         ),
-      validationCount: 3,
+      validationCount: 4,
     },
   ].forEach(tc => {
     test(`${tc.name}`, async () => {
@@ -91,7 +91,8 @@ describe('create integration and validation', () => {
 
       const validateFunc = jest
         .spyOn(pluginsService, 'validatePlugin')
-        .mockImplementation(tc.resolveValidation);
+        .mockReturnValueOnce(Promise.resolve({ message: 'ok' }))
+        .mockImplementation(tc.resolveIntegrationValidation);
 
       const ctx = createTeleportContextE();
       render(
@@ -166,5 +167,61 @@ describe('create integration and validation', () => {
         ).toBeEnabled();
       });
     });
+  });
+});
+
+test('permission validation', async () => {
+  jest.spyOn(pluginsService, 'validatePlugin').mockImplementation(() =>
+    Promise.reject(
+      new ApiError({
+        message: `You are missing the following permissions`,
+        response: { status: 403 } as Response,
+      })
+    )
+  );
+
+  const ctx = createTeleportContextE();
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <PluginProvider selectedPlugin={awsIdentityCenterPlugin}>
+          <AwsIcOidcIntegration />
+        </PluginProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  await waitFor(() => {
+    expect(
+      screen.getByText(/You are missing the following permissions/i, {
+        exact: false,
+      })
+    ).toBeInTheDocument();
+  });
+});
+
+test('permission validation error skipped on 501 error', async () => {
+  jest.spyOn(pluginsService, 'validatePlugin').mockImplementation(() =>
+    Promise.reject(
+      new ApiError({
+        message: `not implemented for AWS IC plugin`,
+        response: { status: 501 } as Response,
+      })
+    )
+  );
+
+  const ctx = createTeleportContextE();
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <PluginProvider selectedPlugin={awsIdentityCenterPlugin}>
+          <AwsIcOidcIntegration />
+        </PluginProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  await waitFor(() => {
+    expect(screen.getByText(/Step 1/i, { exact: false })).toBeInTheDocument();
   });
 });

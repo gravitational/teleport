@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
+import ecfg from 'e-teleport/config';
 import {
   accounts,
   DevNoteEnroll,
@@ -61,6 +62,39 @@ Enroll.parameters = {
       ),
       http.post(cfg.getIntegrationsUrl(), () =>
         HttpResponse.json(integrationsResponse)
+      ),
+    ],
+  },
+};
+
+export const MissingPermissions = () => {
+  const ctx = createTeleportContextE();
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        {renderPluginEnroll(
+          '',
+          cfg.getIntegrationEnrollRoute('aws-identity-center'),
+          ctx
+        )}
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};
+
+MissingPermissions.parameters = {
+  msw: {
+    handlers: [
+      http.post(ecfg.getPluginValidateUrl(), () =>
+        HttpResponse.json(
+          {
+            error: {
+              message: `You are missing the following permissions to complete this plugin installation:\n- Verb create on resource kind integration\n- Verb create on resource kind saml_idp_service_provider\n- Version 8 role allowing "app_labels" matching label "teleport.dev/origin : aws-identity-center"`,
+              response: { status: 401 } as Response,
+            },
+          },
+          { status: 401 }
+        )
       ),
     ],
   },

@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -22,11 +21,13 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/samlsp"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	ictestenv "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	awsicui "github.com/gravitational/teleport/e/lib/web/ui/awsic"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -36,7 +37,6 @@ func TestAWSICCreatePlugin(t *testing.T) {
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 
-	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
 	_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
 	require.NoError(t, err)
 
@@ -82,18 +82,24 @@ func TestAWSICCreatePlugin(t *testing.T) {
 			respContains: "doesn't exist",
 		},
 	}
-	testCases = append(testCases, samlTestCases(t)...)
+	testCases = append(testCases, samlTestCases(t, wSuite, authClient)...)
 	testCases = append(testCases, scimTestCases(t)...)
 	testCases = append(testCases, testCase{
 		name:         "valid",
 		form:         installRequestURLValues(t),
 		statusCode:   http.StatusOK,
 		respContains: "",
+		cleanupFunc: func() {
+			require.NoError(t, wSuite.testAuthServer.Auth().DeletePlugin(t.Context(), types.PluginTypeAWSIdentityCenter))
+		},
 	})
 
 	installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.setupFunc != nil {
+				tc.setupFunc()
+			}
 			form := maps.Clone(tc.form)
 			resp, err := aPack.clt.PostForm(wSuite.ctx, installPluginEndPoint, form)
 			require.NoError(t, err)
@@ -107,10 +113,14 @@ func TestAWSICCreatePlugin(t *testing.T) {
 			}
 
 			if tc.statusCode == http.StatusOK {
-				newSP, err := authClient.GetSAMLIdPServiceProvider(wSuite.ctx, newServiceProviderName)
+				newSP, err := authClient.GetSAMLIdPServiceProvider(wSuite.ctx, types.PluginTypeAWSIdentityCenter)
 				require.NoError(t, err)
 				require.Equal(t, common.OriginAWSIdentityCenter, newSP.Origin())
 				require.Equal(t, samlsp.AWSIdentityCenter, newSP.GetPreset())
+			}
+
+			if tc.cleanupFunc != nil {
+				tc.cleanupFunc()
 			}
 		})
 	}
@@ -120,12 +130,14 @@ func TestAWSICCreatePlugin(t *testing.T) {
 func TestAWSICPluginPreValidation(t *testing.T) {
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
-	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
 
 	installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugins", "validate")
 
-	for _, tc := range samlTestCases(t) {
+	for _, tc := range samlTestCases(t, wSuite, authClient) {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.setupFunc != nil {
+				tc.setupFunc()
+			}
 			form := maps.Clone(tc.form)
 			form.Set("resourceToValidate", pluginConfigAWSICValidateSAML)
 			resp, err := aPack.clt.PostForm(wSuite.ctx, installPluginEndPoint, form)
@@ -137,6 +149,9 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 				err = json.Unmarshal(resp.Bytes(), &respMessage)
 				require.NoError(t, err)
 				require.Contains(t, respMessage.Error.Message, tc.respContains)
+			}
+			if tc.cleanupFunc != nil {
+				tc.cleanupFunc()
 			}
 		})
 	}
@@ -178,6 +193,35 @@ func TestAWSICPluginPreValidation(t *testing.T) {
 	testServer.Close()
 }
 
+func TestAWSICPluginValidatePermissions(t *testing.T) {
+	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
+	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
+	form := url.Values{
+		awsICPluginNameField: {types.PluginTypeAWSIdentityCenter},
+		"type":               {types.PluginTypeAWSIdentityCenter},
+	}
+	validateEndpoint := aPack.clt.Endpoint("enterprise", "plugins", "validate")
+	form.Set("resourceToValidate", pluginConfigAWSICValidatePermissions)
+	resp, err := aPack.clt.PostForm(wSuite.ctx, validateEndpoint, form)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	fooUserRole, err := authClient.GetRole(wSuite.ctx, "editor")
+	require.NoError(t, err)
+	fooUserRole.SetRules(types.Deny, []types.Rule{{Resources: []string{types.KindPlugin}, Verbs: []string{types.VerbCreate}}})
+	fooUserRole.SetAppLabels(types.Allow, types.Labels{"env": utils.Strings{"not-matched"}})
+	_, err = authClient.UpsertRole(wSuite.ctx, fooUserRole)
+	require.NoError(t, err)
+
+	resp, err = aPack.clt.PostForm(wSuite.ctx, validateEndpoint, form)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusForbidden, resp.Code())
+	var respMessage errorResp
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &respMessage))
+	require.Contains(t, respMessage.Error.Message, `Verb "create" on resource kind "plugin"`)
+	require.Contains(t, respMessage.Error.Message, "teleport.dev/origin : aws-identity-center")
+}
+
 func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
@@ -205,7 +249,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 		// installing plugin does not immediately create identity center data. So it is safe
 		// to assert with existing data created with createICResources function.
 		ictestenv.CheckAllICResourcesAreConditionallyDeleted(t, ctx, ictestenv.CheckCleanupArgs{
-			SAMLlServiceProviderName: newServiceProviderName,
+			SAMLlServiceProviderName: types.PluginTypeAWSIdentityCenter,
 			IntegrationName:          icOIDCIntegrationName,
 			IsCreateRequest:          true,
 			DownstreamID:             string(identitycenter.IdentityCenterDownstreamID),
@@ -231,7 +275,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 
 	t.Run("plugin deletion prevented if user does not have access to all resources that requires deletion", func(t *testing.T) {
 		ictestenv.CreateAWSOIDCIntegration(t, ctx, authClient, icOIDCIntegrationName)
-		_, err := authClient.PluginsClient().CreatePlugin(ctx, ictestenv.NewPluginV1CreateRequest(icOIDCIntegrationName, newServiceProviderName))
+		_, err := authClient.PluginsClient().CreatePlugin(ctx, ictestenv.NewPluginV1CreateRequest(icOIDCIntegrationName, types.PluginTypeAWSIdentityCenter))
 		require.NoError(t, err)
 
 		// "foo" is username of a user created with aPack. This user is
@@ -272,13 +316,13 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 		})
 		require.True(t, trace.IsNotFound(err))
 
-		_, err = authClient.GetSAMLIdPServiceProvider(ctx, newServiceProviderName)
+		_, err = authClient.GetSAMLIdPServiceProvider(ctx, types.PluginTypeAWSIdentityCenter)
 		require.True(t, trace.IsNotFound(err))
 		_, err = authClient.GetIntegration(ctx, icOIDCIntegrationName)
 		require.True(t, trace.IsNotFound(err))
 
 		ictestenv.CheckAllICResourcesAreConditionallyDeleted(t, ctx, ictestenv.CheckCleanupArgs{
-			SAMLlServiceProviderName: newServiceProviderName,
+			SAMLlServiceProviderName: types.PluginTypeAWSIdentityCenter,
 			IntegrationName:          icOIDCIntegrationName,
 			IsCreateRequest:          false,
 			DownstreamID:             string(identitycenter.IdentityCenterDownstreamID),
@@ -371,24 +415,20 @@ type testCase struct {
 	cleanupFunc  func()
 }
 
-func samlTestCases(t *testing.T) []testCase {
+func samlTestCases(t *testing.T, wSuite *webSuite, authClient authclient.ClientI) []testCase {
 	t.Helper()
 	return []testCase{
 		{
-			name:         "missing samlServiceProviderName",
-			form:         installRequestURLValues(t, withFieldRemoved("samlServiceProviderName")),
-			statusCode:   http.StatusBadRequest,
-			respContains: "required",
-		},
-		{
-			name: "SAML service provider with samlServiceProviderName already exists",
-			form: func() url.Values {
-				values := installRequestURLValues(t)
-				values.Set("samlServiceProviderName", existingServcieProviderName)
-				return values
-			}(),
+			name:         "duplicate service provider name",
+			form:         installRequestURLValues(t),
 			statusCode:   http.StatusConflict,
 			respContains: "already exists",
+			setupFunc: func() {
+				ictestenv.CreateSAMLServiceProvider(t, t.Context(), authClient, types.PluginTypeAWSIdentityCenter)
+			},
+			cleanupFunc: func() {
+				require.NoError(t, wSuite.testAuthServer.Auth().DeleteSAMLIdPServiceProvider(t.Context(), types.PluginTypeAWSIdentityCenter))
+			},
 		},
 		{
 			name:         "missing samlServiceProviderMetadata",
@@ -410,11 +450,17 @@ func samlTestCases(t *testing.T) []testCase {
 			name: "existing entity ID for entity descriptor provider in samlServiceProviderMetadata",
 			form: func() url.Values {
 				values := installRequestURLValues(t)
-				values.Set("samlServiceProviderMetadata", newEntityDescriptor(existingServcieProviderName, fmt.Sprintf("https://%s/acs", existingServcieProviderName)))
+				values.Set("samlServiceProviderMetadata", newEntityDescriptor("existing-service-provider", fmt.Sprintf("https://%s/acs", "existing-service-provider")))
 				return values
 			}(),
 			statusCode:   http.StatusConflict,
 			respContains: "has the same entity ID",
+			setupFunc: func() {
+				ictestenv.CreateSAMLServiceProvider(t, t.Context(), authClient, "existing-service-provider")
+			},
+			cleanupFunc: func() {
+				require.NoError(t, wSuite.testAuthServer.Auth().DeleteSAMLIdPServiceProvider(t.Context(), "existing-service-provider"))
+			},
 		},
 	}
 }
@@ -450,9 +496,7 @@ type errorResp struct {
 }
 
 const (
-	existingServcieProviderName = "existing-service-provider"
-	newServiceProviderName      = "saml-sp-1"
-	icOIDCIntegrationName       = "ic-oidc-integration"
+	icOIDCIntegrationName = "ic-oidc-integration"
 )
 
 func installRequestValidURLValues(t *testing.T, scimBaseURL string) url.Values {
@@ -464,7 +508,7 @@ func installRequestValidURLValues(t *testing.T, scimBaseURL string) url.Values {
 		awsICPluginICARNField:                       {"arn:aws:sso:::instance/ssoins-8893885e0d4lllka"},
 		awsICPluginOIDCIntegrationNameField:         {icOIDCIntegrationName},
 		awsICPluginAccessListDefaultOwnersField:     {`["user1", "user2"]`},
-		awsICPluginSAMLServiceProviderNameField:     {newServiceProviderName},
+		awsICPluginSAMLServiceProviderNameField:     {types.PluginTypeAWSIdentityCenter},
 		awsICPluginSAMLServiceProviderMetadataField: {newEntityDescriptor("https://example.com", "https://example.com/acs")},
 		awsICPluginSCIMBaseURLField:                 {scimBaseURL},
 		awsICPluginSCIMAccessTokenField:             {"abc123example"},
@@ -549,7 +593,7 @@ func TestAWSICRegionValidation(t *testing.T) {
 
 	wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
-	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
+	ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, types.PluginTypeAWSIdentityCenter)
 	_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
 	require.NoError(t, err)
 
@@ -590,7 +634,6 @@ func TestInstallationFailsOnInvalidAWSCredential(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			wSuite, aPack, _ := newAWSIdentityCenterPluginTestSuite(t, withICClient(tc.icClient))
 			authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
-			ictestenv.CreateSAMLServiceProvider(t, wSuite.ctx, authClient, existingServcieProviderName)
 			_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
 			require.NoError(t, err)
 			req := installRequestURLValues(t)
@@ -626,12 +669,6 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 		Region:          "ca-central-1",
 		Arn:             "arn:aws:sso:::instance/ssoins-8824xxxxxd4dd99a",
 	}
-	accessDeniedResp := func(t *testing.T, resp *roundtrip.Response) {
-		require.Equal(t, http.StatusForbidden, resp.Code())
-		var respMessage errorResp
-		require.NoError(t, json.Unmarshal(resp.Bytes(), &respMessage))
-		require.Contains(t, respMessage.Error.Message, errMsg)
-	}
 	// all test cases include valid request data.
 	tests := []struct {
 		name         string
@@ -639,7 +676,7 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 		jsonReq      awsicui.FetchICResourceRequest
 		formReq      url.Values
 		errAssertion require.ErrorAssertionFunc
-		respContains func(t *testing.T, resp *roundtrip.Response)
+		respContains string
 	}{
 		{
 			name:    "fetch groups with assignment",
@@ -673,7 +710,7 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 				form.Set("resourceToValidate", pluginConfigAWSICValidateSCIM)
 				return form
 			}(),
-			respContains: accessDeniedResp,
+			respContains: errMsg,
 		},
 		{
 			name: "validate resource sync credential config",
@@ -683,7 +720,7 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 				form.Set("resourceToValidate", pluginConfigAWSICValidateResourceSyncCredential)
 				return form
 			}(),
-			respContains: accessDeniedResp,
+			respContains: errMsg,
 		},
 		{
 			name: "validate install plugin",
@@ -692,7 +729,10 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 				form := installRequestValidURLValues(t, validICSCIMBaseURLFormat)
 				return form
 			}(),
-			respContains: accessDeniedResp,
+			errAssertion: func(t require.TestingT, err error, v ...any) {
+				require.ErrorContains(t, err, errMsg)
+			},
+			respContains: `Verb "create" on resource kind "integration"`,
 		},
 	}
 
@@ -701,7 +741,10 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 			if len(tc.formReq) > 0 {
 				resp, err := aPack.clt.PostForm(wSuite.ctx, tc.path, tc.formReq)
 				require.NoError(t, err)
-				tc.respContains(t, resp)
+				require.Equal(t, http.StatusForbidden, resp.Code())
+				var respMessage errorResp
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &respMessage))
+				require.Contains(t, respMessage.Error.Message, tc.respContains)
 			} else {
 				_, err = aPack.clt.PostJSON(wSuite.ctx, tc.path, tc.jsonReq)
 				tc.errAssertion(t, err)

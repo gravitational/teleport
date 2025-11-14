@@ -3,8 +3,11 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	crewjamsamlsp "github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
@@ -41,10 +44,7 @@ type awsICPluginDescriptor struct {
 // HandleInstallRequest implements pluginDescriptor.
 // Creates SAML service provider first and then creates the plugin.
 func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
-	// we query external APIs to validate AWS credential before
-	// installing the plugin. Only users who have access to create
-	// integration should be allowed to connect to such external systems.
-	if err := checkIntegrationCreateAccess(sessCtx); err != nil {
+	if err := a.ensurePermissions(ctx, sessCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -58,7 +58,7 @@ func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 	}
 
 	samlSP, err := samlidpui.TransformToProtoType(samlidpui.CreateSAMLIdPServiceProviderRequest{
-		Name:             inputs.samlServiceProviderName,
+		Name:             types.PluginTypeAWSIdentityCenter,
 		EntityDescriptor: inputs.samlServiceProviderMetadata,
 		Labels: map[string]string{
 			types.OriginLabel: common.OriginAWSIdentityCenter,
@@ -126,6 +126,7 @@ const (
 	pluginConfigAWSICValidateSAML                   = "validateSAML"
 	pluginConfigAWSICValidateSCIM                   = "validateSCIM"
 	pluginConfigAWSICValidateResourceSyncCredential = "ValidateResourceSyncCredential"
+	pluginConfigAWSICValidatePermissions            = "validatePermissions"
 )
 
 // HandleValidateConfigRequest handles requests for "/enterprise/plugins/validate" path.
@@ -146,8 +147,10 @@ func (a awsICPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, 
 		return trace.BadParameter("name of the resource to validate cannot be empty")
 	}
 	switch resourceToValidate {
+	case pluginConfigAWSICValidatePermissions:
+		return a.ensurePermissions(ctx, sessCtx)
 	case pluginConfigAWSICValidateSAML:
-		return a.validateSAMLServiceProvider(ctx, client, form.Get(awsICPluginSAMLServiceProviderNameField), form.Get(awsICPluginSAMLServiceProviderMetadataField))
+		return a.validateSAMLServiceProvider(ctx, client, form.Get(awsICPluginSAMLServiceProviderMetadataField))
 	case pluginConfigAWSICValidateSCIM:
 		return a.validateSCIM(ctx, form.Get(awsICPluginSCIMBaseURLField), form.Get(awsICPluginSCIMAccessTokenField))
 	case pluginConfigAWSICValidateResourceSyncCredential:
@@ -179,7 +182,6 @@ type awsICPluginFormData struct {
 	arn                         string
 	oidcIntegrationName         string
 	accessListDefaultOwners     []string
-	samlServiceProviderName     string
 	samlServiceProviderMetadata string
 	scimBaseURL                 string
 	scimAccessToken             string
@@ -209,7 +211,6 @@ func (a awsICPluginDescriptor) awsICPluginInputs(ctx context.Context, form url.V
 		accessListDefaultOwners:     accessListDefaultOwners,
 		region:                      form.Get(awsICPluginICRegionField),
 		arn:                         form.Get(awsICPluginICARNField),
-		samlServiceProviderName:     form.Get(awsICPluginSAMLServiceProviderNameField),
 		samlServiceProviderMetadata: form.Get(awsICPluginSAMLServiceProviderMetadataField),
 		scimBaseURL:                 form.Get(awsICPluginSCIMBaseURLField),
 		scimAccessToken:             form.Get(awsICPluginSCIMAccessTokenField),
@@ -231,7 +232,7 @@ func (a awsICPluginDescriptor) awsICPluginInputs(ctx context.Context, form url.V
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.validateSAMLServiceProvider(ctx, userClient, parsedInputs.samlServiceProviderName, parsedInputs.samlServiceProviderMetadata); err != nil {
+	if err := a.validateSAMLServiceProvider(ctx, userClient, parsedInputs.samlServiceProviderMetadata); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -318,21 +319,18 @@ func (a awsICPluginDescriptor) validateSCIM(ctx context.Context, baseURL, access
 // - the SAML service provider entity ID is unique in Teleport cluster.
 // - the metadata XML file is a valid SAML IdP service provider entity descriptor XML format.
 // - the metadata XML does not contain unsupported ACS binding values.
-func (a awsICPluginDescriptor) validateSAMLServiceProvider(ctx context.Context, client authclient.ClientI, name, metadata string) error {
-	if name == "" {
-		return trace.BadParameter("AWS Identity Center SAML service provider service provider name is required")
-	}
+func (a awsICPluginDescriptor) validateSAMLServiceProvider(ctx context.Context, client authclient.ClientI, metadata string) error {
 	if metadata == "" {
 		return trace.BadParameter("AWS Identity Center SAML service provider service provider metadata is required")
 	}
-	sp, err := client.GetSAMLIdPServiceProvider(ctx, name)
+	sp, err := client.GetSAMLIdPServiceProvider(ctx, types.PluginTypeAWSIdentityCenter)
 	if err == nil && sp != nil {
 		return trace.AlreadyExists("SAML IdP service provider with name %q already exists", sp.GetName())
 	}
 
 	// TransformToProtoType performs basic spec validation
 	_, err = samlidpui.TransformToProtoType(samlidpui.CreateSAMLIdPServiceProviderRequest{
-		Name:             name,
+		Name:             types.PluginTypeAWSIdentityCenter,
 		EntityDescriptor: metadata,
 	})
 	if err != nil {
@@ -348,7 +346,7 @@ func (a awsICPluginDescriptor) validateSAMLServiceProvider(ctx context.Context, 
 		return trace.BadParameter("metadata for AWS Identity Center SAML service provider contains unsupported ACS bindings: %v", err)
 	}
 
-	if err := a.ensureEntityIDIsUnique(ctx, client, name, ed.EntityID); err != nil {
+	if err := a.ensureEntityIDIsUnique(ctx, client, ed.EntityID); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -357,7 +355,7 @@ func (a awsICPluginDescriptor) validateSAMLServiceProvider(ctx context.Context, 
 
 // ensureEntityIDIsUnique loops through existing SAML service providers to find duplicate enity ID.
 // TODO(sshah): expose this method in the RPC so it function can be reused.
-func (a awsICPluginDescriptor) ensureEntityIDIsUnique(ctx context.Context, authClient authclient.ClientI, name, entityID string) error {
+func (a awsICPluginDescriptor) ensureEntityIDIsUnique(ctx context.Context, authClient authclient.ClientI, entityID string) error {
 	var nextToken string
 	for {
 		var sps []types.SAMLIdPServiceProvider
@@ -368,13 +366,83 @@ func (a awsICPluginDescriptor) ensureEntityIDIsUnique(ctx context.Context, authC
 		}
 
 		for _, sp := range sps {
-			if sp.GetName() != name && sp.GetEntityID() == entityID {
+			if sp.GetEntityID() == entityID {
 				return trace.AlreadyExists("%s %q has the same entity ID %q", types.KindSAMLIdPServiceProvider, sp.GetName(), sp.GetEntityID())
 			}
 		}
 		if nextToken == "" {
 			break
 		}
+	}
+
+	return nil
+}
+
+// ensurePermissions checks user permission to create all the resources related to
+// AWS Identity Center plugin. RBAC error messages are customized to be UI friendly,
+// aggregated and return at last as AccessDenied error.
+// Non-AccessDenied errors are returned immediately.
+func (a awsICPluginDescriptor) ensurePermissions(ctx context.Context, sessCtx *web.SessionContext) error {
+	accessChecker, err := sessCtx.GetUserAccessChecker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var rbacError error
+	for _, kind := range []string{types.KindIntegration, types.KindPlugin, types.KindSAMLIdPServiceProvider} {
+		if err := accessChecker.CheckAccessToRule(&services.Context{}, apidefaults.Namespace, kind, types.VerbCreate); err != nil {
+			if !trace.IsAccessDenied(err) {
+				return trace.Wrap(err)
+			}
+			rbacError = errors.Join(rbacError, fmt.Errorf("- Verb %q on resource kind %q", types.VerbCreate, kind))
+		}
+	}
+
+	clt, err := sessCtx.GetClient()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authPref, err := clt.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// We are only interested in checking if user has a v8 role
+	// with app_labels matching "teleport.dev/origin:aws-identity-center".
+	// The resource name and label value matches with the
+	// actual resource created in the guided installation.
+	samlApp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Kind:    types.KindSAMLIdPServiceProvider,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: types.PluginTypeAWSIdentityCenter,
+				Labels: map[string]string{
+					types.OriginLabel: common.OriginAWSIdentityCenter,
+				},
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{},
+	}
+	if err := accessChecker.CheckAccessToSAMLIdP(
+		samlApp,
+		authPref,
+		// MFA, should it be required will be checked when creating a resource.
+		services.AccessState{MFAVerified: true},
+	); err != nil {
+		if !trace.IsAccessDenied(err) {
+			return trace.Wrap(err)
+		}
+		// Missing app_labels matching identity center origin is the only
+		// expected error we want to properly communicate to the user.
+		if strings.Contains(err.Error(), "app_labels") {
+			rbacError = errors.Join(rbacError, fmt.Errorf(`- Version 8 role allowing "app_labels" matching label "%s : %s"`, types.OriginLabel, common.OriginAWSIdentityCenter))
+		} else {
+			rbacError = errors.Join(rbacError, err)
+		}
+	}
+
+	if rbacError != nil {
+		return trace.AccessDenied("You are missing the following permissions to install this plugin:\n%s", rbacError.Error())
 	}
 
 	return nil

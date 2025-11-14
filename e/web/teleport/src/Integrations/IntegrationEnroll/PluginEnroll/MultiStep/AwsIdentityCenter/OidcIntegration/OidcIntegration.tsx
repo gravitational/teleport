@@ -92,6 +92,28 @@ export function AwsIcOidcIntegration() {
     }, [integrationConfig, setIntegrationConfig, setExistingIntegrationName])
   );
 
+  const [validatePermissionAttempt, runPermissionValidation] = useAsync(
+    useCallback(
+      () =>
+        pluginsService
+          .validatePlugin(makeValidatePermissionsReq())
+          .catch(err => {
+            // ignore if the request hits older proxy that does
+            // not support validating permissions.
+            if (err instanceof ApiError && err.response.status !== 501) {
+              throw err;
+            }
+          }),
+      []
+    )
+  );
+
+  useEffect(() => {
+    if (validatePermissionAttempt.status === '') {
+      runPermissionValidation();
+    }
+  }, []);
+
   useEffect(() => {
     if (hasAccess && fetchIntegrationAttempt.status === '') {
       runFetchIntegration();
@@ -246,145 +268,168 @@ export function AwsIcOidcIntegration() {
     }
   }
 
-  return (
-    <Box maxWidth="800px">
-      <Header header="Configure AWS integration" />
-      <Text>
-        The integration sets up Teleport as an OIDC IdP for AWS and creates an
-        AWS IAM role. Once configured, Teleport AWS IAM Identity Center client
-        uses the IAM role to import accounts, user groups, permission sets and
-        permission assignments from AWS IAM Identity Center and provision users,
-        groups and permission assignments to the AWS IAM Identity Center.
-      </Text>
-      {/* TODO(sshah): add AWS tagging info once we finalize if we need extra tagging for AWS IAM Identity Center */}
-      <Box mt={3}>
-        <UserAccountWarning />
+  if (validatePermissionAttempt.status === 'processing') {
+    return (
+      <Box textAlign="center" m={10} maxWidth="600px">
+        <Indicator />
       </Box>
-      <Box>
-        {fetchIntegrationAttempt.status === 'error' && (
-          <Danger>{fetchIntegrationAttempt.statusText}</Danger>
-        )}
-        <IntegrationExistStatus />
-      </Box>
-      {fetchIntegrationAttempt.status === 'processing' ? (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      ) : (
-        <Flex
-          mb={1}
-          mt={4}
-          flexDirection="column"
-          alignItems="start"
-          width="100%"
-        >
-          <Validation>
-            {({ validator }) => (
-              <>
-                <StyledBox mb={4}>
-                  <Text bold>Step 1: Configure AWS Integration</Text>
-                  <Text mt={1} mb={4}>
-                    AWS IAM Identity Center Region and ARN values can be
-                    obtained by navigating to <Mark>Settings &gt; Details</Mark>{' '}
-                    in the AWS IAM Identity Center dashboard.
-                  </Text>
-                  <Flex flexDirection="column" gap={1} mb={4} maxWidth={500}>
-                    <FieldInput
-                      rule={requiredAwsIdentityCenterRegion}
-                      onChange={e => setRegion(e.target.value)}
-                      autoFocus={true}
-                      label="Enter AWS IAM Identity Center instance region"
-                      value={region}
-                      placeholder="ca-central-1"
-                      toolTipContent={identityCenterRegionToolTip}
-                      disabled={!!scriptUrl && !existingIntegrationName}
-                    />
-                    <FieldInput
-                      rule={requiredAwsIdentityCenterInstanceArn}
-                      onChange={e => setArn(e.target.value)}
-                      label="Enter AWS IAM Identity Center instance ARN"
-                      value={arn}
-                      placeholder="arn:aws:sso:::instance/ssoins-xxxxx"
-                      toolTipContent={identityCenterArnToolTip}
-                      disabled={!!scriptUrl && !existingIntegrationName}
-                    />
-                    {!existingIntegrationName && (
-                      <FieldInput
-                        rule={requiredAll(
-                          requiredOidcIntegrationName,
-                          requireUniqueIntegrationName(
-                            fetchIntegrationAttempt.data
-                          )
-                        )}
-                        value={integrationConfig.name}
-                        label="Give this AWS OIDC IdP integration a name"
-                        placeholder="Integration Name"
-                        onChange={e => handleNameChange(e.target.value)}
-                        toolTipContent={iamRoleNameToolTip}
-                        disabled={!!scriptUrl}
-                      />
-                    )}
-                  </Flex>
-                  {!existingIntegrationName && (
-                    <ButtonSecondary
-                      mb={3}
-                      onClick={() => scriptGenButtonOnclick(validator)}
-                    >
-                      {scriptGenButtonText}
-                    </ButtonSecondary>
-                  )}
-                </StyledBox>
-                {scriptUrl && !existingIntegrationName && (
-                  <>
-                    <StyledBox mb={4}>
-                      <Text bold>
-                        Step 2: Run integration script in AWS Cloud shell.
-                      </Text>
-                      <ShowConfigurationScript
-                        scriptUrl={scriptUrl}
-                        description={copyInstallationScriptText}
-                      />
-                    </StyledBox>
-                    <StyledBox mb={5}>
-                      <Text bold>Step 3: Enter Role ARN</Text>
-                      <RoleArnInput
-                        roleName={integrationConfig.name}
-                        roleArn={integrationConfig.roleArn}
-                        setRoleArn={(v: string) =>
-                          setIntegrationConfig({
-                            ...integrationConfig,
-                            roleArn: v,
-                          })
-                        }
-                        disabled={
-                          createIntegrationAttempt.status === 'processing'
-                        }
-                      />
-                    </StyledBox>
-                  </>
-                )}
-                <RenderInlineError />
-                <Flex mt={6} mb={5} gap={3}>
-                  <ButtonPrimary
-                    onClick={() => handleNext(validator)}
-                    disabled={
-                      (!existingIntegrationName &&
-                        integrationConfig.roleArn === '') ||
-                      credValidationAttempt.status === 'processing'
-                    }
-                  >
-                    {nextButtonText}
-                  </ButtonPrimary>
+    );
+  }
 
-                  <ButtonSecondary onClick={handleBack}>Back</ButtonSecondary>
-                </Flex>
-              </>
-            )}
-          </Validation>
-        </Flex>
-      )}
-    </Box>
-  );
+  if (validatePermissionAttempt.status === 'error') {
+    return (
+      <Box mt={3} maxWidth="800px">
+        {validatePermissionAttempt.status === 'error' && (
+          <Danger>{validatePermissionAttempt.statusText}</Danger>
+        )}
+        <ButtonSecondary onClick={handleBack}>Back</ButtonSecondary>
+      </Box>
+    );
+  }
+
+  if (validatePermissionAttempt.status === 'success') {
+    return (
+      <Box maxWidth="800px">
+        <Header header="Configure AWS integration" />
+        <Text>
+          The integration sets up Teleport as an OIDC IdP for AWS and creates an
+          AWS IAM role. Once configured, Teleport AWS IAM Identity Center client
+          uses the IAM role to import accounts, user groups, permission sets and
+          permission assignments from AWS IAM Identity Center and provision
+          users, groups and permission assignments to the AWS IAM Identity
+          Center.
+        </Text>
+        {/* TODO(sshah): add AWS tagging info once we finalize if we need extra tagging for AWS IAM Identity Center */}
+        <Box mt={3}>
+          <UserAccountWarning />
+        </Box>
+        <Box>
+          {fetchIntegrationAttempt.status === 'error' && (
+            <Danger>{fetchIntegrationAttempt.statusText}</Danger>
+          )}
+          <IntegrationExistStatus />
+        </Box>
+        {fetchIntegrationAttempt.status === 'processing' ? (
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        ) : (
+          <Flex
+            mb={1}
+            mt={4}
+            flexDirection="column"
+            alignItems="start"
+            width="100%"
+          >
+            <Validation>
+              {({ validator }) => (
+                <>
+                  <StyledBox mb={4}>
+                    <Text bold>Step 1: Configure AWS Integration</Text>
+                    <Text mt={1} mb={4}>
+                      AWS IAM Identity Center Region and ARN values can be
+                      obtained by navigating to{' '}
+                      <Mark>Settings &gt; Details</Mark> in the AWS IAM Identity
+                      Center dashboard.
+                    </Text>
+                    <Flex flexDirection="column" gap={1} mb={4} maxWidth={500}>
+                      <FieldInput
+                        rule={requiredAwsIdentityCenterRegion}
+                        onChange={e => setRegion(e.target.value)}
+                        autoFocus={true}
+                        label="Enter AWS IAM Identity Center instance region"
+                        value={region}
+                        placeholder="ca-central-1"
+                        toolTipContent={identityCenterRegionToolTip}
+                        disabled={!!scriptUrl && !existingIntegrationName}
+                      />
+                      <FieldInput
+                        rule={requiredAwsIdentityCenterInstanceArn}
+                        onChange={e => setArn(e.target.value)}
+                        label="Enter AWS IAM Identity Center instance ARN"
+                        value={arn}
+                        placeholder="arn:aws:sso:::instance/ssoins-xxxxx"
+                        toolTipContent={identityCenterArnToolTip}
+                        disabled={!!scriptUrl && !existingIntegrationName}
+                      />
+                      {!existingIntegrationName && (
+                        <FieldInput
+                          rule={requiredAll(
+                            requiredOidcIntegrationName,
+                            requireUniqueIntegrationName(
+                              fetchIntegrationAttempt.data
+                            )
+                          )}
+                          value={integrationConfig.name}
+                          label="Give this AWS OIDC IdP integration a name"
+                          placeholder="Integration Name"
+                          onChange={e => handleNameChange(e.target.value)}
+                          toolTipContent={iamRoleNameToolTip}
+                          disabled={!!scriptUrl}
+                        />
+                      )}
+                    </Flex>
+                    {!existingIntegrationName && (
+                      <ButtonSecondary
+                        mb={3}
+                        onClick={() => scriptGenButtonOnclick(validator)}
+                      >
+                        {scriptGenButtonText}
+                      </ButtonSecondary>
+                    )}
+                  </StyledBox>
+                  {scriptUrl && !existingIntegrationName && (
+                    <>
+                      <StyledBox mb={4}>
+                        <Text bold>
+                          Step 2: Run integration script in AWS Cloud shell.
+                        </Text>
+                        <ShowConfigurationScript
+                          scriptUrl={scriptUrl}
+                          description={copyInstallationScriptText}
+                        />
+                      </StyledBox>
+                      <StyledBox mb={5}>
+                        <Text bold>Step 3: Enter Role ARN</Text>
+                        <RoleArnInput
+                          roleName={integrationConfig.name}
+                          roleArn={integrationConfig.roleArn}
+                          setRoleArn={(v: string) =>
+                            setIntegrationConfig({
+                              ...integrationConfig,
+                              roleArn: v,
+                            })
+                          }
+                          disabled={
+                            createIntegrationAttempt.status === 'processing'
+                          }
+                        />
+                      </StyledBox>
+                    </>
+                  )}
+                  <RenderInlineError />
+                  <Flex mt={6} mb={5} gap={3}>
+                    <ButtonPrimary
+                      onClick={() => handleNext(validator)}
+                      disabled={
+                        (!existingIntegrationName &&
+                          integrationConfig.roleArn === '') ||
+                        credValidationAttempt.status === 'processing'
+                      }
+                    >
+                      {nextButtonText}
+                    </ButtonPrimary>
+
+                    <ButtonSecondary onClick={handleBack}>Back</ButtonSecondary>
+                  </Flex>
+                </>
+              )}
+            </Validation>
+          </Flex>
+        )}
+      </Box>
+    );
+  }
 }
 
 const identityCenterRegionToolTip = `
@@ -443,5 +488,12 @@ function makeValidateCredentialReq(
   req.set(PluginConfigAwsIc.InstanceArn, arn);
   req.set('resourceToValidate', 'ValidateResourceSyncCredential');
 
+  return req;
+}
+
+function makeValidatePermissionsReq(): FormData {
+  const req = new FormData();
+  req.set('type', 'aws-identity-center');
+  req.set('resourceToValidate', 'validatePermissions');
   return req;
 }
