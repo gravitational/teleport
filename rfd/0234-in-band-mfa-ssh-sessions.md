@@ -74,12 +74,12 @@ service will then check if MFA is required for the session by examining the perm
 
 If MFA is _not required_, the SSH service will then proceed to establish the SSH session.
 
-If MFA _is required_, the SSH service will send a Protobuf [`MFAPrompt`
-message](#ssh-keyboard-interactive-authentication) as a Question via the SSH [keyboard-interactive
-authentication](https://www.rfc-editor.org/rfc/rfc4256) method to inform the client that MFA is needed. The client must
-then call the `CreateChallenge` RPC on the MFA service, providing a _Session Identifying Payload (SIP)_ and any relevant
-metadata. The SIP is an SSH session hash computed from SSH session state and is used to bind the MFA challenge to the
-specific session. Both the SSH client and the SSH server can independently compute the SIP from session state.
+If MFA _is required_, the SSH service will send a [`MFAPrompt` message](#ssh-keyboard-interactive-authentication) as a
+Question via the SSH [keyboard-interactive authentication](https://www.rfc-editor.org/rfc/rfc4256) method to inform the
+client that MFA is needed. The client must then call the `CreateChallenge` RPC on the MFA service, providing a _Session
+Identifying Payload (SIP)_ and any relevant metadata. The SIP is an SSH session hash computed from SSH session state and
+is used to bind the MFA challenge to the specific session. Both the SSH client and the SSH server can independently
+compute the SIP from session state.
 
 The MFA service will [store the Session Identifying Payload (SIP)](#storing-session-identifying-payloads) and respond
 with an MFA challenge for the client to solve.
@@ -87,10 +87,10 @@ with an MFA challenge for the client to solve.
 Next, the client solves the MFA challenge and calls `ValidateChallenge` with the MFA response. The MFA service validates
 the MFA response and stores the `ValidatedChallenge` to the local backend.
 
-In addition, if the target cluster is a leaf cluster, a watcher in the reverse tunnel server monitors
-`ValidateChallenge` events for its cluster. When a `ValidateChallenge` is created for a leaf cluster, the reverse tunnel
-server calls the `ReplicateValidatedChallenge` RPC using its auth client to forward the challenge to the leaf cluster's
-MFA service.
+If the target cluster is a leaf cluster, a watcher in the reverse tunnel server monitors `ValidateChallenge` events for
+its cluster. When a `ValidateChallenge` is created for a leaf cluster, the reverse tunnel server calls the
+`ReplicateValidatedChallenge` RPC using its MFA service client to forward the challenge to the leaf cluster's MFA
+service.
 
 This ensures that validated MFA challenges are available in the appropriate cluster for retrieval during SSH session
 establishment.
@@ -318,12 +318,9 @@ message MFAPromptResponseReference {
 
 // SessionPayload contains identification information about an SSH session.
 message SessionPayload {
-  // version is the version of the payload structure. Currently supports "v1". To extend, add new fields and bump the
-  // version.
-  string version = 1;
   // session_id is the SSH session hash computed from SSH session state. For example, in Go this would be the value from
   // crypto/ssh#ConnMetadata.SessionID().
-  bytes session_id = 2;
+  bytes session_id = 1;
 }
 ```
 
@@ -355,7 +352,8 @@ service MFAService {
   // retrieval by the target cluster's SSH service.
   rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
   // ReplicateValidatedChallenge replicates a validated MFA challenge to a leaf cluster for retrieval during SSH session
-  // establishment. It is a NOOP when used in the root cluster.
+  // establishment. It is a NOOP when used in the root cluster. It is called by the reverse tunnel server when a
+  // validated MFA challenge is created for a leaf cluster.
   rpc ReplicateValidatedChallenge(ReplicateValidatedChallengeRequest) returns (ValidatedChallenge);
   // VerifyValidatedChallenge verifies a previously validated MFA challenge response for a user session.
   // If the challenge does not yet exist, this method will block until the resource appears or until the timeout is
@@ -367,11 +365,12 @@ service MFAService {
 
 // CreateChallengeRequest is the request message for CreateChallenge.
 message CreateChallengeRequest {
-  // payload is a value that uniquely identifies the user's session. It should be a versioned, encoded blob (e.g.,
-  // protobuf, JSON, etc.) computed by the client. The server will store this as ancillary data and return it in
-  // ValidateChallengeResponse. It WILL NOT be interpreted by the server. For SSH sessions, this would be the protobuf
-  // encoding of teleport.ssh.v1.SessionPayload.
-  bytes payload = 1;
+  // payload is a value that uniquely identifies the user's session. It should be computed by the client from session
+  // state. When VerifyValidatedChallenge is called, the server will verify it matches the payload supplied to
+  // CreateChallengeRequest.
+  oneof payload {
+    teleport.ssh.v1.SessionPayload ssh = 1;
+  }
   // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
   string sso_client_redirect_url = 2;
@@ -394,8 +393,11 @@ message ValidateChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the validation to the correct challenge.
   string name = 1;
-
-
+  // payload is a value that uniquely identifies the user's session. This should match the oneof payload in
+  // CreateChallengeRequest and be encoded as the same protobuf message (e.g., teleport.ssh.v1.SessionPayload).
+  oneof payload {
+    teleport.ssh.v1.SessionPayload ssh = 2;
+  }
   // mfa_response contains the MFA challenge response provided by the user.
   AuthenticateResponse mfa_response = 3;
 }
@@ -408,10 +410,11 @@ message ReplicateValidatedChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the upsert to the correct challenge.
   string name = 1;
-  // payload is a value that uniquely identifies the user's session. The client calling ReplicateValidatedChallenge MUST
-  // independently compute this value from session state to verify it matches in order to verify the response is tied to
-  // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
-  bytes payload = 2;
+  // payload is a value that uniquely identifies the user's session. This should match the oneof payload in
+  // CreateChallengeRequest and be encoded as the same protobuf message (e.g., teleport.ssh.v1.SessionPayload).
+  oneof payload {
+    teleport.ssh.v1.SessionPayload ssh = 2;
+  }
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 3;
 }
@@ -422,9 +425,11 @@ message VerifyValidatedChallengeRequest {
   // This must match the 'name' returned in CreateChallengeResponse to tie the retrieval to the correct challenge.
   string name = 1;
   // payload is a value that uniquely identifies the user's session. The client calling VerifyValidatedChallenge MUST
-  // independently compute this value from session state to verify it matches in order to verify the response is tied to
-  // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
-  bytes payload = 2;
+  // independently compute this value from session state. The server will verify it matches the one supplied in
+  // CreateChallengeRequest to ensure the challenge is tied to the correct session.
+  oneof payload {
+    teleport.ssh.v1.SessionPayload ssh = 2;
+  }
 }
 
 // VerifyValidatedChallengeResponse is the response message for VerifyValidatedChallenge.
