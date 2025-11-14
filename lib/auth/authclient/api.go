@@ -20,6 +20,7 @@ package authclient
 
 import (
 	"context"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"io"
 	"iter"
 	"time"
@@ -1221,6 +1222,12 @@ type Cache interface {
 
 	// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+
+	// GetLinuxDesktop returns registered Linux desktop by name.
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
+
+	// ListLinuxDesktops returns all registered Linux desktop.
+	ListLinuxDesktops(ctx context.Context, pageSize int, nextToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error)
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens(ctx context.Context) (types.StaticTokens, error)

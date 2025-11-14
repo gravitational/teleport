@@ -60,6 +60,8 @@ const (
 	RoleDatabase SystemRole = "Db"
 	// RoleWindowsDesktop is a role for a Windows desktop service.
 	RoleWindowsDesktop SystemRole = "WindowsDesktop"
+	// RoleLinuxDesktop is a role for a Linux desktop service.
+	RoleLinuxDesktop SystemRole = "LinuxDesktop"
 	// RoleBot is a role for a bot.
 	RoleBot SystemRole = "Bot"
 	// RoleInstance is a role implicitly held by teleport servers (i.e. any teleport
