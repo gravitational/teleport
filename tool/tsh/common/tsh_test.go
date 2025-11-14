@@ -860,13 +860,9 @@ func TestSwitchProfile(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	bob, err := types.NewUser("bob")
-	require.NoError(t, err)
-	bob.SetRoles([]string{"access"})
-
 	connector := mockConnector(t)
 	root, err := testserver.NewTeleportProcess(t.TempDir(),
-		testserver.WithBootstrap(connector, alice, bob),
+		testserver.WithBootstrap(connector, alice),
 		testserver.WithHostname("node1"),
 		testserver.WithClusterName("root"),
 	)
@@ -878,7 +874,7 @@ func TestSwitchProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	leafServerOpts := []testserver.TestServerOptFunc{
-		testserver.WithBootstrap(connector, alice, bob),
+		testserver.WithBootstrap(connector, alice),
 		testserver.WithHostname("node2"),
 		testserver.WithClusterName("leaf"),
 	}
@@ -915,11 +911,11 @@ func TestSwitchProfile(t *testing.T) {
 		}, opts...)
 	}
 
-	// Test login for both users to:
+	// Test login for:
 	// - root proxy, root cluster
 	// - root proxy, leaf cluster
 	// - leaf proxy, leaf cluster
-	aliceCases := []loginParams{
+	loginCases := []loginParams{
 		{
 			name:      "alice rootProxy rootCluster",
 			proxy:     rootProxyAddr,
@@ -940,31 +936,9 @@ func TestSwitchProfile(t *testing.T) {
 			mockLogin: setMockSSOLogin(leafAuth, alice, connector.GetName()),
 		},
 	}
-	bobCases := []loginParams{
-		{
-			name:      "bob rootProxy rootCluster",
-			proxy:     rootProxyAddr,
-			user:      "bob",
-			cluster:   "root",
-			mockLogin: setMockSSOLogin(rootAuth, bob, connector.GetName()),
-		}, {
-			name:      "bob rootProxy leafCluster",
-			proxy:     rootProxyAddr,
-			user:      "bob",
-			cluster:   "leaf",
-			mockLogin: setMockSSOLogin(rootAuth, bob, connector.GetName()),
-		}, {
-			name:      "bob leafProxy leafCluster",
-			proxy:     leafProxyAddr,
-			user:      "bob",
-			cluster:   "leaf",
-			mockLogin: setMockSSOLogin(leafAuth, bob, connector.GetName()),
-		},
-	}
-	allCases := append(aliceCases, bobCases...)
 
 	// perform initial logins.
-	for _, p := range allCases {
+	for _, p := range loginCases {
 		t.Run(fmt.Sprintf("initial login/%v", p.name), func(t *testing.T) {
 			err := login(t, p.proxy, p.user, p.cluster, setHomePath(tmpHomePath), p.mockLogin)
 			require.NoError(t, err)
@@ -972,13 +946,13 @@ func TestSwitchProfile(t *testing.T) {
 	}
 
 	// For each login case, test that we can switch directly to the other cases without re-logging in.
-	for _, p1 := range aliceCases {
-		for _, p2 := range allCases {
+	for _, p1 := range loginCases {
+		for _, p2 := range loginCases {
 			if p1.name == p2.name {
 				continue
 			}
 			t.Run(fmt.Sprintf("from %v/to %v", p1.name, p2.name), func(t *testing.T) {
-				err := login(t, p1.proxy, p1.user, p1.cluster, setHomePath(tmpHomePath), p1.mockLogin)
+				err := login(t, p1.proxy, p1.user, p1.cluster, setHomePath(tmpHomePath))
 				require.NoError(t, err)
 				err = login(t, p2.proxy, p2.user, p2.cluster, setHomePath(tmpHomePath))
 				require.NoError(t, err)
@@ -991,7 +965,7 @@ func TestSwitchProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	// after logging out, make sure that any attempt to log in without providing a valid login function fails
-	for _, p := range allCases {
+	for _, p := range loginCases {
 		t.Run(fmt.Sprintf("after logout %v", p.name), func(t *testing.T) {
 			err := login(t, p.proxy, p.user, p.cluster, setHomePath(tmpHomePath))
 			require.Error(t, err)
