@@ -307,6 +307,8 @@ type IntegrationConfAccessGraphAWSSync struct {
 	CloudTrailBucketARN string
 	// KMSKeyARNs is the ARN of the KMS key to use for decrypting the Identity Security Activity Center data.
 	KMSKeyARNs []string
+	// EnableEKSAuditLogs enables collection of EKS audit logs from CloudWatch logs.
+	EnableEKSAuditLogs bool
 }
 
 // IntegrationConfAccessGraphAzureSync contains the arguments of
