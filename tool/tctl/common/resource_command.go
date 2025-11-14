@@ -47,7 +47,6 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	apistream "github.com/gravitational/teleport/api/internalutils/stream"
@@ -142,7 +141,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
 		types.KindPlugin:                      rc.createPlugin,
-		types.KindStaticHostUser:              rc.createStaticHostUser,
 		types.KindUserTask:                    rc.createUserTask,
 		types.KindHealthCheckConfig:           rc.createHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.createScopedRole,
@@ -156,7 +154,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindCrownJewel:                  rc.updateCrownJewel,
 		types.KindVnetConfig:                  rc.updateVnetConfig,
 		types.KindPlugin:                      rc.updatePlugin,
-		types.KindStaticHostUser:              rc.updateStaticHostUser,
 		types.KindUserTask:                    rc.updateUserTask,
 		types.KindDynamicWindowsDesktop:       rc.updateDynamicWindowsDesktop,
 		types.KindHealthCheckConfig:           rc.updateHealthCheckConfig,
@@ -915,39 +912,6 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	c := client.StaticHostUserClient()
-	if rc.force {
-		if _, err := c.UpsertStaticHostUser(ctx, hostUser); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
-	} else {
-		if _, err := c.CreateStaticHostUser(ctx, hostUser); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("static host user %q has been created\n", hostUser.GetMetadata().Name)
-	}
-
-	return nil
-}
-
-func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.StaticHostUserClient().UpdateStaticHostUser(ctx, hostUser); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
-	return nil
-}
-
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
 	// Connectors are a special case. As it's the only meta-resource we have,
@@ -1240,11 +1204,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			scopedaccess.KindScopedRoleAssignment+" %q has been deleted\n",
 			rc.ref.Name,
 		)
-	case types.KindStaticHostUser:
-		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
 	case types.KindRelayServer:
@@ -1853,22 +1812,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			startKey = resp.NextKey
 		}
 		return &pluginCollection{plugins: plugins}, nil
-	case types.KindStaticHostUser:
-		hostUserClient := client.StaticHostUserClient()
-		if rc.ref.Name != "" {
-			hostUser, err := hostUserClient.GetStaticHostUser(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{hostUser}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, hostUserClient.ListStaticHostUsers))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &staticHostUserCollection{items: resources}, nil
 	case types.KindAccessMonitoringRule:
 		if rc.ref.Name != "" {
 			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)

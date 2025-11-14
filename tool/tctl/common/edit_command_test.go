@@ -552,7 +552,7 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 		expected.GetMetadata().Revision = created.GetMetadata().Revision
 		expected.Spec.Matchers[0].Groups = []string{"baz", "quux"}
 
-		collection := &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{expected}}
+		collection := resources.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
