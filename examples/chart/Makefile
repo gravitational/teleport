@@ -7,7 +7,7 @@ check_access = $(addprefix check-chart-ref-access-,$(access))
 render_access = $(addprefix render-chart-ref-access-,$(access))
 
 .PHONY: render-chart-ref
-render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-teleport-relay render-chart-ref-tbot $(render_access)  # render-chart-ref-teleport-cluster
+render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-teleport-relay render-chart-ref-tbot render-chart-ref-tbot-spiffe-daemon-set $(render_access)  # render-chart-ref-teleport-cluster
 
 .PHONY: render-chart-ref-example
 render-chart-ref-example:
@@ -40,13 +40,18 @@ render-chart-ref-tbot:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot -output ../../docs/pages/includes/helm-reference/zz_generated.tbot.mdx
 
+.PHONY: render-chart-ref-tbot-spiffe-daemon-set
+render-chart-ref-tbot-spiffe-daemon-set:
+	cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot-spiffe-daemon-set -output ../../docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx
+
 .PHONY: render-chart-ref-access-%
 render-chart-ref-access-%:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/access/$* -output ../../docs/pages/includes/helm-reference/zz_generated.access-$*.mdx
 
 .PHONY: check-chart-ref
-check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-teleport-relay check-chart-ref-tbot $(check_access) #check-chart-ref-teleport-cluster
+check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-teleport-relay check-chart-ref-tbot check-chart-ref-tbot-spiffe-daemon-set $(check_access) #check-chart-ref-teleport-cluster
 
 .PHONY: check-chart-ref-example
 check-chart-ref-example:
@@ -88,6 +93,13 @@ check-chart-ref-tbot:
 	@echo "Checking tbot reference"
 	@ cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.tbot.mdx - || \
+	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
+
+.PHONY: check-chart-ref-tbot-spiffe-daemon-set
+check-chart-ref-tbot-spiffe-daemon-set:
+	@echo "Checking tbot reference"
+	@ cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot-spiffe-daemon-set -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.tbot-spiffe-daemon-set.mdx - || \
 	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
 
 .PHONY: check-chart-ref-access-%
