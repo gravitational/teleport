@@ -99,11 +99,11 @@ If validation is successful, the MFA service responds to the client with a confi
 validated. If validation fails, the MFA service responds with an `Access Denied: Invalid MFA response` error.
 
 The client then sends a [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message to the SSH service,
-instructing it to retrieve the validated challenge from the MFA service.
+instructing it to verify the validated challenge with the MFA service.
 
-The SSH service retrieves the validated challenge from the MFA service using the `GetValidatedChallenge` RPC. The SSH
-service independently computes the SIP from session state and verifies it matches the SIP retrieved from the MFA service
-in the validated challenge.
+The SSH service will then call a new RPC on the MFA service (e.g., `VerifyValidatedChallenge`) that takes the challenge
+name and SIP as parameters. The MFA service will verify that the challenge is valid, has not expired, and is bound to
+the correct session context.
 
 If validation succeeds, the SSH session is established. If not, access is denied with an `Access Denied: Invalid MFA
 response` error. If the client does not complete MFA within a specified timeout (e.g., 3 minutes), the SSH service
@@ -144,10 +144,10 @@ sequenceDiagram
     MFA-->>Client: Challenge validated
 
     Client->>SSH: Keyboard-interactive (challenge name)
-    SSH->>MFA: GetValidatedChallenge (challenge name)
-    MFA-->>SSH: ValidatedChallengeResponse and SIP
     SSH-->>SSH: Compute SIP
-    SSH-->>SSH: Verify SIP matches
+    SSH->>MFA: VerifyValidatedChallenge (challenge name, SIP)
+    MFA-->>MFA: Verify SIP matches
+    MFA-->>SSH: VerifyValidatedChallengeResponse
   end
 
   SSH->>Host: Establish SSH connection
@@ -193,10 +193,10 @@ sequenceDiagram
     rMFA-->>Client: Challenge validated
 
     Client->>SSH: Keyboard-interactive (challenge name)
-    SSH->>lMFA: GetValidatedChallenge (challenge name)
-    lMFA-->>SSH: ValidatedChallengeResponse and SIP
     SSH-->>SSH: Compute SIP
-    SSH-->>SSH: Verify SIP matches
+    SSH->>lMFA: VerifyValidatedChallenge (challenge name, SIP)
+    lMFA-->>lMFA: Verify SIP matches
+    lMFA-->>SSH: VerifyValidatedChallengeResponse
   end
 
   SSH->>Host: Establish SSH connection
@@ -227,7 +227,7 @@ Mitigations:
 #### New RPCs Attack Surface Risk
 
 This RFD introduces an MFA service which exposes four RPCs: `CreateChallenge`, `ValidateChallenge`,
-`ReplicateValidatedChallenge` and `GetValidatedChallenge`. These could potentially be exploited by an attacker to DoS
+`ReplicateValidatedChallenge` and `VerifyValidatedChallenge`. These could potentially be exploited by an attacker to DoS
 the service by flooding it with requests.
 
 Mitigations:
@@ -236,8 +236,8 @@ Mitigations:
    requests from other sources will be rejected.
 1. Only the Teleport Proxy is authorized to call the `ReplicateValidatedChallenge` RPC, requests from other sources will
    be rejected.
-1. Only the Teleport SSH service is authorized to call the `GetValidatedChallenge` RPC on the MFA service within its own
-   cluster. Requests from other sources will be rejected.
+1. Only the Teleport SSH service is authorized to call the `VerifyValidatedChallenge` RPC on the MFA service within its
+   own cluster. Requests from other sources will be rejected.
 1. Ensure that the MFA service validates all inputs before processing the request to avoid unnecessary processing of
    invalid requests.
 
@@ -339,7 +339,7 @@ complexity. Additionally, the RPCs defined in this new service are specifically 
 sessions, instead of further expanding the existing `CreateAuthenticateChallenge` RPC which is more general-purpose.
 
 The RPCs will mirror the existing headless authentication flow. Like `GetHeadlessAuthentication`, the
-`GetValidatedChallenge` method will create a watcher with a timeout to wait for the [ValidatedChallenge
+`VerifyValidatedChallenge` method will create a watcher with a timeout to wait for the [ValidatedChallenge
 resource](#storing-validated-mfa-responses) to exist in the backend, rather than requiring the client to poll repeatedly
 until the resource exists in the local backend or for replication to complete to the leaf backend.
 
@@ -357,10 +357,11 @@ service MFAService {
   // ReplicateValidatedChallenge replicates a validated MFA challenge to a leaf cluster for retrieval during SSH session
   // establishment. It is a NOOP when used in the root cluster.
   rpc ReplicateValidatedChallenge(ReplicateValidatedChallengeRequest) returns (ValidatedChallenge);
-  // GetValidatedChallenge retrieves a previously validated MFA challenge response for a user session.
+  // VerifyValidatedChallenge verifies a previously validated MFA challenge response for a user session.
   // If the challenge does not yet exist, this method will block until the resource appears or until the timeout is
-  // reached.
-  rpc GetValidatedChallenge(GetValidatedChallengeRequest) returns (ValidatedChallenge);
+  // reached. The payload is used to verify the challenge is tied to the correct user session. If the verification is
+  // successful, the MFA device used for authentication is returned. If the verification fails, an error is returned.
+  rpc VerifyValidatedChallenge(VerifyValidatedChallengeRequest) returns (VerifyValidatedChallengeResponse);
 }
 
 
@@ -415,11 +416,21 @@ message ReplicateValidatedChallengeRequest {
   types.MFADevice device = 3;
 }
 
-// GetValidatedChallengeRequest is the request message for GetValidatedChallenge.
-message GetValidatedChallengeRequest {
+// VerifyValidatedChallengeRequest is the request message for VerifyValidatedChallenge.
+message VerifyValidatedChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the retrieval to the correct challenge.
   string name = 1;
+  // payload is a value that uniquely identifies the user's session. The client calling VerifyValidatedChallenge MUST
+  // independently compute this value from session state to verify it matches in order to verify the response is tied to
+  // the correct user session. For SSH sessions, this would be the protobuf encoding of teleport.ssh.v1.SessionPayload.
+  bytes payload = 2;
+}
+
+// VerifyValidatedChallengeResponse is the response message for VerifyValidatedChallenge.
+message VerifyValidatedChallengeResponse {
+  // device contains information about the user's MFA device used to authenticate.
+  types.MFADevice device = 1;
 }
 
 // AuthenticateChallenge is a challenge for all MFA devices registered for a user.
@@ -499,7 +510,7 @@ service forwards the validated challenge to the leaf cluster's MFA service for s
 
 A new backend resource `ValidatedChallenge` will be created following the [resource
 guidelines](/rfd/0153-resource-guidelines.md). The only operations supported by this resource are: retrieval via
-`GetValidatedChallenge` and replication to leaf clusters via `ReplicateValidatedChallenge`. The resource will be
+`VerifyValidatedChallenge` and replication to leaf clusters via `ReplicateValidatedChallenge`. The resource will be
 automatically deleted after retrieval or expiration.
 
 ```proto
@@ -656,12 +667,12 @@ in‑band MFA flow.
 
 ### Audit Events
 
-The existing SSH session audit events will be updated to include a field indicating the type of MFA flow used (in-band flow,
-per-session MFA certificate, or unspecified). This will help with tracking the rollout of the new in-band MFA flow during the transition
-period and provide flexibility for future MFA flow types.
+The existing SSH session audit events will be updated to include a field indicating the type of MFA flow used (in-band
+flow, per-session MFA certificate, or unspecified). This will help with tracking the rollout of the new in-band MFA flow
+during the transition period and provide flexibility for future MFA flow types.
 
-Audit events will not be added for the `ReplicateValidatedChallenge` and `GetValidatedChallenge` because these RPCs are
-internal to the SSH session establishment process and do not represent user actions.
+Audit events will not be added for the `ReplicateValidatedChallenge` and `VerifyValidatedChallenge` because these RPCs
+are internal to the SSH session establishment process and do not represent user actions.
 
 ```proto
 package events;
