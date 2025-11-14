@@ -79,8 +79,11 @@ type DiscoverResponse struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	RelayGroup            string                 `protobuf:"bytes,1,opt,name=relay_group,json=relayGroup,proto3" json:"relay_group,omitempty"`
 	TargetConnectionCount int32                  `protobuf:"varint,2,opt,name=target_connection_count,json=targetConnectionCount,proto3" json:"target_connection_count,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// the list of api/types.TunnelTypes supported by this Relay group; if empty,
+	// it should be treated as containing only types.NodeTunnel ("node")
+	SupportedTunnelTypes []string `protobuf:"bytes,3,rep,name=supported_tunnel_types,json=supportedTunnelTypes,proto3" json:"supported_tunnel_types,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *DiscoverResponse) Reset() {
@@ -127,16 +130,24 @@ func (x *DiscoverResponse) GetTargetConnectionCount() int32 {
 	return 0
 }
 
+func (x *DiscoverResponse) GetSupportedTunnelTypes() []string {
+	if x != nil {
+		return x.SupportedTunnelTypes
+	}
+	return nil
+}
+
 var File_teleport_relaytunnel_v1alpha_discovery_service_proto protoreflect.FileDescriptor
 
 const file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDesc = "" +
 	"\n" +
 	"4teleport/relaytunnel/v1alpha/discovery_service.proto\x12\x1cteleport.relaytunnel.v1alpha\"\x11\n" +
-	"\x0fDiscoverRequest\"k\n" +
+	"\x0fDiscoverRequest\"\xa1\x01\n" +
 	"\x10DiscoverResponse\x12\x1f\n" +
 	"\vrelay_group\x18\x01 \x01(\tR\n" +
 	"relayGroup\x126\n" +
-	"\x17target_connection_count\x18\x02 \x01(\x05R\x15targetConnectionCount2}\n" +
+	"\x17target_connection_count\x18\x02 \x01(\x05R\x15targetConnectionCount\x124\n" +
+	"\x16supported_tunnel_types\x18\x03 \x03(\tR\x14supportedTunnelTypes2}\n" +
 	"\x10DiscoveryService\x12i\n" +
 	"\bDiscover\x12-.teleport.relaytunnel.v1alpha.DiscoverRequest\x1a..teleport.relaytunnel.v1alpha.DiscoverResponseB`Z^github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha;relaytunnelv1alphab\x06proto3"
 

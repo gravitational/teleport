@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -74,6 +75,9 @@ type TLSServerConfig struct {
 	GetRotation services.RotationGetter
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	// RelayInfoGetter is the function used to get the relay tunnel client info
+	// to fill in the server heartbeats.
+	RelayInfoGetter relaytunnel.GetRelayInfoFunc
 	// Log is the logger.
 	Log *slog.Logger
 	// Selectors is a list of resource monitor selectors.
@@ -514,18 +518,27 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 		name += teleport.KubeLegacyProxySuffix
 	}
 
+	var relayGroup string
+	var relayIDs []string
+	if t.RelayInfoGetter != nil {
+		// relayInfoGetter returns a copy of the slice, so we can move it in the
+		// protobuf message
+		relayGroup, relayIDs = t.RelayInfoGetter()
+	}
 	srv, err := types.NewKubernetesServerV3(
 		types.Metadata{
 			Name:      name,
 			Namespace: t.Namespace,
 		},
 		types.KubernetesServerSpecV3{
-			Version:  teleport.Version,
-			Hostname: addr,
-			HostID:   t.TLSServerConfig.HostID,
-			Rotation: t.getRotationState(),
-			Cluster:  cluster,
-			ProxyIDs: t.ConnectedProxyGetter.GetProxyIDs(),
+			Version:    teleport.Version,
+			Hostname:   addr,
+			HostID:     t.TLSServerConfig.HostID,
+			Rotation:   t.getRotationState(),
+			Cluster:    cluster,
+			ProxyIDs:   t.ConnectedProxyGetter.GetProxyIDs(),
+			RelayGroup: relayGroup,
+			RelayIds:   relayIDs,
 		},
 	)
 	if err != nil {
