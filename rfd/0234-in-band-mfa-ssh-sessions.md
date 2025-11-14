@@ -656,9 +656,9 @@ in‑band MFA flow.
 
 ### Audit Events
 
-The existing SSH session audit events will be updated to indicate whether MFA was completed via the in-band flow or
-per-session MFA certificate. This will help with tracking the rollout of the new in-band MFA flow during the transition
-period.
+The existing SSH session audit events will be updated to include a field indicating the type of MFA flow used (in-band flow,
+per-session MFA certificate, or unspecified). This will help with tracking the rollout of the new in-band MFA flow during the transition
+period and provide flexibility for future MFA flow types.
 
 Audit events will not be added for the `ReplicateValidatedChallenge` and `GetValidatedChallenge` because these RPCs are
 internal to the SSH session establishment process and do not represent user actions.
@@ -670,16 +670,29 @@ package events;
 message CreateMFAAuthChallenge {
   // ... existing fields ...
 
-  // in_band optionally indicates whether the MFA challenge was completed via the in-band flow.
-  bool in_band = 5 [(gogoproto.jsontag) = "in_band,omitempty"];
+  // mfa_flow_type indicates the type of MFA flow used for the challenge.
+  MFAFlowType mfa_flow_type = 5 [(gogoproto.jsontag) = "mfa_flow_type,omitempty"];
 }
 
 // ValidateMFAAuthResponse records the validation of an MFA auth challenge response.
 message ValidateMFAAuthResponse {
   // ... existing fields ...
 
-  // in_band optionally indicates whether the MFA challenge was completed via the in-band flow.
-  bool in_band = 7 [(gogoproto.jsontag) = "in_band,omitempty"];
+  // mfa_flow_type indicates the type of MFA flow used for the validation.
+  MFAFlowType mfa_flow_type = 7 [(gogoproto.jsontag) = "mfa_flow_type,omitempty"];
+}
+
+// MFAFlowType defines the type of MFA flow used for authentication.
+enum MFAFlowType {
+  // MFA_FLOW_TYPE_UNSPECIFIED is the default value when the flow type is not specified.
+  // This typically indicates legacy behavior or when the flow type is unknown.
+  MFA_FLOW_TYPE_UNSPECIFIED = 0;
+  // MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE indicates that MFA was completed using
+  // a per-session MFA certificate (legacy flow).
+  MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE = 1;
+  // MFA_FLOW_TYPE_IN_BAND indicates that MFA was completed using the in-band flow
+  // during session establishment.
+  MFA_FLOW_TYPE_IN_BAND = 2;
 }
 ```
 
