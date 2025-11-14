@@ -318,7 +318,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		Values: []string{string(ec2types.InstanceStateNameRunning)},
 	}}
 
-	if _, ok := cfg.Matcher.Tags["*"]; !ok {
+	if _, ok := cfg.Matcher.Tags[types.Wildcard]; !ok {
 		for key, val := range cfg.Matcher.Tags {
 			tagFilters = append(tagFilters, ec2types.Filter{
 				Name:   aws.String("tag:" + key),
