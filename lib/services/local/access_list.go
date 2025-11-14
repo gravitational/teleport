@@ -68,10 +68,6 @@ const (
 	// it shares the same string as createAccessListLimitLockName to ensure
 	// backwards compatibility.
 	accessListResourceLockName = createAccessListLimitLockName
-
-	// accessListCollectionInsertChunkSize is the chunk size for batch inserting
-	// access list collections to reduce memory allocation.
-	accessListCollectionInsertChunkSize = 100
 )
 
 // AccessListService manages Access List resources in the Backend. The AccessListService's
@@ -1188,28 +1184,28 @@ func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Contex
 // InsertAccessListCollection inserts a complete collection of access lists and their members from a single
 // upstream source (e.g. EntraID) using a batch operation for improved performance.
 //
-// This method is designed for bulk import scenarios where an entire set of access lists collection needs to be
+// This method is designed for bulk import scenarios where an entire access list collection needs to be
 // synchronized from an external source. All access lists and members in the collection are
 // inserted using chunked batch operations, minimizing memory allocation while still reducing
 // the number of write operations. Due to the batch nature of this operation (access list hierarchy
-// is known upfront) we can avoid per-access-list locking, global locks to improve performance.
+// is known upfront), we can avoid per-access-list locking and global locks to improve performance.
 //
 // Important: This method assumes the collection is self-contained. Access lists in the collection
 // cannot reference access lists outside the collection as members or owners. This is intentional for
 // collections representing a complete snapshot from a single upstream source.
 // The function should be used only once during initial import where
-// we are sure that teleport don't have any pre-existing access lists from the upstream and the
-// internal relation between upstream access lists adn internal access lists don't exist yet.
+// we are sure that Teleport doesn't have any pre-existing access lists from the upstream and the
+// internal relation between upstream access lists and internal access lists doesn't exist yet.
 //
-// Operation can fail due to backend shutdown. In that case if the partial state was created
-// calling the UpsertAccessListWithMembers/ DeleteAccessListMember and reconciling to deside state.
+// Operation can fail due to backend shutdown. In that case, if partial state was created,
+// use UpsertAccessListWithMembers/DeleteAccessListMember to reconcile to the desired state.
 func (a *AccessListService) InsertAccessListCollection(ctx context.Context, collection *accesslists.Collection) error {
 	if err := collection.Validate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	// collect backend items in chunks with size of 800 items
-	// to avoid high memory consumption by constructing a large slice of backend items.
-	// Where the PutBatch method will also leverage chunking to write items to the backend in smaller batches.
+	// Collect backend items in chunks of 800 items each to avoid high memory consumption
+	// from constructing a large slice of all backend items at once. PutBatch will then
+	// leverage its own internal chunking to write items to the backend in smaller batches.
 	// TODO(smallinsky) align the chunk size with the one used in backend.PutBatch
 	for chunk, err := range stream.Chunks(a.collectionToBackendItemsIter(collection), 800) {
 		if err != nil {
