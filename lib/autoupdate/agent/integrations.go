@@ -56,7 +56,7 @@ func IsManagedByUpdater() (bool, error) {
 	if p == "" {
 		return false, nil
 	}
-	_, err = os.Stat(filepath.Join(p, updateConfigName))
+	_, err = os.Stat(filepath.Join(p, UpdateConfigName))
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -102,7 +102,7 @@ func stablePathForBinary(origPath, defaultPath string) (string, error) {
 	// This is determined by looking for ../../../update.yaml, if we are in ../../../versions.
 	// update.yaml will always have the target path if Managed Updates are enabled.
 	if p := findParentMatching(origPath, versionsDirName, 4); p != "" {
-		cfgPath := filepath.Join(p, updateConfigName)
+		cfgPath := filepath.Join(p, UpdateConfigName)
 		cfg, err := readConfig(cfgPath)
 		if err == nil && cfg.Spec.Path != "" {
 			// If the path exists and resolves, it is always the best candidate path,
@@ -152,7 +152,7 @@ func findConfigFile() (string, error) {
 	if p == "" {
 		return "", trace.Errorf("installation not managed by updater")
 	}
-	return filepath.Join(p, updateConfigName), nil
+	return filepath.Join(p, UpdateConfigName), nil
 }
 
 // ReadHelloUpdaterInfo reads the updater config and generates a proto.UpdaterV2Info

@@ -29,9 +29,11 @@ import (
 
 	"github.com/distribution/reference"
 	"github.com/go-logr/logr"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -48,6 +50,7 @@ import (
 	podmaintenance "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	"github.com/gravitational/teleport/lib/autoupdate/agent"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -166,6 +169,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	client := mgr.GetClient()
+	updateConfigName := agentName + "-update"
+
+	var updateID uuid.UUID
+	var updateYAML v1.ConfigMap
+	err = client.Get(ctx, kclient.ObjectKey{
+		Namespace: agentNamespace,
+		Name:      updateConfigName,
+	}, &updateYAML)
+	switch {
+	case apierrors.IsNotFound(err):
+		updateID, err = uuid.NewRandom()
+		if err != nil {
+			ctrl.Log.Error(err, "failed to generate updater ID, exiting")
+			os.Exit(1)
+		}
+		ctrl.Log.Info("generated new updater ID", "id", updateID)
+	case err != nil:
+		ctrl.Log.Error(err, "failed to generate updater ID, exiting")
+		os.Exit(1)
+	default:
+		updateID, err = uuid.Parse(updateYAML.Data[agent.BinaryName+".id"])
+		if err != nil {
+			ctrl.Log.Error(err, "updater configmap is malformed, canary deployment may fail", "configmap", updateYAML)
+		}
+	}
+
 	// Craft the version getter and update triggers based on the configuration (use RFD-109 APIs, RFD-184, or both).
 	var criticalUpdateTriggers []maintenance.Trigger
 	var plannedMaintenanceTriggers []maintenance.Trigger
@@ -180,6 +210,7 @@ func main() {
 			Context:     ctx,
 			ProxyAddr:   proxyAddress,
 			UpdateGroup: updateGroup,
+			UpdateID:    updateID.String(),
 		})
 		if err != nil {
 			ctrl.Log.Error(err, "failed to create proxy client, exiting")
@@ -295,9 +326,13 @@ func main() {
 	}
 
 	statefulsetController := controller.StatefulSetVersionUpdater{
-		VersionUpdater: versionUpdater,
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
+		VersionUpdater:   versionUpdater,
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		UpdateID:         updateID,
+		UpdateGroup:      updateGroup,
+		UpdateConfigName: updateConfigName,
+		ProxyAddress:     proxyAddress,
 	}
 
 	if err := statefulsetController.SetupWithManager(mgr); err != nil {
