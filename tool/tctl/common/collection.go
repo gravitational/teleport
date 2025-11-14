@@ -830,27 +830,6 @@ func (c *securityReportCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type serverInfoCollection struct {
-	serverInfos []types.ServerInfo
-}
-
-func (c *serverInfoCollection) Resources() []types.Resource {
-	r := make([]types.Resource, len(c.serverInfos))
-	for i, resource := range c.serverInfos {
-		r[i] = resource
-	}
-	return r
-}
-
-func (c *serverInfoCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Labels"})
-	for _, si := range c.serverInfos {
-		t.AddRow([]string{si.GetName(), printMetadataLabels(si.GetNewLabels())})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type vnetConfigCollection struct {
 	vnetConfig *vnet.VnetConfig
 }

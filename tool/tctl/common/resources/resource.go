@@ -64,6 +64,7 @@ func Handlers() map[string]Handler {
 		types.KindRole:                               roleHandler(),
 		types.KindSAMLConnector:                      samlConnectorHandler(),
 		types.KindSAMLIdPServiceProvider:             samlIdPServiceProviderHandler(),
+		types.KindServerInfo:                         serverInfoHandler(),
 		types.KindSessionRecordingConfig:             sessionRecordingConfigHandler(),
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
 		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
