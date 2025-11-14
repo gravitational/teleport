@@ -3,7 +3,7 @@
 ## 18.4.0 (11/13/25)
 
 ### Streamable-HTTP and SSE support for MCP Zero-Trust Access
-MCP Zero-Trust Access users are now be able to secure and audit connections to MCP servers that use HTTP-based transport protocols in addition to stdio.
+MCP Zero-Trust Access users are now able to secure and audit connections to MCP servers that use HTTP-based transport protocols in addition to stdio.
 
 ### Improved Bot Instances Dashboard
 The Bot Instances dashboard now provide a more intuitive interface for managing a fleet of Machine & Workload Identity bot instances. This now includes improved filtering, sorting and searching capabilities, and a high-level overview of the versions of all bot instances in the cluster.
