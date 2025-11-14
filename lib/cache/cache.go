@@ -285,6 +285,7 @@ func ForRelay(cfg Config) Config {
 		{Kind: types.KindCertAuthority, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindKubeServer},
 		{Kind: types.KindNode},
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindRole},
