@@ -66,6 +66,7 @@ import  {
   MfaJson,
   TdpbCodec,
   TdpCodec,
+  TdpbUpgrade,
 } from './codec';
 import {
   PathDoesNotExistError,
@@ -167,6 +168,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
+    private transportReady: () => void,
   ) {
     super();
     this.codec = new TdpCodec(this)
@@ -206,6 +208,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
     this.emit(TdpClientEvent.TRANSPORT_OPEN);
     if (options.screenSpec) {
+      this.screenSpec = options.screenSpec;
       this.sendClientScreenSpec(options.screenSpec);
     }
 
@@ -225,10 +228,12 @@ export class TdpClient extends EventEmitter<EventMap> {
       // TODO (danielashare): Remove this once proxy doesn't block on
       // keyboardLayout.
       if (options.screenSpec) {
-        this.screenSpec = options.screenSpec;
         this.sendClientScreenSpec(options.screenSpec);
       }
     }
+
+    // Transport ready and initial messages sent
+    this.transportReady()
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
@@ -378,7 +383,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.emit(TdpClientEvent.LATENCY_STATS, stats);
   }
 
-  handleTDPBUpgrade() {
+  handleTDPBUpgrade(_req: TdpbUpgrade) {
     // Swap our codec to the TDPB codec.
     this.codec = new TdpbCodec(this)
 
@@ -498,7 +503,6 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleMfaChallenge(mfaJson: MfaJson) {
-    //const mfaJson = this.codec.decodeMfaJson(buffer);
     if (mfaJson.mfaType == 'n') {
       // TermEvent.MFA_CHALLENGE
       this.emit('terminal.webauthn', mfaJson.jsonString);
