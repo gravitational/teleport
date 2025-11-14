@@ -812,12 +812,6 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfigName
 	return result, nil
 }
 
-func (s *Server) getAzureClientGetterDelayed(integration string) func(ctx context.Context) (cloud.AzureClients, error) {
-	return func(ctx context.Context) (cloud.AzureClients, error) {
-		return s.getAzureClientGetter(ctx, integration)
-	}
-}
-
 func (s *Server) getAzureClientGetter(ctx context.Context, integration string) (cloud.AzureClients, error) {
 
 	// TODO: add context param
@@ -1406,9 +1400,14 @@ func (s *Server) handleAzureInstances(ctx context.Context, instances *server.Azu
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	runClient, err := azureClients.GetAzureRunCommandClient(instances.SubscriptionID)
 
-	if err := s.filterExistingAzureNodes(instances); err != nil {
+	runClient, err := azureClients.GetAzureRunCommandClient(instances.SubscriptionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.filterExistingAzureNodes(instances)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(instances.Instances) == 0 {
