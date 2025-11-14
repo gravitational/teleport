@@ -19,8 +19,8 @@
 package metrics
 
 import (
+	"cmp"
 	"errors"
-	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -61,18 +61,16 @@ func (r *Registry) Subsystem() string {
 //	 go runFooService(ctx, log, reg.Wrap("foo"))
 //	 go runBarService(ctx, log, reg.Wrap("bar"))
 func (r *Registry) Wrap(subsystem string) *Registry {
-	var s []string
-	if r.subsystem != "" {
-		s = append(s, r.subsystem)
-	}
-	if subsystem != "" {
-		s = append(s, subsystem)
+	if r.subsystem != "" && subsystem != "" {
+		subsystem = r.subsystem + "_" + subsystem
+	} else {
+		subsystem = cmp.Or(r.subsystem, subsystem)
 	}
 
 	newReg := &Registry{
 		Registerer: r.Registerer,
 		namespace:  r.namespace,
-		subsystem:  strings.Join(s, "_"),
+		subsystem:  subsystem,
 	}
 	return newReg
 }
