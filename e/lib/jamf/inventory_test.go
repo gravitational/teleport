@@ -3,11 +3,13 @@ package jamf_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
@@ -267,4 +269,89 @@ func TestClient_GetComputersInventoryID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClient_ComputersInventoryV1(t *testing.T) {
+	t.Parallel()
+
+	env := testenv.MustNew(nil /* opts */)
+	t.Cleanup(func() { env.Close() })
+
+	api := env.API
+	client := env.Client
+	ctx := context.Background()
+
+	verifyNotFound := func(t *testing.T, err error, endpoint string) {
+		t.Helper()
+
+		var target *jamf.APIError
+		require.ErrorAs(t, err, &target, "%s: error type mismatch", endpoint)
+		require.Equal(t, http.StatusNotFound, target.StatusCode, "%s: unexpected status code", endpoint)
+	}
+
+	// Sanity check: initially "v2" is supported, then it isn't.
+	{
+		_, err := client.GetV2ComputersInventory(ctx, &jamf.GetComputersInventoryRequest{})
+		require.NoError(t, err, "client.GetV2ComputersInventory() errored unexpectedly")
+
+		api.SetDisableComputersInventoryV2(true)
+		_, err = client.GetV2ComputersInventory(ctx, &jamf.GetComputersInventoryRequest{})
+		require.Error(t, err, "client.GetV2ComputersInventory() succeeded unexpectedly")
+		verifyNotFound(t, err, "GET /v2/computers-inventory")
+	}
+
+	inv := []*jamf.ComputerInventory{
+		{
+			ID: "2",
+			General: &jamf.ComputerGeneralSection{
+				Name:     "llama's macbook",
+				Platform: "Mac",
+			},
+		},
+		{
+			ID: "3",
+			General: &jamf.ComputerGeneralSection{
+				Name:     "alpaca's macbook",
+				Platform: "Mac",
+			},
+		},
+	}
+	api.SetInventory(inv)
+
+	// Sanity check: GetV2ByID also breaks.
+	{
+		_, err := client.GetV2ComputersInventoryByID(ctx, &jamf.GetComputersInventoryByIDRequest{
+			ID:      inv[0].ID,
+			Section: []string{jamf.SectionGeneral},
+		})
+		require.Error(t, err, "client.GetV2ComputersInventoryByID() succeeded unexpectedly")
+		verifyNotFound(t, err, "GET /v2/computers-inventory/{id}")
+	}
+
+	// Re-create the client so the bootstrap marks "v2" as unavailable.
+	client = env.MustNewClient()
+
+	t.Run("list", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := client.GetComputersInventory(ctx, &jamf.GetComputersInventoryRequest{})
+		require.NoError(t, err, "client.GetComputersInventory() errored")
+		if diff := cmp.Diff(inv, resp.Results); diff != "" {
+			t.Errorf("client.GetComputersInventory() mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("get", func(t *testing.T) {
+		t.Parallel()
+
+		want := inv[0]
+		got, err := client.GetComputersInventoryByID(ctx, &jamf.GetComputersInventoryByIDRequest{
+			ID:      want.ID,
+			Section: []string{jamf.SectionGeneral},
+		})
+		require.NoError(t, err, "client.GetComputersInventoryByID() errored")
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("client.GetComputersInventoryByID() mismatch (-want +got)\n%s", diff)
+		}
+	})
 }

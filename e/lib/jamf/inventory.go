@@ -2,6 +2,7 @@ package jamf
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -23,8 +24,11 @@ const (
 	SectionOperatingSystem = "OPERATING_SYSTEM"
 )
 
-// GetComputersInventoryRequest is the request for
-// https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+// GetComputersInventoryRequest is a list request for computer inventory.
+// It is compatible with both v1 and v2 Jamf API versions.
+//
+// * https://developer.jamf.com/jamf-pro/reference/get_v2-computers-inventory
+// * https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory
 type GetComputersInventoryRequest struct {
 	// Section is the slice of sections to query.
 	// If empty, the general section is returned.
@@ -45,15 +49,20 @@ type GetComputersInventoryRequest struct {
 }
 
 // GetComputersInventoryResponse is the response for
-// https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+// [GetComputersInventoryRequest].
+// It is compatible with both v1 and v2 Jamf API versions.
 type GetComputersInventoryResponse struct {
 	// TotalCount is the total inventory count, regardless of the requested page.
 	TotalCount int                  `json:"totalCount"`
 	Results    []*ComputerInventory `json:"results"`
 }
 
-// GetComputersInventoryByIDRequest is the request for
-// https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory-id.
+// GetComputersInventoryByIDRequest is a request for a single computer inventory
+// entry.
+// It is compatible with both v1 and v2 Jamf API versions.
+//
+// * https://developer.jamf.com/jamf-pro/reference/get_v2-computers-inventory-id
+// * https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory-id
 type GetComputersInventoryByIDRequest struct {
 	// ID is the computer inventory identifier.
 	ID string `json:"-"`
@@ -63,9 +72,10 @@ type GetComputersInventoryByIDRequest struct {
 }
 
 // ComputerInventory is a computer inventory entry.
+// It is compatible with both v1 and v2 Jamf API versions.
+//
 // An inventory entry has many, many fields. Only the fields actively used by
 // Teleport are mapped.
-// See [GetComputersInventoryResponse].
 type ComputerInventory struct {
 	ID                string                          `json:"id"`
 	UDID              string                          `json:"udid"`
@@ -136,9 +146,34 @@ type ComputerOperatingSystemSection struct {
 }
 
 // GetComputersInventory returns paginated computer inventory records.
-// See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+//
+// It'll choose between /v2/computers-inventory and /v1/computers-inventory
+// depending on API availability, preferring the former.
+//
+// * https://developer.jamf.com/jamf-pro/reference/get_v2-computers-inventory
+// * https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory
 func (c *Client) GetComputersInventory(
 	ctx context.Context, req *GetComputersInventoryRequest) (*GetComputersInventoryResponse, error) {
+	if c.useComputersInventoryV2 {
+		return c.getV2ComputersInventory(ctx, req)
+	} else {
+		return c.getV1ComputersInventory(ctx, req)
+	}
+}
+
+func (c *Client) getV2ComputersInventory(
+	ctx context.Context, req *GetComputersInventoryRequest) (*GetComputersInventoryResponse, error) {
+	return c.getComputersInventory(ctx, req, 2 /* apiVersion */)
+}
+
+func (c *Client) getV1ComputersInventory(
+	ctx context.Context, req *GetComputersInventoryRequest) (*GetComputersInventoryResponse, error) {
+	return c.getComputersInventory(ctx, req, 1 /* apiVersion */)
+}
+
+func (c *Client) getComputersInventory(
+	ctx context.Context, req *GetComputersInventoryRequest, apiVersion int,
+) (*GetComputersInventoryResponse, error) {
 	if req == nil {
 		return nil, trace.BadParameter("req required")
 	}
@@ -164,7 +199,8 @@ func (c *Client) GetComputersInventory(
 		q.Set("filter", req.Filter)
 	}
 
-	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint("/v1/computers-inventory"), nil /* body */)
+	url := c.endpoint(fmt.Sprintf("/v%d/computers-inventory", apiVersion))
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil /* body */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,9 +211,34 @@ func (c *Client) GetComputersInventory(
 }
 
 // GetComputersInventoryByID returns a single computer.
-// See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory-id.
+//
+// It'll choose between /v2/computers-inventory and /v1/computers-inventory
+// depending on API availability, preferring the former.
+//
+// * https://developer.jamf.com/jamf-pro/reference/get_v2-computers-inventory-id
+// * https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory-id
 func (c *Client) GetComputersInventoryByID(
 	ctx context.Context, req *GetComputersInventoryByIDRequest) (*ComputerInventory, error) {
+	if c.useComputersInventoryV2 {
+		return c.getV2ComputersInventoryByID(ctx, req)
+	} else {
+		return c.getV1ComputersInventoryByID(ctx, req)
+	}
+}
+
+func (c *Client) getV2ComputersInventoryByID(
+	ctx context.Context, req *GetComputersInventoryByIDRequest) (*ComputerInventory, error) {
+	return c.getComputersInventoryByID(ctx, req, 2 /* apiVersion */)
+}
+
+func (c *Client) getV1ComputersInventoryByID(
+	ctx context.Context, req *GetComputersInventoryByIDRequest) (*ComputerInventory, error) {
+	return c.getComputersInventoryByID(ctx, req, 1 /* apiVersion */)
+}
+
+func (c *Client) getComputersInventoryByID(
+	ctx context.Context, req *GetComputersInventoryByIDRequest, apiVersion int,
+) (*ComputerInventory, error) {
 	switch {
 	case req == nil:
 		return nil, trace.BadParameter("req required")
@@ -192,7 +253,8 @@ func (c *Client) GetComputersInventoryByID(
 		q.Add("section", s)
 	}
 
-	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint("/v1/computers-inventory/"+req.ID), nil /* body */)
+	url := c.endpoint(fmt.Sprintf("/v%d/computers-inventory/%s", apiVersion, req.ID))
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil /* body */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -49,6 +50,8 @@ type APIClient struct {
 type API struct {
 	clock clockwork.Clock
 
+	disableComputersInventoryV2 atomic.Bool
+
 	// mu guards all fields below it
 	mu                 sync.Mutex
 	users              []*User
@@ -61,6 +64,10 @@ type API struct {
 // Opts are the creation options for [API].
 type Opts struct {
 	Clock clockwork.Clock
+
+	// DisableComputersInventoryV2 disables the /v2/computers-inventory APIs.
+	// Used to simulate compatibility with older Jamf versions.
+	DisableComputersInventoryV2 bool
 }
 
 // New creates a new fake Jamf API.
@@ -74,10 +81,12 @@ func New(opts *Opts) *API {
 		clock = clockwork.NewRealClock()
 	}
 
-	return &API{
+	api := &API{
 		clock:        clock,
 		issuedTokens: make(map[string]*authToken),
 	}
+	api.disableComputersInventoryV2.Store(opts.DisableComputersInventoryV2)
+	return api
 }
 
 func (a *API) SetUsers(users []*User) {
@@ -98,14 +107,42 @@ func (a *API) SetInventory(inv []*jamf.ComputerInventory) {
 	a.mu.Unlock()
 }
 
+func (a *API) SetDisableComputersInventoryV2(v bool) {
+	a.disableComputersInventoryV2.Store(v)
+}
+
 // Handler returns the http.Handler that implements the REST API.
-// Prefix is the path before "/v1". For example, use "/api" to get paths like
-// "/api/v1/auth/token" and "/api/v1/auth/keep-alive".
+// Prefix is the path before the API endpoints. For example, use "/api" to get
+// paths like "/api/v1/auth/token" and "/api/v1/auth/keep-alive".
 func (a *API) Handler(prefix string) http.Handler {
-	return &rootHandler{
+	mux := http.NewServeMux()
+	root := &rootHandler{
 		API:    a,
 		prefix: prefix,
+		router: mux,
 	}
+
+	// Unauthenticated endpoints.
+	// Routed directly after the base rootHandler.ServeHTTP logic.
+	mux.HandleFunc("POST "+prefix+"/oauth/token", a.postOauthToken)
+	mux.HandleFunc("POST "+prefix+"/v1/auth/token", a.postAuthToken)
+
+	// Authenticated endpoints.
+	mux.HandleFunc("GET "+prefix+"/v2/computers-inventory",
+		root.authorized(root.getV2ComputersInventory))
+	mux.HandleFunc("GET "+prefix+"/v2/computers-inventory/{id}",
+		root.authorized(root.getV2ComputersInventoryByID))
+	mux.HandleFunc("GET "+prefix+"/v1/computers-inventory",
+		root.authorized(root.getComputersInventory))
+	mux.HandleFunc("GET "+prefix+"/v1/computers-inventory/{id}",
+		root.authorized(root.getComputersInventoryByID))
+	mux.HandleFunc("POST "+prefix+"/v1/auth/keep-alive",
+		root.authorized(a.postAuthKeepAlive))
+
+	// Fallback "not found" handler.
+	mux.HandleFunc("/", root.notFound)
+
+	return root
 }
 
 // SetSimulatePagingGaps enables simulation of paging gaps.
@@ -121,14 +158,10 @@ func (a *API) SetSimulatePagingGaps(b bool) {
 type rootHandler struct {
 	*API
 	prefix string
+	router http.Handler
 }
 
 func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if !strings.HasPrefix(req.URL.Path, a.prefix) {
-		http.NotFound(w, req)
-		return
-	}
-
 	// Require the product name under the User-Agent header.
 	uaHeader := req.Header.Get("User-Agent")
 	if !userAgentRegex.MatchString(uaHeader) {
@@ -144,87 +177,43 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Strip prefix from the path, we route from `/v1` onwards.
-	path := strings.TrimPrefix(req.URL.Path, a.prefix)
-
-	// Handle unauthenticated endpoints:
-	// - /oauth/token   - client credentials authn
-	// - /v1/auth/token - user/password authn
-	switch {
-	case req.Method == http.MethodPost && path == "/oauth/token":
-		a.postOauthToken(w, req)
-		return
-	case req.Method == http.MethodPost && path == "/v1/auth/token":
-		a.postAuthToken(w, req)
-		return
-	}
-
-	// Authorize.
-	token, ok := a.isAuthorized(req)
-	if !ok {
-		a.replyError(w, errorResponse{HTTPStatus: 401})
-		return
-	}
-	req = req.WithContext(context.WithValue(req.Context(), authTokenKey{}, token))
-
 	// Route.
-	var handler http.HandlerFunc
-	switch req.Method {
-	case http.MethodGet:
-		const computersInventory = "/v1/computers-inventory"
-		const computersInventorySlash = computersInventory + "/"
+	a.router.ServeHTTP(w, req)
+}
 
-		// GET /v1/computers-inventory
-		if path == computersInventory || path == computersInventorySlash {
-			handler = a.getComputersInventory
-			break // breaks from switch
+func (a *rootHandler) notFound(w http.ResponseWriter, req *http.Request) {
+	a.replyError(w, errorResponse{HTTPStatus: 404})
+}
+
+func (a *rootHandler) authorized(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		token, ok := a.isAuthorized(req)
+		if !ok {
+			a.replyError(w, errorResponse{HTTPStatus: 401})
+			return
 		}
 
-		// GET /v1/computers-inventory/{id}
-		if id, ok := strings.CutPrefix(path, computersInventorySlash); ok {
-			n, err := strconv.ParseInt(id, 10, 64)
-			switch {
-			case err != nil && strings.Contains(id, "/"):
-				// Not found.
-				// Technically requests like '/v1/computers-inventory/99/' do work, but
-				// let's not encourage that.
-				break // breaks from switch
-			case err != nil: // "Regular" parsing errors.
-				a.replyError(w, errorResponse{
-					HTTPStatus: 400,
-					Errors: []*apiError{
-						{
-							Code:        "INVALID_ID",
-							Description: "id field must be string of positive numeric value or -1",
-							ID:          id,
-							Field:       "arg0",
-						},
-					},
-				})
-				return
-			case n > math.MaxInt32:
-				// Yep, this happens.
-				a.replyError(w, errorResponse{
-					HTTPStatus: 500,
-					Errors:     []*apiError{},
-				})
-				return
-			default:
-				handler = a.getComputersInventoryByID(id)
-			}
-		}
-
-	case http.MethodPost:
-		if path == "/v1/auth/keep-alive" {
-			handler = a.postAuthKeepAlive
-		}
+		req = req.WithContext(context.WithValue(req.Context(), authTokenKey{}, token))
+		f(w, req)
 	}
-	if handler == nil {
-		a.replyError(w, errorResponse{HTTPStatus: 404})
+}
+
+func (a *rootHandler) getV2ComputersInventory(w http.ResponseWriter, req *http.Request) {
+	if a.disableComputersInventoryV2.Load() {
+		a.notFound(w, req)
 		return
 	}
 
-	handler(w, req)
+	a.getComputersInventory(w, req)
+}
+
+func (a *rootHandler) getV2ComputersInventoryByID(w http.ResponseWriter, req *http.Request) {
+	if a.disableComputersInventoryV2.Load() {
+		a.notFound(w, req)
+		return
+	}
+
+	a.getComputersInventoryByID(w, req)
 }
 
 // authTokenKey is used to save the current *authToken in the request's context.
@@ -567,47 +556,73 @@ func (a *API) getComputersInventory(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func (a *API) getComputersInventoryByID(id string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Validate "section" parameter.
-		q := r.URL.Query()
-		sections := q["section"]
-		if _, err := copySections(&jamf.ComputerInventory{}, sections); err != nil {
-			a.replyError(w, errorResponse{
-				HTTPStatus: 400,
-				Errors: []*apiError{
-					{
-						Code:        "INVALID_REQUEST_PARAMETER_VALUE",
-						Description: err.Error(),
-						ID:          "0",
-					},
-				},
-			})
-			return
-		}
+func (a *API) getComputersInventoryByID(w http.ResponseWriter, req *http.Request) {
+	id := req.PathValue("id")
 
-		a.mu.Lock()
-		defer a.mu.Unlock()
-		for _, c := range a.inventory {
-			if c != nil && c.ID == id {
-				// err safe to swallow, sections are validated above.
-				cp, _ := copySections(c, sections)
-				a.replyJSON(w, 200, cp)
-				return
-			}
-		}
-
+	// Validate id.
+	switch n, err := strconv.ParseInt(id, 10, 64); {
+	case err != nil: // "Regular" parsing errors.
+		// Technically requests like '/v1/computers-inventory/99/' do work, but
+		// let's not encourage that.
 		a.replyError(w, errorResponse{
-			HTTPStatus: 404,
+			HTTPStatus: 400,
 			Errors: []*apiError{
 				{
 					Code:        "INVALID_ID",
-					Description: "computer with given id does not exist",
+					Description: "id field must be string of positive numeric value or -1",
 					ID:          id,
+					Field:       "arg0",
 				},
 			},
 		})
+		return
+	case n > math.MaxInt32:
+		// Yep, this happens.
+		a.replyError(w, errorResponse{
+			HTTPStatus: 500,
+			Errors:     []*apiError{},
+		})
+		return
 	}
+
+	// Validate "section" parameter.
+	q := req.URL.Query()
+	sections := q["section"]
+	if _, err := copySections(&jamf.ComputerInventory{}, sections); err != nil {
+		a.replyError(w, errorResponse{
+			HTTPStatus: 400,
+			Errors: []*apiError{
+				{
+					Code:        "INVALID_REQUEST_PARAMETER_VALUE",
+					Description: err.Error(),
+					ID:          "0",
+				},
+			},
+		})
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, c := range a.inventory {
+		if c != nil && c.ID == id {
+			// err safe to swallow, sections are validated above.
+			cp, _ := copySections(c, sections)
+			a.replyJSON(w, 200, cp)
+			return
+		}
+	}
+
+	a.replyError(w, errorResponse{
+		HTTPStatus: 404,
+		Errors: []*apiError{
+			{
+				Code:        "INVALID_ID",
+				Description: "computer with given id does not exist",
+				ID:          id,
+			},
+		},
+	})
 }
 
 func copySections(c *jamf.ComputerInventory, sections []string) (*jamf.ComputerInventory, error) {

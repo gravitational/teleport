@@ -20,7 +20,7 @@ func TestClient_authn(t *testing.T) {
 	env := testenv.MustNew(&testenv.Opts{
 		Clock: clock,
 	})
-	defer env.Close()
+	t.Cleanup(func() { env.Close() })
 
 	ctx := context.Background()
 
@@ -85,7 +85,7 @@ func TestClient_authn(t *testing.T) {
 		}
 	})
 
-	t.Run(`try base URL with "/api" suffix`, func(t *testing.T) {
+	t.Run(`try base URL without the "/api" suffix`, func(t *testing.T) {
 		client, err := jamf.NewClient(ctx, jamf.ClientOpts{
 			Clock:      clock,
 			Logger:     env.Logger,
@@ -145,6 +145,36 @@ func TestClient_authn(t *testing.T) {
 			}
 		}
 		t.Fatal("Client never reached ErrMaxAuthnAttemptsReached")
+	})
+
+	t.Run(`client bootstrap worst case`, func(t *testing.T) {
+		t.Parallel()
+
+		// The worst-case scenario for bootstrap is:
+		// * Non-default API prefix
+		// * /v2/computers-inventory is not available.
+		//
+		// This should result in the maximum number of "attempts" before the client
+		// is ready: 2 authn attempts and 2 /computers-inventory calls.
+		env := testenv.MustNew(&testenv.Opts{
+			Clock: clock,
+			// Arbitrary. Just needs to be something other than "/api".
+			JamfAPIPrefixOverride: "/notapi",
+		})
+		env.API.SetDisableComputersInventoryV2(true)
+
+		client, err := jamf.NewClient(ctx, jamf.ClientOpts{
+			Clock:      clock,
+			Logger:     env.Logger,
+			HTTPClient: env.HTTPClient,
+			APIURL:     env.APIEndpoint,
+			Username:   testenv.DefaultUsers[0].Username,
+			Password:   testenv.DefaultUsers[0].Password,
+		})
+		if err != nil {
+			t.Fatalf("NewClient returned err=%v, want nil", err)
+		}
+		mustGetComputersInventory(t, client) // Just to be sure
 	})
 }
 

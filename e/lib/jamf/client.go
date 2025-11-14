@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -49,7 +50,8 @@ type Client struct {
 	logger     *slog.Logger
 	httpClient *http.Client
 
-	baseURL string
+	baseURL                 string
+	useComputersInventoryV2 bool
 
 	// userPass or clientSecret are set depending on which type of API credentials
 	// are supplied during Client creation.
@@ -168,47 +170,100 @@ func NewClient(ctx context.Context, opts ClientOpts) (*Client, error) {
 		clock:        clock,
 		logger:       logger,
 		httpClient:   httpClient,
-		baseURL:      baseURL.String(),
 		userPass:     userPass,
 		clientSecret: clientSecret,
 	}
-	if err := c.verifyCredentials(ctx); err != nil {
+	if err := c.bootstrapClient(ctx, baseURL.String()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return c, nil
 }
 
-func (c *Client) verifyCredentials(ctx context.Context) error {
-	_, err := c.GetComputersInventory(ctx, &GetComputersInventoryRequest{
+// bootstrapClient tests the credentials and discovers the correct values for
+// c.baseURL and c.useComputersInventoryV2.
+func (c *Client) bootstrapClient(ctx context.Context, initialURL string) error {
+	if err := c.bootstrapBaseURL(ctx, initialURL); err != nil {
+		return trace.Wrap(err)
+	}
+
+	apiVersion, err := c.discoverComputersInventoryVersion(ctx)
+	if err != nil {
+		return trace.Wrap(err, "determining supported /computers-inventory API version")
+	}
+	c.useComputersInventoryV2 = apiVersion == 2
+	c.logger.DebugContext(ctx,
+		"Jamf API: Determined /computers-inventory API version",
+		"api_version", apiVersion,
+	)
+
+	return nil
+}
+
+func (c *Client) bootstrapBaseURL(ctx context.Context, initialURL string) error {
+	// Prefer the "/api" suffixed version. It's more likely to succeed.
+	urls := make([]string, 0, 2)
+	if !strings.HasSuffix(initialURL, "/api") {
+		urls = append(urls, initialURL+"/api")
+	}
+	urls = append(urls, initialURL)
+
+	// Attempt to acquire an access token.
+	var lastErr error
+	for _, url := range urls {
+		c.baseURL = url
+		if _, lastErr = c.createOrRenewCurrentToken(ctx); lastErr == nil {
+			break
+		}
+	}
+	if lastErr != nil {
+		apiError := &APIError{}
+		_ = errors.As(lastErr, &apiError)
+
+		switch apiError.StatusCode {
+		case http.StatusUnauthorized:
+			return trace.Wrap(ErrJamfClientInvalidCredential)
+		case http.StatusForbidden:
+			return trace.Wrap(ErrJamfClientInvalidPrivilege)
+		default:
+			return trace.Wrap(lastErr, "connecting to Jamf API")
+		}
+	}
+
+	c.logger.DebugContext(ctx,
+		"Jamf API: Authentication successful",
+		"url", c.baseURL,
+	)
+	return nil
+}
+
+func (c *Client) discoverComputersInventoryVersion(ctx context.Context) (apiVersion int, _ error) {
+	req := &GetComputersInventoryRequest{
 		Page:     0,
 		PageSize: 1,
-	})
-	if err == nil {
-		c.logger.DebugContext(ctx,
-			"Jamf API: Authentication successful",
-			"url", c.baseURL,
-		)
-		return nil // Success
 	}
 
-	// Return ignored on purpose, makes no difference in the logic below.
+	_, errV2 := c.getV2ComputersInventory(ctx, req)
+	if errV2 == nil {
+		return 2, nil // Success
+	}
+
+	// A 404 means the v2 endpoint is not supported. Any other error is
+	// unexpected.
 	apiError := &APIError{}
-	_ = errors.As(err, &apiError)
-
-	switch {
-	case apiError.StatusCode == http.StatusUnauthorized:
-		return trace.Wrap(ErrJamfClientInvalidCredential)
-
-	case apiError.StatusCode == http.StatusForbidden:
-		return trace.Wrap(ErrJamfClientInvalidPrivilege)
-
-	case apiError.StatusCode == http.StatusNotFound && !strings.HasSuffix(c.baseURL, "/api"):
-		c.baseURL += "/api"
-		return c.verifyCredentials(ctx)
-
-	default:
-		return trace.Wrap(err, "connecting to Jamf API")
+	_ = errors.As(errV2, &apiError)
+	if apiError.StatusCode != http.StatusNotFound {
+		return 0, trace.Wrap(errV2, "/v2/computers-inventory")
 	}
+
+	_, errV1 := c.getV1ComputersInventory(ctx, req)
+	if errV1 == nil {
+		return 1, nil // Success
+	}
+
+	return 0, trace.NewAggregate(
+		fmt.Errorf("/v2/computers-inventory: %w", errV2),
+		fmt.Errorf("/v1/computers-inventory: %w", errV1),
+	)
 }
 
 func (c *Client) endpoint(path string) string {

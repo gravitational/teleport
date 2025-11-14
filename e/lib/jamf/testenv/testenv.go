@@ -1,6 +1,7 @@
 package testenv
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -73,6 +74,11 @@ type Opts struct {
 	// DeviceTrustEnv enables configuration of its namesake testenv.
 	DeviceTrustEnv bool
 	DeviceOpts     []dtenv.Opt
+
+	// JamfAPIPrefixOverride overrides the Jamf API prefix, as seen in the
+	// Env.APIEndpoint field.
+	// If empty the prefix used is "/api".
+	JamfAPIPrefixOverride string
 }
 
 // MustNew creates a new [E] or panics.
@@ -160,7 +166,7 @@ func New(opts *Opts) (*E, error) {
 	})
 	e.API.SetUsers(DefaultUsers)
 
-	const prefix = "/api"
+	prefix := cmp.Or(opts.JamfAPIPrefixOverride, "/api")
 	e.server = httptest.NewTLSServer(e.API.Handler(prefix))
 	e.APIEndpoint = fmt.Sprintf("%v%v", e.server.URL, prefix)
 	e.HTTPClient = e.server.Client()
