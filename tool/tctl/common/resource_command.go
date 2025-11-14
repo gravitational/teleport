@@ -1123,8 +1123,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 	// generic [resources.Handler].
 	if rc.ref.Kind == types.KindConnectors {
 		return trace.BadParameter(
-			"%q type is ambiguous. To delete the resource, please use its exact type. Possible resource identifiers are: %s",
-			types.KindConnectors,
+			"Deleting connector resources requires using an explicit connector type. Please try again with the appropriate type: %s",
 			[]string{
 				types.KindGithubConnector + "/" + rc.ref.Name,
 				types.KindOIDCConnector + "/" + rc.ref.Name,
