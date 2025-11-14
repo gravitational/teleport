@@ -16,6 +16,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
@@ -196,6 +197,13 @@ type Config struct {
 	RangePageSize int `json:"range_page_size"`
 }
 
+type pool interface {
+	AcquireFunc(ctx context.Context, f func(*pgxpool.Conn) error) error
+	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Close()
+}
+
 // Backend implements [backend.Backend] for cockroachdb.
 type Backend struct {
 	cfg    Config
@@ -205,7 +213,7 @@ type Backend struct {
 	log    *slog.Logger
 
 	feedConfig *pgxpool.Config
-	pool       *pgxpool.Pool
+	pool       pool
 }
 
 // Close implements [backend.Backend].
