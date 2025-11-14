@@ -19,6 +19,7 @@
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 import * as tdpb from 'gen-proto-ts/teleport/desktop/tdp_pb'
 import {IMessageType, readMessageOption} from "@protobuf-ts/runtime";
+import { MFAAuthenticateChallenge } from 'gen-proto-ts/teleport/legacy/client/proto/authservice_pb';
 
 export type Message = ArrayBufferLike;
 
@@ -61,7 +62,6 @@ export enum MessageType {
   // MessageType 36 is a server-side only Ping message
   CLIENT_KEYBOARD_LAYOUT = 37,
   TDPB_UPGRADE = 38,
-  SERVER_HELLO = 39,
   __LAST, // utility value
 }
 
@@ -342,6 +342,12 @@ export type ServerHello = {
 
 };
 
+
+// | message type (38) | version uint32 |
+export type TdpbUpgrade = {
+  version: number
+}
+
 export type ClientHello = {
   keyboardLayout: number,
   screenSpec: ClientScreenSpec
@@ -428,7 +434,7 @@ export interface ClientEventHandlers {
   handleSharedDirectoryListRequest(req: SharedDirectoryListRequest): void;
   handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest): void;
   handleLatencyStats(stats: LatencyStats): void;
-  handleTDPBUpgrade(): void;
+  handleTDPBUpgrade(req: TdpbUpgrade): void;
   handleServerHello(hello: ServerHello): void;
 }
 
@@ -503,18 +509,73 @@ export class TdpbCodec extends Encoder {
         const clipboardData = tdpb.ClipboardData.fromBinary(messageData).data;
         this.handlers.handleClipboardData({ data: this.decoder.decode(clipboardData) });
         break;
-      // TODO: Implement shared directory message handling
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_ANNOUNCE:
+      case tdpb.MessageType.MESSAGE_MFA:
+        const mfa = tdpb.MFA.fromBinary(messageData);
+        const mfaType = mfa.type.toString()
+        if (mfaType !== 'n' && mfaType !== 'u') {
+          throw new Error(`invalid mfa type ${mfaType}, should be "n" or "u"`);
+        }
+        const jsn = MFAAuthenticateChallenge.toJson(mfa.challenge);
+        this.handlers.handleMfaChallenge({mfaType, jsonString: jsn.toString()})
+        break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE:
+        {
+          const {errorCode: errCode, directoryId} = tdpb.SharedDirectoryAcknowledge.fromBinary(messageData);
+          this.handlers.handleSharedDirectoryAcknowledge({errCode, directoryId});
+        }
+        break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_INFO_REQUEST:
+        this.handlers.handleSharedDirectoryInfoRequest(tdpb.SharedDirectoryInfoRequest.fromBinary(messageData));
+        break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST:
+        this.handlers.handleSharedDirectoryCreateRequest(tdpb.SharedDirectoryCreateRequest.fromBinary(messageData));
+        break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST:
+        this.handlers.handleSharedDirectoryDeleteRequest(tdpb.SharedDirectoryDeleteRequest.fromBinary(messageData));
+        break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_LIST_REQUEST:
+        this.handlers.handleSharedDirectoryListRequest(tdpb.SharedDirectoryListRequest.fromBinary(messageData));
+        break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_READ_REQUEST:
+          const readReq = tdpb.SharedDirectoryReadRequest.fromBinary(messageData);
+          this.handlers.handleSharedDirectoryReadRequest({
+            completionId: readReq.completionId,
+            directoryId: readReq.directoryId,
+            path: readReq.path,
+            pathLength: readReq.path.length,
+            length: readReq.length,
+            offset: readReq.offset,
+          });
+          break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST:
+        const writeReq = tdpb.SharedDirectoryWriteRequest.fromBinary(messageData);
+        this.handlers.handleSharedDirectoryWriteRequest({
+          completionId:  writeReq.completionId,
+          directoryId:  writeReq.directoryId,
+          pathLength:  writeReq.path.length,
+          path:  writeReq.path,
+          offset:  writeReq.offset,
+          writeData:  writeReq.writeData,
+        });
+        break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST:
+        let moveReq = tdpb.SharedDirectoryMoveRequest.fromBinary(messageData);
+        this.handlers.handleSharedDirectoryMoveRequest({
+            completionId: moveReq.completionId,
+            directoryId: moveReq.directoryId,
+            originalPathLength: moveReq.originalPath.length,
+            originalPath: moveReq.originalPath,
+            newPathLength: moveReq.originalPath.length,
+            newPath: moveReq.newPath,
+        });
+        break;
       case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST:
+        this.handlers.handleSharedDirectoryTruncateRequest(tdpb.SharedDirectoryTruncateRequest.fromBinary(messageData));
+        break;
       case tdpb.MessageType.MESSAGE_LATENCY_STATS:
+        const latencyStats = tdpb.LatencyStats.fromBinary(messageData);
+        this.handlers.handleLatencyStats({client: latencyStats.clientLatency, server: latencyStats.serverLatency});
+        break;
       default:
         throw new Error(`received unsupported message type", ${messageType}`)
     }
@@ -628,6 +689,10 @@ export class TdpbCodec extends Encoder {
   encodeSharedDirectoryTruncateResponse(resp: SharedDirectoryTruncateResponse): Message {
     return null;
   }
+
+  encodeClientHello(hello: ClientHello): Message {
+    return this.marshal({screenSpec: hello.screenSpec, keyboardLayout: tdpb.ClientKeyboardLayout.create({keyboardLayout: hello.keyboardLayout})} ,tdpb.ClientHello);
+  }
     
 }
 
@@ -713,8 +778,7 @@ export class TdpCodec extends Encoder {
         this.handlers.handleLatencyStats(this.decodeLatencyStats(buffer));
         break;
       case MessageType.TDPB_UPGRADE:
-        // Has no message body
-        this.handlers.handleTDPBUpgrade();
+        this.handlers.handleTDPBUpgrade(this.decodeTdpbUpgrade(buffer));
         break;
       //case MessageType.CLIENT_SCREEN_SPEC:
       //case MessageType.MOUSE_BUTTON:
@@ -722,6 +786,11 @@ export class TdpCodec extends Encoder {
       default:
         throw new Error(`received unsupported message type", ${messageType}`)
     }
+  }
+
+  decodeTdpbUpgrade(buffer: ArrayBufferLike): TdpbUpgrade {
+    const version = new DataView(buffer).getUint32(1);
+    return {version}
   }
 
   // encodeClientScreenSpec encodes the client's screen spec.
@@ -740,7 +809,7 @@ export class TdpCodec extends Encoder {
   // decodeClientScreenSpec decodes a raw tdp CLIENT_SCREEN_SPEC message
   // | message type (1) | width uint32 | height uint32 |
   // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
-  decodeClientScreenSpec(buffer: ArrayBuffer): ClientScreenSpec {
+  decodeClientScreenSpec(buffer: ArrayBufferLike): ClientScreenSpec {
     let dv = new DataView(buffer);
     return {
       width: dv.getUint32(1),
