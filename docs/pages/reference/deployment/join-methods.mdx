@@ -122,6 +122,7 @@ Delegated join methods are:
 - [`bound_keypair`](#bound-keypair-bound_keypair)
 - [`circleci`](#circleci-circleci)
 - [`ec2`](#aws-ec2-identity-document-ec2)
+- [`env0`](#env0-env0)
 - [`gcp`](#gcp-service-account-gcp)
 - [`github`](#github-actions-github)
 - [`gitlab`](#gitlab-gitlab)
@@ -159,6 +160,7 @@ Non-renewable join methods are:
 - [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
 - [`azure_devops`](#azure-devops-azure_devops)
+- [`env0`](#env0-env0)
 - [`gcp`](#gcp-service-account-gcp)
 - [`github`](#github-actions-github)
 - [`circleci`](#circleci-circleci)
@@ -359,6 +361,25 @@ use of long-lived secrets.
 
 <Admonition type="note" title="See Also">
 - [Deploying Machine & Workload Identity on Azure DevOps](../../machine-workload-identity/deployment/azure-devops.mdx)
+</Admonition>
+
+### Env0: `env0`
+
+The Env0 join method is available to workloads running in the Env0 cloud
+environment. The "Enable OIDC during deployments" option must be enabled for
+tokens to be issued into runner environments.
+
+This join method is typically used by the Teleport Terraform provider to
+authenticate to Teleport from the Env0 cloud environment. It cannot be used to
+join Terraform runs on other platforms and dedicated join methods should be used
+instead.
+
+The `env0` join method requires Teleport v18.4.0 or later.
+
+(!docs/pages/includes/provision-token/env0-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Run the Teleport Terraform Provider on Env0](../../zero-trust-access/infrastructure-as-code/terraform-provider/env0.mdx)
 </Admonition>
 
 ### GCP service account: `gcp`
