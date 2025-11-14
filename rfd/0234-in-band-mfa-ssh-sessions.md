@@ -207,7 +207,7 @@ sequenceDiagram
 
 ### Security
 
-In addition to the risks raised in [Access Control Decision API (RFD
+In addition to the control plane compromise risk raised in [Access Control Decision API (RFD
 0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), there are a
 few risks specific to this RFD.
 
