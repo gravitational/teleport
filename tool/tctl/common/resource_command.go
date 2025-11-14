@@ -992,6 +992,20 @@ func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *aut
 
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
+	// Connectors are a special case. As it's the only meta-resource we have,
+	// it's easier to special-case it here instead of adding a case in the
+	// generic [resources.Handler].
+	if rc.ref.Kind == types.KindConnectors {
+		return trace.BadParameter(
+			"Deleting connector resources requires using an explicit connector type. Please try again with the appropriate type: %s",
+			[]string{
+				types.KindGithubConnector + "/" + rc.ref.Name,
+				types.KindOIDCConnector + "/" + rc.ref.Name,
+				types.KindSAMLConnector + "/" + rc.ref.Name,
+			},
+		)
+	}
+
 	// Try looking for a resource handler
 	if resourceHandler, found := resources.Handlers()[rc.ref.Kind]; found {
 		if err := resourceHandler.Delete(ctx, client, rc.ref); err != nil {
