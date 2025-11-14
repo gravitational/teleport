@@ -141,107 +141,6 @@ func (r *reverseTunnelCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type oidcCollection struct {
-	connectors []types.OIDCConnector
-}
-
-func (c *oidcCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.connectors {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *oidcCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Issuer URL", "Additional Scope"})
-	for _, conn := range c.connectors {
-		t.AddRow([]string{
-			conn.GetName(), conn.GetIssuerURL(), strings.Join(conn.GetScope(), ","),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type samlCollection struct {
-	connectors []types.SAMLConnector
-}
-
-func (c *samlCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.connectors {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *samlCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "SSO URL"})
-	for _, conn := range c.connectors {
-		t.AddRow([]string{conn.GetName(), conn.GetSSO()})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type connectorsCollection struct {
-	oidc   []types.OIDCConnector
-	saml   []types.SAMLConnector
-	github []types.GithubConnector
-}
-
-func (c *connectorsCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.oidc {
-		r = append(r, resource)
-	}
-	for _, resource := range c.saml {
-		r = append(r, resource)
-	}
-	for _, resource := range c.github {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *connectorsCollection) WriteText(w io.Writer, verbose bool) error {
-	if len(c.oidc) > 0 {
-		_, err := io.WriteString(w, "\nOIDC:\n")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		oc := &oidcCollection{connectors: c.oidc}
-		err = oc.WriteText(w, verbose)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if len(c.saml) > 0 {
-		_, err := io.WriteString(w, "\nSAML:\n")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sc := &samlCollection{connectors: c.saml}
-		err = sc.WriteText(w, verbose)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if len(c.github) > 0 {
-		_, err := io.WriteString(w, "\nGitHub:\n")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		gc := &githubCollection{connectors: c.github}
-		err = gc.WriteText(w, verbose)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
 type trustedClusterCollection struct {
 	trustedClusters []types.TrustedCluster
 }
@@ -269,36 +168,6 @@ func (c *trustedClusterCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-type githubCollection struct {
-	connectors []types.GithubConnector
-}
-
-func (c *githubCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.connectors {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *githubCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Teams To Logins"})
-	for _, conn := range c.connectors {
-		t.AddRow([]string{conn.GetName(), formatTeamsToLogins(
-			conn.GetTeamsToLogins())})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func formatTeamsToLogins(mappings []types.TeamMapping) string {
-	var result []string
-	for _, m := range mappings {
-		result = append(result, fmt.Sprintf("@%v/%v: %v",
-			m.Organization, m.Team, strings.Join(m.Logins, ", ")))
-	}
-	return strings.Join(result, ", ")
 }
 
 type remoteClusterCollection struct {
@@ -361,50 +230,6 @@ func (c *semaphoreCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type authPrefCollection struct {
-	authPref types.AuthPreference
-}
-
-func (c *authPrefCollection) Resources() (r []types.Resource) {
-	return []types.Resource{c.authPref}
-}
-
-func (c *authPrefCollection) WriteText(w io.Writer, verbose bool) error {
-	var secondFactorStrings []string
-	for _, sf := range c.authPref.GetSecondFactors() {
-		sfString, err := sf.Encode()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		secondFactorStrings = append(secondFactorStrings, sfString)
-	}
-
-	t := asciitable.MakeTable([]string{"Type", "Second Factors"})
-	t.AddRow([]string{c.authPref.GetType(), strings.Join(secondFactorStrings, ", ")})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type netConfigCollection struct {
-	netConfig types.ClusterNetworkingConfig
-}
-
-func (c *netConfigCollection) Resources() (r []types.Resource) {
-	return []types.Resource{c.netConfig}
-}
-
-func (c *netConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Client Idle Timeout", "Keep Alive Interval", "Keep Alive Count Max", "Session Control Timeout"})
-	t.AddRow([]string{
-		c.netConfig.GetClientIdleTimeout().String(),
-		c.netConfig.GetKeepAliveInterval().String(),
-		strconv.FormatInt(c.netConfig.GetKeepAliveCountMax(), 10),
-		c.netConfig.GetSessionControlTimeout().String(),
-	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type maintenanceWindowCollection struct {
 	cmc types.ClusterMaintenanceConfig
 }
@@ -432,21 +257,6 @@ func (c *maintenanceWindowCollection) WriteText(w io.Writer, verbose bool) error
 
 	t.AddRow([]string{"Agent Upgrades", agentUpgradeParams})
 
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type recConfigCollection struct {
-	recConfig types.SessionRecordingConfig
-}
-
-func (c *recConfigCollection) Resources() (r []types.Resource) {
-	return []types.Resource{c.recConfig}
-}
-
-func (c *recConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Mode", "Proxy Checks Host Keys"})
-	t.AddRow([]string{c.recConfig.GetMode(), strconv.FormatBool(c.recConfig.GetProxyChecksHostKeys())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -880,28 +690,6 @@ func (l *loginRuleCollection) Resources() []types.Resource {
 		resources[i] = loginrule.ProtoToResource(rule)
 	}
 	return resources
-}
-
-//nolint:revive // Because we want this to be IdP.
-type samlIdPServiceProviderCollection struct {
-	serviceProviders []types.SAMLIdPServiceProvider
-}
-
-func (c *samlIdPServiceProviderCollection) Resources() []types.Resource {
-	r := make([]types.Resource, len(c.serviceProviders))
-	for i, resource := range c.serviceProviders {
-		r[i] = resource
-	}
-	return r
-}
-
-func (c *samlIdPServiceProviderCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name"})
-	for _, serviceProvider := range c.serviceProviders {
-		t.AddRow([]string{serviceProvider.GetName()})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
 }
 
 type deviceCollection struct {
