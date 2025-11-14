@@ -238,10 +238,12 @@ func (c *Config) CheckAndSetDefaults() error {
 kubernetes matchers are present.`)
 	}
 
-	var err error
-	c.defaultCloudClients, err = cloud.NewClients()
-	if err != nil {
-		return trace.Wrap(err)
+	if c.defaultCloudClients == nil {
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.defaultCloudClients = cloudClients
 	}
 
 	if c.AWSConfigProvider == nil {
