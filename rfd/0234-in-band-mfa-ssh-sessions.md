@@ -388,11 +388,6 @@ message ValidateChallengeRequest {
   // This must match the 'name' returned in CreateChallengeResponse to tie the validation to the correct challenge.
   string name = 1;
 
-  // cluster_name is the optional target cluster name where the SSH session is being established.
-  // If not set, the validation is assumed to be for the local cluster.
-  // When set, the validated response will be forwarded to the specified cluster's MFA service. This is required for
-  // leaf clusters to indicate the target cluster.
-  string cluster_name = 2;
 
   // mfa_response contains the MFA challenge response provided by the user.
   AuthenticateResponse mfa_response = 3;
