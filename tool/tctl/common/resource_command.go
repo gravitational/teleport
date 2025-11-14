@@ -1118,7 +1118,7 @@ func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *aut
 
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
-	// Connectors is a special case. As it's the only meta-resource we have,
+	// Connectors are a special case. As it's the only meta-resource we have,
 	// it's easier to special-case it here instead of adding a case in the
 	// generic [resources.Handler].
 	if rc.ref.Kind == types.KindConnectors {
