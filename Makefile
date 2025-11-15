@@ -453,7 +453,18 @@ tctl-app:
 	cp "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)/Contents/MacOS/."
 	$(NOTARIZE_TCTL_APP)
 
-#
+# BPF tests will not work in a docker container and so should not be
+# run in CI for now.
+.PHONEY: test-bpf
+test-bpf:
+	mkdir -p _test
+	go test -c -tags bpf -o _test/libbpf.test ./lib/bpf
+	go test -c -tags bpf -o _test/libsrv.test ./lib/srv
+
+	sudo TELEPORT_BPF_TEST=1 _test/libbpf.test
+	# ignore non bpf-related tests
+	sudo TELEPORT_BPF_TEST=1 _test/libsrv.test -test.run=TestBPF
+
 # BPF support (IF ENABLED)
 # Requires clang 14+
 #
