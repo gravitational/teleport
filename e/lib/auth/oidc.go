@@ -416,6 +416,10 @@ func (oas *OIDCAuthService) createOIDCAuthRequest(ctx context.Context, req types
 	}
 	req.StateToken = stateToken
 
+	if req.LoginHint != "" {
+		authCodeOpts = append(authCodeOpts, oauth2.SetAuthURLParam("login_hint", req.LoginHint))
+	}
+
 	acURL := rp.AuthURL(
 		req.StateToken,
 		relyingParty,

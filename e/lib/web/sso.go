@@ -62,6 +62,7 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 		PkceVerifier:      codeVerifier,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
+		LoginHint:         req.LoginHint,
 		CheckUser:         true,
 		ProxyAddress:      r.Host,
 		ClientLoginIP:     remoteAddr,
