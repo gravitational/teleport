@@ -1921,12 +1921,13 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
 	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
 
-	var output bytes.Buffer
+	require.NoError(t, instance.WaitForNodeCount(t.Context(), helpers.Site, 1))
 
 	// SSH into the server, and stay active for longer than
 	// the client idle timeout.
 	sessionErr := make(chan error)
-	openSession := func() {
+	sessionOutput := make(chan string)
+	go func() {
 		cl, err := instance.NewClient(helpers.ClientConfig{
 			Login:                suite.Me.Username,
 			Cluster:              helpers.Site,
@@ -1937,32 +1938,38 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 			sessionErr <- trace.Wrap(err)
 			return
 		}
+		var output bytes.Buffer
 		cl.Stdout = &output
+		cl.Stderr = io.Discard
 		// Execute a command faster than the idle timeout to stay active.
 		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", 100*time.Millisecond)
 		defer func() { reader.Close() }()
 		cl.Stdin = reader
 
 		// Terminate the session after 2x the idle timeout
-		ctx, cancel := context.WithTimeout(context.Background(), netConfig.GetClientIdleTimeout()*2)
+		ctx, cancel := context.WithTimeout(t.Context(), netConfig.GetClientIdleTimeout()*2)
 		defer cancel()
-		sessionErr <- cl.SSH(ctx, nil)
-	}
+		if err := cl.SSH(ctx, nil); err != nil {
+			sessionErr <- trace.Wrap(err)
+			return
+		}
 
-	go openSession()
-
-	// Wait for the sessions to end - we expect an error
-	// since we are canceling the context.
-	err := waitForError(sessionErr, time.Second*15)
-	require.Error(t, err)
+		sessionOutput <- output.String()
+	}()
 
 	// Ensure that the session was alive beyond the idle timeout by
 	// counting the number of times "teleport" was output. If the session
 	// was alive past the idle timeout, then there should be at least 30 occurrences
 	// since the command is run more frequently the idle timeout.
-	require.NotEmpty(t, output)
-	count := strings.Count(output.String(), "teleport")
-	require.Greater(t, count, 30)
+	select {
+	case <-t.Context().Done():
+	case err := <-sessionErr:
+		require.NoError(t, err)
+	case output := <-sessionOutput:
+		require.NotEmpty(t, output)
+		count := strings.Count(output, "teleport")
+		require.Greater(t, count, 30)
+	}
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
