@@ -24,7 +24,7 @@ import (
 )
 
 func iamInitToMessage(req *joinv1.IAMInit) (*messages.IAMInit, error) {
-	clientParams, err := clientParamsToMessage(req.ClientParams)
+	clientParams, err := clientParamsToMessage(req.GetClientParams())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,7 +45,7 @@ func iamInitFromMessage(msg *messages.IAMInit) (*joinv1.IAMInit, error) {
 
 func iamChallengeToMessage(req *joinv1.IAMChallenge) *messages.IAMChallenge {
 	return &messages.IAMChallenge{
-		Challenge: req.Challenge,
+		Challenge: req.GetChallenge(),
 	}
 }
 
@@ -57,7 +57,7 @@ func iamChallengeFromMessage(msg *messages.IAMChallenge) *joinv1.IAMChallenge {
 
 func iamChallengeSolutionToMessage(req *joinv1.IAMChallengeSolution) *messages.IAMChallengeSolution {
 	return &messages.IAMChallengeSolution{
-		STSIdentityRequest: req.StsIdentityRequest,
+		STSIdentityRequest: req.GetStsIdentityRequest(),
 	}
 }
 
