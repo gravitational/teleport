@@ -173,26 +173,22 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 	interval := calculateThumbnailInterval(duration, maxThumbnails)
 	thumbnailTime := getRandomThumbnailTime(duration)
 
+	var generator thumbnailGenerator
+
 	// the thumbnail to upload for the session
 	var recordingThumbnail *pb.SessionRecordingThumbnail
 
 	recordThumbnail := func(start time.Time) {
-		cols, rows := vt.Size()
-		cursor := vt.Cursor()
+		if generator == nil {
+			return
+		}
 
 		startOffset := start.Sub(startTime)
 		endOffset := start.Add(interval).Add(-1 * time.Millisecond).Sub(startTime)
 
-		thumbnail := &pb.SessionRecordingThumbnail{
-			Svg:           terminal.VtToSvg(vt),
-			Cols:          int32(cols),
-			Rows:          int32(rows),
-			CursorX:       int32(cursor.X),
-			CursorY:       int32(cursor.Y),
-			CursorVisible: vt.CursorVisible(),
-			StartOffset:   durationpb.New(startOffset),
-			EndOffset:     durationpb.New(endOffset),
-		}
+		thumbnail := generator.ProduceThumbnail()
+		thumbnail.StartOffset = durationpb.New(startOffset)
+		thumbnail.EndOffset = durationpb.New(endOffset)
 
 		if _, err := protodelim.MarshalTo(w, thumbnail); err != nil {
 			// log the error but continue processing other thumbnails and the session metadata (metadata is more important)
@@ -202,7 +198,6 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 
 		if recordingThumbnail == nil {
 			recordingThumbnail = thumbnail
-
 			return
 		}
 
@@ -215,7 +210,7 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 		}
 	}
 
-	var hasSeenPrintEvent bool
+	var hasSeenContent bool
 
 loop:
 	for {
@@ -233,6 +228,11 @@ loop:
 				return nil
 
 			case *apievents.Resize:
+				// TODO(zmb3): consider not handling this event at all, and instead
+				// passing it directly to generator.HandlEvent
+				// (We'd need a way to communicate that the initial size should be
+				// updated and a way to add resize events to the metadata)
+
 				size, err := session.UnmarshalTerminalParams(e.TerminalSize)
 				if err != nil {
 					return trace.Wrap(err, "parsing terminal size %q for session %v", e.TerminalSize, sessionID)
@@ -241,7 +241,7 @@ loop:
 				// if we haven't seen a print event yet, update the starting size to the latest resize
 				// this handles cases where the initial terminal size is not 80x24 and is resized immediately
 				// before any output is printed
-				if !hasSeenPrintEvent {
+				if !hasSeenContent {
 					metadata.StartCols = int32(size.W)
 					metadata.StartRows = int32(size.H)
 				}
@@ -256,7 +256,9 @@ loop:
 					},
 				})
 
-				vt.Resize(size.W, size.H)
+				if generator != nil {
+					generator.Resize(size.W, size.H)
+				}
 
 			case *apievents.SessionEnd:
 				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
@@ -288,16 +290,16 @@ loop:
 
 			case *apievents.SessionPrint:
 				// mark that we've seen the first print event so we don't update the starting size anymore
-				if !hasSeenPrintEvent {
-					hasSeenPrintEvent = true
+				if !hasSeenContent {
+					hasSeenContent = true
 				}
 
 				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
 					addInactivityEvent(lastActivityTime, e.Time)
 				}
 
-				if _, err := vt.Write(e.Data); err != nil {
-					return trace.Errorf("writing data to terminal: %w", err)
+				if generator != nil {
+					generator.HandleEvent(e)
 				}
 
 				if e.Time.Sub(lastThumbnailTime) >= interval {
@@ -333,7 +335,12 @@ loop:
 					metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
 				}
 
-				vt.Resize(size.W, size.H)
+				if generator == nil {
+					generator = &ptyThumbnailGenerator{
+						term: vt10x.New(),
+					}
+				}
+				generator.Resize(size.W, size.H)
 			}
 
 		case err := <-uploadErrs:
@@ -498,13 +505,9 @@ func (s *RecordingMetadataService) uploadThumbnail(ctx context.Context, sessionI
 	return nil
 }
 
-type nopCloser struct {
-	io.Writer
-}
+type nopCloser struct{ io.Writer }
 
-func (n nopCloser) Close() error {
-	return nil
-}
+func (n nopCloser) Close() error { return nil }
 
 // getRandomThumbnailTime returns the ideal time offset for capturing a thumbnail
 // within the session duration based on the provided interval.
@@ -528,11 +531,54 @@ func calculateThumbnailInterval(duration time.Duration, maxThumbnails int) time.
 		interval = duration / time.Duration(maxThumbnails)
 	}
 
-	interval = interval.Round(time.Second)
+	return max(interval.Round(time.Second), time.Second)
+}
 
-	if interval < time.Second {
-		interval = time.Second
+// thumbnailGenerator receives events from a single session recording and uses
+// them to produce thumbnail images.
+type thumbnailGenerator interface {
+	// HandleEvent recieves an audit event from a recording and updates
+	// the generator's internal state. If it returns an error then the
+	// metadata generation process is aborted for this recording.
+	HandleEvent(apievents.AuditEvent) error
+
+	// ProduceThumbnail creates a thumbnail using the current state of the generator.
+	ProduceThumbnail() *pb.SessionRecordingThumbnail
+
+	// Resize udpates the generator's state with a new size.
+	// The units for these dimensions differ based on the type of recording.
+	Resize(width, height int)
+}
+
+// ptyThumbnailGenerator generates thumbnails for a terminal
+// (ie SSH, kubectl exec, or some database sessions)
+type ptyThumbnailGenerator struct {
+	term vt10x.Terminal
+}
+
+func (p *ptyThumbnailGenerator) HandleEvent(evt apievents.AuditEvent) error {
+	switch evt := evt.(type) {
+	case *apievents.SessionPrint:
+		if _, err := p.term.Write(evt.Data); err != nil {
+			return trace.Wrap(err, "writing data to terminal")
+		}
 	}
+	return nil
+}
 
-	return interval
+func (p *ptyThumbnailGenerator) Resize(width, height int) {
+	p.term.Resize(width, height)
+}
+
+func (p *ptyThumbnailGenerator) ProduceThumbnail() *pb.SessionRecordingThumbnail {
+	cols, rows := p.term.Size()
+	cursor := p.term.Cursor()
+	return &pb.SessionRecordingThumbnail{
+		Svg:           terminal.VtToSvg(p.term),
+		Cols:          int32(cols),
+		Rows:          int32(rows),
+		CursorX:       int32(cursor.X),
+		CursorY:       int32(cursor.Y),
+		CursorVisible: p.term.CursorVisible(),
+	}
 }
