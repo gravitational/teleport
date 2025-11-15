@@ -39,10 +39,13 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -51,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -735,6 +740,7 @@ type Auth struct {
 	// for example: "auth,proxy,node:MTIzNGlvemRmOWE4MjNoaQo"
 	StaticTokens StaticTokens `yaml:"tokens,omitempty"`
 
+	StaticScopedTokens StaticScopedTokens `yaml:"scoped_tokens,omitempty"`
 	// Authentication holds authentication configuration information like authentication
 	// type, second factor type, specific connector information, etc.
 	Authentication *AuthenticationConfig `yaml:"authentication,omitempty"`
@@ -1039,6 +1045,60 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 		})
 	}
 	return provisionTokens, nil
+}
+
+type StaticScopedTokens []StaticScopedToken
+
+func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
+	var scopedTokens []*joiningv1.ScopedToken
+	for _, st := range t {
+		// reuse unscoped token parsing
+		tokens, err := st.Token.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// convert parsed [types.ProvisionTokenV1] tokens to [joiningv1.ScopedToken]
+		for _, tok := range tokens {
+			scopedToken := &joiningv1.ScopedToken{
+				Version: types.V1,
+				Kind:    types.KindScopedToken,
+				Metadata: &headerv1.Metadata{
+					Name:    tok.Token,
+					Expires: timestamppb.New(tok.Expires),
+				},
+				Scope: scopes.Root,
+				Spec: &joiningv1.ScopedTokenSpec{
+					Roles:         types.SystemRoles(tok.Roles).StringSlice(),
+					AssignedScope: st.Scope,
+					JoinMethod:    string(types.JoinMethodToken),
+				},
+			}
+
+			if err := joining.StrongValidateToken(scopedToken); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			scopedTokens = append(scopedTokens, scopedToken)
+		}
+	}
+
+	return &joiningv1.StaticScopedTokens{
+		Version: types.V1,
+		Kind:    types.KindStaticScopedTokens,
+		Scope:   scopes.Root,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameStaticScopedTokens,
+		},
+		Spec: &joiningv1.StaticScopedTokensSpec{
+			Tokens: scopedTokens,
+		},
+	}, nil
+}
+
+type StaticScopedToken struct {
+	Token StaticToken `yaml:"token"`
+	Scope string      `yaml:"scope"`
 }
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml

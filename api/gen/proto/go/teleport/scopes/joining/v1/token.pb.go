@@ -197,6 +197,144 @@ func (x *ScopedTokenSpec) GetJoinMethod() string {
 	return ""
 }
 
+// The resource representing static scoped tokens.
+type StaticScopedTokens struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The resource kind.
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// The resource sub-kind.
+	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// The resource version.
+	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	// The resource metadata.
+	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// The scope of the resource.
+	Scope string `protobuf:"bytes,5,opt,name=scope,proto3" json:"scope,omitempty"`
+	// The resource specification.
+	Spec          *StaticScopedTokensSpec `protobuf:"bytes,6,opt,name=spec,proto3" json:"spec,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StaticScopedTokens) Reset() {
+	*x = StaticScopedTokens{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StaticScopedTokens) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StaticScopedTokens) ProtoMessage() {}
+
+func (x *StaticScopedTokens) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StaticScopedTokens.ProtoReflect.Descriptor instead.
+func (*StaticScopedTokens) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *StaticScopedTokens) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *StaticScopedTokens) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *StaticScopedTokens) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *StaticScopedTokens) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *StaticScopedTokens) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *StaticScopedTokens) GetSpec() *StaticScopedTokensSpec {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+// The specification representing the static scoped tokens
+// resource.
+type StaticScopedTokensSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The statically parsed scoped tokens.
+	Tokens        []*ScopedToken `protobuf:"bytes,1,rep,name=tokens,proto3" json:"tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StaticScopedTokensSpec) Reset() {
+	*x = StaticScopedTokensSpec{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StaticScopedTokensSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StaticScopedTokensSpec) ProtoMessage() {}
+
+func (x *StaticScopedTokensSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StaticScopedTokensSpec.ProtoReflect.Descriptor instead.
+func (*StaticScopedTokensSpec) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *StaticScopedTokensSpec) GetTokens() []*ScopedToken {
+	if x != nil {
+		return x.Tokens
+	}
+	return nil
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -213,7 +351,16 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
 	"\vjoin_method\x18\x03 \x01(\tR\n" +
-	"joinMethodBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"joinMethod\"\xf5\x01\n" +
+	"\x12StaticScopedTokens\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
+	"\x05scope\x18\x05 \x01(\tR\x05scope\x12F\n" +
+	"\x04spec\x18\x06 \x01(\v22.teleport.scopes.joining.v1.StaticScopedTokensSpecR\x04spec\"Y\n" +
+	"\x16StaticScopedTokensSpec\x12?\n" +
+	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokensBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -227,20 +374,25 @@ func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
-	(*ScopedToken)(nil),     // 0: teleport.scopes.joining.v1.ScopedToken
-	(*ScopedTokenSpec)(nil), // 1: teleport.scopes.joining.v1.ScopedTokenSpec
-	(*v1.Metadata)(nil),     // 2: teleport.header.v1.Metadata
+	(*ScopedToken)(nil),            // 0: teleport.scopes.joining.v1.ScopedToken
+	(*ScopedTokenSpec)(nil),        // 1: teleport.scopes.joining.v1.ScopedTokenSpec
+	(*StaticScopedTokens)(nil),     // 2: teleport.scopes.joining.v1.StaticScopedTokens
+	(*StaticScopedTokensSpec)(nil), // 3: teleport.scopes.joining.v1.StaticScopedTokensSpec
+	(*v1.Metadata)(nil),            // 4: teleport.header.v1.Metadata
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	2, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	4, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	4, // 2: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
+	3, // 3: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
+	0, // 4: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -254,7 +406,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

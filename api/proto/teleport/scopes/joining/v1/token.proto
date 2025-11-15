@@ -58,3 +58,31 @@ message ScopedTokenSpec {
   // Supported joining methods for scoped tokens only include 'token'.
   string join_method = 3;
 }
+
+// The resource representing static scoped tokens.
+message StaticScopedTokens {
+  // The resource kind.
+  string kind = 1;
+
+  // The resource sub-kind.
+  string sub_kind = 2;
+
+  // The resource version.
+  string version = 3;
+
+  // The resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // The scope of the resource.
+  string scope = 5;
+
+  // The resource specification.
+  StaticScopedTokensSpec spec = 6;
+}
+
+// The specification representing the static scoped tokens
+// resource.
+message StaticScopedTokensSpec {
+  // The statically parsed scoped tokens.
+  repeated ScopedToken tokens = 1;
+}

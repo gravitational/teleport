@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -172,6 +173,53 @@ func (s *ClusterConfigurationService) DeleteStaticTokens() error {
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("static tokens are not found")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetStaticScopedTokens gets the list of static scoped tokens used to provision nodes.
+func (s *ClusterConfigurationService) GetStaticScopedTokens(ctx context.Context) (*joiningv1.StaticScopedTokens, error) {
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, staticScopedTokensPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("static scoped tokens not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	var scopedTokens *joiningv1.StaticScopedTokens
+	if err := utils.FastUnmarshal(item.Value, &scopedTokens); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return scopedTokens, nil
+}
+
+// SetStaticScopedTokens sets the list of static scoped tokens used to provision nodes.
+func (s *ClusterConfigurationService) SetStaticScopedTokens(c *joiningv1.StaticScopedTokens) error {
+	value, err := utils.FastMarshal(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(context.TODO(), backend.Item{
+		Key:      backend.NewKey(clusterConfigPrefix, staticScopedTokensPrefix),
+		Value:    value,
+		Revision: c.GetMetadata().GetRevision(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeleteStaticScopedTokens deletes static scoped tokens
+func (s *ClusterConfigurationService) DeleteStaticScopedTokens() error {
+	err := s.Delete(context.TODO(), backend.NewKey(clusterConfigPrefix, staticScopedTokensPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("static scoped tokens are not found")
 		}
 		return trace.Wrap(err)
 	}
@@ -857,6 +905,7 @@ const (
 	clusterConfigPrefix       = "cluster_configuration"
 	namePrefix                = "name"
 	staticTokensPrefix        = "static_tokens"
+	staticScopedTokensPrefix  = "static_scoped_tokens"
 	authPrefix                = "authentication"
 	preferencePrefix          = "preference"
 	generalPrefix             = "general"
