@@ -2678,25 +2678,18 @@ func (m *SCIMResourceEvent) TrimToMaxSize(maxSize int) AuditEvent {
 		return m
 	}
 	trimmed := utils.CloneProtoMsg(m)
-	if trimmed.Request != nil {
-		trimmed.Request.Body = nil
-	}
-	if trimmed.Size() <= maxSize {
-		return trimmed
-	}
 
 	maxSize = adjustedMaxSize(trimmed, maxSize)
-	trimmableFieldCount := trimmed.Status.nonEmptyStrs() + nonEmptyStrs(
-		trimmed.Integration,
-		trimmed.ResourceType,
-		trimmed.TeleportID,
-		trimmed.ExternalID,
-		trimmed.Display)
+	trimmableFieldCount := trimmed.Status.nonEmptyStrs() +
+		trimmed.SCIMCommonData.nonEmptyFields() +
+		nonEmptyStrs(
+			trimmed.TeleportID,
+			trimmed.ExternalID,
+			trimmed.Display)
 	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
 
 	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
-	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
+	trimmed.SCIMCommonData = trimmed.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
 	trimmed.TeleportID = trimStr(trimmed.Integration, maxFieldsSize)
 	trimmed.ExternalID = trimStr(trimmed.ExternalID, maxFieldsSize)
 
@@ -2709,23 +2702,54 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	}
 	trimmed := utils.CloneProtoMsg(m)
 
-	if trimmed.Request != nil {
-		trimmed.Request.Body = nil
-	}
-	if trimmed.Size() <= maxSize {
-		return trimmed
+	maxSize = adjustedMaxSize(trimmed, maxSize)
+	trimmableFieldCount := m.Status.nonEmptyStrs() +
+		m.SCIMCommonData.nonEmptyFields() +
+		nonEmptyStrs(m.Filter)
+	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
+
+	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
+	trimmed.SCIMCommonData = trimmed.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
+	trimmed.Filter = trimStr(trimmed.Filter, maxFieldsSize)
+
+	return trimmed
+}
+
+func (c *SCIMCommonData) nonEmptyFields() int {
+	acc := nonEmptyStrs(c.Integration, c.ResourceType)
+	if req := c.Request; req != nil {
+		acc += nonEmptyStrs(req.ID, req.SourceAddress, req.Method, req.Path, req.Query, req.UserAgent)
+		acc += req.Body.nonEmptyStrs()
 	}
 
-	maxSize = adjustedMaxSize(trimmed, maxSize)
-	trimmableFieldCount := m.Status.nonEmptyStrs() + nonEmptyStrs(
-		trimmed.Integration,
-		trimmed.ResourceType,
-		m.Filter)
-	maxFieldsSize := maxSizePerField(maxSize, trimmableFieldCount)
-	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.Integration = trimStr(trimmed.Integration, maxFieldsSize)
-	trimmed.ResourceType = trimStr(trimmed.ResourceType, maxFieldsSize)
-	trimmed.Filter = trimStr(trimmed.Filter, maxFieldsSize)
+	if resp := c.Response; resp != nil {
+		acc += resp.Body.nonEmptyStrs()
+	}
+	return acc
+}
+
+func (c *SCIMCommonData) trimToMaxFieldSize(maxFieldSize int) SCIMCommonData {
+	if c == nil {
+		return SCIMCommonData{}
+	}
+
+	trimmed := *utils.CloneProtoMsg(c)
+	trimmed.ResourceType = trimStr(c.ResourceType, maxFieldSize)
+	trimmed.Integration = trimStr(c.Integration, maxFieldSize)
+
+	if r := trimmed.Request; r != nil {
+		r.ID = trimStr(r.ID, maxFieldSize)
+		r.SourceAddress = trimStr(r.SourceAddress, maxFieldSize)
+		r.UserAgent = trimStr(r.UserAgent, maxFieldSize)
+		r.Method = trimStr(r.Method, maxFieldSize)
+		r.Path = trimStr(r.Path, maxFieldSize)
+		r.Query = trimStr(r.Query, maxFieldSize)
+		r.Body = r.Body.trimToMaxFieldSize(maxFieldSize)
+	}
+
+	if resp := trimmed.Response; resp != nil {
+		resp.Body = resp.Body.trimToMaxFieldSize(maxFieldSize)
+	}
 
 	return trimmed
 }

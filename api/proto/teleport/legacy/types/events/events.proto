@@ -9063,6 +9063,22 @@ message SCIMRequest {
     (gogoproto.jsontag) = "body,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+
+  // Query holds the raw query string from the request URL
+  string Query = 7;
+}
+
+// SCIMResponse describes the HTTP response from the
+message SCIMResponse {
+  // StatusCode is the HTTP response status code returned by the SCIM server.
+  uint32 StatusCode = 1;
+
+  // Body holds a representation of the arbitrary JSON body of response from the
+  // SCIM server. May be empty.
+  google.protobuf.Struct Body = 2 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 message SCIMCommonData {
@@ -9078,6 +9094,9 @@ message SCIMCommonData {
   // this event. Valid values include, but are not limited to, "user" and
   // "group".
   string ResourceType = 5 [(gogoproto.jsontag) = "resource_type,omitempty"];
+
+  // Response holds data about the SCIM server's response to the request.
+  SCIMResponse Response = 6 [(gogoproto.jsontag) = "response,omitempty"];
 }
 
 // SCIMListingEvent records an attempt to list SCIM resources
