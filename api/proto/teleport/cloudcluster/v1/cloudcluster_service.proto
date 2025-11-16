@@ -1,0 +1,65 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.cloudcluster.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/cloudcluster/v1/cloudcluster.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1;cloudcluster";
+
+// CloudClusterService provides an API to manage autoupdates.
+service CloudClusterService {
+  // GetCloudCluster gets the current autoupdate config singleton.
+  rpc GetCloudCluster(GetCloudClusterRequest) returns (CloudCluster);
+
+  // CreateCloudCluster creates a new CloudCluster.
+  rpc CreateCloudCluster(CreateCloudClusterRequest) returns (CloudCluster);
+
+  // CreateCloudCluster updates CloudCluster singleton.
+  rpc UpdateCloudCluster(UpdateCloudClusterRequest) returns (CloudCluster);
+
+  // UpsertCloudCluster creates a new CloudCluster or replaces an existing CloudCluster.
+  rpc UpsertCloudCluster(UpsertCloudClusterRequest) returns (CloudCluster);
+
+  // DeleteCloudCluster hard deletes the specified CloudCluster.
+  rpc DeleteCloudCluster(DeleteCloudClusterRequest) returns (google.protobuf.Empty);
+}
+
+// Request for GetCloudCluster.
+message GetCloudClusterRequest {
+  string name = 1;
+}
+
+// Request for CreateCloudCluster.
+message CreateCloudClusterRequest {
+  CloudCluster config = 1;
+}
+
+// Request for UpdateCloudCluster.
+message UpdateCloudClusterRequest {
+  CloudCluster config = 1;
+}
+
+// Request for UpsertCloudCluster.
+message UpsertCloudClusterRequest {
+  CloudCluster config = 1;
+}
+
+// Request for DeleteCloudCluster.
+message DeleteCloudClusterRequest {
+  string name = 1;
+}
