@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"io"
 	"os"
 	"slices"
 	"testing"
@@ -147,7 +148,7 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
+		collection := resources.NewConnectorCollection(nil, nil, []types.GithubConnector{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -260,7 +261,7 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetKeepAliveCountMax(1)
 		expected.SetCaseInsensitiveRouting(true)
 
-		collection := &netConfigCollection{netConfig: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -298,7 +299,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
-		collection := &authPrefCollection{authPref: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -335,7 +336,7 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetMode(types.RecordAtProxy)
 
-		collection := &recConfigCollection{recConfig: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -432,7 +433,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
+		collection := resources.NewConnectorCollection([]types.OIDCConnector{expected}, nil, nil)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -500,7 +501,7 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetSigningKeyPair(created.GetSigningKeyPair())
 		expected.SetAssertionConsumerService("updated-acs")
 
-		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
+		collection := resources.NewConnectorCollection(nil, []types.SAMLConnector{expected}, nil)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -551,7 +552,7 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 		expected.GetMetadata().Revision = created.GetMetadata().Revision
 		expected.Spec.Matchers[0].Groups = []string{"baz", "quux"}
 
-		collection := &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{expected}}
+		collection := resources.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
 	}
 
@@ -748,4 +749,19 @@ func TestMultipleRoles(t *testing.T) {
 			require.NotEqual(t, role.GetRevision(), actual.GetRevision(), "revision should have been modified by edit")
 		}
 	}
+}
+
+// fakeCollection implements [resources.Collection] for testing purposes.
+type fakeCollection struct {
+	resources []types.Resource
+}
+
+// Resources implements [resources.Collection]
+func (c *fakeCollection) Resources() []types.Resource {
+	return c.resources
+}
+
+// WriteText implements [resources.Collection]
+func (c *fakeCollection) WriteText(w io.Writer, verbose bool) error {
+	return nil
 }

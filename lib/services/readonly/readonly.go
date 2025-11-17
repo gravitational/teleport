@@ -272,6 +272,9 @@ type KubeServer interface {
 	GetCluster() types.KubeCluster
 	// GetProxyIDs returns a list of proxy ids this service is connected to.
 	GetProxyIDs() []string
+	// GetRelayGroup returns the name of the Relay group that the kube server is
+	// connected to.
+	GetRelayGroup() string
 }
 
 var _ KubeServer = types.KubeServer(nil)

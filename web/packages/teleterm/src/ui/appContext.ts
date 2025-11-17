@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getErrorMessage } from 'shared/utils/error';
+
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
 import {
@@ -23,6 +25,7 @@ import {
   MainProcessClient,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
+import { cleanUpBeforeLogout } from 'teleterm/ui/ClusterLogout/cleanUpBeforeLogout';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
@@ -152,6 +155,9 @@ export default class AppContext implements IAppContext {
       tshClient,
       this.configService
     );
+
+    this.registerClusterLifecycleHandler();
+    this.subscribeToProfileWatcherErrors();
   }
 
   async pullInitialState(): Promise<void> {
@@ -193,5 +199,59 @@ export default class AppContext implements IAppContext {
   // directly on appContext, we use a getter which exposes a private property.
   get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
     return this._unexpectedVnetShutdownListener;
+  }
+
+  private registerClusterLifecycleHandler(): void {
+    // Queue chain ensures sequential processing.
+    let processingQueue = Promise.resolve();
+
+    this.mainProcessClient.registerClusterLifecycleHandler(({ uri, op }) => {
+      // Chain onto the queue and catch errors so it keeps processing
+      const task = processingQueue.then(async () => {
+        switch (op) {
+          case 'did-add-cluster':
+            return this.workspacesService.addWorkspace(uri);
+          case 'will-logout':
+            return cleanUpBeforeLogout(this, uri, { removeWorkspace: false });
+          case 'will-logout-and-remove':
+            return cleanUpBeforeLogout(this, uri, { removeWorkspace: true });
+          default:
+            op satisfies never;
+        }
+      });
+
+      // Update the queue so the next event waits for this one.
+      // Catch errors, they will be returned below.
+      processingQueue = task.catch(() => {});
+
+      return task;
+    });
+  }
+
+  private subscribeToProfileWatcherErrors(): void {
+    let notificationId: string | undefined;
+    this.mainProcessClient.subscribeToProfileWatcherErrors(
+      ({ error, reason }) => {
+        let title: string;
+        switch (reason) {
+          case 'processing-error':
+            title =
+              'Failed to process the detected profile update. Changes made through tsh may not be reflected in the app.';
+            break;
+          case 'exited':
+            title =
+              "Stopped monitoring profiles. Changes made through tsh won't be reflected in the app.";
+            break;
+        }
+
+        if (notificationId) {
+          this.notificationsService.removeNotification(notificationId);
+        }
+        notificationId = this.notificationsService.notifyError({
+          title,
+          description: getErrorMessage(error),
+        });
+      }
+    );
   }
 }

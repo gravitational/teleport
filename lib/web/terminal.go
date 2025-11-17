@@ -841,26 +841,38 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		// created and the server sends us the session ID it is using
 		writeSessionCtx, writeSessionCancel := context.WithCancel(ctx)
 		defer writeSessionCancel()
-		waitForSessionID := prepareToReceiveSessionID(writeSessionCtx, t.logger, nc)
+
+		// only handle the first session ID request
+		var receiveSessionIDOnce sync.Once
+		receivedSessionID := make(chan struct{})
+		nc.Client.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+			receiveSessionIDOnce.Do(func() {
+				sid, err := session.ParseID(string(req.Payload))
+				if err != nil {
+					t.logger.WarnContext(ctx, "Unable to parse session ID", "error", err)
+					return
+				}
+
+				t.sessionData.ID = *sid
+				close(receivedSessionID)
+			})
+		})
 
 		// wait in a new goroutine because the server won't set a
-		// session ID until we open a shell
+		// session ID until we start the session.
 		go func() {
 			defer close(sessionDataSent)
 
-			sid, status := waitForSessionID()
-			switch status {
-			case sessionIDReceived:
-				t.sessionData.ID = sid
-				fallthrough
-			case sessionIDNotModified:
+			ctx, cancel := context.WithTimeout(writeSessionCtx, 10*time.Second)
+			defer cancel()
+
+			select {
+			case <-receivedSessionID:
 				if err := t.writeSessionData(ctx); err != nil {
 					t.logger.WarnContext(ctx, "Failure sending session data", "error", err)
 				}
-			case sessionIDNotSent:
+			case <-ctx.Done():
 				t.logger.WarnContext(ctx, "Failed to receive session data")
-			default:
-				t.logger.WarnContext(ctx, "Invalid session ID status", "status", status)
 			}
 		}()
 	}

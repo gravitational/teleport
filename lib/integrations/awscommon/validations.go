@@ -23,8 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-// ValidIntegratioName validates the integration name.
-func ValidIntegratioName(name string) error {
+// ValidIntegrationName validates the integration name.
+func ValidIntegrationName(name string) error {
 	// AWS OIDC and Roles Anywhere Integrations can be used as source of credentials to access AWS Web/CLI.
 	// For OIDC, this creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 	// For Roles Anywhere, this creates a AppServers for each Roles Anywhere Profile whose endpoint is <profileName>-<integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
