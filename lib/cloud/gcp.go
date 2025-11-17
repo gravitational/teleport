@@ -61,6 +61,8 @@ func NewGCPClients() GCPClients {
 	return newGCPClients()
 }
 
+type GCPClientsOption func(clients *gcpClients)
+
 // gcpClients contains GCP-specific clients.
 type gcpClients struct {
 	// mtx is used for locking.

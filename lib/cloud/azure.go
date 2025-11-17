@@ -69,6 +69,8 @@ type AzureClients interface {
 
 var _ AzureClients = (*azureClients)(nil)
 
+type AzureClientsOption func(clients *azureClients)
+
 func NewAzureClients(opts ...AzureClientsOption) (AzureClients, error) {
 	return newAzureClients(opts...)
 }
@@ -124,8 +126,6 @@ type AzureOIDCCredentials interface {
 	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 }
-
-type AzureClientsOption func(cfg *azureClients)
 
 func WithAzureIntegrationCredentials(integration string, auth AzureOIDCCredentials) AzureClientsOption {
 	return func(cfg *azureClients) {
