@@ -28,9 +28,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/events"
 )
 
 func newReadEvent(path string, directory directoryID, offset uint64, length uint32) *events.DesktopSharedDirectoryRead {
@@ -96,8 +97,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("overflow", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
-			ctx := t.Context()
+		ctx := t.Context()
+		synctest.Run(func() {
 			// Walk up to and beyond MaxUint32
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, math.MaxUint32-1))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, math.MaxUint32-1, 1))
@@ -113,8 +114,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("zero-length-event", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
-			ctx := t.Context()
+		ctx := t.Context()
+		synctest.Run(func() {
 			// Create two read events with zero length, but with differing
 			// error codes. Neither should get compacted, as zero length
 			// events are not eligible for compaction.

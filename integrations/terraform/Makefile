@@ -175,7 +175,7 @@ ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
 	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
 	@exit -1
 endif
-	gotestsum  -- ./testlib -v $(TEST_ARGS)
+	gotestsum --junitfile unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
 
 .PHONY: test-full
 test-full: TEST_ARGS=--tags enterprisetests
