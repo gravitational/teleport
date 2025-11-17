@@ -381,6 +381,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 			Mcp: &prehogv1a.SessionStartMCPMetadata{
 				Transport:       types.GetMCPServerTransportType(e.AppURI),
+				ProtocolVersion: e.ProtocolVersion,
 				IngressAuthType: e.IngressAuthType,
 				EgressAuthType:  e.EgressAuthType,
 				ClientName:      e.ClientInfo,
