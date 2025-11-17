@@ -539,6 +539,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfAccessGraphAWSSyncCmd.Flag("sqs-queue-url", "SQS Queue URL used to receive notifications from CloudTrail.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.SQSQueueURL)
 	integrationConfAccessGraphAWSSyncCmd.Flag("cloud-trail-bucket", "ARN of the S3 bucket where CloudTrail writes events to.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.CloudTrailBucketARN)
 	integrationConfAccessGraphAWSSyncCmd.Flag("kms-key", "List of KMS Keys used to decrypt SQS and S3 bucket data.").StringsVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.KMSKeyARNs)
+	integrationConfAccessGraphAWSSyncCmd.Flag("eks-audit-logs", "Enable collection of EKS audit logs").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.EnableEKSAuditLogs)
 
 	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Adds required Azure permissions for syncing Azure resources into Access Graph service.")
 	integrationConfAccessGraphAzureSyncCmd.Flag("managed-identity", "The ID of the managed identity to run the Discovery service.").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ManagedIdentity)
