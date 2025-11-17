@@ -147,15 +147,17 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 
 func clientInitToMessage(req *joinv1.ClientInit) *messages.ClientInit {
 	msg := &messages.ClientInit{
-		JoinMethod:       req.JoinMethod,
-		TokenName:        req.TokenName,
-		SystemRole:       req.SystemRole,
-		ForwardedByProxy: req.ForwardedByProxy,
+		TokenName:        req.GetTokenName(),
+		SystemRole:       req.GetSystemRole(),
+		ForwardedByProxy: req.GetForwardedByProxy(),
+	}
+	if joinMethod := req.GetJoinMethod(); joinMethod != "" {
+		msg.JoinMethod = &joinMethod
 	}
 	if proxySuppliedParams := req.GetProxySuppliedParameters(); proxySuppliedParams != nil {
 		msg.ProxySuppliedParams = &messages.ProxySuppliedParams{
-			RemoteAddr:    proxySuppliedParams.RemoteAddr,
-			ClientVersion: proxySuppliedParams.ClientVersion,
+			RemoteAddr:    proxySuppliedParams.GetRemoteAddr(),
+			ClientVersion: proxySuppliedParams.GetClientVersion(),
 		}
 	}
 	return msg
@@ -178,7 +180,7 @@ func clientInitFromMessage(msg *messages.ClientInit) *joinv1.ClientInit {
 }
 
 func tokenInitToMessage(req *joinv1.TokenInit) (*messages.TokenInit, error) {
-	clientParams, err := clientParamsToMessage(req.ClientParams)
+	clientParams, err := clientParamsToMessage(req.GetClientParams())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -199,13 +201,13 @@ func tokenInitFromMessage(msg *messages.TokenInit) (*joinv1.TokenInit, error) {
 
 func clientParamsToMessage(req *joinv1.ClientParams) (messages.ClientParams, error) {
 	var msg messages.ClientParams
-	switch req.GetPayload().(type) {
+	switch payload := req.GetPayload().(type) {
 	case *joinv1.ClientParams_HostParams:
-		msg.HostParams = hostParamsToMessage(req.GetHostParams())
+		msg.HostParams = hostParamsToMessage(payload.HostParams)
 	case *joinv1.ClientParams_BotParams:
-		msg.BotParams = botParamsToMessage(req.GetBotParams())
+		msg.BotParams = botParamsToMessage(payload.BotParams)
 	default:
-		return msg, trace.BadParameter("unrecognized ClientParams payload type %T", req.Payload)
+		return msg, trace.BadParameter("unrecognized ClientParams payload type %T", payload)
 	}
 	return msg, nil
 }
@@ -229,10 +231,10 @@ func clientParamsFromMessage(msg messages.ClientParams) (*joinv1.ClientParams, e
 
 func hostParamsToMessage(req *joinv1.HostParams) *messages.HostParams {
 	return &messages.HostParams{
-		PublicKeys:           publicKeysToMessage(req.PublicKeys),
-		HostName:             req.HostName,
-		AdditionalPrincipals: req.AdditionalPrincipals,
-		DNSNames:             req.DnsNames,
+		PublicKeys:           publicKeysToMessage(req.GetPublicKeys()),
+		HostName:             req.GetHostName(),
+		AdditionalPrincipals: req.GetAdditionalPrincipals(),
+		DNSNames:             req.GetDnsNames(),
 	}
 }
 
@@ -247,10 +249,10 @@ func hostParamsFromMessage(msg *messages.HostParams) *joinv1.HostParams {
 
 func botParamsToMessage(req *joinv1.BotParams) *messages.BotParams {
 	msg := &messages.BotParams{
-		PublicKeys: publicKeysToMessage(req.PublicKeys),
+		PublicKeys: publicKeysToMessage(req.GetPublicKeys()),
 	}
 	if req.Expires != nil {
-		expires := req.Expires.AsTime()
+		expires := req.GetExpires().AsTime()
 		msg.Expires = &expires
 	}
 	return msg
@@ -268,8 +270,8 @@ func botParamsFromMessage(msg *messages.BotParams) *joinv1.BotParams {
 
 func publicKeysToMessage(req *joinv1.PublicKeys) messages.PublicKeys {
 	return messages.PublicKeys{
-		PublicTLSKey: req.PublicTlsKey,
-		PublicSSHKey: req.PublicSshKey,
+		PublicTLSKey: req.GetPublicTlsKey(),
+		PublicSSHKey: req.GetPublicSshKey(),
 	}
 }
 
@@ -328,7 +330,7 @@ func challengeSolutionFromMessage(msg messages.Request) (*joinv1.ChallengeSoluti
 
 // responseToMessage converts a gRPC JoinResponse into a protocol-agnostic [messages.Response].
 func responseToMessage(resp *joinv1.JoinResponse) (messages.Response, error) {
-	switch typedResp := resp.Payload.(type) {
+	switch typedResp := resp.GetPayload().(type) {
 	case *joinv1.JoinResponse_Init:
 		return serverInitToMessage(typedResp.Init)
 	case *joinv1.JoinResponse_Challenge:
@@ -388,13 +390,13 @@ func responseFromMessage(msg messages.Response) (*joinv1.JoinResponse, error) {
 	}
 }
 
-func serverInitToMessage(req *joinv1.ServerInit) (*messages.ServerInit, error) {
-	sas, err := types.SignatureAlgorithmSuiteFromString(req.SignatureAlgorithmSuite)
+func serverInitToMessage(resp *joinv1.ServerInit) (*messages.ServerInit, error) {
+	sas, err := types.SignatureAlgorithmSuiteFromString(resp.GetSignatureAlgorithmSuite())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &messages.ServerInit{
-		JoinMethod:              req.JoinMethod,
+		JoinMethod:              resp.GetJoinMethod(),
 		SignatureAlgorithmSuite: sas,
 	}, nil
 }
@@ -407,7 +409,7 @@ func serverInitFromMessage(msg *messages.ServerInit) *joinv1.ServerInit {
 }
 
 func challengeToMessage(resp *joinv1.Challenge) (messages.Response, error) {
-	switch payload := resp.Payload.(type) {
+	switch payload := resp.GetPayload().(type) {
 	case *joinv1.Challenge_BoundKeypairChallenge:
 		return boundKeypairChallengeToMessage(payload.BoundKeypairChallenge), nil
 	case *joinv1.Challenge_BoundKeypairRotationRequest:
@@ -453,20 +455,20 @@ func challengeFromMessage(resp messages.Response) (*joinv1.Challenge, error) {
 }
 
 func resultToMessage(resp *joinv1.Result) (messages.Response, error) {
-	switch resp.Payload.(type) {
+	switch payload := resp.GetPayload().(type) {
 	case *joinv1.Result_HostResult:
-		return hostResultToMessage(resp.GetHostResult()), nil
+		return hostResultToMessage(payload.HostResult), nil
 	case *joinv1.Result_BotResult:
-		return botResultToMessage(resp.GetBotResult()), nil
+		return botResultToMessage(payload.BotResult), nil
 	default:
-		return nil, trace.BadParameter("unrecodgnize result payload type %T", resp.Payload)
+		return nil, trace.BadParameter("unrecognized result payload type %T", payload)
 	}
 }
 
 func hostResultToMessage(resp *joinv1.HostResult) *messages.HostResult {
 	return &messages.HostResult{
-		Certificates: certificatesToMessage(resp.Certificates),
-		HostID:       resp.HostId,
+		Certificates: certificatesToMessage(resp.GetCertificates()),
+		HostID:       resp.GetHostId(),
 	}
 }
 
@@ -479,8 +481,8 @@ func hostResultFromMessage(msg *messages.HostResult) *joinv1.HostResult {
 
 func botResultToMessage(resp *joinv1.BotResult) *messages.BotResult {
 	return &messages.BotResult{
-		Certificates:       certificatesToMessage(resp.Certificates),
-		BoundKeypairResult: boundKeypairResultToMessage(resp.BoundKeypairResult),
+		Certificates:       certificatesToMessage(resp.GetCertificates()),
+		BoundKeypairResult: boundKeypairResultToMessage(resp.GetBoundKeypairResult()),
 	}
 }
 
@@ -493,10 +495,10 @@ func botResultFromMessage(msg *messages.BotResult) *joinv1.BotResult {
 
 func certificatesToMessage(certs *joinv1.Certificates) messages.Certificates {
 	return messages.Certificates{
-		TLSCert:    certs.TlsCert,
-		TLSCACerts: certs.TlsCaCerts,
-		SSHCert:    certs.SshCert,
-		SSHCAKeys:  certs.SshCaKeys,
+		TLSCert:    certs.GetTlsCert(),
+		TLSCACerts: certs.GetTlsCaCerts(),
+		SSHCert:    certs.GetSshCert(),
+		SSHCAKeys:  certs.GetSshCaKeys(),
 	}
 }
 
@@ -511,7 +513,7 @@ func certificatesFromMessage(certs *messages.Certificates) *joinv1.Certificates 
 
 func givingUpToMessage(req *joinv1.GivingUp) *messages.GivingUp {
 	reason := messages.GivingUpReasonUnspecified
-	switch req.Reason {
+	switch req.GetReason() {
 	case joinv1.GivingUp_REASON_UNSUPPORTED_JOIN_METHOD:
 		reason = messages.GivingUpReasonUnsupportedJoinMethod
 	case joinv1.GivingUp_REASON_UNSUPPORTED_MESSAGE_TYPE:
@@ -521,7 +523,7 @@ func givingUpToMessage(req *joinv1.GivingUp) *messages.GivingUp {
 	}
 	return &messages.GivingUp{
 		Reason: reason,
-		Msg:    req.Msg,
+		Msg:    req.GetMsg(),
 	}
 }
 

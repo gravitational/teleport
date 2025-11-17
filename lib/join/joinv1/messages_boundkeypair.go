@@ -24,14 +24,14 @@ import (
 )
 
 func boundKeypairInitToMessage(req *joinv1.BoundKeypairInit) (*messages.BoundKeypairInit, error) {
-	clientParams, err := clientParamsToMessage(req.ClientParams)
+	clientParams, err := clientParamsToMessage(req.GetClientParams())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &messages.BoundKeypairInit{
 		ClientParams:      clientParams,
-		InitialJoinSecret: req.InitialJoinSecret,
-		PreviousJoinState: req.PreviousJoinState,
+		InitialJoinSecret: req.GetInitialJoinSecret(),
+		PreviousJoinState: req.GetPreviousJoinState(),
 	}, nil
 }
 
@@ -49,8 +49,8 @@ func boundKeypairInitFromMessage(msg *messages.BoundKeypairInit) (*joinv1.BoundK
 
 func boundKeypairChallengeToMessage(resp *joinv1.BoundKeypairChallenge) *messages.BoundKeypairChallenge {
 	return &messages.BoundKeypairChallenge{
-		PublicKey: resp.PublicKey,
-		Challenge: resp.Challenge,
+		PublicKey: resp.GetPublicKey(),
+		Challenge: resp.GetChallenge(),
 	}
 }
 
@@ -63,13 +63,13 @@ func boundKeypairChallengeFromMessage(msg *messages.BoundKeypairChallenge) *join
 
 func boundKeypairChallengeSolutionToMessage(req *joinv1.BoundKeypairChallengeSolution) *messages.BoundKeypairChallengeSolution {
 	return &messages.BoundKeypairChallengeSolution{
-		Solution: req.Solution,
+		Solution: req.GetSolution(),
 	}
 }
 
 func boundKeypairRotationRequestToMessage(resp *joinv1.BoundKeypairRotationRequest) *messages.BoundKeypairRotationRequest {
 	return &messages.BoundKeypairRotationRequest{
-		SignatureAlgorithmSuite: resp.SignatureAlgorithmSuite,
+		SignatureAlgorithmSuite: resp.GetSignatureAlgorithmSuite(),
 	}
 }
 
@@ -87,7 +87,7 @@ func boundKeypairChallengeSolutionFromMessage(msg *messages.BoundKeypairChalleng
 
 func boundKeypairRotationResponseToMessage(req *joinv1.BoundKeypairRotationResponse) *messages.BoundKeypairRotationResponse {
 	return &messages.BoundKeypairRotationResponse{
-		PublicKey: req.PublicKey,
+		PublicKey: req.GetPublicKey(),
 	}
 }
 
@@ -102,8 +102,8 @@ func boundKeypairResultToMessage(req *joinv1.BoundKeypairResult) *messages.Bound
 		return nil
 	}
 	return &messages.BoundKeypairResult{
-		JoinState: req.JoinState,
-		PublicKey: req.PublicKey,
+		JoinState: req.GetJoinState(),
+		PublicKey: req.GetPublicKey(),
 	}
 }
 
