@@ -366,15 +366,19 @@ service MFAService {
   rpc VerifyValidatedChallenge(VerifyValidatedChallengeRequest) returns (VerifyValidatedChallengeResponse);
 }
 
-
-// CreateChallengeRequest is the request message for CreateChallenge.
-message CreateChallengeRequest {
-  // payload is a value that uniquely identifies the user's session. It must be computed by the client from session
-  // state. When VerifyValidatedChallenge is called, the server will verify it matches the payload supplied to
-  // CreateChallengeRequest.
+// SessionIdentifyingPayload contains a value that uniquely identifies a user's session.
+// It must be computed by the client from session state and is used to bind MFA challenges to specific sessions.
+message SessionIdentifyingPayload {
   oneof payload {
     teleport.ssh.v1.SessionPayload ssh_session = 1;
   }
+}
+
+// CreateChallengeRequest is the request message for CreateChallenge.
+message CreateChallengeRequest {
+  // payload is a value that uniquely identifies the user's session. When VerifyValidatedChallenge is called, the server
+  // will verify it matches the payload supplied to CreateChallengeRequest.
+  SessionIdentifyingPayload payload = 1;
   // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
   string sso_client_redirect_url = 2;
@@ -409,11 +413,9 @@ message ReplicateValidatedChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the upsert to the correct challenge.
   string name = 1;
-  // payload is a value that uniquely identifies the user's session. This should match the oneof payload in
+  // payload is a value that uniquely identifies the user's session. This should match the payload in
   // CreateChallengeRequest.
-  oneof payload {
-    teleport.ssh.v1.SessionPayload ssh_session = 2;
-  }
+  SessionIdentifyingPayload payload = 2;
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 3;
 }
@@ -424,11 +426,9 @@ message VerifyValidatedChallengeRequest {
   // This must match the 'name' returned in CreateChallengeResponse to tie the retrieval to the correct challenge.
   string name = 1;
   // payload is a value that uniquely identifies the user's session. The client calling VerifyValidatedChallenge MUST
-  // independently compute this value from session state. The server will verify it matches the one supplied in
+  // independently compute this value from session state. The server will verify it matches the payload supplied in
   // CreateChallengeRequest to ensure the challenge is tied to the correct session.
-  oneof payload {
-    teleport.ssh.v1.SessionPayload ssh_session = 2;
-  }
+  SessionIdentifyingPayload payload = 2;
 }
 
 // VerifyValidatedChallengeResponse is the response message for VerifyValidatedChallenge.
@@ -540,9 +540,7 @@ message ValidatedChallenge {
 message ValidatedChallengeSpec {
   // payload is a value that uniquely identifies the user's session. It is the value that was supplied in
   // CreateChallengeRequest.
-  oneof payload {
-    teleport.ssh.v1.SessionPayload ssh = 1;
-  }
+  SessionIdentifyingPayload payload = 1;
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 2;
 }
