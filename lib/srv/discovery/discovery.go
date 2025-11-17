@@ -789,13 +789,7 @@ func (s *Server) databaseFetchersFromMatchers(ctx context.Context, matchers Matc
 	// Azure
 	azureDatabaseMatchers, _ := splitMatchers(matchers.Azure, db.IsAzureMatcherType)
 	if len(azureDatabaseMatchers) > 0 {
-		// TODO: make use of integration credentials.
-		clients, err := s.getAzureClients(ctx, "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		databaseFetchers, err := db.MakeAzureFetchers(clients, azureDatabaseMatchers, discoveryConfigName)
+		databaseFetchers, err := db.MakeAzureFetchers(ctx, s.getAzureClients, azureDatabaseMatchers, discoveryConfigName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1462,22 +1456,12 @@ func (s *Server) handleAzureInstances(ctx context.Context, instances *server.Azu
 
 	s.Log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "subscription_id", instances.SubscriptionID, "vms", genAzureInstancesLogStr(instances.Instances))
 	req := server.AzureRunRequest{
-		Client:        runClient,
-		Instances:     instances.Instances,
-		Region:        instances.Region,
-		ResourceGroup: instances.ResourceGroup,
-		//<<<<<<< HEAD
+		Client:          runClient,
+		Instances:       instances.Instances,
+		Region:          instances.Region,
+		ResourceGroup:   instances.ResourceGroup,
 		InstallerParams: instances.InstallerParams,
 		ProxyAddrGetter: s.publicProxyAddress,
-		//=======
-		//		Params:          instances.Parameters,
-		//		ScriptName:      instances.ScriptName,
-		//		PublicProxyAddr: instances.PublicProxyAddr,
-		//		ClientID:        instances.ClientID,
-		//		InstallSuffix:   instances.InstallSuffix,
-		//		UpdateGroup:     instances.UpdateGroup,
-		//		//Integration:     instances.Integration,
-		//>>>>>>> 0e3fe38ec1 (wip poc)
 	}
 	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)

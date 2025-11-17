@@ -126,8 +126,7 @@ type azureFetcherConfig struct {
 }
 
 type azureInstanceFetcher struct {
-	InstallerParams *types.InstallerParams
-	//AzureClientGetter   azureClientGetter
+	InstallerParams     *types.InstallerParams
 	AzureClientGetter   func(ctx context.Context, integration string) (cloud.AzureClients, error)
 	Regions             []string
 	Subscription        string
