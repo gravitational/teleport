@@ -51,6 +51,10 @@ Enterprise:
 
 ## 18.3.1 (11/04/25)
 
+**Warning:** This release includes a regression that prevents connection to non-AD desktops.
+The following workaround is available:
+- Upgrade Windows Desktop Service to 18.3.2
+
 * Fixed an issue MCP session end event is not being sent sometimes. [#61009](https://github.com/gravitational/teleport/pull/61009)
 * Teleport's Windows Desktop service can now discover the KDC server address via DNS. [#60988](https://github.com/gravitational/teleport/pull/60988)
 * Fixed Kubernetes metrics API unmarshaling errors causing kubectl top commands to fail in certain scenarios. [#60971](https://github.com/gravitational/teleport/pull/60971)
