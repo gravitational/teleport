@@ -435,6 +435,24 @@ func ForWindowsDesktop(cfg Config) Config {
 	return cfg
 }
 
+// ForLinuxDesktop sets up watch configuration for a Linux desktop service.
+func ForLinuxDesktop(cfg Config) Config {
+	cfg.target = "linux_desktop"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindLinuxDesktop},
+	}
+	cfg.QueueSize = defaults.LinuxDesktopQueueSize
+	return cfg
+}
+
 // ForDiscovery sets up watch configuration for discovery servers.
 func ForDiscovery(cfg Config) Config {
 	cfg.target = "discovery"

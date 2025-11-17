@@ -271,6 +271,9 @@ const (
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
 
+	// ComponentLinuxDesktop is a Linux desktop access server.
+	ComponentLinuxDesktop = "linux_desktop"
+
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
 
