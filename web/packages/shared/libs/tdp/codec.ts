@@ -524,57 +524,57 @@ export class TdpbCodec extends Encoder {
           this.handlers.handleSharedDirectoryAcknowledge({errCode, directoryId});
         }
         break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_INFO_REQUEST:
-        this.handlers.handleSharedDirectoryInfoRequest(tdpb.SharedDirectoryInfoRequest.fromBinary(messageData));
-        break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST:
-        this.handlers.handleSharedDirectoryCreateRequest(tdpb.SharedDirectoryCreateRequest.fromBinary(messageData));
-        break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST:
-        this.handlers.handleSharedDirectoryDeleteRequest(tdpb.SharedDirectoryDeleteRequest.fromBinary(messageData));
-        break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_LIST_REQUEST:
-        this.handlers.handleSharedDirectoryListRequest(tdpb.SharedDirectoryListRequest.fromBinary(messageData));
-        break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_READ_REQUEST:
-          const readReq = tdpb.SharedDirectoryReadRequest.fromBinary(messageData);
-          this.handlers.handleSharedDirectoryReadRequest({
-            completionId: readReq.completionId,
-            directoryId: readReq.directoryId,
-            path: readReq.path,
-            pathLength: readReq.path.length,
-            length: readReq.length,
-            offset: readReq.offset,
-          });
-          break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST:
-        const writeReq = tdpb.SharedDirectoryWriteRequest.fromBinary(messageData);
-        this.handlers.handleSharedDirectoryWriteRequest({
-          completionId:  writeReq.completionId,
-          directoryId:  writeReq.directoryId,
-          pathLength:  writeReq.path.length,
-          path:  writeReq.path,
-          offset:  writeReq.offset,
-          writeData:  writeReq.writeData,
-        });
-        break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST:
-        let moveReq = tdpb.SharedDirectoryMoveRequest.fromBinary(messageData);
-        this.handlers.handleSharedDirectoryMoveRequest({
-            completionId: moveReq.completionId,
-            directoryId: moveReq.directoryId,
-            originalPathLength: moveReq.originalPath.length,
-            originalPath: moveReq.originalPath,
-            newPathLength: moveReq.originalPath.length,
-            newPath: moveReq.newPath,
-        });
-        break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST:
-        this.handlers.handleSharedDirectoryTruncateRequest(tdpb.SharedDirectoryTruncateRequest.fromBinary(messageData));
-        break;
-      case tdpb.MessageType.MESSAGE_LATENCY_STATS:
-        const latencyStats = tdpb.LatencyStats.fromBinary(messageData);
-        this.handlers.handleLatencyStats({client: latencyStats.clientLatency, server: latencyStats.serverLatency});
+      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_REQUEST:
+        const req = tdpb.SharedDirectoryRequest.fromBinary(messageData);
+        switch (req.operationCode) {
+          case tdpb.DirectoryOperation.CREATE:
+            this.handlers.handleSharedDirectoryCreateRequest(req);
+            break;
+          case tdpb.DirectoryOperation.DELETE:
+            this.handlers.handleSharedDirectoryDeleteRequest(req);
+            break;
+          case tdpb.DirectoryOperation.MOVE:
+            this.handlers.handleSharedDirectoryMoveRequest({
+              completionId: req.completionId,
+              directoryId: req.directoryId,
+              originalPathLength: req.path.length,
+              originalPath: req.path,
+              newPathLength: req.newPath.length,
+              newPath: req.newPath,
+            });
+            break;
+          case tdpb.DirectoryOperation.INFO:
+            this.handlers.handleSharedDirectoryInfoRequest(req);
+            break;
+          case tdpb.DirectoryOperation.TRUNCATE:
+            this.handlers.handleSharedDirectoryTruncateRequest(req);
+            break;
+          case tdpb.DirectoryOperation.READ:
+            this.handlers.handleSharedDirectoryReadRequest({
+              completionId: req.completionId,
+              directoryId: req.directoryId,
+              path: req.path,
+              pathLength: req.path.length,
+              length: req.length,
+              offset: req.offset,
+            });
+            break;
+          case tdpb.DirectoryOperation.WRITE:
+            this.handlers.handleSharedDirectoryWriteRequest({
+              completionId:  req.completionId,
+              directoryId:  req.directoryId,
+              pathLength:  req.path.length,
+              path:  req.path,
+              offset:  req.offset,
+              writeData:  req.data,
+            });
+            break;
+          case tdpb.DirectoryOperation.LIST:
+            this.handlers.handleSharedDirectoryListRequest(req);
+            break;
+          default:
+            throw new Error(`unknown shared directory operation, ${req.operationCode}`)
+        }
         break;
       default:
         throw new Error(`received unsupported message type", ${messageType}`)
@@ -643,8 +643,9 @@ export class TdpbCodec extends Encoder {
     return this.marshal({
       completionId: res.completionId,
       errorCode: res.errCode,
-      fso: res.fso,
-    },tdpb.SharedDirectoryInfoResponse);
+      fsoList: [res.fso],
+      data: null,
+    },tdpb.SharedDirectoryResponse);
   }
 
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
