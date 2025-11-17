@@ -254,7 +254,7 @@ func (c *Client) readClientSize() error {
 		s, err := c.cfg.Conn.ReadClientScreenSpec()
 		if err != nil {
 			if trace.IsBadParameter(err) {
-				c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
+				c.cfg.Logger.DebugContext(context.Background(), "Failed to read browser screen spec", "error", err)
 				continue
 			} else {
 				return err
@@ -296,7 +296,7 @@ func (c *Client) readClientKeyboardLayout() error {
 		return trace.Wrap(err)
 	}
 	if msgType != tdp.TypeClientKeyboardLayout {
-		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
+		c.cfg.Logger.DebugContext(context.Background(), "Proxy did not send keyboard layout")
 		return nil
 	}
 	msg, err := c.cfg.Conn.ReadMessage()
@@ -487,7 +487,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 				// Withhold the latest screen size until the client is ready for input. This ensures
 				// that the client receives the correct screen size when it is ready.
 				withheldResize = &m
-				c.cfg.Logger.DebugContext(context.Background(), "Withholding screen size until client is ready for input", "width", m.Width, "height", m.Height)
+				c.cfg.Logger.DebugContext(context.Background(), "Withholding screen size until proxy is ready for input", "width", m.Width, "height", m.Height)
 			default:
 				// Ignore all messages except ClientScreenSpec until the client is ready for input.
 				c.cfg.Logger.DebugContext(context.Background(), "Dropping TDP input message, not ready for input")
@@ -534,7 +534,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			return nil
 		}
 
-		c.cfg.Logger.DebugContext(context.Background(), "Client changed screen size", "width", m.Width, "height", m.Height)
+		c.cfg.Logger.DebugContext(context.Background(), "Browser changed screen size", "width", m.Width, "height", m.Height)
 		if errCode := C.client_write_screen_resize(
 			C.uintptr_t(c.handle),
 			C.uint32_t(m.Width),
