@@ -87,8 +87,8 @@ with an MFA challenge for the client to solve.
 Next, the client solves the MFA challenge and calls `ValidateChallenge` with the MFA response. The MFA service validates
 the MFA response and stores the [ValidatedChallenge](#storing-validated-mfa-responses) resource to the local backend.
 
-If the target cluster is a leaf cluster, a watcher in the reverse tunnel server monitors `ValidateChallenge` events for
-its cluster. When a `ValidateChallenge` is created for a leaf cluster, the reverse tunnel server calls the
+If the target cluster is a leaf cluster, a watcher in the reverse tunnel server monitors `ValidatedChallenge` events for
+its cluster. When a `ValidatedChallenge` is created for a leaf cluster, the reverse tunnel server calls the
 `ReplicateValidatedChallenge` RPC using its MFA service client to forward the challenge to the leaf cluster's MFA
 service.
 
