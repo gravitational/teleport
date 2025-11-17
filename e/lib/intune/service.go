@@ -474,7 +474,6 @@ func (s *Service) processDevicesPage(ctx context.Context, intuneDevices []*msgra
 		s.cfg.Logger.DebugContext(ctx, "Syncing Intune device",
 			logGroup,
 			slog.Time("last_sync_date_time", intuneDevice.LastSyncDateTime),
-			slog.String("model", intuneDevice.Model),
 			slog.String("operating_system", intuneDevice.OperatingSystem),
 			slog.String("os_version", intuneDevice.OSVersion),
 			slog.Any("profile", device.Profile),

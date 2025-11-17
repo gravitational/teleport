@@ -38,10 +38,11 @@ func managedDeviceToDevice(md *msgraph.ManagedDevice) (*devicepb.Device, error) 
 		OsType:   osType,
 		AssetTag: md.SerialNumber,
 		Profile: &devicepb.DeviceProfile{
-			ExternalId:      md.ID,
-			ModelIdentifier: md.Model,
-			OsVersion:       osVersion,
-			OsBuild:         osBuild,
+			ExternalId: md.ID,
+			OsVersion:  osVersion,
+			OsBuild:    osBuild,
+			// ModelIdentifier is not synced because of a mismatch between Intune's "model" field and the
+			// model identifier reported by tsh. https://github.com/gravitational/teleport.e/pull/7581
 		},
 	}, nil
 }

@@ -124,7 +124,6 @@ func TestManagedDeviceToDevice(t *testing.T) {
 				LastSyncDateTime:        time.Unix(1685468902, 0), // 2023-05-30T17:48:02+00:00
 				DeviceRegistrationState: "registered",
 				SerialNumber:            "sn-1234",
-				Model:                   "MacBookPro9,2",
 				OperatingSystem:         "macOS",
 				OSVersion:               "15.5 (24F74)",
 			},
@@ -132,7 +131,6 @@ func TestManagedDeviceToDevice(t *testing.T) {
 				assert.Equal(t, md.ID, d.Profile.ExternalId)
 				assert.Equal(t, devicepb.OSType_OS_TYPE_MACOS, d.OsType)
 				assert.Equal(t, md.SerialNumber, d.AssetTag)
-				assert.Equal(t, md.Model, d.Profile.ModelIdentifier)
 				assert.Equal(t, "15.5", d.Profile.OsVersion)
 				assert.Equal(t, "24F74", d.Profile.OsBuild)
 			},
