@@ -58,7 +58,7 @@ type AzureInstances struct {
 // MakeEvents generates MakeEvents for these instances.
 func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
-	if instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
+	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
@@ -249,6 +249,6 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 			Integration:    f.Integration,
 		}})
 	}
-	
+
 	return instances, nil
 }
