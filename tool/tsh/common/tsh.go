@@ -2787,11 +2787,6 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 	)
 
 	err := forEachProfileParallel(cf, func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		if profile.IsExpired(time.Now()) {
-			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", profile.ProxyURL.Host)
-			return nil
-		}
-
 		ctx, span := tracer.Start(
 			ctx,
 			"getClusterClient",
