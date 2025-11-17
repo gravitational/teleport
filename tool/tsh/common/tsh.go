@@ -2632,6 +2632,16 @@ func onLogout(cf *CLIConf) error {
 		}
 
 		// Remove Teleport related entries from kubeconfig.
+
+		if profile != nil {
+			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "profile", profile.Name)
+			err = kubeconfig.RemoveByProfileName("", profile.Name)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		// TODO(espadolini): DELETE IN v20 (maybe, files could be left over from really old versions)
 		logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster_addr", tc.KubeClusterAddr())
 		err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr())
 		if err != nil {
@@ -2645,6 +2655,8 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// TODO(espadolini): DELETE IN v20 (maybe, files could be left over from really old versions)
 		logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster_addr", tc.KubeClusterAddr())
 		if err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr()); err != nil {
 			return trace.Wrap(err)
@@ -2652,8 +2664,8 @@ func onLogout(cf *CLIConf) error {
 
 		// Remove Teleport related entries from kubeconfig for all clusters.
 		for _, profile := range profiles {
-			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster", profile.Cluster)
-			err = kubeconfig.RemoveByClusterName("", profile.Cluster)
+			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "profile", profile.Name)
+			err = kubeconfig.RemoveByProfileName("", profile.Name)
 			if err != nil {
 				return trace.Wrap(err)
 			}
