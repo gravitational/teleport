@@ -313,9 +313,19 @@ func main() {
 		baseImage,
 	)
 
+	statusWriter := controller.StatusWriter{
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		UpdateID:         updateID,
+		UpdateGroup:      updateGroup,
+		UpdateConfigName: updateConfigName,
+		ProxyAddress:     proxyAddress,
+	}
+
 	// Controller registration
 	deploymentController := controller.DeploymentVersionUpdater{
 		VersionUpdater: versionUpdater,
+		StatusWriter:   statusWriter,
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
 	}
@@ -326,13 +336,10 @@ func main() {
 	}
 
 	statefulsetController := controller.StatefulSetVersionUpdater{
-		VersionUpdater:   versionUpdater,
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		UpdateID:         updateID,
-		UpdateGroup:      updateGroup,
-		UpdateConfigName: updateConfigName,
-		ProxyAddress:     proxyAddress,
+		VersionUpdater: versionUpdater,
+		StatusWriter:   statusWriter,
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
 	}
 
 	if err := statefulsetController.SetupWithManager(mgr); err != nil {
