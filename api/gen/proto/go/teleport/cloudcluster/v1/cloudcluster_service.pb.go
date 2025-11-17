@@ -261,6 +261,124 @@ func (x *DeleteCloudClusterRequest) GetName() string {
 	return ""
 }
 
+// Request for ListCloudClusters.
+type ListCloudClustersRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// page_size is the size of the page to request.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// page_token is the page token.
+	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCloudClustersRequest) Reset() {
+	*x = ListCloudClustersRequest{}
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_service_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCloudClustersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCloudClustersRequest) ProtoMessage() {}
+
+func (x *ListCloudClustersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_service_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCloudClustersRequest.ProtoReflect.Descriptor instead.
+func (*ListCloudClustersRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_cloudcluster_v1_cloudcluster_service_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ListCloudClustersRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListCloudClustersRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// Response for ListCloudClusters.
+type ListCloudClustersResponse struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Clusters []*CloudCluster        `protobuf:"bytes,1,rep,name=clusters,proto3" json:"clusters,omitempty"`
+	// NextPageToken is the key for the next page of CloudClusters.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	// TotalCount is the total number of cloudclusters in all pages.
+	TotalCount    int32 `protobuf:"varint,3,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCloudClustersResponse) Reset() {
+	*x = ListCloudClustersResponse{}
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCloudClustersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCloudClustersResponse) ProtoMessage() {}
+
+func (x *ListCloudClustersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCloudClustersResponse.ProtoReflect.Descriptor instead.
+func (*ListCloudClustersResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_cloudcluster_v1_cloudcluster_service_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListCloudClustersResponse) GetClusters() []*CloudCluster {
+	if x != nil {
+		return x.Clusters
+	}
+	return nil
+}
+
+func (x *ListCloudClustersResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+func (x *ListCloudClustersResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
 var File_teleport_cloudcluster_v1_cloudcluster_service_proto protoreflect.FileDescriptor
 
 const file_teleport_cloudcluster_v1_cloudcluster_service_proto_rawDesc = "" +
@@ -275,10 +393,20 @@ const file_teleport_cloudcluster_v1_cloudcluster_service_proto_rawDesc = "" +
 	"\x19UpsertCloudClusterRequest\x12>\n" +
 	"\x06config\x18\x01 \x01(\v2&.teleport.cloudcluster.v1.CloudClusterR\x06config\"/\n" +
 	"\x19DeleteCloudClusterRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name2\xbe\x04\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"V\n" +
+	"\x18ListCloudClustersRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\xa8\x01\n" +
+	"\x19ListCloudClustersResponse\x12B\n" +
+	"\bclusters\x18\x01 \x03(\v2&.teleport.cloudcluster.v1.CloudClusterR\bclusters\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x12\x1f\n" +
+	"\vtotal_count\x18\x03 \x01(\x05R\n" +
+	"totalCount2\xbc\x05\n" +
 	"\x13CloudClusterService\x12k\n" +
 	"\x0fGetCloudCluster\x120.teleport.cloudcluster.v1.GetCloudClusterRequest\x1a&.teleport.cloudcluster.v1.CloudCluster\x12q\n" +
-	"\x12CreateCloudCluster\x123.teleport.cloudcluster.v1.CreateCloudClusterRequest\x1a&.teleport.cloudcluster.v1.CloudCluster\x12q\n" +
+	"\x12CreateCloudCluster\x123.teleport.cloudcluster.v1.CreateCloudClusterRequest\x1a&.teleport.cloudcluster.v1.CloudCluster\x12|\n" +
+	"\x11ListCloudClusters\x122.teleport.cloudcluster.v1.ListCloudClustersRequest\x1a3.teleport.cloudcluster.v1.ListCloudClustersResponse\x12q\n" +
 	"\x12UpdateCloudCluster\x123.teleport.cloudcluster.v1.UpdateCloudClusterRequest\x1a&.teleport.cloudcluster.v1.CloudCluster\x12q\n" +
 	"\x12UpsertCloudCluster\x123.teleport.cloudcluster.v1.UpsertCloudClusterRequest\x1a&.teleport.cloudcluster.v1.CloudCluster\x12a\n" +
 	"\x12DeleteCloudCluster\x123.teleport.cloudcluster.v1.DeleteCloudClusterRequest\x1a\x16.google.protobuf.EmptyBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1;cloudclusterb\x06proto3"
@@ -295,35 +423,40 @@ func file_teleport_cloudcluster_v1_cloudcluster_service_proto_rawDescGZIP() []by
 	return file_teleport_cloudcluster_v1_cloudcluster_service_proto_rawDescData
 }
 
-var file_teleport_cloudcluster_v1_cloudcluster_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_cloudcluster_v1_cloudcluster_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_cloudcluster_v1_cloudcluster_service_proto_goTypes = []any{
 	(*GetCloudClusterRequest)(nil),    // 0: teleport.cloudcluster.v1.GetCloudClusterRequest
 	(*CreateCloudClusterRequest)(nil), // 1: teleport.cloudcluster.v1.CreateCloudClusterRequest
 	(*UpdateCloudClusterRequest)(nil), // 2: teleport.cloudcluster.v1.UpdateCloudClusterRequest
 	(*UpsertCloudClusterRequest)(nil), // 3: teleport.cloudcluster.v1.UpsertCloudClusterRequest
 	(*DeleteCloudClusterRequest)(nil), // 4: teleport.cloudcluster.v1.DeleteCloudClusterRequest
-	(*CloudCluster)(nil),              // 5: teleport.cloudcluster.v1.CloudCluster
-	(*emptypb.Empty)(nil),             // 6: google.protobuf.Empty
+	(*ListCloudClustersRequest)(nil),  // 5: teleport.cloudcluster.v1.ListCloudClustersRequest
+	(*ListCloudClustersResponse)(nil), // 6: teleport.cloudcluster.v1.ListCloudClustersResponse
+	(*CloudCluster)(nil),              // 7: teleport.cloudcluster.v1.CloudCluster
+	(*emptypb.Empty)(nil),             // 8: google.protobuf.Empty
 }
 var file_teleport_cloudcluster_v1_cloudcluster_service_proto_depIdxs = []int32{
-	5, // 0: teleport.cloudcluster.v1.CreateCloudClusterRequest.config:type_name -> teleport.cloudcluster.v1.CloudCluster
-	5, // 1: teleport.cloudcluster.v1.UpdateCloudClusterRequest.config:type_name -> teleport.cloudcluster.v1.CloudCluster
-	5, // 2: teleport.cloudcluster.v1.UpsertCloudClusterRequest.config:type_name -> teleport.cloudcluster.v1.CloudCluster
-	0, // 3: teleport.cloudcluster.v1.CloudClusterService.GetCloudCluster:input_type -> teleport.cloudcluster.v1.GetCloudClusterRequest
-	1, // 4: teleport.cloudcluster.v1.CloudClusterService.CreateCloudCluster:input_type -> teleport.cloudcluster.v1.CreateCloudClusterRequest
-	2, // 5: teleport.cloudcluster.v1.CloudClusterService.UpdateCloudCluster:input_type -> teleport.cloudcluster.v1.UpdateCloudClusterRequest
-	3, // 6: teleport.cloudcluster.v1.CloudClusterService.UpsertCloudCluster:input_type -> teleport.cloudcluster.v1.UpsertCloudClusterRequest
-	4, // 7: teleport.cloudcluster.v1.CloudClusterService.DeleteCloudCluster:input_type -> teleport.cloudcluster.v1.DeleteCloudClusterRequest
-	5, // 8: teleport.cloudcluster.v1.CloudClusterService.GetCloudCluster:output_type -> teleport.cloudcluster.v1.CloudCluster
-	5, // 9: teleport.cloudcluster.v1.CloudClusterService.CreateCloudCluster:output_type -> teleport.cloudcluster.v1.CloudCluster
-	5, // 10: teleport.cloudcluster.v1.CloudClusterService.UpdateCloudCluster:output_type -> teleport.cloudcluster.v1.CloudCluster
-	5, // 11: teleport.cloudcluster.v1.CloudClusterService.UpsertCloudCluster:output_type -> teleport.cloudcluster.v1.CloudCluster
-	6, // 12: teleport.cloudcluster.v1.CloudClusterService.DeleteCloudCluster:output_type -> google.protobuf.Empty
-	8, // [8:13] is the sub-list for method output_type
-	3, // [3:8] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	7,  // 0: teleport.cloudcluster.v1.CreateCloudClusterRequest.config:type_name -> teleport.cloudcluster.v1.CloudCluster
+	7,  // 1: teleport.cloudcluster.v1.UpdateCloudClusterRequest.config:type_name -> teleport.cloudcluster.v1.CloudCluster
+	7,  // 2: teleport.cloudcluster.v1.UpsertCloudClusterRequest.config:type_name -> teleport.cloudcluster.v1.CloudCluster
+	7,  // 3: teleport.cloudcluster.v1.ListCloudClustersResponse.clusters:type_name -> teleport.cloudcluster.v1.CloudCluster
+	0,  // 4: teleport.cloudcluster.v1.CloudClusterService.GetCloudCluster:input_type -> teleport.cloudcluster.v1.GetCloudClusterRequest
+	1,  // 5: teleport.cloudcluster.v1.CloudClusterService.CreateCloudCluster:input_type -> teleport.cloudcluster.v1.CreateCloudClusterRequest
+	5,  // 6: teleport.cloudcluster.v1.CloudClusterService.ListCloudClusters:input_type -> teleport.cloudcluster.v1.ListCloudClustersRequest
+	2,  // 7: teleport.cloudcluster.v1.CloudClusterService.UpdateCloudCluster:input_type -> teleport.cloudcluster.v1.UpdateCloudClusterRequest
+	3,  // 8: teleport.cloudcluster.v1.CloudClusterService.UpsertCloudCluster:input_type -> teleport.cloudcluster.v1.UpsertCloudClusterRequest
+	4,  // 9: teleport.cloudcluster.v1.CloudClusterService.DeleteCloudCluster:input_type -> teleport.cloudcluster.v1.DeleteCloudClusterRequest
+	7,  // 10: teleport.cloudcluster.v1.CloudClusterService.GetCloudCluster:output_type -> teleport.cloudcluster.v1.CloudCluster
+	7,  // 11: teleport.cloudcluster.v1.CloudClusterService.CreateCloudCluster:output_type -> teleport.cloudcluster.v1.CloudCluster
+	6,  // 12: teleport.cloudcluster.v1.CloudClusterService.ListCloudClusters:output_type -> teleport.cloudcluster.v1.ListCloudClustersResponse
+	7,  // 13: teleport.cloudcluster.v1.CloudClusterService.UpdateCloudCluster:output_type -> teleport.cloudcluster.v1.CloudCluster
+	7,  // 14: teleport.cloudcluster.v1.CloudClusterService.UpsertCloudCluster:output_type -> teleport.cloudcluster.v1.CloudCluster
+	8,  // 15: teleport.cloudcluster.v1.CloudClusterService.DeleteCloudCluster:output_type -> google.protobuf.Empty
+	10, // [10:16] is the sub-list for method output_type
+	4,  // [4:10] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_cloudcluster_v1_cloudcluster_service_proto_init() }
@@ -338,7 +471,7 @@ func file_teleport_cloudcluster_v1_cloudcluster_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_cloudcluster_v1_cloudcluster_service_proto_rawDesc), len(file_teleport_cloudcluster_v1_cloudcluster_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -36,6 +36,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	CloudClusterService_GetCloudCluster_FullMethodName    = "/teleport.cloudcluster.v1.CloudClusterService/GetCloudCluster"
 	CloudClusterService_CreateCloudCluster_FullMethodName = "/teleport.cloudcluster.v1.CloudClusterService/CreateCloudCluster"
+	CloudClusterService_ListCloudClusters_FullMethodName  = "/teleport.cloudcluster.v1.CloudClusterService/ListCloudClusters"
 	CloudClusterService_UpdateCloudCluster_FullMethodName = "/teleport.cloudcluster.v1.CloudClusterService/UpdateCloudCluster"
 	CloudClusterService_UpsertCloudCluster_FullMethodName = "/teleport.cloudcluster.v1.CloudClusterService/UpsertCloudCluster"
 	CloudClusterService_DeleteCloudCluster_FullMethodName = "/teleport.cloudcluster.v1.CloudClusterService/DeleteCloudCluster"
@@ -51,6 +52,8 @@ type CloudClusterServiceClient interface {
 	GetCloudCluster(ctx context.Context, in *GetCloudClusterRequest, opts ...grpc.CallOption) (*CloudCluster, error)
 	// CreateCloudCluster creates a new CloudCluster.
 	CreateCloudCluster(ctx context.Context, in *CreateCloudClusterRequest, opts ...grpc.CallOption) (*CloudCluster, error)
+	// ListCloudClusters returns CloudClusters
+	ListCloudClusters(ctx context.Context, in *ListCloudClustersRequest, opts ...grpc.CallOption) (*ListCloudClustersResponse, error)
 	// CreateCloudCluster updates CloudCluster singleton.
 	UpdateCloudCluster(ctx context.Context, in *UpdateCloudClusterRequest, opts ...grpc.CallOption) (*CloudCluster, error)
 	// UpsertCloudCluster creates a new CloudCluster or replaces an existing CloudCluster.
@@ -81,6 +84,16 @@ func (c *cloudClusterServiceClient) CreateCloudCluster(ctx context.Context, in *
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CloudCluster)
 	err := c.cc.Invoke(ctx, CloudClusterService_CreateCloudCluster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *cloudClusterServiceClient) ListCloudClusters(ctx context.Context, in *ListCloudClustersRequest, opts ...grpc.CallOption) (*ListCloudClustersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCloudClustersResponse)
+	err := c.cc.Invoke(ctx, CloudClusterService_ListCloudClusters_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +140,8 @@ type CloudClusterServiceServer interface {
 	GetCloudCluster(context.Context, *GetCloudClusterRequest) (*CloudCluster, error)
 	// CreateCloudCluster creates a new CloudCluster.
 	CreateCloudCluster(context.Context, *CreateCloudClusterRequest) (*CloudCluster, error)
+	// ListCloudClusters returns CloudClusters
+	ListCloudClusters(context.Context, *ListCloudClustersRequest) (*ListCloudClustersResponse, error)
 	// CreateCloudCluster updates CloudCluster singleton.
 	UpdateCloudCluster(context.Context, *UpdateCloudClusterRequest) (*CloudCluster, error)
 	// UpsertCloudCluster creates a new CloudCluster or replaces an existing CloudCluster.
@@ -148,6 +163,9 @@ func (UnimplementedCloudClusterServiceServer) GetCloudCluster(context.Context, *
 }
 func (UnimplementedCloudClusterServiceServer) CreateCloudCluster(context.Context, *CreateCloudClusterRequest) (*CloudCluster, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCloudCluster not implemented")
+}
+func (UnimplementedCloudClusterServiceServer) ListCloudClusters(context.Context, *ListCloudClustersRequest) (*ListCloudClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCloudClusters not implemented")
 }
 func (UnimplementedCloudClusterServiceServer) UpdateCloudCluster(context.Context, *UpdateCloudClusterRequest) (*CloudCluster, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateCloudCluster not implemented")
@@ -211,6 +229,24 @@ func _CloudClusterService_CreateCloudCluster_Handler(srv interface{}, ctx contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CloudClusterServiceServer).CreateCloudCluster(ctx, req.(*CreateCloudClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CloudClusterService_ListCloudClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCloudClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CloudClusterServiceServer).ListCloudClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CloudClusterService_ListCloudClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CloudClusterServiceServer).ListCloudClusters(ctx, req.(*ListCloudClustersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -283,6 +319,10 @@ var CloudClusterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateCloudCluster",
 			Handler:    _CloudClusterService_CreateCloudCluster_Handler,
+		},
+		{
+			MethodName: "ListCloudClusters",
+			Handler:    _CloudClusterService_ListCloudClusters_Handler,
 		},
 		{
 			MethodName: "UpdateCloudCluster",
