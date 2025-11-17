@@ -27,7 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -47,21 +47,6 @@ type ReferenceEntry struct {
 	YAMLExample string
 }
 
-// Len returns the number of fields in the ReferenceEntry. Required for sorting.
-func (re ReferenceEntry) Len() int {
-	return len(re.Fields)
-}
-
-// Less compares field names in order to sort them.
-func (re ReferenceEntry) Less(i, j int) bool {
-	return re.Fields[i].Name < re.Fields[j].Name
-}
-
-// Swap swaps the order of reference fields in order to sort them.
-func (re ReferenceEntry) Swap(i, j int) {
-	re.Fields[i], re.Fields[j] = re.Fields[j], re.Fields[i]
-}
-
 // DeclarationInfo includes data about a declaration so the generator can
 // convert it into a ReferenceEntry.
 type DeclarationInfo struct {
@@ -79,6 +64,11 @@ type Field struct {
 	Name        string
 	Description string
 	Type        string
+}
+
+// sortFieldsByName sorts a and b ascending by Name.
+func sortFieldsByName(a, b Field) int {
+	return strings.Compare(a.Name, b.Name)
 }
 
 type SourceData struct {
@@ -798,7 +788,7 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 			)
 		}
 		e, err := getRawTypes(d, allDecls)
-		if err != nil && !errors.Is(err, NotAGenDeclError{}) {
+		if err != nil && !errors.As(err, &NotAGenDeclError{}) {
 			return nil, err
 		}
 
@@ -875,8 +865,8 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 	if err != nil {
 		return nil, err
 	}
+	slices.SortFunc(fld, sortFieldsByName)
 	entry.Fields = fld
-	sort.Sort(entry)
 	refs[key] = entry
 
 	// For any fields within decl that have a custom type, look up the
@@ -914,7 +904,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 				continue
 			}
 			r, err := ReferenceDataFromDeclaration(gd, allDecls)
-			if errors.Is(err, NotAGenDeclError{}) {
+			if errors.As(err, &NotAGenDeclError{}) {
 				continue
 			}
 			if err != nil {
@@ -922,7 +912,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 			}
 
 			for k, v := range r {
-				sort.Sort(v)
+				slices.SortFunc(v.Fields, sortFieldsByName)
 				refs[k] = v
 			}
 		}

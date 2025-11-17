@@ -17,7 +17,6 @@
 package reference
 
 import (
-	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -119,7 +118,7 @@ func Generate(conf GeneratorConfig, tmpl *template.Template) error {
 		// decl is a dynamic resource type, so get data for the type and
 		// its dependencies.
 		entries, err := resource.ReferenceDataFromDeclaration(decl, sourceData.TypeDecls)
-		if errors.Is(err, resource.NotAGenDeclError{}) {
+		if errors.As(err, &resource.NotAGenDeclError{}) {
 			continue
 		}
 		if err != nil {
