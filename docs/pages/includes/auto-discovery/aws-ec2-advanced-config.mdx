@@ -1,0 +1,64 @@
+{/* this comment is here to make the includes below render */}
+
+(!docs/pages/includes/auto-discovery/server-advanced-config.mdx matcher="aws"!)
+
+### Use a custom installation script
+
+(!docs/pages/includes/server-access/custom-installer.mdx matcher="aws"!) 
+
+### Use a custom SSM Document
+
+When executing the installation script on discovered EC2 instances, the Discovery Service uses an SSM document.
+
+The default `AWS-RunShellScript` SSM document works in most cases and is always available in AWS.
+
+However, if you need to customize the installation process for your environment, you can create a custom SSM Document and configure the Discovery Service to use it during installation.
+
+The custom document's parameters must include `env`, `scriptName` and `token`.
+
+The recommended approach is to use the following document and customize it as needed:
+
+```yaml
+schemaVersion: '2.2'
+description: aws:runShellScript
+parameters:
+  token:
+    type: String
+    description: "(Required) The Teleport invite token to use when joining the cluster."
+  scriptName:
+    type: String
+    description: "(Required) The Teleport installer script to use when joining the cluster."
+  env:
+    type: String
+    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
+    default: "X=$X"
+mainSteps:
+- action: aws:downloadContent
+  name: downloadContent
+  inputs:
+    sourceType: "HTTP"
+    destinationPath: "/tmp/installTeleport.sh"
+    sourceInfo:
+      url: "https://<Var name="teleport.example.com:443" />/webapi/scripts/installer/{{ scriptName }}"
+- action: aws:runShellScript
+  name: runShellScript
+  inputs:
+    timeoutSeconds: '300'
+    runCommand:
+      - export {{ env }}; /bin/sh /tmp/installTeleport.sh "{{ token }}"
+```
+
+Create this document using AWS Systems Manager in each region where you plan to discover instances.
+
+Edit your Discovery Service configuration to use the custom SSM Document, by setting the `ssm.document_name` key:
+
+```yaml
+# teleport.yaml
+version: v3
+# ...
+discovery_service:
+  enabled: true
+  {{ matcher }}:
+   - ssm:
+       document_name: "TeleportDiscoveryInstaller"
+```
