@@ -352,15 +352,19 @@ message SessionIdentifyingPayload {
 
 // CreateChallengeRequest is the request message for CreateChallenge.
 message CreateChallengeRequest {
-  // payload is a value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server
-  // will verify it matches the payload supplied to CreateChallengeRequest.
+  // payload is a value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the
+  // server will verify it matches the payload supplied to CreateChallengeRequest.
   SessionIdentifyingPayload payload = 1;
+  // target_cluster is the name of the target cluster where the SSH session is being established. If unset, the server
+  // assumes the challenge is for the local cluster. This is used to determine where the validated challenge should be
+  // replicated to for leaf clusters. It is required when the SSH session is being established in a leaf cluster.
+  string target_cluster = 2;
   // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
-  string sso_client_redirect_url = 2;
+  string sso_client_redirect_url = 3;
   // proxy_address_for_sso is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this
   // address is required to determine which URL to redirect the user to when there are multiple options.
-  string proxy_address_for_sso = 3;
+  string proxy_address_for_sso = 4;
 }
 
 // CreateChallengeResponse is the response message for CreateChallenge.
@@ -394,6 +398,10 @@ message ReplicateValidatedMFAChallengeRequest {
   SessionIdentifyingPayload payload = 2;
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 3;
+  // source_cluster is the name of the cluster where the validated challenge originated.
+  string source_cluster = 4;
+  // target_cluster is the name of the destination cluster where the validated challenge should be replicated to.
+  string target_cluster = 5;
 }
 
 // ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
@@ -411,6 +419,8 @@ message VerifyValidatedMFAChallengeRequest {
   // independently compute this value from session state. The server will verify it matches the payload supplied in
   // CreateChallengeRequest to ensure the challenge is tied to the correct session.
   SessionIdentifyingPayload payload = 2;
+  // source_cluster is the name of the cluster where the validated challenge originated.
+  string source_cluster = 3;
 }
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
@@ -525,6 +535,11 @@ message ValidatedMFAChallengeSpec {
   SessionIdentifyingPayload payload = 1;
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 2;
+  // source_cluster is the name of the cluster where the validated challenge originated.
+  string source_cluster = 3;
+  // target_cluster is the name of the cluster where the SSH session is being established and this resource is intended
+  // for.
+  string target_cluster = 4;
 }
 ```
 
