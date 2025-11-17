@@ -193,13 +193,13 @@ func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.
 
 func (t *streamableHTTPTransport) handleSessionEndRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
-	t.emitEndEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r))
+	t.emitEndEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r.Header))
 	return resp, trace.Wrap(err)
 }
 
 func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) (*http.Response, error) {
 	resp, err := t.rewriteAndSendRequest(r)
-	t.emitListenSSEStreamEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r))
+	t.emitListenSSEStreamEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r.Header))
 	return resp, trace.Wrap(err)
 }
 
@@ -242,17 +242,17 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		mcpRequest := baseMessage.MakeRequest()
 		// Only emit session start if "initialize" succeeded.
 		if mcpRequest.Method == mcp.MethodInitialize && respErrForAudit == nil {
-			t.emitStartEvent(t.parentCtx)
+			t.emitStartEvent(t.parentCtx, eventWithHeader(r.Header))
 		}
-		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r))
+		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	case baseMessage.IsNotification():
-		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r))
+		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	}
 	return resp, trace.Wrap(err)
 }
 
 func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
-	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r))
+	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r.Header))
 
 	errRespAsBody, err := json.Marshal(errResp)
 	if err != nil {
