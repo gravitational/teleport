@@ -29,6 +29,9 @@ service CloudClusterService {
   // CreateCloudCluster creates a new CloudCluster.
   rpc CreateCloudCluster(CreateCloudClusterRequest) returns (CloudCluster);
 
+  // ListCloudClusters returns CloudClusters
+  rpc ListCloudClusters(ListCloudClustersRequest) returns (ListCloudClustersResponse);
+
   // CreateCloudCluster updates CloudCluster singleton.
   rpc UpdateCloudCluster(UpdateCloudClusterRequest) returns (CloudCluster);
 
@@ -62,4 +65,23 @@ message UpsertCloudClusterRequest {
 // Request for DeleteCloudCluster.
 message DeleteCloudClusterRequest {
   string name = 1;
+}
+
+// Request for ListCloudClusters.
+message ListCloudClustersRequest {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+
+  // page_token is the page token.
+  string page_token = 2;
+}
+
+// Response for ListCloudClusters.
+message ListCloudClustersResponse {
+  repeated CloudCluster clusters = 1;
+
+  // NextPageToken is the key for the next page of CloudClusters.
+  string next_page_token = 2;
+  // TotalCount is the total number of cloudclusters in all pages.
+  int32 total_count = 3;
 }
