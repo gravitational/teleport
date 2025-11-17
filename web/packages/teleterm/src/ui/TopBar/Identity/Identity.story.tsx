@@ -65,7 +65,7 @@ const OpenIdentityPopover = (props: {
   const ctx = new MockAppContext();
   ctx.statePersistenceService.putState({
     ...ctx.statePersistenceService.getState(),
-    promoteMigratedTshHome: true,
+    showTshHomeMigrationBanner: true,
   });
   props.clusters.forEach(c => {
     ctx.addRootCluster(c);

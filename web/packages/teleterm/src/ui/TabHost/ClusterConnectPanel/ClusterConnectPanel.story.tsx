@@ -59,7 +59,7 @@ export const WithClusters = () => {
   ctx.addRootCluster(clusterViolet);
   ctx.statePersistenceService.putState({
     ...ctx.statePersistenceService.getState(),
-    promoteMigratedTshHome: true,
+    showTshHomeMigrationBanner: true,
   });
 
   return (
@@ -80,7 +80,7 @@ export const WithErrors = () => {
   ctx.addRootCluster(clusterViolet);
   ctx.statePersistenceService.putState({
     ...ctx.statePersistenceService.getState(),
-    promoteMigratedTshHome: true,
+    showTshHomeMigrationBanner: true,
   });
   return (
     <MockAppContextProvider appContext={ctx}>

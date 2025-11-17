@@ -178,7 +178,10 @@ const focusGrabber = (
 );
 
 export function MigratedTshHomeBanner(props: { className?: string }) {
-  const [state, setState] = usePersistedState('promoteMigratedTshHome', false);
+  const [state, setState] = usePersistedState(
+    'showTshHomeMigrationBanner',
+    false
+  );
   if (!state) {
     return;
   }

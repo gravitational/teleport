@@ -380,7 +380,7 @@ async function migrateOldTshHomeOnce(
     if (!opts?.noOldTshHome) {
       // TODO(gzdunek): We need a better way to manage the app state.
       const appState = (appStorage.get('state') || {}) as StatePersistenceState;
-      appState.promoteMigratedTshHome = true;
+      appState.showTshHomeMigrationBanner = true;
       appStorage.put('state', appState);
     }
   };
