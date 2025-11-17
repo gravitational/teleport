@@ -38,7 +38,7 @@ Metrics conflicts can happen in several cases:
 3. The same metric is registered both in the local and global registries. In this case, the process registry takes 
    precedence, the gathering succeeds but logs errors.
 4. The same component is being started and stopped several times and re-register its metrics. This is the case for 
-   hosted plugins. We work around by creating a dedicared registry, and registering/unregistering it as a collector. 
+   hosted plugins. We work around by creating a dedicated registry, and registering/unregistering it as a collector. 
    See https://github.com/prometheus/client_golang/pull/1766 for an example.
 
 ## Guidelines
