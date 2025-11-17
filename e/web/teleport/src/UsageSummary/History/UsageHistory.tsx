@@ -171,8 +171,8 @@ export const UsageHistory = ({
       />
       {usageResponse.usageHistory.some(h => h.calibratingAccounts > 0) && (
         <P2 color="text.muted">
-          * A calibration period appears for any cycle with usage limit changes
-          to ensure accurate active user counts across trusted clusters.
+          * A change to your account required a calibration period in order to
+          accurately count Active Users across clusters.
         </P2>
       )}
     </Flex>

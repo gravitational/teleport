@@ -144,7 +144,7 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
         <Flex justifyContent="space-between" alignItems="start">
           <Flex flexDirection="column">
             <H3 bold color="text.slightlyMuted">
-              Current Cycle:
+              Current Cycle
             </H3>
             <Box my={2}>
               <H2>

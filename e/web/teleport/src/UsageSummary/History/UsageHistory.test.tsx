@@ -9,7 +9,7 @@ import {
 import { UsageHistory } from './UsageHistory';
 
 const calibrationInfo =
-  /A calibration period appears for any cycle with usage limit changes to ensure accurate active user counts across trusted clusters./;
+  /A change to your account required a calibration period in order to accurately count Active Users across clusters./;
 
 test('shows empty state when there is no usage history', async () => {
   render(
