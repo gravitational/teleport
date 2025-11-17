@@ -16,12 +16,16 @@ spec:
   oracle:
     allow:
       # OCID of the tenancy to allow instances to join from. Required.
-      - tenancy: "ocid1.tenancy.oc1..<unique ID>"
+      - tenancy: "ocid1.tenancy.oc1..<unique_ID>"
         # (Optional) OCIDs of compartments to allow instances to join from. Only the direct parent
         # compartment applies; i.e. nested compartments are not taken into account.
         # If empty, instances can join from any compartment in the tenancy.
-        parent_compartments: ["ocid1.compartment.oc1...<unique_ID>"]
+        parent_compartments: ["ocid1.compartment.oc1..<unique_ID>"]
         # (Optional) Regions to allow instances to join from. Both full names ("us-phoenix-1")
         # and abbreviations ("phx") are allowed. If empty, instances can join from any region.
         regions: ["example-region"]
+        # (Optional) OCIDs of specific compute instances that should be allowed to join.
+        # If empty, any instance matching the other fields is allowed.
+        # The instances field is supported in Teleport v18.4.0+.
+        instances: ["ocid1.instance.oc1.<region>.<unique_ID>"]
 ```
