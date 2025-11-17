@@ -1376,8 +1376,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			upgraderKind == types.UpgraderKindKubeController {
 			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, hostID)
 			if err != nil {
-				// Failing to detect teleport-update info is not fatal, we continue.
-				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+				// Failing to detect updater info is not fatal, we continue.
+				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering updater status, this might affect automatic update tracking and progress.", "error", err)
 				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
 			}
 			hello.UpdaterInfo = info
