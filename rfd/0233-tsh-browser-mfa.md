@@ -8,8 +8,7 @@ state: draft
 ## Required Approvers
 
 * Engineering: @zmb3 && (@codingllama || @Joerger)
-* Security:
-* Product:
+* Security: @rob-picard-teleport
 
 ## What
 
