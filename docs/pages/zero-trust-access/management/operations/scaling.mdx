@@ -21,6 +21,46 @@ Set up Teleport with a [High Availability configuration](../../../zero-trust-acc
 | Teleport SSH Nodes connected to Auth Service                          | 50,000                | 2x  4 vCPUs, 16GB RAM | 2x 8 vCPUs, 16GB RAM  | m4.2xlarge         |
 | Teleport SSH Nodes connected to Proxy Service through reverse tunnels | 10,000                | 2x 4 vCPUs, 8GB RAM   | 2x 8 vCPUs, 16+GB RAM | m4.2xlarge         |
 
+## Agent resource requirements
+
+Resource requirements for Teleport Agents vary significantly based on workload, enabled features, and recording configuration.
+The following provides baseline guidance for production deployments.
+
+### Baseline specifications
+
+For production agents, we recommend:
+
+- **Instance type**: AWS t3.small or equivalent (2 vCPUs, 2 GB RAM)
+- **Disk space**: 50-100 GB
+- **High Availability**: Deploy at least two agents for redundancy
+
+### Factors affecting requirements
+
+Agent resource consumption depends on:
+
+**Connection volume**: A mostly dormant agent handling infrequent connections requires far fewer resources than an actively used agent with high concurrent session counts.
+
+**Recording mode**: 
+- **Proxy recording mode** (recommended): Minimal disk space required on agents as recordings happen at the Proxy Service, typically 10-50 GB is sufficient.
+- **Node recording mode**: Requires substantially more disk space (100+ GB) as session recordings are stored locally before upload to the Auth Service.
+
+**Session types**:
+- SSH sessions require approximately 100 MB of memory per active session
+- Desktop sessions require significantly more resources (see [Windows Desktop Service](#windows-desktop-service) below)
+- Database and application sessions have varying profiles based on connection patterns
+
+**Enabled features**: Agents running multiple access types simultaneously (SSH + Database + Applications) or performing dynamic resource discovery require additional resources.
+
+### Scaling beyond baseline
+
+Increase resources when the agent:
+- Handles high connection volumes (>100 concurrent sessions)
+- Uses node recording mode with frequent or long-running sessions  
+- Provides desktop access
+- Performs auto-discovery of many resources
+
+Monitor CPU, memory, and disk usage to detect when scaling is needed. Consider using [External Audit Storage](../zero-trust-access/management/external-audit-storage.mdx) to minimize agent disk requirements by storing recordings in your own cloud storage.
+
 ## Auth Service and Proxy Service Configuration
 
 Upgrade Teleport's connection limits from the default connection limit of `15000`
