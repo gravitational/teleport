@@ -56,7 +56,7 @@ type profile interface {
 }
 
 // isTLSCertStale checks if the cached client uses the current TLS cert
-// (read from the agent). If not, the TLS is considered "stale".
+// (read from the agent). If not, the TLS cert is considered stale.
 func (c *clientWithMetadata) isTLSCertStale() (bool, error) {
 	pr, err := c.getProfile()
 	if err != nil {
