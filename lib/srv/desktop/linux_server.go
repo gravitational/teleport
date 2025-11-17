@@ -1,0 +1,170 @@
+package desktop
+
+import (
+	"cmp"
+	"context"
+	"crypto/tls"
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"log/slog"
+)
+
+// LinuxService implements the RDP-based Linux desktop access service.
+//
+// This service accepts mTLS connections from the proxy, establishes RDP
+// connections to Linux hosts and translates RDP into Teleport's desktop
+// protocol.
+type LinuxService struct {
+	cfg        LinuxServiceConfig
+	middleware *authz.Middleware
+
+	// clusterName is the cached local cluster name, to avoid calling
+	// cfg.AccessPoint.GetClusterName multiple times.
+	clusterName string
+
+	// auditCache caches information from shared directory
+	// TDP messages that are needed for
+	// creating shared directory audit events.
+	auditCache sharedDirectoryAuditCache
+
+	closeCtx context.Context
+	close    func()
+}
+
+// LinuxServiceConfig contains all necessary configuration values for a
+// LinuxService.
+type LinuxServiceConfig struct {
+	// Logger is the logger for the service.
+	Logger *slog.Logger
+	// Clock provides current time.
+	Clock        clockwork.Clock
+	DataDir      string
+	LicenseStore rdpclient.LicenseStore
+	// Authorizer is used to authorize requests.
+	Authorizer authz.Authorizer
+	// LockWatcher is used to monitor for new locks.
+	LockWatcher *services.LockWatcher
+	// Emitter emits audit log events.
+	Emitter events.Emitter
+	// TLS is the TLS server configuration.
+	TLS *tls.Config
+	// AccessPoint is the Auth API client (with caching).
+	AccessPoint authclient.LinuxDesktopAccessPoint
+	// AuthClient is the Auth API client (without caching).
+	AuthClient authclient.ClientI
+	// ConnLimiter limits the number of active connections per client IP.
+	ConnLimiter *limiter.ConnectionsLimiter
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	Labels               map[string]string
+}
+
+func (cfg *LinuxServiceConfig) CheckAndSetDefaults() error {
+	if cfg.Authorizer == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing Authorizer")
+	}
+	if cfg.LockWatcher == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing LockWatcher")
+	}
+	if cfg.Emitter == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing Emitter")
+	}
+	if cfg.TLS == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing TLS")
+	}
+	if cfg.AccessPoint == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing AccessPoint")
+	}
+	if cfg.AuthClient == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing AuthClient")
+	}
+	if cfg.ConnLimiter == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing ConnLimiter")
+	}
+	if cfg.ConnectedProxyGetter == nil {
+		return trace.BadParameter("LinuxServiceConfig is missing ConnectedProxyGetter")
+	}
+
+	cfg.Logger = cmp.Or(cfg.Logger, slog.With(teleport.ComponentKey, teleport.ComponentLinuxDesktop))
+	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
+
+	return nil
+}
+
+// NewLinuxService initializes a new LinuxService.
+//
+// To start serving connections, call Serve.
+// When done serving connections, call Close.
+func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := cfg.AccessPoint.GetClusterName(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching cluster name")
+	}
+
+	ctx, close := context.WithCancel(context.Background())
+	s := &LinuxService{
+		cfg: cfg,
+		middleware: &authz.Middleware{
+			ClusterName:   clusterName.GetClusterName(),
+			AcceptedUsage: []string{teleport.UsageLinuxDesktopOnly},
+		},
+		clusterName: clusterName.GetClusterName(),
+		closeCtx:    ctx,
+		close:       close,
+		auditCache:  newSharedDirectoryAuditCache(),
+	}
+
+	if err := s.startServiceHeartbeat(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s, nil
+}
+
+func (s *LinuxService) startServiceHeartbeat() error {
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Context:         s.closeCtx,
+		Component:       teleport.ComponentLinuxDesktop,
+		Mode:            srv.HeartbeatModeLinuxDesktopService,
+		Announcer:       s.cfg.AccessPoint,
+		GetServerInfo:   s.getServiceHeartbeatInfo,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go func() {
+		if err := heartbeat.Run(); err != nil {
+			s.cfg.Logger.ErrorContext(s.closeCtx, "service heartbeat ended", "error", err)
+		}
+	}()
+	return nil
+}
+
+// Close instructs the server to stop accepting new connections and abort all
+// established ones. Close does not wait for the connections to be finished.
+func (s *LinuxService) Close() error {
+	s.close()
+
+	return nil
+}

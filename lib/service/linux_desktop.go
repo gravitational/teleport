@@ -24,7 +24,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/gravitational/trace"
@@ -210,41 +209,17 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 	}
 
 	srv, err := desktop.NewLinuxService(desktop.LinuxServiceConfig{
-		DataDir:      process.Config.DataDir,
-		LicenseStore: process.storage,
-		Logger:       process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentLinuxDesktop, process.id)),
-		Clock:        process.Clock,
-		Authorizer:   authorizer,
-		Emitter:      conn.Client,
-		TLS:          tlsConfig,
-		AccessPoint:  accessPoint,
-		ConnLimiter:  connLimiter,
-		LockWatcher:  lockWatcher,
-		AuthClient:   conn.Client,
-		Labels:       cfg.LinuxDesktop.Labels,
-		HostLabelsFn: cfg.LinuxDesktop.HostLabels.LabelsForHost,
-		Heartbeat: desktop.HeartbeatConfig{
-			HostUUID:    conn.HostUUID(),
-			PublicAddr:  publicAddr,
-			StaticHosts: cfg.LinuxDesktop.StaticHosts,
-			OnHeartbeat: process.OnHeartbeat(teleport.ComponentLinuxDesktop),
-		},
-		ShowDesktopWallpaper: cfg.LinuxDesktop.ShowDesktopWallpaper,
-		LDAPConfig:           cfg.LinuxDesktop.LDAP,
-		KDCAddr:              cfg.LinuxDesktop.KDCAddr,
-		PKIDomain:            cfg.LinuxDesktop.PKIDomain,
-		Discovery:            cfg.LinuxDesktop.Discovery,
-		DiscoveryInterval:    cfg.LinuxDesktop.DiscoveryInterval,
-		PublishCRLInterval:   cfg.LinuxDesktop.PublishCRLInterval,
-		Hostname:             cfg.Hostname,
-		ConnectedProxyGetter: proxyGetter,
-		ResourceMatchers:     cfg.LinuxDesktop.ResourceMatchers,
-
-		// For now, NLA is opt-in via an environment variable.
-		// We'll make it the default behavior in a future release.
-		// NLA code is also not FIPS-compliant so we will disable it
-		// in FIPS mode
-		NLA: !process.Config.FIPS && os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
+		DataDir:     process.Config.DataDir,
+		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentLinuxDesktop, process.id)),
+		Clock:       process.Clock,
+		Authorizer:  authorizer,
+		Emitter:     conn.Client,
+		TLS:         tlsConfig,
+		AccessPoint: accessPoint,
+		ConnLimiter: connLimiter,
+		LockWatcher: lockWatcher,
+		AuthClient:  conn.Client,
+		Labels:      cfg.LinuxDesktop.Labels,
 	})
 	if err != nil {
 		return trace.Wrap(err)

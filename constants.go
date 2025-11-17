@@ -918,6 +918,10 @@ const (
 	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Windows desktop access
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
+
+	// UsageLinuxDesktopOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Linux desktop access
+	UsageLinuxDesktopOnly = "usage:linux_desktop"
 )
 
 // ErrNodeIsAmbiguous serves as an identifying error string indicating that
