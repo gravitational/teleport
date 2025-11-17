@@ -16,14 +16,60 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Codec, {
+import {
   ButtonState,
+  TdpCodec,
+  TdpbCodec,
   MessageType,
   MouseButton,
   ScrollAxis,
-} from './codec';
+  ClientEventHandlers,
+  Alert,
+  MfaJson,
+  SharedDirectoryAcknowledge,
+  SharedDirectoryInfoRequest,
+  SharedDirectoryCreateRequest,
+  SharedDirectoryDeleteRequest,
+  SharedDirectoryReadRequest,
+  SharedDirectoryWriteRequest,
+  SharedDirectoryMoveRequest,
+  SharedDirectoryListRequest,
+  SharedDirectoryTruncateRequest,
+  LatencyStats,
+  ServerHello,
+  PngFrame,
+  RdpConnectionActivated,
+  RdpFastPathPdu,
+  ClipboardData,
+}from './codec';
 
-const codec = new Codec();
+import * as tdpb from 'gen-proto-ts/teleport/desktop/tdp_pb'
+
+const mockHandlers: ClientEventHandlers = {
+  handleClipboardData(data: ClipboardData): void {},
+  handleTdpAlert(alert: Alert): void {},
+  handleMfaChallenge(challenge: MfaJson): void {},
+  handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge): void {},
+  handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest): void {},
+  handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest): void {},
+  handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest): void {},
+  handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest): void {},
+  handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest): void {},
+  handleSharedDirectoryMoveRequest(req: SharedDirectoryMoveRequest): void {},
+  handleSharedDirectoryListRequest(req: SharedDirectoryListRequest): void {},
+  handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest): void {},
+  handleLatencyStats(stats: LatencyStats): void {},
+  handleTDPBUpgrade(): void {},
+  handleServerHello(hello: ServerHello): void {},
+  handlePngFrame(frame: PngFrame): void {},
+  handleRdpConnectionActivated(spec: RdpConnectionActivated): void {},
+  handleRdpFastPathPdu(pdu: RdpFastPathPdu): void {},
+};
+
+// TODO: remove tdp prefix?
+const codec = new TdpCodec(mockHandlers);
+const tdpbCodec = new TdpbCodec(mockHandlers);
+
 
 test('encodes and decodes the screen spec', () => {
   const spec = {
@@ -181,3 +227,25 @@ test('encodes and decodes clipboard data', () => {
   const decoded = codec.decodeClipboardData(encodedData);
   expect(decoded.data).toEqual(clipboardData);
 });
+
+test('tdpb encode/decode', () => {
+  let buffer = tdpbCodec.encodeClientHello({
+    screenSpec: {
+      width: 1920,
+      height: 1080,
+    },
+    keyboardLayout: 1,
+  })
+
+  // Validate message fields are preserved
+  const hello = tdpb.ClientHello.fromBinary(new Uint8Array(buffer.slice(8)));
+  expect(hello.screenSpec.width).toEqual(1920);
+  expect(hello.screenSpec.height).toEqual(1080);
+  expect(hello.keyboardLayout.keyboardLayout).toEqual(1);
+
+  // Inspect the header as well
+  const view = new DataView(buffer);
+  expect(view.getUint32(0)).toEqual(tdpb.MessageType.MESSAGE_CLIENT_HELLO);
+  expect(view.getUint32(4)).toEqual(buffer.byteLength - 8);
+});
+
