@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router-dom';
 
 import {
   Box,
@@ -27,11 +27,39 @@ import {
   ResourceIcon,
   Text,
 } from 'design';
+import { pluralize } from 'shared/utils/text';
 
 import cfg from 'teleport/config';
+import { ResourceAccessKind } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
 
-export default function Empty(props: Props) {
-  const { canCreate, clusterId, emptyStateInfo } = props;
+type EmptyResourceKind = ResourceAccessKind | 'awsIc';
+
+type Base = {
+  canCreate: boolean;
+  clusterId: string;
+};
+
+type Custom = Base & {
+  emptyStateInfo: EmptyStateInfo;
+  kind?: never;
+};
+
+type SingleResource = Base & {
+  kind: ResourceAccessKind | 'awsIc';
+  emptyStateInfo?: never;
+};
+
+export default function Empty(props: Custom | SingleResource) {
+  const { canCreate, clusterId } = props;
+
+  let emptyStateInfo: EmptyStateInfo;
+  let resourceKind: EmptyResourceKind;
+  if (isCustomType(props)) {
+    emptyStateInfo = props.emptyStateInfo;
+  } else {
+    emptyStateInfo = getEmptyStateInfo(props.kind);
+    resourceKind = props.kind;
+  }
 
   const { byline, docsURL, readOnly, title } = emptyStateInfo;
 
@@ -77,19 +105,40 @@ export default function Empty(props: Props) {
           </Text>
         </Box>
         <Box textAlign="center">
-          <Link
-            to={{
-              pathname: `${cfg.routes.root}/discover`,
-              state: {
-                entity: 'unified_resource',
-              },
-            }}
-            style={{ textDecoration: 'none' }}
-          >
-            <ButtonPrimary width="224px" textTransform="none">
-              Add Resource
+          {/* Git server is created from adding a github integration which is
+          different from discover */}
+          {resourceKind === 'git_server' ? (
+            <ButtonPrimary
+              as={InternalLink}
+              width="224px"
+              to={{
+                pathname: cfg.routes.integrationEnroll,
+                search: 'github repo',
+              }}
+            >
+              Add GitHub Repository Access
             </ButtonPrimary>
-          </Link>
+          ) : (
+            <ButtonPrimary
+              as={InternalLink}
+              width="224px"
+              textTransform="none"
+              to={{
+                pathname:
+                  resourceKind === 'awsIc'
+                    ? cfg.getIntegrationEnrollRoute('aws-identity-center')
+                    : cfg.routes.discover,
+                state: {
+                  searchKeywords:
+                    resourceKind && resourceKind !== 'awsIc'
+                      ? getResourceSearchKeywords(resourceKind)
+                      : '',
+                },
+              }}
+            >
+              Add {resourceKind === 'awsIc' ? 'Integration' : 'Resource'}
+            </ButtonPrimary>
+          )}
           {docsURL && (
             <ButtonBorder
               textTransform="none"
@@ -120,8 +169,68 @@ export type EmptyStateInfo = {
   title: string;
 };
 
-export type Props = {
-  canCreate: boolean;
-  clusterId: string;
-  emptyStateInfo: EmptyStateInfo;
-};
+function isCustomType(prop: Custom | SingleResource): prop is Custom {
+  return (prop as Custom).emptyStateInfo !== undefined;
+}
+
+function getEmptyStateTitleAndByline(resource: string) {
+  const baseInfo: EmptyStateInfo = {
+    title: '',
+    byline: '',
+    readOnly: {
+      title: 'No Resources Found',
+      resource: 'resources',
+    },
+  };
+
+  return {
+    ...baseInfo,
+    title: `Add your first ${resource} to Teleport`,
+    byline: `Connect ${pluralize(0, resource)} from our integrations catalog.`,
+  };
+}
+
+function getEmptyStateInfo(kind: EmptyResourceKind): EmptyStateInfo {
+  switch (kind) {
+    case 'awsIc':
+      return {
+        title: 'Integrate with AWS IAM Identity Center',
+        byline: `Connect your AWS IAM Identity Center to Teleport`,
+        readOnly: {
+          title: 'No Resources Found',
+          resource: 'resources',
+        },
+      };
+    case 'app':
+      return getEmptyStateTitleAndByline('application');
+    case 'db':
+      return getEmptyStateTitleAndByline('database');
+    case 'git_server':
+      return getEmptyStateTitleAndByline('Git server');
+    case 'kube_cluster':
+      return getEmptyStateTitleAndByline('Kubernetes cluster');
+    case 'node':
+      return getEmptyStateTitleAndByline('SSH server');
+    case 'windows_desktop':
+      return getEmptyStateTitleAndByline('Windows desktop');
+    default:
+      kind satisfies never;
+  }
+}
+
+function getResourceSearchKeywords(kind: ResourceAccessKind) {
+  switch (kind) {
+    case 'app':
+      return 'application';
+    case 'db':
+      return 'database';
+    case 'git_server':
+      return 'git';
+    case 'kube_cluster':
+      return 'kube';
+    case 'node':
+      return 'server';
+    case 'windows_desktop':
+      return 'windows desktop';
+  }
+}

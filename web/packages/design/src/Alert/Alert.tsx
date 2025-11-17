@@ -17,6 +17,7 @@
  */
 
 import React, { useState } from 'react';
+import { Link as InternalLink } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 import { color, ColorProps, style } from 'styled-system';
 
@@ -139,6 +140,7 @@ export interface Action {
   content: React.ReactNode;
   href?: string;
   onClick?: (event: React.MouseEvent) => void;
+  internalLink?: string;
 }
 
 export interface AlertProps
@@ -398,7 +400,7 @@ const ActionButtons = ({
 
 /** Renders either a regular or a link button, depending on the action. */
 export const ActionButton = ({
-  action: { href, content, onClick },
+  action: { href, content, onClick, internalLink },
   fill,
   intent,
   inputAlignment = false,
@@ -411,22 +413,42 @@ export const ActionButton = ({
   inputAlignment?: boolean;
   disabled?: boolean;
   title?: string;
-}) =>
-  href ? (
-    <Button
-      as="a"
-      href={href}
-      target="_blank"
-      fill={fill}
-      intent={intent}
-      onClick={onClick}
-      inputAlignment={inputAlignment}
-      disabled={disabled}
-      title={title}
-    >
-      {content}
-    </Button>
-  ) : (
+}) => {
+  if (href) {
+    return (
+      <Button
+        as="a"
+        href={href}
+        target="_blank"
+        fill={fill}
+        intent={intent}
+        onClick={onClick}
+        inputAlignment={inputAlignment}
+        disabled={disabled}
+        title={title}
+      >
+        {content}
+      </Button>
+    );
+  }
+
+  if (internalLink) {
+    return (
+      <Button
+        as={InternalLink}
+        fill={fill}
+        intent={intent}
+        onClick={onClick}
+        inputAlignment={inputAlignment}
+        disabled={disabled}
+        title={title}
+        to={internalLink}
+      >
+        {content}
+      </Button>
+    );
+  }
+  return (
     <Button
       fill={fill}
       intent={intent}
@@ -438,6 +460,7 @@ export const ActionButton = ({
       {content}
     </Button>
   );
+};
 
 export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
 export const Info = (props: AlertProps) => <Alert kind="info" {...props} />;

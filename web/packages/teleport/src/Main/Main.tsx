@@ -186,11 +186,11 @@ export function Main(props: MainProps) {
   return (
     <FeaturesContextProvider value={features}>
       <TopBar CustomLogo={props.CustomLogo} />
-      <Wrapper>
-        <MainContainer>
+      <Wrapper id="main-container" className="main-containers">
+        <MainContainer className="lisa-was-here-2">
           <Navigation showPoweredByLogo={!!props.CustomLogo} />
           <InfoGuidePanelProvider>
-            <ContentWrapper>
+            <ContentWrapper className="content-wrapper">
               <ContentMinWidth>
                 <BannerList
                   banners={banners}
@@ -310,6 +310,8 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
       <div
+        className="mimi-was-here"
+        id="some-id-test"
         css={`
           display: flex;
           flex-direction: column;

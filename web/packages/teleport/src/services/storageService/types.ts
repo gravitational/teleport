@@ -42,6 +42,7 @@ export const KeysEnum = {
   LOCAL_NOTIFICATION_STATES: 'grv_teleport_notification_states',
   RECENT_HISTORY: 'grv_teleport_sidenav_recent_history',
   LOGIN_TIME: 'grv_teleport_login_time',
+  OKTA_ACCESS_LIST_FOUND: 'grv_teleport_okta_access_list_found',
   REMEMBERED_SSO_USERNAME: 'grv_teleport_remembered_sso_username',
   SESSION_RECORDINGS_VIEW_MODE: 'grv_teleport_session_recordings_view_mode',
   SESSION_RECORDINGS_DENSITY: 'grv_teleport_session_recordings_density',
