@@ -211,7 +211,7 @@ export function TshHomeMigrationBanner(props: { className?: string }) {
               line-height: 1.3;
             `}
           >
-            Profiles are{' '}
+            Profiles are now{' '}
             <Link
               target="_blank"
               href={
@@ -220,7 +220,7 @@ export function TshHomeMigrationBanner(props: { className?: string }) {
             >
               automatically synced
             </Link>{' '}
-            between Teleport Connect and the tsh command-line tool.{' '}
+            between Teleport Connect and the tsh command-line tool.
           </P3>
         </Flex>
         <ButtonText
