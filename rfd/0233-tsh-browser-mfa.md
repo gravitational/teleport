@@ -18,9 +18,10 @@ themselves using their browser-based MFA.
 ## Why
 
 We encourage our users to use the strongest methods of MFA when signing up for
-an account through the web UI, such as passkeys and hardware keys. However, If
-a user only provides a passkey as their MFA method, they won't be able to
-authenticate when using `tsh`. 
+an account through the web UI, such as passkeys and hardware keys. However,
+some types of passkeys (namely Apple TouchID) don't transfer from the browser
+to `tsh`. As a result users who set up Touch ID are unable to authenticate
+with `tsh` unless they first add another MFA method (like TOTP).
 
 This RFD aims to describe how we can allow `tsh` to delegate its MFA checks to
 the web UI to enable easier access to biometrics and passkeys from both browsers
