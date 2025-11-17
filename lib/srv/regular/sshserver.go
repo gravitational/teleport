@@ -66,6 +66,7 @@ import (
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
@@ -1296,8 +1297,23 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 			}
 		}
 	case teleport.SessionIDQueryRequest:
+		// TODO(Joerger): DELETE IN v20.0.0
+		// All v17+ servers set the session ID. v19+ clients stop checking.
+
 		// Reply true to session ID query requests, we will set new
-		// session IDs for new sessions
+		// session IDs for new sessions during the shel/exec channel
+		// request.
+		if err := r.Reply(true, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
+		}
+		return
+	case teleport.SessionIDQueryRequestV2:
+		// TODO(Joerger): DELETE IN v21.0.0
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions directly after accepting the
+		// session channel request.
 		if err := r.Reply(true, nil); err != nil {
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
 		}
@@ -1645,6 +1661,27 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	defer scx.Close()
 
 	trackingChan := scx.TrackActivity(ch)
+
+	// If we are creating a new session (not joining a session), prepare a new session
+	// ID and inform the client.
+	//
+	// Note: If this is an old client (<v19), the join sid has not yet propagated
+	// from env vars. There is no harm in sending the ephemeral session ID anyways
+	// as clients should ignore the reported session ID when joining a session.
+	if scx.GetSessionParams().JoinSessionID == "" {
+		sid := session.NewID()
+		scx.SetNewSessionID(ctx, sid)
+
+		// inform the client of the session ID that is going to be used in a new
+		// goroutine to reduce latency.
+		go func() {
+			s.logger.DebugContext(ctx, "Sending current session ID", "sid", sid)
+			_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sid))
+			if err != nil {
+				s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+			}
+		}()
+	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the

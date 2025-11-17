@@ -11,9 +11,9 @@ tags:
 Ansible AWX, formerly known as Ansible Tower, is an interface on top of Ansible
 that can be used to run and coordinate Ansible workflows. These workflows
 connect to remote hosts via SSH which requires a form of authentication. Machine
-ID can provide short-lived certificates to Ansible jobs run via AWX that allow
-the job to connect to SSH nodes enrolled in Teleport in a secure and auditable
-manner.
+& Workload Identity can provide short-lived certificates to Ansible jobs run via
+AWX that allow the job to connect to SSH nodes enrolled in Teleport in a secure
+and auditable manner.
 
 This guide applies both to open-source Ansible AWX as well as Red Hat's
 commercial Ansible Automation Platform automation controller, which is
@@ -21,11 +21,11 @@ built on top of the open-source Ansible AWX engine.
 
 ## How it works
 
-In this guide, you will configure a container group in Ansible AWX to run
-Machine ID's `tbot` client as a sidecar, which will provide credentials
-and a high-performance multiplexing proxy to your Ansible AWX jobs. You'll then
-configure Ansible to use these credentials to connect to SSH nodes through the
-Teleport Proxy Service.
+In this guide, you will configure a container group in Ansible AWX to run the
+Machine & Workload Identity agent, `tbot`, as a sidecar, which will provide
+credentials and a high-performance multiplexing proxy to your Ansible AWX jobs.
+You'll then configure Ansible to use these credentials to connect to SSH nodes
+through the Teleport Proxy Service.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ Teleport Proxy Service.
 - While not required, you may wish to read our guides on [Deploying tbot
   in Kubernetes](../deployment/kubernetes.mdx) or [Deploying tbot in
   Kubernetes with OIDC](../deployment/kubernetes-oidc.mdx) to learn more about
-  how to deploy Machine ID in Kubernetes, which is the foundation of the steps
+  how to deploy `tbot` on Kubernetes, which is the foundation of the steps
   we'll be taking in this guide.
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -149,7 +149,7 @@ $ tctl create -f awx-bot-resources.yaml
 
 Next, we'll prepare a `ConfigMap` resource in the Kubernetes cluster in which
 your AWX jobs will run. This `ConfigMap` will contain the configuration for
-Machine ID's `tbot` client, in particular:
+Machine & Workload Identity's agent, `tbot`, in particular:
 - The address of your Teleport cluster
 - How to join your Teleport cluster, using the join token you created in the
   previous step
@@ -159,7 +159,7 @@ Machine ID's `tbot` client, in particular:
   `ssh-multiplexer` to provide efficient access to SSH nodes
 
 The only Kubernetes resource we'll need to configure
-manually is a `ConfigMap` for Machine ID's `tbot` client.
+manually is a `ConfigMap` for `tbot`.
 
 Write the following to `configmap-tbot-awx-config.yaml`:
 ```yaml
@@ -267,8 +267,8 @@ guide, and what alternatives you might consider when implementing this yourself:
 
 Next, we'll need to create a new container instance group that spawns jobs in
 Kubernetes (or OpenShift). We'll additionally customize the pod specification to
-run Machine ID's `tbot` client as a sidecar alongside the `awx-ee` worker
-container to provide SSH credentials to your jobs.
+run `tbot` as a sidecar alongside the `awx-ee` worker container to provide SSH
+credentials to your jobs.
 
 In the AWX web UI, navigate to Administration, Instance Groups, select the "Add"
 button, and select "Add container group". Enter any name you like, and set the
@@ -501,7 +501,7 @@ We've configured the `tbot` client to provide its own multiplexer (via the
 
 ## Next Steps
 
-- Learn more about [deploying Machine ID in Kubernetes](../deployment/kubernetes.mdx)
+- Learn more about [deploying `tbot` on Kubernetes](../deployment/kubernetes.mdx)
 - Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
   all the available configuration options.
 

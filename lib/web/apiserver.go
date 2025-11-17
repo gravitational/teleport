@@ -2312,13 +2312,13 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	req, err := ParseSSORequestParams(r)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to extract SSO parameters from request", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -2331,7 +2331,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error creating auth request", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	return response.RedirectURL
@@ -2404,10 +2404,10 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			}
 		}
 		if errors.Is(err, auth.ErrGithubNoTeams) {
-			return client.LoginFailedUnauthorizedRedirectURL
+			return sso.LoginFailedUnauthorizedRedirectURL
 		}
 
-		return client.LoginFailedBadCallbackRedirectURL
+		return sso.LoginFailedBadCallbackRedirectURL
 	}
 
 	// if we created web session, set session cookie and redirect to original url
@@ -2424,7 +2424,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 
 		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.ErrorContext(r.Context(), "Error setting web session.", "error", err)
-			return client.LoginFailedRedirectURL
+			return sso.LoginFailedRedirectURL
 		}
 
 		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
@@ -2443,7 +2443,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	logger.InfoContext(r.Context(), "Callback is redirecting to console login")
 	if len(response.Req.SSHPubKey)+len(response.Req.TLSPubKey) == 0 {
 		logger.ErrorContext(r.Context(), "Not a web or console login request")
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
@@ -2459,7 +2459,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	return redirectURL.String()
@@ -3160,6 +3160,11 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Return a friendlier error if an SSO user tried to do passwordless.
 	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, trace.Wrap(err)
+
+	// Return a friendlier error if the user has assigned a role that doesn't exist in the
+	// backend.
+	case errors.Is(err, types.ErrNonExistingRoleAssigned):
 		return nil, trace.Wrap(err)
 
 	// Obscure all other errors.
@@ -5051,7 +5056,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 
 		redirectURL := fn(w, r, p)
 		if !IsValidRedirectURL(redirectURL) {
-			redirectURL = client.LoginFailedRedirectURL
+			redirectURL = sso.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
 	}
@@ -5065,7 +5070,7 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
 		if !IsValidRedirectURL(redirectURL) {
-			redirectURL = client.LoginFailedRedirectURL
+			redirectURL = sso.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)
 		if err != nil {
@@ -5436,6 +5441,8 @@ type SSORequestParams struct {
 	ConnectorID string
 	// CSRFToken is used to protect against login-CSRF in SSO flows.
 	CSRFToken string
+	// LoginHint is the user's identifier (email) for identifier-first login.
+	LoginHint string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5463,6 +5470,10 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 	}
 
 	query := r.URL.Query()
+	loginHint := query.Get("login_hint")
+	if len(loginHint) > teleport.MaxUsernameLength {
+		loginHint = ""
+	}
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
@@ -5477,6 +5488,7 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
 		CSRFToken:         csrfToken,
+		LoginHint:         loginHint,
 	}, nil
 }
 

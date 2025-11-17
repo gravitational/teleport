@@ -7944,3 +7944,69 @@ func TestDebugVersionOutput(t *testing.T) {
 		require.Contains(t, string(output), v)
 	}
 }
+
+func TestLogoutOneIdentity(t *testing.T) {
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	rootServer, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, alice))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	authServer := rootServer.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		command []string
+		envMap  map[string]string
+	}{
+		{
+			name:    "--proxy flag set",
+			command: []string{"logout", "--proxy", proxyAddr.String()},
+		},
+		{
+			name:    "TELEPORT_PROXY set",
+			command: []string{"logout"},
+			envMap: map[string]string{
+				proxyEnvVar: proxyAddr.String(),
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+
+			err = Run(context.Background(), []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String()},
+				setHomePath(tmpHomePath),
+				setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.NoError(t, err)
+
+			buf := bytes.NewBuffer([]byte{})
+			err := Run(context.Background(), tc.command,
+				setHomePath(tmpHomePath),
+				func(cf *CLIConf) error {
+					cf.OverrideStdout = buf
+					return nil
+				})
+			require.NoError(t, err)
+			require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+		})
+	}
+}

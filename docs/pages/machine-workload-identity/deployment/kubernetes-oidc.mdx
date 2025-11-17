@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on Kubernetes with OIDC
-description: How to install and configure Machine ID on Kubernetes with OIDC
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on Kubernetes with OIDC
 sidebar_label: Kubernetes (OIDC)
 tags:
  - how-to
@@ -8,10 +8,11 @@ tags:
  - infrastructure-identity
 ---
 
-This guide shows you how to deploy the Machine ID daemon `tbot` on a Kubernetes
-cluster that supports OIDC. The Kubernetes OIDC join method is a good fit for
-use inside Kubernetes clusters on a cloud platform that can be configured to
-provide a public OpenID Connect (OIDC) endpoint, including EKS, AKS, and GKE.
+This guide shows you how to deploy the Machine & Workload Identity agent,
+`tbot`, on a Kubernetes cluster that supports OIDC. The Kubernetes OIDC join
+method is a good fit for use inside Kubernetes clusters on a cloud platform that
+can be configured to provide a public OpenID Connect (OIDC) endpoint, including
+EKS, AKS, and GKE.
 
 ## How it works
 

@@ -25,9 +25,11 @@ import (
 	"fmt"
 	iofs "io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -89,6 +91,10 @@ type KeyStore interface {
 	// GetSSHCertificates gets all certificates signed for the given user and proxy,
 	// including certificates for trusted clusters.
 	GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error)
+
+	// GetIdentities returns the usernames associated to signed user certificates
+	// for the given proxy in the keystore.
+	GetIdentities(proxyHost string) ([]string, error)
 }
 
 // FSKeyStore is an on-disk implementation of the KeyStore interface.
@@ -111,6 +117,11 @@ func NewFSKeyStore(dirPath string) *FSKeyStore {
 		log:    slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
 	}
+}
+
+// proxyKeyDir returns the path to the given proxy's keys directory.
+func (fs *FSKeyStore) proxyKeyDir(proxy string) string {
+	return keypaths.ProxyKeyDir(fs.KeyDir, proxy)
 }
 
 // userSSHKeyPath returns the SSH private key path for the given KeyRingIndex.
@@ -426,10 +437,9 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 		fs.publicKeyPath(idx),
 		fs.tlsCertPath(idx),
 	}
+	var deleteErrs []error
 	for _, fn := range files {
-		if err := utils.RemoveSecure(fn); err != nil {
-			return trace.ConvertSystemError(err)
-		}
+		deleteErrs = append(deleteErrs, trace.ConvertSystemError(utils.RemoveSecure(fn)))
 	}
 	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
 	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
@@ -446,7 +456,8 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
 	idx.ClusterName = ""
-	return fs.DeleteUserCerts(idx, WithAllCerts...)
+	deleteErrs = append(deleteErrs, fs.DeleteUserCerts(idx, WithAllCerts...))
+	return trace.NewAggregate(deleteErrs...)
 }
 
 // DeleteUserCerts deletes only the specified parts of the user's keyring,
@@ -601,6 +612,27 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 	}
 
 	return sshCerts, nil
+}
+
+// GetIdentities returns the usernames associated to signed user certificates
+// for the given proxy in the keystore.
+func (fs *FSKeyStore) GetIdentities(proxyHost string) ([]string, error) {
+	proxyDir := fs.proxyKeyDir(proxyHost)
+	files, err := os.ReadDir(proxyDir)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	var identities []string
+	for _, file := range files {
+		// we seek the files corresponding to user SSH certificates, which are
+		// stored in [user]-ssh subdirectory. These are generated on successful logins.
+		if file.IsDir() && strings.HasSuffix(file.Name(), keypaths.SSHDirSuffix) {
+			username := strings.TrimSuffix(file.Name(), keypaths.SSHDirSuffix)
+			identities = append(identities, username)
+		}
+	}
+	return identities, nil
 }
 
 func getCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKeyOpt) (map[string]TLSCredential, error) {
@@ -948,4 +980,10 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 	}
 
 	return sshCerts, nil
+}
+
+// GetIdentities returns the usernames associated to signed user certificates
+// for the given proxy in the keystore.
+func (ms *MemKeyStore) GetIdentities(proxyHost string) ([]string, error) {
+	return slices.Collect(maps.Keys(ms.keyRings[proxyHost])), nil
 }
