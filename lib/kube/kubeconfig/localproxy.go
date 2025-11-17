@@ -169,6 +169,7 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, pro
 		}
 
 		if p, ok := getStringExtensionFromContext(context, extProfileName); ok {
+			// the context has the new extensions, no need to match by clusterAddr
 			if p != profileName {
 				continue
 			}
@@ -186,6 +187,8 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, pro
 			continue
 		}
 
+		// the context was created by an older version, match by clusterAddr and
+		// try to guess at the kube cluster name
 		if cluster.Server != clusterAddr {
 			continue
 		}
