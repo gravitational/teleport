@@ -32,9 +32,7 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -4970,26 +4968,6 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 	}
 	logger.DebugContext(ctx, "using local pool for loopback proxy", "error", err)
 	return certPool
-}
-
-// Username returns the current user's username
-func Username() (string, error) {
-	u, err := user.Current()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	username := u.Username
-
-	// If on Windows, strip the domain name.
-	if runtime.GOOS == constants.WindowsOS {
-		idx := strings.LastIndex(username, "\\")
-		if idx > -1 {
-			username = username[idx+1:]
-		}
-	}
-
-	return username, nil
 }
 
 // AskOTP prompts the user to enter the OTP token.

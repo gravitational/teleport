@@ -4845,7 +4845,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.Username = cf.Username
 	}
 	if c.Username == "" {
-		username, err := client.Username()
+		username, err := Username()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4898,7 +4898,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	if hostLogin != "" {
 		c.HostLogin = hostLogin
 	} else {
-		username, err := client.Username()
+		username, err := Username()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6319,4 +6319,24 @@ func stringFlagToStrings(value string) []string {
 		values[i] = strings.TrimSpace(values[i])
 	}
 	return apiutils.Deduplicate(values)
+}
+
+// Username returns the current user's username
+func Username() (string, error) {
+	u, err := user.Current()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	username := u.Username
+
+	// If on Windows, strip the domain name.
+	if runtime.GOOS == constants.WindowsOS {
+		idx := strings.LastIndex(username, "\\")
+		if idx > -1 {
+			username = username[idx+1:]
+		}
+	}
+
+	return username, nil
 }
