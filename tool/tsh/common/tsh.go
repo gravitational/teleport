@@ -2646,15 +2646,14 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		// If there's no current profile, try to use the first profile.
-		if proxy == "" && len(profiles) > 0 {
-			proxy = profiles[0].ProxyURL.Host
-		}
-
-		// No current profile and no profiles exist, exit gracefully.
 		if proxy == "" {
-			fmt.Printf("All users logged out.\n")
-			return nil
+			// If there's no current profile, try to use the first profile.
+			if len(profiles) > 0 {
+				proxy = profiles[0].ProxyURL.Host
+			} else {
+				fmt.Printf("All users logged out.\n")
+				return nil
+			}
 		}
 
 		tc, err := makeClientForProxy(cf, proxy)
