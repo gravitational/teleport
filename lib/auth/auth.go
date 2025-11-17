@@ -4137,38 +4137,39 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
-	fnErr := authenticateFn()
-	if fnErr == nil {
+
+	authErr := authenticateFn()
+	if authErr == nil {
 		// upon successful login, reset the failed attempt counter
 		err = a.DeleteUserLoginAttempts(username)
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-
 		return nil
 	}
+
 	// do not lock user in case if DB is flaky or down
-	if trace.IsConnectionProblem(err) {
-		return trace.Wrap(fnErr)
+	if trace.IsConnectionProblem(authErr) {
+		return trace.Wrap(authErr)
 	}
 	// log failed attempt and possibly lock user
 	attempt := services.LoginAttempt{Time: a.clock.Now().UTC(), Success: false}
 	err = a.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "unable to persist failed login attempt", "error", err)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	loginAttempts, err := a.GetUserLoginAttempts(username)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "unable to retrieve user login attempts", "error", err)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	if !services.LastFailed(defaults.MaxLoginAttempts, loginAttempts) {
 		a.logger.DebugContext(ctx, "user has less than the failed login attempt limit",
 			"user", username,
 			"failed_attempt_limit", defaults.MaxLoginAttempts,
 		)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
 	a.logger.DebugContext(ctx, "Locking user that exceeded the failed login attempt limit",
@@ -4179,8 +4180,8 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	_, err = a.UpsertUser(ctx, user)
 	if err != nil {
-		a.logger.ErrorContext(ctx, "failed to persist user record", "error", err)
-		return trace.Wrap(fnErr)
+		a.logger.ErrorContext(ctx, "user exceeded max login attempts, but failed to persist user record", "error", err)
+		return trace.Wrap(authErr)
 	}
 
 	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
