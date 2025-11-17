@@ -171,7 +171,7 @@ function Install-WasmDeps {
     #>
     
     Write-Host "::group::Installing wasm-bindgen-cli, wasm-opt, and wasm32-unknown-unknown toolchain"
-    make -C "$TeleportSourceDirectory" ensure-wasm-deps
+    OS=windows make -C "$TeleportSourceDirectory" ensure-wasm-deps
     Write-Host "::endgroup::"
 }
 
@@ -393,7 +393,7 @@ function Build-WindowsAuthenticationPackage {
         # Build Windows authentication package
         Write-Host "::group::Building Windows auth setup..."
         $WindowsAuthDirectory = "$TeleportSourceDirectory\e\windowsauth"
-        make -C "$WindowsAuthDirectory" VERSION="v$TeleportVersion" all
+        OS=windows make -C "$WindowsAuthDirectory" VERSION="v$TeleportVersion" all
         Write-Host "::endgroup::"
         Write-Host "::group::Signing Windows auth setup..."
         $BinaryName = "teleport-windows-auth-setup-v$TeleportVersion-amd64.exe"

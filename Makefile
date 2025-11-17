@@ -1935,7 +1935,7 @@ export rust_toolchain_warning
 # inspect the current active toolchain and display a warning if it doesn't
 # match the version defined in our toolchain file.
 .PHONY: rustup-toolchain-warning
-ifneq ($(OS),Windows_NT)
+ifneq ($(OS),windows)
 rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
 rustup-toolchain-warning:
 	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
