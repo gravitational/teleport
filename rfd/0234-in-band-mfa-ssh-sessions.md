@@ -339,7 +339,7 @@ service MFAService {
   // ReplicateValidatedMFAChallenge replicates a validated MFA challenge to a leaf cluster for retrieval during SSH session
   // establishment. It is a NOOP when used in the root cluster. It is called by the reverse tunnel server when a
   // validated challenge is created for a leaf cluster.
-  rpc ReplicateValidatedMFAChallenge(ReplicateValidatedMFAChallengeRequest) returns (ValidatedMFAChallenge);
+  rpc ReplicateValidatedMFAChallenge(ReplicateValidatedMFAChallengeRequest) returns (ReplicateValidatedMFAChallengeResponse);
   // VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session.
   // If the challenge does not yet exist, this method will block until the resource appears or until the timeout is
   // reached. The payload is used to verify the challenge is tied to the correct user session. If the verification is
@@ -399,6 +399,12 @@ message ReplicateValidatedMFAChallengeRequest {
   SessionIdentifyingPayload payload = 2;
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 3;
+}
+
+// ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
+message ReplicateValidatedMFAChallengeResponse {
+  // replicated_challenge is the validated MFA challenge that was replicated.
+  ValidatedMFAChallenge replicated_challenge = 1;
 }
 
 // VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
