@@ -91,7 +91,7 @@ async function initializeApp(): Promise<void> {
   });
 
   // TODO(gzdunek): DELETE IN 20.0.0. Users should already migrate to the new location.
-  // Also remove MigratedTshHomeBanner component and relevant properties from app_state.json.
+  // Also remove TshHomeMigrationBanner component and relevant properties from app_state.json.
   await migrateOldTshHomeOnce(logger, tshHome, appStateFileStorage);
 
   nativeTheme.themeSource = configService.get('theme').value;

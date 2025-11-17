@@ -121,7 +121,7 @@ export function IdentityContainer() {
               deviceTrustStatus={deviceTrustStatus}
             />
           )}
-          <MigratedTshHomeBanner />
+          <TshHomeMigrationBanner />
           <KeyboardArrowsNavigation>
             {focusGrabber}
             <ClusterList
@@ -177,7 +177,7 @@ const focusGrabber = (
   />
 );
 
-export function MigratedTshHomeBanner(props: { className?: string }) {
+export function TshHomeMigrationBanner(props: { className?: string }) {
   const [state, setState] = usePersistedState(
     'showTshHomeMigrationBanner',
     false

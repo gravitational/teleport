@@ -18,5 +18,5 @@
 
 export {
   IdentityContainer as Identity,
-  MigratedTshHomeBanner,
+  TshHomeMigrationBanner,
 } from './Identity';
