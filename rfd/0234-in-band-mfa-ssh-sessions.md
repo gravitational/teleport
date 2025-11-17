@@ -125,8 +125,8 @@ sequenceDiagram
   participant SSH as SSH Service
   participant Decision Service
   participant Host as Target SSH Host
+  
   Client->>Proxy: Dial SSH
-
   Proxy->>Decision Service: EvaluateSSHAccess
   Decision Service-->>Proxy: Permit
   Proxy->>SSH: Proxy SSH connection (stapled permit)
@@ -155,25 +155,6 @@ sequenceDiagram
   Host-->>SSH: SSH connection established
   SSH-->>Proxy: SSH connection established
   Proxy-->>Client: SSH session established
-```
-
-#### Leaf Cluster Flow
-
-```mermaid
----
-title: SSH MFA Connection Flow (Leaf Cluster)
----
-sequenceDiagram
-  autoNumber
-
-  participant Client
-  participant rMFA as Local MFA Service
-  participant Proxy as Leaf Proxy Service
-  participant Dec as Leaf Decision Service
-  participant lMFA as Leaf MFA Service
-  participant SSH as Leaf SSH Service
-
-  participant Host as Target SSH Host
 
   Client->>Proxy: Dial SSH
   Proxy->>Dec: EvaluateSSHAccess
