@@ -2615,7 +2615,23 @@ func onLogout(cf *CLIConf) error {
 		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
 	// Remove all keys.
 	case proxyHost == "" && cf.Username == "":
-		tc, err := makeClient(cf)
+		proxy, err := cf.getClientStore().CurrentProfile()
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		// If there's no current profile, try to use the first profile.
+		if proxy == "" && len(profiles) > 0 {
+			proxy = profiles[0].ProxyURL.Host
+		}
+
+		// No current profile and no profiles exist, exit gracefully.
+		if proxy == "" {
+			fmt.Printf("All users logged out.\n")
+			return nil
+		}
+
+		tc, err := makeClientForProxy(cf, proxy)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2748,6 +2764,11 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 	)
 
 	err := forEachProfileParallel(cf, func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		if profile.IsExpired(time.Now()) {
+			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", profile.ProxyURL.Host)
+			return nil
+		}
+
 		ctx, span := tracer.Start(
 			ctx,
 			"getClusterClient",

@@ -6098,6 +6098,13 @@ func TestLogout(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+		{
+			name: "current profile missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				currentProfileFilePath := keypaths.CurrentProfileFilePath(homePath)
+				require.NoError(t, os.Remove(currentProfileFilePath))
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
