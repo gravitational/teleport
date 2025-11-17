@@ -82,15 +82,12 @@ sequenceDiagram
     participant proxy
     participant auth
 
-    Note over tsh: tsh login --proxy proxy.example.com --user alice
-    Note over tsh: user prompted for password
+    Note over tsh: tsh login --proxy proxy.example.com --user alice --mfa-mode=browser
+    Note over tsh: print URL proxy.example.com/web/browser/<request_id>
 
     tsh->>proxy: POST /webapi/login/browser
     proxy->>auth: POST /:version/users/:user/ssh/authenticate
-    auth->>+backend: wait for backend insert /browser_authentication/<request_id>
-    proxy->>tsh: password verified
-
-    Note over tsh: print URL proxy.example.com/web/browser/<request_id>
+    auth-->>+backend: wait for backend insert /browser_authentication/<request_id>
 
     tsh-->>web: user copies URL to local browser
     Note over web: proxy.example.com/web/browser/<request_id>
@@ -133,18 +130,22 @@ The flow can be broken down in to three sections:
 
 When the user performs a `tsh login`, it will check for either an explicit
 `--mfa-mode=browser` flag or it will default to browser authentication if there
-are no other MFA methods available. The user will be prompted for their
-password. `tsh` will send a request to the proxy, which verifies the password.
-If the password is wrong, return a failure message to `tsh`. If successful, the
-proxy will send a request to the auth service and return a success message to
-`tsh` to let it know it can generate and show the browser authentication URL.
+are no other MFA methods available. If the user goes through the latter flow
+where no mode is specified, they will be prompted for their password to check
+for other MFA methods first, before being sent to the browser.
+
+`tsh` will send a unauthenticated request to `/webapi/login/browser` that will
+remain open until the request is approved, denied, or times out. The security of
+this unauthenticated endpoint will be discussed in the
+[security section](#unauthenticated-webapiloginbrowser-endpoint).
 
 The auth service will generate a Request ID that it will store on the backend
 under `/browser_authentication/<request_id>`. Using the same method as [headless
-authentication](0105-headless-authentication.md), the Request ID will be a UUID
-derived from the client's public key to prevent an attacker intercepting the
-browser login. The record will have a short TTL of 5 minutes. The auth server
-waits for a decision from the user by using a resource watcher.
+authentication](0105-headless-authentication.md#headless-login-initiation), the
+Request ID will be a UUID derived from the client's public key to prevent an
+attacker mimicing a browser login to gain access. The record will have a short
+TTL of 5 minutes. The auth server waits for a decision from the user by using a
+resource watcher.
 
 ##### The user verifying their MFA through the browser
 
@@ -164,12 +165,29 @@ If the request is approved, the record is approved on the backend.
 ##### `tsh` receiving certificates
 
 If the browser authentication is successful, the auth server will unblock the
-request and `tsh` will receive its certificates. These will be the standard
+request and `tsh` will receive its certificates through the original POST
+request it made to `/webapi/login/browser`. They will be the standard
 12 hour certificates.
 
 #### Per-session MFA
 
 ### Security
+
+#### Unauthenticated `/webapi/login/browser` endpoint
+
+The endpoint that the unauthenticated `tsh` client will make a request to will
+also need to be unauthenticated. This exposes the proxy to the risk of DoS
+attacks.
+
+To mitigate this risk, the endpoint will be rate limited and resources that it
+creates on the backend will be created on-demand. A `BrowserAuthentication`
+resource needs to be created on the backend to store information about the
+request. Instead of creating the resource when the unauthenticated `tsh` client
+sends a request, it will be created when the authenticated user calls
+`rpc GetBrowserAuthentication`, which is called during the browser
+authentication flow. Initially, `GetBrowserAuthentication` creates an empty
+`BrowserAuthentication`, if it doesn't already exist. The details are then
+updated by the auth service once it detects that the resource has been created.
 
 ### Scale
 
