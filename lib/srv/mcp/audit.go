@@ -359,6 +359,8 @@ func headersForAudit(h http.Header) http.Header {
 	return ret
 }
 
+// guessEgressAuthType makes an educated guess on what kind of auth is used to
+// for the remote MCP server.
 func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrite) string {
 	if rewrite != nil {
 		testJWTTraits := map[string][]string{
@@ -381,15 +383,20 @@ func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrit
 			}
 		}
 
+		// Auth header has be defined in the app definition but not using
+		// "{{internal.jwt}}".
 		if rewriteAuth {
 			return "app-defined"
 		}
 	}
 
+	// Reach here when app.Rewrite not overwriting auth. Check if Auth header is
+	// defined by the user.
 	if headerWithoutRewrite.Get("Authorization") != "" {
 		return "user-defined"
 	}
 
-	// Nothing ¯\_(ツ)_/¯
-	return ""
+	// No auth required for the remote MCP server or something we don't
+	// understand yet.
+	return "unknown"
 }
