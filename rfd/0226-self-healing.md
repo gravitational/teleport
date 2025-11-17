@@ -272,11 +272,11 @@ type Proxy struct {
 ```
 
 The `TTL` for each server will be set based on the heartbeat interval
-configured at each proxy. This will be stored in the backend `Server` resource
-as `Server.Spec.TTL`. This allows different values to exist on different services
-without running into expiry issues. For example if you are decreasing the heartbeat
-interval and the proxy bases the `TTL` off of its local heartbeat interval
-proxy services on the longer heartbeat interval could appear to expire.
+configured at each proxy and auth. This will be stored in the backend `Server` resource
+as `Server.Spec.TTL`. This is a new field we will add to allow different TTL values
+to exist for different service instances. This is to help avoid issues with the
+`Server.Metadata.Expiry` field which could occur due to clock drift or when different `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL`
+durations are configured in the cluster.
 
 #### Reducing Discovery Request Traffic
 
