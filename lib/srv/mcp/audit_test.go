@@ -79,7 +79,8 @@ func Test_guessEgressAuthType(t *testing.T) {
 		expect       string
 	}{
 		{
-			name: "no header or rewrite",
+			name:   "no header or rewrite",
+			expect: "unknown",
 		},
 		{
 			name: "user defined",
