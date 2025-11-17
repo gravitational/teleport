@@ -216,6 +216,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
+		{Kind: types.KindCloudCluster},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -641,6 +642,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
+	// CloudCluster is a cloud cluster service
+	CloudClusterService services.CloudClusterService
 	// AutoUpdateService is an autoupdate service.
 	AutoUpdateService services.AutoUpdateServiceGetter
 	// Provisioner is a provisioning service

@@ -209,6 +209,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindIdentityCenter, RW()),
 					types.NewRule(types.KindContact, RW()),
 					types.NewRule(types.KindWorkloadIdentity, RW()),
+					types.NewRule(types.KindCloudCluster, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),

@@ -2840,6 +2840,14 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(authServer.BotInstanceVersionReporter.Run(process.GracefulExitContext()))
 	})
 
+	// cloudClusterController, err := cloudcluster.NewController(authServer, logger, process.Clock, cfg.Auth.AgentRolloutControllerSyncPeriod, process.metricsRegistry)
+	// if err != nil {
+	// 	return trace.Wrap(err, "creating the cloud cluster controller")
+	// }
+	// process.RegisterFunc("auth.cloud_cluster_controller", func() error {
+	// 	return trace.Wrap(cloudClusterController.Run(process.GracefulExitContext()), "running cloud_cluster controller")
+	// })
+
 	process.RegisterFunc("auth.server_info", func() error {
 		return trace.Wrap(auth.ReconcileServerInfos(process.GracefulExitContext(), authServer))
 	})
@@ -3013,6 +3021,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.BotInstance = services.BotInstance
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Plugin = services.Plugins
+	cfg.CloudCluster = services.CloudClusterService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3060,6 +3069,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
+	cfg.CloudCluster = client.CloudClusterServiceClient()
 
 	return accesspoint.NewCache(cfg)
 }

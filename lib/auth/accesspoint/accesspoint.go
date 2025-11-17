@@ -114,6 +114,7 @@ type Config struct {
 	HealthCheckConfig       services.HealthCheckConfigReader
 	RecordingEncryption     services.RecordingEncryption
 	Plugin                  services.Plugins
+	CloudCluster            services.CloudClusterService
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -162,6 +163,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Apps:                    cfg.Applications,
 		ClusterConfig:           cfg.ClusterConfig,
 		AutoUpdateService:       cfg.AutoUpdateService,
+		CloudClusterService:     cfg.CloudCluster,
 		CrownJewels:             cfg.CrownJewels,
 		DatabaseObjects:         cfg.DatabaseObjects,
 		DatabaseServices:        cfg.DatabaseServices,

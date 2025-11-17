@@ -346,6 +346,9 @@ const (
 	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
 
+	// KindCloudCluster is the resource with cloudcluster configuration.
+	KindCloudCluster = "cloud_cluster"
+
 	// KindAutoUpdateConfig is the resource with autoupdate configuration.
 	KindAutoUpdateConfig = "autoupdate_config"
 
@@ -399,6 +402,9 @@ const (
 
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
+
+	// MetaNameCloudCluster is the name of a configuration resource for cloudcluster.
+	MetaNameCloudCluster = "cloudcluster"
 
 	// MetaNameWatchStatus is the name of a watch status resource.
 	MetaNameWatchStatus = "watch-status"

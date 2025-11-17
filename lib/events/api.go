@@ -965,6 +965,13 @@ const (
 
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
+
+	// CloudClusterCreateEvent is emitted when a CloudCluster resource is created.
+	CloudClusterCreateEvent = "cloud_cluster.create"
+	// CloudClusterUpdateEvent is emitted when a CloudCluster resource is updated.
+	CloudClusterUpdateEvent = "cloud_cluster.update"
+	// CloudClusterDeleteEvent is emitted when a CloudCluster resource is deleted.
+	CloudClusterDeleteEvent = "cloud_cluster.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

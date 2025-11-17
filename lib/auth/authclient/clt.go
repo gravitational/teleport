@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/cloudcluster"
 	"github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
@@ -1807,6 +1808,8 @@ type ClientI interface {
 
 	// CrownJewelServiceClient returns a Crown Jewel service client.
 	CrownJewelServiceClient() *crownjewel.Client
+
+	CloudClusterServiceClient() *cloudcluster.Client
 
 	// ResourceUsageClient returns a resource usage service client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,

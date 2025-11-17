@@ -178,6 +178,9 @@ type InitConfig struct {
 	// ClusterConfiguration is a services that holds cluster wide configuration.
 	ClusterConfiguration services.ClusterConfigurationInternal
 
+	// CloudClusterService is a service of Cloud Cluster.
+	CloudClusterService services.CloudClusterService
+
 	// AutoUpdateService is a service of autoupdate configuration and version.
 	AutoUpdateService services.AutoUpdateService
 

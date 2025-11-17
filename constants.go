@@ -295,6 +295,9 @@ const (
 	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
 	ComponentRolloutController = "rollout-controller"
 
+	// ComponentCloudClusterController represents the autoupdate_agent_rollout controller.
+	ComponentCloudClusterController = "cloud-cluster-controller"
+
 	// ComponentGit represents git proxy related services.
 	ComponentGit = "git"
 
