@@ -23,6 +23,7 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -313,8 +314,42 @@ type mockAuthServer struct {
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
 
+type mockWatcher struct {
+	done     chan struct{}
+	events   chan types.Event
+	doneOnce sync.Once
+}
+
+func (w *mockWatcher) Events() <-chan types.Event {
+	return w.events
+}
+
+func (w *mockWatcher) Close() error {
+	w.doneOnce.Do(func() {
+		close(w.done)
+		close(w.events)
+	})
+	return nil
+}
+
+func (w *mockWatcher) Error() error {
+	return nil
+}
+
+func (w *mockWatcher) Done() <-chan struct{} {
+	return w.done
+}
+
 func (m *mockAuthServer) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	return m.events.NewWatcher(ctx, watch)
+	w := &mockWatcher{
+		done:   make(chan struct{}),
+		events: make(chan types.Event, 1),
+	}
+
+	w.events <- types.Event{
+		Type: types.OpInit,
+	}
+	return w, nil
 }
 
 func (m *mockAuthServer) Ping(context.Context) (proto.PingResponse, error) {
@@ -372,7 +407,7 @@ func (m *mockAuthServer) RangeDatabases(ctx context.Context, start, end string) 
 	return stream.Empty[types.Database]()
 }
 
-func (f *mockAuthServer) CreateApp(ctx context.Context, _ types.Application) error {
+func (m *mockAuthServer) CreateApp(ctx context.Context, _ types.Application) error {
 	return nil
 }
 
