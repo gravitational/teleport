@@ -343,6 +343,9 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 	// Make sure all the roles exist. If they don't, error out.
 	for _, role := range state.Spec.Roles {
 		if _, err := g.access.GetRole(ctx, role); err != nil {
+			if trace.IsNotFound(err) {
+				return trace.Wrap(types.ErrNonExistingRoleAssigned)
+			}
 			return trace.Wrap(err)
 		}
 	}
