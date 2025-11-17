@@ -209,6 +209,12 @@ export class ClusterLifecycleManager {
     if (hasLoggedOut) {
       await this.handleClusterLogout(next);
     } else {
+      const client = await this.getTshdClient();
+      // Only clear clients with outdated certificates.
+      // The watcher 'changed' event may be emitted right after the user logs in
+      // or assumes a role via Connect (which already closes all clients
+      // for the profile), so we avoid closing them again if they're already up to date.
+      await client.clearStaleClusterClients({ rootClusterUri: next.uri });
       await this.syncOrUpdateCluster(next);
     }
   }
