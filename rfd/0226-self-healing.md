@@ -127,14 +127,11 @@ Any open RPCs on the old connection will be allowed to run to completion.
 
 #### Policy Configuration Discovery
 
-We will explore implementing a gRPC endpoint which will allow for discovering
+We will implement a gRPC endpoint which will allow for discovering
 new load balancing policies via the connected auth server. This endpoint will be
 called immediately after connecting and the initial health checking is complete.
 
-As a backup plan clients could also discover the new load balancing policy via the
-`/webapi/ping` endpoint. However the gRPC endpoint is the preferred solution.
-
-It will be set in the JSON response as follows:
+The json representation of the configuration will be:
 
 ```json
 {
@@ -156,6 +153,72 @@ This can be configured on an auth server by setting the environment variable
 `TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY`. When not specified clients will continue
 using the default `pick_first` policy. This will allow us to opt-in to this new
 behavior.
+
+When specified, the following protobufs will be used for discovering configuration
+changes:
+
+```proto
+// ServiceConfigDiscoveryService provides the RPC for clients to discover the
+// desired load balancing configuration for a service.
+service ServiceConfigDiscoveryService {
+  // GetServiceConfig returns the current load balancing configuration for a client.
+  // Clients call this on initially connection and do no expect the configuration
+  // to change over the lifetime of that connection.
+  rpc GetServiceConfig(GetServiceConfigRequest) returns (GetServiceConfigResponse);
+}
+```
+
+```proto
+// DiscoverRequest is the request used by grpc clients to discover a services 
+// desired grpc service configuration.
+message GetServiceConfigRequest {
+}
+
+// DiscoverResponse returns the desired client-side grpc service configuration.
+message GetServiceConfigResponse {
+  // ServiceConfig contains all grpc-service configuration.
+  ServiceConfig config = 1;
+}
+
+
+// ServiceConfig contains all grpc-service configuration.
+message ServiceConfig {
+  // Each entry represents a different load balance strategy ordered
+  // by priority. A client should use the first supported configuration.
+  repeated LoadBalancerConfig load_balancing_config = 1;
+
+  HealthCheckConfig health_check_config = 2;
+}
+
+// LoadBalancerConfig contains one of the supported load balancing policy
+// configurations.
+message LoadBalancerConfig {
+    oneof config {
+      PickFirstConfig pick_first = 1;
+      TeleportPickHealthyConfig teleport_pick_healthy = 2;
+  }
+}
+
+// PickFirstConfig represents the default grpc pick_first load balancing policy.
+message PickFirstConfig {
+}
+
+// TeleportPickHealthyConfig represents the teleport_pick_health load balancing
+// policy.
+message TeleportPickHealthyConfig {
+}
+
+// HealthCheckConfig represents a gRPC clients health check configuration.
+message HealthCheckConfig {
+  // Service name to use in the health-checking request.
+  string service_name = 1;
+}
+```
+
+An alternative approach considered here was having policy discovery go through
+the the proxy `webapi/ping` endpoint. This was discarded as it adds a dependency
+on another service/protocol and requires constant polling for changes. Using grpc
+allows us to only check the configuration when we establish a new connection.
 
 ### Proxy Reconnects
 
