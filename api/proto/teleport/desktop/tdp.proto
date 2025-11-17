@@ -50,27 +50,13 @@ enum MessageType {
   MESSAGE_MFA = 17;
   MESSAGE_SHARED_DIRECTORY_ANNOUNCE = 18;
   MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE = 19;
-  MESSAGE_SHARED_DIRECTORY_INFO_REQUEST = 20;
-  MESSAGE_SHARED_DIRECTORY_INFO_RESPONSE = 21;
-  MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST = 22;
-  MESSAGE_SHARED_DIRECTORY_CREATE_RESPONSE = 23;
-  MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST = 24;
-  MESSAGE_SHARED_DIRECTORY_DELETE_RESPONSE = 25;
-  MESSAGE_SHARED_DIRECTORY_LIST_REQUEST = 26;
-  MESSAGE_SHARED_DIRECTORY_LIST_RESPONSE = 27;
-  MESSAGE_SHARED_DIRECTORY_READ_REQUEST = 28;
-  MESSAGE_SHARED_DIRECTORY_READ_RESPONSE = 29;
-  MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST = 30;
-  MESSAGE_SHARED_DIRECTORY_WRITE_RESPONSE = 31;
-  MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST = 32;
-  MESSAGE_SHARED_DIRECTORY_MOVE_RESPONSE = 33;
-  MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST = 34;
-  MESSAGE_SHARED_DIRECTORY_TRUNCATE_RESPONSE = 35;
-  MESSAGE_LATENCY_STATS = 36;
-  MESSAGE_PING = 37;
-  MESSAGE_CLIENT_KEYBOARD_LAYOUT = 38;
-  MESSAGE_CLIENT_HELLO = 39;
-  MESSAGE_SERVER_HELLO = 40;
+  MESSAGE_SHARED_DIRECTORY_REQUEST = 20;
+  MESSAGE_SHARED_DIRECTORY_RESPONSE = 21;
+  MESSAGE_LATENCY_STATS = 22;
+  MESSAGE_PING = 23;
+  MESSAGE_CLIENT_KEYBOARD_LAYOUT = 24;
+  MESSAGE_CLIENT_HELLO = 25;
+  MESSAGE_SERVER_HELLO = 26;
 }
 
 message Envelope {
@@ -213,6 +199,53 @@ message MFA {
   proto.MFAAuthenticateResponse authentication_response = 3;
 }
 
+enum DirectoryOperation {
+  DIRECTORY_OPERATION_UNKNOWN = 0;
+  DIRECTORY_OPERATION_INFO = 1;
+  DIRECTORY_OPERATION_CREATE = 2;
+  DIRECTORY_OPERATION_DELETE = 3;
+  DIRECTORY_OPERATION_LIST = 4;
+  DIRECTORY_OPERATION_READ = 5;
+  DIRECTORY_OPERATION_WRITE = 6;
+  DIRECTORY_OPERATION_MOVE = 7;
+  DIRECTORY_OPERATION_TRUNCATE = 8;
+}
+
+message SharedDirectoryRequest {
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_REQUEST;
+  // Operation type
+  DirectoryOperation operation_code = 1;
+  // Common fields
+  uint32 directory_id = 2;
+  uint32 completion_id = 3;
+  // Subject path for Info and Move requests.
+  string path = 4;
+  // Destination path for Move requests.
+  string new_path = 9;
+  // Specifies file type in CREATE requests.
+  uint32 file_type = 5;
+  // Specifies offset where the read/write should start
+  // in READ and WRITE requests.
+  uint64 offset = 6;
+  // Requested lengh to read for READ requests.
+  uint32 length = 7;
+  // For TRUNCATE requests.
+  uint32 end_of_file = 8;
+  // Data to be written in WRITE requests.
+  bytes data = 10;
+}
+
+message SharedDirectoryResponse {
+  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_RESPONSE;
+  // Common response fields
+  uint32 completion_id = 1;
+  uint32 error_code = 2;
+  // Returned FileSystemObject(s) for INFO and LIST responses.
+  repeated FileSystemObject fso_list = 4;
+  // Data returned in READ responses.
+  bytes data = 6;
+}
+
 message SharedDirectoryAnnounce {
   option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_ANNOUNCE;
   uint32 directory_id = 1;
@@ -225,13 +258,13 @@ message SharedDirectoryAcknowledge {
   uint32 error_code = 2;
 }
 
-message SharedDirectoryInfoRequest {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_INFO_REQUEST;
-  uint32 directory_id = 1;
-  uint32 completion_id = 2;
-  string path = 3;
-}
-
+//message SharedDirectoryInfoRequest {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_INFO_REQUEST;
+//  uint32 directory_id = 1;
+//  uint32 completion_id = 2;
+//  string path = 3;
+//}
+//
 message FileSystemObject {
   uint64 last_modified = 1;
   uint64 size = 2;
@@ -239,117 +272,117 @@ message FileSystemObject {
   bool is_empty = 4;
   string path = 5;
 }
-
-message SharedDirectoryInfoResponse {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_INFO_RESPONSE;
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-  FileSystemObject fso = 3;
-}
-
-message SharedDirectoryCreateRequest {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST;
-  uint32 completion_id = 1;
-  uint32 directory_id = 2;
-  uint32 file_type = 3;
-  string path = 4;
-}
-
-message SharedDirectoryCreateResponse {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_CREATE_RESPONSE;
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-  FileSystemObject fso = 3;
-}
-
-message SharedDirectoryDeleteRequest {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST;
-  uint32 directory_id = 1;
-  uint32 completion_id = 2;
-  string path = 3;
-}
-
-message SharedDirectoryDeleteResponse {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_DELETE_RESPONSE;
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-}
-
-message SharedDirectoryListRequest {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_LIST_REQUEST;
-  uint32 directory_id = 1;
-  uint32 completion_id = 2;
-  string path = 3;
-}
-
-message SharedDirectoryListResponse {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_LIST_RESPONSE;
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-  repeated FileSystemObject fso_list = 3;
-}
-
-message SharedDirectoryReadRequest {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_READ_REQUEST;
-  uint32 completion_id = 1;
-  uint32 directory_id = 2;
-  string path = 3;
-  uint64 offset = 4;
-  uint32 length = 5;
-}
-
-message SharedDirectoryReadResponse {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_READ_RESPONSE;
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-  uint32 read_data_length = 3;
-  bytes read_data = 4;
-}
-
-message SharedDirectoryWriteRequest {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST;
-  uint32 completion_id = 1;
-  uint32 directory_id = 2;
-  uint64 offset = 3;
-  string path = 4;
-  uint32 write_data_length = 5;
-  bytes write_data = 6;
-}
-
-message SharedDirectoryWriteResponse {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_WRITE_RESPONSE;
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-  uint32 bytes_written = 3;
-}
-
-message SharedDirectoryMoveRequest {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST;
-  uint32 completion_id = 1;
-  uint32 directory_id = 2;
-  string original_path = 3;
-  string new_path = 4;
-}
-
-message SharedDirectoryMoveResponse {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_MOVE_RESPONSE;
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-}
-
-message SharedDirectoryTruncateRequest {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST;
-  uint32 completion_id = 1;
-  uint32 directory_id = 2;
-  string path = 3;
-  uint32 end_of_file = 4;
-}
-
-message SharedDirectoryTruncateResponse {
-  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_TRUNCATE_RESPONSE;
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-}
+//
+//message SharedDirectoryInfoResponse {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_INFO_RESPONSE;
+//  uint32 completion_id = 1;
+//  uint32 error_code = 2;
+//  FileSystemObject fso = 3;
+//}
+//
+//message SharedDirectoryCreateRequest {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_CREATE_REQUEST;
+//  uint32 completion_id = 1;
+//  uint32 directory_id = 2;
+//  uint32 file_type = 3;
+//  string path = 4;
+//}
+//
+//message SharedDirectoryCreateResponse {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_CREATE_RESPONSE;
+//  uint32 completion_id = 1;
+//  uint32 error_code = 2;
+//  FileSystemObject fso = 3;
+//}
+//
+//message SharedDirectoryDeleteRequest {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST;
+//  uint32 directory_id = 1;
+//  uint32 completion_id = 2;
+//  string path = 3;
+//}
+//
+//message SharedDirectoryDeleteResponse {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_DELETE_RESPONSE;
+//  uint32 completion_id = 1;
+//  uint32 error_code = 2;
+//}
+//
+//message SharedDirectoryListRequest {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_LIST_REQUEST;
+//  uint32 directory_id = 1;
+//  uint32 completion_id = 2;
+//  string path = 3;
+//}
+//
+//message SharedDirectoryListResponse {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_LIST_RESPONSE;
+//  uint32 completion_id = 1;
+//  uint32 error_code = 2;
+//  repeated FileSystemObject fso_list = 3;
+//}
+//
+//message SharedDirectoryReadRequest {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_READ_REQUEST;
+//  uint32 completion_id = 1;
+//  uint32 directory_id = 2;
+//  string path = 3;
+//  uint64 offset = 4;
+//  uint32 length = 5;
+//}
+//
+//message SharedDirectoryReadResponse {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_READ_RESPONSE;
+//  uint32 completion_id = 1;
+//  uint32 error_code = 2;
+//  uint32 read_data_length = 3;
+//  bytes read_data = 4;
+//}
+//
+//message SharedDirectoryWriteRequest {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST;
+//  uint32 completion_id = 1;
+//  uint32 directory_id = 2;
+//  uint64 offset = 3;
+//  string path = 4;
+//  uint32 write_data_length = 5;
+//  bytes write_data = 6;
+//}
+//
+//message SharedDirectoryWriteResponse {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_WRITE_RESPONSE;
+//  uint32 completion_id = 1;
+//  uint32 error_code = 2;
+//  uint32 bytes_written = 3;
+//}
+//
+//message SharedDirectoryMoveRequest {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST;
+//  uint32 completion_id = 1;
+//  uint32 directory_id = 2;
+//  string original_path = 3;
+//  string new_path = 4;
+//}
+//
+//message SharedDirectoryMoveResponse {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_MOVE_RESPONSE;
+//  uint32 completion_id = 1;
+//  uint32 error_code = 2;
+//}
+//
+//message SharedDirectoryTruncateRequest {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST;
+//  uint32 completion_id = 1;
+//  uint32 directory_id = 2;
+//  string path = 3;
+//  uint32 end_of_file = 4;
+//}
+//
+//message SharedDirectoryTruncateResponse {
+//  option (tdp_type_option) = MESSAGE_SHARED_DIRECTORY_TRUNCATE_RESPONSE;
+//  uint32 completion_id = 1;
+//  uint32 error_code = 2;
+//}
 
 message LatencyStats {
   option (tdp_type_option) = MESSAGE_LATENCY_STATS;
