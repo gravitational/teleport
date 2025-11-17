@@ -4293,7 +4293,7 @@ func (h *Handler) fetchJoinSession(ctx context.Context, clt authclient.ClientI, 
 	}
 
 	if types.IsOpenSSHNodeSubKind(tracker.GetTargetSubKind()) {
-		return session.Session{}, nil, trace.BadParameter("session joining is only supported for Teleport nodes, not OpenSSH nodes")
+		return session.Session{}, nil, trace.BadParameter("session joining is only supported for nodes which are Teleport agents, not OpenSSH nodes")
 	}
 
 	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
