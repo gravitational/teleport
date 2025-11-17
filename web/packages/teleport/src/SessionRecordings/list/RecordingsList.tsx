@@ -37,7 +37,7 @@ import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDrop
 import type { Recording } from 'teleport/services/recordings';
 import { useSuspenseInfiniteListRecordings } from 'teleport/services/recordings/hooks';
 import { KeysEnum } from 'teleport/services/storageService';
-import { generateTerminalSVGStyleTag } from 'teleport/SessionRecordings/svg';
+import { generateTerminalSVGStyleTag } from 'teleport/SessionRecordings/image';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 

@@ -67,7 +67,7 @@ export enum SessionRecordingEventType {
 }
 
 export interface SessionRecordingThumbnail {
-  svg: string;
+  svg?: string;
   cols: number;
   rows: number;
   cursorX: number;
@@ -75,6 +75,7 @@ export interface SessionRecordingThumbnail {
   cursorVisible: boolean;
   startOffset: number;
   endOffset: number;
+  png?: string;
 }
 
 export interface SessionRecordingMetadata {

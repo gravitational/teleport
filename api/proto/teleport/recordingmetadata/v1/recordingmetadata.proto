@@ -108,4 +108,6 @@ message SessionRecordingThumbnail {
   google.protobuf.Duration end_offset = 7;
   // CursorVisible indicates whether the cursor is visible.
   bool cursor_visible = 8;
+  // PNG is the PNG image of the thumbnail.
+  bytes png = 9;
 }

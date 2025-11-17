@@ -495,6 +495,8 @@ type SessionRecordingThumbnail struct {
 	EndOffset *durationpb.Duration `protobuf:"bytes,7,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
 	// CursorVisible indicates whether the cursor is visible.
 	CursorVisible bool `protobuf:"varint,8,opt,name=cursor_visible,json=cursorVisible,proto3" json:"cursor_visible,omitempty"`
+	// PNG is the PNG image of the thumbnail.
+	Png           []byte `protobuf:"bytes,9,opt,name=png,proto3" json:"png,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -585,6 +587,13 @@ func (x *SessionRecordingThumbnail) GetCursorVisible() bool {
 	return false
 }
 
+func (x *SessionRecordingThumbnail) GetPng() []byte {
+	if x != nil {
+		return x.Png
+	}
+	return nil
+}
+
 var File_teleport_recordingmetadata_v1_recordingmetadata_proto protoreflect.FileDescriptor
 
 const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
@@ -620,7 +629,7 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\x04user\x18\b \x01(\tR\x04user\x12#\n" +
 	"\rresource_name\x18\t \x01(\tR\fresourceName\x12G\n" +
 	"\x04type\x18\n" +
-	" \x01(\x0e23.teleport.recordingmetadata.v1.SessionRecordingTypeR\x04type\"\xaa\x02\n" +
+	" \x01(\x0e23.teleport.recordingmetadata.v1.SessionRecordingTypeR\x04type\"\xbc\x02\n" +
 	"\x19SessionRecordingThumbnail\x12\x10\n" +
 	"\x03svg\x18\x01 \x01(\fR\x03svg\x12\x12\n" +
 	"\x04cols\x18\x02 \x01(\x05R\x04cols\x12\x12\n" +
@@ -630,7 +639,8 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\fstart_offset\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
 	"\n" +
 	"end_offset\x18\a \x01(\v2\x19.google.protobuf.DurationR\tendOffset\x12%\n" +
-	"\x0ecursor_visible\x18\b \x01(\bR\rcursorVisible*\x85\x01\n" +
+	"\x0ecursor_visible\x18\b \x01(\bR\rcursorVisible\x12\x10\n" +
+	"\x03png\x18\t \x01(\fR\x03png*\x85\x01\n" +
 	"\x14SessionRecordingType\x12&\n" +
 	"\"SESSION_RECORDING_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aSESSION_RECORDING_TYPE_SSH\x10\x01\x12%\n" +

@@ -26,7 +26,7 @@ import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Time
 import { FramesRenderer, type LoadedImageResult } from './FramesRenderer';
 
 // Mock the SVG utilities
-jest.mock('teleport/SessionRecordings/svg', () => ({
+jest.mock('teleport/SessionRecordings/image', () => ({
   generateTerminalSVGStyleTag: jest.fn(() => '<style></style>'),
   injectSVGStyles: jest.fn(svg => svg),
   svgToDataURIBase64: jest.fn(svg => `data:image/svg+xml;base64,${svg}`),

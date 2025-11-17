@@ -21,7 +21,7 @@ import { useMemo } from 'react';
 import Box from 'design/Box';
 
 import { useSuspenseGetRecordingThumbnail } from 'teleport/services/recordings/hooks';
-import { useThumbnailSvg } from 'teleport/SessionRecordings/svg';
+import { useThumbnailImage } from 'teleport/SessionRecordings/image';
 
 interface RecordingThumbnailProps {
   clusterId: string;
@@ -51,6 +51,10 @@ export function RecordingThumbnail({
 
   // calculate the background position based on the cursor position and zoom level
   const { bgPosX, bgPosY } = useMemo(() => {
+    if (data.png) {
+      return { bgPosX: 50, bgPosY: 50 };
+    }
+
     if (!data.cursorVisible) {
       return { bgPosX: 50, bgPosY: 50 };
     }
@@ -70,9 +74,16 @@ export function RecordingThumbnail({
     );
 
     return { bgPosX, bgPosY };
-  }, [data.cols, data.cursorX, data.cursorY, data.rows, data.cursorVisible]);
+  }, [
+    data.cols,
+    data.cursorX,
+    data.cursorY,
+    data.rows,
+    data.png,
+    data.cursorVisible,
+  ]);
 
-  const dataUri = useThumbnailSvg(data.svg, styles);
+  const dataUri = useThumbnailImage(data.svg, data.png, styles);
 
   return (
     <Box

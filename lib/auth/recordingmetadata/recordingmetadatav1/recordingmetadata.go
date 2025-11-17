@@ -137,8 +137,6 @@ func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, 
 
 	activeUsers := make(map[string]time.Duration)
 
-	vt := vt10x.New()
-
 	metadata := &pb.SessionRecordingMetadata{}
 
 	addInactivityEvent := func(start, end time.Time) {
@@ -223,7 +221,7 @@ loop:
 			lastEvent = evt
 
 			switch e := evt.(type) {
-			case *apievents.DatabaseSessionStart, *apievents.WindowsDesktopSessionStart:
+			case *apievents.DatabaseSessionStart:
 				// Unsupported session recording types
 				return nil
 
@@ -288,26 +286,39 @@ loop:
 					delete(activeUsers, e.User)
 				}
 
-			case *apievents.SessionPrint:
+			case *apievents.DesktopRecording, *apievents.SessionPrint:
 				// mark that we've seen the first print event so we don't update the starting size anymore
 				if !hasSeenContent {
 					hasSeenContent = true
 				}
 
-				if !lastActivityTime.IsZero() && e.Time.Sub(lastActivityTime) > inactivityThreshold {
-					addInactivityEvent(lastActivityTime, e.Time)
+				eventTime := getEventTime(e)
+
+				if !lastActivityTime.IsZero() && eventTime.Sub(lastActivityTime) > inactivityThreshold {
+					addInactivityEvent(lastActivityTime, eventTime)
 				}
 
 				if generator != nil {
 					generator.HandleEvent(e)
 				}
 
-				if e.Time.Sub(lastThumbnailTime) >= interval {
-					lastThumbnailTime = e.Time
-					recordThumbnail(e.Time)
+				if eventTime.Sub(lastThumbnailTime) >= interval {
+					lastThumbnailTime = eventTime
+					recordThumbnail(eventTime)
 				}
 
-				lastActivityTime = e.Time
+				lastActivityTime = eventTime
+
+			case *apievents.WindowsDesktopSessionStart:
+				if generator == nil {
+					var err error
+
+					generator, err = newDesktopThumbnailGenerator()
+
+					if err != nil {
+						return trace.Wrap(err, "creating desktop thumbnail generator for session %v", sessionID)
+					}
+				}
 
 			case *apievents.SessionStart:
 				lastActivityTime = e.Time
@@ -580,5 +591,19 @@ func (p *ptyThumbnailGenerator) ProduceThumbnail() *pb.SessionRecordingThumbnail
 		CursorX:       int32(cursor.X),
 		CursorY:       int32(cursor.Y),
 		CursorVisible: p.term.CursorVisible(),
+	}
+}
+
+// getEventTime extracts the event time from an AuditEvent.
+func getEventTime(evt apievents.AuditEvent) time.Time {
+	switch evt := evt.(type) {
+	case *apievents.DesktopRecording:
+		return evt.Time
+	case *apievents.SessionPrint:
+		return evt.Time
+	case *apievents.SessionEnd:
+		return evt.Time
+	default:
+		return time.Time{}
 	}
 }

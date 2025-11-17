@@ -22,8 +22,9 @@ import type { SessionRecordingThumbnail } from 'teleport/services/recordings';
 import {
   generateTerminalSVGStyleTag,
   injectSVGStyles,
+  pngToDataURIBase64,
   svgToDataURIBase64,
-} from 'teleport/SessionRecordings/svg';
+} from 'teleport/SessionRecordings/image';
 import { calculateThumbnailViewport } from 'teleport/SessionRecordings/view/Timeline/utils';
 
 import {
@@ -96,7 +97,10 @@ export class FramesRenderer extends TimelineCanvasRenderer {
     this.frames = frames.map((frame, index) => ({
       ...frame,
       id: `frame-${index}`,
-      svg: svgToDataURIBase64(injectSVGStyles(frame.svg, svgTheme)),
+      svg: frame.svg
+        ? svgToDataURIBase64(injectSVGStyles(frame.svg, svgTheme))
+        : undefined,
+      png: frame.png ? pngToDataURIBase64(frame.png) : undefined,
     }));
 
     this.setHeight(initialHeight, eventsHeight);
@@ -417,6 +421,6 @@ function defaultImageLoader(frame: ThumbnailWithId) {
       reject(new Error(`Failed to load image for frame ${frame.id}`));
     };
 
-    img.src = frame.svg;
+    img.src = frame.svg ?? frame.png;
   });
 }

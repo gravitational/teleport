@@ -282,6 +282,7 @@ type sessionRecordingThumbnailResponse struct {
 	CursorVisible bool   `json:"cursorVisible"`
 	StartOffset   int64  `json:"startOffset"`
 	EndOffset     int64  `json:"endOffset"`
+	Png           string `json:"png"`
 }
 
 // encodeSessionRecordingThumbnail converts the session recording thumbnail to a format more suitable for the frontend.
@@ -295,6 +296,7 @@ func encodeSessionRecordingThumbnail(thumbnail *recordingmetadatav1.SessionRecor
 		CursorVisible: thumbnail.CursorVisible,
 		StartOffset:   convertDurationToMs(thumbnail.StartOffset),
 		EndOffset:     convertDurationToMs(thumbnail.EndOffset),
+		Png:           string(thumbnail.Png),
 	}
 }
 

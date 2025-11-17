@@ -32,10 +32,10 @@ use ironrdp_session::x224::DisconnectDescription;
 use log::{error, trace, warn};
 use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
-    FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
-    SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
-    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryTruncateResponse,
-    SharedDirectoryWriteResponse, TdpErrCode,
+	FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
+	SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
+	SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryTruncateResponse,
+	SharedDirectoryWriteResponse, TdpErrCode,
 };
 use std::ffi::CString;
 use std::fmt::Debug;
@@ -45,12 +45,15 @@ use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod decoder;
 mod license;
 mod network_client;
 mod piv;
 mod rdpdr;
 mod ssl;
 mod util;
+
+use decoder::{ProcessorOutput, RdpDecoder};
 
 /// rdpclient_init_log should be called at initialization time to set up
 /// logging on the rdpclient side.
@@ -810,4 +813,304 @@ pub struct CGOLicenseRequest {
     issuer: *const c_char,
     company: *const c_char,
     product_id: *const c_char,
+}
+
+// RDP Decoder FFI structures
+#[repr(C)]
+pub struct CGOFrameUpdate {
+    pub x: u16,
+    pub y: u16,
+    pub width: u16,
+    pub height: u16,
+    pub data_len: u32,
+    pub data: *mut u8,
+}
+
+#[repr(C)]
+pub struct CGOPointerUpdate {
+    pub width: u16,
+    pub height: u16,
+    pub hotspot_x: u16,
+    pub hotspot_y: u16,
+    pub data_len: u32,
+    pub data: *mut u8,
+}
+
+#[repr(C)]
+pub enum CGOProcessorOutputType {
+    GraphicsUpdate = 0,
+    ResponseFrame = 1,
+    PointerBitmap = 2,
+    PointerDefault = 3,
+    PointerHidden = 4,
+    PointerPosition = 5,
+}
+
+#[repr(C)]
+pub struct CGOProcessorOutput {
+    pub output_type: CGOProcessorOutputType,
+    pub frame_update: CGOFrameUpdate,
+    pub response_len: u32,
+    pub response_data: *mut u8,
+    pub pointer_update: CGOPointerUpdate,
+    pub pointer_x: u16,
+    pub pointer_y: u16,
+}
+
+#[repr(C)]
+pub struct CGOProcessResult {
+    pub outputs_len: u32,
+    pub outputs: *mut CGOProcessorOutput,
+    pub error_message: *mut c_char,
+}
+
+/// rdp_decoder_new creates a new RDP decoder instance
+///
+/// # Safety
+///
+/// The returned pointer must be freed with rdp_decoder_free
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_new(
+    width: u16,
+    height: u16,
+    io_channel_id: u16,
+    user_channel_id: u16,
+) -> *mut RdpDecoder {
+    Box::into_raw(Box::new(RdpDecoder::new(
+        width,
+        height,
+        io_channel_id,
+        user_channel_id,
+    )))
+}
+
+/// rdp_decoder_free frees the RDP decoder instance
+///
+/// # Safety
+///
+/// The decoder pointer must be valid and created by rdp_decoder_new
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_free(decoder: *mut RdpDecoder) {
+    if !decoder.is_null() {
+        drop(Box::from_raw(decoder));
+    }
+}
+
+/// rdp_decoder_resize resizes the decoder's frame buffer
+///
+/// # Safety
+///
+/// The decoder pointer must be valid
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_resize(
+    decoder: *mut RdpDecoder,
+    width: u16,
+    height: u16,
+) -> CGOErrCode {
+    if decoder.is_null() {
+        return CGOErrCode::ErrCodeClientPtr;
+    }
+
+    let decoder = &mut *decoder;
+    match decoder.resize(width, height) {
+        Ok(_) => CGOErrCode::ErrCodeSuccess,
+        Err(_) => CGOErrCode::ErrCodeFailure,
+    }
+}
+
+impl Default for CGOProcessorOutput {
+    fn default() -> Self {
+        Self {
+            output_type: CGOProcessorOutputType::PointerDefault,
+            frame_update: CGOFrameUpdate {
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0,
+                data_len: 0,
+                data: ptr::null_mut(),
+            },
+            response_len: 0,
+            response_data: ptr::null_mut(),
+            pointer_update: CGOPointerUpdate {
+                width: 0,
+                height: 0,
+                hotspot_x: 0,
+                hotspot_y: 0,
+                data_len: 0,
+                data: ptr::null_mut(),
+            },
+            pointer_x: 0,
+            pointer_y: 0,
+        }
+    }
+}
+
+fn leak_vec(vec: Vec<u8>) -> (*mut u8, u32) {
+    let len = vec.len() as u32;
+    let mut boxed = vec.into_boxed_slice();
+    let ptr = boxed.as_mut_ptr();
+    std::mem::forget(boxed);
+    (ptr, len)
+}
+
+fn create_error_result(msg: &str) -> CGOProcessResult {
+    CGOProcessResult {
+        outputs_len: 0,
+        outputs: ptr::null_mut(),
+        error_message: CString::new(msg)
+            .map(|c| c.into_raw())
+            .unwrap_or(ptr::null_mut()),
+    }
+}
+
+/// rdp_decoder_process processes a TDP fast path frame
+///
+/// Caller must free the returned CGOProcessResult using rdp_decoder_free_result
+///
+/// # Safety
+///
+/// The decoder pointer must be valid
+/// The frame_data pointer must be valid
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_process(
+    decoder: *mut RdpDecoder,
+    frame_data: *const u8,
+    frame_len: u32,
+) -> CGOProcessResult {
+    let decoder = match decoder.as_mut() {
+        Some(d) => d,
+        None => return create_error_result("decoder is null"),
+    };
+
+    let frame_slice = std::slice::from_raw_parts(frame_data, frame_len as usize);
+
+    match decoder.process(frame_slice) {
+        Ok(result) => {
+            let cgo_outputs: Vec<CGOProcessorOutput> = result
+                .outputs
+                .into_iter()
+                .map(|output| match output {
+                    ProcessorOutput::GraphicsUpdate(update) => {
+                        let (data_ptr, data_len) = leak_vec(update.data);
+                        CGOProcessorOutput {
+                            output_type: CGOProcessorOutputType::GraphicsUpdate,
+                            frame_update: CGOFrameUpdate {
+                                x: update.x,
+                                y: update.y,
+                                width: update.width,
+                                height: update.height,
+                                data_len,
+                                data: data_ptr,
+                            },
+                            ..Default::default()
+                        }
+                    }
+                    ProcessorOutput::ResponseFrame(data) => {
+                        let (data_ptr, data_len) = leak_vec(data);
+                        CGOProcessorOutput {
+                            output_type: CGOProcessorOutputType::ResponseFrame,
+                            response_len: data_len,
+                            response_data: data_ptr,
+                            ..Default::default()
+                        }
+                    }
+                    ProcessorOutput::PointerBitmap(update) => {
+                        let (data_ptr, data_len) = leak_vec(update.bitmap_data);
+                        CGOProcessorOutput {
+                            output_type: CGOProcessorOutputType::PointerBitmap,
+                            pointer_update: CGOPointerUpdate {
+                                width: update.width,
+                                height: update.height,
+                                hotspot_x: update.hotspot_x,
+                                hotspot_y: update.hotspot_y,
+                                data_len,
+                                data: data_ptr,
+                            },
+                            ..Default::default()
+                        }
+                    }
+                    ProcessorOutput::PointerDefault => CGOProcessorOutput {
+                        output_type: CGOProcessorOutputType::PointerDefault,
+                        ..Default::default()
+                    },
+                    ProcessorOutput::PointerHidden => CGOProcessorOutput {
+                        output_type: CGOProcessorOutputType::PointerHidden,
+                        ..Default::default()
+                    },
+                    ProcessorOutput::PointerPosition { x, y } => CGOProcessorOutput {
+                        output_type: CGOProcessorOutputType::PointerPosition,
+                        pointer_x: x,
+                        pointer_y: y,
+                        ..Default::default()
+                    },
+                })
+                .collect();
+
+            let outputs_len = cgo_outputs.len() as u32;
+            let (outputs_ptr, _) = leak_vec(unsafe {
+                std::mem::transmute::<Vec<CGOProcessorOutput>, Vec<u8>>(cgo_outputs)
+            });
+
+            CGOProcessResult {
+                outputs_len,
+                outputs: outputs_ptr as *mut CGOProcessorOutput,
+                error_message: ptr::null_mut(),
+            }
+        }
+        Err(e) => create_error_result(&e),
+    }
+}
+
+/// rdp_decoder_free_result frees the memory allocated for CGOProcessResult
+///
+/// # Safety
+///
+/// The result must be from rdp_decoder_process
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_free_result(result: CGOProcessResult) {
+    if !result.outputs.is_null() && result.outputs_len > 0 {
+        let outputs = Vec::from_raw_parts(
+            result.outputs,
+            result.outputs_len as usize,
+            result.outputs_len as usize,
+        );
+
+        for output in outputs {
+            match output.output_type {
+                CGOProcessorOutputType::GraphicsUpdate => {
+                    if !output.frame_update.data.is_null() && output.frame_update.data_len > 0 {
+                        drop(Vec::from_raw_parts(
+                            output.frame_update.data,
+                            output.frame_update.data_len as usize,
+                            output.frame_update.data_len as usize,
+                        ));
+                    }
+                }
+                CGOProcessorOutputType::ResponseFrame => {
+                    if !output.response_data.is_null() && output.response_len > 0 {
+                        drop(Vec::from_raw_parts(
+                            output.response_data,
+                            output.response_len as usize,
+                            output.response_len as usize,
+                        ));
+                    }
+                }
+                CGOProcessorOutputType::PointerBitmap => {
+                    if !output.pointer_update.data.is_null() && output.pointer_update.data_len > 0 {
+                        drop(Vec::from_raw_parts(
+                            output.pointer_update.data,
+                            output.pointer_update.data_len as usize,
+                            output.pointer_update.data_len as usize,
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if !result.error_message.is_null() {
+        drop(CString::from_raw(result.error_message));
+    }
 }

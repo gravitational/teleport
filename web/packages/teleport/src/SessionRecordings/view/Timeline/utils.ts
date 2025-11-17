@@ -33,6 +33,16 @@ export function calculateThumbnailViewport(
   width: number,
   height: number
 ) {
+  if (thumbnail.png) {
+    return {
+      sourceX: 0,
+      sourceY: 0,
+      sourceWidth: width,
+      sourceHeight: height,
+      zoomLevel: 1,
+    };
+  }
+
   // Use different zoom levels based on cursor visibility
   const zoomLevel = thumbnail.cursorVisible
     ? zoomLevelWithCursor

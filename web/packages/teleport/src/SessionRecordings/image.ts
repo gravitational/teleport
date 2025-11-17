@@ -19,11 +19,22 @@
 import { useMemo } from 'react';
 import { type DefaultTheme } from 'styled-components';
 
-export function useThumbnailSvg(svg: string, styles: string) {
-  return useMemo(
-    () => svgToDataURIBase64(injectSVGStyles(svg, styles)),
-    [svg, styles]
-  );
+export function useThumbnailImage(
+  svg: string | undefined,
+  png: string | undefined,
+  styles: string
+) {
+  return useMemo(() => {
+    if (svg) {
+      return svgToDataURIBase64(injectSVGStyles(svg, styles));
+    }
+
+    if (png) {
+      return pngToDataURIBase64(png);
+    }
+
+    return undefined;
+  }, [svg, png, styles]);
 }
 
 export function injectSVGStyles(svg: string, styles: string) {
@@ -79,4 +90,8 @@ export function svgToDataURIBase64(svg: string) {
   const encoded = encodeURIComponent(svg.replace('<?xml version="1.0"?>', ''));
 
   return `data:image/svg+xml;charset=utf-8,${encoded}`;
+}
+
+export function pngToDataURIBase64(png: string) {
+  return `data:image/png;base64,${btoa(png)}`;
 }
