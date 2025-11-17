@@ -299,13 +299,6 @@ message MFAPromptResponseReference {
   // challenge_name is the name of the MFA challenge created by the client.
   string challenge_name = 1;
 }
-
-// SessionPayload contains identification information about an SSH session.
-message SessionPayload {
-  // session_id is the SSH session hash computed from SSH session state. For example, in Go this would be the value from
-  // crypto/ssh#ConnMetadata.SessionID().
-  bytes session_id = 1;
-}
 ```
 
 #### MFA Service
@@ -351,7 +344,9 @@ service MFAService {
 // It must be computed by the client from session state and is used to bind MFA challenges to specific sessions.
 message SessionIdentifyingPayload {
   oneof payload {
-    teleport.ssh.v1.SessionPayload ssh_session = 1;
+    // session_id is the SSH session hash computed from SSH session state. For example, in Go this would be the value from
+    // crypto/ssh#ConnMetadata.SessionID().
+    bytes ssh_session_id = 1;
   }
 }
 
@@ -363,9 +358,9 @@ message CreateChallengeRequest {
   // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
   string sso_client_redirect_url = 2;
-  // proxy_address is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
-  // is required to determine which URL to redirect the user to when there are multiple options.
-  string proxy_address = 3;
+  // proxy_address_for_sso is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this
+  // address is required to determine which URL to redirect the user to when there are multiple options.
+  string proxy_address_for_sso = 3;
 }
 
 // CreateChallengeResponse is the response message for CreateChallenge.
