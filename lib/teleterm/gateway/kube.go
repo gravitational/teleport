@@ -218,8 +218,9 @@ func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certific
 	// address
 	profileName, err := utils.Host(k.cfg.WebProxyAddr)
 	if err != nil {
-		profileName = k.cfg.WebProxyAddr
+		return trace.Wrap(err)
 	}
+
 	values := &kubeconfig.LocalProxyValues{
 		TeleportProfileName: profileName,
 		// Ideally TeleportKubeClusterAddr would be set to tc.KubeClusterAddr()

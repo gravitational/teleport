@@ -237,9 +237,13 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 			// tsh does) that the profile name is exactly the same as the
 			// hostname of the Proxy web address, and it would be more correct
 			// to update every callsite to also pass the profile name
-			profileName, err := utils.Host(v.ProxyAddr)
-			if err != nil {
-				profileName = v.ProxyAddr
+			var profileName string
+			if v.ProxyAddr != "" {
+				p, err := utils.Host(v.ProxyAddr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				profileName = p
 			}
 			if profileName != "" {
 				setStringExtensionInCluster(config.Clusters[contextName], extProfileName, profileName)
@@ -311,9 +315,13 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 				setStringExtensionInAuthInfo(config.AuthInfos[contextName], extKubeClusterName, kubeClusterName)
 			}
 
-			profileName, err := utils.Host(v.ProxyAddr)
-			if err != nil {
-				profileName = v.ProxyAddr
+			var profileName string
+			if v.ProxyAddr != "" {
+				p, err := utils.Host(v.ProxyAddr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				profileName = p
 			}
 			if profileName != "" {
 				setStringExtensionInCluster(config.Clusters[contextName], extProfileName, profileName)
