@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @zmb3
+* Engineering: @zmb3 && (@codingllama || @Joerger)
 * Security:
 * Product:
 
