@@ -85,12 +85,12 @@ The MFA service will [store the Session Identifying Payload (SIP)](#storing-sess
 with an MFA challenge for the client to solve.
 
 Next, the client solves the MFA challenge and calls `ValidateChallenge` with the MFA response. The MFA service validates
-the MFA response and stores the [ValidatedChallenge](#storing-validated-mfa-responses) resource to the local backend.
+the MFA response and stores the [ValidatedMFAChallenge](#storing-validated-mfa-responses) resource to the local backend.
 
-If the target cluster is a leaf cluster, a watcher in the reverse tunnel server monitors `ValidatedChallenge` events for
-its cluster. When a `ValidatedChallenge` is created for a leaf cluster, the reverse tunnel server calls the
-`ReplicateValidatedChallenge` RPC using its MFA service client to forward the challenge to the leaf cluster's MFA
-service.
+If the target cluster is a leaf cluster, the reverse tunnel server watches for new `ValidatedMFAChallenge` resources
+created in the root cluster. When it sees a new challenge intended for a leaf cluster, it uses the
+`ReplicateValidatedMFAChallenge` RPC to copy that challenge from the root cluster's MFA service to the appropriate leaf
+cluster's MFA service.
 
 This ensures that validated MFA challenges are available in the appropriate cluster for retrieval during SSH session
 establishment.
@@ -101,9 +101,9 @@ validated. If validation fails, the MFA service responds with an `Access Denied:
 The client then sends a [`MFAPromptResponse`](#ssh-keyboard-interactive-authentication) message to the SSH service,
 instructing it to verify the validated challenge with the MFA service.
 
-The SSH service will then call the MFA service's (e.g., `VerifyValidatedChallenge`) RPC with the challenge name and SIP
-as parameters. The MFA service will verify that the validated challenge exists and that the SIP matches the one stored
-earlier.
+The SSH service will then call the MFA service's (e.g., `VerifyValidatedMFAChallenge`) RPC with the challenge name and
+SIP as parameters. The MFA service will verify that the validated challenge exists and that the SIP matches the one
+stored earlier.
 
 If validation succeeds, the SSH session is established. If not, access is denied with an `Access Denied: Invalid MFA
 response` error. If the client does not complete MFA within a specified timeout (e.g., 3 minutes), the SSH service
@@ -125,7 +125,7 @@ sequenceDiagram
   participant SSH as SSH Service
   participant Decision Service
   participant Host as Target SSH Host
-  
+
   Client->>Proxy: Dial SSH
   Proxy->>Decision Service: EvaluateSSHAccess
   Decision Service-->>Proxy: Permit
@@ -141,14 +141,14 @@ sequenceDiagram
     Client->>Client: Solve MFA challenge
     Client->>MFA: ValidateChallenge (MFA response)
     MFA->>MFA: Validate MFA response
-    MFA->>MFA: Store ValidatedChallenge
+    MFA->>MFA: Store ValidatedMFAChallenge
     MFA-->>Client: Challenge validated
 
     Client->>SSH: Keyboard-interactive (MFAPromptResponse(challenge name))
     SSH-->>SSH: Compute SIP
-    SSH->>MFA: VerifyValidatedChallenge (challenge name, SIP)
+    SSH->>MFA: VerifyValidatedMFAChallenge (challenge name, SIP)
     MFA-->>MFA: Verify challenge exists and SIP matches
-    MFA-->>SSH: VerifyValidatedChallengeResponse
+    MFA-->>SSH: VerifyValidatedMFAChallengeResponse
   end
 
   SSH->>Host: Establish SSH connection
@@ -171,16 +171,16 @@ sequenceDiagram
     Client->>Client: Solve MFA challenge
     Client->>rMFA: ValidateChallenge (MFA response)
     rMFA->>rMFA: Validate MFA response
-    rMFA->>rMFA: Store ValidatedChallenge
-    rMFA->>Proxy: ValidatedChallenge create event
-    Proxy->>lMFA: ReplicateValidatedChallenge (ValidatedChallenge)
+    rMFA->>rMFA: Store ValidatedMFAChallenge
+    rMFA->>Proxy: ValidatedMFAChallenge create event
+    Proxy->>lMFA: ReplicateValidatedMFAChallenge (ValidatedMFAChallenge)
     rMFA-->>Client: Challenge validated
 
     Client->>SSH: Keyboard-interactive (MFAPromptResponse(challenge name))
     SSH-->>SSH: Compute SIP
-    SSH->>lMFA: VerifyValidatedChallenge (challenge name, SIP)
+    SSH->>lMFA: VerifyValidatedMFAChallenge (challenge name, SIP)
     lMFA-->>lMFA: Verify challenge exists and SIP matches
-    lMFA-->>SSH: VerifyValidatedChallengeResponse
+    lMFA-->>SSH: VerifyValidatedMFAChallengeResponse
   end
 
   SSH->>Host: Establish SSH connection
@@ -211,17 +211,17 @@ Mitigations:
 #### New RPCs Attack Surface Risk
 
 This RFD introduces an MFA service which exposes four RPCs: `CreateChallenge`, `ValidateChallenge`,
-`ReplicateValidatedChallenge` and `VerifyValidatedChallenge`. These could potentially be exploited by an attacker to DoS
-the service by flooding it with requests.
+`ReplicateValidatedMFAChallenge` and `VerifyValidatedMFAChallenge`. These could potentially be exploited by an attacker
+to DoS the service by flooding it with requests.
 
 Mitigations:
 
 1. Only authenticated end user clients are authorized to call the `CreateChallenge` and `ValidateChallenge` RPCs,
    requests from other sources will be rejected.
-1. Only the Teleport Proxy is authorized to call the `ReplicateValidatedChallenge` RPC, requests from other sources will
-   be rejected.
-1. Only the Teleport SSH service is authorized to call the `VerifyValidatedChallenge` RPC on the MFA service within its
-   own cluster. Requests from other sources will be rejected.
+1. Only the Teleport Proxy is authorized to call the `ReplicateValidatedMFAChallenge` RPC, requests from other sources
+   will be rejected.
+1. Only the Teleport SSH service is authorized to call the `VerifyValidatedMFAChallenge` RPC on the MFA service within
+   its own cluster. Requests from other sources will be rejected.
 1. Ensure that the MFA service validates all inputs before processing the request to avoid unnecessary processing of
    invalid requests.
 
@@ -320,7 +320,7 @@ complexity. Additionally, the RPCs defined in this new service are specifically 
 sessions, instead of further expanding the existing `CreateAuthenticateChallenge` RPC which is more general-purpose.
 
 The RPCs will mirror the existing headless authentication flow. Like `GetHeadlessAuthentication`, the
-`VerifyValidatedChallenge` method will create a watcher with a timeout to wait for the [ValidatedChallenge
+`VerifyValidatedMFAChallenge` method will create a watcher with a timeout to wait for the [ValidatedMFAChallenge
 resource](#storing-validated-mfa-responses) to exist in the backend, rather than requiring the client to poll repeatedly
 until the resource exists in the local backend or for replication to complete to the leaf backend.
 
@@ -336,15 +336,15 @@ service MFAService {
   // ValidateChallenge validates the MFA challenge response for a user session and stores the validated response in the
   // backend.
   rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
-  // ReplicateValidatedChallenge replicates a validated MFA challenge to a leaf cluster for retrieval during SSH session
+  // ReplicateValidatedMFAChallenge replicates a validated MFA challenge to a leaf cluster for retrieval during SSH session
   // establishment. It is a NOOP when used in the root cluster. It is called by the reverse tunnel server when a
   // validated challenge is created for a leaf cluster.
-  rpc ReplicateValidatedChallenge(ReplicateValidatedChallengeRequest) returns (ValidatedChallenge);
-  // VerifyValidatedChallenge verifies a previously validated MFA challenge response for a user session.
+  rpc ReplicateValidatedMFAChallenge(ReplicateValidatedMFAChallengeRequest) returns (ValidatedMFAChallenge);
+  // VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session.
   // If the challenge does not yet exist, this method will block until the resource appears or until the timeout is
   // reached. The payload is used to verify the challenge is tied to the correct user session. If the verification is
   // successful, the MFA device used for authentication is returned. If the verification fails, an error is returned.
-  rpc VerifyValidatedChallenge(VerifyValidatedChallengeRequest) returns (VerifyValidatedChallengeResponse);
+  rpc VerifyValidatedMFAChallenge(VerifyValidatedMFAChallengeRequest) returns (VerifyValidatedMFAChallengeResponse);
 }
 
 // SessionIdentifyingPayload contains a value that uniquely identifies a user's session.
@@ -357,7 +357,7 @@ message SessionIdentifyingPayload {
 
 // CreateChallengeRequest is the request message for CreateChallenge.
 message CreateChallengeRequest {
-  // payload is a value that uniquely identifies the user's session. When VerifyValidatedChallenge is called, the server
+  // payload is a value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server
   // will verify it matches the payload supplied to CreateChallengeRequest.
   SessionIdentifyingPayload payload = 1;
   // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
@@ -389,8 +389,8 @@ message ValidateChallengeRequest {
 // ValidateChallengeResponse is the response message for ValidateChallenge.
 message ValidateChallengeResponse {}
 
-// ReplicateValidatedChallengeRequest is the request message for ReplicateValidatedChallenge.
-message ReplicateValidatedChallengeRequest {
+// ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
+message ReplicateValidatedMFAChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the upsert to the correct challenge.
   string name = 1;
@@ -401,19 +401,19 @@ message ReplicateValidatedChallengeRequest {
   types.MFADevice device = 3;
 }
 
-// VerifyValidatedChallengeRequest is the request message for VerifyValidatedChallenge.
-message VerifyValidatedChallengeRequest {
+// VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
+message VerifyValidatedMFAChallengeRequest {
   // name is the resource name for the issued challenge.
   // This must match the 'name' returned in CreateChallengeResponse to tie the retrieval to the correct challenge.
   string name = 1;
-  // payload is a value that uniquely identifies the user's session. The client calling VerifyValidatedChallenge MUST
+  // payload is a value that uniquely identifies the user's session. The client calling VerifyValidatedMFAChallenge MUST
   // independently compute this value from session state. The server will verify it matches the payload supplied in
   // CreateChallengeRequest to ensure the challenge is tied to the correct session.
   SessionIdentifyingPayload payload = 2;
 }
 
-// VerifyValidatedChallengeResponse is the response message for VerifyValidatedChallenge.
-message VerifyValidatedChallengeResponse {
+// VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
+message VerifyValidatedMFAChallengeResponse {
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 1;
 }
@@ -493,16 +493,16 @@ Validated MFA responses and SIPs will be temporarily stored in the MFA service f
 session establishment. For local clusters, this storage is local to the same cluster. For leaf clusters, the root MFA
 service forwards the validated challenge to the leaf cluster's MFA service for storage.
 
-A new backend resource `ValidatedChallenge` will be created following the [resource
+A new backend resource `ValidatedMFAChallenge` will be created following the [resource
 guidelines](/rfd/0153-resource-guidelines.md). The only operations supported by this resource are: retrieval via
-`VerifyValidatedChallenge` and replication to leaf clusters via `ReplicateValidatedChallenge`. The resource will be
-automatically deleted after expiration.
+`VerifyValidatedMFAChallenge` and replication to leaf clusters via `ReplicateValidatedMFAChallenge`. The resource will
+be automatically deleted after expiration.
 
 ```proto
 package teleport.mfa.v1;
 
-// ValidatedChallenge represents a validated MFA challenge tied to a user session.
-message ValidatedChallenge {
+// ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
+message ValidatedMFAChallenge {
   // The kind of resource represented.
   string kind = 1;
   // Differentiates variations of the same kind. All resources should
@@ -513,12 +513,12 @@ message ValidatedChallenge {
   // Common metadata that all resources share.
   teleport.header.v1.Metadata metadata = 4;
   // The validated challenge specification.
-  ValidatedChallengeSpec spec = 5;
+  ValidatedMFAChallengeSpec spec = 5;
 }
 
-// ValidatedChallengeSpec contains the validated challenge data that is set once
+// ValidatedMFAChallengeSpec contains the validated challenge data that is set once
 // during creation and never modified.
-message ValidatedChallengeSpec {
+message ValidatedMFAChallengeSpec {
   // payload is a value that uniquely identifies the user's session. It is the value that was supplied in
   // CreateChallengeRequest.
   SessionIdentifyingPayload payload = 1;
@@ -529,30 +529,30 @@ message ValidatedChallengeSpec {
 
 ###### Leaf Cluster Resource Stream Handling
 
-A parser will be defined in order to decode `ValidatedChallenge` resources received over the resource stream. The
+A parser will be defined in order to decode `ValidatedMFAChallenge` resources received over the resource stream. The
 function in `lib/services/local/events.go` will be updated to instantiate the new parser.
 
 ```go
-func newValidatedChallengeParser() *validatedChallengeParser {
-  return &validatedChallengeParser{
-    baseParser: newBaseParser(backend.Key(validatedChallengePrefix)),
+func newValidatedMFAChallengeParser() *ValidatedMFAChallengeParser {
+  return &ValidatedMFAChallengeParser{
+    baseParser: newBaseParser(backend.Key(ValidatedMFAChallengePrefix)),
   }
 }
 
-type validatedChallengeParser struct {
+type ValidatedMFAChallengeParser struct {
   baseParser
 }
 
-func (p *validatedChallengeParser) parse(event backend.Event) (types.Resource, error) {
-  // Placeholder for parsing logic for the ValidatedChallenge resource here.
+func (p *ValidatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
+  // Placeholder for parsing logic for the ValidatedMFAChallenge resource here.
 }
 ```
 
-Additionally, a filter will be defined to allow querying `ValidatedChallenge` resources by target cluster name.
+Additionally, a filter will be defined to allow querying `ValidatedMFAChallenge` resources by target cluster name.
 
 ```go
-// ValidatedChallengeFilter is a filter for ValidatedChallenge resources.
-type ValidatedChallengeFilter struct {
+// ValidatedMFAChallengeFilter is a filter for ValidatedMFAChallenge resources.
+type ValidatedMFAChallengeFilter struct {
   // ClusterName is the name of the cluster to filter by.
   ClusterName string
 }
@@ -635,8 +635,8 @@ The existing SSH session audit events will be updated to include a field indicat
 flow, per-session MFA certificate, or unspecified). This will help with tracking the rollout of the new in-band MFA flow
 during the transition period and provide flexibility for future MFA flow types.
 
-Audit events will not be added for the `ReplicateValidatedChallenge` and `VerifyValidatedChallenge` because these RPCs
-are internal to the SSH session establishment process and do not represent user actions.
+Audit events will not be added for the `ReplicateValidatedMFAChallenge` and `VerifyValidatedMFAChallenge` because these
+RPCs are internal to the SSH session establishment process and do not represent user actions.
 
 ```proto
 package events;
@@ -712,7 +712,7 @@ The following are assumed to be completed before starting work on this RFD:
 
 #### Phase 1 (Transition Period - at least 2 major releases)
 
-1. Add the `ValidatedChallenge` backend resource to store validated MFA responses tied to user sessions.
+1. Add the `ValidatedMFAChallenge` backend resource to store validated MFA responses tied to user sessions.
 1. Add `MFAService` to support creating, validating, replicating and verifying MFA challenges tied to specific user
    sessions.
 1. Update the SSH service to implement the in-band MFA flow during session establishment.
