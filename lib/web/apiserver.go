@@ -4278,7 +4278,7 @@ func (h *Handler) fetchJoinSession(ctx context.Context, clt authclient.ClientI, 
 			return session.Session{}, nil, trace.Wrap(err)
 		}
 	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
-		return session.Session{}, nil, trace.BadParameter("session joining is not supported in proxy recording mode")
+		return session.Session{}, nil, trace.BadParameter("session joining is not supported in proxy recording mode. If you are a Teleport administrator, you can learn more about recording modes at: https://goteleport.com/docs/reference/architecture/session-recording")
 	}
 
 	sessionID, err := session.ParseID(req.JoinSessionID.String())
