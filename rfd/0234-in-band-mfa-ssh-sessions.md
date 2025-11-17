@@ -373,7 +373,7 @@ message CreateChallengeRequest {
   // state. When VerifyValidatedChallenge is called, the server will verify it matches the payload supplied to
   // CreateChallengeRequest.
   oneof payload {
-    teleport.ssh.v1.SessionPayload ssh = 1;
+    teleport.ssh.v1.SessionPayload ssh_session = 1;
   }
   // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
@@ -412,7 +412,7 @@ message ReplicateValidatedChallengeRequest {
   // payload is a value that uniquely identifies the user's session. This should match the oneof payload in
   // CreateChallengeRequest.
   oneof payload {
-    teleport.ssh.v1.SessionPayload ssh = 2;
+    teleport.ssh.v1.SessionPayload ssh_session = 2;
   }
   // device contains information about the user's MFA device used to authenticate.
   types.MFADevice device = 3;
@@ -427,7 +427,7 @@ message VerifyValidatedChallengeRequest {
   // independently compute this value from session state. The server will verify it matches the one supplied in
   // CreateChallengeRequest to ensure the challenge is tied to the correct session.
   oneof payload {
-    teleport.ssh.v1.SessionPayload ssh = 2;
+    teleport.ssh.v1.SessionPayload ssh_session = 2;
   }
 }
 
