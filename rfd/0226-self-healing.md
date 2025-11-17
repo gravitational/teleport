@@ -256,7 +256,8 @@ services resource will be set to expire 1 minute from the time of the last heart
 and the heartbeat will be sent at an interval of `1 minute/2 + utils.RandomDuration(1 minute/10)`.
 
 We will also add a `TTL` field to Proxy discovery requests. Agents can
-than use this field in favor of the `DefaultProxyExpiry` when its present.
+than use this field in favor of the `DefaultProxyExpiry` when its present to expire
+proxies from their tracker.
 
 ```
 type Proxy struct {
@@ -267,16 +268,28 @@ type Proxy struct {
 
 	ProxyGroupID         string        `json:"gid,omitempty"`
 	ProxyGroupGeneration uint64        `json:"ggen,omitempty"`
-    TTL                  time.Duration `json:"ttl,omitempty"`
+  TTL                  time.Duration `json:"ttl,omitempty"`
 }
 ```
 
-The `TTL` for each server will be set based on the heartbeat interval
-configured at each proxy and auth. This will be stored in the backend `Server` resource
-as `Server.Spec.TTL`. This is a new field we will add to allow different TTL values
-to exist for different service instances. This is to help avoid issues with the
-`Server.Metadata.Expiry` field which could occur due to clock drift or when different `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL`
-durations are configured in the cluster.
+The `TTL` used in discovery requests will be set based on the a value stored in
+the backend `Server`. This field `Server.Spec.TTL` will be added to store this value.
+This new field is a duration set based on the `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL`
+or the default `ServerAnnounceTTL`.
+
+The purpose of this is to allow for dynamically configuring each agent's proxy
+tracker expiry based off of each proxy instances configured `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL`.
+
+Using the local proxy's `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL` for every locally
+served discovery request was considered but this leads to issues when multiple different
+values are configured in a cluster. Specially a proxy with a longer `TTL` could
+appear to expire from the point of an agent receiving discovery requests from a proxy
+with a shorter `TTL`.
+
+Using `Server.Metadata.Expiry` over adding a new field was considered but this has
+potential issues with clock drift and delays in cache event propagation. 
+An agent with a fast clock or receiving a delayed event could evaluate a proxy as
+expiring sooner than it actually is. 
 
 #### Reducing Discovery Request Traffic
 
