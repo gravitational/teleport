@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
@@ -84,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -94,6 +96,7 @@ import (
 	libstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
@@ -1303,42 +1306,19 @@ func TestDiscoveryKubeServices(t *testing.T) {
 // TestDiscoveryKubeServicesInterval tests that the poll interval is honored for Kube App Discovery.
 func TestDiscoveryKubeServicesInterval(t *testing.T) {
 	const mainDiscoveryGroup = "main"
-	clock := clockwork.NewFakeClock()
-	waitForReconcileTimeout := 5 * time.Second
-	tickDuration := 200 * time.Millisecond
-	ctx := context.Background()
 
 	mockKubeServices := []*corev1.Service{
 		newMockKubeService("service1", "ns1", "",
 			map[string]string{"test-label": "testval"},
-			map[string]string{
-				types.DiscoveryPublicAddr:  "custom.example.com",
-				types.DiscoveryPathLabel:   "foo/bar baz",
-				types.DiscoveryDescription: "example description",
-			},
+			nil,
+			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
+		newMockKubeService("service2", "ns2", "",
+			map[string]string{"test-label": "testval"},
+			nil,
 			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
 	}
 
-	app1 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
-
-	// Create and start test auth server.
-	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
-
-	tlsServer, err := testAuthServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
-
-	// Auth client for discovery service.
-	identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
-	authClient, err := tlsServer.NewClient(identity)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
-
-	// Kubernetes app matcher
+	// Kubernetes app discovery matcher
 	kubernetesMatchers := []types.KubernetesMatcher{
 		{
 			Types:      []string{"app"},
@@ -1347,48 +1327,49 @@ func TestDiscoveryKubeServicesInterval(t *testing.T) {
 		},
 	}
 
-	pollInterval := 1 * time.Minute
-	discServer, err := New(
-		authz.ContextWithUser(ctx, identity.I),
-		&Config{
-			ClusterFeatures:  func() proto.Features { return proto.Features{} },
-			KubernetesClient: fake.NewSimpleClientset(mockKubeServices[0]),
-			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
-			Matchers: Matchers{
-				Kubernetes: kubernetesMatchers,
-			},
-			Emitter:        authClient,
-			DiscoveryGroup: mainDiscoveryGroup,
-			PollInterval:   pollInterval,
-			clock:          clock,
-		})
-	require.NoError(t, err)
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
 
-	t.Cleanup(discServer.Stop)
-	go discServer.Start()
+		fakeKubeClient := fake.NewSimpleClientset(mockKubeServices[0])
 
-	// First reconcile should have 1 app
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		existingApps, err := tlsServer.Auth().GetApps(ctx)
+		bk, err := memory.New(memory.Config{})
 		require.NoError(t, err)
-		require.Len(t, existingApps, 1)
-	}, waitForReconcileTimeout, tickDuration)
+		mockAccessPoint := &mockAuthServer{
+			events: local.NewEventsService(bk),
+		}
 
-	// After deleting in auth server, should have no apps
-	err = tlsServer.Auth().DeleteApp(ctx, app1.GetName())
-	require.NoError(t, err)
-	actualApps, err := tlsServer.Auth().GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, actualApps)
-
-	clock.Advance(pollInterval)
-
-	// Second reconcile should have 1 app
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		existingApps, err := tlsServer.Auth().GetApps(ctx)
+		const pollInterval = 1 * time.Minute
+		discServer, err := New(ctx,
+			&Config{
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
+				KubernetesClient: fakeKubeClient,
+				AccessPoint:      mockAccessPoint,
+				Matchers: Matchers{
+					Kubernetes: kubernetesMatchers,
+				},
+				Emitter:        &mockEmitter{},
+				DiscoveryGroup: mainDiscoveryGroup,
+				PollInterval:   pollInterval,
+			})
 		require.NoError(t, err)
-		require.Len(t, existingApps, 1)
-	}, waitForReconcileTimeout, tickDuration)
+
+		t.Cleanup(discServer.Stop)
+		go discServer.Start()
+
+		// Wait for discovery server to complete one iteration of discovering resources
+		synctest.Wait()
+
+		// Mock access point implementation does not actually create the app resource, but usage event is still logged
+		require.Len(t, mockAccessPoint.usageEvents, 1)
+
+		// Create new Kube service to be discovered by discServer
+		fakeKubeClient.CoreV1().Services("ns2").Create(ctx, mockKubeServices[1], v1.CreateOptions{})
+
+		time.Sleep(pollInterval)
+		synctest.Wait()
+
+		require.Len(t, mockAccessPoint.usageEvents, 2)
+	})
 }
 
 func TestDiscoveryInCloudKube(t *testing.T) {
