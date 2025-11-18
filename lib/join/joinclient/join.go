@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
+	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/env0"
@@ -202,6 +203,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		types.JoinMethodBoundKeypair,
 		types.JoinMethodEC2,
 		types.JoinMethodEnv0,
+		types.JoinMethodGCP,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
 		types.JoinMethodIAM,
@@ -319,6 +321,15 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodOracle:
 		return oracleJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodGCP:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = gcp.GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodGitHub:
 		if joinParams.IDToken == "" {
 			joinParams.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)

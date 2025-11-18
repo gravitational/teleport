@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/ec2join"
+	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
@@ -85,6 +86,7 @@ type AuthService interface {
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
 	GetEnv0IDTokenValidator() Env0TokenValidator
+	GetGCPIDTokenValidator() gcp.Validator
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
@@ -294,6 +296,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
 	case types.JoinMethodOracle:
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodGCP:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGCPToken)
 	case types.JoinMethodGitHub:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:

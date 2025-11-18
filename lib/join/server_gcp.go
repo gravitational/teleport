@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,40 +16,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package join
 
 import (
 	"context"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
-// GetGCPIDTokenValidator returns the server's configured GCP ID token
-// validator.
-func (a *Server) GetGCPIDTokenValidator() gcp.Validator {
-	return a.gcpIDTokenValidator
-}
-
-// SetGCPIDTokenValidator sets a new GCP ID token validator, used in tests.
-func (a *Server) SetGCPIDTokenValidator(validator gcp.Validator) {
-	a.gcpIDTokenValidator = validator
-}
-
-func (a *Server) checkGCPJoinRequest(
+// validateGCPToken performs validation and allow rule verification against
+// a GCP OIDC token.
+func (a *Server) validateGCPToken(
 	ctx context.Context,
-	req *types.RegisterUsingTokenRequest,
-	pt types.ProvisionToken,
-) (*gcp.IDTokenClaims, error) {
+	pt provision.Token,
+	idToken []byte,
+) (any, *workloadidentityv1.JoinAttrs, error) {
 	claims, err := gcp.CheckIDToken(ctx, &gcp.CheckIDTokenParams{
 		ProvisionToken: pt,
-		IDToken:        []byte(req.IDToken),
-		Validator:      a.gcpIDTokenValidator,
+		IDToken:        idToken,
+		Validator:      a.cfg.AuthService.GetGCPIDTokenValidator(),
 	})
 
-	// Where possible, try to return any extracted claims along with the error
-	// to improve audit logs for failed join attempts.
-	return claims, trace.Wrap(err)
+	// If possible, attach claims and workload ID attrs regardless of the error
+	// return. If the token fails to validate, these claims will ensure audit
+	// events remain useful.
+	var workloadIDAttrs *workloadidentityv1.JoinAttrs
+	if claims != nil {
+		workloadIDAttrs = &workloadidentityv1.JoinAttrs{
+			Gcp: claims.JoinAttrs(),
+		}
+	}
+
+	return claims, workloadIDAttrs, trace.Wrap(err)
 }
