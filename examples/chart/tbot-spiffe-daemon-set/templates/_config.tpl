@@ -1,5 +1,5 @@
-{{ if not (or .Values.teleportAuthAddress .Values.teleportProxyAddress) }}
-  {{- $_ := required "`teleportAuthAddress` or `teleportProxyAddress` must be provided" "" }}
+{{ if not .Values.teleportProxyAddress }}
+  {{- $_ := required "`teleportProxyAddress` must be provided" "" }}
 {{ end }}
 {{ if not .Values.clusterName }}
   {{- $_ := required "`clusterName` must be provided" "" }}
@@ -14,9 +14,6 @@
 version: v2
 {{- if .Values.teleportProxyAddress }}
 proxy_server: {{ .Values.teleportProxyAddress }}
-{{- end }}
-{{- if .Values.teleportAuthAddress }}
-auth_server: {{ .Values.teleportAuthAddress }}
 {{- end }}
 onboarding:
   join_method: {{ .Values.joinMethod }}
