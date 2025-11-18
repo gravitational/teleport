@@ -5744,6 +5744,10 @@ message SAMLConnectorSpecV2 {
   // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
   // match for identifier-first login.
   repeated string UserMatchers = 20 [(gogoproto.jsontag) = "user_matchers,omitempty"];
+  // IncludeSubject is a flag that indicates whether the Subject element is included in the SAML
+  // authentication request. Defaults to false.
+  // Note: Some IdPs will reject requests that contain a Subject.
+  bool IncludeSubject = 21 [(gogoproto.jsontag) = "include_subject,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5857,6 +5861,9 @@ message SAMLAuthRequest {
   bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
   // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
   string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
+  // SubjectIdentifier is an optional username/email provided by the client that will be
+  // passed to prepopulate the IdP's login form
+  string SubjectIdentifier = 25 [(gogoproto.jsontag) = "subject_identifier,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.

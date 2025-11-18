@@ -32,7 +32,7 @@ const (
 	WebConfigAuthProviderSAMLType = "saml"
 	// WebConfigAuthProviderSAMLURL is SAML webapi endpoint.
 	// redirect_url MUST be the last query param, see the comment in parseSSORequestParams for an explanation.
-	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?connector_id=:providerName&redirect_url=:redirect"
+	WebConfigAuthProviderSAMLURL = "/v1/webapi/saml/sso?connector_id=:providerName&login_hint=:loginHint?&redirect_url=:redirect"
 
 	// WebConfigAuthProviderGitHubType is GitHub provider type
 	WebConfigAuthProviderGitHubType = "github"
