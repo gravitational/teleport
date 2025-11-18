@@ -63,13 +63,13 @@ message ScopedTokenSpec {
 
   // The number of resources that can be provisioned using this token.
   optional int32 max_uses = 5;
-
-  // The number of successful provisioning attempts made using this token.
-  int32 attempted_uses = 6;
 }
 
 // The token's status including how many usage attempts have been made.
 message ScopedTokenStatus {
   // The number of successful provisioning attempts made using this token.
   int32 attempted_uses = 1;
+
+  // The public keys associated with successful provisioning attempts.
+  repeated bytes public_keys_provisioned = 2;
 }

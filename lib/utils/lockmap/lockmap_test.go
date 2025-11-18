@@ -39,7 +39,7 @@ func TestLockMap(t *testing.T) {
 	// map access
 	resultArr := [5]int{}
 
-	lm := lockmap.New[int]()
+	var lm lockmap.LockMap[int]
 
 	// spin up a bunch of goroutines to concurrently increment up to the
 	// expected values
@@ -47,9 +47,9 @@ func TestLockMap(t *testing.T) {
 		for key, expect := range expectMap {
 			for range expect {
 				go func(idx int) {
-					unlocker := lm.Lock(key)
+					lm.Lock(key)
 					resultArr[key]++
-					unlocker.Unlock()
+					lm.Unlock(key)
 				}(key)
 			}
 		}

@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 // handleTokenJoin handles join attempts for the token join method.
@@ -53,8 +54,8 @@ func (s *Server) handleTokenJoin(
 	// Scoped tokens have usage limits, so once we've verified that host certs could
 	// be generated we need to attempt to consume the token. Any error should be
 	// considered a join failure.
-	if token.GetAssignedScope() != "" {
-		if _, err := s.cfg.ScopedTokenService.ConsumeScopedToken(stream.Context(), token.GetName()); err != nil {
+	if scopedToken, ok := token.(*joining.Token); ok {
+		if _, err := s.cfg.ScopedTokenService.ConsumeScopedToken(stream.Context(), scopedToken.Scoped(), tokenInit.ClientParams.HostParams.PublicKeys.PublicTLSKey); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

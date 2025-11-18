@@ -21,10 +21,7 @@ import (
 )
 
 type lock[T comparable] struct {
-	lm *LockMap[T]
-
-	key      T
-	mx       sync.Mutex
+	mu       sync.Mutex
 	refCount int
 }
 
@@ -33,60 +30,49 @@ type lock[T comparable] struct {
 // does not grow unbounded.
 type LockMap[T comparable] struct {
 	locks map[T]*lock[T]
-	mx    sync.Mutex
-}
-
-// New returns an empty, initialized [LockMap].
-func New[T comparable]() *LockMap[T] {
-	return &LockMap[T]{
-		locks: map[T]*lock[T]{},
-		mx:    sync.Mutex{},
-	}
-}
-
-// An Unlocker is returned by [LockMap.Lock] and must be called to release a given lock and
-// decrement its ref count.
-type Unlocker interface {
-	Unlock()
+	mu    sync.Mutex
 }
 
 // Lock acquires a lock for the given key, creating one if needed, and returns an [Unlocker].
 // Each lock is ref counted and removed when that count reaches 0. This allows reusing a lock
 // when it's under contention while preventing unbounded growth of the lock map.
-func (lm *LockMap[T]) Lock(key T) Unlocker {
+func (lm *LockMap[T]) Lock(key T) {
 	// alias the LockMap's mutex to avoid confusion
-	mapMx := &lm.mx
-	mapMx.Lock()
-
+	mapMu := &lm.mu
+	mapMu.Lock()
+	if lm.locks == nil {
+		lm.locks = make(map[T]*lock[T])
+	}
 	l, ok := lm.locks[key]
 	if !ok {
-		l = &lock[T]{key: key, lm: lm}
+		l = &lock[T]{}
 		lm.locks[key] = l
 	}
 	l.refCount++
-	mapMx.Unlock()
-
-	l.mx.Lock()
-	return l
+	mapMu.Unlock()
+	l.mu.Lock()
 }
 
 // Unlock releases a lock for the given key. If the ref count for the lock is zero, it is removed
 // from the map.
-func (l *lock[T]) Unlock() {
-	// alias the LockMap's mutex to avoid confusion
-	mapMx := &l.lm.mx
-	mapMx.Lock()
+func (lm *LockMap[T]) Unlock(key T) {
+	mapMu := &lm.mu
+	mapMu.Lock()
+	l, ok := lm.locks[key]
+	if !ok {
+		return
+	}
 	l.refCount--
 	if l.refCount < 1 {
-		delete(l.lm.locks, l.key)
+		delete(lm.locks, key)
 	}
-	mapMx.Unlock()
-	l.mx.Unlock()
+	mapMu.Unlock()
+	l.mu.Unlock()
 }
 
 // Len returns the number of entries remaining in the [LockMap].
 func (lm *LockMap[T]) Len() int {
-	lm.mx.Lock()
-	defer lm.mx.Unlock()
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
 	return len(lm.locks)
 }

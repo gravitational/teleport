@@ -152,9 +152,7 @@ type ScopedTokenSpec struct {
 	// Supported joining methods for scoped tokens only include 'token'.
 	JoinMethod string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
 	// The number of resources that can be provisioned using this token.
-	MaxUses *int32 `protobuf:"varint,5,opt,name=max_uses,json=maxUses,proto3,oneof" json:"max_uses,omitempty"`
-	// The number of successful provisioning attempts made using this token.
-	AttemptedUses int32 `protobuf:"varint,6,opt,name=attempted_uses,json=attemptedUses,proto3" json:"attempted_uses,omitempty"`
+	MaxUses       *int32 `protobuf:"varint,5,opt,name=max_uses,json=maxUses,proto3,oneof" json:"max_uses,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -217,20 +215,15 @@ func (x *ScopedTokenSpec) GetMaxUses() int32 {
 	return 0
 }
 
-func (x *ScopedTokenSpec) GetAttemptedUses() int32 {
-	if x != nil {
-		return x.AttemptedUses
-	}
-	return 0
-}
-
 // The token's status including how many usage attempts have been made.
 type ScopedTokenStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The number of successful provisioning attempts made using this token.
 	AttemptedUses int32 `protobuf:"varint,1,opt,name=attempted_uses,json=attemptedUses,proto3" json:"attempted_uses,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// The public keys associated with successful provisioning attempts.
+	PublicKeysProvisioned [][]byte `protobuf:"bytes,2,rep,name=public_keys_provisioned,json=publicKeysProvisioned,proto3" json:"public_keys_provisioned,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *ScopedTokenStatus) Reset() {
@@ -270,6 +263,13 @@ func (x *ScopedTokenStatus) GetAttemptedUses() int32 {
 	return 0
 }
 
+func (x *ScopedTokenStatus) GetPublicKeysProvisioned() [][]byte {
+	if x != nil {
+		return x.PublicKeysProvisioned
+	}
+	return nil
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -282,17 +282,17 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xc3\x01\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x9c\x01\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
 	"\vjoin_method\x18\x03 \x01(\tR\n" +
 	"joinMethod\x12\x1e\n" +
-	"\bmax_uses\x18\x05 \x01(\x05H\x00R\amaxUses\x88\x01\x01\x12%\n" +
-	"\x0eattempted_uses\x18\x06 \x01(\x05R\rattemptedUsesB\v\n" +
-	"\t_max_uses\":\n" +
+	"\bmax_uses\x18\x05 \x01(\x05H\x00R\amaxUses\x88\x01\x01B\v\n" +
+	"\t_max_uses\"r\n" +
 	"\x11ScopedTokenStatus\x12%\n" +
-	"\x0eattempted_uses\x18\x01 \x01(\x05R\rattemptedUsesBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\x0eattempted_uses\x18\x01 \x01(\x05R\rattemptedUses\x126\n" +
+	"\x17public_keys_provisioned\x18\x02 \x03(\fR\x15publicKeysProvisionedBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
