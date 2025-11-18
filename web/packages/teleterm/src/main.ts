@@ -391,7 +391,7 @@ async function migrateOldTshHomeOnce(
   } catch (err) {
     if (err.code === 'ENOENT') {
       logger.info(
-        'Old tsh directory does not exist, marking migration as processed.'
+        'Old tsh directory does not exist, marking migration as processed'
       );
       markMigrationAsProcessed({ noOldTshHome: true });
       return;
@@ -413,7 +413,9 @@ async function migrateOldTshHomeOnce(
       force: true,
       dereference: true,
     });
-    logger.info('Successfully copied tsh home directory to', tshHome);
+    logger.info(
+      `Successfully copied tsh home directory from ${oldTshHome} to ${tshHome}`
+    );
   } catch (err) {
     logger.error('Failed to copy tsh directory', err);
   } finally {
