@@ -884,21 +884,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
-	// perform validation as a pre action
-	app.PreAction(func(pc *kingpin.ParseContext) error {
-		if cf.HomePath != "" {
-			cf.HomePath = filepath.Clean(cf.HomePath)
-		}
-		if cf.GlobalTshConfigPath != "" {
-			cf.GlobalTshConfigPath = filepath.Clean(cf.GlobalTshConfigPath)
-		}
-		if cf.SiteName == "" {
-			if clusterName := os.Getenv(siteEnvVar); clusterName != "" {
-				cf.SiteName = clusterName
-			}
-		}
-		return nil
-	})
 
 	app.Flag("ttl", "Minutes to live for a session.").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file.").Short('i').Envar(identityFileEnvVar).StringVar(&cf.IdentityFileIn)
@@ -1504,6 +1489,19 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			logger.WarnContext(ctx, "Templates may be rendered with an unstable path to the tsh executable; reinstall tsh with Managed Updates to prevent instability")
 		} else if err != nil {
 			return trace.Wrap(err, "determining executable path")
+		}
+	}
+
+	if cf.HomePath != "" {
+		cf.HomePath = filepath.Clean(cf.HomePath)
+	}
+	if cf.GlobalTshConfigPath != "" {
+		cf.GlobalTshConfigPath = filepath.Clean(cf.GlobalTshConfigPath)
+	}
+
+	if cf.SiteName == "" {
+		if clusterName := os.Getenv(siteEnvVar); clusterName != "" {
+			cf.SiteName = clusterName
 		}
 	}
 
