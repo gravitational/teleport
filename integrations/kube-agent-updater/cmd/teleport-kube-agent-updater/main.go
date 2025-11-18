@@ -177,7 +177,7 @@ func main() {
 	var updateYAML v1.ConfigMap
 	err = mgr.GetClient().Get(ctx, kclient.ObjectKey{
 		Namespace: agentNamespace,
-		Name:      agentName + "-update",
+		Name:      agentName + "-updater",
 	}, &updateYAML)
 	switch {
 	case apierrors.IsNotFound(err):
