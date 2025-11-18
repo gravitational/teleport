@@ -150,6 +150,10 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 // Returns the version needs to be updated and re-executed, by re-execution flag we
 // understand that update and re-execute is required.
 func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *UpdateResponse, err error) {
+	if shouldSkipDevVersion() {
+		return &UpdateResponse{Version: "", ReExec: false}, nil
+	}
+
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -212,6 +216,10 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
 func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (response *UpdateResponse, err error) {
+	if shouldSkipDevVersion() {
+		return &UpdateResponse{Version: "", ReExec: false}, nil
+	}
+
 	proxyHost := utils.TryHost(proxyAddr)
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)

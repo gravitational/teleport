@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -72,7 +73,7 @@ func newUpdater(toolsDir string) (*Updater, error) {
 func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
 	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
 	// so we don't try to read te user home directory, fail, and log warnings.
-	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled {
+	if shouldSkipAutoUpdate() {
 		return nil
 	}
 
@@ -131,7 +132,8 @@ func CheckAndUpdateRemote(ctx context.Context, currentProfileName string, insecu
 	// If we are re-executed, we ignore the "off" version because some previous Teleport versions
 	// are disabling execution too aggressively and this causes stuck updates.
 	// If "off" was set by the user, we would not be re-executed.
-	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) == "" {
+	if shouldSkipDevVersion() ||
+		(os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) == "") {
 		return nil
 	}
 
@@ -216,4 +218,28 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	}
 
 	return nil
+}
+
+// shouldSkipAutoUpdate returns true if auto-updates should be skipped.
+//
+// Returns true if auto-updates are disabled via environment variable or if the
+// current tsh version is a "-dev-" build.
+func shouldSkipAutoUpdate() bool {
+	return shouldSkipDevVersion() ||
+		os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled
+}
+
+// shouldSkipDevVersion returns true if auto-updates should be skipped due to
+// this being a dev build.
+func shouldSkipDevVersion() bool {
+	skip := strings.Contains(teleport.Version, "-dev-")
+	if skip {
+		// Note: this logging statement only appears if running tsh or tctl with
+		// TELEPORT_DEBUG=1. The `-d` flag is parsed after the auto-updater logic.
+		slog.DebugContext(context.Background(),
+			"Skipping client tools auto-update for dev build",
+			"version", teleport.Version,
+		)
+	}
+	return skip
 }
