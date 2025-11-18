@@ -6098,6 +6098,13 @@ func TestLogout(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+		{
+			name: "current profile missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				currentProfileFilePath := keypaths.CurrentProfileFilePath(homePath)
+				require.NoError(t, os.Remove(currentProfileFilePath))
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -6645,6 +6652,33 @@ func testListingResources[T any](t *testing.T, pack listPack[T], unmarshalFunc f
 			require.Empty(t, cmp.Diff(test.expected, out, cmpopts.SortSlices(lessFunc)))
 		})
 	}
+}
+
+func TestStatusPrintsProfilesIfNoActiveProfile(t *testing.T) {
+	t.Parallel()
+
+	buf := bytes.NewBuffer([]byte{})
+
+	err := Run(context.Background(), []string{
+		"status",
+	}, setHomePath(t.TempDir()), func(c *CLIConf) error {
+		c.OverrideStdout = buf
+		profile := &profile.Profile{
+			WebProxyAddr: "proxy:3080",
+			Username:     "testuser",
+		}
+		// setCurrent is false, so there is no active profile.
+		err := c.getClientStore().SaveProfile(profile, false)
+		require.NoError(t, err)
+		return nil
+	})
+
+	require.Contains(t, buf.String(),
+		` Profile URL:        https://proxy:3080
+  Logged in as:       testuser
+  Cluster:            proxy`)
+	require.True(t, trace.IsNotFound(err))
+	require.ErrorContains(t, err, "No active profile.")
 }
 
 // TestProxyTemplates verifies proxy templates apply properly to client config.
