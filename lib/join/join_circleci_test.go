@@ -57,7 +57,7 @@ func TestJoinCircleCI(t *testing.T) {
 	auth := authServer.Auth()
 
 	authServer.Auth().SetCircleCITokenValidator(func(
-		ctx context.Context, organizationID, token string,
+		ctx context.Context, issuerURL, organizationID, token string,
 	) (*circleci.IDTokenClaims, error) {
 		if organizationID == validOrg && token == validIDToken {
 			return &circleci.IDTokenClaims{

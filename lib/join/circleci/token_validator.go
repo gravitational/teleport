@@ -26,9 +26,9 @@ import (
 
 func ValidateToken(
 	ctx context.Context,
+	issuerURL string,
 	organizationID string,
 	token string,
 ) (*IDTokenClaims, error) {
-	issuer := issuerURL(organizationID)
-	return oidc.ValidateToken[*IDTokenClaims](ctx, issuer, organizationID, token)
+	return oidc.ValidateToken[*IDTokenClaims](ctx, issuerURL, organizationID, token)
 }

@@ -53,7 +53,7 @@ func (f *fakeIDP) issueToken(
 	expiry time.Time,
 ) string {
 	stdClaims := jwt.Claims{
-		Issuer:   fmt.Sprintf(f.issuerURLTemplate(), organizationID),
+		Issuer:   f.issuerURL(organizationID),
 		Subject:  fmt.Sprintf("org/%s/project/%s/user/USER_ID", organizationID, projectID),
 		Audience: jwt.Audience{organizationID},
 		IssuedAt: jwt.NewNumericDate(issuedAt),
@@ -72,8 +72,8 @@ func (f *fakeIDP) issueToken(
 	return token
 }
 
-func (f *fakeIDP) issuerURLTemplate() string {
-	return f.server.URL + "/org/%s"
+func (f *fakeIDP) issuerURL(orgID string) string {
+	return f.server.URL + "/org/" + orgID
 }
 
 func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
@@ -197,7 +197,7 @@ func TestValidateToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			claims, err := ValidateToken(
-				ctx, fake.issuerURLTemplate(), realOrgID, tt.token,
+				ctx, fake.issuerURL(realOrgID), realOrgID, tt.token,
 			)
 			tt.assertError(t, err)
 			require.Empty(t,

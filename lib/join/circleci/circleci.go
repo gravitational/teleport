@@ -47,9 +47,11 @@ import (
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "circleci")
 
 // Validator is a function that can be used to validate CircleCI tokens
-type Validator func(ctx context.Context, organizationID, token string) (*IDTokenClaims, error)
+type Validator func(ctx context.Context, issuerURL, organizationID, token string) (*IDTokenClaims, error)
 
-func issuerURL(organizationID string) string {
+// IssuerURL generates a CircleCI issuer URL such that it avoids potential SSRF
+// from the user-provided organization ID.
+func IssuerURL(organizationID string) string {
 	u := url.URL{
 		Scheme: "https",
 		Host:   "oidc.circleci.com",
@@ -125,6 +127,7 @@ func CheckIDToken(
 
 	claims, err := params.Validator(
 		ctx,
+		IssuerURL(token.Spec.CircleCI.OrganizationID),
 		token.Spec.CircleCI.OrganizationID,
 		string(params.IDToken),
 	)
