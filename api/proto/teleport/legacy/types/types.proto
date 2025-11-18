@@ -5854,6 +5854,9 @@ message SAMLAuthRequest {
   bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
   // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
   string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
+  // SubjectIdentifier is an optional username/email provided by the client that will be
+  // passed to prepopulate teh IdP's login form
+  string subject_identifier = 25 [(gogoproto.jsontag) = "subject_identifier,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
