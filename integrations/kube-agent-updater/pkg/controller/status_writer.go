@@ -46,8 +46,6 @@ type StatusWriter struct {
 	UpdateID uuid.UUID
 	// UpdateGroup is the group of the updater.
 	UpdateGroup string
-	// UpdateConfigName is the name of the configmap containing the updater status.
-	UpdateConfigName string
 	// ProxyAddress is the address of the proxy.
 	ProxyAddress string
 }
@@ -57,7 +55,7 @@ func (c *StatusWriter) writeStatus(ctx context.Context, owner metav1.Object, ver
 	log := ctrllog.FromContext(ctx)
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      c.UpdateConfigName,
+			Name:      owner.GetName() + "-update",
 			Namespace: owner.GetNamespace(),
 		},
 	}
