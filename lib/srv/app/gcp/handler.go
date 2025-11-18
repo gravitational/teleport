@@ -92,10 +92,7 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Log = slog.With(teleport.ComponentKey, "gcp:fwd")
 	}
 	if s.cloudClientGCP == nil {
-		clients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		clients := cloud.NewGCPClients()
 		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
 	return nil

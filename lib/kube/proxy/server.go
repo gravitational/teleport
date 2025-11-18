@@ -82,9 +82,12 @@ type TLSServerConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// OnReconcile is called after each kube_cluster resource reconciliation.
 	OnReconcile func(types.KubeClusters)
-	// CloudClients is a set of cloud clients that Teleport supports.
-	CloudClients cloud.Clients
-	awsClients   *awsClientsGetter
+	// azureClients provides Azure SDK clients
+	azureClients cloud.AzureClients
+	// gcpClients provides GCP SDK clients
+	gcpClients cloud.GCPClients
+	// awsCloudClients provides AWS SDK clients.
+	awsClients *awsClientsGetter
 	// StaticLabels is a map of static labels associated with this service.
 	// Each cluster advertised by this kubernetes_service will include these static labels.
 	// If the service and a cluster define labels with the same key,
@@ -169,17 +172,19 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = slog.Default()
 	}
-	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
+	if c.azureClients == nil {
+		azureClients, err := cloud.NewAzureClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.CloudClients = cloudClients
+		c.azureClients = azureClients
+	}
+	if c.gcpClients == nil {
+		c.gcpClients = cloud.NewGCPClients()
 	}
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
 	}
-
 	return nil
 }
 

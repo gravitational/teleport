@@ -170,8 +170,10 @@ type Config struct {
 	Auth common.Auth
 	// CADownloader automatically downloads root certs for cloud hosted databases.
 	CADownloader CADownloader
-	// CloudClients creates cloud API clients.
-	CloudClients clients.Clients
+	// AzureClients provides Azure SDK clients.
+	AzureClients clients.AzureClients
+	// GCPClients provides GCP SDK clients.
+	GCPClients clients.GCPClients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
@@ -228,12 +230,15 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
 	}
-	if c.CloudClients == nil {
-		cloudClients, err := clients.NewClients()
+	if c.AzureClients == nil {
+		azureClients, err := clients.NewAzureClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.CloudClients = cloudClients
+		c.AzureClients = azureClients
+	}
+	if c.GCPClients == nil {
+		c.GCPClients = clients.NewGCPClients()
 	}
 	if c.AWSConfigProvider == nil {
 		provider, err := awsconfig.NewCache()
@@ -253,11 +258,13 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.Auth == nil {
 		c.Auth, err = common.NewAuth(common.AuthConfig{
-			AuthClient:        c.AuthClient,
-			AccessPoint:       c.AccessPoint,
-			Clock:             c.Clock,
-			Clients:           c.CloudClients,
-			AWSConfigProvider: c.AWSConfigProvider,
+			AuthClient:             c.AuthClient,
+			AccessPoint:            c.AccessPoint,
+			Clock:                  c.Clock,
+			AzureClients:           c.AzureClients,
+			GCPClients:             c.GCPClients,
+			InstanceMetadataClient: clients.NewInstanceMetadataClient(),
+			AWSConfigProvider:      c.AWSConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -333,7 +340,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			DatabaseObjectClient: c.AuthClient.DatabaseObjectsClient(),
 			ImportRules:          c.AuthClient,
 			Auth:                 c.Auth,
-			GCPClients:           c.CloudClients,
+			GCPClients:           c.GCPClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -343,7 +350,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.discoveryResourceChecker == nil {
 		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
 			ResourceMatchers:  c.ResourceMatchers,
-			AzureClients:      c.CloudClients,
+			AzureClients:      c.AzureClients,
 			AWSConfigProvider: c.AWSConfigProvider,
 			Context:           ctx,
 		})
@@ -1131,7 +1138,7 @@ func (s *Server) close(ctx context.Context) error {
 	}
 
 	// Close all cloud clients.
-	return trace.Wrap(s.cfg.CloudClients.Close())
+	return trace.Wrap(s.cfg.GCPClients.Close())
 }
 
 // Wait will block while the server is running.
@@ -1320,7 +1327,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Audit:             audit,
 		AuthClient:        s.cfg.AuthClient,
 		AWSConfigProvider: s.cfg.AWSConfigProvider,
-		GCPClients:        s.cfg.CloudClients,
+		GCPClients:        s.cfg.GCPClients,
 		Context:           s.connContext,
 		Clock:             s.cfg.Clock,
 		Log:               sessionCtx.Log,
@@ -1538,7 +1545,7 @@ func (s *Server) getTargetHealth(ctx context.Context, db types.Database) types.T
 // getEndpointsResolver gets a health check endpoint resolver for the database.
 func (s *Server) getEndpointsResolver(ctx context.Context, db types.Database) (healthcheck.EndpointsResolverFunc, error) {
 	resolver, err := endpoints.GetResolver(ctx, db, endpoints.ResolverBuilderConfig{
-		GCPClients: s.cfg.CloudClients,
+		GCPClients: s.cfg.GCPClients,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

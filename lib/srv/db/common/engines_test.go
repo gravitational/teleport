@@ -29,8 +29,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
+	"github.com/gravitational/teleport/lib/cloud/testutils"
 )
 
 // TestRegisterEngine verifies database engine registration.
@@ -41,8 +41,6 @@ func TestRegisterEngine(t *testing.T) {
 		RegisterEngine(nil, "test")
 	})
 
-	cloudClients, err := cloud.NewClients()
-	require.NoError(t, err)
 	ec := EngineConfig{
 		Context:           context.Background(),
 		Clock:             clockwork.NewFakeClock(),
@@ -51,7 +49,7 @@ func TestRegisterEngine(t *testing.T) {
 		Audit:             &testAudit{},
 		AuthClient:        &authclient.Client{},
 		AWSConfigProvider: &mocks.AWSConfigProvider{},
-		GCPClients:        cloudClients,
+		GCPClients:        &testutils.TestGCPClients{},
 	}
 	require.NoError(t, ec.CheckAndSetDefaults())
 

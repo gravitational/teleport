@@ -171,15 +171,20 @@ type AuthConfig struct {
 	AuthClient AuthClient
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint AccessPoint
-	// Clients provides interface for obtaining cloud provider clients.
-	Clients cloud.Clients
+
 	// Clock is the clock implementation.
 	Clock clockwork.Clock
 	// Logger is used for logging.
 	Logger *slog.Logger
+
+	// InstanceMetadataClient provides instance metadata client
+	InstanceMetadataClient cloud.InstanceMetadataClient
+	// AzureClients provides Azure SDK clients.
+	AzureClients cloud.AzureClients
+	// GCPClients provides GCP SDK clients.
+	GCPClients cloud.GCPClients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
-
 	// awsClients is an SDK client provider.
 	awsClients awsClientProvider
 }
@@ -192,8 +197,14 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
 	}
-	if c.Clients == nil {
-		return trace.BadParameter("missing Clients")
+	if c.InstanceMetadataClient == nil {
+		return trace.BadParameter("missing InstanceMetadataClient")
+	}
+	if c.AzureClients == nil {
+		return trace.BadParameter("missing AzureClients")
+	}
+	if c.GCPClients == nil {
+		return trace.BadParameter("missing GCPClients")
 	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
@@ -518,7 +529,7 @@ func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string)
 }
 
 func (a *dbAuth) getCloudTokenSource(ctx context.Context, databaseUser string, scopes []string) (*cloudTokenSource, error) {
-	gcpIAM, err := a.cfg.Clients.GetGCPIAMClient(ctx)
+	gcpIAM, err := a.cfg.GCPClients.GetGCPIAMClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -586,7 +597,7 @@ or "iam.serviceAccounts.getAccessToken" IAM permission.
 // It is used to generate a one-time password when connecting to GCP MySQL
 // databases which don't support IAM authentication.
 func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
-	gcpCloudSQL, err := a.cfg.Clients.GetGCPSQLAdminClient(ctx)
+	gcpCloudSQL, err := a.cfg.GCPClients.GetGCPSQLAdminClient(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -647,7 +658,7 @@ SQL Admin" GCP IAM role, or "cloudsql.users.update" IAM permission.
 // GetAzureAccessToken generates Azure database access token.
 func (a *dbAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
 	a.cfg.Logger.DebugContext(ctx, "Generating Azure access token")
-	cred, err := a.cfg.Clients.GetAzureCredential()
+	cred, err := a.cfg.AzureClients.GetAzureCredential()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -731,12 +742,12 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, database types.
 	var client libazure.CacheForRedisClient
 	switch resourceID.ResourceType.String() {
 	case "Microsoft.Cache/Redis":
-		client, err = a.cfg.Clients.GetAzureRedisClient(resourceID.SubscriptionID)
+		client, err = a.cfg.AzureClients.GetAzureRedisClient(resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
 	case "Microsoft.Cache/redisEnterprise", "Microsoft.Cache/redisEnterprise/databases":
-		client, err = a.cfg.Clients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
+		client, err = a.cfg.AzureClients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -1140,7 +1151,7 @@ func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName st
 // getCurrentAzureVM fetches current Azure Virtual Machine struct. If Teleport
 // is not running on Azure, returns an error.
 func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachine, error) {
-	metadataClient, err := a.cfg.Clients.GetInstanceMetadataClient(ctx)
+	metadataClient, err := a.cfg.InstanceMetadataClient.GetInstanceMetadataClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1159,7 +1170,7 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 		return nil, trace.Wrap(err)
 	}
 
-	vmClient, err := a.cfg.Clients.GetAzureVirtualMachinesClient(parsedInstanceID.SubscriptionID)
+	vmClient, err := a.cfg.AzureClients.GetAzureVirtualMachinesClient(parsedInstanceID.SubscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1237,7 +1248,7 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, da
 
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
-	return a.cfg.Clients.Close()
+	return a.cfg.GCPClients.Close()
 }
 
 // getVerifyCloudSQLCertificate returns a function that performs verification
