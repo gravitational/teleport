@@ -346,9 +346,7 @@ func (c *Config) SetDefaults() {
 		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
 
-	if c.ProxyGroupID == "" {
-		c.ProxyGroupID = os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID")
-	}
+	c.ProxyGroupID = cmp.Or(c.ProxyGroupID, os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"))
 
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
