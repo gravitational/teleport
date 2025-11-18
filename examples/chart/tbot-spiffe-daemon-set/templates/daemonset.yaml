@@ -13,12 +13,18 @@ metadata:
   {{- end }}
 spec:
   selector:
-    matchLabels:
-      app: tbot
+    matchLabels: {{- include "tbot-spiffe-daemon-set.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+      {{- if .Values.annotations.pod }}
+        {{- toYaml .Values.annotations.pod | nindent 8 }}
+      {{- end }}
       labels:
-        app: tbot
+        {{- include "tbot-spiffe-daemon-set.labels" . | nindent 8 }}
+      {{- if .Values.extraLabels.pod }}
+        {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+      {{- end }}
     spec:
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
       hostPID: true
