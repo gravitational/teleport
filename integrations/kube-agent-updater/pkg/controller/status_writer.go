@@ -55,7 +55,7 @@ func (c *StatusWriter) writeStatus(ctx context.Context, owner metav1.Object, ver
 	log := ctrllog.FromContext(ctx)
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      owner.GetName() + "-update",
+			Name:      owner.GetName() + "-updater",
 			Namespace: owner.GetNamespace(),
 		},
 	}

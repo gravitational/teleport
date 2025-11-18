@@ -177,8 +177,8 @@ status:
 			err := sw.generateData(t.Context(), cm, tc.version, tc.failed, updateTime)
 			require.NoError(t, err)
 			require.Len(t, cm.Data, 2)
-			require.Equal(t, cm.Data[agent.UpdateConfigName], tc.expectedConfig)
-			require.Equal(t, cm.Data[updaterIDFile], sw.UpdateID.String())
+			require.Equal(t, tc.expectedConfig, cm.Data[agent.UpdateConfigName])
+			require.Equal(t, sw.UpdateID.String(), cm.Data[updaterIDFile])
 		})
 	}
 }
