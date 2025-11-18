@@ -316,7 +316,7 @@ message FastPathPDU {
   bytes pdu = 1;
 }
 
-// Contains a a raw RDP response PDU to send be interpeted by the server.
+// Contains a a raw RDP response PDU to send be interpreted by the server.
 message RDPResponsePDU {
   option (tdp_type_option) = MESSAGE_TYPE_RDP_RESPONSE_PDU;
   bytes response = 1;
@@ -460,7 +460,7 @@ message SharedDirectoryRequest {
   // Specifies offset where the read/write should start
   // in READ and WRITE requests.
   uint64 offset = 6;
-  // Requested lengh to read for READ requests.
+  // Requested length to read for READ requests.
   uint32 length = 7;
   // For TRUNCATE requests.
   uint32 end_of_file = 8;
