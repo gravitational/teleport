@@ -855,6 +855,25 @@ tests:
             name: TELEPORT_EXT_UPGRADER_VERSION
             value: 13.4.5
 
+  - it: should mount the update.yaml configmap when updater is enabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/updater.yaml
+    set:
+      teleportVersionOverride: 13.4.5
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_UPDATE_CONFIG_FILE
+            value: /etc/updater-config/update.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: updater-config
+            configMap:
+              name: RELEASE-NAME-updater
+
   - it: should set the installation method environment variable
     template: statefulset.yaml
     values:
