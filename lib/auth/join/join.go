@@ -348,9 +348,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGCP:
-		params.IDToken, err = gcp.GetIDToken(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = gcp.GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodSpacelift:
 		params.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
