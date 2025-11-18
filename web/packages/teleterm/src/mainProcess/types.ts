@@ -76,7 +76,7 @@ export type RuntimeSettings = {
   tshd: {
     requestedNetworkAddress: string;
     binaryPath: string;
-    homeDir: string;
+    defaultHomeDir: string;
   };
   sharedProcess: {
     requestedNetworkAddress: string;

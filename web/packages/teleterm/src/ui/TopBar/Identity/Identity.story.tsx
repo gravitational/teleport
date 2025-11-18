@@ -166,6 +166,10 @@ const OpenIdentityPopover = (props: {
   activeClusterUri: RootClusterUri | undefined;
 }) => {
   const ctx = new MockAppContext();
+  ctx.statePersistenceService.putState({
+    ...ctx.statePersistenceService.getState(),
+    showTshHomeMigrationBanner: true,
+  });
   props.clusters.forEach(c => {
     ctx.addRootCluster(c);
   });

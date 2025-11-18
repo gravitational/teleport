@@ -223,7 +223,7 @@ export default class MainProcess {
       this.windowsManager
     );
     const watcher = watchProfiles({
-      tshDirectory: this.settings.tshd.homeDir,
+      tshDirectory: this.configService.get('tshHome').value,
       tshClient: {
         listRootClusters: async () => {
           const { terminalService } = await this.tshdClients;
@@ -262,7 +262,7 @@ export default class MainProcess {
   }
 
   private initTshd() {
-    const { binaryPath, homeDir } = this.settings.tshd;
+    const { binaryPath } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
     // spawn might either fail immediately by throwing an error or cause the error event to be emitted
@@ -282,7 +282,7 @@ export default class MainProcess {
         windowsHide: true,
         env: {
           ...process.env,
-          TELEPORT_HOME: homeDir,
+          TELEPORT_HOME: this.configService.get('tshHome').value,
           [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
         },
       }
