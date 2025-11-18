@@ -350,8 +350,7 @@ message Role {
   //  - add a infix like "acl-preset" that easily identifies that this role
   //    belongs to an access list that was created using a preset.
   string name_prefix = 1;
-  // spec defines the access to resources. A nil spec will be interpreted as
-  // "no role update required".
+  // spec defines the access to resources.
   types.RoleSpecV6 spec = 2;
 }
 
@@ -422,10 +421,12 @@ message UpsertAccessListWithPresetRequest {
 // UpsertAccessListWithPresetResponse is the response for upserting
 // an access list with members and roles.
 message UpsertAccessListWithPresetResponse {
-  // access_list is the access list that was created.
+  // access_list is the access list that was upserted.
   AccessList access_list = 1;
-  // members is the list of access list members that were created.
+  // members is the list of access list members that were upserted.
   repeated Member members = 2;
+  // roles is a list of all the roles that Teleport upserted.
+  repeated types.RoleV6 roles = 3;
 }
 
 // GetAccessListMemberRequest is the request for retrieving an access_list_member.
