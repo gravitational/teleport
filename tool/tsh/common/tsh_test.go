@@ -850,101 +850,127 @@ func TestIgnoreHTTPSPrefix(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestSwitchingProxies(t *testing.T) {
+func TestSwitchProfile(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	tmpHomePath := t.TempDir()
 
-	connector := mockConnector(t)
-	// Connector need not be functional since we are going to mock the actual
-	// login operation.
-
-	alice, err := types.NewUser("alice@example.com")
+	alice, err := types.NewUser("alice")
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	auth1, proxy1 := makeTestServers(t,
-		withBootstrap(connector, alice),
+	connector := mockConnector(t)
+	root, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithBootstrap(connector, alice),
+		testserver.WithHostname("node1"),
+		testserver.WithClusterName("root"),
 	)
-
-	auth2, proxy2 := makeTestServers(t,
-		withBootstrap(connector, alice),
-	)
-	authServer1 := auth1.GetAuthServer()
-	require.NotNil(t, authServer1)
-
-	proxyAddr1, err := proxy1.ProxyWebAddr()
 	require.NoError(t, err)
 
-	authServer2 := auth2.GetAuthServer()
-	require.NotNil(t, authServer2)
-
-	proxyAddr2, err := proxy2.ProxyWebAddr()
+	rootAuth := root.GetAuthServer()
+	require.NotNil(t, rootAuth)
+	rootProxy, err := root.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// perform initial login to both proxies
-
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", proxyAddr1.String(),
-	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer1, alice, connector.GetName()))
+	leafServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, alice),
+		testserver.WithHostname("node2"),
+		testserver.WithClusterName("leaf"),
+	}
+	leaf, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", proxyAddr2.String(),
-	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer2, alice, connector.GetName()))
+	SetupTrustedCluster(ctx, t, root, leaf)
 
+	leafAuth := leaf.GetAuthServer()
+	require.NotNil(t, leafAuth)
+	leafProxy, err := leaf.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// login again while both proxies are still valid and ensure it is successful without an SSO login provided
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", proxyAddr1.String(),
-	}, setHomePath(tmpHomePath))
+	// Differentiate between leaf and root cluster hosts by using localhost for root and 127.0.0.1 for leaf.
+	rootProxyAddr := "localhost:" + strconv.Itoa(rootProxy.Port(0))
+	leafProxyAddr := leafProxy.Addr
 
-	require.NoError(t, err)
+	type loginParams struct {
+		name      string
+		proxy     string
+		user      string
+		cluster   string
+		mockLogin CliOption
+	}
 
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", proxyAddr2.String(),
-	}, setHomePath(tmpHomePath))
+	login := func(t *testing.T, proxy, user, cluster string, opts ...CliOption) error {
+		return Run(context.Background(), []string{
+			"login",
+			"--insecure",
+			"--debug",
+			"--proxy", proxy,
+			"--user", user,
+			cluster,
+		}, opts...)
+	}
 
-	require.NoError(t, err)
+	// Test login for:
+	// - root proxy, root cluster
+	// - root proxy, leaf cluster
+	// - leaf proxy, leaf cluster
+	loginCases := []loginParams{
+		{
+			name:      "alice rootProxy rootCluster",
+			proxy:     rootProxyAddr,
+			user:      "alice",
+			cluster:   "root",
+			mockLogin: setMockSSOLogin(rootAuth, alice, connector.GetName()),
+		}, {
+			name:      "alice rootProxy leafCluster",
+			proxy:     rootProxyAddr,
+			user:      "alice",
+			cluster:   "leaf",
+			mockLogin: setMockSSOLogin(rootAuth, alice, connector.GetName()),
+		}, {
+			name:      "alice leafProxy leafCluster",
+			proxy:     leafProxyAddr,
+			user:      "alice",
+			cluster:   "leaf",
+			mockLogin: setMockSSOLogin(leafAuth, alice, connector.GetName()),
+		},
+	}
+
+	// perform initial logins.
+	for _, p := range loginCases {
+		t.Run(fmt.Sprintf("initial login/%v", p.name), func(t *testing.T) {
+			err := login(t, p.proxy, p.user, p.cluster, setHomePath(tmpHomePath), p.mockLogin)
+			require.NoError(t, err)
+		})
+	}
+
+	// For each login case, test that we can switch directly to the other cases without re-logging in.
+	for _, p1 := range loginCases {
+		for _, p2 := range loginCases {
+			if p1.name == p2.name {
+				continue
+			}
+			t.Run(fmt.Sprintf("from %v/to %v", p1.name, p2.name), func(t *testing.T) {
+				err := login(t, p1.proxy, p1.user, p1.cluster, setHomePath(tmpHomePath))
+				require.NoError(t, err)
+				err = login(t, p2.proxy, p2.user, p2.cluster, setHomePath(tmpHomePath))
+				require.NoError(t, err)
+			})
+		}
+	}
 
 	// logout
-
 	err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
 
 	// after logging out, make sure that any attempt to log in without providing a valid login function fails
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
-	err = Run(ctx, []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", proxyAddr1.String(),
-	}, setHomePath(tmpHomePath))
-	require.Error(t, err)
-
-	err = Run(ctx, []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", proxyAddr2.String(),
-	}, setHomePath(tmpHomePath))
-	require.Error(t, err)
-
-	cancel()
+	for _, p := range loginCases {
+		t.Run(fmt.Sprintf("after logout %v", p.name), func(t *testing.T) {
+			err := login(t, p.proxy, p.user, p.cluster, setHomePath(tmpHomePath))
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestMakeClient(t *testing.T) {
