@@ -49,7 +49,8 @@ Agent resource consumption depends on:
 - Desktop sessions require significantly more resources (see [Windows Desktop Service](#windows-desktop-service) below)
 - Database and application sessions have varying profiles based on connection patterns
 
-**Enabled features**: Agents running multiple access types simultaneously (SSH + Database + Applications) or performing dynamic resource discovery require additional resources.
+**Enabled features**: Agents running multiple access types simultaneously (SSH + Database + Applications) or performing dynamic resource discovery 
+require additional resources.
 
 ### Scaling beyond baseline
 
@@ -59,7 +60,7 @@ Increase resources when the agent:
 - Provides desktop access
 - Performs auto-discovery of many resources
 
-Monitor CPU, memory, and disk usage to detect when scaling is needed. Consider using [External Audit Storage](../zero-trust-access/management/external-audit-storage.mdx) to minimize agent disk requirements by storing recordings in your own cloud storage.
+Monitor CPU, memory, and disk usage to detect when scaling is needed. Consider using [External Audit Storage](../../management/external-audit-storage.mdx) to minimize agent disk requirements by storing recordings in your own cloud storage.
 
 ## Auth Service and Proxy Service Configuration
 
