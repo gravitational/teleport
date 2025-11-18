@@ -93,11 +93,13 @@ export function useAwsOidcIntegration() {
     createIntegrationAttempt,
     runCreateIntegration,
     setCreateIntegrationAttempt,
-  ] = useAsync(async (req: IntegrationCreateRequest) => {
-    const resp = await integrationService.createIntegration(req);
-    setCreatedIntegration(resp);
-    return resp;
-  });
+  ] = useAsync(
+    async (req: IntegrationCreateRequest<IntegrationKind.AwsOidc>) => {
+      const resp = await integrationService.createIntegration(req);
+      setCreatedIntegration(resp);
+      return resp;
+    }
+  );
 
   async function handleOnCreate(validator: Validator) {
     if (!validator.validate()) {

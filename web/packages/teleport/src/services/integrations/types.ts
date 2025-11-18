@@ -21,21 +21,117 @@ import { Label } from 'teleport/types';
 
 import { ResourceLabel } from '../agents';
 
-export type IntegrationCreateResult<T extends IntegrationCreateRequest> =
-  T['subKind'] extends IntegrationKind.GitHub
-    ? IntegrationGitHub
-    : IntegrationAwsOidc;
+/**
+ * IKindToType maps each {@link IntegrationKind}
+ * to its respective {@link Integration} type.
+ */
+export type IKindToType = {
+  [IntegrationKind.GitHub]: IntegrationGitHub;
+  [IntegrationKind.AwsOidc]: IntegrationAwsOidc;
+  [IntegrationKind.AwsRa]: IntegrationAwsRa;
+  [IntegrationKind.AzureOidc]: IntegrationAzureOidc;
+};
 
-export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
-  T['kind'] extends IntegrationKind.GitHub
-    ? IntegrationGitHub
-    : IntegrationAwsOidc;
+/**
+ * Integration defines the union type of all supported
+ * integration kinds.
+ */
+export type Integration = IKindToType[keyof IKindToType];
 
-export type Integration =
-  | IntegrationGitHub
-  | IntegrationAwsOidc
-  | IntegrationAzureOidc
-  | IntegrationAwsRa;
+/**
+ * TypedIntegrationKind defines all integration kinds
+ * with typed create/update request payloads.
+ */
+export type TypedIntegrationKind = Exclude<keyof IKindToType, 'azure-oidc'>;
+
+/**
+ * IntegrationKindToCreateRequest maps each {@link TypedIntegrationKind}
+ * to its respective {@link IntegrationCreateRequest} type.
+ */
+type IKindToCreateRequest = {
+  [IntegrationKind.GitHub]: IntegrationCreateGitHubRequest;
+  [IntegrationKind.AwsOidc]: IntegrationCreateAwsOidcRequest;
+  [IntegrationKind.AwsRa]: IntegrationCreateAwsRaRequest;
+};
+
+/**
+ * IntegrationCreateRequest defines the shape of the request
+ * to create an integration of a specific subKind.
+ */
+export type IntegrationCreateRequest<
+  K extends keyof IKindToCreateRequest = keyof IKindToCreateRequest,
+> = IKindToCreateRequest[K];
+
+/**
+ * IntegrationCreateResult defines the shape of the result
+ * after creating an integration of a specific subKind.
+ */
+export type IntegrationCreateResult<
+  T extends Pick<IntegrationCreateRequest, 'subKind'>,
+> = IKindToType[T['subKind']];
+
+type IntegrationCreateGitHubRequest = {
+  name: string;
+  subKind: IntegrationKind.GitHub;
+  oauth: IntegrationOAuthCredentials;
+  github: IntegrationSpecGitHub;
+};
+
+type IntegrationCreateAwsOidcRequest = {
+  name: string;
+  subKind: IntegrationKind.AwsOidc;
+  awsoidc: IntegrationSpecAwsOidc;
+};
+
+type IntegrationCreateAwsRaRequest = {
+  name: string;
+  subKind: IntegrationKind.AwsRa;
+  awsRa: IntegrationSpecAwsRa;
+};
+
+/**
+ * IntegrationKindToUpdateRequest maps each {@link TypedIntegrationKind}
+ * to its respective {@link IntegrationUpdateRequest} type.
+ */
+type IKindToUpdateRequest = {
+  [IntegrationKind.GitHub]: UpdateIntegrationGithub;
+  [IntegrationKind.AwsOidc]: UpdateIntegrationAwsOidc;
+  [IntegrationKind.AwsRa]: UpdateIntegrationAwsRa;
+};
+
+/**
+ * IntegrationUpdateRequest defines the shape of the request
+ * to update an integration of a specific kind.
+ */
+export type IntegrationUpdateRequest<
+  K extends keyof IKindToUpdateRequest = keyof IKindToUpdateRequest,
+> = IKindToUpdateRequest[K];
+
+/**
+ * IntegrationUpdateResult defines the shape of the result
+ * after updating an integration of a specific kind.
+ */
+export type IntegrationUpdateResult<
+  T extends Pick<IntegrationUpdateRequest, 'kind'>,
+> = IKindToType[T['kind']];
+
+type UpdateIntegrationAwsOidc = {
+  kind: IntegrationKind.AwsOidc;
+  awsoidc: {
+    roleArn: string;
+  };
+};
+
+type UpdateIntegrationAwsRa = {
+  kind: IntegrationKind.AwsRa;
+  awsRa: IntegrationSpecAwsRa;
+};
+
+type UpdateIntegrationGithub = {
+  kind: IntegrationKind.GitHub;
+  oauth: IntegrationOAuthCredentials;
+  github: IntegrationSpecGitHub;
+};
 
 /**
  * type Integration v. type Plugin:
@@ -73,6 +169,7 @@ export type IntegrationTemplate<
   status?: SD;
   credentials?: PluginCredentials;
 };
+
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
 // resource's subKind field.
@@ -98,9 +195,15 @@ export type IntegrationGitHub = IntegrationTemplate<
   IntegrationSpecGitHub
 >;
 
+export type IntegrationSpecAzureOidc = {
+  tenant_id: string;
+  client_id: string;
+};
+
 export type IntegrationAzureOidc = IntegrationTemplate<
   'integration',
-  IntegrationKind.AzureOidc
+  IntegrationKind.AzureOidc,
+  IntegrationSpecAzureOidc
 >;
 
 /**
@@ -461,30 +564,6 @@ export type IntegrationOAuthCredentials = {
   id: string;
   secret: string;
 };
-
-type IntegrationCreateGitHubRequest = {
-  name: string;
-  subKind: IntegrationKind.GitHub;
-  oauth: IntegrationOAuthCredentials;
-  github: { organization: string };
-};
-
-type IntegrationCreateAwsOidcRequest = {
-  name: string;
-  subKind: IntegrationKind.AwsOidc;
-  awsoidc: IntegrationSpecAwsOidc;
-};
-
-type IntegrationCreateAwsRaRequest = {
-  name: string;
-  subKind: IntegrationKind.AwsRa;
-  awsRa: IntegrationSpecAwsRa;
-};
-
-export type IntegrationCreateRequest =
-  | IntegrationCreateAwsOidcRequest
-  | IntegrationCreateGitHubRequest
-  | IntegrationCreateAwsRaRequest;
 
 export type IntegrationListResponse = {
   items: Integration[];
@@ -910,29 +989,6 @@ export type ListAwsRdsFromAllEnginesResponse = {
    */
   oneOfError?: string;
 };
-
-export type UpdateIntegrationAwsOidc = {
-  kind: IntegrationKind.AwsOidc;
-  awsoidc: {
-    roleArn: string;
-  };
-};
-
-export type UpdateIntegrationAwsRa = {
-  kind: IntegrationKind.AwsRa;
-  awsRa: IntegrationSpecAwsRa;
-};
-
-export type UpdateIntegrationGithub = {
-  kind: IntegrationKind.GitHub;
-  oauth: IntegrationOAuthCredentials;
-  github: { organization: string };
-};
-
-export type IntegrationUpdateRequest =
-  | UpdateIntegrationAwsOidc
-  | UpdateIntegrationAwsRa
-  | UpdateIntegrationGithub;
 
 export type AwsOidcDeployServiceRequest = {
   deploymentMode: 'database-service';

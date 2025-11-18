@@ -18,6 +18,8 @@
 
 import * as reactQuery from '@tanstack/react-query';
 import {
+  UseMutationOptions,
+  UseMutationResult,
   type DataTag,
   type DefaultError,
   type InfiniteData,
@@ -396,6 +398,101 @@ export function createQueryHook<
               : variables,
             signal
           ),
+      });
+    },
+  };
+
+  return wrapped;
+}
+
+export type MutationHook<
+  TData = unknown,
+  TVariables = void,
+  TError = DefaultError,
+> = (
+  options?: Omit<
+    UseMutationOptions<TData, TError, TVariables>,
+    'mutationKey' | 'mutationFn'
+  >
+) => UseMutationResult<TData, TError, TVariables>;
+
+export interface WrappedMutation<
+  TData = unknown,
+  TVariables = void,
+  TError = DefaultError,
+> {
+  mutationKey: DataTag<string[], TData, TError>;
+  createMutationKey: (
+    variables?: TVariables
+  ) => DataTag<string[], TData, TError>;
+  mutationFn: (variables: TVariables) => Promise<TData>;
+  createMutation: (variables: TVariables) => {
+    mutationKey: DataTag<string[], TData, TError>;
+    mutationFn: () => Promise<TData>;
+  };
+  useMutation: MutationHook<TData, TVariables, TError>;
+}
+
+type VoidMutationFn<TData> = () => Promise<TData>;
+type VariablesMutationFn<TData, TVariables> = (
+  variables: TVariables
+) => Promise<TData>;
+
+type MutationFn<TData, TVariables> = TVariables extends void
+  ? VoidMutationFn<TData>
+  : VariablesMutationFn<TData, TVariables>;
+
+function isVoidMutationFn<TData = unknown, TVariables = void>(
+  _mutationFn: MutationFn<TData, unknown>,
+  variables: TVariables
+): _mutationFn is VoidMutationFn<TData> {
+  return typeof variables === 'undefined';
+}
+
+function callMutationFn<TData = unknown, TVariables = void>(
+  mutationFn: MutationFn<TData, TVariables>,
+  variables: TVariables
+) {
+  if (isVoidMutationFn(mutationFn, variables)) {
+    return mutationFn();
+  }
+
+  return mutationFn(variables);
+}
+
+export function createMutationHook<
+  TData = unknown,
+  TVariables = void,
+  TError = DefaultError,
+>(
+  mutationKey: string[],
+  mutationFn: MutationFn<TData, TVariables>
+): WrappedMutation<TData, TVariables, TError> {
+  const wrapped: WrappedMutation<TData, TVariables, TError> = {
+    mutationKey: mutationKey as DataTag<string[], TData, TError>,
+    createMutationKey(variables?: TVariables) {
+      const key = [...mutationKey];
+
+      if (variables) {
+        key.push(JSON.stringify(variables));
+      }
+
+      return key as DataTag<string[], TData, TError>;
+    },
+    mutationFn(variables: TVariables) {
+      return callMutationFn(mutationFn, variables);
+    },
+    createMutation(variables: TVariables) {
+      return {
+        mutationKey: wrapped.createMutationKey(variables),
+        mutationFn: () => wrapped.mutationFn(variables),
+      };
+    },
+    useMutation(options) {
+      return reactQuery.useMutation<TData, TError, TVariables>({
+        mutationKey,
+        mutationFn: wrapped.mutationFn,
+        ...(options ?? {}),
       });
     },
   };
