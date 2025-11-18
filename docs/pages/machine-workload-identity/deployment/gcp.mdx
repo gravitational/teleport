@@ -10,6 +10,13 @@ tags:
 This guide explains how to deploy the Machine & Workload Identity agent, `tbot`,
 on a Google Cloud Platform GCE instance and connect it to your Teleport cluster.
 
+<Admonition type="note">
+The steps in this guide provide an example configuration to help you get started. 
+Your environment or use case may require additional or different settings. 
+Adjust the configuration to fit your specific requirements.
+</Admonition>
+
+
 ## How it works
 
 On GCP, virtual machines can be assigned a service account. These machines can
@@ -105,8 +112,7 @@ $ tctl create -f bot-token.yaml
 Next, you'll create a file to configure `tbot`. In this example, we'll be
 configuring `tbot` to use the `identity` service. This will generate a set of
 short-lived certificates which can be used by `tsh` or `tctl` to authenticate to
-your Teleport cluster as the bot. For your use-case, you may need to configure
-a different service which we will discuss at the end of this guide.
+your Teleport cluster as the bot.
 
 Create `/etc/tbot.yaml`:
 
@@ -132,7 +138,7 @@ Replace:
   Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step.
 - `/opt/machine-id` with a path to a directory where `tbot` should write the
-  short-lived credentials. Ensure that the user `tbot` is running as has the
+  short-lived credentials. Ensure that the user `tbot` is running and has the
   appropriate permissions to create this directory.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
@@ -159,9 +165,9 @@ $ tsh --proxy example.teleport.sh:443 -i /opt/machine-id/identity status        
   Extensions:         bot-instance-id@goteleport.com, bot-name@goteleport.com, disallow-reissue, impersonator, login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
 ```
 
-You have now prepared a basic deployment of `tbot` for your platform, and,
+You have now prepared a basic deployment of `tbot` for your platform, and
 verified that it can produce a simple output that can be used with `tsh` and
-`tctl`. For guidance on how to configure `tbot` for your use-case, follow one
+`tctl`. For guidance on how to configure `tbot` for your use case, follow one
 of the [access guides](../../machine-workload-identity/access-guides/access-guides.mdx)
 and replace the example `identity` service you configured in this guide.
 
