@@ -90,7 +90,7 @@ sequenceDiagram
     proxy->>auth: POST /:version/users/:user/ssh/authenticate
     auth-->>+backend: wait for backend insert /browser_authentication/<request_id>
 
-    tsh-->>web: user copies URL to local browser
+    tsh-->>web: browser opens to URL
     Note over web: proxy.example.com/web/browser/<request_id>
     opt user is not already logged in locally
         web->>proxy: user logs in normally e.g. password+MFA
@@ -101,7 +101,7 @@ sequenceDiagram
     auth ->> backend: insert /browser_authentication/<request_id>
 
     backend ->>- auth: unblock on insert
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip}
+    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, request type}
     auth ->>+ backend: wait for state change
 
 
@@ -112,7 +112,7 @@ sequenceDiagram
     auth->>web: MFA Challenge
     Note over web: user auths with biometrics/passkey
     web->>auth: rpc UpdateBrowserAuthenticationState<br/>with signed MFA challenge response
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, state=approved, mfaDevice}
+    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, request type, state=approved, mfaDevice}
 
     backend ->>- auth: unblock on state change
     auth->>proxy: user certificates<br/>(MFA-verified, 12 hour TTL)
@@ -167,10 +167,63 @@ If the request is approved, the record is approved on the backend.
 
 If the browser authentication is successful, the auth server will unblock the
 request and `tsh` will receive its certificates through the original POST
-request it made to `/webapi/login/browser`. They will be the standard
-12 hour certificates.
+request it made to `/webapi/login/browser`. They will be stored on disk and have
+a TTL of 12 hours.
 
 #### Per-session MFA
+
+This flow will be followed when a user needs to reauthenticate before accessing
+a protected resource.
+
+```mermaid
+sequenceDiagram
+    participant web
+    participant tsh
+    participant proxy
+    participant auth
+
+    Note over tsh: tsh ssh alice@node
+    Note over tsh: print URL proxy.example.com/web/browser/<request_id>
+
+    tsh->>proxy: POST /webapi/login/browser
+    proxy->>auth: POST /:version/users/:user/ssh/authenticate
+    auth-->>+backend: wait for backend insert /browser_authentication/<request_id>
+
+    tsh-->>web: browser opens to URL
+    Note over web: proxy.example.com/web/browser/<request_id>
+    opt user is not already logged in locally
+        web->>proxy: user logs in normally e.g. password+MFA
+        proxy->>web:
+    end
+
+    web->>auth: rpc GetBrowserAuthentication (request_id)
+    auth ->> backend: insert /browser_authentication/<request_id>
+
+    backend ->>- auth: unblock on insert
+    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, request type}
+    auth ->>+ backend: wait for state change
+
+    auth->>web: Browser Authentication details
+
+    Note over web: share request details with user
+    web->>auth: rpc CreateAuthenticateChallenge
+    auth->>web: MFA Challenge
+    Note over web: user auths with biometrics/passkey
+    web->>auth: rpc UpdateBrowserAuthenticationState<br/>with signed MFA challenge response
+    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, request type, state=approved, mfaDevice}
+
+    backend ->>- auth: unblock on state change
+    auth->>proxy: user certificates<br/>(MFA-verified, 1 minute TTL)
+    proxy->>tsh: user certificates<br/>(MFA-verified, 1 minute TTL)
+    Note over tsh: tsh uses cert to connect to alice@node
+```
+
+The flow is similar to the [login flow](#login-flow) except for a few key
+changes:
+1. The flow is started when a user connects to a per-session MFA protected
+   resource.
+1. The certificate that `tsh` receives is stored in memory and has a TTL of 1
+   minute, to allow the user to connect to the resource and nothing more.
 
 ### Security
 
