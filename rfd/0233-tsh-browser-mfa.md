@@ -97,11 +97,11 @@ sequenceDiagram
         proxy->>web:
     end
 
-    web->>auth: rpc GetBrowserAuthentication (request_id)
+    web->>auth: rpc GetBrowserAuthentication (request_id, request_type=login)
     auth ->> backend: insert /browser_authentication/<request_id>
 
     backend ->>- auth: unblock on insert
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, request type}
+    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public_key, user, ip, request_type}
     auth ->>+ backend: wait for state change
 
 
@@ -112,7 +112,7 @@ sequenceDiagram
     auth->>web: MFA Challenge
     Note over web: user auths with biometrics/passkey
     web->>auth: rpc UpdateBrowserAuthenticationState<br/>with signed MFA challenge response
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, request type, state=approved, mfaDevice}
+    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public_key, user, ip, request_type, state=approved, mfaDevice}
 
     backend ->>- auth: unblock on state change
     auth->>proxy: user certificates<br/>(MFA-verified, 12 hour TTL)
@@ -196,11 +196,11 @@ sequenceDiagram
         proxy->>web:
     end
 
-    web->>auth: rpc GetBrowserAuthentication (request_id)
+    web->>auth: rpc GetBrowserAuthentication (request_id, request_type=session)
     auth ->> backend: insert /browser_authentication/<request_id>
 
     backend ->>- auth: unblock on insert
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, request type}
+    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public_key, user, ip, , request_type}
     auth ->>+ backend: wait for state change
 
     auth->>web: Browser Authentication details
@@ -210,7 +210,7 @@ sequenceDiagram
     auth->>web: MFA Challenge
     Note over web: user auths with biometrics/passkey
     web->>auth: rpc UpdateBrowserAuthenticationState<br/>with signed MFA challenge response
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public key, user, ip, request type, state=approved, mfaDevice}
+    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public_key, user, ip, request_type, state=approved, mfaDevice}
 
     backend ->>- auth: unblock on state change
     auth->>proxy: user certificates<br/>(MFA-verified, 1 minute TTL)
@@ -243,8 +243,49 @@ authentication flow. Initially, `GetBrowserAuthentication` creates an empty
 `BrowserAuthentication`, if it doesn't already exist. The details are then
 updated by the auth service once it detects that the resource has been created.
 
+#### IP restrictions
+
+The login flow creates a 12 hour certificate that is saved to disk, if stolen,
+an attacker would have access for up to 12 hours. To mitigate this, the IP
+address of `tsh` client and the browser session will be compared to check they
+are the same. This ensures that users don't inadvertently create credentials on
+a remote machine that may be shared,
+[headless authentication](0105-headless-authentication.md) should be used in
+this case. It also reduces the risk that a user is phished in to approving an
+attacker's `tsh login` request because it is unlikely that the IP addresses will
+match.
+
 ### Scale
+
+This will increase load on auth servers with watchers that are waiting for
+the `BrowserAuthentication` object on the backend to be created when an
+unauthenticated `tsh` client initiates a login request. To limit the impact of
+this, the watcher will be only be created once per client as described [above](#unauthenticated-webapiloginbrowser-endpoint). The watcher will also timeout
+after 5 minutes, the same TTL as the user has to authenticate their request.
 
 ### Backward Compatibility
 
+`tsh` will ping the proxy and determine its version before attempting browser
+authentication. If the proxy is new enough, `tsh` will proceed with browser
+authentication. If not, it will fallback to existing methods.
+
 ### Test Plan
+
+Add a step to test that browser authentication works for logging in and for
+per-session MFA.
+
+### Audit Events
+
+Events will be logged when:
+
+1. `tsh` makes its initial unauthenticated request, which logs:
+    - IP address
+    - Client public key
+    - Request type
+1. a user approves/denies an authentication event, which logs:
+    - IP address
+    - Client public key
+    - Request type
+    - Request outcome
+    - User
+1. a certificate is generated upon a approval
