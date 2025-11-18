@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
@@ -85,6 +86,7 @@ type AuthService interface {
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
+	GetCircleCITokenValidator() circleci.Validator
 	GetEnv0IDTokenValidator() Env0TokenValidator
 	GetGCPIDTokenValidator() gcp.Validator
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
@@ -288,6 +290,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateBitbucketToken)
 	case types.JoinMethodBoundKeypair:
 		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodCircleCI:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateCircleCIToken)
 	case types.JoinMethodIAM:
 		return s.handleIAMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodEC2:
