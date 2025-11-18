@@ -98,8 +98,7 @@ type commandInfo struct {
 	interpreter string
 	// path to the script that will be executed
 	scriptPath string
-	// should be set to true if the command is expected to return with
-	// a non-zero exit code
+	// true if the command is expected to return with a non-zero exit code
 	expectedFail bool
 }
 
@@ -200,9 +199,10 @@ eval $(echo %s | base64 --decode)`,
 
 	// Define the test cases.
 	tests := []struct {
-		name       string
-		command    string
-		eventInfos []expectedEvents
+		name         string
+		command      string
+		cmdNotInPATH bool
+		eventInfos   []expectedEvents
 	}{
 		{
 			name:    "no commands",
@@ -425,6 +425,13 @@ eval $(echo %s | base64 --decode)`,
 			},
 		},
 		{
+			// Teleport will run the command as 'shell -c <command>' if command
+			// is set, and the shell will be 'sh' when IsTestStub is true.
+			name:         "argv[0] over max length",
+			command:      overMaxArg,
+			cmdNotInPATH: true,
+		},
+		{
 			name:    "max amount of args",
 			command: "cat " + strings.Repeat(tempFilePath+" ", maxArgs),
 			eventInfos: []expectedEvents{
@@ -527,6 +534,7 @@ eval $(echo %s | base64 --decode)`,
 			expectedCmdFail := slices.ContainsFunc(tt.eventInfos, func(info expectedEvents) bool {
 				return info.cmdInfo.expectedFail
 			})
+			expectedCmdFail = expectedCmdFail || tt.cmdNotInPATH
 
 			// Run the command and capture the events.
 			recordedEvents := runCommand(t, srv, bpfSrv, tt.command, expectedCmdFail, recordAllEvents)
@@ -537,7 +545,21 @@ eval $(echo %s | base64 --decode)`,
 			commandOpens := make(map[string][]countedValue[string])
 			commandDstAddrs := make(map[string][]countedValue[addrInfo])
 
-			for _, info := range tt.eventInfos {
+			// A /bin/sh command will always be created by Teleport to
+			// run the user specified command.
+			shCmdArg := tt.command
+			if len(tt.command) > maxArgLength {
+				shCmdArg = tt.command[:maxArgLength]
+			}
+			eventInfos := append(tt.eventInfos, expectedEvents{
+				cmdInfo: commandInfo{
+					program:      "sh",
+					args:         []string{"-c", shCmdArg},
+					expectedFail: expectedCmdFail,
+				},
+			})
+
+			for _, info := range eventInfos {
 				cmdInfo := info.cmdInfo
 				count := max(info.count, 1)
 
@@ -555,7 +577,14 @@ eval $(echo %s | base64 --decode)`,
 				if info.cmdInfo.scriptPath == "" {
 					programPath, err := exec.LookPath(cmdInfo.program)
 					require.NoError(t, err, "%s command is required for these tests but was not found", cmdInfo.program)
-					programPaths[cmdInfo.program] = programPath
+					// Teleport sets the shell directly to /bin/sh so
+					// that is what will be uses as the program path
+					// in command events.
+					if info.cmdInfo.program == "sh" {
+						programPaths[cmdInfo.program] = "/bin/sh"
+					} else {
+						programPaths[cmdInfo.program] = programPath
+					}
 
 					_, ok := programLibs[cmdInfo.program]
 					if !ok {
@@ -891,12 +920,6 @@ func checkCommandEvent(t *testing.T, e *apievents.SessionCommand, cmdPaths map[s
 	t.Helper()
 
 	runCmd := e.BPFMetadata.Program
-	// Teleport will run the command as 'shell -c <command>' if command
-	// is set, and the shell will be 'sh' when IsTestStub is true.
-	if runCmd == "sh" {
-		return
-	}
-
 	path, ok := cmdPaths[runCmd]
 	require.True(t, ok, "unexpected command %q", runCmd)
 	require.Equal(t, path, e.Path, "unexpected executable path for program %q", runCmd)
