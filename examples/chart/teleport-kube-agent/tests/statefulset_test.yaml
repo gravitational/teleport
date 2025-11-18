@@ -868,6 +868,12 @@ tests:
             name: TELEPORT_UPDATE_CONFIG_FILE
             value: /etc/updater-config/update.yaml
       - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/updater-config
+            name: updater-config
+            readOnly: true
+      - contains:
           path: spec.template.spec.volumes
           content:
             name: updater-config
