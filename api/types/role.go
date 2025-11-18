@@ -71,9 +71,6 @@ type Role interface {
 	// SetMetadata sets role metadata
 	SetMetadata(meta Metadata)
 
-	// SetSpec sets role spec
-	SetSpec(spec RoleSpecV6)
-
 	// GetOptions gets role options.
 	GetOptions() RoleOptions
 	// SetOptions sets role options
@@ -409,11 +406,6 @@ func (r *RoleV6) GetMetadata() Metadata {
 // SetMetadata sets role metadata
 func (r *RoleV6) SetMetadata(meta Metadata) {
 	r.Metadata = meta
-}
-
-// SetSpec sets role spec
-func (r *RoleV6) SetSpec(spec RoleSpecV6) {
-	r.Spec = spec
 }
 
 // GetOptions gets role options.
