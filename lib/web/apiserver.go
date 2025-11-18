@@ -4613,6 +4613,12 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 	return loginResp, nil
 }
 
+func (h *Handler) WithNopLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		return fn(w, r, p)
+	})
+}
+
 // validateTrustedCluster validates the token for a trusted cluster and returns it's own host and user certificate authority.
 //
 // POST /webapi/trustedclusters/validate
