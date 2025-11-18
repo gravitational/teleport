@@ -47,7 +47,6 @@ func (a *Server) checkCircleCIJoinRequest(
 	claims, err := circleci.CheckIDToken(ctx, &circleci.CheckIDTokenParams{
 		ProvisionToken: pt,
 		IDToken:        []byte(req.IDToken),
-		Clock:          a.GetClock(),
 		Validator:      a.circleCITokenValidate,
 	})
 

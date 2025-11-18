@@ -770,7 +770,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			ctx context.Context, organizationID, token string,
 		) (*circleci.IDTokenClaims, error) {
 			return circleci.ValidateToken(
-				ctx, circleci.IssuerURLTemplate, organizationID, token,
+				ctx, organizationID, token,
 			)
 		}
 	}

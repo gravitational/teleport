@@ -31,11 +31,10 @@ package circleci
 
 import (
 	"context"
-	"fmt"
+	"net/url"
 	"slices"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport"
@@ -50,10 +49,13 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, "circleci")
 // Validator is a function that can be used to validate CircleCI tokens
 type Validator func(ctx context.Context, organizationID, token string) (*IDTokenClaims, error)
 
-const IssuerURLTemplate = "https://oidc.circleci.com/org/%s"
+func issuerURL(organizationID string) string {
+	u := url.URL{
+		Scheme: "https",
+		Host:   "oidc.circleci.com",
+	}
 
-func issuerURL(template, organizationID string) string {
-	return fmt.Sprintf(template, organizationID)
+	return u.JoinPath("org", organizationID).String()
 }
 
 // IDTokenClaims is the structure of claims contained with a CircleCI issued
@@ -90,7 +92,6 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsCircleCI {
 type CheckIDTokenParams struct {
 	ProvisionToken provision.Token
 	IDToken        []byte
-	Clock          clockwork.Clock
 	Validator      Validator
 }
 
@@ -102,8 +103,6 @@ func (p *CheckIDTokenParams) checkAndSetDefaults() error {
 		return trace.BadParameter("IDToken is required")
 	case p.Validator == nil:
 		return trace.BadParameter("Validator is required")
-	case p.Clock == nil:
-		p.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }

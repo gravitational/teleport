@@ -37,7 +37,6 @@ func (a *Server) validateCircleCIToken(
 		ProvisionToken: pt,
 		IDToken:        idToken,
 		Validator:      a.cfg.AuthService.GetCircleCITokenValidator(),
-		Clock:          a.cfg.AuthService.GetClock(),
 	})
 
 	// If possible, attach claims and workload ID attrs regardless of the error
