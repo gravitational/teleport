@@ -119,6 +119,11 @@ extraLabels:
   pod: {}
   # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
   serviceAccount: {}
+  # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole
+  clusterRole: {}
+  # extraLabels.clusterRoleBinding(object) -- are labels to set on the
+  # ClusterRoleBinding
+  clusterRoleBinding: {}
 
 # annotations -- contains annotations to apply to the different Kubernetes
 # objects created by the chart. See [the Kubernetes annotation
@@ -141,6 +146,11 @@ annotations:
   # annotations.serviceAccount(object) -- contains the Kubernetes annotations
   # put on the `ServiceAccount` resource created by the chart.
   serviceAccount: {}
+  # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole
+  clusterRole: { }
+  # extraLabels.clusterRoleBinding(object) -- are labels to set on the
+  # ClusterRoleBinding
+  clusterRoleBinding: { }
 
 # resources(object) -- sets the resource requests/limits for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
