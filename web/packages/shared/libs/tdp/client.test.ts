@@ -17,7 +17,7 @@
  */
 import {TdpClient, TdpTransport, } from './client';
 import {SharedDirectoryAccess} from './sharedDirectoryAccess';
-import {ClientHello} from 'gen-proto-ts/teleport/desktop/tdp_pb'
+import {ClientHello} from 'gen-proto-ts/teleport/desktop/v1/tdp_pb'
 
 
 let mockTransport: jest.Mocked<TdpTransport> = {

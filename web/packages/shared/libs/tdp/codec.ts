@@ -422,14 +422,14 @@ export interface ClientEventHandlers {
   handleTdpAlert(alert: Alert): void;
   handleMfaChallenge(challenge: MfaJson): void;
   handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge): void;
-  handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest): void;
-  handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest): void;
-  handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest): void;
-  handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest): void;
-  handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest): void;
+  handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest): Promise<void>;
+  handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest): Promise<void>;
+  handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest): Promise<void>;
+  handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest): Promise<void>;
+  handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest): Promise<void>;
   handleSharedDirectoryMoveRequest(req: SharedDirectoryMoveRequest): void;
-  handleSharedDirectoryListRequest(req: SharedDirectoryListRequest): void;
-  handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest): void;
+  handleSharedDirectoryListRequest(req: SharedDirectoryListRequest): Promise<void>;
+  handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest): Promise<void>;
   handleLatencyStats(stats: LatencyStats): void;
   handleTDPBUpgrade(req: TdpbUpgrade): void;
   handleServerHello(hello: ServerHello): void;
@@ -461,7 +461,7 @@ export class TdpbCodec extends Encoder {
     return buf.buffer
   }
 
-  public processMessage(buffer: ArrayBufferLike) {
+  async processMessage(buffer: ArrayBufferLike) {
     const buf = new DataView(buffer);
     const messageType = buf.getUint32(0, false);
     const messageLength = buf.getUint32(4, false);
@@ -523,10 +523,10 @@ export class TdpbCodec extends Encoder {
         const req = tdpb.SharedDirectoryRequest.fromBinary(messageData);
         switch (req.operationCode) {
           case tdpb.DirectoryOperation.CREATE:
-            this.handlers.handleSharedDirectoryCreateRequest(req);
+            await this.handlers.handleSharedDirectoryCreateRequest(req);
             break;
           case tdpb.DirectoryOperation.DELETE:
-            this.handlers.handleSharedDirectoryDeleteRequest(req);
+            await this.handlers.handleSharedDirectoryDeleteRequest(req);
             break;
           case tdpb.DirectoryOperation.MOVE:
             this.handlers.handleSharedDirectoryMoveRequest({
@@ -539,13 +539,13 @@ export class TdpbCodec extends Encoder {
             });
             break;
           case tdpb.DirectoryOperation.INFO:
-            this.handlers.handleSharedDirectoryInfoRequest(req);
+            await this.handlers.handleSharedDirectoryInfoRequest(req);
             break;
           case tdpb.DirectoryOperation.TRUNCATE:
-            this.handlers.handleSharedDirectoryTruncateRequest(req);
+            await this.handlers.handleSharedDirectoryTruncateRequest(req);
             break;
           case tdpb.DirectoryOperation.READ:
-            this.handlers.handleSharedDirectoryReadRequest({
+            await this.handlers.handleSharedDirectoryReadRequest({
               completionId: req.completionId,
               directoryId: req.directoryId,
               path: req.path,
@@ -555,7 +555,7 @@ export class TdpbCodec extends Encoder {
             });
             break;
           case tdpb.DirectoryOperation.WRITE:
-            this.handlers.handleSharedDirectoryWriteRequest({
+            await this.handlers.handleSharedDirectoryWriteRequest({
               completionId: req.completionId,
               directoryId: req.directoryId,
               pathLength: req.path.length,
@@ -565,7 +565,7 @@ export class TdpbCodec extends Encoder {
             });
             break;
           case tdpb.DirectoryOperation.LIST:
-            this.handlers.handleSharedDirectoryListRequest(req);
+            await this.handlers.handleSharedDirectoryListRequest(req);
             break;
           default:
             throw new Error(`unknown shared directory operation, ${req.operationCode}`)

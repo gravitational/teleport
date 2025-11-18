@@ -168,7 +168,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
-    private transportReady: () => void,
+    private transportReady?: () => void,
   ) {
     super();
     this.codec = new TdpCodec(this)
@@ -233,7 +233,9 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
 
     // Transport ready and initial messages sent
-    this.transportReady()
+    if (this.transportReady) {
+      this.transportReady();
+    }
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
