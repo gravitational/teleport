@@ -121,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
+	"github.com/gravitational/teleport/lib/cloudcluster"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -2840,13 +2841,13 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(authServer.BotInstanceVersionReporter.Run(process.GracefulExitContext()))
 	})
 
-	// cloudClusterController, err := cloudcluster.NewController(authServer, logger, process.Clock, cfg.Auth.AgentRolloutControllerSyncPeriod, process.metricsRegistry)
-	// if err != nil {
-	// 	return trace.Wrap(err, "creating the cloud cluster controller")
-	// }
-	// process.RegisterFunc("auth.cloud_cluster_controller", func() error {
-	// 	return trace.Wrap(cloudClusterController.Run(process.GracefulExitContext()), "running cloud_cluster controller")
-	// })
+	cloudClusterController, err := cloudcluster.NewController(authServer, logger, process.Clock, cfg.Auth.AgentRolloutControllerSyncPeriod, process.metricsRegistry)
+	if err != nil {
+		return trace.Wrap(err, "creating the cloud cluster controller")
+	}
+	process.RegisterFunc("auth.cloud_cluster_controller", func() error {
+		return trace.Wrap(cloudClusterController.Run(process.GracefulExitContext()), "running cloud_cluster controller")
+	})
 
 	process.RegisterFunc("auth.server_info", func() error {
 		return trace.Wrap(auth.ReconcileServerInfos(process.GracefulExitContext(), authServer))
