@@ -100,7 +100,6 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
@@ -114,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/join/circleci"
@@ -1261,7 +1261,7 @@ type Server struct {
 	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
 	// validated by the auth server. It can be overridden for the purpose of
 	// tests.
-	azureDevopsIDTokenValidator azureDevopsIDTokenValidator
+	azureDevopsIDTokenValidator azuredevops.Validator
 
 	// tpmValidator allows TPMs to be validated by the auth server. It can be
 	// overridden for the purpose of tests.

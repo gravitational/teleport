@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
@@ -84,6 +85,7 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetAzureDevopsIDTokenValidator() azuredevops.Validator
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
 	GetCircleCITokenValidator() circleci.Validator
@@ -286,6 +288,8 @@ func (s *Server) handleJoinMethod(
 	switch joinMethod {
 	case types.JoinMethodToken:
 		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodAzureDevops:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateAzureDevopsToken)
 	case types.JoinMethodBitbucket:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateBitbucketToken)
 	case types.JoinMethodBoundKeypair:
