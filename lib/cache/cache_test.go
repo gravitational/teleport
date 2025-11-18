@@ -173,6 +173,7 @@ type testPack struct {
 	botInstanceService      *local.BotInstanceService
 	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
+	appAuthConfigs          *local.AppAuthConfigService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -525,6 +526,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.plugin = local.NewPluginsService(p.backend)
 
+	p.appAuthConfigs, err = local.NewAppAuthConfigService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -587,6 +593,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Plugin:                  p.plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
+		AppAuthConfig:           p.appAuthConfigs,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -136,7 +137,7 @@ func (p *appAuthConfigParser) parse(event backend.Event) (types.Resource, error)
 			Kind:    types.KindAppAuthConfig,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name: name,
+				Name: strings.TrimPrefix(name, backend.SeparatorString),
 			},
 		}, nil
 	default:
