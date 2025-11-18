@@ -53,6 +53,14 @@ rules:
   verbs:
     - create
     - patch
+# the updater needs to get and update the configmap containing updater state
+- apiGroups:
+    - ""
+  resources:
+    - configmaps
+  verbs:
+    - watch
+    - list
 - apiGroups:
     - ""
   resources:
