@@ -24,13 +24,13 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 func (a *Server) validateGithubToken(
 	ctx context.Context,
-	pt types.ProvisionToken,
+	pt provision.Token,
 	idToken []byte,
 ) (any, *workloadidentityv1.JoinAttrs, error) {
 	claims, err := githubactions.CheckGithubIDToken(ctx, &githubactions.CheckGithubIDTokenParams{

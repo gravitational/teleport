@@ -272,6 +272,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRotatedKeyParser()
 		case types.KindRelayServer:
 			parser = newRelayServerParser()
+		case types.KindScopedToken:
+			parser = newScopedTokenParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
