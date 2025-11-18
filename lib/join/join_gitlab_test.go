@@ -20,7 +20,6 @@ package join_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -35,8 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 )
-
-var errMockInvalidToken = errors.New("invalid token")
 
 type mockGitLabTokenValidator struct {
 	tokens           map[string]gitlab.IDTokenClaims
