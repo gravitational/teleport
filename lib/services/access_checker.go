@@ -344,7 +344,7 @@ type accessChecker struct {
 //     full RoleSet
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
 	if info.ScopePin != nil {
-		return nil, trace.BadParameter("cannot create unscoped AccessChecker based on scoped identity")
+		return nil, trace.Errorf("cannot create standard access checker: %w", ErrScopedIdentity)
 	}
 	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
 	if err != nil {

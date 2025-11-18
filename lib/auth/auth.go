@@ -1426,6 +1426,13 @@ func (a *Server) ScopedAccess() services.ScopedAccess {
 	}
 }
 
+// ScopedRoleReader returns a read-only scoped role client. This is here to satisfy interfaces
+// used by agent-side logic, which only has access to the ScopedRoleReader subset of the
+// broader ScopedAccess interface.
+func (a *Server) ScopedRoleReader() services.ScopedRoleReader {
+	return a.ScopedAccessCache
+}
+
 // SetUpgradeWindowStartHourGetter sets the getter used to sync the ClusterMaintenanceConfig resource
 // with the cloud UpgradeWindowStartHour value.
 func (a *Server) SetUpgradeWindowStartHourGetter(fn func(context.Context) (int64, error)) {
