@@ -22,9 +22,8 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import Logger from 'teleterm/logger';
-import { AwaitableSender } from 'teleterm/mainProcess/awaitableSender';
+import type { IAwaitableSender } from 'teleterm/mainProcess/awaitableSender';
 import { RendererIpc } from 'teleterm/mainProcess/types';
-import type { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { AppUpdater } from 'teleterm/services/appUpdater';
 import { isTshdRpcError, TshdClient } from 'teleterm/services/tshd';
 import { mergeClusterProfileWithDetails } from 'teleterm/services/tshd/cluster';
@@ -57,6 +56,12 @@ export interface ProfileWatcherError {
   reason: 'processing-error' | 'exited';
 }
 
+interface WindowsManager {
+  getWindow(): {
+    webContents: { send(channel: string, ...args: any[]): void };
+  };
+}
+
 /**
  * Manages the lifecycle of clusters by handling both UI actions that update them
  * (e.g., adding a cluster, logging out) and profile watcher events.
@@ -74,20 +79,20 @@ export interface ProfileWatcherError {
 export class ClusterLifecycleManager {
   private readonly logger = new Logger('ClusterLifecycleManager');
   private rendererEventHandler:
-    | AwaitableSender<ClusterLifecycleEvent>
+    | IAwaitableSender<ClusterLifecycleEvent>
     | undefined;
   private watcherStarted = false;
 
   constructor(
     private readonly clusterStore: ClusterStore,
     private readonly getTshdClient: () => Promise<TshdClient>,
-    private readonly appUpdater: AppUpdater,
-    private readonly windowsManager: Pick<WindowsManager, 'getWindow'>,
+    private readonly appUpdater: Pick<AppUpdater, 'maybeRemoveManagingCluster'>,
+    private readonly windowsManager: WindowsManager,
     private readonly profileWatcher: AsyncIterable<ProfileChangeSet>
   ) {}
 
   setRendererEventHandler(
-    handler: AwaitableSender<ClusterLifecycleEvent>
+    handler: IAwaitableSender<ClusterLifecycleEvent>
   ): void {
     if (this.rendererEventHandler) {
       this.logger.error(
