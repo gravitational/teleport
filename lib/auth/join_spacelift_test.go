@@ -20,6 +20,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -35,6 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/spacelift"
 )
+
+var errMockInvalidToken = errors.New("invalid token")
 
 type mockSpaceliftTokenValidator struct {
 	tokens map[string]spacelift.IDTokenClaims
