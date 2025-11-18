@@ -129,7 +129,7 @@ it's possible to reuse it as long as the following requirements are met:
 `discovery_group`.
 - Access Graph service is reachable from the machine where Discovery Service runs.
 
-## Step 2/4. Identity Activity Center CloudTrail integration (optional)
+## Step 2/4. Integrate CloudTrail Events for Identity Activity Center (optional)
 
 To enable the Identity Activity Center CloudTrail integration, you can use an existing
 CloudTrail trail or create a new one. Trails can be scoped to a single AWS account or
@@ -155,7 +155,7 @@ is strongly recommended. Be sure to configure the necessary KMS key permissions 
 following step so that Identity Security can successfully decrypt messages from SQS
 and access CloudTrail logs in the S3 bucket.
 
-## Step 3/4. Identity Activity Center EKS Audit Log integration (optional)
+## Step 3/4. Integrate EKS Audit Logs for Identity Activity Center (optional)
 
 To set up near real-time access to EKS API server audit logs, use the AWS web console to
 navigate to the EKS cluster configuration. From the "Observability" tab, in the "Control plane logs"
@@ -168,11 +168,12 @@ In your `discovery_config` resource, under the `access_graph.aws` section, add a
 section with tags to match AWS EKS cluster tags. Those clusters that match the tags will have
 the API server audit logs fetched from CloudWatch Logs and imported into Identity Activity Center.
 
-<Var name="resource-name" />.
-<Var name="discovery-group" />.
-<Var name="regions" />.
-<Var name="tag-name" />.
-<Var name="tag-value" />.
+- <Var name="resource-name" />: The name of the `discovery_config` resource.
+- <Var name="discovery-group" />: The `discovery_group` name matching the Teleport configuration.
+- <Var name="regions" />: A list of AWS regions in which to discovery EKS clusters.
+- <Var name="tag-name" />: The name of a tag that EKS clusters must to match, or `"*"` for any tag.
+- <Var name="tag-value" />: The value or list of values that the named tag must have to match, or `"*"` for any value. If a list, only one of the values need to match.
+
 ```yaml
 kind: discovery_config
 version: v1
