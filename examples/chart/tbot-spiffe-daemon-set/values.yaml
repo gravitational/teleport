@@ -112,8 +112,8 @@ extraLabels:
   roleBinding: {}
   # extraLabels.config(object) -- are labels to set on the ConfigMap.
   config: {}
-  # extraLabels.deployment(object) -- are labels to set on the Deployment or StatefulSet.
-  deployment: {}
+  # extraLabels.deployment(object) -- are labels to set on the DaemonSet.
+  daemonSet: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment or StatefulSet.
   pod: {}
@@ -137,20 +137,20 @@ annotations:
   # annotations.config(object) -- contains the Kubernetes annotations
   # put on the `ConfigMap` resource created by the chart.
   config: {}
-  # annotations.deployment(object) -- contains the Kubernetes annotations
-  # put on the `Deployment` or `StatefulSet` resource created by the chart.
-  deployment: {}
+  # annotations.daemonSet(object) -- contains the Kubernetes annotations
+  # put on the `DaemonSet` resource created by the chart.
+  daemonSet: {}
   # annotations.pod(object) -- contains the Kubernetes annotations
   # put on the `Pod` resources created by the chart.
   pod: {}
   # annotations.serviceAccount(object) -- contains the Kubernetes annotations
   # put on the `ServiceAccount` resource created by the chart.
   serviceAccount: {}
-  # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole
-  clusterRole: { }
-  # extraLabels.clusterRoleBinding(object) -- are labels to set on the
+  # extraLabels.clusterRole(object) -- are annotations to set on the ClusterRole
+  clusterRole: {}
+  # extraLabels.clusterRoleBinding(object) -- are annotations to set on the
   # ClusterRoleBinding
-  clusterRoleBinding: { }
+  clusterRoleBinding: {}
 
 # resources(object) -- sets the resource requests/limits for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
