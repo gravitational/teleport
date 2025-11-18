@@ -169,14 +169,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	client := mgr.GetClient()
-	updateConfigName := agentName + "-update"
-
+	// The updater is only designed to work with a single deployment or statefulset.
+	// Pre-fetch the ID if it already exists, so that we can use it to lookup versions.
+	// This logic could be moved into the reconciler, but it would require refactoring
+	// all version getter implementations to accept an ID dynamically in GetVersion.
 	var updateID uuid.UUID
 	var updateYAML v1.ConfigMap
-	err = client.Get(ctx, kclient.ObjectKey{
+	err = mgr.GetClient().Get(ctx, kclient.ObjectKey{
 		Namespace: agentNamespace,
-		Name:      updateConfigName,
+		Name:      agentName + "-update",
 	}, &updateYAML)
 	switch {
 	case apierrors.IsNotFound(err):
@@ -314,12 +315,11 @@ func main() {
 	)
 
 	statusWriter := controller.StatusWriter{
-		Client:           mgr.GetClient(),
-		Scheme:           mgr.GetScheme(),
-		UpdateID:         updateID,
-		UpdateGroup:      updateGroup,
-		UpdateConfigName: updateConfigName,
-		ProxyAddress:     proxyAddress,
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		UpdateID:     updateID,
+		UpdateGroup:  updateGroup,
+		ProxyAddress: proxyAddress,
 	}
 
 	// Controller registration
