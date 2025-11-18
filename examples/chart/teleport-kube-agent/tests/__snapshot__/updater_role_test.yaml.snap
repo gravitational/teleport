@@ -40,6 +40,16 @@ sets the correct role rules:
       - create
       - patch
     - apiGroups:
+      - ""
+      resourceNames:
+      - RELEASE-NAME-updater
+      resources:
+      - configmaps
+      verbs:
+      - get
+      - create
+      - update
+    - apiGroups:
       - apps
       resources:
       - deployments
