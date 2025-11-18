@@ -365,42 +365,6 @@ func (c *windowsDesktopServiceCollection) WriteText(w io.Writer, verbose bool) e
 	return trace.Wrap(err)
 }
 
-type windowsDesktopCollection struct {
-	desktops []types.WindowsDesktop
-}
-
-func (c *windowsDesktopCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.desktops {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *windowsDesktopCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, d := range c.desktops {
-		labels := common.FormatLabels(d.GetAllLabels(), verbose)
-		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
-	}
-	headers := []string{"Name", "Address", "AD Domain", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *windowsDesktopCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.desktops)
-}
-
-func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.desktops)
-}
-
 type dynamicWindowsDesktopCollection struct {
 	desktops []types.DynamicWindowsDesktop
 }

@@ -7056,10 +7056,11 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 		return nil
 	}
 
-	// If the desktop exists, check access,
-	// if it doesn't, continue.
-	existing, err := a.authServer.GetWindowsDesktops(ctx,
-		types.WindowsDesktopFilter{HostID: s.GetHostID(), Name: s.GetName()})
+	// If the desktop exists, check access, if it doesn't, continue.
+	existing, err := a.authServer.GetWindowsDesktops(
+		ctx,
+		types.WindowsDesktopFilter{HostID: s.GetHostID(), Name: s.GetName()},
+	)
 	if err == nil && len(existing) != 0 {
 		if err := a.checkAccessToWindowsDesktop(existing[0]); err != nil {
 			return trace.Wrap(err)
