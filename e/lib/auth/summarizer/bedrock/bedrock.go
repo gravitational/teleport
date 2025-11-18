@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/aws/smithy-go"
@@ -19,6 +18,7 @@ import (
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	libmetrics "github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -76,6 +76,7 @@ type ProviderConfig struct {
 	// ModelResourceName is the name of an inference model this configuration is
 	// derived from.
 	ModelResourceName string
+	CfgCache          *awsconfig.Cache
 }
 
 // ClientFactory is an interface for creating Bedrock clients.
@@ -116,6 +117,9 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 	if cfg.Spec.GetRegion() == "" {
 		return nil, trace.BadParameter("region is required")
 	}
+	if cfg.CfgCache == nil {
+		return nil, trace.BadParameter("AWS config cache is required")
+	}
 
 	clientFactory := cfg.ClientFactory
 	if clientFactory == nil {
@@ -127,9 +131,14 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 		maxSessionLength = defaultMaxSessionLength
 	}
 
-	awscfg, err := config.LoadDefaultConfig(
+	awscfg, err := cfg.CfgCache.GetConfig(
 		ctx,
-		config.WithRegion(cfg.Spec.GetRegion()),
+		cfg.Spec.GetRegion(),
+		awsconfig.WithCredentialsMaybeIntegration(
+			awsconfig.IntegrationMetadata{
+				Name: cfg.Spec.GetIntegration(),
+			},
+		),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

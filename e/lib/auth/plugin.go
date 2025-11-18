@@ -11,6 +11,7 @@ import (
 
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -57,6 +58,8 @@ import (
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/secreports/secreportsv1"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -344,14 +347,24 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	if modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled {
 		p.logger.InfoContext(ctx, "Session summarizer enabled")
+
+		oidcClient := AWSOIDCClient{
+			IntegrationGetter: p.authServer.AuthServer.Cache,
+			cache:             p.authServer.AuthServer.Cache,
+			keyStoreManager:   p.authServer.AuthServer.GetKeyStore(),
+			serverID:          p.authServer.AuthServer.ServerID,
+			clock:             p.authServer.AuthServer.GetClock(),
+		}
+
 		sessionSummarizer, err := summarizer.NewSessionSummarizer(summarizer.SummarizerConfig{
 			Backend:         p.authServer.AuthServer,
 			Streamer:        p.authServer.AuthServer,
 			SummaryUploader: p.authServer.AuthServer,
 			Clock:           p.authServer.AuthServer.GetClock(),
 			// TODO(bl-nero): Relax this condition once we implement spend controls.
-			EnableBedrock: !modules.GetModules().Features().Cloud,
-			Encrypter:     p.authServer.AuthServer.EncryptedIO,
+			EnableBedrock:         !modules.GetModules().Features().Cloud,
+			Encrypter:             p.authServer.AuthServer.EncryptedIO,
+			OIDCIntegrationClient: &oidcClient,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -453,6 +466,29 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 
 	return nil
+}
+
+// AWSOIDCClient generates AWS OIDC tokens for the auth server.
+type AWSOIDCClient struct {
+	awsconfig.IntegrationGetter
+	cache           awsoidc.Cache
+	keyStoreManager awsoidc.KeyStoreManager
+	serverID        string
+	clock           clockwork.Clock
+}
+
+// GenerateAWSOIDCToken generates AWS OIDC tokens for the auth server.
+func (c *AWSOIDCClient) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	token, err := awsoidc.GenerateAWSOIDCToken(ctx, c.cache, c.keyStoreManager, awsoidc.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+		Username:    c.serverID,
+		Subject:     types.IntegrationAWSOIDCSubjectAuth,
+		Clock:       c.clock,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
 }
 
 func (p *Plugin) registerSCIMService(ctx context.Context, registrar grpc.ServiceRegistrar, cfg *common.Config) error {

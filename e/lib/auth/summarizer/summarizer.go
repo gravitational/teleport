@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -62,6 +63,9 @@ type SummarizerConfig struct {
 	// should only be turned on outside Teleport Cloud. Setting it to true allows
 	// using inference_model resources for inference.
 	EnableBedrock bool
+	// OIDCIntegrationClient is used to generate AWS OIDC tokens for Amazon
+	// Bedrock.
+	OIDCIntegrationClient awsconfig.OIDCIntegrationClient
 }
 
 // SummaryUploader allows uploading recording summaries.
@@ -95,6 +99,7 @@ type SessionSummarizer struct {
 	concurrencyLimiter   *semaphore.Weighted
 	enableBedrock        bool
 	encrypter            events.EncryptionWrapper
+	cfgCache             *awsconfig.Cache
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -117,6 +122,15 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		clock = clockwork.NewRealClock()
 	}
 
+	cfgCache, err := awsconfig.NewCache(
+		awsconfig.WithDefaults(
+			awsconfig.WithOIDCIntegrationClient(cfg.OIDCIntegrationClient),
+		),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &SessionSummarizer{
 		backend:              cfg.Backend,
 		streamer:             cfg.Streamer,
@@ -128,6 +142,7 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		concurrencyLimiter:   semaphore.NewWeighted(concurrencyLimit),
 		enableBedrock:        cfg.EnableBedrock,
 		encrypter:            cfg.Encrypter,
+		cfgCache:             cfgCache,
 	}, nil
 }
 
@@ -449,11 +464,13 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 		if !s.enableBedrock {
 			return nil, trace.AccessDenied("Amazon Bedrock models are unavailable in Teleport Cloud")
 		}
+
 		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
 			Spec:              providerCfg.Bedrock,
 			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: modelName,
+			CfgCache:          s.cfgCache,
 		})
 		return p, trace.Wrap(err)
 	default:

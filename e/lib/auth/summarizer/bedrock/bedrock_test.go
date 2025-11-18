@@ -5,32 +5,47 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/api/types"
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 )
 
 func TestInferenceProvider(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	provider, err := NewProvider(ctx, ProviderConfig{
-		Spec: &summarizerv1pb.BedrockProvider{
-			Region:         "us-east-1",
-			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "dummy-integration"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:sts::123456789012:role/TestRole",
 		},
-		ModelResourceName: "claude",
-		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
-	})
+	)
+	require.NoError(t, err)
+	oidcIntegrationClient := mocks.FakeOIDCIntegrationClient{
+		Integration: awsOIDCIntegration,
+	}
+	cache, err := awsconfig.NewCache(
+		awsconfig.WithDefaults(
+			awsconfig.WithOIDCIntegrationClient(&oidcIntegrationClient),
+			awsconfig.WithSTSClientProvider(func(c aws.Config) awsconfig.STSClient {
+				return &mocks.STSClient{}
+			}),
+		),
+	)
 	require.NoError(t, err)
 
 	cases := []struct {
-		name    string
-		content string
-		assert  func(t *testing.T, resp string, err error)
+		name        string
+		integration string
+		content     string
+		assert      func(t *testing.T, resp string, err error)
 	}{
 		{
 			name:    "typical case",
@@ -38,6 +53,15 @@ func TestInferenceProvider(t *testing.T) {
 			assert: func(t *testing.T, resp string, err error) {
 				require.NoError(t, err)
 				assert.Equal(t, "The user wrote: ps aux", resp)
+			},
+		},
+		{
+			name:        "OIDC integration",
+			integration: "dummy-integration",
+			content:     "ls -l",
+			assert: func(t *testing.T, resp string, err error) {
+				require.NoError(t, err)
+				assert.Equal(t, "The user wrote: ls -l", resp)
 			},
 		},
 		{
@@ -70,6 +94,18 @@ func TestInferenceProvider(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			provider, err := NewProvider(ctx, ProviderConfig{
+				Spec: &summarizerv1pb.BedrockProvider{
+					Region:         "us-east-1",
+					BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
+					Integration:    tc.integration,
+				},
+				ModelResourceName: "claude",
+				ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
+				CfgCache:          cache,
+			})
+			require.NoError(t, err)
+
 			content := io.NopCloser(strings.NewReader(tc.content))
 			resp, err := provider.Summarize(
 				ctx, "2bce7245-6508-43e0-ab31-b1a2dcec714e", "Analyze this terminal session", content,
