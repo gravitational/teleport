@@ -43,7 +43,7 @@ import {
   ClipboardData,
 }from './codec';
 
-import * as tdpb from 'gen-proto-ts/teleport/desktop/tdp_pb'
+import * as tdpb from 'gen-proto-ts/teleport/desktop/v1/tdp_pb'
 
 const mockHandlers: ClientEventHandlers = {
   handleClipboardData(data: ClipboardData): void {},
@@ -241,11 +241,11 @@ test('tdpb encode/decode', () => {
   const hello = tdpb.ClientHello.fromBinary(new Uint8Array(buffer.slice(8)));
   expect(hello.screenSpec.width).toEqual(1920);
   expect(hello.screenSpec.height).toEqual(1080);
-  expect(hello.keyboardLayout.keyboardLayout).toEqual(1);
+  expect(hello.keyboardLayout).toEqual(1);
 
   // Inspect the header as well
   const view = new DataView(buffer);
-  expect(view.getUint32(0)).toEqual(tdpb.MessageType.MESSAGE_CLIENT_HELLO);
+  expect(view.getUint32(0)).toEqual(tdpb.MessageType.CLIENT_HELLO);
   expect(view.getUint32(4)).toEqual(buffer.byteLength - 8);
 });
 

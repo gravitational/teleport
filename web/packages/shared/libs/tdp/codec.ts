@@ -17,8 +17,8 @@
  */
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
-import * as tdpb from 'gen-proto-ts/teleport/desktop/tdp_pb'
-import {IMessageType, readMessageOption} from "@protobuf-ts/runtime";
+import * as tdpb from 'gen-proto-ts/teleport/desktop/v1/tdp_pb'
+import { IMessageType, readMessageOption } from "@protobuf-ts/runtime";
 import { MFAAuthenticateChallenge } from 'gen-proto-ts/teleport/legacy/client/proto/authservice_pb';
 
 export type Message = ArrayBufferLike;
@@ -342,7 +342,6 @@ export type ServerHello = {
 
 };
 
-
 // | message type (38) | version uint32 |
 export type TdpbUpgrade = {
   version: number
@@ -374,7 +373,17 @@ export abstract class Encoder {
   encodeClientScreenSpec(spec: ClientScreenSpec): Message {
     throw new Error("unimplemented")
   }
-  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
+
+  encodeClientKeyboardLayout(keyboardLayout: number): Message {
+    throw new Error("unimplemented");
+  }
+
+  encodeUsername(username: string): Message {
+    throw new Error("unimplemented")
+  }
+
+  // TDPB Messages (optional override)
+  encodeClientHello(hello: ClientHello): Message {
     throw new Error("unimplemented")
   }
 
@@ -386,8 +395,7 @@ export abstract class Encoder {
   abstract encodeMouseButton(button: MouseButton, state: ButtonState): Message;
   abstract encodeSyncKeys(syncKeys: SyncKeys): Message;
   abstract encodeClipboardData(clipboardData: ClipboardData): Message;
-  abstract encodeUsername(username: string): Message;
-  abstract encodeClientKeyboardLayout(keyboardLayout: number): Message;
+  abstract encodeKeyboardInput(code: string, state: ButtonState): Message[];
   abstract encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
   abstract encodeMfaJson(mfaJson: MfaJson): Message;
   abstract encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
@@ -400,11 +408,6 @@ export abstract class Encoder {
   abstract encodeSharedDirectoryDeleteResponse(resp: SharedDirectoryDeleteResponse): Message;
   abstract encodeSharedDirectoryWriteResponse(resp: SharedDirectoryWriteResponse): Message;
   abstract encodeSharedDirectoryTruncateResponse(resp: SharedDirectoryTruncateResponse): Message;
-
-  // TDPB Messages (optional override)
-  encodeClientHello(hello: ClientHello): Message {
-    throw new Error("unimplemented")
-  }
 }
 
 
@@ -415,12 +418,6 @@ export interface ClientEventHandlers {
   handleRdpConnectionActivated(spec: RdpConnectionActivated): void;
   handleServerHello(hello: ServerHello): void;
   handleRdpFastPathPdu(pdu: RdpFastPathPdu): void;
-
-  // Unsupported messages
-  //handleClientScreenSpec(spec: ClientScreenSpec);
-  //handleMouseButton(button: MouseButton);
-  //handleMouseMove(move: tdpb.MouseMove);
-
   handleClipboardData(data: ClipboardData): void;
   handleTdpAlert(alert: Alert): void;
   handleMfaChallenge(challenge: MfaJson): void;
@@ -471,12 +468,12 @@ export class TdpbCodec extends Encoder {
     const messageData = new Uint8Array(buf.buffer.slice(8, 8 + messageLength));
 
     switch (messageType) {
-      case tdpb.MessageType.MESSAGE_SERVER_HELLO:
+      case tdpb.MessageType.SERVER_HELLO:
         this.handlers.handleRdpConnectionActivated(
-          tdpb.ServerHello.fromBinary(messageData).activationSpecs
+          tdpb.ServerHello.fromBinary(messageData).activationSpec
         );
         break;
-      case tdpb.MessageType.MESSAGE_PNG_FRAME:
+      case tdpb.MessageType.PNG_FRAME:
         const frame = tdpb.PNGFrame.fromBinary(messageData);
         let data = new Image()
         data.src = this.asBase64Url(frame.data.buffer, 0);
@@ -489,42 +486,40 @@ export class TdpbCodec extends Encoder {
         };
 
         // TODO: Figure out why I had to do this
-        let load: (pngFrame: PngFrame) => any = 
+        let load: (pngFrame: PngFrame) => any =
           (theFrame: PngFrame) => this.handlers.handlePngFrame(theFrame);
         data.onload = load(png);
         break;
-      case tdpb.MessageType.MESSAGE_FASTPATH_PDU:
+      case tdpb.MessageType.FASTPATH_PDU:
         this.handlers.handleRdpFastPathPdu(
           tdpb.FastPathPDU.fromBinary(messageData).pdu
         );
         break;
-      case tdpb.MessageType.MESSAGE_ERROR:
-        throw new Error(tdpb.Error.fromBinary(messageData).message);
-      case tdpb.MessageType.MESSAGE_ALERT:
+      case tdpb.MessageType.ALERT:
         // TODO: Go back and fix this typo in the protos
-        let { message, severseverity } = tdpb.Alert.fromBinary(messageData);
-        this.handlers.handleTdpAlert({ message, severity: severseverity.valueOf() })
+        let { message, severity } = tdpb.Alert.fromBinary(messageData);
+        this.handlers.handleTdpAlert({ message, severity: severity.valueOf() })
         break;
-      case tdpb.MessageType.MESSAGE_CLIPBOARD_DATA:
+      case tdpb.MessageType.CLIPBOARD_DATA:
         const clipboardData = tdpb.ClipboardData.fromBinary(messageData).data;
         this.handlers.handleClipboardData({ data: this.decoder.decode(clipboardData) });
         break;
-      case tdpb.MessageType.MESSAGE_MFA:
+      case tdpb.MessageType.MFA:
         const mfa = tdpb.MFA.fromBinary(messageData);
         const mfaType = mfa.type.toString()
         if (mfaType !== 'n' && mfaType !== 'u') {
           throw new Error(`invalid mfa type ${mfaType}, should be "n" or "u"`);
         }
         const jsn = MFAAuthenticateChallenge.toJson(mfa.challenge);
-        this.handlers.handleMfaChallenge({mfaType, jsonString: jsn.toString()})
+        this.handlers.handleMfaChallenge({ mfaType, jsonString: jsn.toString() })
         break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_ACKNOWLEDGE:
+      case tdpb.MessageType.SHARED_DIRECTORY_ACKNOWLEDGE:
         {
-          const {errorCode: errCode, directoryId} = tdpb.SharedDirectoryAcknowledge.fromBinary(messageData);
-          this.handlers.handleSharedDirectoryAcknowledge({errCode, directoryId});
+          const { errorCode: errCode, directoryId } = tdpb.SharedDirectoryAcknowledge.fromBinary(messageData);
+          this.handlers.handleSharedDirectoryAcknowledge({ errCode, directoryId });
         }
         break;
-      case tdpb.MessageType.MESSAGE_SHARED_DIRECTORY_REQUEST:
+      case tdpb.MessageType.SHARED_DIRECTORY_REQUEST:
         const req = tdpb.SharedDirectoryRequest.fromBinary(messageData);
         switch (req.operationCode) {
           case tdpb.DirectoryOperation.CREATE:
@@ -561,12 +556,12 @@ export class TdpbCodec extends Encoder {
             break;
           case tdpb.DirectoryOperation.WRITE:
             this.handlers.handleSharedDirectoryWriteRequest({
-              completionId:  req.completionId,
-              directoryId:  req.directoryId,
-              pathLength:  req.path.length,
-              path:  req.path,
-              offset:  req.offset,
-              writeData:  req.data,
+              completionId: req.completionId,
+              directoryId: req.directoryId,
+              pathLength: req.path.length,
+              path: req.path,
+              offset: req.offset,
+              writeData: req.data,
             });
             break;
           case tdpb.DirectoryOperation.LIST:
@@ -585,22 +580,22 @@ export class TdpbCodec extends Encoder {
     const hello = tdpb.ServerHello.fromBinary(new Uint8Array(buffer));
     return {
       clipboardSupport: true,
-      activationEvent: hello.activationSpecs,
+      activationEvent: hello.activationSpec,
     }
   }
 
   encodeRdpResponsePdu(response: ArrayBufferLike): Message {
-    return this.marshal({response: new Uint8Array(response)}, tdpb.RDPResponsePDU)
+    return this.marshal({ response: new Uint8Array(response) }, tdpb.RDPResponsePDU)
   }
 
   encodeMouseMove(x: number, y: number): Message {
-    return this.marshal({x,y}, tdpb.MouseMove)
+    return this.marshal({ x, y }, tdpb.MouseMove)
   }
   encodeMouseButton(button: MouseButton, state: ButtonState): Message {
-    return this.marshal({button, pressed: state == ButtonState.DOWN}, tdpb.MouseButton)
+    return this.marshal({ button, pressed: state == ButtonState.DOWN }, tdpb.MouseButton)
   }
 
- encodeKeyboardInput(code: string, state: ButtonState): Message[] {
+  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
     const scancodes = KEY_SCANCODES[code];
     if (!scancodes) {
       // eslint-disable-next-line no-console
@@ -611,7 +606,7 @@ export class TdpbCodec extends Encoder {
   }
 
   private encodeScancode(scancode: number, state: ButtonState): Message {
-    return this.marshal({keyCode: scancode, pressed: state == ButtonState.DOWN}, tdpb.KeyboardButton)
+    return this.marshal({ keyCode: scancode, pressed: state == ButtonState.DOWN }, tdpb.KeyboardButton)
   }
 
   encodeSyncKeys(syncKeys: SyncKeys): Message {
@@ -622,17 +617,13 @@ export class TdpbCodec extends Encoder {
       kanaLockState: syncKeys.kanaLockState == ButtonState.DOWN
     }, tdpb.SyncKeys);
   }
+
   encodeClipboardData(clipboardData: ClipboardData) {
-    return this.marshal({data: this.encoder.encode(clipboardData.data)}, tdpb.ClipboardData)
+    return this.marshal({ data: this.encoder.encode(clipboardData.data) }, tdpb.ClipboardData)
   }
-  encodeUsername(username: string): Message {
-    return this.marshal({username},tdpb.ClientUsername);
-  }
-  encodeClientKeyboardLayout(keyboardLayout: number): Message {
-    return this.marshal({keyboardLayout},tdpb.ClientKeyboardLayout);
-  }
+
   encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message {
-    return this.marshal({axis: axis.valueOf() - 1 , delta},tdpb.MouseWheel);
+    return this.marshal({ axis: axis.valueOf() - 1, delta }, tdpb.MouseWheel);
   }
 
   encodeMfaJson(mfaJson: MfaJson): Message {
@@ -640,43 +631,42 @@ export class TdpbCodec extends Encoder {
   }
 
   encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message {
-    return this.marshal({
+    return this.marshal(tdpb.SharedDirectoryResponse.create({
       completionId: res.completionId,
       errorCode: res.errCode,
       fsoList: [res.fso],
-      data: null,
-    },tdpb.SharedDirectoryResponse);
+    }), tdpb.SharedDirectoryResponse);
   }
 
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
-    return this.marshal({
+    return this.marshal(tdpb.SharedDirectoryResponse.create({
       completionId: res.completionId,
       errorCode: res.errCode,
-      readData: res.readData,
-      readDataLength: res.readDataLength,
-    }, tdpb.SharedDirectoryReadResponse);
+      data: res.readData,
+    }), tdpb.SharedDirectoryResponse);
   }
 
   encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message {
-    return this.marshal({
+    return this.marshal(tdpb.SharedDirectoryResponse.create({
       completionId: res.completionId,
       errorCode: res.errCode,
-    },tdpb.SharedDirectoryMoveResponse);
+    }), tdpb.SharedDirectoryResponse);
   }
-  
+
   encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message {
-    return this.marshal({
+    return this.marshal(tdpb.SharedDirectoryResponse.create({
       completionId: res.completionId,
       errorCode: res.errCode,
       fsoList: res.fsoList
-    },tdpb.SharedDirectoryListResponse);
+    }), tdpb.SharedDirectoryResponse);
   }
 
 
   encodeSharedDirectoryAnnounce(announce: SharedDirectoryAnnounce): Message {
     return null;
   }
-  encodeSharedDirectoryCreateResponse(resp: SharedDirectoryCreateResponse): Message{
+
+  encodeSharedDirectoryCreateResponse(resp: SharedDirectoryCreateResponse): Message {
     return null;
   }
 
@@ -687,14 +677,17 @@ export class TdpbCodec extends Encoder {
   encodeSharedDirectoryWriteResponse(resp: SharedDirectoryWriteResponse): Message {
     return null;
   }
+
   encodeSharedDirectoryTruncateResponse(resp: SharedDirectoryTruncateResponse): Message {
     return null;
   }
 
   encodeClientHello(hello: ClientHello): Message {
-    return this.marshal({screenSpec: hello.screenSpec, keyboardLayout: tdpb.ClientKeyboardLayout.create({keyboardLayout: hello.keyboardLayout})} ,tdpb.ClientHello);
+    return this.marshal(tdpb.ClientHello.create({
+      screenSpec: hello.screenSpec,
+      keyboardLayout: hello.keyboardLayout
+    }), tdpb.ClientHello);
   }
-    
 }
 
 // Each codec class needs to extend
@@ -791,7 +784,7 @@ export class TdpCodec extends Encoder {
 
   decodeTdpbUpgrade(buffer: ArrayBufferLike): TdpbUpgrade {
     const version = new DataView(buffer).getUint32(1);
-    return {version}
+    return { version }
   }
 
   // encodeClientScreenSpec encodes the client's screen spec.
