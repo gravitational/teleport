@@ -2463,6 +2463,10 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	})
 	require.NoError(t, err)
 	tc.Stdout = &outputB
+
+	// Wait for the target host to appear in the inventory before connecting to it.
+	b.WaitForNodeCount(ctx, b.Secrets.SiteName, 1)
+
 	err = tc.SSH(ctx, cmd)
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
