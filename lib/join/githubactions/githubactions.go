@@ -19,10 +19,22 @@
 package githubactions
 
 import (
+	"context"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
+	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "githubactions")
 
 // GitHub Workload Identity
 //
@@ -126,4 +138,129 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitHub {
 	}
 
 	return attrs
+}
+
+// GithubIDTokenValidator is a validator for Github OIDC tokens.
+type GithubIDTokenValidator interface {
+	Validate(
+		ctx context.Context, GHESHost string, enterpriseSlug string, token string,
+	) (*IDTokenClaims, error)
+}
+
+// GithubIDTokenJWKSValidator defines a validator function that can be used to
+// check an OIDC token against a known key.
+type GithubIDTokenJWKSValidator func(
+	now time.Time, jwksData []byte, token string,
+) (*IDTokenClaims, error)
+
+type CheckGithubIDTokenParams struct {
+	ProvisionToken types.ProvisionToken
+	IDToken        []byte
+	Clock          clockwork.Clock
+	Validator      GithubIDTokenValidator
+	JWKSValidator  GithubIDTokenJWKSValidator
+}
+
+func (p *CheckGithubIDTokenParams) checkAndSetDefaults() error {
+	switch {
+	case p.ProvisionToken == nil:
+		return trace.BadParameter("ProvisionToken is required")
+	case len(p.IDToken) == 0:
+		return trace.BadParameter("IDToken is required")
+	case p.Validator == nil:
+		return trace.BadParameter("Validator is required")
+	case p.JWKSValidator == nil:
+		return trace.BadParameter("JWKSValidator is required")
+	case p.Clock == nil:
+		p.Clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// CheckGithubIDToken checks a Github OIDC token against a provision token.
+// If the token is valid and its claims match at least one allow rule, the
+// claims are returned.
+func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (*IDTokenClaims, error) {
+	if err := params.checkAndSetDefaults(); err != nil {
+		return nil, trace.AccessDenied("%s", err.Error())
+	}
+
+	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
+	}
+
+	// enterpriseOverride is a hostname to use instead of github.com when
+	// validating tokens. This allows GHES instances to be connected.
+	enterpriseOverride := token.Spec.GitHub.EnterpriseServerHost
+	enterpriseSlug := token.Spec.GitHub.EnterpriseSlug
+	if enterpriseOverride != "" || enterpriseSlug != "" {
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, trace.Wrap(services.ErrRequiresEnterprise, "github enterprise server joining")
+		}
+	}
+
+	var claims *IDTokenClaims
+	var err error
+	if token.Spec.GitHub.StaticJWKS != "" {
+		claims, err = params.JWKSValidator(
+			params.Clock.Now().UTC(),
+			[]byte(token.Spec.GitHub.StaticJWKS),
+			string(params.IDToken),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "validating with jwks")
+		}
+	} else {
+		claims, err = params.Validator.Validate(
+			ctx, enterpriseOverride, enterpriseSlug, string(params.IDToken),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "validating with oidc")
+		}
+	}
+
+	log.InfoContext(ctx, "Github actions run trying to join cluster",
+		"claims", claims,
+		"token", params.ProvisionToken.GetName(),
+	)
+
+	return claims, trace.Wrap(checkGithubAllowRules(token, claims))
+}
+
+func checkGithubAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+	// If a single rule passes, accept the IDToken
+	for _, rule := range token.Spec.GitHub.Allow {
+		// Please consider keeping these field validators in the same order they
+		// are defined within the ProvisionTokenSpecV2Github proto spec.
+		if rule.Sub != "" && claims.Sub != rule.Sub {
+			continue
+		}
+		if rule.Repository != "" && claims.Repository != rule.Repository {
+			continue
+		}
+		if rule.RepositoryOwner != "" && claims.RepositoryOwner != rule.RepositoryOwner {
+			continue
+		}
+		if rule.Workflow != "" && claims.Workflow != rule.Workflow {
+			continue
+		}
+		if rule.Environment != "" && claims.Environment != rule.Environment {
+			continue
+		}
+		if rule.Actor != "" && claims.Actor != rule.Actor {
+			continue
+		}
+		if rule.Ref != "" && claims.Ref != rule.Ref {
+			continue
+		}
+		if rule.RefType != "" && claims.RefType != rule.RefType {
+			continue
+		}
+
+		// All provided rules met.
+		return nil
+	}
+
+	return trace.AccessDenied("id token claims did not match any allow rules")
 }

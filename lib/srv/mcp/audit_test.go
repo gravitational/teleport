@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func Test_headersForAudit(t *testing.T) {
@@ -65,6 +67,58 @@ func Test_headersForAudit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, headersForAudit(tt.input))
+		})
+	}
+}
+
+func Test_guessEgressAuthType(t *testing.T) {
+	tests := []struct {
+		name         string
+		inputHeader  http.Header
+		inputRewrite *types.Rewrite
+		expect       string
+	}{
+		{
+			name:   "no header or rewrite",
+			expect: "unknown",
+		},
+		{
+			name: "user defined",
+			inputHeader: http.Header{
+				"Authorization": []string{"Bearer secret"},
+			},
+			inputRewrite: &types.Rewrite{
+				Headers: []*types.Header{{
+					Name:  "Some-Other-Header",
+					Value: "some-other-value",
+				}},
+			},
+			expect: "user-defined",
+		},
+		{
+			name: "app defined",
+			inputRewrite: &types.Rewrite{
+				Headers: []*types.Header{{
+					Name:  "Authorization",
+					Value: "Bearer abcdef",
+				}},
+			},
+			expect: "app-defined",
+		},
+		{
+			name: "app defined with Teleport JWT",
+			inputRewrite: &types.Rewrite{
+				Headers: []*types.Header{{
+					Name:  "Authorization",
+					Value: "Bearer {{internal.jwt}}",
+				}},
+			},
+			expect: "app-jwt",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expect, guessEgressAuthType(tt.inputHeader, tt.inputRewrite))
 		})
 	}
 }

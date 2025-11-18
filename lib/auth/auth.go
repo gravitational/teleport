@@ -114,7 +114,6 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
-	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -123,6 +122,7 @@ import (
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
+	"github.com/gravitational/teleport/lib/join/githubactions"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -1240,11 +1240,11 @@ type Server struct {
 
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
-	ghaIDTokenValidator ghaIDTokenValidator
+	ghaIDTokenValidator githubactions.GithubIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
-	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
+	ghaIDTokenJWKSValidator githubactions.GithubIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
