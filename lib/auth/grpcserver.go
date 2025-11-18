@@ -906,7 +906,7 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 func (g *GRPCServer) GetClusterAlerts(ctx context.Context, query *types.GetClusterAlertsRequest) (*authpb.GetClusterAlertsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		if errors.Is(err, authz.ErrScopedIdentity) {
+		if errors.Is(err, services.ErrScopedIdentity) {
 			// NOTE: scoped alerts do not currently exist. a lot of client logic wants to incidentally load cluster alerts
 			// as part of other operations. ordinarily we just return an access denied when a scoped identity is used to
 			// call an API that doesn't support scoping yet, but doing so here would complicate client logic a lot. it is
@@ -4741,7 +4741,7 @@ func isScopePinnedLocalUserCredential(ctx context.Context) bool {
 func (g *GRPCServer) CreateAuthenticateChallenge(ctx context.Context, req *authpb.CreateAuthenticateChallengeRequest) (*authpb.MFAAuthenticateChallenge, error) {
 	actx, err := g.authenticate(ctx)
 	if err != nil {
-		if errors.Is(err, authz.ErrScopedIdentity) && isScopePinnedLocalUserCredential(ctx) && req.MFARequiredCheck != nil {
+		if errors.Is(err, services.ErrScopedIdentity) && isScopePinnedLocalUserCredential(ctx) && req.MFARequiredCheck != nil {
 			if _, ok := req.MFARequiredCheck.Target.(*authpb.IsMFARequiredRequest_AdminAction); ok {
 				// NOTE: scopes don't currently have a concept of admin action MFA. a lot of client logic wants to do a preemtive
 				// check to see if MFA is required. ordinarily we just return an access denied when a scoped identity is used to
@@ -4808,10 +4808,26 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
+		if errors.Is(err, services.ErrScopedIdentity) {
+			return g.scopedListUnifiedResources(ctx, req)
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	return auth.ListUnifiedResources(ctx, req)
+}
+
+// scopedListUnifiedResources handles ListUnifiedResources requests for scoped identities. eventually we want to do away with
+// this in favor of fully porting over the ListUnifiedResources API to support scopes natively. for the time being, we use
+// this method to specifically make it possible to use 'tsh ls' with scoped credentials. usecases other than that are not
+// guaranteed to work properly at this time.
+func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
+	auth, err := g.scopedAuthenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.scopedListUnifiedResources(ctx, req)
 }
 
 // ListResources retrieves a paginated list of resources.
