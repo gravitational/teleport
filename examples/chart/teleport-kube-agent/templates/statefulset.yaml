@@ -194,8 +194,8 @@ spec:
             value: /var/run/secrets/tokens/join-sa-token
           {{- end }}
           {{- if .Values.updater.enabled }}
-           - name: "TELEPORT_UPDATE_CONFIG_FILE"
-             value: "/etc/updater-config/update.yaml"
+          - name: "TELEPORT_UPDATE_CONFIG_FILE"
+            value: "/etc/updater-config/update.yaml"
           {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
