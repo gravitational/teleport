@@ -20,16 +20,13 @@ spec:
       labels:
         app: tbot
     spec:
-      securityContext:
-        runAsUser: 0
-        runAsGroup: 0
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
       hostPID: true
       containers:
         - name: tbot
           image: {{ .Values.image }}:{{ template "tbot-spiffe-daemon-set.version" . }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
-          securityContext:
-            privileged: true
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
           args:
             - start
             - -c
