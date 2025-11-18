@@ -131,7 +131,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindDevice:                      rc.createDevice,
 		types.KindOktaImportRule:              rc.createOktaImportRule,
 		types.KindIntegration:                 rc.createIntegration,
-		types.KindWindowsDesktop:              rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
@@ -520,20 +519,6 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Printf("network restrictions have been updated\n")
-	return nil
-}
-
-func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	wd, err := services.UnmarshalWindowsDesktop(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := client.UpsertWindowsDesktop(ctx, wd); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
 	return nil
 }
 
@@ -1023,37 +1008,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
-	case types.KindWindowsDesktop:
-		desktops, err := client.GetWindowsDesktops(ctx,
-			types.WindowsDesktopFilter{Name: rc.ref.Name})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(desktops) == 0 {
-			return trace.NotFound("no desktops with name %q were found", rc.ref.Name)
-		}
-		deleted := 0
-		var errs []error
-		for _, desktop := range desktops {
-			if desktop.GetName() == rc.ref.Name {
-				if err = client.DeleteWindowsDesktop(ctx, desktop.GetHostID(), rc.ref.Name); err != nil {
-					errs = append(errs, err)
-					continue
-				}
-				deleted++
-			}
-		}
-		if deleted == 0 {
-			errs = append(errs,
-				trace.Errorf("failed to delete any desktops with the name %q, %d were found",
-					rc.ref.Name, len(desktops)))
-		}
-		fmts := "%d windows desktops with name %q have been deleted"
-		if err := trace.NewAggregate(errs...); err != nil {
-			fmt.Printf(fmts+" with errors while deleting\n", deleted, rc.ref.Name)
-			return err
-		}
-		fmt.Printf(fmts+"\n", deleted, rc.ref.Name)
 	case types.KindCertAuthority:
 		if rc.ref.SubKind == "" || rc.ref.Name == "" {
 			return trace.BadParameter(
@@ -1444,43 +1398,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &windowsDesktopServiceCollection{services: services}, nil
-	case types.KindWindowsDesktop:
-		if rc.ref.Name != "" {
-			desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: rc.ref.Name})
-			if err != nil {
-				if trace.IsNotFound(err) {
-					return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
-				}
-				return nil, trace.Wrap(err)
-			}
-
-			return &windowsDesktopCollection{desktops: desktops}, nil
-		}
-
-		// TODO(tross): DELETE IN v21.0.0, replace with regular Collect
-		desktops, err := clientutils.CollectWithFallback(
-			ctx,
-			func(ctx context.Context, limit int, token string) ([]types.WindowsDesktop, string, error) {
-				resp, err := client.ListWindowsDesktops(ctx,
-					types.ListWindowsDesktopsRequest{
-						StartKey: token,
-						Limit:    limit,
-					})
-				if err != nil {
-					return nil, "", trace.Wrap(err)
-				}
-				return resp.Desktops, resp.NextKey, nil
-			},
-			func(ctx context.Context) ([]types.WindowsDesktop, error) {
-				return client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-			},
-		)
-
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &windowsDesktopCollection{desktops: desktops}, nil
 	case types.KindDynamicWindowsDesktop:
 		dynamicDesktopClient := client.DynamicDesktopClient()
 		if rc.ref.Name != "" {
