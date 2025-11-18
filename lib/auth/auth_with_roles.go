@@ -21,6 +21,7 @@ package auth
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -67,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -793,6 +795,15 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 
 	hello.Services = filteredServices
 
+	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
+	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
+	// to the authenticated identity's scope.
+	agentScope := a.context.Identity.GetIdentity().AgentScope
+	if hello.Scope != "" && hello.Scope != agentScope {
+		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
+	}
+	hello.Scope = agentScope
+
 	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
@@ -982,6 +993,9 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	// Note: UpsertNode doesn't allow any namespaces but "default".
 	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if s.GetScope() != "" {
+		return nil, trace.BadParameter("UpsertNode does not yet support scoped resources")
 	}
 	return a.authServer.UpsertNode(ctx, s)
 }
@@ -1532,6 +1546,104 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				r.Logins = logins
 			}
 		}
+	}
+
+	return &proto.ListUnifiedResourcesResponse{
+		NextKey:   nextKey,
+		Resources: paginatedResources,
+	}, nil
+}
+
+func (a *ServerWithRoles) scopedListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	// most advanced features don't work for scoped identities yet
+	switch {
+	case req.UseSearchAsRoles:
+		return nil, trace.AccessDenied("search_as_roles is not supported for scoped identities")
+	case req.UsePreviewAsRoles:
+		return nil, trace.AccessDenied("preview_as_roles is not supported for scoped identities")
+	case req.IncludeRequestable:
+		return nil, trace.AccessDenied("include_requestable is not supported for scoped identities")
+	case req.PinnedOnly:
+		return nil, trace.AccessDenied("pinned_only is not supported for scoped identities")
+	case req.IncludeLogins:
+		return nil, trace.AccessDenied("include_logins is not supported for scoped identities")
+	}
+
+	if len(req.Kinds) != 1 || req.Kinds[0] != types.KindNode {
+		return nil, trace.AccessDenied("only node kind is supported for scoped identities")
+	}
+
+	userFilter := services.MatchResourceFilter{
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+		Kinds:          req.Kinds,
+	}
+
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userFilter.PredicateExpression = expression
+	}
+
+	ruleCtx := a.scopedContext.RuleContext()
+
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	unifiedResources, nextKey, err := a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
+		// currently only nodes are supported
+		if resource.GetKind() != types.KindNode {
+			return false, nil
+		}
+
+		// Filter first and only check RBAC if there is a match to improve perf.
+		match, err := services.MatchResourceByFilters(resource, userFilter, nil)
+		if err != nil {
+			logger.WarnContext(ctx, "Unable to determine access to resource, matching with filter failed",
+				"resource_name", resource.GetName(),
+				"resource_kind", resource.GetKind(),
+				"error", err,
+			)
+			return false, nil
+		}
+		if !match {
+			return false, nil
+		}
+
+		server, ok := resource.(*types.ServerV2)
+		if !ok {
+			logger.WarnContext(ctx, "Unable to cast unified resource to server",
+				"resource_name", resource.GetName(),
+				"resource_kind", resource.GetKind(),
+			)
+			return false, nil
+		}
+
+		serverScope := scopes.Root
+		if server.Scope != "" {
+			serverScope = server.Scope
+		}
+
+		if err := a.scopedContext.CheckerContext.Decision(ctx, serverScope, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CanAccessSSHServer(server)
+		}); err == nil {
+			return true, nil
+		} else if !trace.IsAccessDenied(err) {
+			return false, trace.Wrap(err)
+		}
+
+		return false, nil
+	}, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	paginatedResources, err := services.MakePaginatedResources(types.KindUnifiedResource, unifiedResources, nil /* requestable resources map */)
+	if err != nil {
+		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
 
 	return &proto.ListUnifiedResourcesResponse{
@@ -2286,8 +2398,26 @@ func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) 
 }
 
 func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// For auth server reads we do not enforce scope pinning. This ensures that auths are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// teleport functionality.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return a.authServer.GetAuthServers()
+	}
+
 	if err := a.authorizeAction(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+
 	}
 	return a.authServer.GetAuthServers()
 }
@@ -2308,6 +2438,21 @@ func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error
 }
 
 func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// For proxy reads we do not enforce scope pinning. This ensures that proxies are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// teleport functionality.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return a.authServer.GetProxies()
+	}
+
 	if err := a.authorizeAction(types.KindProxy, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3418,9 +3563,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
 				req.Expires = maxTime
 			}
-		} else if isLocalProxyCertReq(&req) {
-			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl
-			// or mfa_verification_interval or req.Expires.
+		} else if !isCertWrittenToDiskFlow(&req) {
+			// If requested certificate is for a flow that does not involve writing the certificate to disk
+			// (e.g. tsh proxy of DB, Kube, App, and AWS App Access using credential process)
+			// it is limited by max session ttl or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
 			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
@@ -3601,6 +3747,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		tlsPublicKeyAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:                   req.RouteToCluster,
+		requesterName:                    req.RequesterName,
 		kubernetesCluster:                req.KubernetesCluster,
 		dbService:                        req.RouteToDatabase.ServiceName,
 		dbProtocol:                       req.RouteToDatabase.Protocol,
@@ -5635,6 +5782,9 @@ func (a *ServerWithRoles) UpsertDatabaseServer(ctx context.Context, server types
 	if err := a.actionNamespace(server.GetNamespace(), types.KindDatabaseServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if server.GetScope() != "" {
+		return nil, trace.BadParameter("scoped database server must register a control stream")
+	}
 	return a.authServer.UpsertDatabaseServer(ctx, server)
 }
 
@@ -5810,6 +5960,9 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
 	if err := a.actionNamespace(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if server.GetScope() != "" {
+		return nil, trace.BadParameter("scoped app server must register a control stream")
 	}
 	return a.authServer.UpsertApplicationServer(ctx, server)
 }
@@ -6085,6 +6238,9 @@ func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.Kub
 func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	if err := a.authorizeAction(types.KindKubeServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if s.GetScope() != "" {
+		return nil, trace.BadParameter("scoped kubernetes server must register a control stream")
 	}
 	return a.authServer.UpsertKubernetesServer(ctx, s)
 }

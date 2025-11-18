@@ -466,6 +466,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
+  clearWorkspace(clusterUri: RootClusterUri): void {
+    this.setState(draftState => {
+      draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
+        clusterUri,
+        draftState.workspaces
+      );
+    });
+    this.restoredState = produce(this.restoredState, draftState => {
+      delete draftState.workspaces[clusterUri];
+    });
+  }
+
   getConnectedWorkspacesClustersUri() {
     return (Object.keys(this.state.workspaces) as RootClusterUri[]).filter(
       clusterUri => this.clustersService.findCluster(clusterUri)?.connected

@@ -470,6 +470,14 @@ type CLIConf struct {
 	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
+	// AppLoginAWSEnvOutput indicates whether tsh will output the AWS credentials as an export shell script instead of writing them to `~/.aws/config`.
+	// Only applicable to apps using AWS Roles Anywhere integration.
+	// E.g.,
+	//
+	//   export AWS_ACCESS_KEY_ID=ABCD
+	//   export AWS_SECRET_ACCESS_KEY=1234
+	//   export AWS_SESSION_TOKEN=abcd
+	AppLoginAWSEnvOutput bool
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
 	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
@@ -1032,6 +1040,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
+	appLogin.Flag("env", "(For AWS CLI access only) Obtain credentials as plain text in order to load into environments variables. Required when using per-session MFA.").Hidden().BoolVar(&cf.AppLoginAWSEnvOutput)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogin.Flag("target-port", "Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.").Uint16Var(&cf.TargetPort)
@@ -2540,10 +2549,10 @@ func onLogout(cf *CLIConf) error {
 	active, available, err := cf.FullProfileStatus()
 	if err != nil && !trace.IsCompareFailed(err) {
 		if trace.IsNotFound(err) {
-			fmt.Printf("All users logged out.\n")
+			fmt.Fprintf(cf.Stdout(), "All users logged out.\n")
 			return nil
 		} else if trace.IsAccessDenied(err) {
-			fmt.Printf("%v: Logged in user does not have the correct permissions\n", err)
+			fmt.Fprintf(cf.Stdout(), "%v: Logged in user does not have the correct permissions\n", err)
 			return nil
 		}
 		return trace.Wrap(err)
@@ -2561,7 +2570,33 @@ func onLogout(cf *CLIConf) error {
 
 	switch {
 	// Proxy and username for key to remove.
-	case proxyHost != "" && cf.Username != "":
+	case proxyHost != "":
+		// In the event --user flag is not supplied, and there is only one identity,
+		// we can simply log out the single identity.
+		if cf.Username == "" {
+			clientStore := cf.getClientStore()
+			usernames, err := clientStore.GetIdentities(proxyHost)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if len(usernames) == 0 {
+				fmt.Fprintf(cf.Stdout(), "All users logged out.\n")
+				return nil
+			}
+
+			logger.DebugContext(cf.Context, "No --user flag provided, but identities found for proxy",
+				"proxy_host", proxyHost,
+				"users", usernames)
+
+			if len(usernames) > 1 {
+				fmt.Fprintf(cf.Stdout(), "Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+				return nil
+			}
+
+			cf.Username = usernames[0]
+		}
+
 		tc, err := makeClient(cf)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2590,7 +2625,7 @@ func onLogout(cf *CLIConf) error {
 		err = tc.Logout()
 		if err != nil {
 			if trace.IsNotFound(err) {
-				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
+				fmt.Fprintf(cf.Stdout(), "User %v already logged out from %v.\n", cf.Username, proxyHost)
 				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
@@ -2603,7 +2638,7 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
+		fmt.Fprintf(cf.Stdout(), "Logged out %v from %v.\n", cf.Username, proxyHost)
 	// Remove all keys.
 	case proxyHost == "" && cf.Username == "":
 		tc, err := makeClient(cf)
@@ -2658,7 +2693,7 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(tc.SAMLSingleLogout(ctx, sloURL))
 		})
 		if err != nil {
-			fmt.Printf("We were unable to log you out of your SAML identity provider: %v", err)
+			fmt.Fprintf(cf.Stdout(), "We were unable to log you out of your SAML identity provider: %v\n", err)
 		}
 
 		// Remove all keys from disk and the running agent.
@@ -2667,11 +2702,9 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		fmt.Printf("Logged out all users from all proxies.\n")
-	case proxyHost != "" && cf.Username == "":
-		fmt.Printf("Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+		fmt.Fprintf(cf.Stdout(), "Logged out all users from all proxies.\n")
 	case proxyHost == "" && cf.Username != "":
-		fmt.Printf("Specify --proxy to log out user %q from a specific proxy or remove the --user flag to log out all users from all proxies.\n", cf.Username)
+		fmt.Fprintf(cf.Stdout(), "Specify --proxy to log out user %q from a specific proxy or remove the --user flag to log out all users from all proxies.\n", cf.Username)
 	}
 	return nil
 }

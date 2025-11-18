@@ -926,6 +926,19 @@ func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
 	pub, err := keys.MarshalPublicKey(priv.Public())
 	require.NoError(t, err)
 
+	// Impersonating the requester name fails.
+	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       appName,
+			AWSRoleARN: roleARN,
+		},
+		RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
+	})
+	require.Error(t, err)
+
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: pub,
 		Username:     user.GetName(),
@@ -3850,7 +3863,9 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
-			want: proto.MFARequired_MFA_REQUIRED_NO,
+			// MFA should be required if the role says so, regardless of whether
+			// the database name matches or not.
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
 			name:       "RequireSessionMFA on Postgres protocol database name matches",
@@ -3874,6 +3889,32 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, []string{"example"})
 			},
+			want: proto.MFARequired_MFA_REQUIRED_YES,
+		},
+		{
+			name:       "RequireSessionMFA database user does not match",
+			dbProtocol: defaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    defaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, nil)
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, []string{"example"})
+			},
+			// MFA should be required if the role says so, regardless of whether
+			// the database user matches or not.
 			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 	}

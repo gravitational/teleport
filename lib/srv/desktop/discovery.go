@@ -141,7 +141,7 @@ func (s *WindowsService) ldapSearchFilter(additionalFilters []string) string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
-	tc, err := s.tlsConfigForLDAP()
+	tc, err := s.loadTLSConfigForLDAP()
 	if err != nil {
 		s.cfg.Logger.WarnContext(s.closeCtx, "could not request TLS certificate for LDAP discovery", "error", err)
 		return nil

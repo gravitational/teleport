@@ -5792,7 +5792,12 @@ func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
 }
 
 func TestBenchmarkPostgres(t *testing.T) {
-	t.Parallel()
+	// Set insecure mode to allow db agent to establish reverse tunnel.
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
 
 	// Canceling the context right after the test ensures the local proxy
 	// started by the benchmark command is closed and the remaining connections
@@ -5845,7 +5850,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
-	benchmarkErrorLineParser := regexp.MustCompile("`host=(.+) +user=(.+) database=(.+)`: (.+)$")
+	benchmarkErrorLineParser := regexp.MustCompile("`host=(.+?) +user=(.+?) database=(.+?)`: (.+)$")
 	args := []string{
 		"bench", "postgres", "--insecure",
 		// Benchmark options to limit benchmark to a single execution.
@@ -5864,16 +5869,16 @@ func TestBenchmarkPostgres(t *testing.T) {
 		"connect to database": {
 			database:            "postgres-local",
 			additionalFlags:     []string{"--db-user", "username", "--db-name", "database"},
-			expectedErrContains: "server error",
+			expectedErrContains: "lookup external-pg",
 			// When connecting to Teleport databases, it will use a local proxy.
 			expectedHost:     "127.0.0.1",
 			expectedUser:     "username",
 			expectedDatabase: "database",
 		},
 		"direct connection": {
-			database:            "postgres://direct_user@test:5432/direct_database",
-			expectedErrContains: "hostname resolving error",
-			expectedHost:        "test",
+			database:            "postgres://direct_user@direct-pg:5432/direct_database",
+			expectedErrContains: "lookup direct-pg",
+			expectedHost:        "direct-pg",
 			expectedUser:        "direct_user",
 			expectedDatabase:    "direct_database",
 		},
@@ -7903,5 +7908,71 @@ func TestDebugVersionOutput(t *testing.T) {
 	require.Contains(t, string(output), "Initializing tsh version")
 	for _, v := range vers {
 		require.Contains(t, string(output), v)
+	}
+}
+
+func TestLogoutOneIdentity(t *testing.T) {
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	rootServer, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, alice))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	authServer := rootServer.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		command []string
+		envMap  map[string]string
+	}{
+		{
+			name:    "--proxy flag set",
+			command: []string{"logout", "--proxy", proxyAddr.String()},
+		},
+		{
+			name:    "TELEPORT_PROXY set",
+			command: []string{"logout"},
+			envMap: map[string]string{
+				proxyEnvVar: proxyAddr.String(),
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+
+			err = Run(context.Background(), []string{
+				"login",
+				"--insecure",
+				"--proxy", proxyAddr.String()},
+				setHomePath(tmpHomePath),
+				setMockSSOLogin(authServer, alice, connector.GetName()))
+			require.NoError(t, err)
+
+			buf := bytes.NewBuffer([]byte{})
+			err := Run(context.Background(), tc.command,
+				setHomePath(tmpHomePath),
+				func(cf *CLIConf) error {
+					cf.OverrideStdout = buf
+					return nil
+				})
+			require.NoError(t, err)
+			require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+		})
 	}
 }

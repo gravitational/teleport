@@ -111,7 +111,6 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
-	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
@@ -122,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/gitlab"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -137,7 +137,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/spacelift"
-	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/terraformcloud"
@@ -1263,7 +1262,7 @@ type Server struct {
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
-	gitlabIDTokenValidator gitlabIDTokenValidator
+	gitlabIDTokenValidator gitlab.Validator
 
 	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
 	// validated by the auth server. It can be overridden for the purpose of
@@ -1425,6 +1424,13 @@ func (a *Server) ScopedAccess() services.ScopedAccess {
 		ScopedAccessReader: a.ScopedAccessCache,
 		ScopedAccessWriter: a.scopedAccessBackend,
 	}
+}
+
+// ScopedRoleReader returns a read-only scoped role client. This is here to satisfy interfaces
+// used by agent-side logic, which only has access to the ScopedRoleReader subset of the
+// broader ScopedAccess interface.
+func (a *Server) ScopedRoleReader() services.ScopedRoleReader {
+	return a.ScopedAccessCache
 }
 
 // SetUpgradeWindowStartHourGetter sets the getter used to sync the ClusterMaintenanceConfig resource
@@ -2648,6 +2654,8 @@ type certRequest struct {
 	// joinAttributes holds attributes derived from attested metadata from the
 	// join process, should any exist.
 	joinAttributes *workloadidentityv1pb.JoinAttrs
+	// requesterName is the name of the service that sent the request.
+	requesterName proto.UserCertsRequest_Requester
 }
 
 // check verifies the cert request is valid.
@@ -3784,6 +3792,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
 	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
+		// Requesting AWS credential_process credentials for Apps without AWS client side credentials is a client error.
+		if req.requesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS {
+			return nil, trace.BadParameter("client requested aws credentials for an invalid resource")
+		}
+
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -7692,25 +7705,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
 		}
 
-		autoCreate, err := checker.DatabaseAutoUserMode(db)
-		switch {
-		case errors.Is(err, services.ErrSessionMFARequired):
-			noMFAAccessErr = err
-		case err != nil:
-			return nil, trace.Wrap(err)
-		default:
-			dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
-				Database:       db,
-				DatabaseUser:   t.Database.Username,
-				DatabaseName:   t.Database.GetDatabase(),
-				AutoCreateUser: autoCreate.IsEnabled(),
-			})
-			noMFAAccessErr = checker.CheckAccess(
-				db,
-				services.AccessState{},
-				dbRoleMatchers...,
-			)
-		}
+		// Note that we are not checking RoleMatchers for db user/name/roles.
+		// Per-session MFA requirement is only tested on the resource itself by
+		// db_labels/db_labels_expression, so db user/name/roles are irrelevant.
+		// Those will be enforced at protocol level on the database service.
+		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
