@@ -35,7 +35,7 @@ func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
 	}
 
 	if msg.GetSpec() == nil {
-		return nil, trace.BadParameter("spec is missing")
+		return nil, trace.BadParameter("review spec is missing")
 	}
 
 	// Manually check for the presence of the time so that we can be sure that the review date is

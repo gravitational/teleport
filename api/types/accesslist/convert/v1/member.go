@@ -34,7 +34,7 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 	}
 
 	if msg.Spec == nil {
-		return nil, trace.BadParameter("spec is missing")
+		return nil, trace.BadParameter("member spec is missing")
 	}
 
 	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{

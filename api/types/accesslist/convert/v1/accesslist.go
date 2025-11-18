@@ -35,7 +35,7 @@ type AccessListOption func(*accesslist.AccessList)
 func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accesslist.AccessList, error) {
 	spec := msg.GetSpec()
 	if spec == nil {
-		return nil, trace.BadParameter("spec is missing")
+		return nil, trace.BadParameter("access list spec is missing")
 	}
 
 	metadata := headerv1.FromMetadataProto(msg.GetHeader().GetMetadata())
