@@ -983,8 +983,10 @@ var (
 	)
 	userLoginCountPerClient = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: teleport.MetricUserLoginPerClientCount,
-			Help: "Number of times there was a user login with specific client version and GroupID that routes request",
+			Name:      teleport.MetricUserLoginPerClientCount,
+			Namespace: teleport.MetricNamespace,
+			Help: "Number of times there was a user login with specific client version and proxy reverse tunnel " +
+				"group ID (advertised as a label and used by reverse tunnel agents in proxy peering mode)",
 		},
 		[]string{
 			teleport.TagUserAgentType,
@@ -1911,7 +1913,7 @@ func (a *Server) runPeriodicOperations() {
 			case autoUpdateBotInstanceMetricsKey:
 				go a.updateBotInstanceMetrics()
 			case hourlyCleanUpKey:
-				go a.hourlyCleanUpMetrics()
+				userLoginCountPerClient.Reset()
 			}
 		}
 	}
@@ -2238,10 +2240,6 @@ func (a *Server) updateBotInstanceMetrics() {
 	default:
 		machineidv1.EmitInstancesMetric(report, botInstancesMetric)
 	}
-}
-
-func (a *Server) hourlyCleanUpMetrics() {
-	userLoginCountPerClient.Reset()
 }
 
 var (
