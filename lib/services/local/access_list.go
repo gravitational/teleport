@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"time"
 
@@ -73,6 +74,7 @@ const (
 // consistent view to the rest of the Teleport application. It makes no decisions
 // about granting or withholding list membership.
 type AccessListService struct {
+	backend       backend.Backend
 	clock         clockwork.Clock
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
@@ -148,6 +150,7 @@ func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...Serv
 	}
 
 	return &AccessListService{
+		backend:       b,
 		clock:         clock,
 		service:       service,
 		memberService: memberService,
@@ -797,21 +800,9 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 			}
 		}
 
-		// Add any remaining members to the access list.
-		for _, member := range membersMap {
-			upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// Update memberOf field if nested list.
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListMemberOf(ctx, accessList.GetName(), member.Spec.Name, true); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-			member.SetRevision(upserted.GetRevision())
+		if err := a.insertMembersAndUpdateNestedRelationships(ctx, slices.Collect(maps.Values(membersMap))); err != nil {
+			return trace.Wrap(err)
 		}
-
 		return nil
 	}
 
@@ -1129,4 +1120,56 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	if old.Origin() == common.OriginAWSIdentityCenter {
 		new.Metadata.Labels = old.GetAllLabels()
 	}
+}
+
+func (a *AccessListService) insertMembersAndUpdateNestedRelationships(ctx context.Context, members []*accesslist.AccessListMember) error {
+	if err := a.insertMembers(ctx, members); err != nil {
+		return trace.Wrap(err)
+	}
+	// In case of nested access list members.
+	if err := a.updatedMembersNestedRelationships(ctx, members); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (a *AccessListService) insertMembers(ctx context.Context, members []*accesslist.AccessListMember) error {
+	items, err := a.membersToBackendItems(members)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	revs, err := backend.PutBatch(ctx, a.backend, items)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for i, rev := range revs {
+		members[i].SetRevision(rev)
+	}
+	return nil
+}
+
+func (a *AccessListService) membersToBackendItems(members []*accesslist.AccessListMember) ([]backend.Item, error) {
+	out := make([]backend.Item, 0, len(members))
+	for _, member := range members {
+		item, err := a.memberService.WithPrefix(member.Spec.AccessList).MakeBackendItem(member)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Context, members []*accesslist.AccessListMember) error {
+	for _, member := range members {
+		if member.Spec.MembershipKind != accesslist.MembershipKindList {
+			continue
+		}
+		// Update memberOf field if nested list.
+		if err := a.updateAccessListMemberOf(ctx, member.Spec.AccessList, member.Spec.Name, true); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
