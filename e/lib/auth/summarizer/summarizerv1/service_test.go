@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -808,7 +809,7 @@ func newSessionEndEvent() *apievents.SessionEnd {
 		Metadata: apievents.Metadata{
 			Index: 20,
 			Type:  events.SessionEndEvent,
-			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
+			ID:    uuid.NewString(),
 			Code:  events.SessionEndCode,
 			Time:  endTime,
 		},
@@ -819,7 +820,7 @@ func newSessionEndEvent() *apievents.SessionEnd {
 			ServerLabels:    map[string]string{"env": "prod"},
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: "cb116fb0-9227-4889-9392-aedd13a914a6",
+			SessionID: uuid.NewString(),
 		},
 		UserMetadata: apievents.UserMetadata{
 			User: "alice",
@@ -867,32 +868,62 @@ func TestService_GetSummary(t *testing.T) {
 	sclt := clt.SummarizerServiceClient()
 
 	t.Run("unencrypted summary", func(t *testing.T) {
-		sessionEnd := newSessionEndEvent()
-		expectedSummary := newTestSummary(t, sessionEnd)
-		b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(expectedSummary)
+		// Summary 1 is in a pending state.
+		session1End := newSessionEndEvent()
+		summary1 := newTestSummary(t, session1End)
+		summary1.Content = ""
+		summary1.InferenceFinishedAt = nil
+		summary1.State = summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING
+		b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary1)
 		require.NoError(t, err)
-		srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(expectedSummary.SessionId), bytes.NewReader(b))
+		srv.AuthServer.AuthServer.UploadPendingSummary(ctx, session.ID(summary1.SessionId), bytes.NewReader(b))
 
-		// Test fetching an existing summary.
+		// Summary 2 is in a final state.
+		session2End := newSessionEndEvent()
+		summary2 := newTestSummary(t, session2End)
+		summary2Pending := proto.CloneOf(summary2)
+		summary2Pending.Content = ""
+		summary2Pending.InferenceFinishedAt = nil
+		summary2Pending.State = summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING
+
+		// Upload the pending state of summary 2.
+		b, err = protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary2Pending)
+		require.NoError(t, err)
+		_, err = srv.AuthServer.AuthServer.UploadPendingSummary(ctx, session.ID(summary2Pending.SessionId), bytes.NewReader(b))
+		require.NoError(t, err)
+
+		// Upload the final state of summary 2.
+		b, err = protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary2)
+		require.NoError(t, err)
+		_, err = srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary2.SessionId), bytes.NewReader(b))
+		require.NoError(t, err)
+
+		// Test fetching a pending summary.
 		got, err := sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-			SessionId: expectedSummary.SessionId,
+			SessionId: summary1.SessionId,
 		})
 		require.NoError(t, err)
-		assert.Empty(t, cmp.Diff(expectedSummary, got.Summary, protocmp.Transform()))
+		assert.Empty(t, cmp.Diff(summary1, got.Summary, protocmp.Transform()))
+
+		// Test fetching a final summary.
+		got, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+			SessionId: summary2.SessionId,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(summary2, got.Summary, protocmp.Transform()))
 
 		// Make sure that the session end event can be fully recovered from the
 		// unstructured representation.
 		gotSessionEnd, err := events.FromEventFields(got.Summary.SessionEndEvent.AsMap())
 		require.NoError(t, err)
-		assert.Empty(t, cmp.Diff(sessionEnd, gotSessionEnd, protocmp.Transform()))
+		assert.Empty(t, cmp.Diff(session2End, gotSessionEnd, protocmp.Transform()))
 
 		// Test fetching a summary that doesn't exist.
 		_, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-			SessionId: "aa6bd352-7d90-4802-927e-9295872f37ad",
+			SessionId: uuid.NewString(),
 		})
 		require.Error(t, err)
 		assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
-
 	})
 
 	t.Run("encrypted summary", func(t *testing.T) {

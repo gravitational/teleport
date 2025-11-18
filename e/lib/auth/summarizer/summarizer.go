@@ -70,8 +70,11 @@ type SummarizerConfig struct {
 
 // SummaryUploader allows uploading recording summaries.
 type SummaryUploader interface {
-	// UploadSummary uploads a session summary and returns a URL with uploaded
-	// file in case of success.
+	// UploadPendingSummary uploads a pending session summary and returns a URL
+	// with uploaded file in case of success.
+	UploadPendingSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	// UploadSummary uploads a full version of session summary and returns a URL
+	// with uploaded file in case of success.
 	UploadSummary(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
 }
 
@@ -257,6 +260,16 @@ func (s *SessionSummarizer) summarize(
 		InferenceStartedAt: timestamppb.New(s.clock.Now().UTC()),
 		ModelName:          policy.Spec.Model,
 		SessionEndEvent:    endEventStruct,
+	}
+
+	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(pendingResult)
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal pending summary result")
+	}
+	s.logger.DebugContext(ctx, "Uploading pending session summary")
+	_, err = s.summaryUploader.UploadPendingSummary(ctx, sessionID, bytes.NewReader(rBytes))
+	if err != nil {
+		return trace.Wrap(err, "failed to upload pending summary result")
 	}
 
 	// TODO(bl-nero): At this point, we should save the pending summary using the

@@ -23,7 +23,8 @@ import (
 
 // SummaryDownloader provides backend access to session summary recordings.
 type SummaryDownloader interface {
-	// DownloadSummary downloads a session summary and writes it to a writer.
+	// DownloadSummary downloads a final session summary and writes it to a
+	// writer.
 	DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
 }
 
@@ -513,7 +514,7 @@ func (s *Service) GetSummary(
 func (s *Service) insecureGetSummary(
 	ctx context.Context, sid session.ID,
 ) (*pb.Summary, apievents.AuditEvent, error) {
-	buf := &memBuffer{}
+	buf := &events.MemBuffer{}
 	err := s.summaryDownloader.DownloadSummary(ctx, sid, buf)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

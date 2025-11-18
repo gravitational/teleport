@@ -311,7 +311,7 @@ func waitForSummary(
 		sr, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
 			SessionId: sid,
 		})
-		return err == nil
+		return err == nil && sr.Summary.State != summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING
 	}, time.Second*5, time.Millisecond*100)
 	return sr.Summary
 }
