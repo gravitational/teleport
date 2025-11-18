@@ -245,7 +245,7 @@ export const makeRuntimeSettings = (
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
-    homeDir: '',
+    defaultHomeDir: '',
   },
   sharedProcess: {
     requestedNetworkAddress: '',
