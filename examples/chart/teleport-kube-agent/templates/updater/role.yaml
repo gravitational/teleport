@@ -53,6 +53,16 @@ rules:
   verbs:
     - create
     - patch
+- apiGroups:
+    - ""
+  resources:
+    - configmaps
+  verbs:
+    - get
+    - create
+    - update
+  resourceNames:
+    - {{ .Release.Name }}-updater
 # the controller in the updater must be able to watch deployments and
 # statefulsets and get the one it should reconcile
 - apiGroups:
