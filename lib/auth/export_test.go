@@ -191,16 +191,8 @@ func (a *Server) ResetPassword(ctx context.Context, username string) error {
 	return a.resetPassword(ctx, username)
 }
 
-func (a *Server) SetJWKSValidator(clt JWKSValidator) {
-	a.k8sJWKSValidator = clt
-}
-
 func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
 	a.azureDevopsIDTokenValidator = validator
-}
-
-func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
-	a.k8sTokenReviewValidator = validator
 }
 
 func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidator) {
@@ -358,7 +350,6 @@ func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 type GitHubManager = githubManager
 type AttestedData = attestedData
 type SignedAttestedData = signedAttestedData
-type JWKSValidator = k8sJWKSValidator
 type AzureRegisterOption = azureRegisterOption
 type AzureRegisterConfig = azureRegisterConfig
 type AzureVMClientGetter = vmClientGetter

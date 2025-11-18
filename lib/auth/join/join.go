@@ -349,9 +349,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			}
 		}
 	case types.JoinMethodKubernetes:
-		params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodGCP:
 		if params.IDToken == "" {

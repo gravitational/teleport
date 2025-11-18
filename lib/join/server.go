@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -94,6 +95,9 @@ type AuthService interface {
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
+	GetK8sTokenReviewValidator() kubetoken.InClusterValidator
+	GetK8sJWKSValidator() kubetoken.JWKSValidator
+	GetK8sOIDCValidator() *kubetoken.KubernetesOIDCTokenValidator
 	services.Presence
 }
 
@@ -296,6 +300,9 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateCircleCIToken)
 	case types.JoinMethodIAM:
 		return s.handleIAMJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodKubernetes:
+		// TODO: sort me
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateKubernetesToken)
 	case types.JoinMethodEC2:
 		return s.handleEC2Join(stream, authCtx, clientInit, token)
 	case types.JoinMethodEnv0:
