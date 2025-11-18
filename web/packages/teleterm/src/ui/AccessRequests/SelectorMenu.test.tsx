@@ -18,7 +18,6 @@
 
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useEffect } from 'react';
 
 import { render } from 'design/utils/testing';
 
@@ -29,18 +28,14 @@ import {
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { SelectorMenu } from 'teleterm/ui/AccessRequests/SelectorMenu';
-import {
-  ResourcesContextProvider,
-  useResourcesContext,
-} from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { AccessRequestsContextProvider } from './AccessRequestsContext';
 
-test('assuming or dropping a request refreshes resources', async () => {
+test('assuming or dropping a request calls API', async () => {
   const appContext = new MockAppContext();
   const accessRequest = makeAccessRequest();
   const cluster = makeRootCluster({
@@ -49,7 +44,6 @@ test('assuming or dropping a request refreshes resources', async () => {
   });
   appContext.addRootCluster(cluster);
   jest.spyOn(appContext.clustersService, 'dropRoles');
-  const refreshListener = jest.fn();
   appContext.tshd.getAccessRequest = () => {
     return new MockedUnaryCall({
       request: accessRequest,
@@ -61,10 +55,6 @@ test('assuming or dropping a request refreshes resources', async () => {
       <ResourcesContextProvider>
         <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
           <AccessRequestsContextProvider rootClusterUri={cluster.uri}>
-            <RequestRefreshSubscriber
-              rootClusterUri={cluster.uri}
-              onResourcesRefreshRequest={refreshListener}
-            />
             <SelectorMenu />
           </AccessRequestsContextProvider>
         </MockWorkspaceContextProvider>
@@ -82,7 +72,6 @@ test('assuming or dropping a request refreshes resources', async () => {
     cluster.uri,
     [accessRequest.id]
   );
-  expect(refreshListener).toHaveBeenCalledTimes(1);
 });
 
 test('assumed request are always visible, even if getAccessRequests no longer returns them', async () => {
@@ -139,17 +128,3 @@ test('assumed request are always visible, even if getAccessRequests no longer re
     await screen.findByText('request-with-details-not-available')
   ).toBeInTheDocument();
 });
-
-function RequestRefreshSubscriber(props: {
-  rootClusterUri: RootClusterUri;
-  onResourcesRefreshRequest: () => void;
-}) {
-  const { onResourcesRefreshRequest } = useResourcesContext(
-    props.rootClusterUri
-  );
-  useEffect(() => {
-    onResourcesRefreshRequest(props.onResourcesRefreshRequest);
-  }, [onResourcesRefreshRequest, props.onResourcesRefreshRequest]);
-
-  return null;
-}
