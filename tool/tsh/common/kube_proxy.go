@@ -250,7 +250,7 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 	}
 
 	// Use logged-in clusters.
-	clusters := kubeconfig.LocalProxyClustersFromDefaultConfig(defaultConfig, tc.KubeClusterAddr())
+	clusters := kubeconfig.LocalProxyClustersFromDefaultConfig(defaultConfig, tc.WebProxyHost(), tc.KubeClusterAddr())
 	if len(clusters) == 0 {
 		return nil, nil, trace.BadParameter("%s", errorMsg)
 	}
@@ -434,6 +434,7 @@ func (k *kubeLocalProxy) createKubeConfig(defaultConfig *clientcmdapi.Config, ov
 		return nil, trace.BadParameter("empty default config")
 	}
 	values := &kubeconfig.LocalProxyValues{
+		TeleportProfileName:     k.tc.WebProxyHost(),
 		TeleportKubeClusterAddr: k.tc.KubeClusterAddr(),
 		LocalProxyURL:           "http://" + k.GetAddr(),
 		LocalProxyCAs:           map[string][]byte{},

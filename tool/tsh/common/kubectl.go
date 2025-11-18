@@ -480,7 +480,7 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 	}
 
 	// Prepare Teleport kube cluster based on selected context.
-	kubeCluster, found := kubeconfig.FindTeleportClusterForLocalProxy(defaultConfig, kubeClusterAddrFromProfile(profile), selectedContext)
+	kubeCluster, found := kubeconfig.FindTeleportClusterForLocalProxy(defaultConfig, selectedContext, profile.Name(), kubeClusterAddrFromProfile(profile))
 	if !found {
 		return nil, nil, false
 	}
