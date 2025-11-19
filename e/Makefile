@@ -21,11 +21,11 @@ KUBECTL_SETVERSION := -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERS
 # When TELEPORT_DEBUG is true, set flags so produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
-BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l" -ldflags '$(LDFLAGS) $(KUBECTL_SETVERSION)'
-BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l" -ldflags '$(LDFLAGS) $(KUBECTL_SETVERSION)'
+BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l" -ldflags '$(LDFLAGS) $(KUBECTL_SETVERSION)' -buildvcs=false
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l" -ldflags '$(LDFLAGS) $(KUBECTL_SETVERSION)' -buildvcs=false
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
-BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 endif
 
 OS ?= $(shell go env GOOS)
@@ -204,8 +204,8 @@ else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
-BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 
 endif
 endif
