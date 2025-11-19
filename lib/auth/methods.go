@@ -826,9 +826,9 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	UserLoginCount.Inc()
 	userAgentType, userAgentVersion := splitClientUserAgent(userAgent)
 	userLoginCountPerClient.With(prometheus.Labels{
-		teleport.TagUserAgentType: userAgentType,
-		teleport.TagVersion:       userAgentVersion,
-		teleport.TagProxyGroupID:  proxyGroupID,
+		tagUserAgentType: userAgentType,
+		tagVersion:       userAgentVersion,
+		tagProxyGroupID:  proxyGroupID,
 	}).Inc()
 
 	var clientOptions authclient.ClientOptions

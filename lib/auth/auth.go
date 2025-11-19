@@ -192,6 +192,16 @@ const (
 	accessListsPageReadInterval   = 5 * time.Millisecond
 )
 
+const (
+	// TagUserAgentType is a prometheus label for identifying user agent type
+	// of Teleport client (e.g. web or api).
+	tagUserAgentType = "user_agent_type"
+	// TagProxyGroupID is a prometheus label for identifying the proxy group ID.
+	tagProxyGroupID = "proxy_group_id"
+	// TagVersion is a prometheus label for version of Teleport built.
+	tagVersion = "version"
+)
+
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
@@ -987,15 +997,15 @@ var (
 	)
 	userLoginCountPerClient = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name:      teleport.MetricUserLoginPerClientCount,
+			Name:      "user_login_per_client",
 			Namespace: teleport.MetricNamespace,
-			Help: "Number of times there was a user login with specific client version and proxy reverse tunnel " +
-				"group ID (advertised as a label and used by reverse tunnel agents in proxy peering mode)",
+			Help: "The number of successful user authentications by client tool (tsh, tctl, etc.), client tool version, " +
+				"and proxy that handled the request. The metric is reset hourly. ",
 		},
 		[]string{
-			teleport.TagUserAgentType,
-			teleport.TagProxyGroupID,
-			teleport.TagVersion,
+			tagUserAgentType,
+			tagProxyGroupID,
+			tagVersion,
 		},
 	)
 
