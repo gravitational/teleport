@@ -124,7 +124,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 		if err != nil {
 			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
 			slog.SetDefault(slog.New(slog.DiscardHandler))
-			return slog.Default(), level, w, nil
+			return slog.Default(), level, nil, nil
 		}
 	default:
 		// Assume a file path for all other provided output values.
