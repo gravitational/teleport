@@ -70,10 +70,10 @@ var (
 	longArg    = strings.Repeat(longArgBase, (maxArgLength/4)/len(longArgBase))
 	overMaxArg = strings.Repeat(longArgBase, (maxArgLength)/len(longArgBase)+1)
 
-	recordAllEvents = map[string]bool{
-		constants.EnhancedRecordingCommand: true,
-		constants.EnhancedRecordingDisk:    true,
-		constants.EnhancedRecordingNetwork: true,
+	recordAllEvents = map[string]struct{}{
+		constants.EnhancedRecordingCommand: {},
+		constants.EnhancedRecordingDisk:    {},
+		constants.EnhancedRecordingNetwork: {},
 	}
 )
 
@@ -657,42 +657,42 @@ func TestBPFRoleOptions(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		events map[string]bool
+		events map[string]struct{}
 	}{
 		{
 			name: "no events",
 		},
 		{
 			name:   "command events",
-			events: map[string]bool{constants.EnhancedRecordingCommand: true},
+			events: map[string]struct{}{constants.EnhancedRecordingCommand: {}},
 		},
 		{
 			name:   "disk events",
-			events: map[string]bool{constants.EnhancedRecordingDisk: true},
+			events: map[string]struct{}{constants.EnhancedRecordingDisk: {}},
 		},
 		{
 			name:   "network events",
-			events: map[string]bool{constants.EnhancedRecordingNetwork: true},
+			events: map[string]struct{}{constants.EnhancedRecordingNetwork: {}},
 		},
 		{
 			name: "command and disk events",
-			events: map[string]bool{
-				constants.EnhancedRecordingCommand: true,
-				constants.EnhancedRecordingDisk:    true,
+			events: map[string]struct{}{
+				constants.EnhancedRecordingCommand: {},
+				constants.EnhancedRecordingDisk:    {},
 			},
 		},
 		{
 			name: "command and network events",
-			events: map[string]bool{
-				constants.EnhancedRecordingCommand: true,
-				constants.EnhancedRecordingNetwork: true,
+			events: map[string]struct{}{
+				constants.EnhancedRecordingCommand: {},
+				constants.EnhancedRecordingNetwork: {},
 			},
 		},
 		{
 			name: "disk and network events",
-			events: map[string]bool{
-				constants.EnhancedRecordingDisk:    true,
-				constants.EnhancedRecordingNetwork: true,
+			events: map[string]struct{}{
+				constants.EnhancedRecordingDisk:    {},
+				constants.EnhancedRecordingNetwork: {},
 			},
 		},
 	}
@@ -799,7 +799,7 @@ func handleConnections(l net.Listener) {
 
 // runCommand runs the given command with Enhanced Session Recording
 // enabled and returns the recorded events.
-func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]bool) []apievents.AuditEvent {
+func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}) []apievents.AuditEvent {
 	scx := newExecServerContext(t, srv)
 	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
 	scx.execRequest.SetCommand(command)

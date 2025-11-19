@@ -1427,7 +1427,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		return trace.Wrap(err)
 	}
 
-	var eventsMap map[string]bool
+	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
 	} else if scx.srv.GetBPF().Enabled() {
@@ -1645,7 +1645,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		scx.SendExecResult(ctx, *result)
 	}
 
-	var eventsMap map[string]bool
+	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
 	} else if scx.srv.GetBPF().Enabled() {
@@ -2502,10 +2502,10 @@ func (s *session) onWriteErrorCallback(sessionRecordingMode constants.SessionRec
 	}
 }
 
-func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]bool {
-	eventsMap := make(map[string]bool, len(permit.BpfEvents))
+func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]struct{} {
+	eventsMap := make(map[string]struct{}, len(permit.BpfEvents))
 	for _, event := range permit.BpfEvents {
-		eventsMap[event] = true
+		eventsMap[event] = struct{}{}
 	}
 
 	return eventsMap
