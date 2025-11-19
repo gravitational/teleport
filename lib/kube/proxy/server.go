@@ -477,6 +477,9 @@ func (t *TLSServer) close(ctx context.Context) error {
 		listClose = t.listener.Close()
 	}
 	t.mu.Unlock()
+
+	errs = append(errs, t.gcpClients.Close())
+
 	return trace.NewAggregate(append(errs, listClose)...)
 }
 
