@@ -29,8 +29,11 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -62,6 +65,55 @@ func createUsersExtension(groups []string) (pkix.Extension, error) {
 	}, nil
 }
 
+// oids is mapping from distinguished name parts to asn1 object identifiers.
+// It's used for conversion between string representation obtained from LDAP
+// and pkix.Name.ExtraNames list
+var oids = map[string]asn1.ObjectIdentifier{
+	"businesscategory":           {2, 5, 4, 15},
+	"c":                          {2, 5, 4, 6},
+	"cn":                         {2, 5, 4, 3},
+	"dc":                         {0, 9, 2342, 19200300, 100, 1, 25},
+	"description":                {2, 5, 4, 13},
+	"destinationindicator":       {2, 5, 4, 27},
+	"distinguishedName":          {2, 5, 4, 49},
+	"dnqualifier":                {2, 5, 4, 46},
+	"emailaddress":               {1, 2, 840, 113549, 1, 9, 1},
+	"enhancedsearchguide":        {2, 5, 4, 47},
+	"facsimiletelephonenumber":   {2, 5, 4, 23},
+	"generationqualifier":        {2, 5, 4, 44},
+	"givenname":                  {2, 5, 4, 42},
+	"houseidentifier":            {2, 5, 4, 51},
+	"initials":                   {2, 5, 4, 43},
+	"internationalisdnnumber":    {2, 5, 4, 25},
+	"l":                          {2, 5, 4, 7},
+	"member":                     {2, 5, 4, 31},
+	"name":                       {2, 5, 4, 41},
+	"o":                          {2, 5, 4, 10},
+	"ou":                         {2, 5, 4, 11},
+	"owner":                      {2, 5, 4, 32},
+	"physicaldeliveryofficename": {2, 5, 4, 19},
+	"postaladdress":              {2, 5, 4, 16},
+	"postalcode":                 {2, 5, 4, 17},
+	"postOfficebox":              {2, 5, 4, 18},
+	"preferreddeliverymethod":    {2, 5, 4, 28},
+	"registeredaddress":          {2, 5, 4, 26},
+	"roleoccupant":               {2, 5, 4, 33},
+	"searchguide":                {2, 5, 4, 14},
+	"seealso":                    {2, 5, 4, 34},
+	"serialnumber":               {2, 5, 4, 5},
+	"sn":                         {2, 5, 4, 4},
+	"st":                         {2, 5, 4, 8},
+	"street":                     {2, 5, 4, 9},
+	"telephonenumber":            {2, 5, 4, 20},
+	"teletexterminalidentifier":  {2, 5, 4, 22},
+	"telexnumber":                {2, 5, 4, 21},
+	"title":                      {2, 5, 4, 12},
+	"uid":                        {0, 9, 2342, 19200300, 100, 1, 1},
+	"uniquemember":               {2, 5, 4, 50},
+	"userpassword":               {2, 5, 4, 35},
+	"x121address":                {2, 5, 4, 24},
+}
+
 func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
@@ -73,15 +125,35 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Also important: rdpclient expects the private key to be in PKCS1 format.
 	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey.(*rsa.PrivateKey))
 
+	// Assume the AD user belongs to req.Domain, unless the
+	// username provided is a full UPN (user@domain)
+	upn := req.Username
+	if !strings.Contains(upn, "@") {
+		upn = fmt.Sprintf("%v@%v", upn, req.Domain)
+	}
+
 	// Generate the Windows-compatible certificate, see
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for requirements.
-	san, err := SubjectAltNameExtension(req.Username, req.Domain)
+	san, err := subjectAltNameExtension(upn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	name := pkix.Name{CommonName: req.Username}
+	if req.AD {
+		name = pkix.Name{CommonName: upn}
+	}
+	distinguishedName := req.DistinguishedName
+	if distinguishedName != "" {
+		name, err = convertDistinguishedName(distinguishedName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: req.Username},
+		Subject: name,
 		// We have to pass SAN and ExtKeyUsage as raw extensions because
 		// crypto/x509 doesn't support what we need:
 		// - x509.ExtKeyUsage doesn't have the Smartcard Logon variant
@@ -143,6 +215,29 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	return cr, nil
 }
 
+func convertDistinguishedName(distinguishedName string) (pkix.Name, error) {
+	dn, err := ldap.ParseDN(distinguishedName)
+	if err != nil {
+		return pkix.Name{}, trace.Wrap(err)
+	}
+	name := pkix.Name{}
+	for _, rdn := range dn.RDNs {
+		for _, attr := range rdn.Attributes {
+			oid, ok := oids[strings.ToLower(attr.Type)]
+			if !ok {
+				continue
+			}
+			name.ExtraNames = append(name.ExtraNames, pkix.AttributeTypeAndValue{
+				Type:  oid,
+				Value: attr.Value,
+			})
+		}
+	}
+	// list have to be reversed for Windows to recognize the name's parts in the correct order
+	slices.Reverse(name.ExtraNames)
+	return name, nil
+}
+
 // AuthInterface is a subset of auth.ClientI
 type AuthInterface interface {
 	// GenerateDatabaseCert generates a database certificate for windows SQL Server
@@ -158,6 +253,8 @@ type AuthInterface interface {
 type GenerateCredentialsRequest struct {
 	// Username is the Windows username
 	Username string
+	// DistinguishedName is distinguished name of the user in AD
+	DistinguishedName string
 	// Domain is the Active Directory domain of the user.
 	Domain string
 	// PKIDomain is the Active Directory domain where CRLs are published.
@@ -313,8 +410,8 @@ var EnhancedKeyUsageExtension = pkix.Extension{
 	}(),
 }
 
-// SubjectAltNameExtension fills in the SAN for a Windows certificate
-func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
+// subjectAltNameExtension fills in the SAN for a Windows certificate
+func subjectAltNameExtension(userPrincipalName string) (pkix.Extension, error) {
 	// Setting otherName SAN according to
 	// https://samfira.com/2020/05/16/golang-x-509-certificates-and-othername/
 	//
@@ -327,7 +424,7 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 			OtherName: otherName[UPN]{
 				OID: UPNOtherNameOID,
 				Value: UPN{
-					Value: fmt.Sprintf("%s@%s", user, domain), // TODO(zmb3): sanitize username to avoid domain spoofing
+					Value: userPrincipalName,
 				},
 			},
 		},

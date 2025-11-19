@@ -107,6 +107,21 @@ func TestAppliesLDAPLabels(t *testing.T) {
 	require.Empty(t, l["ldap/quux"])
 }
 
+func TestDNToDomain(t *testing.T) {
+	for _, test := range []struct {
+		dn, domain string
+	}{
+		{"CN=Computers,DC=child,DC=root,DC=zac,DC=local", "child.root.zac.local"},
+		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup,DC=domain,DC=ad,DC=example,DC=com", "domain.ad.example.com"},
+		{"", ""},
+		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup", ""},
+	} {
+		t.Run(test.dn, func(t *testing.T) {
+			require.Equal(t, test.domain, dnToDomain(test.dn))
+		})
+	}
+}
+
 func TestLabelsDomainControllers(t *testing.T) {
 	s := &WindowsService{}
 	for _, test := range []struct {
