@@ -208,6 +208,8 @@ message DatabaseServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "status"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 7;
 }
 
 // DatabaseServerSpecV3 is the database server spec.
@@ -923,6 +925,8 @@ message ServerV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 6;
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -1030,6 +1034,8 @@ message AppServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 6;
 }
 
 // AppServerSpecV3 is the app access server spec.
@@ -5240,6 +5246,8 @@ message KubernetesServerV3 {
   ];
   // Status is the Kubernetes server status.
   KubernetesServerStatusV3 status = 6;
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 7;
 }
 
 // KubernetesServerSpecV3 is the Kubernetes server spec.
@@ -5634,6 +5642,9 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
   // pkce_verifier is used to verified a generated code challenge.
   string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
+  // LoginHint is an optional username/email provided by the client that will be passed
+  // to the IdP via the 'login_hint' query parameter.
+  string login_hint = 25 [(gogoproto.jsontag) = "login_hint,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -9153,6 +9164,9 @@ message AzureMatcher {
   // Params sets the join method when installing on
   // discovered Azure nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with Azure APIs.
+  // Environment credentials will not be used when this value is set.
+  string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // GCPMatcher matches GCP resources.

@@ -256,7 +256,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 			return nil, trace.Wrap(err)
 		}
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
-		if err := awscommon.ValidIntegratioName(req.Integration.GetName()); err != nil {
+		if err := awscommon.ValidIntegrationName(req.Integration.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

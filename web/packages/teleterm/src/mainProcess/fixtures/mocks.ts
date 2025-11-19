@@ -211,6 +211,16 @@ export class MockMainProcessClient implements MainProcessClient {
   async syncRootClusters(): Promise<Cluster[]> {
     return [];
   }
+  registerClusterLifecycleHandler(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  subscribeToProfileWatcherErrors(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
 }
 
 export const makeRuntimeSettings = (
@@ -235,7 +245,7 @@ export const makeRuntimeSettings = (
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
-    homeDir: '',
+    defaultHomeDir: '',
   },
   sharedProcess: {
     requestedNetworkAddress: '',

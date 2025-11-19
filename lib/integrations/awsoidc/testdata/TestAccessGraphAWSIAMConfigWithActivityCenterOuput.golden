@@ -99,6 +99,11 @@ PutRolePolicy: {
                     "kms:GenerateDataKeyWithoutPlaintext"
                 ],
                 "Resource": "arn:aws:kms:us-west-2:123456789012:key/my-kms-key"
+            },
+            {
+                "Effect": "Allow",
+                "Action": "logs:FilterLogEvents",
+                "Resource": "arn:aws:logs:*:*:log-group:/aws/eks/*"
             }
         ]
     },

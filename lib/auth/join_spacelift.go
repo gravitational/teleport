@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/spacelift"
 )
@@ -73,7 +74,7 @@ func (a *Server) checkSpaceliftJoinRequest(
 func checkSpaceliftAllowRules(token *types.ProvisionTokenV2, claims *spacelift.IDTokenClaims) error {
 	globCheck := func(want string, got string) (bool, error) {
 		if token.Spec.Spacelift.EnableGlobMatching {
-			return joinRuleGlobMatch(want, got)
+			return joinutils.GlobMatchAllowEmptyPattern(want, got)
 		}
 		if want == "" {
 			return true, nil

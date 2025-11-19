@@ -99,6 +99,9 @@ message UpstreamInventoryHello {
   string ExternalUpgraderVersion = 6;
   // UpdaterInfo is used by Teleport to send information about how the Teleport updater is doing.
   types.UpdaterV2Info UpdaterInfo = 8;
+  // The advertized scope of the instance. An instance's scope can not change once assigned, so future
+  // heartbeats must include a scope value matching the one declared in the hello message.
+  string scope = 9;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing

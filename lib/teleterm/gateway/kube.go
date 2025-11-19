@@ -213,26 +213,21 @@ func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certific
 		return trace.BadParameter("could not parse CA certificate for cluster %q", k.cfg.ClusterName)
 	}
 
+	// XXX(espadolini): just like [kubeconfig.UpdateConfig], this assumes that
+	// the profile name is exactly the same as the hostname of the Proxy web
+	// address
+	profileName, err := utils.Host(k.cfg.WebProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	values := &kubeconfig.LocalProxyValues{
-		// Ideally tc.KubeClusterAddr() should be used for
-		// TeleportKubeClusterAddr here.
-		//
-		// Kube cluster address is used as server address when `tsh kube login`
-		// adds cluster entries in the default kubeconfig. When creating
-		// kubeconfig for a local proxy, TeleportKubeClusterAddr is mainly used
-		// to identify which clusters in the kubeconfig belong to the current
-		// tsh profile, in case the default kubeconfig has other clusters. It
-		// also serves as a reference so that the server address of a cluster
-		// in the kubeconfig of `tsh proxy kube` and `tsh kube login` are the
-		// same.
-		//
-		// In this case here, since the kubeconfig for the local proxy is only
-		// for a single kube cluster and it is not created from the default
-		// kubeconfig, specifying the correct kube cluster address is not
-		// necessary.
-		//
-		// In most cases, tc.KubeClusterAddr() is the same as
-		// k.cfg.WebProxyAddr anyway.
+		TeleportProfileName: profileName,
+		// Ideally TeleportKubeClusterAddr would be set to tc.KubeClusterAddr()
+		// here, but this is for the local proxy and it's only used for
+		// compatibility with older versions of tsh to keep track of and clean
+		// up kubeconfig items associated to a given profile, which should not
+		// be needed since the introduction of the profile name extension.
 		TeleportKubeClusterAddr: "https://" + k.cfg.WebProxyAddr,
 		LocalProxyURL:           "http://" + k.forwardProxy.GetAddr(),
 		ClientKeyData:           key.PrivateKeyPEM(),
