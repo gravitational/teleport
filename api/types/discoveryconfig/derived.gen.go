@@ -165,7 +165,8 @@ func deriveTeleportEqual_9(this, that *types.AzureMatcher) bool {
 			deriveTeleportEqual_14(this.Types, that.Types) &&
 			deriveTeleportEqual_14(this.Regions, that.Regions) &&
 			deriveTeleportEqual_16(this.ResourceTags, that.ResourceTags) &&
-			deriveTeleportEqual_17(this.Params, that.Params)
+			deriveTeleportEqual_17(this.Params, that.Params) &&
+			this.Integration == that.Integration
 }
 
 // deriveTeleportEqual_10 returns whether this and that are equal.
