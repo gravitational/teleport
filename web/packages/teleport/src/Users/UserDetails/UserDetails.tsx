@@ -34,6 +34,112 @@ import { useResourceLock } from 'teleport/lib/locks/useResourceLock';
 import { User } from 'teleport/services/user';
 
 import { UserRoles } from './UserRoles';
+import { UserTraits } from './UserTraits';
+
+type AuthTypeInfo = {
+  text: string;
+  icon: ResourceIconName;
+};
+
+const authTypeMap: Record<string, AuthTypeInfo> = {
+  github: { text: 'GitHub', icon: 'github' },
+  oidc: { text: 'OIDC', icon: 'openid' },
+  okta: { text: 'Okta', icon: 'okta' },
+  scim: { text: 'SCIM', icon: 'scim' },
+  saml: { text: 'SAML', icon: 'application' },
+};
+
+export type UserDetailsAuthType = keyof typeof authTypeMap;
+
+export interface UserDetailsSectionProps {
+  user: User;
+  onEdit?: () => void;
+}
+
+export interface UserDetailsProps {
+  user: User;
+  sections?: React.ComponentType<UserDetailsSectionProps>[];
+  onEdit?: () => void;
+}
+
+export function UserDetails({
+  user,
+  sections = [UserRoles, UserTraits],
+  onEdit,
+}: UserDetailsProps) {
+  if (!user) return null;
+
+  const { isLocked, isLoading: isLoadingLocks } = useResourceLock({
+    targetKind: 'user',
+    targetName: user.name,
+  });
+
+  return (
+    <Box>
+      <UserDetailsSection>
+        <InfoTitle>User details</InfoTitle>
+        <InfoParagraph>
+          <UserDetailsGrid>
+            <UserDetailField>
+              <Text fontWeight="medium">Username</Text>
+              <Text color="text.muted">{user.name}</Text>
+            </UserDetailField>
+            <UserDetailField>
+              <Text fontWeight="medium">Auth Type</Text>
+              <Text color="text.muted" style={{ textTransform: 'capitalize' }}>
+                {renderAuthType(user).text}
+              </Text>
+            </UserDetailField>
+            <UserDetailField>
+              <Text fontWeight="medium">Status</Text>
+              <Flex flexDirection="column" alignItems="flex-start" gap={1}>
+                <Flex alignItems="center" gap={2}>
+                  <Box
+                    width="8px"
+                    height="8px"
+                    borderRadius="50%"
+                    backgroundColor={
+                      isLoadingLocks
+                        ? 'text.muted'
+                        : isLocked
+                          ? 'error.main'
+                          : 'success.main'
+                    }
+                  />
+                  <Text color="text.muted">
+                    {isLoadingLocks
+                      ? 'Unknown'
+                      : isLocked
+                        ? 'Locked'
+                        : 'Active'}
+                  </Text>
+                </Flex>
+                {isLocked && (
+                  <Button
+                    as={Link}
+                    to={cfg.routes.locks}
+                    size="small"
+                    intent="neutral"
+                    gap={1}
+                  >
+                    <Text color="text.muted">View Locks</Text>
+                    <Icons.ArrowRight color="text.muted" size="small" />
+                  </Button>
+                )}
+              </Flex>
+            </UserDetailField>
+          </UserDetailsGrid>
+        </InfoParagraph>
+      </UserDetailsSection>
+
+      {sections.map((SectionComponent, index) => (
+        <UserDetailsSection key={index}>
+          <SectionComponent user={user} onEdit={onEdit} />
+        </UserDetailsSection>
+      ))}
+    </Box>
+  );
+}
 
 const UserDetailsActions = ({
   user,
@@ -135,155 +241,6 @@ export function UserDetailsTitle({
     </Flex>
   );
 }
-
-export interface UserDetailsSectionProps {
-  user: User;
-  onEdit?: () => void;
-}
-
-export interface UserDetailsProps {
-  user: User;
-  sections?: React.ComponentType<UserDetailsSectionProps>[];
-  onEdit?: () => void;
-}
-
-export function UserDetails({
-  user,
-  sections = [UserRoles, UserTraits],
-  onEdit,
-}: UserDetailsProps) {
-  if (!user) return null;
-
-  const { isLocked, isLoading: isLoadingLocks } = useResourceLock({
-    targetKind: 'user',
-    targetName: user.name,
-  });
-
-  return (
-    <Box>
-      <UserDetailsSection>
-        <InfoTitle>User details</InfoTitle>
-        <InfoParagraph>
-          <UserDetailsGrid>
-            <UserDetailField>
-              <Text fontWeight="medium">Username</Text>
-              <Text color="text.muted">{user.name}</Text>
-            </UserDetailField>
-            <UserDetailField>
-              <Text fontWeight="medium">Auth Type</Text>
-              <Text color="text.muted" style={{ textTransform: 'capitalize' }}>
-                {renderAuthType(user).text}
-              </Text>
-            </UserDetailField>
-            <UserDetailField>
-              <Text fontWeight="medium">Status</Text>
-              <Flex flexDirection="column" alignItems="flex-start" gap={1}>
-                <Flex alignItems="center" gap={2}>
-                  <Box
-                    width="8px"
-                    height="8px"
-                    borderRadius="50%"
-                    backgroundColor={
-                      isLoadingLocks
-                        ? 'text.muted'
-                        : isLocked
-                          ? 'error.main'
-                          : 'success.main'
-                    }
-                  />
-                  <Text color="text.muted">
-                    {isLoadingLocks
-                      ? 'Unknown'
-                      : isLocked
-                        ? 'Locked'
-                        : 'Active'}
-                  </Text>
-                </Flex>
-                {isLocked && (
-                  <Button
-                    as={Link}
-                    to={cfg.routes.locks}
-                    size="small"
-                    intent="neutral"
-                    gap={1}
-                  >
-                    <Text color="text.muted">View Locks</Text>
-                    <Icons.ArrowRight color="text.muted" size="small" />
-                  </Button>
-                )}
-              </Flex>
-            </UserDetailField>
-          </UserDetailsGrid>
-        </InfoParagraph>
-      </UserDetailsSection>
-
-      {sections.map((SectionComponent, index) => (
-        <UserDetailsSection key={index}>
-          <SectionComponent user={user} onEdit={onEdit} />
-        </UserDetailsSection>
-      ))}
-    </Box>
-  );
-}
-
-export function UserTraits({ user, onEdit }: UserDetailsSectionProps) {
-  const allTraits = user.allTraits || [];
-  const traitsWithValues = Object.keys(allTraits).filter(
-    key =>
-      user.allTraits[key].length > 0 &&
-      user.allTraits[key].some(value => value.trim() !== '')
-  );
-
-  return (
-    <>
-      <SectionTitle>
-        <Flex justifyContent="space-between">
-          <span>Traits</span>
-          {onEdit && (
-            <Button
-              size="small"
-              fill="minimal"
-              intent="neutral"
-              onClick={onEdit}
-              gap={1}
-            >
-              <Icons.Edit size="small" />
-              Edit
-            </Button>
-          )}
-        </Flex>
-      </SectionTitle>
-      <SectionParagraph>
-        {traitsWithValues.length === 0 ? (
-          <Text color="text.muted">No traits assigned.</Text>
-        ) : (
-          <Flex flexWrap="wrap" gap={2}>
-            {traitsWithValues.map(key => (
-              <Label key={key} kind="secondary">
-                {key}: {user.allTraits[key].join(', ')}
-              </Label>
-            ))}
-          </Flex>
-        )}
-      </SectionParagraph>
-    </>
-  );
-}
-
-type AuthTypeInfo = {
-  text: string;
-  icon: ResourceIconName;
-};
-
-const authTypeMap: Record<string, AuthTypeInfo> = {
-  github: { text: 'GitHub', icon: 'github' },
-  oidc: { text: 'OIDC', icon: 'openid' },
-  okta: { text: 'Okta', icon: 'okta' },
-  scim: { text: 'SCIM', icon: 'scim' },
-  saml: { text: 'SAML', icon: 'application' },
-};
-
-export type UserDetailsAuthType = keyof typeof authTypeMap;
 
 function renderAuthType(user: User): AuthTypeInfo {
   const key =

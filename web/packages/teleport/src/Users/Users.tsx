@@ -38,6 +38,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
+import { useNoMinWidth } from 'teleport/Main';
 import { User } from 'teleport/services/user';
 
 import { useUrlParams } from './state';
@@ -92,6 +93,8 @@ export function Users(props: State) {
     clusterId: '',
     params: { search: params.search },
   });
+
+  useNoMinWidth();
 
   useEffect(() => {
     // Cancel previous request and create new controller
@@ -169,7 +172,7 @@ export function Users(props: State) {
   });
 
   const setCurrentUser = (user: User | null) => {
-    setParams({ user: user?.name || null });
+    setParams({ ...params, user: user?.name || null });
   };
 
   const requiredPermissions = Object.entries(usersAcl)
@@ -292,7 +295,7 @@ export function Users(props: State) {
       )}
       <UserList
         serversidePagination={serverSidePagination}
-        onSearchChange={search => setParams({ search: search })}
+        onSearchChange={search => setParams({ ...params, search: search })}
         search={params.search}
         onEdit={onStartEdit}
         onDelete={onStartDelete}

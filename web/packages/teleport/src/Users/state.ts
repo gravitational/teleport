@@ -59,16 +59,14 @@ export function useUrlParams(): [
   }, [location.search]);
 
   const setParams = useCallback(
-    (next: Partial<UsersUrlState>) => {
+    (next: UsersUrlState) => {
       const current = searchParamsToState(new URLSearchParams(location.search));
 
-      const nextState = { ...current, ...next };
-
       const hasChanged =
-        current.search !== nextState.search || current.user !== nextState.user;
+        current.search !== next.search || current.user !== next.user;
 
       if (hasChanged) {
-        const nextParams = stateToSearchParams(nextState);
+        const nextParams = stateToSearchParams(next);
         const nextSearch = nextParams ? `?${nextParams}` : '';
         history.push({ search: nextSearch });
       }

@@ -31,6 +31,7 @@ import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoG
 
 import { ContextProvider } from 'teleport';
 import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import * as Main from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Access } from 'teleport/services/user';
 import { successGetUsersV2 } from 'teleport/test/helpers/users';
@@ -61,6 +62,8 @@ describe('invite collaborators integration', () => {
 
   let props: State;
   beforeEach(() => {
+    jest.spyOn(Main, 'useNoMinWidth').mockReturnValue();
+
     props = {
       operation: { type: 'invite-collaborators' },
       fetch: ctx.userService.fetchUsersV2,
