@@ -22,6 +22,7 @@ import styled from 'styled-components';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
+import 'ace-builds/src-noconflict/mode-terraform';
 import 'ace-builds/src-noconflict/ext-searchbox';
 
 import { ButtonSecondary } from 'design/Button';
@@ -57,6 +58,16 @@ class TextEditor extends Component {
     }
     if (prevProps.readOnly !== this.props.readOnly) {
       this.editor.setReadOnly(this.props.readOnly);
+    }
+
+    // hack to update data
+    const prevContent = prevProps.data?.[0]?.content;
+    const currentContent = this.props.data?.[0]?.content;
+
+    if (prevContent !== currentContent && currentContent) {
+      this.setActiveSession(0);
+      this.editor.session.setValue(currentContent);
+      this.editor.session.getUndoManager().markClean();
     }
 
     this.editor.resize();
@@ -159,7 +170,9 @@ function getMode(docType) {
   if (docType === 'json') {
     return 'ace/mode/json';
   }
-
+  if (docType === 'terraform') {
+    return 'ace/mode/terraform';
+  }
   return 'ace/mode/yaml';
 }
 

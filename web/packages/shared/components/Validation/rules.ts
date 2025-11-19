@@ -202,6 +202,39 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
 };
 
 /**
+ * validAwsAccountId verifies if the given value is a
+ * valid AWS Account ID.
+ * @param accountId is the AWS Account ID to validate
+ * @returns ValidationResult
+ */
+const AWS_ACCOUNT_ID_REGEX = /^\d{12}$/;
+const validAwsAccountId: Rule = accountId => () => {
+  if (!AWS_ACCOUNT_ID_REGEX.test(accountId)) {
+    return {
+      valid: false,
+      message: 'AWS Account ID must be a 12 digit number',
+    };
+  }
+};
+
+/**
+ * requiredAWSAccountId is a required field and checks for a
+ * value which should also be a valid AWS Account ID.
+ * @param accountId is the AWS Account ID to validate.
+ * @returns ValidationResult
+ */
+const requiredAwsAccountId: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'AWS Account ID is required',
+    };
+  }
+
+  return validIntegrationName(name);
+};
+
+/**
  * requiredIntegrationName is a required field and checks for a
  * value which should also be a valid Integration name.
  * @param name is an integration name.
@@ -532,6 +565,7 @@ export {
   requiredMaxLength,
   requiredAll,
   requiredMatchingRoleNameAndRoleArn,
+  requiredAwsAccountId,
   validAwsIAMRoleName,
   requiredPort,
   arrayOf,
