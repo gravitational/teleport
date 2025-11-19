@@ -45,7 +45,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -339,30 +338,6 @@ func (c *databaseServerCollection) writeJSON(w io.Writer) error {
 
 func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
-}
-
-type windowsDesktopServiceCollection struct {
-	services []types.WindowsDesktopService
-}
-
-func (c *windowsDesktopServiceCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.services {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *windowsDesktopServiceCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Address", "Version"})
-	for _, service := range c.services {
-		addr := service.GetAddr()
-		if addr == reversetunnelclient.LocalWindowsDesktop {
-			addr = "<proxy tunnel>"
-		}
-		t.AddRow([]string{service.GetName(), addr, service.GetTeleportVersion()})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
 }
 
 type dynamicWindowsDesktopCollection struct {

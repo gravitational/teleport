@@ -998,11 +998,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindWindowsDesktopService:
-		if err = client.DeleteWindowsDesktopService(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
 	case types.KindDynamicWindowsDesktop:
 		if err = client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1380,24 +1375,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &crownJewelCollection{items: jewels}, nil
-	case types.KindWindowsDesktopService:
-		if rc.ref.Name != "" {
-			service, err := client.GetWindowsDesktopService(ctx, rc.ref.Name)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					return nil, trace.NotFound("Windows desktop service %q not found", rc.ref.Name)
-				}
-				return nil, trace.Wrap(err)
-			}
-
-			return &windowsDesktopServiceCollection{services: []types.WindowsDesktopService{service}}, nil
-		}
-
-		services, err := apiclient.GetAllResources[types.WindowsDesktopService](ctx, client, &proto.ListResourcesRequest{ResourceType: types.KindWindowsDesktopService})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &windowsDesktopServiceCollection{services: services}, nil
 	case types.KindDynamicWindowsDesktop:
 		dynamicDesktopClient := client.DynamicDesktopClient()
 		if rc.ref.Name != "" {
