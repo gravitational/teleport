@@ -21,10 +21,11 @@ package join
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/join/provision"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
-	"github.com/gravitational/trace"
 )
 
 // validateKubernetesToken performs validation and allow rule verification

@@ -23,12 +23,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/provision"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "kubetoken")

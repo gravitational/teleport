@@ -298,15 +298,15 @@ func (s *Server) handleJoinMethod(
 		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodCircleCI:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateCircleCIToken)
+	case types.JoinMethodEC2:
+		return s.handleEC2Join(stream, authCtx, clientInit, token)
+	case types.JoinMethodEnv0:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
 	case types.JoinMethodIAM:
 		return s.handleIAMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodKubernetes:
 		// TODO: sort me
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateKubernetesToken)
-	case types.JoinMethodEC2:
-		return s.handleEC2Join(stream, authCtx, clientInit, token)
-	case types.JoinMethodEnv0:
-		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
 	case types.JoinMethodOracle:
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodGCP:
