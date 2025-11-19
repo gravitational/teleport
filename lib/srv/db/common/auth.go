@@ -40,6 +40,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/oauth2"
@@ -56,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
@@ -177,8 +179,6 @@ type AuthConfig struct {
 	// Logger is used for logging.
 	Logger *slog.Logger
 
-	// InstanceMetadataClient provides instance metadata client
-	InstanceMetadataClient cloud.InstanceMetadataClient
 	// AzureClients provides Azure SDK clients.
 	AzureClients cloud.AzureClients
 	// GCPClients provides GCP SDK clients.
@@ -187,6 +187,9 @@ type AuthConfig struct {
 	AWSConfigProvider awsconfig.Provider
 	// awsClients is an SDK client provider.
 	awsClients awsClientProvider
+
+	// azureIMDSClient is an optional IMDS client, overridden in tests.
+	azureIMDSClient imds.Client
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -196,9 +199,6 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
-	}
-	if c.InstanceMetadataClient == nil {
-		return trace.BadParameter("missing InstanceMetadataClient")
 	}
 	if c.AzureClients == nil {
 		return trace.BadParameter("missing AzureClients")
@@ -218,6 +218,9 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 
 	if c.awsClients == nil {
 		c.awsClients = defaultAWSClients{}
+	}
+	if c.azureIMDSClient == nil {
+		c.azureIMDSClient = azureimds.NewInstanceMetadataClient()
 	}
 	return nil
 }
@@ -1151,16 +1154,7 @@ func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName st
 // getCurrentAzureVM fetches current Azure Virtual Machine struct. If Teleport
 // is not running on Azure, returns an error.
 func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachine, error) {
-	metadataClient, err := a.cfg.InstanceMetadataClient.GetInstanceMetadataClient(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if metadataClient.GetType() != types.InstanceMetadataTypeAzure {
-		return nil, trace.BadParameter("fetching Azure identity resource ID is only supported on Azure")
-	}
-
-	instanceID, err := metadataClient.GetID(ctx)
+	instanceID, err := a.cfg.azureIMDSClient.GetID(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

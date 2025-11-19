@@ -258,13 +258,12 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.Auth == nil {
 		c.Auth, err = common.NewAuth(common.AuthConfig{
-			AuthClient:             c.AuthClient,
-			AccessPoint:            c.AccessPoint,
-			Clock:                  c.Clock,
-			AzureClients:           c.AzureClients,
-			GCPClients:             c.GCPClients,
-			InstanceMetadataClient: clients.NewInstanceMetadataClient(),
-			AWSConfigProvider:      c.AWSConfigProvider,
+			AuthClient:        c.AuthClient,
+			AccessPoint:       c.AccessPoint,
+			Clock:             c.Clock,
+			AzureClients:      c.AzureClients,
+			GCPClients:        c.GCPClients,
+			AWSConfigProvider: c.AWSConfigProvider,
 		})
 		if err != nil {
 			return trace.Wrap(err)

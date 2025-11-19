@@ -2548,13 +2548,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
-		AuthClient:             c.authClient,
-		AccessPoint:            c.authClient,
-		AzureClients:           &cloudtest.AzureClients{},
-		GCPClients:             &cloudtest.GCPClients{},
-		InstanceMetadataClient: &cloudtest.InstanceMetadataClient{},
-		Clock:                  c.clock,
-		AWSConfigProvider:      p.AWSConfigProvider,
+		AuthClient:        c.authClient,
+		AccessPoint:       c.authClient,
+		AzureClients:      &cloudtest.AzureClients{},
+		GCPClients:        &cloudtest.GCPClients{},
+		Clock:             c.clock,
+		AWSConfigProvider: p.AWSConfigProvider,
 	})
 	require.NoError(t, err)
 
