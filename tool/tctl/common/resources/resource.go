@@ -73,6 +73,7 @@ func Handlers() map[string]Handler {
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindWindowsDesktop:                     windowsDesktopHandler(),
+		types.KindWindowsDesktopService:              windowsDesktopServiceHandler(),
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
 		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
 		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),

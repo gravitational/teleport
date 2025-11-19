@@ -25,10 +25,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -153,5 +156,67 @@ func createWindowsDesktop(ctx context.Context, client *authclient.Client, raw se
 		return trace.Wrap(err)
 	}
 	fmt.Printf("windows desktop %q has been created\n", wd.GetName())
+	return nil
+}
+
+type windowsDesktopServiceCollection struct {
+	services []types.WindowsDesktopService
+}
+
+func windowsDesktopServiceHandler() Handler {
+	return Handler{
+		getHandler:    getWindowsDesktopService,
+		deleteHandler: deleteWindowsDesktopService,
+		singleton:     false,
+		mfaRequired:   false,
+		description:   "A Teleport agent that proxies connections to Windows desktops",
+	}
+}
+
+func (c *windowsDesktopServiceCollection) Resources() (r []types.Resource) {
+	for _, resource := range c.services {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *windowsDesktopServiceCollection) WriteText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Address", "Version"})
+	for _, service := range c.services {
+		addr := service.GetAddr()
+		if addr == reversetunnelclient.LocalWindowsDesktop {
+			addr = "<proxy tunnel>"
+		}
+		t.AddRow([]string{service.GetName(), addr, service.GetTeleportVersion()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func getWindowsDesktopService(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
+	if ref.Name != "" {
+		service, err := client.GetWindowsDesktopService(ctx, ref.Name)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, trace.NotFound("Windows desktop service %q not found", ref.Name)
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		return &windowsDesktopServiceCollection{services: []types.WindowsDesktopService{service}}, nil
+	}
+
+	services, err := apiclient.GetAllResources[types.WindowsDesktopService](ctx, client, &proto.ListResourcesRequest{ResourceType: types.KindWindowsDesktopService})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &windowsDesktopServiceCollection{services: services}, nil
+}
+
+func deleteWindowsDesktopService(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DeleteWindowsDesktopService(ctx, ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("windows desktop service %q has been deleted\n", ref.Name)
 	return nil
 }
