@@ -759,6 +759,7 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 // inherited from any ancestor lists, and the Access List's own MembershipRequires.
 func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Requires, error) {
 	ownRequires := accessList.GetMembershipRequires()
+	ownRequires = ownRequires.Clone()
 	ancestors, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
 	if err != nil {
 		return &ownRequires, trace.Wrap(err)
@@ -766,6 +767,9 @@ func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.
 
 	roles := ownRequires.Roles
 	traits := ownRequires.Traits
+	if traits == nil {
+		traits = trait.Traits{}
+	}
 
 	for _, ancestor := range ancestors {
 		requires := ancestor.GetMembershipRequires()
