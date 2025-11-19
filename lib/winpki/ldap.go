@@ -130,8 +130,6 @@ func DomainDN(domain string) string {
 const (
 	// AttrObjectSid is the Security Identifier of an LDAP object
 	AttrObjectSid = "objectSid"
-	// AttrDistinguishedName is the Distinguished Name of an LDAP object
-	AttrDistinguishedName = "distinguishedName"
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
 
@@ -453,7 +451,7 @@ func (l *LDAPClient) Update(ctx context.Context, dn string, replaceAttrs map[str
 	return nil
 }
 
-// CombineLDAPFilters joins the slice of filters using given operator (e.g. &, |)
+// CombineLDAPFilters joins the slice of filters
 func CombineLDAPFilters(filters []string) string {
 	return "(&" + strings.Join(filters, "") + ")"
 }

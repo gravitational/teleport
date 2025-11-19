@@ -19,7 +19,6 @@
 package desktop
 
 import (
-	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -354,7 +353,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
-			Domain: cmp.Or(labels[types.DiscoveryLabelWindowsDomain], s.cfg.Domain),
+			Domain: labels[types.DiscoveryLabelWindowsDomain],
 			HostID: s.cfg.Heartbeat.HostUUID,
 		},
 	)
