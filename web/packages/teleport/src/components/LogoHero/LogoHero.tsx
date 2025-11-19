@@ -24,6 +24,7 @@ import CommunityLogoDark from 'design/assets/images/community-dark.svg';
 import CommunityLogoLight from 'design/assets/images/community-light.svg';
 import EnterpriseLogoDark from 'design/assets/images/enterprise-dark.svg';
 import EnterpriseLogoLight from 'design/assets/images/enterprise-light.svg';
+import Box from 'design/Box';
 import Image from 'design/Image';
 
 import cfg, { TeleportEdition } from 'teleport/config';
@@ -49,15 +50,17 @@ export const logos: Record<TeleportEdition, LogoMap> = {
 };
 
 export const LogoHero = ({
-  my = '48px',
+  py = '48px',
   customSrc,
 }: {
-  my?: string;
+  py?: string;
   customSrc?: string;
 }) => {
   const theme = useTheme();
   const src = customSrc || logos[cfg.edition][theme.type];
   return (
-    <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
+    <Box py={py}>
+      <Image src={src} maxHeight="120px" maxWidth="200px" mx="auto" />
+    </Box>
   );
 };

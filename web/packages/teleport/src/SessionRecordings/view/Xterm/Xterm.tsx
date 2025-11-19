@@ -49,6 +49,8 @@ export default function Xterm({ tty }: { tty: Tty }) {
     return (e.metaKey || e.ctrlKey) && e.key === 'f';
   }, []);
 
+  console.log('Rendering Xterm with theme:', theme.colors.terminal);
+
   useEffect(() => {
     if (!refContainer.current) {
       return;
@@ -60,6 +62,8 @@ export default function Xterm({ tty }: { tty: Tty }) {
       fontSize: getPlatformType().isMac ? 12 : 14,
       theme: theme.colors.terminal,
     });
+
+    console.log(theme.colors.terminal);
 
     terminalPlayer.current = term;
     term.open();

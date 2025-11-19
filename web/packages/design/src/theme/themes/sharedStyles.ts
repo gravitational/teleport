@@ -17,10 +17,9 @@
  */
 
 import { fonts } from '../fonts';
-import { blueGrey, lightBlue, yellow } from '../palette';
 import typography, { fontSizes, fontWeights } from '../typography';
 import { getContrastRatio } from '../utils/colorManipulator';
-import { SharedColors, SharedStyles } from './types';
+import type { SharedColors, SharedStyles } from './types';
 
 // TODO(bl-nero): use a CSS var for sidebar width and make the breakpoints work
 // by changing the minimum width on a per-view basis (Main.tsx).
@@ -92,17 +91,30 @@ export const sharedStyles: SharedStyles = {
 
 // Colors that are shared between all themes, these should be added to the theme.colors object.
 export const sharedColors: SharedColors = {
-  dark: '#000000',
-  light: '#FFFFFF',
-  interactionHandle: '#FFFFFF',
+  dark: 'var(--teleport-colors-dark)',
+  light: 'var(--teleport-colors-light)',
+  interactionHandle: 'var(--teleport-colors-interaction-handle)',
   grey: {
-    ...blueGrey,
+    50: 'var(--teleport-colors-grey-50)',
+    100: 'var(--teleport-colors-grey-100)',
+    200: 'var(--teleport-colors-grey-200)',
+    300: 'var(--teleport-colors-grey-300)',
+    400: 'var(--teleport-colors-grey-400)',
+    500: 'var(--teleport-colors-grey-500)',
+    600: 'var(--teleport-colors-grey-600)',
+    700: 'var(--teleport-colors-grey-700)',
+    800: 'var(--teleport-colors-grey-800)',
+    900: 'var(--teleport-colors-grey-900)',
+    A100: 'var(--teleport-colors-grey-A100)',
+    A200: 'var(--teleport-colors-grey-A200)',
+    A400: 'var(--teleport-colors-grey-A400)',
+    A700: 'var(--teleport-colors-grey-A700)',
   },
-  subtle: blueGrey[50],
-  bgTerminal: '#010B1C',
-  highlight: yellow[50],
-  disabled: blueGrey[500],
-  info: lightBlue[600],
+  subtle: 'var(--teleport-colors-subtle)',
+  bgTerminal: 'var(--teleport-colors-bg-terminal)',
+  highlight: 'var(--teleport-colors-highlight)',
+  disabled: 'var(--teleport-colors-disabled)',
+  info: 'var(--teleport-colors-info)',
 };
 
 export function getContrastText(background: string) {

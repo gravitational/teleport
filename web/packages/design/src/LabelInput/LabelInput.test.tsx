@@ -31,7 +31,7 @@ describe('design/LabelInput', () => {
   it('respects default', () => {
     const { container } = render(<LabelInput />);
     expect(container.firstChild).toHaveStyle({
-      color: theme.colors.light,
+      color: theme.colors.text.main,
     });
   });
 });

@@ -20,7 +20,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ComponentProps, PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
@@ -29,6 +28,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
 } from 'design/utils/testing';
 
@@ -384,7 +384,7 @@ function makeWrapper(opts?: {
     return (
       <QueryClientProvider client={testQueryClient}>
         <ContextProvider ctx={ctx}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <TrackingProvider disabled={disableTracking}>
               <GitHubK8sFlowProvider intitialState={initialState}>
                 {children}

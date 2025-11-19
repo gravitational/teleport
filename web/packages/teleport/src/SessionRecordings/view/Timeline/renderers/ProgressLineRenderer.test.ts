@@ -17,7 +17,7 @@
  */
 
 import 'jest-canvas-mock';
-import { darkTheme } from 'design/theme';
+import { theme } from 'design/utils/testing';
 
 import { SessionRecordingMetadata } from 'teleport/services/recordings';
 import { ProgressLineRenderer } from 'teleport/SessionRecordings/view/Timeline/renderers/ProgressLineRenderer';
@@ -42,7 +42,7 @@ function createRenderer(duration: number) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
-  const renderer = new ProgressLineRenderer(ctx, darkTheme, duration);
+  const renderer = new ProgressLineRenderer(ctx, theme, duration);
 
   return { ctx, renderer };
 }

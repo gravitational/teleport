@@ -28,6 +28,8 @@
     "format": "oxfmt 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}' 'e2e/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm oxfmt 'web/packages/design/src/Icon/**/*.tsx'",
     "list-installed-versions": "./web/scripts/list-installed-versions.sh",
+    "postinstall": "pnpm generate-theme",
+    "generate-theme": "design-system typegen",
     "nop": "exit 0"
   },
   "private": true,
@@ -72,6 +74,8 @@
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/view": "^6.39.16",
     "@floating-ui/react": "^0.27.19",
+    "@fontsource/ubuntu": "^5.2.8",
+    "@gravitational/design-system": "https://github.com/gravitational/design-system/releases/download/v0.0.13/design-system.tgz",
     "@grpc/grpc-js": "1.14.3",
     "@hookform/resolvers": "^5.2.2",
     "@lezer/highlight": "^1.2.3",

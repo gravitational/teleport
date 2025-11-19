@@ -19,6 +19,7 @@ const esModules = [
   'react-error-boundary',
   'until-async',
   '@exodus/bytes',
+  '@gravitational/design-system',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */

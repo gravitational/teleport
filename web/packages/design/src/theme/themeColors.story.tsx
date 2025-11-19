@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { LegacyThemeColors } from '@gravitational/design-system';
 import { useTheme } from 'styled-components';
 
 import Box, { BoxProps } from '../Box';
 import Flex, { FlexProps } from '../Flex';
 import Link from '../Link';
 import Text, { H1, H2 } from '../Text';
-import { Theme, ThemeColors } from '../theme';
+import { Theme } from '../theme';
 
 export default {
   title: 'Design/Theme/Colors',
@@ -307,7 +308,7 @@ function ColorsBox({
   themeType = undefined,
   ...styles
 }: {
-  colors: ThemeColors['levels'];
+  colors: LegacyThemeColors['levels'];
   themeType?: string;
 } & FlexProps) {
   const list = Object.entries(colors).map(([key, colorsForKey]) => {

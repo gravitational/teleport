@@ -19,7 +19,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ComponentProps, PropsWithChildren } from 'react';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -27,6 +26,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
   waitForElementToBeRemoved,
   within,
@@ -205,7 +205,7 @@ function makeWrapper(options?: { hasBotInstanceReadPermission?: boolean }) {
     return (
       <QueryClientProvider client={testQueryClient}>
         <TeleportProviderBasic teleportCtx={ctx}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             {props.children}
           </ConfiguredThemeProvider>
         </TeleportProviderBasic>

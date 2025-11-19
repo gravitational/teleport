@@ -19,8 +19,9 @@
 import { useCallback, useMemo, useState, type JSX } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
+import Box from 'design/Box';
+import Flex from 'design/Flex';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
