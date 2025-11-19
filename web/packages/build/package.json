@@ -14,6 +14,8 @@
     "@babel/preset-env": "^7.29.2",
     "@babel/preset-react": "^7.28.5",
     "@babel/preset-typescript": "^7.28.5",
+    "@gravitational/swc-plugin-jsx-marker": "https://github.com/gravitational/design-system/releases/download/@gravitational/swc-plugin-jsx-marker@0.0.1/swc-plugin-jsx-marker.tgz",
+    "@gravitational/swc-plugin-styled-components": "https://github.com/gravitational/design-system/releases/download/@gravitational/swc-plugin-styled-components@0.0.1/swc-plugin-styled-components.tgz",
     "@swc/core": "^1.15.21",
     "@swc/plugin-styled-components": "^12.7.0",
     "@types/jsdom": "^27.0.0",

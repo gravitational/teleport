@@ -35,31 +35,49 @@ import {
 describe('design/Button', () => {
   it('renders a <button> and respects default "kind" prop == primary', () => {
     const { container } = render(<Button />);
+
+    expect(container.firstChild).toBeDefined();
     expect(container.firstChild?.nodeName).toBe('BUTTON');
-    expect(container.firstChild).toHaveStyle({
-      background: theme.colors.brand,
-    });
+
+    const style = window.getComputedStyle(container.firstChild as Element);
+
+    expect(style.background).toBe(
+      theme.colors.interactive.solid.primary.default
+    );
   });
 
   test('"kind" primary renders bg == theme.colors.buttons.primary.default', () => {
     const { container } = render(<ButtonPrimary />);
-    expect(container.firstChild).toHaveStyle({
-      background: theme.colors.buttons.primary.default,
-    });
+
+    expect(container.firstChild).toBeDefined();
+
+    const style = window.getComputedStyle(container.firstChild as Element);
+
+    expect(style.background).toBe(
+      theme.colors.interactive.solid.primary.default
+    );
   });
 
   test('"kind" secondary renders bg == theme.colors.buttons.secondary.default', () => {
     const { container } = render(<ButtonSecondary />);
-    expect(container.firstChild).toHaveStyle({
-      background: theme.colors.buttons.secondary.default,
-    });
+
+    expect(container.firstChild).toBeDefined();
+
+    const style = window.getComputedStyle(container.firstChild as Element);
+
+    expect(style.background).toBe(theme.colors.interactive.tonal.neutral[0]);
   });
 
   test('"kind" warning renders bg == theme.colors.buttons.warning.default', () => {
     const { container } = render(<ButtonWarning />);
-    expect(container.firstChild).toHaveStyle({
-      background: theme.colors.buttons.warning.default,
-    });
+
+    expect(container.firstChild).toBeDefined();
+
+    const style = window.getComputedStyle(container.firstChild as Element);
+
+    expect(style.background).toBe(
+      theme.colors.interactive.solid.danger.default
+    );
   });
 
   test('"size" small renders min-height: 24px', () => {

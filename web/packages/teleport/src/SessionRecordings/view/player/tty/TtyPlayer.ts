@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { resolveThemeToColors } from '@gravitational/design-system';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -63,7 +64,7 @@ export class TtyPlayer extends Player<TtyEvent> {
       fontFamily: this.theme.fonts.mono,
       cols: this.size.cols,
       rows: this.size.rows,
-      theme: this.theme.colors.terminal,
+      theme: resolveThemeToColors(this.theme.colors.terminal),
     });
 
     const linksAddon = new WebLinksAddon();

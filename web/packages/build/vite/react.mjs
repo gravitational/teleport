@@ -26,8 +26,30 @@ import react from '@vitejs/plugin-react-swc';
 
 /** @param {string} mode */
 export function reactPlugin(mode) {
+  const plugins = [];
+
+  if (mode === 'development') {
+    // swc-plugin-jsx-marker is a plugin for the new design system that adds
+    // data-uic attributes to JSX elements so they are easier to detect in
+    // devtools. It is only needed in development mode.
+    plugins.push([
+      '@gravitational/swc-plugin-jsx-marker',
+      {
+        libraryName: '@gravitational/design-system',
+        styledFunction: 'styled',
+      },
+    ]);
+  }
+
+  // We use a custom SWC plugin here to stop styled-components from transforming
+  // the CSS prop on the new design system components.
+  plugins.push([
+    '@gravitational/swc-plugin-styled-components',
+    getStyledComponentsConfig(mode),
+  ]);
+
   return react({
-    plugins: [['@swc/plugin-styled-components', getStyledComponentsConfig(mode)]],
+    plugins,
   });
 }
 
@@ -41,6 +63,7 @@ function getStyledComponentsConfig(mode) {
       displayName: false,
       fileName: false,
       cssProp: true,
+      cssPropIgnoreFromLibraries: ['@gravitational/design-system'],
     };
   }
 
@@ -50,5 +73,6 @@ function getStyledComponentsConfig(mode) {
     displayName: true,
     fileName: true,
     cssProp: true,
+    cssPropIgnoreFromLibraries: ['@gravitational/design-system'],
   };
 }

@@ -19,7 +19,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ComponentProps, PropsWithChildren } from 'react';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -27,6 +26,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
   waitForElementToBeRemoved,
   within,
@@ -209,7 +209,7 @@ function makeWrapper() {
   return ({ children }: PropsWithChildren) => {
     return (
       <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
+        <ConfiguredThemeProvider theme={theme}>
           {children}
         </ConfiguredThemeProvider>
       </QueryClientProvider>

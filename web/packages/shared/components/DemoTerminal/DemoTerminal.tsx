@@ -21,6 +21,8 @@ import styled, { DefaultTheme, useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import Flex, { Stack } from 'design/Flex';
+import { resolveThemeToColors } from '@gravitational/design-system';
+
 import { darken, emphasize } from 'design/theme/utils/colorManipulator';
 
 /**
@@ -97,8 +99,9 @@ const CircleButton = styled(Box)<{ $color: string }>`
   height: 12px;
   border-radius: 50%;
   background-color: ${props => props.$color};
-  border: 1px solid ${props => darken(props.$color, 0.2)};
+  border: 1px solid
+    ${props => darken(resolveThemeToColors(props.$color), 0.2)};
 `;
 
 const topBarColor = (theme: DefaultTheme): string =>
-  emphasize(theme.colors.levels.deep, 0.2);
+  emphasize(resolveThemeToColors(theme.colors.levels.deep), 0.2);
