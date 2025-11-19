@@ -96,7 +96,9 @@ func TestScopedJoiningService(t *testing.T) {
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 			protocmp.Transform(),
 		}
-		assert.Empty(t, gocmp.Diff(baseToken, token, withoutNameOpts...))
+		expectedToken := proto.CloneOf(baseToken)
+		expectedToken.Status = &joiningv1.ScopedTokenStatus{}
+		assert.Empty(t, gocmp.Diff(expectedToken, token, withoutNameOpts...))
 
 		// make sure update is no-op
 		_, err = service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{})
@@ -235,7 +237,9 @@ func TestScopedJoiningService(t *testing.T) {
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "name"),
 			protocmp.Transform(),
 		}
-		assert.Empty(t, gocmp.Diff(baseToken, stageTokenAA, cmpOpts...))
+		expectedToken := proto.CloneOf(baseToken)
+		expectedToken.Status = &joiningv1.ScopedTokenStatus{}
+		assert.Empty(t, gocmp.Diff(expectedToken, stageTokenAA, cmpOpts...))
 
 		// ensure writer can't create a token at an orthogonal scope
 		stageTokenBB := proto.CloneOf(baseToken)
@@ -260,7 +264,7 @@ func TestScopedJoiningService(t *testing.T) {
 			Name: stageTokenAA.Metadata.Name,
 		})
 		require.NoError(t, err)
-		require.Empty(t, gocmp.Diff(baseToken, getRes.GetToken(), cmpOpts...))
+		require.Empty(t, gocmp.Diff(expectedToken, getRes.GetToken(), cmpOpts...))
 
 		// ensure reader can't get token at orthogonal scope
 		_, err = reader.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
