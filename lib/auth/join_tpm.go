@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -81,8 +80,6 @@ func (a *Server) RegisterUsingTPMMethod(
 	validatedEK, err := tpmjoin.CheckTPMRequest(ctx, tpmjoin.CheckTPMRequestParams{
 		Token:        ptv2,
 		TPMValidator: a.GetTPMValidator(),
-		// TODO(noah): Use logger from TeleportProcess.
-		Log:          slog.Default(),
 		EKCert:       initReq.GetEkCert(),
 		EKKey:        initReq.GetEkKey(),
 		AttestParams: tpm.AttestationParametersFromProto(initReq.AttestationParams),

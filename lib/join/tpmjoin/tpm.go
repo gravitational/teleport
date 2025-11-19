@@ -19,7 +19,6 @@ package tpmjoin
 import (
 	"context"
 	"crypto/x509"
-	"log/slog"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -31,9 +30,7 @@ import (
 )
 
 // TPMValidator is a function type that validates a TPM for the TPM join method.
-type TPMValidator func(
-	ctx context.Context, log *slog.Logger, params tpm.ValidateParams,
-) (*tpm.ValidatedTPM, error)
+type TPMValidator func(ctx context.Context, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)
 
 // CheckTPMRequestParams holds all parameters for CheckTPMRequest.
 type CheckTPMRequestParams struct {
@@ -41,8 +38,6 @@ type CheckTPMRequestParams struct {
 	Token *types.ProvisionTokenV2
 	// TPMValidator is a function that will be called to validate the presented TPM.
 	TPMValidator TPMValidator
-	// Log is a logger that will be used.
-	Log *slog.Logger
 
 	// EKCert is the device's endorsement certificate in X509, ASN.1 DER form.
 	// This certificate contains the public key of the endorsement key. This is
@@ -73,7 +68,7 @@ func CheckTPMRequest(ctx context.Context, params CheckTPMRequestParams) (*tpm.Va
 		return nil, trace.Wrap(err)
 	}
 
-	validatedEK, err := params.TPMValidator(ctx, params.Log, tpm.ValidateParams{
+	validatedEK, err := params.TPMValidator(ctx, tpm.ValidateParams{
 		EKCert:       params.EKCert,
 		EKKey:        params.EKKey,
 		AttestParams: params.AttestParams,

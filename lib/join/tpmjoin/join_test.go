@@ -373,7 +373,7 @@ func newFakeTPM(ekKey crypto.Signer, ekCert []byte) (*fakeTPM, error) {
 	}, nil
 }
 
-func (f *fakeTPM) attest(ctx context.Context, log *slog.Logger) (*tpm.Attestation, func() error, error) {
+func (f *fakeTPM) attest(ctx context.Context, _ *slog.Logger) (*tpm.Attestation, func() error, error) {
 	close := func() error {
 		return nil
 	}
@@ -416,7 +416,7 @@ func newFakeTPMValidator() *fakeTPMValidator {
 	return &fakeTPMValidator{}
 }
 
-func (f *fakeTPMValidator) validate(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error) {
+func (f *fakeTPMValidator) validate(ctx context.Context, params tpm.ValidateParams) (*tpm.ValidatedTPM, error) {
 	ec := &attest.EncryptedCredential{}
 	clientSolution, err := params.Solve(ec)
 	if err != nil {
