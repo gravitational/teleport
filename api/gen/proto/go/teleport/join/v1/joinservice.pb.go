@@ -1683,9 +1683,12 @@ type AzureChallengeSolution struct {
 	// metadata endpoint used to prove the identity of a joining node. It must
 	// include the challenge string as the nonce.
 	AttestedData []byte `protobuf:"bytes,1,opt,name=attested_data,json=attestedData,proto3" json:"attested_data,omitempty"`
+	// Intermediate encodes the intermediate CAs that issued the leaf certificate
+	// used to sign the attested data document, in x509 DER format.
+	Intermediate []byte `protobuf:"bytes,2,opt,name=intermediate,proto3" json:"intermediate,omitempty"`
 	// AccessToken is a JWT signed by Azure, used to prove the identity of a
 	// joining node.
-	AccessToken   string `protobuf:"bytes,2,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	AccessToken   string `protobuf:"bytes,3,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1723,6 +1726,13 @@ func (*AzureChallengeSolution) Descriptor() ([]byte, []int) {
 func (x *AzureChallengeSolution) GetAttestedData() []byte {
 	if x != nil {
 		return x.AttestedData
+	}
+	return nil
+}
+
+func (x *AzureChallengeSolution) GetIntermediate() []byte {
+	if x != nil {
+		return x.Intermediate
 	}
 	return nil
 }
@@ -2909,10 +2919,11 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\tAzureInit\x12C\n" +
 	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\".\n" +
 	"\x0eAzureChallenge\x12\x1c\n" +
-	"\tchallenge\x18\x01 \x01(\tR\tchallenge\"`\n" +
+	"\tchallenge\x18\x01 \x01(\tR\tchallenge\"\x84\x01\n" +
 	"\x16AzureChallengeSolution\x12#\n" +
-	"\rattested_data\x18\x01 \x01(\fR\fattestedData\x12!\n" +
-	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\"\x86\x05\n" +
+	"\rattested_data\x18\x01 \x01(\fR\fattestedData\x12\"\n" +
+	"\fintermediate\x18\x02 \x01(\fR\fintermediate\x12!\n" +
+	"\faccess_token\x18\x03 \x01(\tR\vaccessToken\"\x86\x05\n" +
 	"\x11ChallengeSolution\x12z\n" +
 	" bound_keypair_challenge_solution\x18\x01 \x01(\v2/.teleport.join.v1.BoundKeypairChallengeSolutionH\x00R\x1dboundKeypairChallengeSolution\x12w\n" +
 	"\x1fbound_keypair_rotation_response\x18\x02 \x01(\v2..teleport.join.v1.BoundKeypairRotationResponseH\x00R\x1cboundKeypairRotationResponse\x12^\n" +

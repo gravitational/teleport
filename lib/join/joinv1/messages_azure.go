@@ -24,7 +24,7 @@ import (
 )
 
 func azureInitToMessage(req *joinv1.AzureInit) (*messages.AzureInit, error) {
-	clientParams, err := clientParamsToMessage(req.ClientParams)
+	clientParams, err := clientParamsToMessage(req.GetClientParams())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,7 +45,7 @@ func azureInitFromMessage(msg *messages.AzureInit) (*joinv1.AzureInit, error) {
 
 func azureChallengeToMessage(req *joinv1.AzureChallenge) *messages.AzureChallenge {
 	return &messages.AzureChallenge{
-		Challenge: req.Challenge,
+		Challenge: req.GetChallenge(),
 	}
 }
 
@@ -57,14 +57,16 @@ func azureChallengeFromMessage(msg *messages.AzureChallenge) *joinv1.AzureChalle
 
 func azureChallengeSolutionToMessage(req *joinv1.AzureChallengeSolution) *messages.AzureChallengeSolution {
 	return &messages.AzureChallengeSolution{
-		AttestedData: req.AttestedData,
-		AccessToken:  req.AccessToken,
+		AttestedData: req.GetAttestedData(),
+		Intermediate: req.GetIntermediate(),
+		AccessToken:  req.GetAccessToken(),
 	}
 }
 
 func azureChallengeSolutionFromMessage(msg *messages.AzureChallengeSolution) *joinv1.AzureChallengeSolution {
 	return &joinv1.AzureChallengeSolution{
 		AttestedData: msg.AttestedData,
+		Intermediate: msg.Intermediate,
 		AccessToken:  msg.AccessToken,
 	}
 }

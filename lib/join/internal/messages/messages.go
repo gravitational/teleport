@@ -505,6 +505,9 @@ type AzureChallengeSolution struct {
 	// metadata endpoint used to prove the identity of a joining node. It must
 	// include the challenge string as the nonce.
 	AttestedData []byte
+	// Intermediate encodes the intermediate CAs that issued the leaf certificate
+	// used to sign the attested data document, in x509 DER format.
+	Intermediate []byte
 	// AccessToken is a JWT signed by Azure, used to prove the identity of a
 	// joining node.
 	AccessToken string

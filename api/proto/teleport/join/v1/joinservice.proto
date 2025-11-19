@@ -379,9 +379,12 @@ message AzureChallengeSolution {
   // metadata endpoint used to prove the identity of a joining node. It must
   // include the challenge string as the nonce.
   bytes attested_data = 1;
+  // Intermediate encodes the intermediate CAs that issued the leaf certificate
+  // used to sign the attested data document, in x509 DER format.
+  bytes intermediate = 2;
   // AccessToken is a JWT signed by Azure, used to prove the identity of a
   // joining node.
-  string access_token = 2;
+  string access_token = 3;
 }
 
 // ChallengeSolution holds a solution to a challenge issued by the server.
