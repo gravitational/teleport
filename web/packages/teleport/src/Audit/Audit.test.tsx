@@ -22,13 +22,13 @@ import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
   render,
   screen,
   testQueryClient,
+  theme,
   userEvent,
 } from 'design/utils/testing';
 
@@ -135,7 +135,7 @@ function makeWrapper({
       <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
           <ContextProvider ctx={ctx}>
-            <ConfiguredThemeProvider theme={darkTheme}>
+            <ConfiguredThemeProvider theme={theme}>
               <Router history={history}>
                 <Route path={cfg.routes.audit}>{children}</Route>
               </Router>

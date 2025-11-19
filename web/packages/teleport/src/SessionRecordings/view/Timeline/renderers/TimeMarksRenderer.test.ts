@@ -18,7 +18,7 @@
 
 import 'jest-canvas-mock';
 
-import { darkTheme } from 'design/theme';
+import { theme } from 'design/utils/testing';
 
 import { SessionRecordingMetadata } from 'teleport/services/recordings';
 import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Timeline/renderers/TimelineCanvasRenderer';
@@ -42,7 +42,7 @@ function createRenderer(metadata?: Partial<SessionRecordingMetadata>) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
-  const renderer = new TimeMarkersRenderer(ctx, darkTheme, {
+  const renderer = new TimeMarkersRenderer(ctx, theme, {
     ...mockMetadata,
     ...metadata,
   });

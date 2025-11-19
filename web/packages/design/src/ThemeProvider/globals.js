@@ -18,7 +18,7 @@
 
 import { createGlobalStyle } from 'styled-components';
 
-import './../assets/ubuntu/style.css';
+import '@gravitational/design-system/ubuntu.css';
 
 const GlobalStyle = createGlobalStyle`
 
@@ -66,11 +66,14 @@ const GlobalStyle = createGlobalStyle`
         .name}; // this ensures Chrome's scrollbars are set to the right color depending on the theme
   }
 
-  // remove dotted Firefox outline
-  button, a {
-    outline: 0;
-    ::-moz-focus-inner {
-      border: 0;
+  @layer reset {
+    // remove dotted Firefox outline
+    button, a {
+      outline: 0;
+
+      ::-moz-focus-inner {
+        border: 0;
+      }
     }
   }
 `;

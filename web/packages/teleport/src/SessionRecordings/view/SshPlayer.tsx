@@ -95,7 +95,7 @@ function Player({
     );
   }
 
-  if (isLoading) {
+  if (!isLoading) {
     return (
       <StatusBox>
         <Indicator />

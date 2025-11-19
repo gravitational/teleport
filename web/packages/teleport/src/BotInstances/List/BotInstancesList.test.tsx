@@ -19,12 +19,12 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ComponentProps, PropsWithChildren } from 'react';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   render,
   screen,
   testQueryClient,
+  theme,
   userEvent,
 } from 'design/utils/testing';
 
@@ -304,7 +304,7 @@ function makeWrapper() {
     return (
       <QueryClientProvider client={testQueryClient}>
         <TeleportProviderBasic teleportCtx={ctx}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             {props.children}
           </ConfiguredThemeProvider>
         </TeleportProviderBasic>

@@ -18,7 +18,7 @@
 
 import 'jest-canvas-mock';
 
-import { darkTheme } from 'design/theme';
+import { theme } from 'design/utils/testing';
 
 import {
   SessionRecordingEventType,
@@ -51,7 +51,7 @@ function createRenderer(metadata?: Partial<SessionRecordingMetadata>) {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
-  const renderer = new EventsRenderer(ctx, darkTheme, {
+  const renderer = new EventsRenderer(ctx, theme, {
     ...mockMetadata,
     ...metadata,
   });

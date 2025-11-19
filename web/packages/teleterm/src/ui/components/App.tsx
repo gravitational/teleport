@@ -17,7 +17,10 @@
  */
 import styled from 'styled-components';
 
+import { LEGACY_THEME_COLORS } from '@gravitational/design-system';
 import { Failed } from 'design/CardError';
+import { sharedColors } from 'design/theme/themes/sharedStyles';
+import type { Theme } from 'design/theme/themes/types';
 
 import { StaticThemeProvider } from 'teleterm/ui/ThemeProvider';
 import { darkTheme } from 'teleterm/ui/ThemeProvider/theme';
@@ -32,6 +35,14 @@ export const StyledApp = styled.div`
   flex-direction: column;
 `;
 
+const theme: Theme = {
+  ...darkTheme,
+  colors: {
+    ...sharedColors,
+    ...LEGACY_THEME_COLORS,
+  },
+};
+
 export const FailedApp = (props: { message: string }) => {
   return (
     <StyledApp>
@@ -39,7 +50,7 @@ export const FailedApp = (props: { message: string }) => {
         FailedApp is used above ThemeProvider in the component hierarchy. Since it cannot depend on
         ThemeProvider to provide a theme, it needs to use StaticThemeProvider to provide one.
       */}
-      <StaticThemeProvider theme={darkTheme}>
+      <StaticThemeProvider theme={theme}>
         <Failed
           message={props.message}
           alignSelf={'baseline'}

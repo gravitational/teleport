@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
 } from 'styled-components';
 
+import { LEGACY_THEME_COLORS } from '@gravitational/design-system';
+import { sharedColors } from 'design/theme/themes/sharedStyles';
 import { Theme } from 'design/theme/themes/types';
 import { shouldForwardProp } from 'design/ThemeProvider';
 
@@ -56,8 +58,19 @@ export const ThemeProvider = (props: React.PropsWithChildren<unknown>) => {
     return cleanup;
   }, [ctx.mainProcessClient]);
 
+  const legacyTheme: Theme = useMemo(
+    () => ({
+      ...activeTheme,
+      colors: {
+        ...sharedColors,
+        ...LEGACY_THEME_COLORS,
+      },
+    }),
+    [activeTheme]
+  );
+
   return (
-    <StaticThemeProvider theme={activeTheme}>
+    <StaticThemeProvider theme={legacyTheme}>
       {props.children}
     </StaticThemeProvider>
   );

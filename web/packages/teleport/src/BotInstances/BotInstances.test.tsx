@@ -22,12 +22,12 @@ import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   render,
   screen,
   testQueryClient,
+  theme,
   userEvent,
   waitFor,
   waitForElementToBeRemoved,
@@ -671,7 +671,7 @@ function makeWrapper(options: {
     return (
       <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <InfoGuidePanelProvider data-testid="blah">
               <ContextProvider ctx={ctx}>
                 <Router history={history}>

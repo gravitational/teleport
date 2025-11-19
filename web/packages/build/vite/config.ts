@@ -93,6 +93,27 @@ export function createViteConfig(
       },
     };
 
+    // When using a local design system, the browser will try to load the Ubuntu font from the
+    // design system directory, which is outside the root directory.
+    // These environment variables allow specifying a local design system path for development,
+    // so Vite can serve the font files correctly.
+    if (
+      process.env.VITE_LOCAL_DESIGN_SYSTEM ||
+      process.env.VITE_DESIGN_SYSTEM_DIR
+    ) {
+      const designSystemPath = process.env.VITE_DESIGN_SYSTEM_DIR
+        ? resolve(rootDirectory, process.env.VITE_DESIGN_SYSTEM_DIR)
+        : resolve(rootDirectory, '../design-system');
+
+      if (!existsSync(designSystemPath)) {
+        throw new Error(
+          `Could not find design system at ${designSystemPath}. Please ensure the path is correct.`
+        );
+      }
+
+      config.server.fs.allow.push(designSystemPath);
+    }
+
     if (process.env.VITE_ANALYZE_BUNDLE) {
       config.plugins.push(visualizer());
     }

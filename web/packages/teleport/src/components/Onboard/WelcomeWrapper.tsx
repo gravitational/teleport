@@ -33,7 +33,7 @@ export const WelcomeWrapper = ({ children }) => {
         between WelcomeHeader and chidlren */}
         <Flex flexDirection="column">
           <WelcomeHeader>
-            <LogoHero my="12px" />
+            <LogoHero py="12px" />
           </WelcomeHeader>
           {children}
         </Flex>

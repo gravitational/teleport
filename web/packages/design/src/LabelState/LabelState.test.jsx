@@ -43,11 +43,13 @@ describe('design/LabelState', () => {
     ${StateSuccess} | ${'success'}   | ${colors.success}
   `('respects kind prop set to $kind', ({ Component, expected }) => {
     const { container } = render(<Component />);
-    expect(container.firstChild).toHaveStyle({
-      background: expected,
-    });
 
-    expect(getComputedStyle(container.firstChild).boxShadow).toBe('');
+    expect(container.firstChild).toBeDefined();
+
+    const styles = window.getComputedStyle(container.firstChild);
+
+    expect(styles.background).toBe(expected);
+    expect(styles.boxShadow).toBe('');
   });
 
   it('respects shadow prop', () => {

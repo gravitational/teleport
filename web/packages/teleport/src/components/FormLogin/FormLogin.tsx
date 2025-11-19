@@ -111,7 +111,7 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card my="5" mx="auto" maxWidth={500} minWidth={300} py={4}>
+    <Card mb="5" mx="auto" maxWidth={500} minWidth={300} py={4}>
       <Text typography="h1" mb={4} textAlign="center">
         {title}
       </Text>
