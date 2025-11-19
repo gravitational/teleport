@@ -75,6 +75,7 @@ func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) 
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
+	config.DebugService.Enabled = false
 	return config
 }
 
@@ -85,6 +86,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
+	config.DebugService.Enabled = false
 
 	proxyAddr := helpers.NewListener(t, service.ListenerProxyWeb, &config.FileDescriptors)
 	config.Proxy.Enabled = true
@@ -130,6 +132,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
+	config.DebugService.Enabled = false
 	return config
 }
 
