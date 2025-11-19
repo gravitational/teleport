@@ -1447,6 +1447,10 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"issuer_skid", base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
 	)
 
+	if len(req.Subject.Names) > 0 {
+		req.Subject.ExtraNames = req.Subject.Names
+	}
+
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject:      req.Subject,
