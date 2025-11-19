@@ -573,7 +573,7 @@ test-go-all:
 #
 test-go:
 ifneq ("$(SUBJECT)", "")
-	gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
+	go tool gotestsum --junitfile unit-tests.xml --jsonfile unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource
@@ -583,7 +583,7 @@ include ../integrations/operator/envtest.mk
 test-operator: $(ENVTEST)
 test-operator: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
 test-operator:
-	gotestsum ./lib/operatortest -race -shuffle on
+	go tool gotestsum --junitfile unit-tests-operator.xml --jsonfile unit-tests-operator.json -- ./lib/operatortest -race -shuffle on
 
 # test-crdb runs crdb backend tests.
 .PHONY: test-crdb
@@ -699,7 +699,7 @@ test-go-integration:
 	@if [ -n "$(SUBJECT)" ]; then \
 		$(CGOFLAG) go test -timeout=$(INTEGRATION_TEST_TIMEOUT) -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 			| tee $(TEST_LOG_DIR)/unit.json \
-			| gotestsum --raw-command -- cat; \
+			| go tool gotestsum --junitfile unit-tests-integration.xml --jsonfile unit-tests-integration.json --raw-command -- cat; \
 	fi
 
 # All developers should run this upon cloning the repo. Unfortunately this
