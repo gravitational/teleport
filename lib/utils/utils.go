@@ -524,8 +524,12 @@ func UintSliceSubset(a []uint16, b []uint16) error {
 
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
-	remove := NewSet(values...)
-	return slices.DeleteFunc(slice, func(s string) bool { return remove.Contains(s) })
+	return slices.DeleteFunc(
+		slices.Clone(slice),
+		func(s string) bool {
+			return slices.Contains(values, s)
+		},
+	)
 }
 
 // ChooseRandomString returns a random string from the given slice.
