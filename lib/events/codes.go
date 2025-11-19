@@ -823,7 +823,7 @@ const (
 	AppAuthConfigVerifySuccessCode = "TAAC004I"
 	// AppAuthConfigVerifyFailureCode is the app auth verification failure event
 	// code.
-	AppAuthConfigVerifyFailureCode = "TAAC005I"
+	AppAuthConfigVerifyFailureCode = "TAAC004E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

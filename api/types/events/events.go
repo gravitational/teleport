@@ -2746,10 +2746,10 @@ func (m *AppAuthConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
 
-func (m *AppAuthConfigVerifySuccess) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *AppAuthConfigVerifyFailure) TrimToMaxSize(int) AuditEvent {
-	return m
+func (m *AppAuthConfigVerify) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppAuthConfigVerify) fieldTrimmer {
+		return fieldTrimmers{
+			newGenericTrimmer(&m.Status, &out.Status),
+		}
+	})
 }

@@ -940,13 +940,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppAuthConfigDelete{
 			AppAuthConfigDelete: e,
 		}
-	case *AppAuthConfigVerifySuccess:
-		out.Event = &OneOf_AppAuthConfigVerifySuccess{
-			AppAuthConfigVerifySuccess: e,
-		}
-	case *AppAuthConfigVerifyFailure:
-		out.Event = &OneOf_AppAuthConfigVerifyFailure{
-			AppAuthConfigVerifyFailure: e,
+	case *AppAuthConfigVerify:
+		out.Event = &OneOf_AppAuthConfigVerify{
+			AppAuthConfigVerify: e,
 		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

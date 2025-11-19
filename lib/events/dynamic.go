@@ -576,10 +576,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppAuthConfigUpdate{}
 	case AppAuthConfigDeleteEvent:
 		e = &events.AppAuthConfigDelete{}
-	case AppAuthConfigVerifySuccessEvent:
-		e = &events.AppAuthConfigVerifySuccess{}
+	case AppAuthConfigVerifySuccessCode:
+		e = &events.AppAuthConfigVerify{}
 	case AppAuthConfigVerifyFailureEvent:
-		e = &events.AppAuthConfigVerifyFailure{}
+		e = &events.AppAuthConfigVerify{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
