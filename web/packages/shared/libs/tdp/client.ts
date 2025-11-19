@@ -38,6 +38,8 @@ import  {
   SharedDirectoryErrCode,
   type ButtonState,
   type ClientScreenSpec,
+  type MouseMove,
+  type MouseButtonState,
   type ClipboardData,
   type FileSystemObject,
   type MouseButton,
@@ -417,29 +419,23 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
-  //handleClientScreenSpec(buffer: ArrayBufferLike) {
-  //  this.logger.warn(
-  //    `received unsupported message type ${this.codec.decodeMessageType(
-  //      buffer
-  //    )}`
-  //  );
-  //}
-//
-  //handleMouseButton(buffer: ArrayBufferLike) {
-  //  this.logger.warn(
-  //    `received unsupported message type ${this.codec.decodeMessageType(
-  //      buffer
-  //    )}`
-  //  );
-  //}
-//
-  //handleMouseMove(buffer: ArrayBufferLike) {
-  //  this.logger.warn(
-  //    `received unsupported message type ${this.codec.decodeMessageType(
-  //      buffer
-  //    )}`
-  //  );
-  //}
+  handleClientScreenSpec(spec: ClientScreenSpec) {
+    this.logger.warn(
+      `received unexpected client screen spec message`
+    );
+  }
+
+  handleMouseButton(button: MouseButtonState) {
+    this.logger.warn(
+      `received unexpected mouse button message`
+    );
+  }
+
+  handleMouseMove(move: MouseMove) {
+    this.logger.warn(
+      `received unexpected mouse move message`
+    );
+  }
 
   handleClipboardData(data: ClipboardData) {
     this.emit(
@@ -572,9 +568,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   async handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest) {
-    //const req = this.codec.decodeSharedDirectoryCreateRequest(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
-
     try {
       await sharedDirectory.create(req.path, req.fileType);
       const info = await sharedDirectory.stat(req.path);

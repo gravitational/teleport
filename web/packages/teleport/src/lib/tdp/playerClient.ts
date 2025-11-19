@@ -20,6 +20,9 @@ import {
   selectDirectoryInBrowser,
   TdpClient,
   TdpClientEvent,
+  MouseButtonState,
+  MouseMove,
+  ClientScreenSpec,
 } from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 import { throttle } from 'shared/utils/highbar';
@@ -201,10 +204,10 @@ export class PlayerClient extends TdpClient {
   }
 
   // Overrides Client implementation.
-  handleClientScreenSpec(buffer: ArrayBuffer) {
+  handleClientScreenSpec(spec: ClientScreenSpec) {
     this.emit(
       TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-      this.codec.decodeClientScreenSpec(buffer)
+      spec,
     );
   }
 
@@ -212,19 +215,19 @@ export class PlayerClient extends TdpClient {
   // RDP response PDUs to the server during playback, which is unnecessary
   // and breaks the playback system.
   // eslint-disable-next-line unused-imports/no-unused-vars
-  sendRdpResponsePdu(responseFrame: ArrayBuffer) {
+  sendRdpResponsePdu(_responseFrame: ArrayBufferLike) {
     return;
   }
 
   // Overrides Client implementation.
   // eslint-disable-next-line unused-imports/no-unused-vars
-  handleMouseButton(buffer: ArrayBuffer) {
+  handleMouseButton(_button: MouseButtonState) {
     return;
   }
 
   // Overrides Client implementation.
   // eslint-disable-next-line unused-imports/no-unused-vars
-  handleMouseMove(buffer: ArrayBuffer) {
+  handleMouseMove(_move: MouseMove) {
     return;
   }
 }

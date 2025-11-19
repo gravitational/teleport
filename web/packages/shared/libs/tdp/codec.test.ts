@@ -41,6 +41,9 @@ import {
   RdpConnectionActivated,
   RdpFastPathPdu,
   ClipboardData,
+  ClientScreenSpec,
+  MouseMove,
+  MouseButtonState,
 }from './codec';
 
 import * as tdpb from 'gen-proto-ts/teleport/desktop/v1/tdp_pb'
@@ -50,20 +53,37 @@ const mockHandlers: ClientEventHandlers = {
   handleTdpAlert(alert: Alert): void {},
   handleMfaChallenge(challenge: MfaJson): void {},
   handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge): void {},
-  handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest): void {},
-  handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest): void {},
-  handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest): void {},
-  handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest): void {},
-  handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest): void {},
+  handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest): Promise<void> {
+    return Promise.resolve();
+  },
+  handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest): Promise<void> {
+    return Promise.resolve();
+  },
+  handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest): Promise<void> {
+    return Promise.resolve();
+  },
+  handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest): Promise<void> {
+    return Promise.resolve();
+  },
+  handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest): Promise<void> {
+    return Promise.resolve();
+  },
   handleSharedDirectoryMoveRequest(req: SharedDirectoryMoveRequest): void {},
-  handleSharedDirectoryListRequest(req: SharedDirectoryListRequest): void {},
-  handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest): void {},
+  handleSharedDirectoryListRequest(req: SharedDirectoryListRequest): Promise<void> {
+    return Promise.resolve();
+  },
+  handleSharedDirectoryTruncateRequest(req: SharedDirectoryTruncateRequest): Promise<void> {
+    return Promise.resolve();
+  },
   handleLatencyStats(stats: LatencyStats): void {},
   handleTDPBUpgrade(): void {},
   handleServerHello(hello: ServerHello): void {},
   handlePngFrame(frame: PngFrame): void {},
   handleRdpConnectionActivated(spec: RdpConnectionActivated): void {},
   handleRdpFastPathPdu(pdu: RdpFastPathPdu): void {},
+  handleClientScreenSpec(spec: ClientScreenSpec): void {},
+  handleMouseMove(move: MouseMove): void {},
+  handleMouseButton(button: MouseButtonState): void {},
 };
 
 // TODO: remove tdp prefix?

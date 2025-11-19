@@ -68,6 +68,16 @@ export enum MessageType {
 // 0 is left button, 1 is middle button, 2 is right button
 export type MouseButton = 0 | 1 | 2;
 
+export type MouseMove = {
+  x: number,
+  y: number,
+}
+
+export type MouseButtonState = {
+  button: MouseButton,
+  state: ButtonState,
+}
+
 export enum ButtonState {
   UP = 0,
   DOWN = 1,
@@ -433,6 +443,9 @@ export interface ClientEventHandlers {
   handleLatencyStats(stats: LatencyStats): void;
   handleTDPBUpgrade(req: TdpbUpgrade): void;
   handleServerHello(hello: ServerHello): void;
+  handleClientScreenSpec(spec: ClientScreenSpec): void;
+  handleMouseButton(button: MouseButtonState): void;
+  handleMouseMove(move: MouseMove): void;
 }
 
 export class TdpbCodec extends Encoder {
@@ -774,9 +787,16 @@ export class TdpCodec extends Encoder {
       case MessageType.TDPB_UPGRADE:
         this.handlers.handleTDPBUpgrade(this.decodeTdpbUpgrade(buffer));
         break;
-      //case MessageType.CLIENT_SCREEN_SPEC:
-      //case MessageType.MOUSE_BUTTON:
-      //case MessageType.MOUSE_MOVE:
+      // Needed by the player client
+      case MessageType.CLIENT_SCREEN_SPEC:
+        this.handlers.handleClientScreenSpec(this.decodeClientScreenSpec(buffer));
+        break;
+      case MessageType.MOUSE_BUTTON:
+        this.handlers.handleMouseButton(this.decodeMouseButton(buffer));
+        break;
+      case MessageType.MOUSE_MOVE:
+        this.handlers.handleMouseMove(this.decodeMouseMove(buffer));
+        break;
       default:
         throw new Error(`received unsupported message type", ${messageType}`)
     }
@@ -784,7 +804,35 @@ export class TdpCodec extends Encoder {
 
   decodeTdpbUpgrade(buffer: ArrayBufferLike): TdpbUpgrade {
     const version = new DataView(buffer).getUint32(1);
-    return { version }
+    return { version };
+  }
+
+  decodeMouseButton(buffer: ArrayBufferLike): MouseButtonState {
+    const view = new DataView(buffer);
+    const isMouseButton = (n: number): MouseButton | undefined => {
+      if (n === 0 || n === 1 || n === 2) {
+        return n;
+      }
+      return undefined;
+    };
+
+    let buttonNum;
+    if (buttonNum = isMouseButton(view.getUint8(1))) {
+        return {
+        button: buttonNum,
+        state: view.getUint8(2),
+      };
+    } else {
+      throw Error("MouseButton message contains invalid butoon value: ", buttonNum);
+    }
+  }
+
+  decodeMouseMove(buffer: ArrayBufferLike): MouseMove {
+    const view = new DataView(buffer);
+    return {
+      x: view.getUint8(1),
+      y: view.getUint8(2),
+    };
   }
 
   // encodeClientScreenSpec encodes the client's screen spec.
