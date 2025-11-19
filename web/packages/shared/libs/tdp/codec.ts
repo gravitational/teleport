@@ -380,10 +380,6 @@ export abstract class Encoder {
   ) { }
 
   // Legacy TDP Messages (optional override)
-  encodeClientScreenSpec(spec: ClientScreenSpec): Message {
-    throw new Error("unimplemented")
-  }
-
   encodeClientKeyboardLayout(keyboardLayout: number): Message {
     throw new Error("unimplemented");
   }
@@ -407,6 +403,7 @@ export abstract class Encoder {
   abstract encodeClipboardData(clipboardData: ClipboardData): Message;
   abstract encodeKeyboardInput(code: string, state: ButtonState): Message[];
   abstract encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
+  abstract encodeClientScreenSpec(spec: ClientScreenSpec): Message;
   abstract encodeMfaJson(mfaJson: MfaJson): Message;
   abstract encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
   abstract encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
@@ -459,7 +456,21 @@ export class TdpbCodec extends Encoder {
 
   protected marshal<T extends object>(data: T, type: IMessageType<T>): Message {
     const marshalledMessage = type.toBinary(data);
-    const messageType = tdpb.MessageType[readMessageOption(type, "teleport.desktop.tdp_type_option").toString()];
+    let opt = readMessageOption(type, "teleport.desktop.v1.tdp_type_option")?.toString();
+    if (opt === undefined) {
+      // TDP type option was not found for this message type
+      throw new Error(`attempt to marshal unknown/unsupported message ${type.typeName}`);
+    }
+    // This seems like a bug in code generation. Our 'MessageType' (proto) enum has values:
+    // MESSAGE_TYPE_FOO, MESSAGE_TYPE_BAR, etc. The message type option contains the full
+    // 'MESSAGE_TYPE_' prefix, but the generated enums drop this prefix. In order to convert
+    // out option to a message type, we have to trim the string.
+    const prefix = "MESSAGE_TYPE_";
+    if (opt.startsWith(prefix)) {
+      opt = opt.substring(prefix.length);
+    }
+
+    const messageType: tdpb.MessageType = tdpb.MessageType[opt];
     return this.prependWireHeader(marshalledMessage, messageType)
   }
 
@@ -595,6 +606,10 @@ export class TdpbCodec extends Encoder {
       clipboardSupport: true,
       activationEvent: hello.activationSpec,
     }
+  }
+
+  encodeClientScreenSpec(spec: ClientScreenSpec): Message {
+    return this.marshal(spec, tdpb.ClientScreenSpec)
   }
 
   encodeRdpResponsePdu(response: ArrayBufferLike): Message {

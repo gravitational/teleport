@@ -80,5 +80,5 @@ test('tdp upgrade', async () => {
   // that was provided durring 'connect()'
   let hello = ClientHello.fromBinary(buf.slice(8))
   expect(hello.screenSpec).toEqual({ width: 1920, height: 1080})
-  expect(hello.keyboardLayout).toEqual({keyboardLayout: 1})
+  expect(hello.keyboardLayout).toEqual(1)
 })

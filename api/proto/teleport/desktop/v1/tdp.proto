@@ -51,6 +51,7 @@ enum MessageType {
   MESSAGE_TYPE_PING = 17;
   MESSAGE_TYPE_CLIENT_HELLO = 18;
   MESSAGE_TYPE_SERVER_HELLO = 19;
+  MESSAGE_TYPE_CLIENT_SCREEN_SPEC = 20;
 }
 
 // Sent by client to begin a TDPB connection and advertise capabilities.
@@ -144,7 +145,11 @@ message KeyboardButton {
 }
 
 // Composed in Client Hello to inform the server of the client's screen size.
+// May also be sent during a desktop session as the client resizes its display.
+// These mesasages are captured for session recordings in order to replay
+// resizing events.
 message ClientScreenSpec {
+  option (tdp_type_option) = MESSAGE_TYPE_CLIENT_SCREEN_SPEC;
   uint32 width = 1;
   uint32 height = 2;
 }
