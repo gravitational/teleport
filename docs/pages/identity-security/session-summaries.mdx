@@ -28,11 +28,17 @@ When you choose to enable summarization, the following options are available:
 | Integration mode | Self-hosted Teleport Enterprise | Teleport Enterprise Cloud |
 | --- | --- | --- |
 | Using OpenAI with your own OpenAI key | ✅ | ✅ |
-| Using OpenAI-compatible LLM gateways such as Lite LMM  | ✅ | ✅ |
-| Using Amazon Bedrock models provided by your own AWS account | ✅ | ❌ (*) |
-| Using an Amazon Bedrock model provided by Teleport | ❌ | ❌ (*) |
+| Using OpenAI-compatible LLM gateways such as LiteLLM  | ✅ | ✅ (*) |
+| Using Amazon Bedrock models provided by your own AWS account | ✅ | ❌ (**) |
+| Using an Amazon Bedrock model provided by Teleport | ❌ | ❌ (**) |
 
-(*) Amazon Bedrock will be available in Teleport Enterprise Cloud later this year.
+(*) In case of Teleport Cloud, the Teleport Auth Service must be able to reach
+the LLM gateway. It means the gateway needs to be publicly accessible and
+properly secured. Access to the gateway should be guarded by the equivalent of
+OpenAI API key (e.g. LiteLLM master key).
+
+(**) Amazon Bedrock will be available in Teleport Enterprise
+Cloud later this year.
 
 Existing customers will never have AI features automatically enabled without explicit consent.
 Learn more about the features included in [Teleport Identity Security](https://goteleport.com/platform/identity-security/).
@@ -128,9 +134,10 @@ In this step, you will create an `inference_model` resource. It tells Teleport
 how to summarize a session by pointing it to a large language model (LLM) API.
 In particular, it contains an API-specific model name. Note that the *Teleport
 inference model name* and *API-specific model name* are two different things.
-This allows, for example, using the same OpenAI or Bedrock model with different
-temperature settings or using different API gateways by creating multiple
-Teleport inference models with the same OpenAI model name.
+This allows, for example, using the same model from providers like OpenAI or
+Amazon Bedrock with different temperature settings, or routing to different API
+gateways by creating multiple Teleport inference models that reference the same
+underlying API-specific model name
 
 <Tabs>
 <TabItem label="OpenAI">
@@ -185,12 +192,12 @@ retrieved through `tctl` or Teleport API. It can only be updated or deleted.
 ### Pick a model
 
 Depending on the model that you'd like to use, you may need to use an existing
-inference profile in Bedrock (not to be confused with Teleport inference
+inference profile in Amazon Bedrock (not to be confused with Teleport inference
 policy) or create a new one. If the model in question supports on-demand
 invocation, an inference profile is not required. As of time of writing, Claude
 3.5 Haiku and Claude 3.5 Sonnet are examples of models that don't require
-creating Bedrock inference profiles and can be used as is. Use the following
-command to list models that support on-demand invocation:
+creating Amazon Bedrock inference profiles and can be used as is. Use the
+following command to list models that support on-demand invocation:
 
 ```sh
 aws bedrock list-foundation-models --by-inference-type=ON_DEMAND --query='modelSummaries[*].modelId'
@@ -199,7 +206,7 @@ aws bedrock list-foundation-models --by-inference-type=ON_DEMAND --query='modelS
 Refer to Amazon Bedrock documentation for details on inference pricing for
 various models.
 
-### Find or create a Bedrock inference profile
+### Find or create an Amazon Bedrock inference profile
 
 If you'd like to use a model that doesn't support on-demand invocation, you
 need to first find a system-defined inference profile for that model or create
@@ -229,7 +236,8 @@ authenticate to Amazon Bedrock.
 
 (!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
 
-The following policy needs to be applied to the IAM role that is used by
+In case of invoking a model directly, attach the following AWS IAM policy (not
+to be confused with Teleport inference policy) to the IAM role that is used by
 Teleport to authenticate to Amazon Bedrock:
 
 ```yaml
@@ -239,14 +247,24 @@ Teleport to authenticate to Amazon Bedrock:
     {
       "Effect": "Allow",
       "Action": "bedrock:InvokeModel",
-      "Resource": "<Var name="bedrock-model-or-inference-profile-arn"/>"
+      "Resource": "<Var name="bedrock-model-arn"/>"
     }
   ]
 }
 ```
 
-`Resource` is an ARN of the foundation model or an inference profile. Use a
-wildcard (`*`) to allow access to all models.
+If you're using an inference profile, the `Resource` field must instead specify
+the inference profile ARN, as well as ARNS of *all* of the models that given
+inference profile may end up calling. These can be given either as an array of
+specific elements or using wildcards. For more details, see [the Amazon Bedrock
+documentation on prerequisites for using inference
+profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-prereq.html).
+
+The exact procedure for attaching this policy is different depending on the
+details of your infrastructure; for example, if you are running Teleport on an
+EC2 instance, you should navigate to that instance in the AWS Console, and
+modify the role specified in the **IAM Role** section of the instance summary.
+(If there's no IAM role set, use **Actions -> Security -> Modify IAM role**.) 
 
 ### Create an `inference_model` resource
 
@@ -269,8 +287,8 @@ wildcard (`*`) to allow access to all models.
      max_session_length_bytes: 190000
    ```
    
-   `bedrock_model_id` is an ARN of the Bedrock foundation model or an inference
-   profile. A Bedrock model ID can also be used.
+   `bedrock_model_id` is an ARN of the Amazon Bedrock foundation model or an
+   inference profile. A Bedrock model ID can also be used.
 
    If a foundation model is directly invoked (i.e. `bedrock_model_id` points to
    a model, not an inference profile), `region` should be one of the supported
@@ -292,12 +310,12 @@ wildcard (`*`) to allow access to all models.
 
 ## Step 3/5: Set up an inference policy
 
-Finally, we add an `inference_policy` that routes sessions to inference models
-using session kinds and optional custom filters. Only one policy is allowed to
-match a given session to guarantee that its recording will be summarized at
-most once. Policies are checked in alphabetical order of names and the first
-one that matches is used. Here are some example scenarios that can be expressed
-using inference policies:
+In this step, you will add an `inference_policy` resource that routes sessions
+to inference models using session kinds and optional custom filters. Only one
+policy is allowed to match a given session to guarantee that its recording will
+be summarized at most once. Policies are checked in alphabetical order of names
+and the first one that matches is used. Here are some example scenarios that
+can be expressed using inference policies:
 
 - Only summarize sessions to your production resources using resource labels.
 - Use different models for summarizing shell and database sessions.
@@ -326,7 +344,7 @@ To create the required configuration resources:
      model: shell-summary-model
    ```
 
-1. Create the configuration policy in the backend:
+1. Create the inference policy in the backend:
 
    ```code
    $ tctl create -f inference-policy.yaml
@@ -570,7 +588,38 @@ for details.
 
 ## Troubleshooting
 
-| Problem | Solution |
-| --- | --- |
-| Summarization fails with "ValidationException: Invocation of model ID *[model-id]* with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model." | Use an Amazon Bedrock inference profile instead of a model ID in the `inference_model` resource. |
-| Summarization fails with "ValidationException: The provided model identifier is invalid." | One possible reason is a mismatch between the `region` declared in the `inference_model` resource and available regions for the given model or inference profile. Make sure that the region is supported. |
+### Amazon Bedrock fails to invoke a model with on-demand throughput
+
+**Problem:** Summarization fails with "ValidationException: Invocation of model
+ID *[model-id]* with on-demand throughput isn’t supported. Retry your request
+with the ID or ARN of an inference profile that contains this model."
+
+**Solution:** Use an Amazon Bedrock inference profile instead of a model ID in
+the `inference_model` resource.
+
+### Amazon Bedrock model identifier is invalid
+
+**Problem:** Summarization fails with "ValidationException: The provided model
+identifier is invalid." 
+
+**Solution:** One possible reason is a mismatch between the `region` declared
+in the `inference_model` resource and available regions for the given model or
+inference profile. Make sure that the region is supported.
+
+### Amazon Bedrock denies access to a model or inference policy
+
+**Problem:** Summarization fails with "AccessDeniedException: User: *[user]* is
+not authorized to perform: bedrock:InvokeModel on resource: *[resource-arn]*
+because no identity-based policy allows the bedrock:InvokeModel action"
+
+**Solution:** First, make sure that the AWS IAM role used by Teleport has a
+policy attached that allows the `InvokeModel` action on the model or inference
+policy that you specified in Teleport configuration (`inference_model`
+resource). Then make sure that if you're using an Amazon Bedrock inference
+profile, the policy references not only the inference profile itself, but also
+all Amazon Bedrock models that this inference profile is associated with. Use
+the following command to fetch details of the inference profile:
+
+```sh
+aws bedrock get-inference-profile --inference-profile-identifier="<Var name="bedrock-inference-profile-arn"/>"
+```
