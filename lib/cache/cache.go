@@ -545,17 +545,104 @@ type Cache struct {
 
 var _ authclient.Cache = (*Cache)(nil)
 
+type cacheHealthRegistry struct {
+	mu         sync.Mutex
+	components map[string]map[*Cache]bool
+}
+
+var globalCacheHealthRegistry = &cacheHealthRegistry{
+	components: make(map[string]map[*Cache]bool),
+}
+
+func (r *cacheHealthRegistry) register(c *Cache) {
+	if c == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.components == nil {
+		r.components = make(map[string]map[*Cache]bool)
+	}
+	m := r.components[c.target]
+	if m == nil {
+		m = make(map[*Cache]bool)
+		r.components[c.target] = m
+	}
+	// default to unhealthy until we know otherwise.
+	m[c] = false
+	r.updateGaugeLocked(c.target)
+}
+
+func (r *cacheHealthRegistry) setHealthy(c *Cache, healthy bool) {
+	if c == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	m, ok := r.components[c.target]
+	if !ok {
+		return
+	}
+	if _, exists := m[c]; !exists {
+		return
+	}
+	m[c] = healthy
+	r.updateGaugeLocked(c.target)
+}
+
+func (r *cacheHealthRegistry) unregister(c *Cache) {
+	if c == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	m, ok := r.components[c.target]
+	if !ok {
+		return
+	}
+	delete(m, c)
+	if len(m) == 0 {
+		delete(r.components, c.target)
+		cacheHealth.DeleteLabelValues(c.target)
+		return
+	}
+	r.updateGaugeLocked(c.target)
+}
+
+func (r *cacheHealthRegistry) updateGaugeLocked(target string) {
+	m, ok := r.components[target]
+	if !ok || len(m) == 0 {
+		// No active caches for this target; ensure the metric is removed.
+		cacheHealth.DeleteLabelValues(target)
+		return
+	}
+	healthy := false
+	for _, h := range m {
+		if h {
+			healthy = true
+			break
+		}
+	}
+	if healthy {
+		cacheHealth.WithLabelValues(target).Set(1.0)
+	} else {
+		cacheHealth.WithLabelValues(target).Set(0.0)
+	}
+}
+
 func (c *Cache) setInitError(err error) {
 	c.initOnce.Do(func() {
 		c.initErr = err
 		close(c.initC)
 	})
 
-	if err == nil {
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
-	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
-	}
+	globalCacheHealthRegistry.setHealthy(c, err == nil)
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -911,6 +998,8 @@ func New(config Config) (*Cache, error) {
 			"target", config.target,
 		),
 	}
+
+	globalCacheHealthRegistry.register(cs)
 
 	if config.Unstarted {
 		return cs, nil
@@ -1469,6 +1558,7 @@ func (c *Cache) isClosing() bool {
 func (c *Cache) Close() error {
 	c.closed.Store(true)
 	c.cancel()
+	globalCacheHealthRegistry.unregister(c)
 	c.eventsFanout.Close()
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
 		f.Close()
