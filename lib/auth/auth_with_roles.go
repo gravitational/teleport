@@ -21,6 +21,7 @@ package auth
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -67,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -2298,8 +2300,26 @@ func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) 
 }
 
 func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// For auth server reads we do not enforce scope pinning. This ensures that auths are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// teleport functionality.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return a.authServer.GetAuthServers()
+	}
+
 	if err := a.authorizeAction(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, authz.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+
 	}
 	return a.authServer.GetAuthServers()
 }
@@ -2320,6 +2340,21 @@ func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error
 }
 
 func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// For proxy reads we do not enforce scope pinning. This ensures that proxies are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// teleport functionality.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return a.authServer.GetProxies()
+	}
+
 	if err := a.authorizeAction(types.KindProxy, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
