@@ -219,7 +219,8 @@ start by listing all available models and pick a model ARN.
 aws bedrock list-foundation-models --query='modelSummaries[*].modelArn'
 ```
 
-Next, find an inference profile for that model:
+Next, find an inference profile for that model, replacing <Var
+name="bedrock-model-arn"/> with the model ARN:
 
 ```sh
 aws bedrock list-inference-profiles --query "inferenceProfileSummaries[?contains(@.models[*].modelArn, '<Var name="bedrock-model-arn"/>')].inferenceProfileArn"
@@ -251,6 +252,9 @@ Teleport to authenticate to Amazon Bedrock:
   ]
 }
 ```
+
+Replace <Var name="bedrock-model-arn"/> with the ARN of the Amazon Bedrock
+model.
 
 If you're using an inference profile, the `Resource` field must instead specify
 the inference profile ARN, as well as ARNS of *all* of the models that given
@@ -286,17 +290,19 @@ modify the role specified in the **IAM Role** section of the instance summary.
      max_session_length_bytes: 190000
    ```
    
-   `bedrock_model_id` is an ARN of the Amazon Bedrock foundation model or an
-   inference profile. A Bedrock model ID can also be used.
+   Replace <Var name="bedrock-model-or-inference-profile-arn"/> with an ARN of
+   the Amazon Bedrock foundation model or an inference profile. A Bedrock model
+   ID can also be used.
 
    If a foundation model is directly invoked (i.e. `bedrock_model_id` points to
-   a model, not an inference profile), `region` should be one of the supported
-   regions for a given model. Consult the [table of model support by AWS
+   a model, not an inference profile), <Var name="region"/> should be replaced
+   with one of the supported regions for a given model. Consult the [table of
+   model support by AWS
    region](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html)
    from the official AWS documentation.
    
-   If `bedrock_model_id` refers to an inference profile, `region` needs to
-   point to a region specified in the inference profile ARN.
+   If `bedrock_model_id` refers to an inference profile, <Var name="region"/>
+   needs to point to a region specified in the inference profile ARN.
 
 1. Apply your changes:
 
@@ -617,7 +623,8 @@ policy that you specified in Teleport configuration (`inference_model`
 resource). Then make sure that if you're using an Amazon Bedrock inference
 profile, the policy references not only the inference profile itself, but also
 all Amazon Bedrock models that this inference profile is associated with. Use
-the following command to fetch details of the inference profile:
+the following command to fetch details of the inference profile, replacing <Var
+name="bedrock-inference-profile-arn"/> with the inference profile ARN:
 
 ```sh
 aws bedrock get-inference-profile --inference-profile-identifier="<Var name="bedrock-inference-profile-arn"/>"
