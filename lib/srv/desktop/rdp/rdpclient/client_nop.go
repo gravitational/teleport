@@ -68,3 +68,4 @@ func (c *Client) UpdateClientActivity() {}
 func PrepareConnecton(_ string, _ *tdp.Conn, _ *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
 	return nil, nil, errors.New("the real rdpclient.Client implementation was not included in this build")
 }
+func (c *Client) DisableNLA() {}

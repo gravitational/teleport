@@ -210,6 +210,7 @@ func TestGenerateCredentials(t *testing.T) {
 			defer cancel()
 
 			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
+				AD:                                true,
 				Username:                          user,
 				Domain:                            domain,
 				TTL:                               5 * time.Minute,
@@ -226,7 +227,7 @@ func TestGenerateCredentials(t *testing.T) {
 			require.NotNil(t, cert)
 
 			require.Equal(t, test.wantSerialNumber, cert.Issuer.SerialNumber, "Issuer.SerialNumber")
-			require.Equal(t, user, cert.Subject.CommonName, "Subject.CommonName")
+			require.Equal(t, user+"@"+domain, cert.Subject.CommonName, "Subject.CommonName")
 			require.Contains(t,
 				cert.CRLDistributionPoints,
 				`ldap:///CN=`+test.wantCRLCommonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
