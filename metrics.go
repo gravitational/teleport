@@ -66,9 +66,6 @@ const (
 	// MetricUserLoginCount counts user logins
 	MetricUserLoginCount = "user_login_total"
 
-	// MetricUserLoginPerClientCount count user logins per client version
-	MetricUserLoginPerClientCount = "user_login_per_client"
-
 	// MetricHeartbeatConnectionsReceived counts heartbeat connections received by auth
 	MetricHeartbeatConnectionsReceived = "heartbeat_connections_received_total"
 
@@ -321,13 +318,6 @@ const (
 
 	// TagVersion is a prometheus label for version of Teleport built
 	TagVersion = "version"
-
-	// TagUserAgentType is a prometheus label for identifying user agent type
-	// of Teleport client (e.g. web or api).
-	TagUserAgentType = "user_agent_type"
-
-	// TagProxyGroupID is a prometheus label for identifying the proxy group ID.
-	TagProxyGroupID = "proxy_group_id"
 
 	// TagOS is a prometheus label for indicating the Operating System
 	// where agent is running (e.g. Darwin, Linux).
