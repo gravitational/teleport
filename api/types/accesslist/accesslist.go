@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -289,6 +290,17 @@ type Requires struct {
 // IsEmpty returns true when no roles or traits are set
 func (r *Requires) IsEmpty() bool {
 	return len(r.Roles) == 0 && len(r.Traits) == 0
+}
+
+// Clone returns a deep copy of the [Requires]
+func (r *Requires) Clone() Requires {
+	if r == nil {
+		return Requires{}
+	}
+	return Requires{
+		Roles:  slices.Clone(r.Roles),
+		Traits: r.Traits.Clone(),
+	}
 }
 
 // Grants describes what access is granted by membership to the access list.
