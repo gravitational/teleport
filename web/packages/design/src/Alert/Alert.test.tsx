@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MemoryRouter } from 'react-router';
+
 import { render, screen, theme, userEvent } from 'design/utils/testing';
 
 import { Alert, Banner } from '.';
@@ -107,7 +109,7 @@ describe('Banner', () => {
     expect(primaryCallback).toHaveBeenCalled();
   });
 
-  test('action buttons as links', async () => {
+  test('action buttons as external links', async () => {
     render(
       <Banner
         primaryAction={{
@@ -125,9 +127,47 @@ describe('Banner', () => {
       'href',
       'https://goteleport.com/1'
     );
+    expect(screen.getByRole('link', { name: 'Primary Link' })).toHaveAttribute(
+      'target',
+      '_blank'
+    );
     expect(
       screen.getByRole('link', { name: 'Secondary Link' })
     ).toHaveAttribute('href', 'https://goteleport.com/2');
+    expect(
+      screen.getByRole('link', { name: 'Secondary Link' })
+    ).toHaveAttribute('target', '_blank');
+  });
+
+  test('action buttons as internal links', async () => {
+    render(
+      <MemoryRouter>
+        <Banner
+          primaryAction={{
+            content: 'Primary Link',
+            internalLink: 'primary-route',
+          }}
+          secondaryAction={{
+            content: 'Secondary Link',
+            internalLink: 'secondary-route',
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Primary Link' })).toHaveAttribute(
+      'href',
+      '/primary-route'
+    );
+    expect(
+      screen.getByRole('link', { name: 'Primary Link' })
+    ).not.toHaveAttribute('target');
+    expect(
+      screen.getByRole('link', { name: 'Secondary Link' })
+    ).toHaveAttribute('href', '/secondary-route');
+    expect(
+      screen.getByRole('link', { name: 'Secondary Link' })
+    ).not.toHaveAttribute('target');
   });
 
   test('dismiss button', async () => {
