@@ -122,6 +122,8 @@ type addrInfo struct {
 func TestBPFRecording(t *testing.T) {
 	checkBPF(t)
 
+	t.Parallel()
+
 	srv := newMockServer(t)
 	bpfSrv := newBPFService(t)
 
@@ -131,7 +133,12 @@ func TestBPFRecording(t *testing.T) {
 	tempFile, err := os.Create(tempFilePath)
 	require.NoError(t, err)
 	require.NoError(t, tempFile.Close())
-	newFilePath := filepath.Join(cmdDir, "newfile")
+
+	// Create another temp dir for the test case where a new file will
+	// be created; a different temp dir is used to avoid other test cases
+	// having to reply on this file existing or not.
+	tempDir := t.TempDir()
+	newFilePath := filepath.Join(tempDir, "newfile")
 
 	// Lookup paths of programs that are also shell builtins.
 	echoPath, err := exec.LookPath("echo")
@@ -309,13 +316,11 @@ eval $(echo %s | base64 --decode)`,
 						program: "cat",
 						args: []string{
 							tempFilePath,
-							newFilePath,
 							obfScriptPath,
 						},
 					},
 					paths: []string{
 						tempFilePath,
-						newFilePath,
 						obfScriptPath,
 					},
 				},
@@ -531,6 +536,8 @@ eval $(echo %s | base64 --decode)`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			expectedCmdFail := slices.ContainsFunc(tt.eventInfos, func(info expectedEvents) bool {
 				return info.cmdInfo.expectedFail
 			})
@@ -671,6 +678,8 @@ eval $(echo %s | base64 --decode)`,
 func TestBPFRoleOptions(t *testing.T) {
 	checkBPF(t)
 
+	t.Parallel()
+
 	srv := newMockServer(t)
 	bpfSrv := newBPFService(t)
 
@@ -736,6 +745,8 @@ func TestBPFRoleOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Run the command and capture the events.
 			recordedEvents := runCommand(t, srv, bpfSrv, command, true, tt.events)
 
