@@ -56,16 +56,17 @@ message AppAuthConfigJWTSpec {
   // client_id issued for Teleport use.
   string audience = 2;
   // UsernameClaim specifies which token claim name's value will be used as the
-  // username.
+  // username. Defaults to `email`.
   string username_claim = 3;
   // AuthorizationHeader is the HTTP header name that will contain the token.
+  // Defaults to `Authorization`.
   string authorization_header = 4;
 
   oneof keys_source {
-    // IssuerUrl is the JWKS URL used to fetch signing keys.
+    // JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.
     string jwks_url = 5;
-    // StaticJWKS disables fetching the issuer signing keys via the JWKS
-    // endpoints, and allows them to be directly specificed.
+    // StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the
+    // token issuer in JSON format.
     string static_jwks = 6;
   }
 }

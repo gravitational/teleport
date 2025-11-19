@@ -187,7 +187,7 @@ func (x *ListAppAuthConfigsRequest) GetPageToken() string {
 // ListAppAuthConfigsResponse is the response from ListAppAuthConfigs.
 type ListAppAuthConfigsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Configs is a page of health check configs.
+	// Configs is a page of app auth configs.
 	Configs []*AppAuthConfig `protobuf:"bytes,1,rep,name=configs,proto3" json:"configs,omitempty"`
 	// NextPageToken is the token that can be used to retrieve the next page of
 	// results or empty if there are no more pages.

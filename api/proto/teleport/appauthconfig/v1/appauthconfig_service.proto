@@ -60,7 +60,7 @@ message ListAppAuthConfigsRequest {
 
 // ListAppAuthConfigsResponse is the response from ListAppAuthConfigs.
 message ListAppAuthConfigsResponse {
-  // Configs is a page of health check configs.
+  // Configs is a page of app auth configs.
   repeated AppAuthConfig configs = 1;
   // NextPageToken is the token that can be used to retrieve the next page of
   // results or empty if there are no more pages.

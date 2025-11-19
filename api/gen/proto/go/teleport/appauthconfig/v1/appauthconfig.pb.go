@@ -207,9 +207,10 @@ type AppAuthConfigJWTSpec struct {
 	// client_id issued for Teleport use.
 	Audience string `protobuf:"bytes,2,opt,name=audience,proto3" json:"audience,omitempty"`
 	// UsernameClaim specifies which token claim name's value will be used as the
-	// username.
+	// username. Defaults to `email`.
 	UsernameClaim string `protobuf:"bytes,3,opt,name=username_claim,json=usernameClaim,proto3" json:"username_claim,omitempty"`
 	// AuthorizationHeader is the HTTP header name that will contain the token.
+	// Defaults to `Authorization`.
 	AuthorizationHeader string `protobuf:"bytes,4,opt,name=authorization_header,json=authorizationHeader,proto3" json:"authorization_header,omitempty"`
 	// Types that are valid to be assigned to KeysSource:
 	//
@@ -308,13 +309,13 @@ type isAppAuthConfigJWTSpec_KeysSource interface {
 }
 
 type AppAuthConfigJWTSpec_JwksUrl struct {
-	// IssuerUrl is the JWKS URL used to fetch signing keys.
+	// JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.
 	JwksUrl string `protobuf:"bytes,5,opt,name=jwks_url,json=jwksUrl,proto3,oneof"`
 }
 
 type AppAuthConfigJWTSpec_StaticJwks struct {
-	// StaticJWKS disables fetching the issuer signing keys via the JWKS
-	// endpoints, and allows them to be directly specificed.
+	// StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the
+	// token issuer in JSON format.
 	StaticJwks string `protobuf:"bytes,6,opt,name=static_jwks,json=staticJwks,proto3,oneof"`
 }
 
