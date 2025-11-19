@@ -40,31 +40,19 @@ export function SelectIntegration() {
       }
     : null;
 
-  function setSelected(o: Option) {
-    setSelectedAwsIntegration(o.value);
-  }
-
-  function handleConfirm() {
-    nextStep();
-  }
-
   useEffect(() => {
-    if (hasAccess) {
-      run(() =>
-        integrationService.fetchIntegrations().then(res => {
-          const options = res.items.map(i => {
-            if (i.kind === 'aws-oidc') {
-              return {
-                value: i,
-                label: i.name,
-              };
-            }
-          });
-          setAwsIntegrations(options);
-        })
-      );
+    if (!hasAccess) {
+      return;
     }
-  }, []);
+    run(() =>
+      integrationService.fetchIntegrations().then(res => {
+        const options = (res.items || [])
+          .filter(i => i.kind === 'aws-oidc')
+          .map(i => ({ value: i, label: i.name })) satisfies Option[];
+        setAwsIntegrations(options);
+      })
+    );
+  }, [hasAccess, run]);
 
   if (attempt.status === 'processing') {
     return <Text>Loading...</Text>;
@@ -77,19 +65,14 @@ export function SelectIntegration() {
   const hasAwsIntegrations = awsIntegrations.length > 0;
   return (
     <>
-      {!hasAccess && (
+      {!hasAccess ? (
         <Alert mt="4">
           <Text>
             Insufficient permissions. Reach out to your Teleport administrator
-            to request permissions to list and read{' '}
-            <Text bold style={{ display: 'inline' }}>
-              integrations
-            </Text>
-            .
+            to request permissions to list and read integrations.
           </Text>
         </Alert>
-      )}
-      {hasAwsIntegrations ? (
+      ) : hasAwsIntegrations ? (
         <>
           <Text mb={2}>Select the name of the AWS integration to use:</Text>
           <Box width="300px" mb={2}>
@@ -98,7 +81,7 @@ export function SelectIntegration() {
               placeholder="Select the AWS Integration to Use"
               isSearchable
               value={selectedOption}
-              onChange={setSelected}
+              onChange={v => setSelectedAwsIntegration(v?.value ?? null)}
               options={awsIntegrations}
               data-testid="aws-integration-select"
             />
@@ -109,10 +92,10 @@ export function SelectIntegration() {
 
           <Box mt="2">
             <ButtonPrimary
-              onClick={handleConfirm}
+              onClick={nextStep}
               disabled={
                 currentStep !== Step.SelectIntegration ||
-                selectedAwsIntegration === null
+                !selectedAwsIntegration
               }
             >
               Next
