@@ -27,10 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/azuredevops"
 )
 
-type azureDevopsIDTokenValidator interface {
-	Validate(ctx context.Context, organizationID string, idToken string) (*azuredevops.IDTokenClaims, error)
-}
-
 func (a *Server) checkAzureDevopsJoinRequest(
 	ctx context.Context,
 	req *types.RegisterUsingTokenRequest,
