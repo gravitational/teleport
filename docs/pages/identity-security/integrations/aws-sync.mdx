@@ -81,7 +81,7 @@ security purposes. This allows Identity Activity Center to provide continuous vi
 activity across AWS services, including login attempts, API calls, and changes to infrastructure.
 
 
-### Importing AWS EKS API Server audit logs (optional)
+### Importing Amazon EKS API Server audit logs (optional)
 
 If EKS is configured to log API server audit logs to CloudWatch Logs, Identity Activity Center can
 process these logs in near real time. Teleport will fetch these logs continuously, parsing them for
@@ -155,7 +155,7 @@ is strongly recommended. Be sure to configure the necessary KMS key permissions 
 following step so that Identity Security can successfully decrypt messages from SQS
 and access CloudTrail logs in the S3 bucket.
 
-## Step 3/4. Integrate EKS Audit Logs for Identity Activity Center (optional)
+## Step 3/4. Integrate Amazon EKS CloudWatch Audit Logs for Identity Activity Center (optional)
 
 To set up near real-time access to EKS API server audit logs, use the AWS web console to
 navigate to the EKS cluster configuration. From the "Observability" tab, in the "Control plane logs"
