@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -154,7 +155,7 @@ type GithubIDTokenJWKSValidator func(
 ) (*IDTokenClaims, error)
 
 type CheckGithubIDTokenParams struct {
-	ProvisionToken types.ProvisionToken
+	ProvisionToken provision.Token
 	IDToken        []byte
 	Clock          clockwork.Clock
 	Validator      GithubIDTokenValidator
