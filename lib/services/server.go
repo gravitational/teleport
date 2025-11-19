@@ -139,6 +139,9 @@ func compareServers(a, b types.Server) int {
 	if !cmp.Equal(a.GetGitHub(), b.GetGitHub()) {
 		return Different
 	}
+	if a.GetScope() != b.GetScope() {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -173,6 +176,9 @@ func compareApplicationServers(a, b types.AppServer) int {
 		return Different
 	}
 	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if a.GetScope() != b.GetScope() {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -237,6 +243,9 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
 		return Different
 	}
+	if a.GetScope() != b.GetScope() {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -271,6 +280,9 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 		return Different
 	}
 	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if a.GetScope() != b.GetScope() {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
