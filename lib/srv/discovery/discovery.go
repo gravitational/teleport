@@ -1928,6 +1928,9 @@ func (s *Server) Stop() {
 			s.Log.WarnContext(s.ctx, "Dynamic matcher watcher closing error", "error", err)
 		}
 	}
+	if s.gcpClients != nil {
+		_ = s.gcpClients.Close()
+	}
 }
 
 // Wait will block while the server is running.
