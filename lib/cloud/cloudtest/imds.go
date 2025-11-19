@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package testutils
+package cloudtest
 
 import (
 	"context"
@@ -22,11 +22,11 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 )
 
-type TestInstanceMetadataClient struct {
+type InstanceMetadataClient struct {
 	InstanceMetadata imds.Client
 }
 
 // GetInstanceMetadataClient returns the instance metadata.
-func (c *TestInstanceMetadataClient) GetInstanceMetadataClient(ctx context.Context) (imds.Client, error) {
+func (c *InstanceMetadataClient) GetInstanceMetadataClient(ctx context.Context) (imds.Client, error) {
 	return c.InstanceMetadata, nil
 }

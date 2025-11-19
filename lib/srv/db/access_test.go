@@ -65,8 +65,8 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/cloudtest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/cloud/testutils"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -2497,13 +2497,13 @@ func (p *agentParams) setDefaults(c *testContext) {
 	}
 
 	if p.GCPClients == nil {
-		p.GCPClients = &testutils.TestGCPClients{
+		p.GCPClients = &cloudtest.GCPClients{
 			GCPSQL: p.GCPSQL,
 		}
 	}
 
 	if p.AzureClients == nil {
-		p.AzureClients = &testutils.TestAzureClients{}
+		p.AzureClients = &cloudtest.AzureClients{}
 	}
 
 	if p.AWSConfigProvider == nil {
@@ -2550,9 +2550,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient:             c.authClient,
 		AccessPoint:            c.authClient,
-		AzureClients:           &testutils.TestAzureClients{},
-		GCPClients:             &testutils.TestGCPClients{},
-		InstanceMetadataClient: &testutils.TestInstanceMetadataClient{},
+		AzureClients:           &cloudtest.AzureClients{},
+		GCPClients:             &cloudtest.GCPClients{},
+		InstanceMetadataClient: &cloudtest.InstanceMetadataClient{},
 		Clock:                  c.clock,
 		AWSConfigProvider:      p.AWSConfigProvider,
 	})

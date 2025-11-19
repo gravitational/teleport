@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package testutils
+package cloudtest
 
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
-type TestAzureClients struct {
+type AzureClients struct {
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -44,12 +44,12 @@ type TestAzureClients struct {
 }
 
 // GetAzureCredential returns default Azure token credential chain.
-func (c *TestAzureClients) GetAzureCredential() (azcore.TokenCredential, error) {
+func (c *AzureClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return &azidentity.ChainedTokenCredential{}, nil
 }
 
 // GetAzureMySQLClient returns an AzureMySQLClient for the specified subscription
-func (c *TestAzureClients) GetAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
+func (c *AzureClients) GetAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
 	if len(c.AzureMySQLPerSub) != 0 {
 		return c.AzureMySQLPerSub[subscription], nil
 	}
@@ -57,7 +57,7 @@ func (c *TestAzureClients) GetAzureMySQLClient(subscription string) (azure.DBSer
 }
 
 // GetAzurePostgresClient returns an AzurePostgresClient for the specified subscription
-func (c *TestAzureClients) GetAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
+func (c *AzureClients) GetAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
 	if len(c.AzurePostgresPerSub) != 0 {
 		return c.AzurePostgresPerSub[subscription], nil
 	}
@@ -65,7 +65,7 @@ func (c *TestAzureClients) GetAzurePostgresClient(subscription string) (azure.DB
 }
 
 // GetAzureKubernetesClient returns an AKS client for the specified subscription
-func (c *TestAzureClients) GetAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
+func (c *AzureClients) GetAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
 	if len(c.AzureAKSClientPerSub) != 0 {
 		return c.AzureAKSClientPerSub[subscription], nil
 	}
@@ -73,58 +73,58 @@ func (c *TestAzureClients) GetAzureKubernetesClient(subscription string) (azure.
 }
 
 // GetAzureSubscriptionClient returns an Azure SubscriptionClient
-func (c *TestAzureClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, error) {
+func (c *AzureClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, error) {
 	return c.AzureSubscriptionClient, nil
 }
 
 // GetAzureRedisClient returns an Azure Redis client for the given subscription.
-func (c *TestAzureClients) GetAzureRedisClient(subscription string) (azure.RedisClient, error) {
+func (c *AzureClients) GetAzureRedisClient(subscription string) (azure.RedisClient, error) {
 	return c.AzureRedis, nil
 }
 
 // GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
-func (c *TestAzureClients) GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error) {
+func (c *AzureClients) GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error) {
 	return c.AzureRedisEnterprise, nil
 }
 
 // GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for
 // the given subscription.
-func (c *TestAzureClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
+func (c *AzureClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.AzureVirtualMachines, nil
 }
 
 // GetAzureSQLServerClient returns an Azure client for listing SQL servers.
-func (c *TestAzureClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
+func (c *AzureClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
 	return c.AzureSQLServer, nil
 }
 
 // GetAzureManagedSQLServerClient returns an Azure client for listing managed
 // SQL servers.
-func (c *TestAzureClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
+func (c *AzureClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
 	return c.AzureManagedSQLServer, nil
 }
 
 // GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
-func (c *TestAzureClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
+func (c *AzureClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
 	return c.AzureMySQLFlex, nil
 }
 
 // GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
-func (c *TestAzureClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
+func (c *AzureClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
 	return c.AzurePostgresFlex, nil
 }
 
 // GetAzureRunCommandClient returns an Azure Run Command client for the given subscription.
-func (c *TestAzureClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
+func (c *AzureClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
 	return c.AzureRunCommand, nil
 }
 
 // GetAzureRoleDefinitionsClient returns an Azure Role Definitions client for the given subscription.
-func (c *TestAzureClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
+func (c *AzureClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
 	return c.AzureRoleDefinitions, nil
 }
 
 // GetAzureRoleAssignmentsClient returns an Azure Role Assignments client for the given subscription.
-func (c *TestAzureClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
+func (c *AzureClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
 	return c.AzureRoleAssignments, nil
 }

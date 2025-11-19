@@ -32,7 +32,7 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/cloud/testutils"
+	"github.com/gravitational/teleport/lib/cloud/cloudtest"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -90,7 +90,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
-			inputClients: &testutils.TestAzureClients{
+			inputClients: &cloudtest.AzureClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1, azMySQLServer2, azMySQLServer3, azMySQLServer5},
@@ -128,7 +128,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
-			inputClients: &testutils.TestAzureClients{
+			inputClients: &cloudtest.AzureClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1},
@@ -168,7 +168,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			inputClients: &testutils.TestAzureClients{
+			inputClients: &cloudtest.AzureClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -202,7 +202,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			inputClients: &testutils.TestAzureClients{
+			inputClients: &cloudtest.AzureClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -237,7 +237,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			inputClients: &testutils.TestAzureClients{
+			inputClients: &cloudtest.AzureClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1},
@@ -276,7 +276,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			inputClients: &testutils.TestAzureClients{
+			inputClients: &cloudtest.AzureClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,

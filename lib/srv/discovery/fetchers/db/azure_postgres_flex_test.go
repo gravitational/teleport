@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/cloud/testutils"
+	"github.com/gravitational/teleport/lib/cloud/cloudtest"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -45,7 +45,7 @@ func TestAzurePostgresFlexFetchers(t *testing.T) {
 		Regions:      []string{"eastus"},
 	}}
 
-	clients := &testutils.TestAzureClients{
+	clients := &cloudtest.AzureClients{
 		AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
 			Subscriptions: []*armsubscription.Subscription{azureSub},
 		}),

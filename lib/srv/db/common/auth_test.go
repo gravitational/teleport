@@ -44,9 +44,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	libcloudazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/cloudtest"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/cloud/testutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -64,7 +64,7 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 	auth, err := NewAuth(AuthConfig{
 		AuthClient:  new(authClientMock),
 		AccessPoint: new(accessPointMock),
-		AzureClients: &testutils.TestAzureClients{
+		AzureClients: &cloudtest.AzureClients{
 			AzureRedis: libcloudazure.NewRedisClientByAPI(&libcloudazure.ARMRedisMock{
 				Token: "azure-redis-token",
 			}),
@@ -72,8 +72,8 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 				Token: "azure-redis-enterprise-token",
 			}),
 		},
-		GCPClients:             &testutils.TestGCPClients{},
-		InstanceMetadataClient: &testutils.TestInstanceMetadataClient{},
+		GCPClients:             &cloudtest.GCPClients{},
+		InstanceMetadataClient: &cloudtest.InstanceMetadataClient{},
 
 		AWSConfigProvider: &mocks.AWSConfigProvider{},
 	})
@@ -129,9 +129,9 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 		Clock:                  clock,
 		AuthClient:             new(authClientMock),
 		AccessPoint:            new(accessPointMock),
-		AzureClients:           &testutils.TestAzureClients{},
-		GCPClients:             &testutils.TestGCPClients{},
-		InstanceMetadataClient: &testutils.TestInstanceMetadataClient{},
+		AzureClients:           &cloudtest.AzureClients{},
+		GCPClients:             &cloudtest.GCPClients{},
+		InstanceMetadataClient: &cloudtest.InstanceMetadataClient{},
 		AWSConfigProvider:      &mocks.AWSConfigProvider{STSClient: stsMock},
 		awsClients: fakeAWSClients{
 			rssClient: &mocks.RedshiftServerlessClient{
@@ -159,9 +159,9 @@ func TestAuthGetTLSConfig(t *testing.T) {
 	auth, err := NewAuth(AuthConfig{
 		AuthClient:             new(authClientMock),
 		AccessPoint:            new(accessPointMock),
-		AzureClients:           &testutils.TestAzureClients{},
-		GCPClients:             &testutils.TestGCPClients{},
-		InstanceMetadataClient: &testutils.TestInstanceMetadataClient{},
+		AzureClients:           &cloudtest.AzureClients{},
+		GCPClients:             &cloudtest.GCPClients{},
+		InstanceMetadataClient: &cloudtest.InstanceMetadataClient{},
 		AWSConfigProvider:      &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
@@ -305,13 +305,13 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "running on Azure and identity is attached",
 			identityName: "identity",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 						instanceType: types.InstanceMetadataTypeAzure,
 					},
 				},
-				Azure: &testutils.TestAzureClients{
+				Azure: &cloudtest.AzureClients{
 					AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 						GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
 					}, nil /* scaleSetAPI */),
@@ -326,13 +326,13 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "running on Azure without the identity",
 			identityName: "random-identity-not-attached",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 						instanceType: types.InstanceMetadataTypeAzure,
 					},
 				},
-				Azure: &testutils.TestAzureClients{
+				Azure: &cloudtest.AzureClients{
 					AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 						GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
 					}, nil /* scaleSetAPI */),
@@ -345,13 +345,13 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "running on Azure wrong format identity",
 			identityName: "identity",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 						instanceType: types.InstanceMetadataTypeAzure,
 					},
 				},
-				Azure: &testutils.TestAzureClients{
+				Azure: &cloudtest.AzureClients{
 					AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 						GetResult: mocks.AzureVM([]string{"identity"}),
 					}, nil /* scaleSetAPI */),
@@ -364,7 +364,7 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "running outside of Azure",
 			identityName: "identity",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "i-1234567890abcdef0",
 						instanceType: types.InstanceMetadataTypeEC2,
@@ -378,13 +378,13 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "running on azure but failed to get VM",
 			identityName: "random-identity-not-attached",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 						instanceType: types.InstanceMetadataTypeAzure,
 					},
 				},
-				Azure: &testutils.TestAzureClients{
+				Azure: &cloudtest.AzureClients{
 					AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 						GetErr: errors.New("failed to get VM"),
 					}, nil /* scaleSetAPI */),
@@ -397,13 +397,13 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "scale set vm running on Azure and identity is attached",
 			identityName: "identity",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0",
 						instanceType: types.InstanceMetadataTypeAzure,
 					},
 				},
-				Azure: &testutils.TestAzureClients{
+				Azure: &cloudtest.AzureClients{
 					AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(
 						nil, /* api */
 						&libcloudazure.ARMScaleSetMock{
@@ -421,13 +421,13 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "scale set vm running on Azure without the identity",
 			identityName: "random-identity-not-attached",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0",
 						instanceType: types.InstanceMetadataTypeAzure,
 					},
 				},
-				Azure: &testutils.TestAzureClients{
+				Azure: &cloudtest.AzureClients{
 					AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(
 						nil, /* api */
 						&libcloudazure.ARMScaleSetMock{
@@ -443,13 +443,13 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "scale set vm running on Azure wrong format identity",
 			identityName: "random-identity-not-attached",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0",
 						instanceType: types.InstanceMetadataTypeAzure,
 					},
 				},
-				Azure: &testutils.TestAzureClients{
+				Azure: &cloudtest.AzureClients{
 					AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(
 						nil, /* api */
 						&libcloudazure.ARMScaleSetMock{
@@ -465,13 +465,13 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			desc:         "scale set vm running but failed to get VM",
 			identityName: "identity",
 			clients: clients{
-				InstanceMetadata: &testutils.TestInstanceMetadataClient{
+				InstanceMetadata: &cloudtest.InstanceMetadataClient{
 					InstanceMetadata: &imdsMock{
 						id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0",
 						instanceType: types.InstanceMetadataTypeAzure,
 					},
 				},
-				Azure: &testutils.TestAzureClients{
+				Azure: &cloudtest.AzureClients{
 					AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(
 						nil, /* api */
 						&libcloudazure.ARMScaleSetMock{
@@ -488,9 +488,9 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 			auth, err := NewAuth(AuthConfig{
 				AuthClient:             new(authClientMock),
 				AccessPoint:            new(accessPointMock),
-				InstanceMetadataClient: cmp.Or[cloud.InstanceMetadataClient](tc.clients.InstanceMetadata, &testutils.TestInstanceMetadataClient{}),
-				AzureClients:           cmp.Or[cloud.AzureClients](tc.clients.Azure, &testutils.TestAzureClients{}),
-				GCPClients:             &testutils.TestGCPClients{},
+				InstanceMetadataClient: cmp.Or[cloud.InstanceMetadataClient](tc.clients.InstanceMetadata, &cloudtest.InstanceMetadataClient{}),
+				AzureClients:           cmp.Or[cloud.AzureClients](tc.clients.Azure, &cloudtest.AzureClients{}),
+				GCPClients:             &cloudtest.GCPClients{},
 				AWSConfigProvider:      &mocks.AWSConfigProvider{},
 			})
 			require.NoError(t, err)
@@ -515,16 +515,16 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 		Clock:       clock,
 		AuthClient:  new(authClientMock),
 		AccessPoint: new(accessPointMock),
-		InstanceMetadataClient: &testutils.TestInstanceMetadataClient{
+		InstanceMetadataClient: &cloudtest.InstanceMetadataClient{
 			InstanceMetadata: &imdsMock{
 				id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 		},
-		AzureClients: &testutils.TestAzureClients{
+		AzureClients: &cloudtest.AzureClients{
 			AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(virtualMachinesMock, nil /* scaleSetAPI */),
 		},
-		GCPClients:        &testutils.TestGCPClients{},
+		GCPClients:        &cloudtest.GCPClients{},
 		AWSConfigProvider: &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
@@ -770,9 +770,9 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		Clock:                  clock,
 		AuthClient:             new(authClientMock),
 		AccessPoint:            new(accessPointMock),
-		GCPClients:             &testutils.TestGCPClients{},
-		AzureClients:           &testutils.TestAzureClients{},
-		InstanceMetadataClient: &testutils.TestInstanceMetadataClient{},
+		GCPClients:             &cloudtest.GCPClients{},
+		AzureClients:           &cloudtest.AzureClients{},
+		InstanceMetadataClient: &cloudtest.InstanceMetadataClient{},
 		AWSConfigProvider: &mocks.AWSConfigProvider{
 			STSClient: fakeSTS,
 		},
@@ -857,9 +857,9 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				Clock:                  clock,
 				AuthClient:             new(authClientMock),
 				AccessPoint:            new(accessPointMock),
-				GCPClients:             &testutils.TestGCPClients{},
-				AzureClients:           &testutils.TestAzureClients{},
-				InstanceMetadataClient: &testutils.TestInstanceMetadataClient{},
+				GCPClients:             &cloudtest.GCPClients{},
+				AzureClients:           &cloudtest.AzureClients{},
+				InstanceMetadataClient: &cloudtest.InstanceMetadataClient{},
 				AWSConfigProvider: &mocks.AWSConfigProvider{
 					STSClient: tt.stsMock,
 				},

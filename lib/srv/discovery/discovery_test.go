@@ -86,10 +86,10 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/cloudtest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/cloud/testutils"
 	libevents "github.com/gravitational/teleport/lib/events"
 	libstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1530,11 +1530,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			azureClients := &testutils.TestAzureClients{
+			azureClients := &cloudtest.AzureClients{
 				AzureAKSClient: newPopulatedAKSMock(),
 			}
 
-			gcpClients := &testutils.TestGCPClients{
+			gcpClients := &cloudtest.GCPClients{
 				GCPGKE:      newPopulatedGCPMock(),
 				GCPProjects: newPopulatedGCPProjectsMock(),
 			}
@@ -2145,7 +2145,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		return dc
 	}
 
-	azureClients := &testutils.TestAzureClients{
+	azureClients := &cloudtest.AzureClients{
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
 		}),
@@ -3085,7 +3085,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testAzureClients := &testutils.TestAzureClients{
+			testAzureClients := &cloudtest.AzureClients{
 				AzureVirtualMachines: &mockAzureClient{
 					vms: tc.foundAzureVMs,
 				},
@@ -3393,7 +3393,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			gcpClients := &testutils.TestGCPClients{
+			gcpClients := &cloudtest.GCPClients{
 				GCPInstances: &mockGCPClient{
 					vms: tc.foundGCPVMs,
 				},
@@ -3593,7 +3593,7 @@ func TestServer_onCreate(t *testing.T) {
 
 func TestEmitUsageEvents(t *testing.T) {
 	t.Parallel()
-	azureClients := &testutils.TestAzureClients{
+	azureClients := &cloudtest.AzureClients{
 		AzureVirtualMachines: &mockAzureClient{},
 		AzureRunCommand:      &mockAzureRunCommandClient{},
 	}
