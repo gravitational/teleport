@@ -40,7 +40,12 @@ export type Kind =
   | KindJoinToken;
 
 /** Teleport role in a resource format. */
-export type RoleResource = Resource<KindRole>;
+export type RoleResource = Resource<KindRole> & {
+  /**
+   * Only defined if querying roles were requested with "includeObject".
+   */
+  object?: Role;
+};
 
 /** Teleport role with only the role name and description, used for displaying requestable roles. */
 export type RequestableRole = {
