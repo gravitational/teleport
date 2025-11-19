@@ -291,6 +291,64 @@ message OracleChallengeSolution {
   bytes signed_root_ca_req = 4;
 }
 
+// TPMInit is the message sent from the client in response to the ServerInit
+// message for the TPM join flow.
+// The server is expected to respond with a TPMEncryptedCredential message.
+//
+// The TPM method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: TPMInit
+// 4. client<-server: TPMEncryptedCredential
+// 5. client->server: TPMSolution
+// 6. client<-server: Result
+message TPMInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+  // The encoded TPMT_PUBLIC structure containing the attestation public key
+  // and signing parameters.
+  bytes public = 2;
+  // The properties of the attestation key, encoded as a TPMS_CREATION_DATA
+  // structure.
+  bytes create_data = 3;
+  // An assertion as to the details of the key, encoded as a TPMS_ATTEST
+  // structure.
+  bytes create_attestation = 4;
+  // A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
+  bytes create_signature = 5;
+  oneof ek {
+    // The device's endorsement certificate in X509, ASN.1 DER form. This
+    // certificate contains the public key of the endorsement key. This is
+    // preferred to ek_key.
+    bytes ek_cert = 6;
+    // The device's public endorsement key in PKIX, ASN.1 DER form. This is
+    // used when a TPM does not contain any endorsement certificates.
+    bytes ek_key = 7;
+  }
+}
+
+// TPMEncryptedCredential is the message sent from the server in response to the
+// TPMInit message.
+// The client is expected to respond with a TPMSolution message.
+message TPMEncryptedCredential {
+  // The `credential_blob` parameter to be used with the `ActivateCredential`
+  // command. This is used with the decrypted value of `secret` in a
+  // cryptographic process to decrypt the solution.
+  bytes credential_blob = 1;
+  // The `secret` parameter to be used with `ActivateCredential`. This is a
+  // seed which can be decrypted with the EK. The decrypted seed is then used
+  // when decrypting `credential_blob`.
+  bytes secret = 2;
+}
+
+// TPMSolution is the message sent from the client in response to the
+// TPMEncryptedCredential message. The server is expected to respond with a
+// Result message.
+message TPMSolution {
+  // The client's solution to TPMEncryptedCredential using ActivateCredential.
+  bytes solution = 1;
+}
+
 // ChallengeSolution holds a solution to a challenge issued by the server.
 message ChallengeSolution {
   oneof payload {
@@ -298,6 +356,7 @@ message ChallengeSolution {
     BoundKeypairRotationResponse bound_keypair_rotation_response = 2;
     IAMChallengeSolution iam_challenge_solution = 3;
     OracleChallengeSolution oracle_challenge_solution = 4;
+    TPMSolution tpm_solution = 5;
   }
 }
 
@@ -336,6 +395,7 @@ message JoinRequest {
     EC2Init ec2_init = 7;
     OIDCInit oidc_init = 8;
     OracleInit oracle_init = 9;
+    TPMInit tpm_init = 10;
   }
 }
 
@@ -356,6 +416,7 @@ message Challenge {
     BoundKeypairRotationRequest bound_keypair_rotation_request = 2;
     IAMChallenge iam_challenge = 3;
     OracleChallenge oracle_challenge = 4;
+    TPMEncryptedCredential tpm_encrypted_credential = 5;
   }
 }
 
