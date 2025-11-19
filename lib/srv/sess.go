@@ -1466,7 +1466,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	// PAM auth modules are not properly copied until _after_ the shell request is
 	// replied to.
 	if bpfService.Enabled() {
-		if err := s.term.WaitForChild(); err != nil {
+		if err := s.term.WaitForChild(ctx); err != nil {
 			s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
 			return trace.Wrap(err)
 		}
@@ -1671,7 +1671,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Events:                eventsMap,
 	}
 
-	if err := execRequest.WaitForChild(); err != nil {
+	if err := execRequest.WaitForChild(ctx); err != nil {
 		s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
 		return trace.Wrap(err)
 	}

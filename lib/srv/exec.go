@@ -51,6 +51,10 @@ const (
 	defaultEnvRootPath   = "PATH=" + defaultRootPath
 	defaultTerm          = "xterm"
 	defaultLoginDefsPath = "/etc/login.defs"
+
+	// The child does not signal until completing PAM setup, which can take an arbitrary
+	// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
+	childContinueWaitTimeout = 3 * time.Minute
 )
 
 // ExecResult is used internally to send the result of a command execution from
@@ -79,7 +83,7 @@ type Exec interface {
 
 	// WaitForChild blocks until the child process has completed any required
 	// setup operations before proceeding with execution.
-	WaitForChild() error
+	WaitForChild(ctx context.Context) error
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
@@ -224,8 +228,8 @@ func (e *localExec) Wait() *ExecResult {
 	return execResult
 }
 
-func (e *localExec) WaitForChild() error {
-	err := waitForSignal(e.Ctx.readyr, 20*time.Second)
+func (e *localExec) WaitForChild(ctx context.Context) error {
+	err := waitForSignal(ctx, e.Ctx.readyr, childContinueWaitTimeout)
 	closeErr := e.Ctx.readyr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	e.Ctx.readyr = nil
@@ -307,9 +311,9 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
 }
 
-// waitForSignal will wait 10 seconds for the other side of the pipe to signal, if not
+// waitForSignal will wait for the other side of the pipe to signal, if not
 // received, it will stop waiting and exit.
-func waitForSignal(fd *os.File, timeout time.Duration) error {
+func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
 	waitCh := make(chan error, 1)
 	go func() {
 		// Reading from the file descriptor will block until it's closed.
@@ -325,6 +329,8 @@ func waitForSignal(fd *os.File, timeout time.Duration) error {
 	defer timer.Stop()
 
 	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "got context error while waiting for continue signal")
 	case <-timer.C:
 		return trace.LimitExceeded("timed out waiting for continue signal")
 	case err := <-waitCh:
@@ -414,7 +420,7 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 }
 
-func (e *remoteExec) WaitForChild() error { return nil }
+func (e *remoteExec) WaitForChild(_ context.Context) error { return nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}
