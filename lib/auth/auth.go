@@ -193,12 +193,12 @@ const (
 )
 
 const (
-	// TagUserAgentType is a prometheus label for identifying user agent type
+	// tagUserAgentType is a prometheus label for identifying user agent type
 	// of Teleport client (e.g. web or api).
 	tagUserAgentType = "user_agent_type"
-	// TagProxyGroupID is a prometheus label for identifying the proxy group ID.
+	// tagProxyGroupID is a prometheus label for identifying the proxy group ID.
 	tagProxyGroupID = "proxy_group_id"
-	// TagVersion is a prometheus label for version of Teleport built.
+	// tagVersion is a prometheus label for version of Teleport built.
 	tagVersion = "version"
 )
 
