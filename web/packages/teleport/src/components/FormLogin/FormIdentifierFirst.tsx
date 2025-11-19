@@ -40,7 +40,7 @@ import ResourceService from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
 
 type Props = {
-  onLoginWithSso(provider: AuthProvider): void;
+  onLoginWithSso(provider: AuthProvider, loginHint?: string): void;
   /**
    * onUseLocalLogin is called to switch the view to the local login form.
    */
@@ -97,7 +97,7 @@ export function FormIdentifierFirst({
         }
         // If there isn't a remembered username, and there is only one matching connector, we take them straight to the IdP.
         if (matchedConnectors.length === 1 && !rememberedUsername) {
-          onLoginWithSso(matchedConnectors[0]);
+          onLoginWithSso(matchedConnectors[0], username);
           storageService.setRememberedSsoUsername(username);
           setRememberedUsername(username);
           return;
@@ -163,6 +163,7 @@ export function FormIdentifierFirst({
             <ConnectorList
               providers={connectors}
               onLoginWithSso={onLoginWithSso}
+              loginHint={username}
               onNotYou={onNotYou}
             />
           )}
@@ -229,10 +230,12 @@ function ConnectorList({
   providers,
   onLoginWithSso,
   onNotYou,
+  loginHint,
 }: {
   providers: AuthProvider[];
-  onLoginWithSso(provider: AuthProvider): void;
+  onLoginWithSso(provider: AuthProvider, loginHint?: string): void;
   onNotYou(): void;
+  loginHint: string;
 }) {
   const $btns = providers.map((item, index) => {
     let { name, type, displayName } = item;
@@ -247,7 +250,7 @@ function ConnectorList({
         ssoType={ssoType}
         onClick={e => {
           e.preventDefault();
-          onLoginWithSso(item);
+          onLoginWithSso(item, loginHint);
         }}
       />
     );

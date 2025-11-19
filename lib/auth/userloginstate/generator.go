@@ -213,9 +213,22 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 
 // addAccessListsToState will add the user's applicable access lists to the user login state after validating them, returning any inherited roles and traits.
 func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) (inheritedRoles []string, inheritedTraits map[string][]string, err error) {
-	locks, err := g.accessLists.GetLocks(ctx, true, types.LockTarget{
-		User: user.GetName(),
-	})
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return g.accessLists.ListLocks(ctx, limit, start, &types.LockFilter{
+				InForceOnly: true,
+				Targets:     []*types.LockTarget{{User: user.GetName()}},
+			})
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			const inForceOnlyTrue = true
+			return g.accessLists.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+				User: user.GetName(),
+			})
+		},
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -330,6 +343,9 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 	// Make sure all the roles exist. If they don't, error out.
 	for _, role := range state.Spec.Roles {
 		if _, err := g.access.GetRole(ctx, role); err != nil {
+			if trace.IsNotFound(err) {
+				return trace.Wrap(types.ErrNonExistingRoleAssigned)
+			}
 			return trace.Wrap(err)
 		}
 	}

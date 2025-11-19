@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/connectivity"
 
@@ -34,11 +35,12 @@ import (
 
 // TestClientConn checks the client's connection caching capabilities
 func TestClientConn(t *testing.T) {
-	ca := newSelfSignedCA(t)
+	clock := clockwork.NewRealClock()
+	ca := newSelfSignedCA(t, clock)
 
-	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
-	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
-	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
+	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy, clock)
+	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy, clock)
+	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy, clock)
 
 	// simulate watcher finding two servers
 	err := client.updateConnections([]types.Server{def1, def2})
@@ -77,11 +79,12 @@ func TestClientConn(t *testing.T) {
 
 // TestClientUpdate checks the client's watcher update behavior
 func TestClientUpdate(t *testing.T) {
-	ca := newSelfSignedCA(t)
+	clock := clockwork.NewRealClock()
+	ca := newSelfSignedCA(t, clock)
 
-	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
-	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
-	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
+	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy, clock)
+	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy, clock)
+	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy, clock)
 
 	// watcher finds two servers
 	err := client.updateConnections([]types.Server{def1, def2})
@@ -118,7 +121,7 @@ func TestClientUpdate(t *testing.T) {
 	require.Error(t, err) // can't dial server2, obviously
 
 	// peer address change
-	_, def3 := setupServer(t, "s1", ca, ca, types.RoleProxy)
+	_, def3 := setupServer(t, "s1", ca, ca, types.RoleProxy, clock)
 	err = client.updateConnections([]types.Server{def3})
 	require.NoError(t, err)
 	require.Len(t, client.conns, 1)
@@ -133,12 +136,13 @@ func TestClientUpdate(t *testing.T) {
 }
 
 func TestCAChange(t *testing.T) {
-	clientCA := newSelfSignedCA(t)
-	serverCA := newSelfSignedCA(t)
+	clock := clockwork.NewRealClock()
+	clientCA := newSelfSignedCA(t, clock)
+	serverCA := newSelfSignedCA(t, clock)
 	currentServerCA := newAtomicCA(serverCA)
 
-	client := setupClient(t, clientCA, currentServerCA, types.RoleProxy)
-	server, ts := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
+	client := setupClient(t, clientCA, currentServerCA, types.RoleProxy, clock)
+	server, ts := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy, clock)
 	t.Cleanup(func() { server.Close() })
 
 	// dial server and send a test data frame
@@ -160,8 +164,8 @@ func TestCAChange(t *testing.T) {
 
 	// rotate server ca
 	require.NoError(t, server.Close())
-	newServerCA := newSelfSignedCA(t)
-	server2, ts := setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
+	newServerCA := newSelfSignedCA(t, clock)
+	server2, ts := setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy, clock)
 	t.Cleanup(func() { server2.Close() })
 
 	// new connection should fail because client tls config still references old
@@ -200,12 +204,13 @@ func TestCAChange(t *testing.T) {
 }
 
 func TestBackupClient(t *testing.T) {
-	ca := newSelfSignedCA(t)
-	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
+	clock := clockwork.NewRealClock()
+	ca := newSelfSignedCA(t, clock)
+	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy, clock)
 	dialCalled := false
 
 	// Force the first client connection to fail.
-	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy, func(c *ServerConfig) {
+	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy, clock, func(c *ServerConfig) {
 		c.service = &mockProxyService{
 			mockDialNode: func(stream proto.ProxyService_DialNodeServer) error {
 				dialCalled = true
@@ -213,7 +218,7 @@ func TestBackupClient(t *testing.T) {
 			},
 		}
 	})
-	_, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
+	_, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy, clock)
 
 	err := client.updateConnections([]types.Server{def1, def2})
 	require.NoError(t, err)

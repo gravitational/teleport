@@ -129,7 +129,7 @@ This can be helpful for analyzing bottlenecks, or diagnosing unexpected behavior
 A Teleport instance that runs one or more services to provide access to infrastructure resources. 
 It can be hosted separately from the resources it manages, but all agents must run within the same network as their target resources.
 
-## Machine ID
+## Machine & Workload Identity
 
 Allows machines and services—called bot users—to communicate securely with
 resources in your infrastructure by automatically provisioning and renewing
@@ -139,15 +139,15 @@ Bot users can connect to resources in your infrastructure without relying
 on static credentials (e.g., certificates and private keys) that become more
 vulnerable to attacks the longer they remain in use.
 
-Unlike other **Teleport services**, Machine ID runs via the `tbot` binary,
-rather than the `teleport` binary.
+Unlike other **Teleport services**, Machine & Workload Identity runs via the
+`tbot` binary, rather than the `teleport` binary.
 
 ### `tbot`
 
 `tbot` is a lightweight agent designed to provision short-lived credentials to workloads and automation systems like CI/CD pipelines. 
 It enables secure machine and workload authentication without relying on long-lived secrets. This makes it ideal for infrastructure automation and Zero Trust deployments.
 
-Read more in our [Machine ID guide](machine-workload-identity/machine-id/introduction.mdx).
+Read more in our [Machine & Workload Identity documentation](./machine-workload-identity/machine-workload-identity.mdx).
 
 ## Teleport editions
 
@@ -194,7 +194,7 @@ A **configuration resource** is a document stored on the **Teleport Auth
 Service** backend that specifies settings for your **Teleport cluster**.
 Examples include **roles**, **local users**, and **authentication connectors**
 
-Read more in our [resource reference](reference/infrastructure-as-code/resources.mdx).
+Read more in our [resource reference](reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx).
 
 ### Role
 

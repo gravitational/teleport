@@ -72,6 +72,8 @@ type KubeServer interface {
 	GetTargetHealthStatus() TargetHealthStatus
 	// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
 	SetTargetHealthStatus(status TargetHealthStatus)
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
@@ -378,6 +380,11 @@ func (s *KubernetesServerV3) GetStatus() *KubernetesServerStatusV3 {
 		return nil
 	}
 	return s.Status
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *KubernetesServerV3) GetScope() string {
+	return s.Scope
 }
 
 // GetTargetHealth gets the health of a Kubernetes cluster.

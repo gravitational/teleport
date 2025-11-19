@@ -744,7 +744,7 @@ func (s *leafCluster) updateLocks(retry retryutils.Retry) {
 		if err := s.watchLocks(); err != nil {
 			switch {
 			case trace.IsNotImplemented(err):
-				s.logger.DebugContext(s.ctx, "Leaft cluster does not support locks yet", "cluster", s.domainName)
+				s.logger.DebugContext(s.ctx, "Leaf cluster does not support locks yet", "cluster", s.domainName)
 			case trace.IsConnectionProblem(err):
 				s.logger.DebugContext(s.ctx, "Leaf cluster is offline", "cluster", s.domainName)
 			default:

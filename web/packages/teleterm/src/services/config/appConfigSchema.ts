@@ -70,6 +70,10 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .describe(
         'Keeps the app running in the menu bar/system tray even when the main window is closed. On Linux, displaying the system tray icon may require installing shell extensions.'
       ),
+    tshHome: z
+      .string()
+      .default(settings.tshd.defaultHomeDir)
+      .describe('Home location for tsh configuration and data.'),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.

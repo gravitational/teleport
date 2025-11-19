@@ -206,6 +206,7 @@ const cfg = {
     loginErrorLegacy: '/web/msg/error/login_failed',
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
+    loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
     loginErrorUnauthorized: '/web/msg/error/login/auth',
     samlSloFailed: '/web/msg/error/slo',
     userInvite: '/web/invite/:tokenId',
@@ -686,8 +687,18 @@ const cfg = {
     return searchString ? `${path}?${searchString}` : path;
   },
 
-  getSsoUrl(providerUrl, providerName, redirect) {
-    return cfg.baseUrl + generatePath(providerUrl, { redirect, providerName });
+  getSsoUrl(providerUrl, providerName, redirect, loginHint) {
+    loginHint = loginHint === '' ? undefined : loginHint;
+    let basePath =
+      cfg.baseUrl +
+      generatePath(providerUrl, { redirect, providerName, loginHint });
+
+    if (!loginHint) {
+      const url = new URL(basePath);
+      url.searchParams.delete('login_hint', '');
+      basePath = url.toString();
+    }
+    return basePath;
   },
 
   getAuditRoute(clusterId: string) {
@@ -848,8 +859,36 @@ const cfg = {
     return generatePath(cfg.routes.bot, { botName });
   },
 
-  getBotInstancesRoute() {
-    return generatePath(cfg.routes.botInstances);
+  getBotInstancesRoute(
+    options?: Partial<{
+      query: string;
+      isAdvancedQuery: boolean;
+      sortField: string;
+      sortDir: 'ASC' | 'DESC';
+      selectedItemId: string;
+      activeTab: 'info' | 'health' | 'yaml';
+    }>
+  ) {
+    const search = new URLSearchParams(location.search);
+    if (options?.query) {
+      search.set('query', options.query);
+    }
+    if (options?.isAdvancedQuery) {
+      search.set('is_advanced', '1');
+    }
+    if (options?.sortField) {
+      search.set('sort_field', options.sortField);
+    }
+    if (options?.sortDir) {
+      search.set('sort_dir', options.sortDir);
+    }
+    if (options?.selectedItemId) {
+      search.set('selected', options.selectedItemId);
+    }
+    if (options?.activeTab) {
+      search.set('tab', options.activeTab);
+    }
+    return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
   },
 
   getWorkloadIdentitiesRoute() {

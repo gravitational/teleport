@@ -17,6 +17,7 @@
 package clientcache
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"slices"
@@ -35,10 +36,45 @@ import (
 type Cache struct {
 	cfg Config
 	mu  sync.RWMutex
-	// clients keeps a mapping from key (profile name and leaf cluster name) to cluster client.
-	clients map[key]*client.ClusterClient
+	// clients keeps a mapping from key (profile name and leaf cluster name) to client.
+	clients map[key]*clientWithMetadata
 	// group prevents duplicate requests to create clients for a given cluster.
 	group singleflight.Group
+}
+
+type clientWithMetadata struct {
+	client *client.ClusterClient
+	// tlsCert is the certificate that was loaded when the client was created.
+	tlsCert []byte
+	// getProfile reads the fresh profile for the client from disk.
+	getProfile func() (profile, error)
+}
+
+type profile interface {
+	// TLSCert returns the current TLS cert, stored in the agent.
+	TLSCert() ([]byte, error)
+}
+
+// isTLSCertStale checks if the cached client uses the current TLS cert
+// (read from the agent). If not, the TLS cert is considered stale.
+func (c *clientWithMetadata) isTLSCertStale() (bool, error) {
+	pr, err := c.getProfile()
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return true, nil
+		}
+		return false, trace.Wrap(err)
+	}
+
+	tlsCert, err := pr.TLSCert()
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return true, nil
+		}
+		return false, trace.Wrap(err)
+	}
+
+	return !bytes.Equal(c.tlsCert, tlsCert), nil
 }
 
 // NewClientFunc is a function that will return a new [*client.TeleportClient] for a given profile and leaf
@@ -89,7 +125,7 @@ func New(c Config) (*Cache, error) {
 
 	return &Cache{
 		cfg:     c,
-		clients: make(map[key]*client.ClusterClient),
+		clients: make(map[key]*clientWithMetadata),
 	}, nil
 }
 
@@ -100,7 +136,7 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 	groupClt, err, _ := c.group.Do(k.String(), func() (any, error) {
 		if fromCache := c.getFromCache(k); fromCache != nil {
 			c.cfg.Logger.DebugContext(ctx, "Retrieved client from cache", "cluster", k)
-			return fromCache, nil
+			return fromCache.client, nil
 		}
 
 		tc, err := c.cfg.NewClientFunc(ctx, profileName, leafClusterName)
@@ -120,8 +156,19 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 			return nil, trace.Wrap(err)
 		}
 
+		keyRing, err := tc.LocalAgent().GetCoreKeyRing()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Save the client in the cache, so we don't have to build a new connection next time.
-		c.addToCache(k, newClient)
+		c.addToCache(k, &clientWithMetadata{
+			client:  newClient,
+			tlsCert: keyRing.TLSCert,
+			getProfile: func() (profile, error) {
+				return tc.GetProfile(tc.WebProxyAddr)
+			},
+		})
 
 		c.cfg.Logger.InfoContext(ctx, "Added client to cache", "cluster", k)
 
@@ -139,8 +186,25 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 	return clt, nil
 }
 
+// ClearOption configures ClearForRoot behavior.
+type ClearOption func(*clearConfig)
+
+type clearConfig struct {
+	onlyClearClientsWithStaleCert bool
+}
+
+// WithClearingOnlyClientsWithStaleCert closes only clients that use outdated certs.
+func WithClearingOnlyClientsWithStaleCert() ClearOption {
+	return func(c *clearConfig) { c.onlyClearClientsWithStaleCert = true }
+}
+
 // ClearForRoot closes and removes clients from the cache for the root cluster and its leaf clusters.
-func (c *Cache) ClearForRoot(profileName string) error {
+func (c *Cache) ClearForRoot(profileName string, opts ...ClearOption) error {
+	cfg := &clearConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -150,13 +214,23 @@ func (c *Cache) ClearForRoot(profileName string) error {
 	)
 
 	for k, clt := range c.clients {
-		if k.profile == profileName {
-			if err := clt.Close(); err != nil {
-				errors = append(errors, err)
-			}
-			deleted = append(deleted, k.String())
-			delete(c.clients, k)
+		if k.profile != profileName {
+			continue
 		}
+		if cfg.onlyClearClientsWithStaleCert {
+			stale, err := clt.isTLSCertStale()
+			// If an error occurs, close the client as well.
+			if err != nil {
+				errors = append(errors, err)
+			} else if !stale {
+				continue
+			}
+		}
+		if err := clt.client.Close(); err != nil {
+			errors = append(errors, err)
+		}
+		deleted = append(deleted, k.String())
+		delete(c.clients, k)
 	}
 
 	c.cfg.Logger.InfoContext(context.Background(), "Invalidated cached clients for root cluster",
@@ -165,7 +239,6 @@ func (c *Cache) ClearForRoot(profileName string) error {
 	)
 
 	return trace.NewAggregate(errors...)
-
 }
 
 // Clear closes and removes all clients.
@@ -175,7 +248,7 @@ func (c *Cache) Clear() error {
 
 	var errors []error
 	for _, clt := range c.clients {
-		if err := clt.Close(); err != nil {
+		if err := clt.client.Close(); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -184,14 +257,14 @@ func (c *Cache) Clear() error {
 	return trace.NewAggregate(errors...)
 }
 
-func (c *Cache) addToCache(k key, clusterClient *client.ClusterClient) {
+func (c *Cache) addToCache(k key, clt *clientWithMetadata) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.clients[k] = clusterClient
+	c.clients[k] = clt
 }
 
-func (c *Cache) getFromCache(k key) *client.ClusterClient {
+func (c *Cache) getFromCache(k key) *clientWithMetadata {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -241,7 +314,7 @@ func (c *NoCache) Get(ctx context.Context, profileName, leafClusterName string) 
 	return newClient, nil
 }
 
-func (c *NoCache) ClearForRoot(profileName string) error {
+func (c *NoCache) ClearForRoot(profileName string, _ ...ClearOption) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
