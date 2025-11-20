@@ -43,6 +43,14 @@ export interface ClusterLifecycleEvent {
    *
    * Operations prefixed with `did-` occur after the action has already happened
    * in the main process, so they cannot prevent it.
+   *
+   * Operation meanings:
+   * * did-add-cluster - A cluster has been successfully added.
+   * * did-change-access - The logged-in user has changed, or their roles,
+   * or access requests have been updated.
+   * * will-logout - The user is about to be logged out.
+   * * will-logout-and-remove - The user is about to be logged out
+   * and their profile (cluster) will be removed.
    */
   op:
     | 'did-add-cluster'
