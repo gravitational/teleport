@@ -157,8 +157,9 @@ func (HostUserMode) EnumDescriptor() ([]byte, []int) {
 type PreconditionKind int32
 
 const (
-	// PreconditionKindUnspecified is the default value and indicates that no precondition is specified.
-	// This value should be treated as an error if encountered in required contexts.
+	// PreconditionKindUnspecified indicates that no precondition is specified and represents an uninitialized or invalid
+	// state. If a permit holds this value, access should be denied. This value should be treated as an error in any
+	// context where a specific precondition is required.
 	PreconditionKind_PRECONDITION_KIND_UNSPECIFIED PreconditionKind = 0
 	// PreconditionKindInBandMFA requires in-band MFA to be completed.
 	PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA PreconditionKind = 1
