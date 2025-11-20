@@ -215,8 +215,9 @@ message Precondition {
 
 // PreconditionKind defines the types of preconditions that can be specified.
 enum PreconditionKind {
-  // PreconditionKindUnspecified is the default value and indicates that no precondition is specified.
-  // This value should be treated as an error if encountered in required contexts.
+  // PreconditionKindUnspecified indicates that no precondition is specified and represents an uninitialized or invalid
+  // state. If a permit holds this value, access should be denied. This value should be treated as an error in any
+  // context where a specific precondition is required.
   PRECONDITION_KIND_UNSPECIFIED = 0;
   // PreconditionKindInBandMFA requires in-band MFA to be completed.
   PRECONDITION_KIND_IN_BAND_MFA = 1;
