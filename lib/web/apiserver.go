@@ -872,16 +872,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
-	// TODO (avatus): delete in v21
-	// Deprecated: Use the v2 endpoint instead.
-	//
-	// clusterSearchEvents handles audit event retrieval for a given site.
-	// This legacy endpoint returns event listings without advanced search capabilities.
-	// Prefer using /v2/webapi/sites/:site/events/search for full query-based filtering.
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents)) // search site events
-	// clusterSearchEventsV2 handles audit event retrieval for a given site with support for
-	// advanced search filters and query parameters.
-	h.GET("/v2/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEventsV2))            // search site events
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
@@ -4417,47 +4408,6 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 	return el, nil
 }
 
-// clusterSearchEventsV2 returns all audit log events matching the provided criteria
-//
-// GET /v2/webapi/sites/:site/events/search
-//
-// Query parameters:
-//
-//	"from"    : date range from, encoded as RFC3339
-//	"to"      : date range to, encoded as RFC3339
-//	"limit"   : optional maximum number of events to return on each fetch
-//	"startKey": resume events search from the last event received,
-//	            empty string means start search from beginning
-//	"include" : optional comma-separated list of event names to return e.g.
-//	            include=session.start,session.end, all are returned if empty
-//	"order":    optional ordering of events. Can be either "asc" or "desc"
-//	            for ascending and descending respectively.
-//	            If no order is provided it defaults to descending.
-//	"search":   optional search term to filter events by (case-insensitive substring match)
-func (h *Handler) clusterSearchEventsV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	values := r.URL.Query()
-
-	var eventTypes []string
-	if include := values.Get("include"); include != "" {
-		eventTypes = strings.Split(include, ",")
-	}
-
-	search := values.Get("search")
-
-	searchEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
-			From:       from,
-			To:         to,
-			EventTypes: eventTypes,
-			Limit:      limit,
-			Order:      order,
-			StartKey:   startKey,
-			Search:     search,
-		})
-	}
-	return clusterEventsList(r.Context(), sctx, cluster, r.URL.Query(), searchEvents)
-}
-
 // clusterSearchEvents returns all audit log events matching the provided criteria
 //
 // GET /v1/webapi/sites/:site/events/search
@@ -4616,7 +4566,7 @@ func QueryLimitAsInt32(query url.Values, name string, def int32) (int32, error) 
 // queryOrder returns the order parameter with the specified name from the
 // query string or a default if the parameter is not provided.
 func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
-	value := strings.ToLower(query.Get(name))
+	value := query.Get(name)
 	switch value {
 	case "desc":
 		return types.EventOrderDescending, nil
