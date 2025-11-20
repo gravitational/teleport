@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -59,6 +60,8 @@ type NewWebSessionRequest struct {
 	// LoginUserAgent is the user agent of the client's browser, as captured by
 	// the Proxy.
 	LoginUserAgent string
+	// ProxyGroupID is the proxy group id where request is generated.
+	ProxyGroupID string
 	// Roles optionally lists additional user roles
 	Roles []string
 	// Traits optionally lists role traits
@@ -342,7 +345,13 @@ func (a *Server) newWebSession(
 		IdleTimeout:         types.Duration(idleTimeout),
 		HasDeviceExtensions: hasDeviceExtensions,
 	}
+
 	UserLoginCount.Inc()
+	userLoginCountPerClient.With(prometheus.Labels{
+		tagUserAgentType: "web",
+		tagVersion:       teleport.Version,
+		tagProxyGroupID:  req.ProxyGroupID,
+	}).Inc()
 
 	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
 	if err != nil {
@@ -608,8 +617,15 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	if err = a.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	a.logger.DebugContext(ctx, "Generated application web session", "user", req.User, "ttl", req.SessionTTL)
+
 	log.Debugf("Generated application web session for %v with TTL %v.", req.User, req.SessionTTL)
 	UserLoginCount.Inc()
+	userLoginCountPerClient.With(prometheus.Labels{
+		tagUserAgentType: "web",
+		tagVersion:       teleport.Version,
+		tagProxyGroupID:  req.ProxyGroupID,
+	}).Inc()
 
 	// Extract the identity of the user from the certificate, this will include metadata from any actively assumed access requests.
 	certificate, err := tlsca.ParseCertificatePEM(session.GetTLSCert())

@@ -1392,6 +1392,9 @@ type ForwardedClientMetadata struct {
 	// either from a direct client connection, or from a PROXY protocol header
 	// if the connection is forwarded through a load balancer.
 	RemoteAddr string `json:"remote_addr,omitempty"`
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string `json:"proxy_group_id,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults

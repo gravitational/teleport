@@ -177,6 +177,16 @@ const (
 	accessListsPageReadInterval   = 5 * time.Millisecond
 )
 
+const (
+	// tagUserAgentType is a prometheus label for identifying user agent type
+	// of Teleport client (e.g. web or api).
+	tagUserAgentType = "user_agent_type"
+	// tagProxyGroupID is a prometheus label for identifying the proxy group ID.
+	tagProxyGroupID = "proxy_group_id"
+	// tagVersion is a prometheus label for version of Teleport built.
+	tagVersion = "version"
+)
+
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
@@ -862,6 +872,19 @@ var (
 			Help: "Number of times there was a user login",
 		},
 	)
+	userLoginCountPerClient = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:      "user_login_per_client",
+			Namespace: teleport.MetricNamespace,
+			Help: "The number of successful user authentications by client tool (tsh, tctl, etc.), client tool version, " +
+				"and proxy that handled the request. The metric is reset hourly. ",
+		},
+		[]string{
+			tagUserAgentType,
+			tagProxyGroupID,
+			tagVersion,
+		},
+	)
 
 	heartbeatsMissedByAuth = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -969,7 +992,7 @@ var (
 
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
-		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, userLoginCountPerClient, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
@@ -1474,6 +1497,7 @@ const (
 	autoUpdateAgentReportKey
 	autoUpdateBotInstanceReportKey
 	autoUpdateBotInstanceMetricsKey
+	hourlyCleanUpKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1526,6 +1550,12 @@ func (a *Server) runPeriodicOperations() {
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           accessListReminderNotificationsKey,
 			Duration:      8 * time.Hour,
+			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           hourlyCleanUpKey,
+			Duration:      time.Hour,
 			FirstDuration: retryutils.FullJitter(time.Hour),
 			Jitter:        retryutils.SeventhJitter,
 		},
@@ -1711,6 +1741,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.BotInstanceVersionReporter.Report(a.closeCtx)
 			case autoUpdateBotInstanceMetricsKey:
 				go a.updateBotInstanceMetrics()
+			case hourlyCleanUpKey:
+				userLoginCountPerClient.Reset()
 			}
 		}
 	}

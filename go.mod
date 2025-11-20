@@ -133,7 +133,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/grafana/pyroscope-go v1.2.4
 	github.com/gravitational/license v0.0.0-20240313232707-8312e719d624
-	github.com/gravitational/roundtrip v1.0.2
+	github.com/gravitational/roundtrip v1.0.3
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.5.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
