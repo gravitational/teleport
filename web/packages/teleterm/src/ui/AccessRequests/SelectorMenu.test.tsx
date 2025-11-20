@@ -40,10 +40,23 @@ test('assuming or dropping a request calls API', async () => {
   const accessRequest = makeAccessRequest();
   const cluster = makeRootCluster({
     features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
-    loggedInUser: makeLoggedInUser({ activeRequests: [accessRequest.id] }),
   });
   appContext.addRootCluster(cluster);
   jest.spyOn(appContext.clustersService, 'dropRoles');
+  jest
+    .spyOn(appContext.clustersService, 'assumeRoles')
+    .mockImplementation(async () => {
+      appContext.clustersService.setState(state => {
+        state.clusters.get(cluster.uri).loggedInUser.activeRequests = [
+          accessRequest.id,
+        ];
+      });
+    });
+  appContext.tshd.getAccessRequests = () => {
+    return new MockedUnaryCall({
+      requests: [accessRequest],
+    });
+  };
   appContext.tshd.getAccessRequest = () => {
     return new MockedUnaryCall({
       request: accessRequest,
@@ -66,6 +79,13 @@ test('assuming or dropping a request calls API', async () => {
   await userEvent.click(accessRequestsMenu);
 
   const item = await screen.findByText(accessRequest.resources.at(0).id.name);
+  await userEvent.click(item);
+  expect(appContext.clustersService.assumeRoles).toHaveBeenCalledTimes(1);
+  expect(appContext.clustersService.assumeRoles).toHaveBeenCalledWith(
+    cluster.uri,
+    [accessRequest.id]
+  );
+  expect(await screen.findByText(/access assumed/i)).toBeInTheDocument();
   await userEvent.click(item);
   expect(appContext.clustersService.dropRoles).toHaveBeenCalledTimes(1);
   expect(appContext.clustersService.dropRoles).toHaveBeenCalledWith(
