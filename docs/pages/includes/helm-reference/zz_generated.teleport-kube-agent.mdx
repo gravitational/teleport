@@ -236,7 +236,7 @@ to match your cluster domain if it is different from the default value `cluster.
 `awsDatabases` configures AWS database auto-discovery.
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-aws-databases/rds.mdx#step-36-create-iam-policies-for-teleport).
+  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx#step-36-create-iam-policies-for-teleport).
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
   ```yaml
