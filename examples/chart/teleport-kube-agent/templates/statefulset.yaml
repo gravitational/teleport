@@ -38,6 +38,7 @@ spec:
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
     spec:
+      automountServiceAccountToken: true
       {{- if .Values.dnsConfig }}
       dnsConfig: {{- toYaml .Values.dnsConfig | nindent 8 }}
       {{- end }}
