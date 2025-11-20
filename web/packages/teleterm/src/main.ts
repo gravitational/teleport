@@ -129,7 +129,8 @@ async function initializeApp(): Promise<void> {
   });
 
   // TODO(gzdunek): DELETE IN 20.0.0. Users should already migrate to the new location.
-  // Also remove TshHomeMigrationBanner component and relevant properties from app_state.json.
+  // Also remove TshHomeMigrationBanner component, relevant properties from app_state.json,
+  // and address the TODO in teleport-connect.mdx > ##Troubleshooting.
   await migrateOldTshHomeOnce(logger, tshHome, appStateFileStorage);
 
   let mainProcess: MainProcess;
