@@ -273,10 +273,13 @@ enum MessageType {
   MESSAGE_TYPE_MFA = 11;
   MESSAGE_TYPE_SHARED_DIRECTORY_REQUEST = 12;
   MESSAGE_TYPE_SHARED_DIRECTORY_RESPONSE = 13;
-  MESSAGE_TYPE_LATENCY_STATS = 14;
-  MESSAGE_TYPE_PING = 15;
-  MESSAGE_TYPE_CLIENT_HELLO = 16;
-  MESSAGE_TYPE_SERVER_HELLO = 17;
+  MESSAGE_TYPE_SHARED_DIRECTORY_ANNOUNCE = 14;
+  MESSAGE_TYPE_SHARED_DIRECTORY_ACKNOWLEDGE = 15;
+  MESSAGE_TYPE_LATENCY_STATS = 16;
+  MESSAGE_TYPE_PING = 17;
+  MESSAGE_TYPE_CLIENT_HELLO = 18;
+  MESSAGE_TYPE_SERVER_HELLO = 19;
+  MESSAGE_TYPE_CLIENT_SCREEN_SPEC = 20;
 }
 
 // Sent by client to begin a TDPB connection and advertise capabilities.
@@ -316,7 +319,7 @@ message FastPathPDU {
   bytes pdu = 1;
 }
 
-// Contains a a raw RDP response PDU to send be interpreted by the server.
+// Contains a raw RDP response PDU to be interpreted by the server.
 message RDPResponsePDU {
   option (tdp_type_option) = MESSAGE_TYPE_RDP_RESPONSE_PDU;
   bytes response = 1;
@@ -370,7 +373,11 @@ message KeyboardButton {
 }
 
 // Composed in Client Hello to inform the server of the client's screen size.
+// May also be sent during a desktop session as the client resizes its display.
+// These messages are captured for session recordings in order to replay
+// resizing events.
 message ClientScreenSpec {
+  option (tdp_type_option) = MESSAGE_TYPE_CLIENT_SCREEN_SPEC;
   uint32 width = 1;
   uint32 height = 2;
 }
@@ -427,6 +434,20 @@ message MFA {
   proto.MFAAuthenticateResponse authentication_response = 3;
 }
 
+// Sent by client to announce a new shared directory.
+message SharedDirectoryAnnounce {
+  option (tdp_type_option) = MESSAGE_TYPE_SHARED_DIRECTORY_ANNOUNCE;
+  uint32 directory_id = 1;
+  string name = 2;
+}
+
+// Sent by server to acknowledge a new shared directory.
+message SharedDirectoryAcknowledge {
+  option (tdp_type_option) = MESSAGE_TYPE_SHARED_DIRECTORY_ACKNOWLEDGE;
+  uint32 directory_id = 1;
+  uint32 error_code = 2;
+}
+
 // Represents an operation on a shared directory.
 enum DirectoryOperation {
   DIRECTORY_OPERATION_UNSPECIFIED = 0;
@@ -466,7 +487,7 @@ message SharedDirectoryRequest {
   uint32 end_of_file = 8;
   // Data to be written in WRITE requests.
   bytes data = 10;
-  // Defines the shared directory name in 
+  // Defines the shared directory name in
   // ANNOUNCE operations.
   string name = 11;
 }
@@ -479,6 +500,21 @@ message FileSystemObject {
   bool is_empty = 4;
   string path = 5;
 }
+
+// Contains data necessary for responses to shared directory operations.
+// Not all operation types make use of all fields.
+message SharedDirectoryResponse {
+  option (tdp_type_option) = MESSAGE_TYPE_SHARED_DIRECTORY_RESPONSE;
+  // Common response fields
+  uint32 completion_id = 1;
+  uint32 error_code = 2;
+  // Returned FileSystemObject(s) for INFO and LIST responses.
+  repeated FileSystemObject fso_list = 3;
+  // Data returned in READ responses.
+  bytes data = 4;
+}
+
+
 
 // Contains latency metrics between the proxy and RDP host
 // as well as between the proxy and client.
