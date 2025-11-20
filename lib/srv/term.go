@@ -38,8 +38,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
 
@@ -120,7 +118,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if ctx.srv.Component() == teleport.ComponentForwardingNode {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -369,11 +367,11 @@ func (t *terminal) closeTTY() error {
 func (t *terminal) closePTY() {
 	defer t.log.DebugContext(t.serverContext.CancelContext(), "Closed PTY")
 
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	if t.pty == nil {
 		return

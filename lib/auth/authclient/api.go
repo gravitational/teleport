@@ -161,6 +161,9 @@ type NodeAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -363,6 +366,9 @@ type ProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadRelayAccessPoint is a read only API interface to be used by a Relay
@@ -390,6 +396,8 @@ type ReadRelayAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+
+	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 }
 
 // ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -470,6 +478,15 @@ type ReadRemoteProxyAccessPoint interface {
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
+// RelayAccessPoint is the top-level access point interface required by a Relay service.
+type RelayAccessPoint interface {
+	// ReadRelayAccessPoint provides methods to read data
+	ReadRelayAccessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
+}
+
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentProxy.
 type RemoteProxyAccessPoint interface {
@@ -478,6 +495,11 @@ type RemoteProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	// TODO(fspmarshall/scopes): remove the need for this. this is only here to satisfy the common
+	// interface used by lib/srv components. scoped access is not support for cross-cluster operations.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadKubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -1424,6 +1446,12 @@ func NewNodeWrapper(base NodeAccessPoint, cache ReadNodeAccessPoint) NodeAccessP
 	}
 }
 
+func (w *NodeWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on node agents.
+	return w.NoCache.ScopedRoleReader()
+}
+
 // Close closes all associated resources
 func (w *NodeWrapper) Close() error {
 	err := w.NoCache.Close()
@@ -1445,10 +1473,43 @@ func NewProxyWrapper(base ProxyAccessPoint, cache ReadProxyAccessPoint) ProxyAcc
 	}
 }
 
+func (w *ProxyWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on proxies.
+	return w.NoCache.ScopedRoleReader()
+}
+
 // Close closes all associated resources
 func (w *ProxyWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadProxyAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+// RelayWrapper is a wrapper around a RelayAccessPoint that manages delegation
+// of read and write operations between a cached and non-cached access point.
+type RelayWrapper struct {
+	ReadRelayAccessPoint
+	NoCache RelayAccessPoint
+}
+
+// NewRelayWrapper creates a new RelayWrapper from the provided cache and upstream.
+func NewRelayWrapper(base RelayAccessPoint, cache ReadRelayAccessPoint) RelayAccessPoint {
+	return &RelayWrapper{
+		NoCache:              base,
+		ReadRelayAccessPoint: cache,
+	}
+}
+
+// ScopedRoleReader returns the scoped role reader from the non-cached access point.
+func (w *RelayWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	return w.NoCache.ScopedRoleReader()
+}
+
+// Close closes all associated resources
+func (w *RelayWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadRelayAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 
@@ -1464,6 +1525,10 @@ func NewRemoteProxyWrapper(base RemoteProxyAccessPoint, cache ReadRemoteProxyAcc
 		accessPoint:                base,
 		ReadRemoteProxyAccessPoint: cache,
 	}
+}
+
+func (w *RemoteProxyWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources

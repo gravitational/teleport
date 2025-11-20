@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
@@ -1507,7 +1508,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 
 	var dialOpts []grpc.DialOption
 	if role == types.RoleProxy {
-		grpcMetrics := metrics.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
+		grpcMetrics := grpcmetrics.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
 		if err := metrics.RegisterPrometheusCollectors(grpcMetrics); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
