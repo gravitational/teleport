@@ -121,9 +121,12 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsAzureDevops {
 
 // CheckIDTokenParams are parameters used to validate Azure Devops OIDC tokens.
 type CheckIDTokenParams struct {
+	// ProvisionToken is the Teleport provision token used for the join request.
 	ProvisionToken *types.ProvisionTokenV2
-	IDToken        string
-	Validator      Validator
+	// IDToken is the Azure Devops OIDC token presented by the joining client.
+	IDToken string
+	// Validator is a validator for Azure Devops OIDC tokens.
+	Validator Validator
 }
 
 func (p *CheckIDTokenParams) check() error {
