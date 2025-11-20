@@ -77,7 +77,7 @@ func (s *Server) handleAzureJoin(
 		return nil, trace.BadParameter("Azure join method only supports ProvisionTokenV2, got %T", token)
 	}
 
-	// Verify the client's idenitty and make sure it matches an allow rule in the provision token.
+	// Verify the client's identity and make sure it matches an allow rule in the provision token.
 	claims, err := azurejoin.CheckAzureRequest(stream.Context(), azurejoin.CheckAzureRequestParams{
 		AzureJoinConfig: s.cfg.AuthService.GetAzureJoinConfig(),
 		Token:           ptv2,
