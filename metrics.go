@@ -105,11 +105,18 @@ const (
 	// MetricUpgraderCounts provides instance count per-upgrader.
 	MetricUpgraderCounts = "upgrader_counts"
 
+	// MetricBinaryUpgraderCounts provides instance count per-binary-upgrader with additional
+	// status and error code information.
+	MetricBinaryUpgraderCounts = "binary_upgrader_counts"
+
 	// TagUpgrader is a metric tag for upgraders.
 	TagUpgrader = "upgrader"
 
 	// TagUpgraderStatus is propagated status from the upgrader.
 	TagUpgraderStatus = "status"
+
+	// TagUpgraderErrorCode is a metric tag for exposing error code during update process.
+	TagUpgraderErrorCode = "error_code"
 
 	// MetricsAccessRequestsCreated provides total number of created access requests.
 	MetricAccessRequestsCreated = "access_requests_created"

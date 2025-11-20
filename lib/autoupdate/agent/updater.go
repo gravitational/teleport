@@ -332,21 +332,6 @@ type Installer interface {
 	IsLinked(ctx context.Context, rev Revision, pathDir string) (bool, error)
 }
 
-var (
-	// ErrLinked is returned when a linked version cannot be operated on.
-	ErrLinked = errors.New("version is linked")
-	// ErrNotSupported is returned when the operation is not supported on the platform.
-	ErrNotSupported = errors.New("not supported on this platform")
-	// ErrNotAvailable is returned when the operation is not available at the current version of the platform.
-	ErrNotAvailable = errors.New("not available at this version")
-	// ErrNoBinaries is returned when no binaries are available to be linked.
-	ErrNoBinaries = errors.New("no binaries available to link")
-	// ErrFilePresent is returned when a file is present.
-	ErrFilePresent = errors.New("file present")
-	// ErrNotInstalled is returned when Teleport is not installed.
-	ErrNotInstalled = errors.New("not installed")
-)
-
 // Process provides an API for interacting with a running Teleport process.
 type Process interface {
 	// Name of the process.
@@ -943,6 +928,20 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	if updateErr == nil {
 		cfg.Status.LastUpdate.Success = true
 	}
+
+	if _, err := u.TeleportProcess.IsActive(ctx); errors.Is(err, ErrNotSupported) {
+		cfg.Status.LastUpdate.ErrorCode |= ErrorCodeSystemdNotInstalled
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch {
+	case errors.Is(updateErr, ErrNoSpaceLeft):
+		cfg.Status.LastUpdate.ErrorCode |= ErrorCodeNoSpaceLeft
+	case errors.Is(updateErr, ErrSystemdReload):
+		cfg.Status.LastUpdate.ErrorCode |= ErrorCodeSystemdReload
+	}
+
 	writeErr := writeConfig(u.UpdateConfigFile, cfg)
 	if writeErr != nil {
 		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)

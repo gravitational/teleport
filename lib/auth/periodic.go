@@ -21,6 +21,7 @@ package auth
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
@@ -123,6 +124,8 @@ type instanceMetadata struct {
 	upgraderVersion string
 	// upgraderStatus is status from the upgrader.
 	upgraderStatus string
+	// errorCode is status from the upgrader that show any errors during last update period.
+	errorCode string
 }
 
 func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
@@ -140,9 +143,10 @@ func (i *instanceMetricsPeriodic) VisitInstance(instance *proto.UpstreamInventor
 		installMethod = strings.Join(installMethods, ",")
 	}
 
-	var upgraderStatus string
+	var upgraderStatus, errorStatus string
 	if instance.GetUpdaterInfo() != nil {
 		upgraderStatus = instance.GetUpdaterInfo().UpdaterStatus.String()
+		errorStatus = strconv.FormatInt(int64(instance.GetUpdaterInfo().ErrorCode), 10)
 	}
 	iMetadata := instanceMetadata{
 		os:              metadata.GetOS(),
@@ -151,6 +155,7 @@ func (i *instanceMetricsPeriodic) VisitInstance(instance *proto.UpstreamInventor
 		upgraderType:    instance.GetExternalUpgrader(),
 		upgraderVersion: instance.GetExternalUpgraderVersion(),
 		upgraderStatus:  upgraderStatus,
+		errorCode:       errorStatus,
 	}
 	i.metadata = append(i.metadata, iMetadata)
 }
@@ -193,6 +198,7 @@ type upgrader struct {
 	upgraderType string
 	version      string
 	status       string
+	errorCode    string
 }
 
 // UpgraderCounts returns the count for the different upgrader version and type combinations.
@@ -208,6 +214,7 @@ func (i *instanceMetricsPeriodic) UpgraderCounts() map[upgrader]int {
 			upgraderType: metadata.upgraderType,
 			version:      metadata.upgraderVersion,
 			status:       metadata.upgraderStatus,
+			errorCode:    metadata.errorCode,
 		}
 		result[upgrader]++
 	}

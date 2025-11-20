@@ -860,6 +860,8 @@ message UpdaterV2Info {
   // should be aware of. For example, the fact the updater got disabled, the version pinned,
   // or that the updater seems to not be running.
   UpdaterStatus UpdaterStatus = 3;
+  // ErrorCode represent the last update error information to be able track update state.
+  uint32 ErrorCode = 4;
 }
 
 enum UpdaterStatus {

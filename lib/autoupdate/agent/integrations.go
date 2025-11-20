@@ -205,6 +205,9 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 	default:
 		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_OK
 	}
+
+	info.ErrorCode = uint32(cfg.Status.LastUpdate.ErrorCode)
+
 	return info, nil
 }
 

@@ -119,12 +119,12 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
 		switch {
 		case code < 0:
-			return trace.Errorf("unable to reload systemd service")
+			return trace.Wrap(ErrSystemdReload, "unable to reload systemd service")
 		case code > 0:
 			// Graceful reload fails, try hard restart.
 			code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
 			if code != 0 {
-				return trace.Errorf("hard restart of systemd service failed")
+				return trace.Wrap(ErrSystemdReload, "hard restart of systemd service failed")
 			}
 			s.Log.WarnContext(ctx, "Service ungracefully restarted. Connections potentially dropped.", unitKey, s.ServiceName)
 		default:
@@ -133,7 +133,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	} else {
 		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
 		if code != 0 {
-			return trace.Errorf("hard restart of systemd service failed")
+			return trace.Wrap(ErrSystemdReload, "hard restart of systemd service failed")
 		}
 	}
 
