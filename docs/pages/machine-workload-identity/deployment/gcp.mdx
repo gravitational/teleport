@@ -1,51 +1,47 @@
 ---
-title: Deploying tbot on GCP
-description: How to install and configure the Machine & Workload Identity agent, `tbot`, on a GCP VM
-sidebar_label: GCP VM
+title: Deploying tbot on Azure
+description: How to install and configure Machine ID on an Azure VM
 tags:
  - how-to
  - mwi
  - infrastructure-identity
- - google-cloud
+ - azure
 ---
 
-This guide explains how to deploy the Machine & Workload Identity agent, `tbot`,
-on a Google Cloud Platform GCE instance and connect it to your Teleport cluster.
+In this guide, you will install Machine ID's agent, `tbot` on an Azure VM. The
+bot will be configured to use the `azure` delegated joining method to
+authenticate to your Teleport cluster. This eliminates the need for long-lived
+secrets.
 
 ## How it works
 
-On GCP, virtual machines can be assigned a service account. These machines can
-then request a signed JSON web token from GCP, which allows third parties to
-verify information about them, including their service accounts, using the GCP
-public key. The Teleport `gcp` join method instructs `tbot` to use this service
-account JWT to prove its identity to the Teleport Auth Service and join your
-Teleport cluster without using long-lived secrets.
+On the Azure platform, virtual machines can be assigned a managed identity. The
+Azure platform will then make available to the virtual machine an attested
+data document and JWT that allows the virtual machine to act as this identity.
+This identity can be validated by a third party by attempting to use this token
+to fetch its own identity from the Azure identity service.
 
-Whilst the guide on this page focuses explicitly on deploying `tbot` on a GCP
-Virtual Machine, it is also possible to use the `gcp` join method with workloads
-running on Google Kubernetes Engine. To do so, you must configure
-[GCP Workload
-Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
-for the cluster and the Kubernetes service account that will be used by the
-`tbot` pod. See the [Kubernetes platform guide](kubernetes.mdx) for further
-guidance on deploying `tbot` as a workload on Kubernetes.
+The `azure` join method instructs the bot to use this attested data document and
+JWT to prove its identity to the Teleport Auth Service. This allows joining to
+occur without the use of a long-lived secret.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A GCP service account you wish to grant access to your Teleport cluster that
-  is not the GCP compute default service account.
-- A GCP Compute Engine VM that you wish to install `tbot` onto that has been
-  configured with the GCP service account.
+- An Azure managed identity with a role granting the
+  `Microsoft.Compute/virtualMachines/read` permission. You will need to know
+  the UID of this identity.
+- An Azure VM you wish to install Machine ID onto with the managed identity
+  configured as a user-assigned managed identity.
 
 ## Step 1/5. Install `tbot`
 
-**This step is completed on the GCP VM.**
+**This step is completed on the Azure VM.**
 
-First, `tbot` needs to be installed on the VM that you wish to use Machine &
-Workload Identity on.
+First, `tbot` needs to be installed on the VM that you wish to use Machine ID
+on.
 
 Download and install the appropriate Teleport package for your platform:
 
@@ -73,26 +69,24 @@ spec:
   roles: [Bot]
   # bot_name should match the name of the bot created earlier in this guide.
   bot_name: example
-  join_method: gcp
-  gcp:
-    # allow specifies the rules by which the Auth Service determines if `tbot`
-    # should be allowed to join.
+  join_method: azure
+  azure:
     allow:
-    - project_ids:
-        - my-project-123456
-      service_accounts:
-        # This should be the full "name" of a GCP service account. The default
-        # compute service account is not supported.
-        - my-service-account@my-project-123456.iam.gserviceaccount.com
+      # subscription should be the UID of an Azure subscription. Only VMs within
+      # this subscription will be able to join.
+    - subscription: 11111111-1111-1111-1111-111111111111
+      # resource_groups allows joining to be restricted to VMs in a specific
+      # resource group. It can be omitted to allow joining from any VM within
+      # a subscription.
+      resource_groups: ["group1"]
 ```
 
 Replace:
 
-- `my-project-123456` with the ID of your GCP project
-- `example` with the name of the bot you created in the second step.
-- `my-service-account@my-project-123456.iam.gserviceaccount.com` with the email
-  of the service account configured in the previous step. The default compute
-  service account is not supported.
+- `11111111-1111-1111-1111-111111111111` with the UID of your Azure subscription
+- `example` with the name of the bot you created in the second step
+- `group1` with the name of the resource group that the VM resides within or
+  omit this entirely to allow joining from any VM within the subscription
 
 Use `tctl` to apply this file:
 
@@ -102,7 +96,7 @@ $ tctl create -f bot-token.yaml
 
 ## Step 4/5. Configure `tbot`
 
-**This step is completed on the GCP VM.**
+**This step is completed on the Azure VM.**
 
 Create `/etc/tbot.yaml`:
 
@@ -110,8 +104,10 @@ Create `/etc/tbot.yaml`:
 version: v2
 proxy_server: example.teleport.sh:443
 onboarding:
-  join_method: gcp
+  join_method: azure
   token: example-bot
+  azure :
+    client_id: 22222222-2222-2222-2222-222222222222
 storage:
   type: memory
 # services will be filled in during the completion of an access guide.
@@ -122,6 +118,8 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
+- `22222222-2222-2222-2222-222222222222` with the ID of the Azure managed
+  identity that has been assigned to the VM.
 - `example-bot` with the name of the token you created in the second step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
@@ -130,10 +128,59 @@ Replace:
 
 (!docs/pages/includes/machine-id/configure-services.mdx!)
 
+## Step 6/6. Verify that tbot is running correctly
+
+Once the configuration file and services are in place, verify that your tbot
+instance successfully joined the cluster and is issuing credentials.
+
+Run the following command on the Azure VM:
+
+```code
+$ sudo tbot status
+```
+
+If tbot is running correctly, you'll see output similar to:
+
+```code
+
+BOT STATUS
+Joined via: azure
+Auth server: example.teleport.sh:443
+Last renewal: 2025-03-10T15:05:22Z
+Next renewal: 2025-03-10T16:05:22Z
+Certificate destination: /var/lib/tbot/destinations/default
+```
+
+To further confirm that credentials are valid, list the generated identity files:
+
+```code
+$ ls /var/lib/tbot/destinations/default
+```
+
+You should see key and certificate files (`key`, `cert`, and `ca.pem`) that
+your workloads can use to authenticate through Teleport.
+
+If you're using Workload Identity or SPIFFE, you can also run `spiffe-inspect` and see similar output:
+
+```code
+$ tbot spiffe-inspect
+
+INFO [TBOT] Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/workload.sock
+INFO [TBOT] Received X.509 SVID context from Workload API bundles_count:1 svids_count:1
+SVIDS
+- spiffe://example.teleport.sh/svc/foo
+  - Expiry: 2025-03-20 10:55:52 +0000 UTC
+Trust Bundles
+- example.teleport.sh
+```
+
+This confirms that your bot successfully authenticated using Azure managed
+identity and can issue short-lived credentials for your workloads.
+
 ## Next steps
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-workload-identity/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-workload-identity/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/telemetry.mdx)
