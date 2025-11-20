@@ -211,6 +211,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			nodeCfg.SSH.Enabled = true
 			nodeCfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 			nodeCfg.SSH.Labels = map[string]string{"foo": "bar"}
+			nodeCfg.DebugService.Enabled = false
 
 			err = node.CreateWithConf(t, nodeCfg)
 			require.NoError(t, err)
