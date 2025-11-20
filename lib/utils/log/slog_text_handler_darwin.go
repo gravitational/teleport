@@ -27,7 +27,6 @@ import (
 
 // NewSlogOSLogHandler creates a SlogTextHandler that writes messages to os_log as subsystem.
 func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler, error) {
-	w := newOSLogWriter(subsystem)
 	handler := SlogTextHandler{
 		cfg: SlogTextHandlerConfig{
 			Level: level,
@@ -37,7 +36,7 @@ func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler
 			// timestamp fields in the message. os_log has dedicated handling for this kind of metadata.
 			ConfiguredFields: []string{CallerField},
 		},
-		out:        w,
+		out:        newOSLogWriter(subsystem),
 		withCaller: true,
 	}
 
