@@ -1,5 +1,23 @@
 # Changelog
 
+## 18.4.1 (11/20/25)
+
+* Fixed a bug that prevented searching audit log events in the web UI when using Athena audit storage. [#61603](https://github.com/gravitational/teleport/pull/61603)
+* Prevented Trivy from reporting false positives when scanning the Teleport binaries. [#61539](https://github.com/gravitational/teleport/pull/61539)
+* Added support for `tsh logout --proxy` (or `TELEPORT_PROXY` set) to work without `--user` flag when one identity exists. [#61404](https://github.com/gravitational/teleport/pull/61404)
+* Fixed web upload/download failure behind load balancers when web listen address is unspecified. [#61393](https://github.com/gravitational/teleport/pull/61393)
+* Fixed corrupted private keys breaking tsh. [#61388](https://github.com/gravitational/teleport/pull/61388)
+* Resource names are now properly validated for AWS Roles Anywhere integration `Generate Command`. [#61385](https://github.com/gravitational/teleport/pull/61385)
+* Added caches to reduce Active Directory user SID lookups and TLS certificate requests. [#61317](https://github.com/gravitational/teleport/pull/61317)
+* GOAWAY errors received from Kubernetes API Servers configured with a non-zero --goaway-chance are now forward to clients to be retried. [#61256](https://github.com/gravitational/teleport/pull/61256)
+* Added support for creating and managing scoped tokens using `tctl scoped tokens add/ls/rm`. SSH nodes can now join a cluster within a particular scope by joining with a scoped token. [#60758](https://github.com/gravitational/teleport/pull/60758)
+
+Enterprise:
+* Removed sync of the model identifier from Intune to avoid mismatches between the identifier reported by Intune vs Teleport clients.
+* Added support for Jamf's /v2/computers-inventory API (addresses Jamf's deprecation of /v1/computers-inventory).
+* Updated the AWS Identity Center resource synchronizer to handle AWS Account name changes more gracefully.
+* Added audit events in response to SCIM provisioning requests.
+
 ## 18.4.0 (11/13/25)
 
 ### Streamable-HTTP and SSE support for MCP Zero-Trust Access
