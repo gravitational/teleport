@@ -1,7 +1,6 @@
 ---
 title: Deploying tbot on Azure
-description: How to install and configure the Machine & Workload Identity agent, `tbot`, on an Azure VM
-sidebar_label: Azure VM
+description: How to install and configure Machine ID on an Azure VM
 tags:
  - how-to
  - mwi
@@ -9,10 +8,10 @@ tags:
  - azure
 ---
 
-In this guide, you will install Machine & Workload Identity's agent, `tbot`, on
-an Azure VM. The bot will be configured to use the `azure` delegated joining
-method to authenticate to your Teleport cluster. This eliminates the need for
-long-lived secrets.
+In this guide, you will install Machine ID's agent, `tbot` on an Azure VM. The
+bot will be configured to use the `azure` delegated joining method to
+authenticate to your Teleport cluster. This eliminates the need for long-lived
+secrets.
 
 ## How it works
 
@@ -34,15 +33,15 @@ occur without the use of a long-lived secret.
 - An Azure managed identity with a role granting the
   `Microsoft.Compute/virtualMachines/read` permission. You will need to know
   the UID of this identity.
-- An Azure VM you wish to install Machine & Workload Identity onto with the
-  managed identity configured as a user-assigned managed identity.
+- An Azure VM you wish to install Machine ID onto with the managed identity
+  configured as a user-assigned managed identity.
 
 ## Step 1/5. Install `tbot`
 
 **This step is completed on the Azure VM.**
 
-First, `tbot` needs to be installed on the VM that you wish to use Machine &
-Workload Identity on.
+First, `tbot` needs to be installed on the VM that you wish to use Machine ID
+on.
 
 Download and install the appropriate Teleport package for your platform:
 
@@ -129,10 +128,59 @@ Replace:
 
 (!docs/pages/includes/machine-id/configure-services.mdx!)
 
+## Step 6/6. Verify that tbot is running correctly
+
+Once the configuration file and services are in place, verify that your tbot
+instance successfully joined the cluster and is issuing credentials.
+
+Run the following command on the Azure VM:
+
+```code
+$ sudo tbot status
+```
+
+If tbot is running correctly, you'll see output similar to:
+
+```code
+
+BOT STATUS
+Joined via: azure
+Auth server: example.teleport.sh:443
+Last renewal: 2025-03-10T15:05:22Z
+Next renewal: 2025-03-10T16:05:22Z
+Certificate destination: /var/lib/tbot/destinations/default
+```
+
+To further confirm that credentials are valid, list the generated identity files:
+
+```code
+$ ls /var/lib/tbot/destinations/default
+```
+
+You should see key and certificate files (`key`, `cert`, and `ca.pem`) that
+your workloads can use to authenticate through Teleport.
+
+If you're using Workload Identity or SPIFFE, you can also run `spiffe-inspect` and see similar output:
+
+```code
+$ tbot spiffe-inspect
+
+INFO [TBOT] Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/workload.sock
+INFO [TBOT] Received X.509 SVID context from Workload API bundles_count:1 svids_count:1
+SVIDS
+- spiffe://example.teleport.sh/svc/foo
+  - Expiry: 2025-03-20 10:55:52 +0000 UTC
+Trust Bundles
+- example.teleport.sh
+```
+
+This confirms that your bot successfully authenticated using Azure managed
+identity and can issue short-lived credentials for your workloads.
+
 ## Next steps
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-workload-identity/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-workload-identity/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/telemetry.mdx)
