@@ -308,6 +308,8 @@ type IntegrationConfAccessGraphAWSSync struct {
 	CloudTrailBucketARN string
 	// KMSKeyARNs is the ARN of the KMS key to use for decrypting the Identity Security Activity Center data.
 	KMSKeyARNs []string
+	// EnableEKSAuditLogs enables collection of EKS audit logs from CloudWatch logs.
+	EnableEKSAuditLogs bool
 }
 
 // IntegrationConfAccessGraphAzureSync contains the arguments of
@@ -1531,11 +1533,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
-func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
-	// Explicit proxy address.
-	if installParams != nil && installParams.PublicProxyAddr != "" {
-		return installParams.PublicProxyAddr
-	}
+func getInstallerProxyAddr(fc *FileConfig) string {
 	// Proxy address from config.
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
@@ -1555,11 +1553,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
+
+	defaultProxyAddr := getInstallerProxyAddr(fc)
+
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		var err error
 		var installParams *types.InstallerParams
 		if matcher.InstallParams != nil {
-			installParams, err = matcher.InstallParams.parse()
+			installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1603,23 +1604,27 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		var installerParams *types.InstallerParams
+		var installParams *types.InstallerParams
+		var err error
 		if slices.Contains(matcher.Types, types.AzureMatcherVM) {
-			installerParams = &types.InstallerParams{
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
-			}
-			if matcher.InstallParams != nil {
-				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
-				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
-				installerParams.ScriptName = matcher.InstallParams.ScriptName
-				installerParams.Suffix = matcher.InstallParams.Suffix
-				installerParams.UpdateGroup = matcher.InstallParams.UpdateGroup
-				if matcher.InstallParams.Azure != nil {
-					installerParams.Azure = &types.AzureInstallerParams{
-						ClientID: matcher.InstallParams.Azure.ClientID,
-					}
+			// Backwards compatibility for Azure VM matcher:
+			// If install_teleport param is not set, default to false.
+			if matcher.InstallParams == nil {
+				installParams = &types.InstallerParams{
+					PublicProxyAddr: defaultProxyAddr,
 				}
 			}
+
+			if matcher.InstallParams != nil {
+				installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if matcher.InstallParams.InstallTeleport == "" {
+					installParams.InstallTeleport = false
+				}
+			}
+
 		}
 
 		serviceMatcher := types.AzureMatcher{
@@ -1628,7 +1633,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Types:          matcher.Types,
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
-			Params:         installerParams,
+			Params:         installParams,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1638,17 +1643,24 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
-		var installerParams *types.InstallerParams
-		if slices.Contains(matcher.Types, types.GCPMatcherCompute) {
-			installerParams = &types.InstallerParams{
-				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+		var installParams *types.InstallerParams
+		var err error
+		if slices.Contains(matcher.Types, types.GCPMatcherCompute) { // Backwards compatibility for GCP VM matcher:
+			// If install_teleport param is not set, default to false.
+			if matcher.InstallParams == nil {
+				installParams = &types.InstallerParams{
+					PublicProxyAddr: defaultProxyAddr,
+				}
 			}
+
 			if matcher.InstallParams != nil {
-				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
-				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
-				installerParams.ScriptName = matcher.InstallParams.ScriptName
-				installerParams.Suffix = matcher.InstallParams.Suffix
-				installerParams.UpdateGroup = matcher.InstallParams.UpdateGroup
+				installParams, err = matcher.InstallParams.parse(defaultProxyAddr)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if matcher.InstallParams.InstallTeleport == "" {
+					installParams.InstallTeleport = false
+				}
 			}
 		}
 
@@ -1659,7 +1671,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Tags:            matcher.Tags,
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,
-			Params:          installerParams,
+			Params:          installParams,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -1709,11 +1721,18 @@ kubernetes matchers are present`)
 					Region:   awsMatcher.CloudTrailLogs.QueueRegion,
 				}
 			}
+			var eksAuditLogs *types.AccessGraphAWSSyncEKSAuditLogs
+			if awsMatcher.EKSAuditLogs != nil {
+				eksAuditLogs = &types.AccessGraphAWSSyncEKSAuditLogs{
+					Tags: awsMatcher.EKSAuditLogs.Tags,
+				}
+			}
 
 			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
 				Regions:        regions,
 				AssumeRole:     assumeRole,
 				CloudTrailLogs: cloudTrailLogs,
+				EksAuditLogs:   eksAuditLogs,
 			})
 		}
 		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {

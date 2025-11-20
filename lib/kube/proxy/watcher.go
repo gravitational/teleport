@@ -174,7 +174,8 @@ func (m *monitoredKubeClusters) get() map[string]types.KubeCluster {
 
 func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluster) clusterDetailsConfig {
 	return clusterDetailsConfig{
-		cloudClients:     s.CloudClients,
+		azureClients:     s.azureClients,
+		gcpClients:       s.gcpClients,
 		awsCloudClients:  s.awsClients,
 		cluster:          cluster,
 		log:              s.log,

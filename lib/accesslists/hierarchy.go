@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/trait"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 // RelationshipKind represents the type of relationship: member or owner.
@@ -47,6 +47,14 @@ type AccessListAndMembersGetter interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+}
+
+// lockGetter is a service that gets locks.
+type lockGetter interface {
+	// GetLocks is here for compatibility with older Teleport versions.
+	// TODO(okraport): DELETE IN v21
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
 }
 
 // GetMembersFor returns a flattened list of Members for an Access List, including inherited Members.
@@ -270,13 +278,27 @@ func IsAccessListOwner(
 	user types.User,
 	accessList *accesslist.AccessList,
 	g AccessListAndMembersGetter,
-	lockGetter services.LockGetter,
+	lockGetter lockGetter,
 	clock clockwork.Clock,
 ) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
-		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
-			User: user.GetName(),
-		})
+		locks, err := clientutils.CollectWithFallback(
+			ctx,
+			func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return lockGetter.ListLocks(ctx, limit, start, &types.LockFilter{
+					InForceOnly: true,
+					Targets:     []*types.LockTarget{{User: user.GetName()}},
+				})
+			},
+			func(ctx context.Context) ([]types.Lock, error) {
+				// TODO(okraport): DELETE IN v21
+				const inForceOnlyTrue = true
+				return lockGetter.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+					User: user.GetName(),
+				})
+			},
+		)
+
 		if err != nil {
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
@@ -335,13 +357,26 @@ func IsAccessListMember(
 	user types.User,
 	accessList *accesslist.AccessList,
 	g AccessListAndMembersGetter,
-	lockGetter services.LockGetter,
+	lockGetter lockGetter,
 	clock clockwork.Clock,
 ) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
-		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
-			User: user.GetName(),
-		})
+		locks, err := clientutils.CollectWithFallback(
+			ctx,
+			func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+				return lockGetter.ListLocks(ctx, limit, start, &types.LockFilter{
+					InForceOnly: true,
+					Targets:     []*types.LockTarget{{User: user.GetName()}},
+				})
+			},
+			func(ctx context.Context) ([]types.Lock, error) {
+				// TODO(okraport): DELETE IN v21
+				const inForceOnlyTrue = true
+				return lockGetter.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+					User: user.GetName(),
+				})
+			},
+		)
 		if err != nil {
 			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
@@ -724,6 +759,7 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 // inherited from any ancestor lists, and the Access List's own MembershipRequires.
 func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Requires, error) {
 	ownRequires := accessList.GetMembershipRequires()
+	ownRequires = ownRequires.Clone()
 	ancestors, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
 	if err != nil {
 		return &ownRequires, trace.Wrap(err)
@@ -731,6 +767,9 @@ func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.
 
 	roles := ownRequires.Roles
 	traits := ownRequires.Traits
+	if traits == nil {
+		traits = trait.Traits{}
+	}
 
 	for _, ancestor := range ancestors {
 		requires := ancestor.GetMembershipRequires()

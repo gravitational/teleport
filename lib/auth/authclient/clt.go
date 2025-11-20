@@ -343,7 +343,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, 
 
 // SearchEvents allows searching for audit events with pagination support.
 func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
+	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey, req.Search)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -677,6 +677,12 @@ func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error
 // SetStaticTokens sets a list of static register tokens
 func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
+// are of the scoped access API available in agent access points to only what is necessary.
+func (c *Client) ScopedRoleReader() services.ScopedRoleReader {
+	return c.APIClient.ScopedAccessServiceClient()
 }
 
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
@@ -1420,6 +1426,9 @@ type ForwardedClientMetadata struct {
 	// either from a direct client connection, or from a PROXY protocol header
 	// if the connection is forwarded through a load balancer.
 	RemoteAddr string `json:"remote_addr,omitempty"`
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string `json:"proxy_group_id,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -1910,4 +1919,8 @@ type ClientI interface {
 	// SummarizerServiceClient returns a client for the session recording
 	// summarizer service.
 	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
+
+	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
+	// are of the scoped access API available in agent access points to only what is necessary.
+	ScopedRoleReader() services.ScopedRoleReader
 }

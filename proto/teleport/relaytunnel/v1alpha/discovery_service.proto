@@ -35,4 +35,8 @@ message DiscoverResponse {
   string relay_group = 1;
 
   int32 target_connection_count = 2;
+
+  // the list of api/types.TunnelTypes supported by this Relay group; if empty,
+  // it should be treated as containing only types.NodeTunnel ("node")
+  repeated string supported_tunnel_types = 3;
 }

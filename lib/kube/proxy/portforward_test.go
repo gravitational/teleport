@@ -454,8 +454,10 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 		}
 	}, 5*time.Second, 100*time.Millisecond, "streams werent properly removed from targetConn")
 
-	require.True(t, sourceConn.streamsClosed(), "sourceConn streams not closed")
-	require.True(t, targetConn.streamsClosed(), "targetConn streams not closed")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.True(t, sourceConn.streamsClosed(), "sourceConn streams not closed")
+		assert.True(t, targetConn.streamsClosed(), "targetConn streams not closed")
+	}, 15*time.Second, 100*time.Millisecond, "streams not closed")
 }
 
 type fakeSPDYStream struct {
@@ -585,25 +587,25 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 		validateFunc func(*testing.T, *testingkubemock.KubeMockServer)
 	}{
 		{
-			name: "SPDY protocol, version < 1.31",
-			version: &version.Info{
-				GitVersion: "v1.30.0",
-			},
+			name:    "SPDY protocol, version < 1.31",
+			version: &version.Info{GitVersion: "v1.30.0"},
 			validateFunc: func(t *testing.T, kms *testingkubemock.KubeMockServer) {
-				// forward used SPDY to kubernetes API
-				require.EqualValues(t, 1, kms.KubePortforward.SPDY.Load())
-				require.EqualValues(t, 0, kms.KubePortforward.Websocket.Load())
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					// forward used SPDY to kubernetes API
+					require.EqualValues(t, 1, kms.KubePortforward.SPDY.Load())
+					require.EqualValues(t, 0, kms.KubePortforward.Websocket.Load())
+				}, 5*time.Second, 100*time.Millisecond)
 			},
 		},
 		{
-			name: "Websocket protocol for clusters >=1.31",
-			version: &version.Info{
-				GitVersion: "v1.31.0",
-			},
+			name:    "Websocket protocol for clusters >=1.31",
+			version: &version.Info{GitVersion: "v1.31.0"},
 			validateFunc: func(t *testing.T, kms *testingkubemock.KubeMockServer) {
-				// forward used SPDY over websocket to kubernetes API
-				require.EqualValues(t, 0, kms.KubePortforward.SPDY.Load())
-				require.EqualValues(t, 1, kms.KubePortforward.Websocket.Load())
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					// forward used SPDY over websocket to kubernetes API
+					require.EqualValues(t, 0, kms.KubePortforward.SPDY.Load())
+					require.EqualValues(t, 1, kms.KubePortforward.Websocket.Load())
+				}, 5*time.Second, 100*time.Millisecond)
 			},
 		},
 	}
@@ -615,9 +617,8 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 			)
 			require.NoError(t, err)
 			t.Cleanup(func() { kubeMock.Close() })
-			t.Cleanup(func() {
-				tt.validateFunc(t, kubeMock)
-			})
+			t.Cleanup(func() { tt.validateFunc(t, kubeMock) })
+
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
 			testCtx := SetupTestContext(
 				context.Background(),
@@ -626,7 +627,6 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 				},
 			)
-
 			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
 			// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)

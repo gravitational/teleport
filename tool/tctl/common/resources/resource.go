@@ -35,6 +35,8 @@ func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
 	return map[string]Handler{
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
+		types.KindAccessList:                         accessListHandler(),
+		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
 		types.KindAppServer:                          appServerHandler(),
 		types.KindAuthServer:                         authHandler(),
@@ -45,20 +47,33 @@ func Handlers() map[string]Handler {
 		types.KindAutoUpdateVersion:                  autoUpdateVersionHandler(),
 		types.KindBot:                                botHandler(),
 		types.KindBotInstance:                        botInstanceHandler(),
+		types.KindClusterAuthPreference:              authPreferenceHandler(),
+		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
+		types.KindConnectors:                         connectorsHandler(),
 		types.KindDatabase:                           databaseHandler(),
 		types.KindDatabaseObject:                     databaseObjectHandler(),
 		types.KindDatabaseObjectImportRule:           databaseObjectImportRuleHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
+		types.KindGithubConnector:                    githubConnectorHandler(),
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindInstaller:                          installerHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindNode:                               serverHandler(),
+		types.KindOIDCConnector:                      oidcConnectorHandler(),
 		types.KindProxy:                              proxyHandler(),
 		types.KindRole:                               roleHandler(),
+		types.KindSAMLConnector:                      samlConnectorHandler(),
+		types.KindSAMLIdPServiceProvider:             samlIdPServiceProviderHandler(),
+		types.KindServerInfo:                         serverInfoHandler(),
+		types.KindSessionRecordingConfig:             sessionRecordingConfigHandler(),
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
 		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
+		types.KindStaticHostUser:                     staticHostUserHandler(),
+		types.KindToken:                              tokenHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
+		types.KindWindowsDesktop:                     windowsDesktopHandler(),
+		types.KindWindowsDesktopService:              windowsDesktopServiceHandler(),
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
 		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
 		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
@@ -150,9 +165,8 @@ func (r *Handler) SupportedCommands() []string {
 	if r.deleteHandler != nil {
 		verbs = append(verbs, "rm")
 	}
-	if r.updateHandler != nil {
-		verbs = append(verbs, "update")
-	}
+	// No check on the update handler for the "update" command because it is not
+	// doing anything useful today: https://github.com/gravitational/teleport/issues/61381
 
 	return verbs
 }
@@ -162,6 +176,12 @@ func (r *Handler) SupportedCommands() []string {
 // does and in which case they should interact with it.
 func (r *Handler) Description() string {
 	return r.description
+}
+
+// Singleton indicates if the handled resource is a singleton (only one can
+// exist in the Teleport cluster).
+func (r *Handler) Singleton() bool {
+	return r.singleton
 }
 
 // upsertVerb generates the correct string form of a verb based on the action taken

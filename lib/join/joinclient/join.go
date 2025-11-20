@@ -24,18 +24,21 @@ import (
 	"errors"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
+	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/env0"
+	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/utils/hostid"
@@ -197,10 +200,17 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
 	case types.JoinMethodToken,
+		types.JoinMethodBitbucket,
 		types.JoinMethodBoundKeypair,
-		types.JoinMethodIAM,
+		types.JoinMethodCircleCI,
 		types.JoinMethodEC2,
-		types.JoinMethodEnv0:
+		types.JoinMethodEnv0,
+		types.JoinMethodGCP,
+		types.JoinMethodGitHub,
+		types.JoinMethodGitLab,
+		types.JoinMethodIAM,
+		types.JoinMethodOracle,
+		types.JoinMethodTPM:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -213,9 +223,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	defer cancel()
 	stream, err := client.Join(ctx)
 	if err != nil {
-		// Connection errors are usually delayed until the first request is
-		// attempted, wrap with a connectionError here to allow a fallback to
-		// the legacy join method.
+		// Connection errors may manifest when initiating the RPC.
 		return nil, &connectionError{trace.Wrap(err, "initiating join stream")}
 	}
 	defer stream.CloseSend()
@@ -227,13 +235,20 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		TokenName:  params.Token,
 		SystemRole: params.ID.Role.String(),
 	}); err != nil {
-		return nil, trace.Wrap(err)
+		// Failing to send the first message on the stream is always a connection error.
+		return nil, &connectionError{trace.Wrap(err, "sending ClientInit message")}
 	}
 
 	// Receive the ServerInit message.
 	serverInit, err := messages.RecvResponse[*messages.ServerInit](stream)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		err = trace.Wrap(err, "receiving ServerInit message")
+		if !trace.IsAccessDenied(err) && !trace.IsBadParameter(err) {
+			// Any unrecognized error reading the first response on the stream
+			// is likely to be a connection error.
+			err = &connectionError{err}
+		}
+		return nil, err
 	}
 
 	// Generate keys based on the signature algorithm suite from the ServerInit message.
@@ -283,8 +298,25 @@ func joinWithMethod(
 	switch types.JoinMethod(method) {
 	case types.JoinMethodToken:
 		return tokenJoin(stream, clientParams)
+	case types.JoinMethodBitbucket:
+		// Tests may specify their own IDToken, so only overwrite it when empty.
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = bitbucket.NewIDTokenSource(os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodBoundKeypair:
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodCircleCI:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = circleci.GetIDToken(os.Getenv)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodIAM:
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodEC2:
@@ -298,6 +330,38 @@ func joinWithMethod(
 			}
 		}
 		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodOracle:
+		return oracleJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodGCP:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = gcp.GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodGitHub:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodGitLab:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{
+				EnvVarName: joinParams.GitlabParams.EnvVarName,
+			}).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodTPM:
+		return tpmJoin(ctx, stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{
@@ -450,14 +514,7 @@ func (e *connectionError) Unwrap() error {
 
 func isConnectionError(err error) bool {
 	var ce *connectionError
-	if errors.As(err, &ce) {
-		return true
-	}
-	// It's possible to hit a gRPC status error like this when reading the
-	// first response from the stream if connecting in insecure mode to a proxy
-	// address provided as an auth address.
-	statusErr, ok := status.FromError(err)
-	return ok && strings.Contains(statusErr.Message(), "unexpected HTTP status code")
+	return errors.As(err, &ce)
 }
 
 // LegacyJoinError is returned when the join attempt failed while attempting to

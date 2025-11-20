@@ -63,6 +63,9 @@ type APIConfig struct {
 	// MutateRevocationsServiceConfig is a function that allows to mutate
 	// the revocation service configuration for testing.
 	MutateRevocationsServiceConfig func(config *workloadidentityv1.RevocationServiceConfig)
+	// OracleHTTPClient (optional) overrides the HTTP client used to make
+	// requests to the Oracle API for the Oracle join method.
+	OracleHTTPClient utils.HTTPDoClient
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -120,9 +123,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Servers and presence heartbeat
 	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.WithAuth(srv.keepAliveNode))
 	srv.POST("/:version/authservers", srv.WithAuth(srv.upsertAuthServer))
-	srv.GET("/:version/authservers", srv.WithAuth(srv.getAuthServers))
+	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
-	srv.GET("/:version/proxies", srv.WithAuth(srv.getProxies))
+	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
 	srv.DELETE("/:version/proxies", srv.WithAuth(srv.deleteAllProxies))
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
 	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
@@ -180,10 +183,37 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
 			context:    *authContext,
 			alog:       s.AuthServer,
+		}
+		version := p.ByName("version")
+		if version == "" {
+			return nil, trace.BadParameter("missing version")
+		}
+		return handler(auth, w, r, p, version)
+	})
+}
+
+func (s *APIServer) WithScopedAuth(handler HandlerWithAuthFunc) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		// HTTPS server expects auth context to be set by the auth middleware
+		scopedContext, err := s.ScopedAuthorizer.AuthorizeScoped(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authContext, ok := scopedContext.UnscopedContext()
+		if !ok {
+			authContext = &authz.Context{}
+		}
+
+		auth := &ServerWithRoles{
+			authServer:    s.AuthServer,
+			context:       *authContext,
+			scopedContext: scopedContext,
+			alog:          s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {

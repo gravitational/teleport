@@ -94,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -101,26 +102,27 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/gcp"
-	"github.com/gravitational/teleport/lib/githubactions"
-	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
+	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -136,7 +138,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/spacelift"
-	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/terraformcloud"
@@ -190,6 +191,16 @@ const (
 	notificationsPageReadInterval = 5 * time.Millisecond
 	notificationsWriteInterval    = 40 * time.Millisecond
 	accessListsPageReadInterval   = 5 * time.Millisecond
+)
+
+const (
+	// tagUserAgentType is a prometheus label for identifying user agent type
+	// of Teleport client (e.g. web or api).
+	tagUserAgentType = "user_agent_type"
+	// tagProxyGroupID is a prometheus label for identifying the proxy group ID.
+	tagProxyGroupID = "proxy_group_id"
+	// tagVersion is a prometheus label for version of Teleport built.
+	tagVersion = "version"
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -505,6 +516,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if cfg.SessionSummarizerProvider == nil {
 		cfg.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
 	}
+	if cfg.RecordingMetadataProvider == nil {
+		cfg.RecordingMetadataProvider = recordingmetadata.NewProvider()
+	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
 		if err != nil {
@@ -677,6 +691,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		accessMonitoringEnabled:   cfg.AccessMonitoringEnabled,
 		logger:                    cfg.Logger,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
+		recordingMetadataProvider: cfg.RecordingMetadataProvider,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -761,13 +776,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.azureDevopsIDTokenValidator = azuredevops.NewIDTokenValidator()
 	}
 	if as.circleCITokenValidate == nil {
-		as.circleCITokenValidate = func(
-			ctx context.Context, organizationID, token string,
-		) (*circleci.IDTokenClaims, error) {
-			return circleci.ValidateToken(
-				ctx, circleci.IssuerURLTemplate, organizationID, token,
-			)
-		}
+		as.circleCITokenValidate = circleci.ValidateToken
 	}
 	if as.tpmValidator == nil {
 		as.tpmValidator = tpm.Validate
@@ -982,6 +991,19 @@ var (
 			Help: "Number of times there was a user login",
 		},
 	)
+	userLoginCountPerClient = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:      "user_login_per_client",
+			Namespace: teleport.MetricNamespace,
+			Help: "The number of successful user authentications by client tool (tsh, tctl, etc.), client tool version, " +
+				"and proxy that handled the request. The metric is reset hourly. ",
+		},
+		[]string{
+			tagUserAgentType,
+			tagProxyGroupID,
+			tagVersion,
+		},
+	)
 
 	heartbeatsMissedByAuth = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -1090,7 +1112,7 @@ var (
 
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
-		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, userLoginCountPerClient, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
@@ -1246,11 +1268,11 @@ type Server struct {
 
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
-	ghaIDTokenValidator ghaIDTokenValidator
+	ghaIDTokenValidator githubactions.GithubIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
-	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
+	ghaIDTokenJWKSValidator githubactions.GithubIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
@@ -1258,7 +1280,7 @@ type Server struct {
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
-	gitlabIDTokenValidator gitlabIDTokenValidator
+	gitlabIDTokenValidator gitlab.Validator
 
 	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
 	// validated by the auth server. It can be overridden for the purpose of
@@ -1267,13 +1289,11 @@ type Server struct {
 
 	// tpmValidator allows TPMs to be validated by the auth server. It can be
 	// overridden for the purpose of tests.
-	tpmValidator func(
-		ctx context.Context, log *slog.Logger, params tpm.ValidateParams,
-	) (*tpm.ValidatedTPM, error)
+	tpmValidator tpmjoin.TPMValidator
 
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
-	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
+	circleCITokenValidate circleci.Validator
 
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
@@ -1289,14 +1309,16 @@ type Server struct {
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
-	gcpIDTokenValidator gcpIDTokenValidator
+	gcpIDTokenValidator gcp.Validator
 
 	// terraformIDTokenValidator allows JWTs from Terraform Cloud to be
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
 	terraformIDTokenValidator terraformCloudIDTokenValidator
 
-	bitbucketIDTokenValidator bitbucketIDTokenValidator
+	// bitbucketIDTokenValidator allows JWTs from Bitbucket to be validated by
+	// the auth server.
+	bitbucketIDTokenValidator bitbucket.Validator
 
 	// createBoundKeypairValidator is a helper to create new bound keypair
 	// challenge validators. Used to override the implementation used in tests.
@@ -1372,9 +1394,16 @@ type Server struct {
 	// plugin. The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
 
+	// recordingMetadataProvider provides recording metadata for session recordings.
+	recordingMetadataProvider *recordingmetadata.Provider
+
 	// BotInstanceVersionReporter is called periodically to generate a report of
 	// the number of bot instances by version and update group.
 	BotInstanceVersionReporter *machineidv1.AutoUpdateVersionReporter
+
+	// EncryptedIO provides encryption for session related data such as
+	// recordings, thumbnails, and metadata.
+	EncryptedIO *recordingencryption.EncryptedIO
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1411,6 +1440,13 @@ func (a *Server) ScopedAccess() services.ScopedAccess {
 		ScopedAccessReader: a.ScopedAccessCache,
 		ScopedAccessWriter: a.scopedAccessBackend,
 	}
+}
+
+// ScopedRoleReader returns a read-only scoped role client. This is here to satisfy interfaces
+// used by agent-side logic, which only has access to the ScopedRoleReader subset of the
+// broader ScopedAccess interface.
+func (a *Server) ScopedRoleReader() services.ScopedRoleReader {
+	return a.ScopedAccessCache
 }
 
 // SetUpgradeWindowStartHourGetter sets the getter used to sync the ClusterMaintenanceConfig resource
@@ -1656,6 +1692,7 @@ const (
 	autoUpdateAgentReportKey
 	autoUpdateBotInstanceReportKey
 	autoUpdateBotInstanceMetricsKey
+	hourlyCleanUpKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1708,6 +1745,12 @@ func (a *Server) runPeriodicOperations() {
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           accessListReminderNotificationsKey,
 			Duration:      8 * time.Hour,
+			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           hourlyCleanUpKey,
+			Duration:      time.Hour,
 			FirstDuration: retryutils.FullJitter(time.Hour),
 			Jitter:        retryutils.SeventhJitter,
 		},
@@ -1893,6 +1936,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.BotInstanceVersionReporter.Report(a.closeCtx)
 			case autoUpdateBotInstanceMetricsKey:
 				go a.updateBotInstanceMetrics()
+			case hourlyCleanUpKey:
+				userLoginCountPerClient.Reset()
 			}
 		}
 	}
@@ -2634,6 +2679,8 @@ type certRequest struct {
 	// joinAttributes holds attributes derived from attested metadata from the
 	// join process, should any exist.
 	joinAttributes *workloadidentityv1pb.JoinAttrs
+	// requesterName is the name of the service that sent the request.
+	requesterName proto.UserCertsRequest_Requester
 }
 
 // check verifies the cert request is valid.
@@ -3770,6 +3817,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
 	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
+		// Requesting AWS credential_process credentials for Apps without AWS client side credentials is a client error.
+		if req.requesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS {
+			return nil, trace.BadParameter("client requested aws credentials for an invalid resource")
+		}
+
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -4117,38 +4169,39 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
-	fnErr := authenticateFn()
-	if fnErr == nil {
+
+	authErr := authenticateFn()
+	if authErr == nil {
 		// upon successful login, reset the failed attempt counter
 		err = a.DeleteUserLoginAttempts(username)
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-
 		return nil
 	}
+
 	// do not lock user in case if DB is flaky or down
-	if trace.IsConnectionProblem(err) {
-		return trace.Wrap(fnErr)
+	if trace.IsConnectionProblem(authErr) {
+		return trace.Wrap(authErr)
 	}
 	// log failed attempt and possibly lock user
 	attempt := services.LoginAttempt{Time: a.clock.Now().UTC(), Success: false}
 	err = a.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "unable to persist failed login attempt", "error", err)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	loginAttempts, err := a.GetUserLoginAttempts(username)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "unable to retrieve user login attempts", "error", err)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	if !services.LastFailed(defaults.MaxLoginAttempts, loginAttempts) {
 		a.logger.DebugContext(ctx, "user has less than the failed login attempt limit",
 			"user", username,
 			"failed_attempt_limit", defaults.MaxLoginAttempts,
 		)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
 	a.logger.DebugContext(ctx, "Locking user that exceeded the failed login attempt limit",
@@ -4159,8 +4212,8 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	_, err = a.UpsertUser(ctx, user)
 	if err != nil {
-		a.logger.ErrorContext(ctx, "failed to persist user record", "error", err)
-		return trace.Wrap(fnErr)
+		a.logger.ErrorContext(ctx, "user exceeded max login attempts, but failed to persist user record", "error", err)
+		return trace.Wrap(authErr)
 	}
 
 	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
@@ -7678,25 +7731,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
 		}
 
-		autoCreate, err := checker.DatabaseAutoUserMode(db)
-		switch {
-		case errors.Is(err, services.ErrSessionMFARequired):
-			noMFAAccessErr = err
-		case err != nil:
-			return nil, trace.Wrap(err)
-		default:
-			dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
-				Database:       db,
-				DatabaseUser:   t.Database.Username,
-				DatabaseName:   t.Database.GetDatabase(),
-				AutoCreateUser: autoCreate.IsEnabled(),
-			})
-			noMFAAccessErr = checker.CheckAccess(
-				db,
-				services.AccessState{},
-				dbRoleMatchers...,
-			)
-		}
+		// Note that we are not checking RoleMatchers for db user/name/roles.
+		// Per-session MFA requirement is only tested on the resource itself by
+		// db_labels/db_labels_expression, so db user/name/roles are irrelevant.
+		// Those will be enforced at protocol level on the database service.
+		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})

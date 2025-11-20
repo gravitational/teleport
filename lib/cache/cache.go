@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var (
@@ -284,6 +285,7 @@ func ForRelay(cfg Config) Config {
 		{Kind: types.KindCertAuthority, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindKubeServer},
 		{Kind: types.KindNode},
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindRole},
@@ -1269,7 +1271,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			"duration", fetchAndApplyDuration.String(),
 		)
 	} else {
-		c.Logger.DebugContext(ctx, "fetch and apply",
+		c.Logger.Log(ctx, logutils.TraceLevel, "fetch and apply",
 			"cache_target", c.Config.target,
 			"duration", fetchAndApplyDuration.String(),
 		)

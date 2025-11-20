@@ -230,6 +230,8 @@ export enum DiscoverEventResource {
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
 
   MCPStdio = 'DISCOVER_RESOURCE_MCP_STDIO',
+  MCPSSE = 'DISCOVER_RESOURCE_MCP_SSE',
+  MCPStreamableHTTP = 'DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP',
 }
 
 export enum DiscoverEventStatus {

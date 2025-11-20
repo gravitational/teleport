@@ -293,6 +293,13 @@ export interface SessionStartEvent {
      * @generated from protobuf field: prehog.v1alpha.SessionStartGitMetadata git = 7;
      */
     git?: SessionStartGitMetadata;
+    /**
+     * if session_type == "app_mcp" the mcp struct contains additional information
+     * about the MCP session.
+     *
+     * @generated from protobuf field: prehog.v1alpha.SessionStartMCPMetadata mcp = 8;
+     */
+    mcp?: SessionStartMCPMetadata;
 }
 /**
  * SessionStartDatabaseMetadata contains additional information about database session.
@@ -401,6 +408,49 @@ export interface SessionStartGitMetadata {
      * @generated from protobuf field: string git_service = 2;
      */
     gitService: string;
+}
+/**
+ * SessionStartMCPMetadata contains additional information about an MCP session.
+ *
+ * @generated from protobuf message prehog.v1alpha.SessionStartMCPMetadata
+ */
+export interface SessionStartMCPMetadata {
+    /**
+     * Transport type of the MCP server. Value from types.GetMCPServerTransportType.
+     *
+     * @generated from protobuf field: string transport = 1;
+     */
+    transport: string;
+    /**
+     * MCP protocol version like "2025-06-18".
+     *
+     * @generated from protobuf field: string protocol_version = 2;
+     */
+    protocolVersion: string;
+    /**
+     * Indicates the client used on the session, e.g "claude-ai".
+     *
+     * @generated from protobuf field: string client_name = 3;
+     */
+    clientName: string;
+    /**
+     * Indicates the server used on the session, e.g "example-servers/everything".
+     *
+     * @generated from protobuf field: string server_name = 4;
+     */
+    serverName: string;
+    /**
+     * Indicates how the MCP session is authorized between MCP client and Teleport.
+     *
+     * @generated from protobuf field: string ingress_auth_type = 5;
+     */
+    ingressAuthType: string;
+    /**
+     * Indicates how the MCP session is authorized between Teleport and remote MCP server.
+     *
+     * @generated from protobuf field: string egress_auth_type = 6;
+     */
+    egressAuthType: string;
 }
 /**
  * the issuance of a user certificate from the user CA
@@ -4669,7 +4719,8 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
             { no: 4, name: "desktop", kind: "message", T: () => SessionStartDesktopMetadata },
             { no: 5, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] },
             { no: 6, name: "app", kind: "message", T: () => SessionStartAppMetadata },
-            { no: 7, name: "git", kind: "message", T: () => SessionStartGitMetadata }
+            { no: 7, name: "git", kind: "message", T: () => SessionStartGitMetadata },
+            { no: 8, name: "mcp", kind: "message", T: () => SessionStartMCPMetadata }
         ]);
     }
     create(value?: PartialMessage<SessionStartEvent>): SessionStartEvent {
@@ -4707,6 +4758,9 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
                 case /* prehog.v1alpha.SessionStartGitMetadata git */ 7:
                     message.git = SessionStartGitMetadata.internalBinaryRead(reader, reader.uint32(), options, message.git);
                     break;
+                case /* prehog.v1alpha.SessionStartMCPMetadata mcp */ 8:
+                    message.mcp = SessionStartMCPMetadata.internalBinaryRead(reader, reader.uint32(), options, message.mcp);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -4740,6 +4794,9 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
         /* prehog.v1alpha.SessionStartGitMetadata git = 7; */
         if (message.git)
             SessionStartGitMetadata.internalBinaryWrite(message.git, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.SessionStartMCPMetadata mcp = 8; */
+        if (message.mcp)
+            SessionStartMCPMetadata.internalBinaryWrite(message.mcp, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5002,6 +5059,93 @@ class SessionStartGitMetadata$Type extends MessageType<SessionStartGitMetadata> 
  * @generated MessageType for protobuf message prehog.v1alpha.SessionStartGitMetadata
  */
 export const SessionStartGitMetadata = new SessionStartGitMetadata$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionStartMCPMetadata$Type extends MessageType<SessionStartMCPMetadata> {
+    constructor() {
+        super("prehog.v1alpha.SessionStartMCPMetadata", [
+            { no: 1, name: "transport", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "protocol_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "client_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "server_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "ingress_auth_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "egress_auth_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SessionStartMCPMetadata>): SessionStartMCPMetadata {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.transport = "";
+        message.protocolVersion = "";
+        message.clientName = "";
+        message.serverName = "";
+        message.ingressAuthType = "";
+        message.egressAuthType = "";
+        if (value !== undefined)
+            reflectionMergePartial<SessionStartMCPMetadata>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionStartMCPMetadata): SessionStartMCPMetadata {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string transport */ 1:
+                    message.transport = reader.string();
+                    break;
+                case /* string protocol_version */ 2:
+                    message.protocolVersion = reader.string();
+                    break;
+                case /* string client_name */ 3:
+                    message.clientName = reader.string();
+                    break;
+                case /* string server_name */ 4:
+                    message.serverName = reader.string();
+                    break;
+                case /* string ingress_auth_type */ 5:
+                    message.ingressAuthType = reader.string();
+                    break;
+                case /* string egress_auth_type */ 6:
+                    message.egressAuthType = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SessionStartMCPMetadata, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string transport = 1; */
+        if (message.transport !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.transport);
+        /* string protocol_version = 2; */
+        if (message.protocolVersion !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.protocolVersion);
+        /* string client_name = 3; */
+        if (message.clientName !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.clientName);
+        /* string server_name = 4; */
+        if (message.serverName !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.serverName);
+        /* string ingress_auth_type = 5; */
+        if (message.ingressAuthType !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.ingressAuthType);
+        /* string egress_auth_type = 6; */
+        if (message.egressAuthType !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.egressAuthType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.SessionStartMCPMetadata
+ */
+export const SessionStartMCPMetadata = new SessionStartMCPMetadata$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedEvent> {
     constructor() {
