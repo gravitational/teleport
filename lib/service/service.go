@@ -2760,7 +2760,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	process.ExpectService(teleport.ComponentAuth)
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 
 	spiffeFedSyncer, err := machineidv1.NewSPIFFEFederationSyncer(machineidv1.SPIFFEFederationSyncerConfig{
@@ -3269,7 +3268,6 @@ func (process *TeleportProcess) initSSH() error {
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 	relayInfoHolder := new(relaytunnel.InfoHolder)
 
-	process.ExpectService(teleport.ComponentNode)
 	process.RegisterCriticalFunc("ssh.node", func() error {
 		// restartingOnGracefulShutdown will be set to true before the function
 		// exits if the function is exiting because Teleport is gracefully
@@ -4327,7 +4325,6 @@ func (process *TeleportProcess) initProxy() error {
 		}
 	}
 	process.RegisterWithAuthServer(types.RoleProxy, ProxyIdentityEvent)
-	process.ExpectService(teleport.ComponentProxy)
 	process.RegisterCriticalFunc("proxy.init", func() error {
 		conn, err := process.WaitForConnector(ProxyIdentityEvent, process.logger)
 		if conn == nil {
@@ -5803,7 +5800,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		process.ExpectService(component)
 		process.RegisterCriticalFunc("proxy.kube", func() error {
 			logger := process.logger.With(teleport.ComponentKey, component)
 
@@ -6451,7 +6447,6 @@ func (process *TeleportProcess) initApps() {
 	component := teleport.Component(teleport.ComponentApp, process.id)
 	logger := process.logger.With(teleport.ComponentKey, component)
 
-	process.ExpectService(teleport.ComponentApp)
 	process.RegisterCriticalFunc("apps.start", func() error {
 		conn, err := process.WaitForConnector(AppsIdentityEvent, logger)
 		if conn == nil {

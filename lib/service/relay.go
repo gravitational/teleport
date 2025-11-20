@@ -58,7 +58,6 @@ import (
 
 func (process *TeleportProcess) initRelay() {
 	process.RegisterWithAuthServer(apitypes.RoleRelay, RelayIdentityEvent)
-	process.ExpectService(teleport.ComponentRelay)
 	process.RegisterCriticalFunc("relay.run", process.runRelayService)
 }
 
