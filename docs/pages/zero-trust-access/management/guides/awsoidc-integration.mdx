@@ -15,6 +15,7 @@ The following features use an AWS OIDC integration to interact with AWS:
 - [RDS Enrollment](./awsoidc-integration-rds.mdx)
 - EC2 Enrollment
 - [Access Graph AWS Sync](../../../identity-security/integrations/aws-sync.mdx)
+- [Protect AWS CLI and Console access with Teleport](./awsoidc-integration-console.mdx)
 
 It targets users who would prefer a more manual approach or to manage the integration with Infrastructure as Code tools.
 
@@ -44,6 +45,7 @@ teleport.dev/integration  <Var name="my-integration"/>
 
 - A running Teleport cluster.
 - AWS Account with permissions to create IAM Identity Providers and roles
+
 
 ## Step 1/4. Configure RBAC
 

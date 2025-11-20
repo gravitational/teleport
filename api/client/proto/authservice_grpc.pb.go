@@ -219,6 +219,7 @@ const (
 	AuthService_GetSessionEvents_FullMethodName                    = "/proto.AuthService/GetSessionEvents"
 	AuthService_GetLock_FullMethodName                             = "/proto.AuthService/GetLock"
 	AuthService_GetLocks_FullMethodName                            = "/proto.AuthService/GetLocks"
+	AuthService_ListLocks_FullMethodName                           = "/proto.AuthService/ListLocks"
 	AuthService_UpsertLock_FullMethodName                          = "/proto.AuthService/UpsertLock"
 	AuthService_DeleteLock_FullMethodName                          = "/proto.AuthService/DeleteLock"
 	AuthService_ReplaceRemoteLocks_FullMethodName                  = "/proto.AuthService/ReplaceRemoteLocks"
@@ -818,8 +819,11 @@ type AuthServiceClient interface {
 	GetSessionEvents(ctx context.Context, in *GetSessionEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(ctx context.Context, in *GetLockRequest, opts ...grpc.CallOption) (*types.LockV2, error)
+	// Deprecated: Do not use.
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error)
+	// ListLocks returns a page of locks matching a filter.
+	ListLocks(ctx context.Context, in *ListLocksRequest, opts ...grpc.CallOption) (*ListLocksResponse, error)
 	// UpsertLock upserts a lock.
 	UpsertLock(ctx context.Context, in *types.LockV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteLock deletes a lock.
@@ -3040,10 +3044,21 @@ func (c *authServiceClient) GetLock(ctx context.Context, in *GetLockRequest, opt
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetLocks(ctx context.Context, in *GetLocksRequest, opts ...grpc.CallOption) (*GetLocksResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetLocksResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetLocks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListLocks(ctx context.Context, in *ListLocksRequest, opts ...grpc.CallOption) (*ListLocksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListLocksResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListLocks_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4488,8 +4503,11 @@ type AuthServiceServer interface {
 	GetSessionEvents(context.Context, *GetSessionEventsRequest) (*Events, error)
 	// GetLock gets a lock by name.
 	GetLock(context.Context, *GetLockRequest) (*types.LockV2, error)
+	// Deprecated: Do not use.
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error)
+	// ListLocks returns a page of locks matching a filter.
+	ListLocks(context.Context, *ListLocksRequest) (*ListLocksResponse, error)
 	// UpsertLock upserts a lock.
 	UpsertLock(context.Context, *types.LockV2) (*emptypb.Empty, error)
 	// DeleteLock deletes a lock.
@@ -5297,6 +5315,9 @@ func (UnimplementedAuthServiceServer) GetLock(context.Context, *GetLockRequest) 
 }
 func (UnimplementedAuthServiceServer) GetLocks(context.Context, *GetLocksRequest) (*GetLocksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLocks not implemented")
+}
+func (UnimplementedAuthServiceServer) ListLocks(context.Context, *ListLocksRequest) (*ListLocksResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListLocks not implemented")
 }
 func (UnimplementedAuthServiceServer) UpsertLock(context.Context, *types.LockV2) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertLock not implemented")
@@ -8745,6 +8766,24 @@ func _AuthService_GetLocks_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListLocks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListLocksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListLocks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListLocks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListLocks(ctx, req.(*ListLocksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_UpsertLock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.LockV2)
 	if err := dec(in); err != nil {
@@ -11043,6 +11082,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLocks",
 			Handler:    _AuthService_GetLocks_Handler,
+		},
+		{
+			MethodName: "ListLocks",
+			Handler:    _AuthService_ListLocks_Handler,
 		},
 		{
 			MethodName: "UpsertLock",

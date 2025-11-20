@@ -337,6 +337,27 @@ func TestProtectedDirsNotDeleted(t *testing.T) {
 	require.NoDirExists(t, filepath.Join(keyStore.KeyDir, "keys"))
 }
 
+// TestDeleteKeyRingContinueOnError verifies that an issue deleting one file
+// does not prevent deleting the others.
+func TestDeleteKeyRingContinueOnError(t *testing.T) {
+	t.Parallel()
+	auth := newTestAuthority(t)
+	keyStore := newTestFSKeyStore(t)
+	idx := KeyRingIndex{"host.a", "bob", "root"}
+	require.NoError(t, keyStore.AddKeyRing(auth.makeSignedKeyRing(t, idx, false)))
+
+	require.NoError(t, os.Remove(keyStore.userSSHKeyPath(idx)))
+	require.Error(t, keyStore.DeleteKeyRing(idx))
+	for _, file := range []string{
+		keyStore.userSSHKeyPath(idx),
+		keyStore.userTLSKeyPath(idx),
+		keyStore.publicKeyPath(idx),
+		keyStore.tlsCertPath(idx),
+	} {
+		require.NoFileExists(t, file)
+	}
+}
+
 func assertEqualKeyRings(t *testing.T, expected, actual *KeyRing) {
 	t.Helper()
 	// Ignore differences in unexported private key fields, for example keyPEM

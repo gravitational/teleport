@@ -134,6 +134,12 @@ func TestTeleterm(t *testing.T) {
 		testClientCache(t, pack, creds)
 	})
 
+	t.Run("clearing stale cached clients", func(t *testing.T) {
+		t.Parallel()
+
+		testClearingStaleCachedClients(t, pack, creds)
+	})
+
 	t.Run("logging out", func(t *testing.T) {
 		t.Parallel()
 		testLogout(t, pack, creds)
@@ -548,6 +554,62 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	// The call to GetCachedClient will
 	// connect to proxy and return a new client.
 	err = daemonService.ClearCachedClientsForRoot(cluster.URI)
+	require.NoError(t, err)
+	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.NotEqual(t, secondCallForClient, thirdCallForClient)
+}
+
+func testClearingStaleCachedClients(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	ctx := context.Background()
+
+	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
+
+	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		ClientStore:        tc.ClientStore,
+		Clock:              storageFakeClock,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
+	require.NoError(t, err)
+
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
+	daemonService, err := daemon.New(daemon.Config{
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	firstCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
+	require.NoError(t, err)
+	// Ensure the client wasn't closed.
+	secondCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.Equal(t, firstCallForClient, secondCallForClient)
+	// Reissue user certs by assuming a role with a bogus ID in DropAccessRequests.
+	accessRequest := &api.AssumeRoleRequest{
+		RootClusterUri: cluster.URI.String(),
+		DropRequestIds: []string{"does-not-matter"},
+	}
+	err = cluster.AssumeRole(ctx, firstCallForClient, accessRequest)
+	require.NoError(t, err)
+	// The cert has changed, so after clearing stale clients,
+	// GetCachedClient should return a new client.
+	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)

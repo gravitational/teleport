@@ -20,11 +20,13 @@ package accesslists
 
 import (
 	"context"
+	"iter"
 	"slices"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -33,6 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // Mock implementation of AccessListAndMembersGetter.
@@ -79,11 +83,47 @@ func (m *mockLocksGetter) GetLock(ctx context.Context, name string) (types.Lock,
 }
 
 func (m *mockLocksGetter) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+
 	var locks []types.Lock
 	for _, target := range targets {
 		locks = append(locks, m.targets[target.User]...)
 	}
 	return locks, nil
+
+}
+
+func (m *mockLocksGetter) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	if limit > 0 || startKey != "" {
+		return nil, "", trace.NotImplemented("limit and start are not supported")
+	}
+
+	if filter == nil {
+		return nil, "", trace.BadParameter("missing filter")
+	}
+
+	var locks []types.Lock
+	for _, target := range filter.Targets {
+		locks = append(locks, m.targets[target.User]...)
+	}
+	return locks, "", nil
+}
+
+func (m *mockLocksGetter) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
+	if start != "" || end != "" {
+		return stream.Fail[types.Lock](trace.NotImplemented("start and end are not supported"))
+	}
+
+	if filter == nil {
+		return stream.Fail[types.Lock](trace.BadParameter("missing filter"))
+	}
+
+	var sliceStreams []stream.Stream[types.Lock]
+
+	for _, target := range filter.Targets {
+		sliceStreams = append(sliceStreams, stream.Slice(m.targets[target.User]))
+	}
+
+	return stream.Chain(sliceStreams...)
 }
 
 const (
@@ -635,6 +675,209 @@ func TestGetInheritedGrants(t *testing.T) {
 	grants, err := GetInheritedGrants(ctx, acl2, accessListAndMembersGetter)
 	require.NoError(t, err)
 	require.Equal(t, expectedGrants, grants)
+}
+
+func TestGetInheritedRequires(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	type testListSpec struct {
+		name     string
+		requires accesslist.Requires
+		memberOf []string
+	}
+
+	tests := []struct {
+		name       string
+		lists      []testListSpec
+		targetName string
+		expected   *accesslist.Requires
+	}{
+		{
+			name: "NilLeafRequires_Chain3",
+			lists: []testListSpec{
+				{
+					name: "root",
+					requires: accesslist.Requires{
+						Roles: []string{"root-role"},
+						Traits: map[string][]string{
+							"env": {"prod"},
+						},
+					},
+				},
+				{
+					name: "intermediate",
+					requires: accesslist.Requires{
+						Roles: []string{"intermediate-role"},
+						Traits: map[string][]string{
+							"env":  {"testing"},
+							"team": {"backend"},
+						},
+					},
+					memberOf: []string{"root"},
+				},
+				{
+					name:     "leaf",
+					requires: accesslist.Requires{},
+					memberOf: []string{"intermediate"},
+				},
+			},
+			targetName: "leaf",
+			expected: &accesslist.Requires{
+				Roles: []string{"intermediate-role", "root-role"},
+				Traits: trait.Traits{
+					"env":  {"prod", "testing"},
+					"team": {"backend"},
+				},
+			},
+		},
+		{
+			name: "LeafHasOwnRequires_Chain3",
+			lists: []testListSpec{
+				{
+					name: "root",
+					requires: accesslist.Requires{
+						Roles: []string{"root-role"},
+						Traits: trait.Traits{
+							"env": {"prod"},
+						},
+					},
+				},
+				{
+					name: "intermediate",
+					requires: accesslist.Requires{
+						Roles: []string{"app-role"},
+						Traits: trait.Traits{
+							"env":  {"staging"},
+							"team": {"backend"},
+						},
+					},
+					memberOf: []string{"root"},
+				},
+				{
+					name: "leaf",
+					requires: accesslist.Requires{
+						Roles: []string{"leaf-role"},
+						Traits: trait.Traits{
+							"team":   {"infra"},
+							"region": {"us-east-1"},
+						},
+					},
+					memberOf: []string{"intermediate"},
+				},
+			},
+			targetName: "leaf",
+			expected: &accesslist.Requires{
+				Roles: []string{"app-role", "leaf-role", "root-role"},
+				Traits: trait.Traits{
+					"env":    {"prod", "staging"},
+					"team":   {"backend", "infra"},
+					"region": {"us-east-1"},
+				},
+			},
+		},
+		{
+			name: "NilLeafRequires_Diamond",
+			lists: []testListSpec{
+				{
+					name: "root",
+					requires: accesslist.Requires{
+						Roles: []string{"root-role"},
+						Traits: trait.Traits{
+							"env": {"prod"},
+						},
+					},
+				},
+				{
+					name: "parent-a",
+					requires: accesslist.Requires{
+						Roles: []string{"a-role"},
+						Traits: trait.Traits{
+							"env":  {"staging"},
+							"team": {"a-team"},
+						},
+					},
+					memberOf: []string{"root"},
+				},
+				{
+					name: "parent-b",
+					requires: accesslist.Requires{
+						Roles: []string{"b-role"},
+						Traits: trait.Traits{
+							"team":   {"b-team"},
+							"region": {"eu-west-1"},
+						},
+					},
+					memberOf: []string{"root"},
+				},
+				{
+					name:     "leaf",
+					requires: accesslist.Requires{},
+					memberOf: []string{"parent-a", "parent-b"},
+				},
+			},
+			targetName: "leaf",
+			expected: &accesslist.Requires{
+				Roles: []string{"a-role", "b-role", "root-role"},
+				Traits: trait.Traits{
+					"env":    {"prod", "staging"},
+					"team":   {"a-team", "b-team"},
+					"region": {"eu-west-1"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			listsByID := make(map[string]*accesslist.AccessList, len(tc.lists))
+			listsByName := make(map[string]*accesslist.AccessList, len(tc.lists))
+			for _, ls := range tc.lists {
+				acl, err := accesslist.NewAccessList(
+					header.Metadata{
+						Name: uuid.NewString(),
+					},
+					accesslist.Spec{
+						Title:              ls.name,
+						Description:        ls.name,
+						MembershipRequires: ls.requires,
+					},
+				)
+				require.NoError(t, err)
+				listsByID[acl.GetName()] = acl
+				listsByName[ls.name] = acl
+			}
+
+			members := make(map[string][]*accesslist.AccessListMember)
+			for _, ls := range tc.lists {
+				child := listsByName[ls.name]
+				for _, parentName := range ls.memberOf {
+					parent := listsByName[parentName]
+					child.Status.MemberOf = append(child.Status.MemberOf, parent.GetName())
+					members[parent.GetName()] = append(members[parent.GetName()], newAccessListMember(t, parent.GetName(), child.GetName(), accesslist.MembershipKindList, clock))
+				}
+			}
+
+			getter := &mockAccessListAndMembersGetter{
+				accessLists: listsByID,
+				members:     members,
+			}
+
+			leaf := listsByName[tc.targetName]
+			originalLeafRequires := leaf.Spec.MembershipRequires.Clone()
+
+			requires, err := GetInheritedMembershipRequires(ctx, leaf, getter)
+			require.NoError(t, err)
+			// Should be expected
+			require.Equal(t, tc.expected, requires)
+			// Original should not be mutated
+			require.Equal(t, originalLeafRequires, leaf.Spec.MembershipRequires)
+		})
+	}
 }
 
 func TestGetMembersFor_FlattensAndStopsOnCycles(t *testing.T) {
