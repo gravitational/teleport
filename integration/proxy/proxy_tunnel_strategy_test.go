@@ -350,6 +350,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.DebugService.Enabled = false
 	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
@@ -400,6 +401,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.DataDir = t.TempDir()
 	conf.Log = node.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	conf.DebugService.Enabled = false
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -441,6 +443,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.DebugService.Enabled = false
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
