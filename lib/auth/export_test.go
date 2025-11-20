@@ -207,10 +207,6 @@ func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidato
 	a.spaceliftIDTokenValidator = validator
 }
 
-func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
-	a.terraformIDTokenValidator = validator
-}
-
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
 	a.createBoundKeypairValidator = validator
 }
