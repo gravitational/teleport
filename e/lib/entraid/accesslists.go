@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -71,6 +72,28 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 	sortMembers(entraAccessListWithMembersMap)
 
 	preserveFields(entraAccessListWithMembersMap, teleportAccessListsWithMembersMap)
+
+	// If this is the first time import - there is not entraID access list in teleport
+	// we can do a fast InsertAccessListCollection operation.
+	// This significantly speeds up the first time import when there are thousands of groups
+	// because we avoid per-access list upsert operations like locking
+	// and fetching the existing resource from the backend.
+	// The InsertAccessListCollection validates access list up front and due to fact the
+	// collection is complete snapshot of all access lists and members from one source (EntraID)
+	if len(teleportAccessListsWithMembersMap) == 0 && len(entraAccessListWithMembersMap) > 0 {
+		r.logger.InfoContext(ctx, "EntraID initial access list import", "count", len(entraAccessListWithMembersMap))
+		coll, err := toCollection(entraAccessListWithMembersMap)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := r.accessListSvc.InsertAccessListCollection(ctx, coll); err != nil {
+			return trace.Wrap(err)
+		}
+		r.logger.InfoContext(ctx, "EntraID initial access list import completed", "count", len(entraAccessListWithMembersMap))
+		r.importedGroups = len(entraAccessListWithMembersMap)
+		// No need to do further reconciliation. All access lists were inserted.
+		return nil
+	}
 
 	var alsWithNestedMembers []*accessListWithMembers
 	onUpsert := func(ctx context.Context, a *accessListWithMembers) error {
@@ -538,4 +561,15 @@ func strval(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+func toCollection(in map[string]*accessListWithMembers) (*accesslists.Collection, error) {
+	c := accesslists.Collection{}
+	for _, v := range in {
+		if err := c.AddAccessList(v.AccessList, v.Members); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &c, nil
 }
