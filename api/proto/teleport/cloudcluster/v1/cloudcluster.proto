@@ -40,7 +40,9 @@ message CloudClusterSpec {
 }
 
 // CloudClusterStatus is populated with status from Teleport Cloud
-message CloudClusterStatus {}
+message CloudClusterStatus {
+  string status = 1;
+}
 
 // IAMAllow configures an IAM join token
 message IAMAllow {

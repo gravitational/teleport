@@ -193,6 +193,7 @@ func (x *CloudClusterSpec) GetAllow() []*IAMAllow {
 // CloudClusterStatus is populated with status from Teleport Cloud
 type CloudClusterStatus struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -225,6 +226,13 @@ func (x *CloudClusterStatus) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CloudClusterStatus.ProtoReflect.Descriptor instead.
 func (*CloudClusterStatus) Descriptor() ([]byte, []int) {
 	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CloudClusterStatus) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
 }
 
 // IAMAllow configures an IAM join token
@@ -298,8 +306,9 @@ const file_teleport_cloudcluster_v1_cloudcluster_proto_rawDesc = "" +
 	"\bbot_name\x18\x02 \x01(\tR\abotName\x12\x1f\n" +
 	"\vjoin_method\x18\x03 \x01(\tR\n" +
 	"joinMethod\x128\n" +
-	"\x05allow\x18\x04 \x03(\v2\".teleport.cloudcluster.v1.IAMAllowR\x05allow\"\x14\n" +
-	"\x12CloudClusterStatus\"D\n" +
+	"\x05allow\x18\x04 \x03(\v2\".teleport.cloudcluster.v1.IAMAllowR\x05allow\",\n" +
+	"\x12CloudClusterStatus\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\"D\n" +
 	"\bIAMAllow\x12\x1f\n" +
 	"\vaws_account\x18\x01 \x01(\tR\n" +
 	"awsAccount\x12\x17\n" +
