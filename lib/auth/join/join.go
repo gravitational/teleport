@@ -47,13 +47,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/azuredevops"
-	"github.com/gravitational/teleport/lib/circleci"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -199,6 +199,8 @@ type RegisterParams struct {
 	// OracleIMDSClient overrides the HTTP client used to make requests to the
 	// OCI Instance Metadata Service.
 	OracleIMDSClient utils.HTTPDoClient
+	// AttestTPM overrides the function used to attest the host TPM for the TPM join method.
+	AttestTPM func(context.Context, *slog.Logger) (*tpm.Attestation, func() error, error)
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
@@ -228,6 +230,10 @@ func (r *RegisterParams) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if r.AttestTPM == nil {
+		r.AttestTPM = tpm.Attest
 	}
 
 	return nil
@@ -336,9 +342,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			}
 		}
 	case types.JoinMethodCircleCI:
-		params.IDToken, err = circleci.GetIDToken(os.Getenv)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = circleci.GetIDToken(os.Getenv)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodKubernetes:
 		params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
@@ -346,9 +354,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGCP:
-		params.IDToken, err = gcp.GetIDToken(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = gcp.GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodSpacelift:
 		params.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
@@ -894,7 +904,7 @@ func registerUsingTPMMethod(
 		JoinRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
 	}
 
-	attestation, close, err := tpm.Attest(ctx, log)
+	attestation, close, err := params.AttestTPM(ctx, log)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

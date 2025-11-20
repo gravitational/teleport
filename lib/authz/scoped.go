@@ -21,12 +21,14 @@ package authz
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 // ScopedAuthorizer provides an equivalent to the Authorizer.Authorize method intended for use
@@ -56,7 +58,7 @@ func NewScopedAuthorizer(opts AuthorizerOpts) (ScopedAuthorizer, error) {
 func (a *authorizer) AuthorizeScoped(ctx context.Context) (splitCtx *ScopedContext, err error) {
 	authCtx, err := a.Authorize(ctx)
 	if err != nil {
-		if errors.Is(err, ErrScopedIdentity) {
+		if errors.Is(err, services.ErrScopedIdentity) {
 			return a.authorizeScoped(ctx)
 		}
 		return nil, trace.Wrap(err)
@@ -69,13 +71,14 @@ func (a *authorizer) AuthorizeScoped(ctx context.Context) (splitCtx *ScopedConte
 func ScopedContextFromUnscopedContext(authCtx *Context) *ScopedContext {
 	return &ScopedContext{
 		User:            authCtx.User,
+		Identity:        authCtx.Identity,
 		CheckerContext:  services.NewUnscopedSplitAccessCheckerContext(authCtx.Checker),
 		unscopedContext: authCtx,
 	}
 }
 
 // authorizeScoped authorizes a scoped identity. This function should generally only be called by methods that
-// implement scoping support, and only if [ErrScopedIdentity] is returned by [Authorize].
+// implement scoping support, and only if [services.ErrScopedIdentity] is returned by [Authorize].
 // XXX: this is a protoype implementation and does not have feature parity with standard Authorize. Scopes are
 // a work in progress feature. This method does not function without the unstable scope flag being set, and must
 // remain behind the feature flag until core functionality is finalized.
@@ -136,6 +139,7 @@ func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Aut
 
 	return &ScopedContext{
 		User:           user,
+		Identity:       u,
 		CheckerContext: services.NewScopedSplitAccessCheckerContext(checkerContext),
 	}, nil
 }
@@ -147,6 +151,8 @@ func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Aut
 type ScopedContext struct {
 	// User describes the authenticated user.
 	User types.User
+	// Identity holds the caller identity
+	Identity IdentityGetter
 	// CheckerContext is the top-level access checker for the authenticated identity. This types serves a similar
 	// purpose to [services.AccessChecker] but requires different usage patterns to accommodate the more complex
 	// scoped decision model.
@@ -170,4 +176,26 @@ func (s *ScopedContext) RuleContext() services.Context {
 	return services.Context{
 		User: s.User,
 	}
+}
+
+// GetDisconnectCertExpiry is equivalent to [Context.GetDisconnectCertExpiry], but will
+// defer exclusively to cluster-level configuration if the underlying identity is scoped.
+func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time.Time {
+	if s.unscopedContext != nil {
+		return s.unscopedContext.GetDisconnectCertExpiry(authPref)
+	}
+
+	if !authPref.GetDisconnectExpiredCert() {
+		return time.Time{}
+	}
+
+	identity := s.Identity.GetIdentity()
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its issuing certificates expiry value.
+		return identity.PreviousIdentityExpires
+	}
+
+	// Otherwise, return the current certificates expiration
+	return identity.Expires
 }

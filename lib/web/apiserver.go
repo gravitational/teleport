@@ -224,6 +224,9 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string
 	// GetProxyClientCertificate returns the proxy client certificate.
 	GetProxyClientCertificate func() (*tls.Certificate, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
@@ -342,6 +345,8 @@ func (c *Config) SetDefaults() {
 	if c.AutomaticUpgradesChannels == nil {
 		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
+
+	c.ProxyGroupID = cmp.Or(c.ProxyGroupID, os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"))
 
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
@@ -2312,13 +2317,13 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	req, err := ParseSSORequestParams(r)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to extract SSO parameters from request", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -2331,7 +2336,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error creating auth request", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	return response.RedirectURL
@@ -2404,10 +2409,10 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			}
 		}
 		if errors.Is(err, auth.ErrGithubNoTeams) {
-			return client.LoginFailedUnauthorizedRedirectURL
+			return sso.LoginFailedUnauthorizedRedirectURL
 		}
 
-		return client.LoginFailedBadCallbackRedirectURL
+		return sso.LoginFailedBadCallbackRedirectURL
 	}
 
 	// if we created web session, set session cookie and redirect to original url
@@ -2424,7 +2429,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 
 		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.ErrorContext(r.Context(), "Error setting web session.", "error", err)
-			return client.LoginFailedRedirectURL
+			return sso.LoginFailedRedirectURL
 		}
 
 		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
@@ -2443,7 +2448,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	logger.InfoContext(r.Context(), "Callback is redirecting to console login")
 	if len(response.Req.SSHPubKey)+len(response.Req.TLSPubKey) == 0 {
 		logger.ErrorContext(r.Context(), "Not a web or console login request")
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
@@ -2459,7 +2464,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	return redirectURL.String()
@@ -2742,6 +2747,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	var webSession types.WebSession
 	switch {
@@ -3127,6 +3133,8 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3151,6 +3159,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	switch {
 	// Since checking for private key policy meant that they passed authn,
@@ -3160,6 +3170,11 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Return a friendlier error if an SSO user tried to do passwordless.
 	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, trace.Wrap(err)
+
+	// Return a friendlier error if the user has assigned a role that doesn't exist in the
+	// backend.
+	case errors.Is(err, types.ErrNonExistingRoleAssigned):
 		return nil, trace.Wrap(err)
 
 	// Obscure all other errors.
@@ -3929,15 +3944,14 @@ func (h *Handler) siteNodeConnect(
 	)
 
 	clusterName := cluster.GetName()
-	if req.SessionID.IsZero() {
-		// An existing session ID was not provided so we need to create a new one.
+	if req.JoinSessionID.IsZero() {
 		sessionData, err = h.generateSession(r.Context(), &req, clusterName, sessionCtx)
 		if err != nil {
 			h.logger.DebugContext(r.Context(), "Unable to generate new ssh session", "error", err)
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, &req, clusterName)
+		sessionData, tracker, err = h.fetchJoinSession(ctx, clt, &req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3957,7 +3971,6 @@ func (h *Handler) siteNodeConnect(
 	h.logger.DebugContext(r.Context(), "New terminal request",
 		"server", req.Server,
 		"login", req.Login,
-		"sid", sessionData.ID,
 		"websid", sessionCtx.GetSessionID(),
 	)
 
@@ -4271,9 +4284,19 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 	}, nil
 }
 
-// fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
-func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
-	sessionID, err := session.ParseID(req.SessionID.String())
+// fetchJoinSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
+func (h *Handler) fetchJoinSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
+	// Session joining is not supported in proxy recording mode
+	if recConfig, err := h.auth.accessPoint.GetSessionRecordingConfig(ctx); err != nil {
+		// If the user can't see the recording mode, just let them try joining below
+		if !trace.IsAccessDenied(err) {
+			return session.Session{}, nil, trace.Wrap(err)
+		}
+	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
+		return session.Session{}, nil, trace.BadParameter("session joining is not supported in proxy recording mode. If you are a Teleport administrator, you can learn more about recording modes at: https://goteleport.com/docs/reference/architecture/session-recording")
+	}
+
+	sessionID, err := session.ParseID(req.JoinSessionID.String())
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
 	}
@@ -4282,6 +4305,10 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.Clien
 	tracker, err := clt.GetSessionTracker(ctx, string(*sessionID))
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
+	}
+
+	if types.IsOpenSSHNodeSubKind(tracker.GetTargetSubKind()) {
+		return session.Session{}, nil, trace.BadParameter("session joining is only supported for nodes which are Teleport agents, not OpenSSH nodes")
 	}
 
 	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
@@ -4666,13 +4693,15 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
+	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:                 req.User,
 			SSHPublicKey:             req.SSHPubKey,
 			TLSPublicKey:             req.TLSPubKey,
-			ClientMetadata:           clientMetaFromReq(r),
+			ClientMetadata:           clientMeta,
 			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 		},
 		CompatibilityMode:       req.Compatibility,
@@ -5051,7 +5080,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 
 		redirectURL := fn(w, r, p)
 		if !IsValidRedirectURL(redirectURL) {
-			redirectURL = client.LoginFailedRedirectURL
+			redirectURL = sso.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
 	}
@@ -5065,7 +5094,7 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
 		if !IsValidRedirectURL(redirectURL) {
-			redirectURL = client.LoginFailedRedirectURL
+			redirectURL = sso.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)
 		if err != nil {
@@ -5436,6 +5465,8 @@ type SSORequestParams struct {
 	ConnectorID string
 	// CSRFToken is used to protect against login-CSRF in SSO flows.
 	CSRFToken string
+	// LoginHint is the user's identifier (email) for identifier-first login.
+	LoginHint string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5463,6 +5494,10 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 	}
 
 	query := r.URL.Query()
+	loginHint := query.Get("login_hint")
+	if len(loginHint) > teleport.MaxUsernameLength {
+		loginHint = ""
+	}
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
@@ -5477,6 +5512,7 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
 		CSRFToken:         csrfToken,
+		LoginHint:         loginHint,
 	}, nil
 }
 

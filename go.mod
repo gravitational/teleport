@@ -243,15 +243,15 @@ require (
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
 	go.opentelemetry.io/proto/otlp v1.9.0
-	golang.org/x/crypto v0.43.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
 	golang.org/x/mod v0.30.0
-	golang.org/x/net v0.46.0
+	golang.org/x/net v0.47.0
 	golang.org/x/oauth2 v0.33.0
 	golang.org/x/sync v0.18.0
 	golang.org/x/sys v0.38.0
 	golang.org/x/term v0.37.0
-	golang.org/x/text v0.30.0
+	golang.org/x/text v0.31.0
 	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.3
@@ -374,7 +374,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
+	github.com/dvsekhvalnov/jose2go v1.7.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect

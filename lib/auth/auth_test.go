@@ -1075,6 +1075,19 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ws)
 
+	// First attempt to induce a user lock when there are issues with the backend.
+	// This should not result in a locked user.
+	for range defaults.MaxLoginAttempts {
+		s.a.WithUserLock(ctx, username, func() error {
+			return trace.ConnectionProblem(errors.New(""), "connection problem")
+		})
+	}
+	user, err := s.a.GetUser(ctx, username, false)
+	require.NoError(t, err)
+	require.False(t, user.GetStatus().IsLocked)
+
+	// Now attempt to induce a lock with invalid credentials.
+	// This should result in a locked user.
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
 		_, err = s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 			Username: username,
@@ -1082,14 +1095,12 @@ func TestUserLock(t *testing.T) {
 		})
 		require.Error(t, err)
 	}
-
-	user, err := s.a.GetUser(ctx, username, false)
+	user, err = s.a.GetUser(ctx, username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 
 	// advance time and make sure we can login again
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
-
 	_, err = s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
 		Pass:     &authclient.PassCreds{Password: pass},

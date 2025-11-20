@@ -43,12 +43,43 @@ productivity.
 
 ## Step 1/8. Define RBAC resources
 
-Before you set up the Teleport Mattermost plugin, you need to enable Role Access
-Requests in the Teleport Proxy Service or Teleport Auth Service.
+Before you set up the Mattermost plugin, you will need to enable Role Access Requests
+in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/8. Install the Teleport Mattermost plugin
+## Step 2/8. Define a Teleport Mattermost plugin user
+
+The required permissions for the plugin are configured in the preset `access-plugin`
+role. To generate credentials for the plugin, define either a Machine ID bot user
+or a regular Teleport user.
+
+<Tabs>
+<TabItem label="Machine & Workload Identity">
+(!docs/pages/includes/plugins/rbac-impersonate-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/rbac-impersonate.mdx!)
+</TabItem>
+</Tabs>
+
+## Step 3/8. Export the access plugin identity
+
+Give the plugin access to a Teleport identity file. We recommend using Machine
+ID for this in order to produce short-lived identity files that are less
+dangerous if exfiltrated, though in demo deployments, you can generate
+longer-lived identity files with `tctl`:
+
+<Tabs>
+<TabItem label="Machine & Workload Identity">
+(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-mattermost-identity"!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-mattermost-identity"!)
+</TabItem>
+</Tabs>
+
+## Step 4/8. Install the Teleport Mattermost plugin
 
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
@@ -69,28 +100,6 @@ Teleport Proxy Service and your Mattermost deployment.
 </Tabs>
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="mattermost"!)
-
-## Step 3/8. Create a user and role for the plugin
-
-(!docs/pages/includes/plugins/rbac-with-friendly-name.mdx!)
-
-(!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
-
-## Step 4/8. Export the access plugin identity
-
-Give the plugin access to a Teleport identity file. We recommend using Machine
-ID for this in order to produce short-lived identity files that are less
-dangerous if exfiltrated, though in demo deployments, you can generate
-longer-lived identity files with `tctl`:
-
-<Tabs>
-<TabItem label="Machine & Workload Identity">
-(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-mattermost-identity"!)
-</TabItem>
-<TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-mattermost-identity"!)
-</TabItem>
-</Tabs>
 
 ## Step 5/8. Register a Mattermost bot
 

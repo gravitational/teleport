@@ -83,12 +83,12 @@ Once the workload has its identity, it can be used for a range of purposes. The
 X.509 certificates can be used to establish Mutual TLS, and the JWTs can be used
 to authenticate with a range of third-party APIs.
 
-## Teleport Workload Identity vs Machine ID
+## Teleport Zero Trust Access vs Workload Identity
 
-Teleport Machine ID issues short-lived credentials to workloads to enable them
-to access resources secured by the Teleport cluster. The credentials issued are
-only compatible with Teleport itself, and access to resources must be through
-the Teleport Proxy.
+Teleport Machine & Workload Identity for Zero Trust Access primarily issues
+short-lived credentials to workloads to enable them to access resources secured
+by the Teleport cluster. The credentials issued are only compatible with
+Teleport itself, and access to resources must be through the Teleport Proxy.
 
 Teleport Workload Identity issues cryptographic identities that are compatible
 with the popular SPIFFE standard for interoperable workload identity. These 

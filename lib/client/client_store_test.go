@@ -303,11 +303,18 @@ func TestClientStore(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				currentStatus, otherStatuses, err := clientStore.FullProfileStatus()
+				currentStatus, otherStatuses, err := clientStore.FullProfileStatus("")
 				require.NoError(t, err)
 				require.Equal(t, expectStatus, currentStatus)
 				require.Len(t, otherStatuses, 1)
 				require.Equal(t, expectOtherStatus, otherStatuses[0])
+
+				// Test passing the active profile in the parameter.
+				currentStatus, otherStatuses, err = clientStore.FullProfileStatus("other.example.com")
+				require.NoError(t, err)
+				require.Equal(t, expectOtherStatus, currentStatus)
+				require.Len(t, otherStatuses, 1)
+				require.Equal(t, expectStatus, otherStatuses[0])
 			})
 		})
 	}

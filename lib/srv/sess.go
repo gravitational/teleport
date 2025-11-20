@@ -853,7 +853,11 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
 
-	policySets := scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	var policySets []*types.SessionTrackerPolicySet
+	if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
+		policySets = scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	}
+
 	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
@@ -1423,7 +1427,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		return trace.Wrap(err)
 	}
 
-	var eventsMap map[string]bool
+	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
 	} else if scx.srv.GetBPF().Enabled() {
@@ -1641,7 +1645,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		scx.SendExecResult(ctx, *result)
 	}
 
-	var eventsMap map[string]bool
+	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
 	} else if scx.srv.GetBPF().Enabled() {
@@ -1896,9 +1900,14 @@ func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, e
 			continue
 		}
 
+		var roles []types.Role
+		if party.ctx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 			Mode:     party.mode,
 		})
 	}
@@ -2081,9 +2090,14 @@ func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error
 			continue
 		}
 
+		var roles []types.Role
+		if party.ctx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 			Mode:     party.mode,
 		})
 	}
@@ -2216,9 +2230,14 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
 	if scx.Identity.TeleportUser != s.initiator.user || scx.Identity.OriginClusterName != s.initiator.cluster {
+		var roles []types.Role
+		if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = scx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		accessContext := moderation.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
-			Roles:    scx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 		}
 
 		modes := s.access.CanJoin(accessContext)
@@ -2483,10 +2502,10 @@ func (s *session) onWriteErrorCallback(sessionRecordingMode constants.SessionRec
 	}
 }
 
-func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]bool {
-	eventsMap := make(map[string]bool, len(permit.BpfEvents))
+func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]struct{} {
+	eventsMap := make(map[string]struct{}, len(permit.BpfEvents))
 	for _, event := range permit.BpfEvents {
-		eventsMap[event] = true
+		eventsMap[event] = struct{}{}
 	}
 
 	return eventsMap
