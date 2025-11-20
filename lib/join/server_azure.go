@@ -72,6 +72,15 @@ func (s *Server) handleAzureJoin(
 		return nil, trace.Wrap(err, "receiving AzureChallengeSolution")
 	}
 
+	switch {
+	case len(solution.AttestedData) == 0:
+		return nil, trace.BadParameter("client did not send attested data")
+	case len(solution.Intermediate) == 0:
+		return nil, trace.BadParameter("client did not send intermediate CAs")
+	case len(solution.AccessToken) == 0:
+		return nil, trace.BadParameter("client did not send access token")
+	}
+
 	ptv2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("Azure join method only supports ProvisionTokenV2, got %T", token)
@@ -83,6 +92,7 @@ func (s *Server) handleAzureJoin(
 		Token:           ptv2,
 		Challenge:       challenge,
 		AttestedData:    solution.AttestedData,
+		Intermediate:    solution.Intermediate,
 		AccessToken:     solution.AccessToken,
 		Logger:          log,
 		Clock:           s.cfg.AuthService.GetClock(),

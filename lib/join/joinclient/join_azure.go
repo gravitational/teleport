@@ -18,11 +18,17 @@ package joinclient
 
 import (
 	"context"
+	"crypto/x509"
+	"net/http"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams JoinParams, clientParams messages.ClientParams) (messages.Response, error) {
@@ -58,15 +64,20 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	}
 	ad, err := imds.GetAttestedData(ctx, challenge.Challenge)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "getting attested data document")
+	}
+	intermediate, err := getIntermediate(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting intermediate CA for attested data")
 	}
 	accessToken, err := imds.GetAccessToken(ctx, joinParams.AzureParams.ClientID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "getting access token")
 	}
 
 	if err := stream.Send(&messages.AzureChallengeSolution{
 		AttestedData: ad,
+		Intermediate: intermediate,
 		AccessToken:  accessToken,
 	}); err != nil {
 		return nil, trace.Wrap(err, "sending AzureChallengeSolution")
@@ -74,4 +85,51 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 
 	result, err := stream.Recv()
 	return result, trace.Wrap(err, "receiving join result")
+}
+
+func getIntermediate(ctx context.Context, httpClient utils.HTTPDoClient, ad []byte) ([]byte, error) {
+	_, p7, err := azurejoin.ParseAttestedData(ad)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing attested data document")
+	}
+	if len(p7.Certificates) == 0 {
+		return nil, trace.Errorf("attested data signature has no certificates")
+	}
+	leafCert := p7.Certificates[0]
+	if len(leafCert.IssuingCertificateURL) == 0 {
+		return nil, trace.Errorf("attested data leaf certificate has no issuing certificate URL")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, leafCert.IssuingCertificateURL[0], nil /*body*/)
+	if err != nil {
+		return nil, trace.Wrap(err, "building HTTP request")
+	}
+
+	if httpClient == nil {
+		httpClient, err = defaults.HTTPClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching intermediate certificate")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.Errorf("failed to fetch intermediate cert, got HTTP status code %d", resp.StatusCode)
+	}
+
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return nil, trace.Wrap(err, "reading HTTP response body")
+	}
+
+	if _, err := x509.ParseCertificates(body); err != nil {
+		return nil, trace.Wrap(err, "parsing intermediate certificate")
+	}
+
+	return body, nil
 }

@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"log/slog"
 	"net/url"
 	"slices"
@@ -41,6 +40,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/utils"
@@ -138,6 +138,10 @@ type AzureJoinConfig struct {
 	Verify AzureVerifyTokenFunc
 	// GetVMClient, if set, overrides the function used to get Azure VM clients.
 	GetVMClient VMClientGetter
+	// IssuerHTTPClient, if set, overrides the default HTTP client used to
+	// fetch the intermediate CA which issued the attested data document
+	// signing certificate.
+	IssuerHTTPClient utils.HTTPDoClient
 }
 
 func azureVerifyFuncFromOIDCVerifier(clientID string) AzureVerifyTokenFunc {
@@ -186,55 +190,58 @@ func (cfg *AzureJoinConfig) checkAndSetDefaults() error {
 			return client, trace.Wrap(err)
 		}
 	}
+	if cfg.IssuerHTTPClient == nil {
+		httpClient, err := defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.IssuerHTTPClient = httpClient
+	}
 	return nil
 }
 
 // parseAndVeryAttestedData verifies that an attested data document was signed
 // by Azure. If verification is successful, it returns the ID of the VM that
 // produced the document.
-func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge string, certs []*x509.Certificate) (subscriptionID, vmID string, err error) {
-	var signedAD SignedAttestedData
-	if err := utils.FastUnmarshal(adBytes, &signedAD); err != nil {
-		return "", "", trace.Wrap(err)
-	}
-	if signedAD.Encoding != "pkcs7" {
-		return "", "", trace.AccessDenied("unsupported signature type: %v", signedAD.Encoding)
-	}
-
-	sigPEM := "-----BEGIN PKCS7-----\n" + signedAD.Signature + "\n-----END PKCS7-----"
-	sigBER, _ := pem.Decode([]byte(sigPEM))
-	if sigBER == nil {
-		return "", "", trace.AccessDenied("unable to decode attested data document")
-	}
-
-	p7, err := pkcs7.Parse(sigBER.Bytes)
+func parseAndVerifyAttestedData(
+	ctx context.Context,
+	cfg *AzureJoinConfig,
+	adBytes []byte,
+	intermediates []byte,
+	challenge string,
+) (subscriptionID, vmID string, err error) {
+	ad, p7, err := ParseAttestedData(adBytes)
 	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
-	var ad AttestedData
-	if err := utils.FastUnmarshal(p7.Content, &ad); err != nil {
 		return "", "", trace.Wrap(err)
 	}
 	if ad.Nonce != challenge {
 		return "", "", trace.AccessDenied("challenge is missing or does not match")
 	}
-
 	if len(p7.Certificates) == 0 {
 		return "", "", trace.AccessDenied("no certificates for signature")
 	}
 	fixAzureSigningAlgorithm(p7)
 
-	// Azure only sends the leaf cert, so we have to fetch the intermediate.
-	intermediate, err := getAzureIssuerCert(ctx, p7.Certificates[0])
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
-	if intermediate != nil {
-		p7.Certificates = append(p7.Certificates, intermediate)
+	if len(intermediates) > 0 {
+		// Client explicitly sent intermediate CAs, included them.
+		intermediates, err := x509.ParseCertificates(intermediates)
+		if err != nil {
+			return "", "", trace.Wrap(err, "parsing intermediate certificates sent by client")
+		}
+		p7.Certificates = append(p7.Certificates, intermediates...)
+	} else {
+		// Client did not send intermediates, fetch them from Azure.
+		intermediate, err := getAzureIssuerCert(ctx, p7.Certificates[0], cfg.IssuerHTTPClient)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		if intermediate != nil {
+			p7.Certificates = append(p7.Certificates, intermediate)
+		}
 	}
 
 	pool := x509.NewCertPool()
-	for _, cert := range certs {
+	for _, cert := range cfg.CertificateAuthorities {
 		pool.AddCert(cert)
 	}
 
@@ -243,6 +250,33 @@ func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge s
 	}
 
 	return ad.SubscriptionID, ad.ID, nil
+}
+
+// ParseAttestedData returns the parsed VM attested data and a PKCS7 structure
+// which can be used to verify the signature.
+func ParseAttestedData(adBytes []byte) (*AttestedData, *pkcs7.PKCS7, error) {
+	var signedAD SignedAttestedData
+	if err := utils.FastUnmarshal(adBytes, &signedAD); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if signedAD.Encoding != "pkcs7" {
+		return nil, nil, trace.AccessDenied("unsupported signature type: %v", signedAD.Encoding)
+	}
+
+	sigDER, err := base64.StdEncoding.DecodeString(signedAD.Signature)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "decoding attested data document from base64")
+	}
+
+	p7, err := pkcs7.Parse(sigDER)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	var ad AttestedData
+	if err := utils.FastUnmarshal(p7.Content, &ad); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return &ad, p7, nil
 }
 
 // verifyVMIdentity verifies that the provided access token came from the
@@ -412,6 +446,9 @@ type CheckAzureRequestParams struct {
 	// AttestedData is the Azure attested data that was returned by the joining
 	// client. It must include the challenge as a nonce.
 	AttestedData []byte
+	// Intermediate encodes the intermediate CAs that issued the leaf certificate
+	// used to sign the attested data document, in x509 DER format.
+	Intermediate []byte
 	// AccessToken is the Azure access token that was returned by the joining client
 	AccessToken string
 	// Logger will be used for logging.
@@ -450,9 +487,10 @@ func CheckAzureRequest(ctx context.Context, params CheckAzureRequestParams) (*wo
 
 	subID, vmID, err := parseAndVerifyAttestedData(
 		ctx,
+		params.AzureJoinConfig,
 		params.AttestedData,
+		params.Intermediate,
 		params.Challenge,
-		params.AzureJoinConfig.CertificateAuthorities,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

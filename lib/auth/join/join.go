@@ -80,6 +80,10 @@ type AzureParams struct {
 	ClientID string
 	// IMDSClient overrides the client used to fetch data from Azure IMDS.
 	IMDSClient AzureIMDSClient
+	// IssuerHTTPClient, if set, overrides the default HTTP client used to
+	// fetch the intermediate CA which issued the attested data document
+	// signing certificate. Only used when joining via the new join service.
+	IssuerHTTPClient utils.HTTPDoClient
 }
 
 // AzureIMDSClient is a client to Azure's IMDS.

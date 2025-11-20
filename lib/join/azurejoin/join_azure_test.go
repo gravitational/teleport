@@ -19,13 +19,19 @@
 package azurejoin_test
 
 import (
+	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
+	"io"
+	"net/http"
 	"testing"
 	"time"
 
@@ -44,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -162,12 +167,14 @@ func TestJoinAzure(t *testing.T) {
 	nopClient, err := server.NewClient(authtest.TestNop())
 	require.NoError(t, err)
 
-	tlsConfig, err := fixtures.LocalTLSConfig()
+	caChain := newFakeAzureCAChain(t)
+	httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-
-	block, _ := pem.Decode(fixtures.LocalhostKey)
-	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	require.NoError(t, err)
+	instanceCert := caChain.issueLeafCert(t,
+		instanceKey.Public(),
+		"instance.metadata.azure.com",
+		"http://www.microsoft.com/pkiops/certs/testcert.crt")
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -216,7 +223,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: require.NoError,
 		},
 		{
@@ -237,7 +244,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: require.NoError,
 		},
 		{
@@ -257,7 +264,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -277,7 +284,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:               mockVerifyToken(nil),
-			certs:                []*x509.Certificate{tlsConfig.Certificate},
+			certs:                []*x509.Certificate{caChain.rootCert},
 			challengeResponseErr: trace.BadParameter("test error"),
 			assertError:          isBadParameter,
 		},
@@ -298,7 +305,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -319,7 +326,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -340,7 +347,7 @@ func TestJoinAzure(t *testing.T) {
 			},
 			overrideReturnedChallenge: "wrong-challenge",
 			verify:                    mockVerifyToken(nil),
-			certs:                     []*x509.Certificate{tlsConfig.Certificate},
+			certs:                     []*x509.Certificate{caChain.rootCert},
 			assertError:               isAccessDenied,
 		},
 		{
@@ -381,7 +388,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -402,7 +409,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -423,7 +430,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: require.NoError,
 		},
 		{
@@ -444,7 +451,7 @@ func TestJoinAzure(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: require.NoError,
 		},
 	}
@@ -470,6 +477,7 @@ func TestJoinAzure(t *testing.T) {
 				CertificateAuthorities: tc.certs,
 				Verify:                 tc.verify,
 				GetVMClient:            getVMClient,
+				IssuerHTTPClient:       httpClient,
 			})
 
 			token, err := types.NewProvisionTokenFromSpec(
@@ -494,8 +502,8 @@ func TestJoinAzure(t *testing.T) {
 				accessToken:       accessToken,
 				accessTokenErr:    tc.challengeResponseErr,
 				overrideChallenge: tc.overrideReturnedChallenge,
-				signingCert:       tlsConfig.Certificate,
-				signingKey:        pkey,
+				signingCert:       instanceCert,
+				signingKey:        instanceKey,
 				subscription:      tc.tokenSubscription,
 				vmID:              tc.tokenVMID,
 			}
@@ -524,8 +532,9 @@ func TestJoinAzure(t *testing.T) {
 					},
 					AuthClient: nopClient,
 					AzureParams: joinclient.AzureParams{
-						ClientID:   tc.tokenVMID,
-						IMDSClient: imdsClient,
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
 					},
 				})
 				tc.assertError(t, err)
@@ -551,12 +560,14 @@ func TestJoinAzureClaims(t *testing.T) {
 	nopClient, err := server.NewClient(authtest.TestNop())
 	require.NoError(t, err)
 
-	tlsConfig, err := fixtures.LocalTLSConfig()
+	caChain := newFakeAzureCAChain(t)
+	httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-
-	block, _ := pem.Decode(fixtures.LocalhostKey)
-	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	require.NoError(t, err)
+	instanceCert := caChain.issueLeafCert(t,
+		instanceKey.Public(),
+		"instance.metadata.azure.com",
+		"http://www.microsoft.com/pkiops/certs/testcert.crt")
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -610,7 +621,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: require.NoError,
 		},
 		{
@@ -632,7 +643,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -654,7 +665,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -677,7 +688,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: require.NoError,
 		},
 		{
@@ -700,7 +711,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -723,7 +734,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -746,7 +757,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: require.NoError,
 		},
 		{
@@ -768,7 +779,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: isAccessDenied,
 		},
 		{
@@ -790,7 +801,7 @@ func TestJoinAzureClaims(t *testing.T) {
 				JoinMethod: types.JoinMethodAzure,
 			},
 			verify:      mockVerifyToken(nil),
-			certs:       []*x509.Certificate{tlsConfig.Certificate},
+			certs:       []*x509.Certificate{caChain.rootCert},
 			assertError: require.NoError,
 		},
 	}
@@ -823,13 +834,14 @@ func TestJoinAzureClaims(t *testing.T) {
 				CertificateAuthorities: tc.certs,
 				Verify:                 tc.verify,
 				GetVMClient:            getVMClient,
+				IssuerHTTPClient:       httpClient,
 			})
 
 			imdsClient := &fakeIMDSClient{
 				accessToken:    accessToken,
 				accessTokenErr: tc.challengeResponseErr,
-				signingCert:    tlsConfig.Certificate,
-				signingKey:     pkey,
+				signingCert:    instanceCert,
+				signingKey:     instanceKey,
 				subscription:   tc.tokenSubscription,
 				vmID:           tc.tokenVMID,
 			}
@@ -860,8 +872,9 @@ func TestJoinAzureClaims(t *testing.T) {
 					},
 					AuthClient: nopClient,
 					AzureParams: joinclient.AzureParams{
-						ClientID:   tc.tokenVMID,
-						IMDSClient: imdsClient,
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
 					},
 				})
 				tc.assertError(t, err)
@@ -885,8 +898,9 @@ func TestJoinAzureClaims(t *testing.T) {
 					},
 					AuthClient: nopClient,
 					AzureParams: joinclient.AzureParams{
-						ClientID:   tc.tokenVMID,
-						IMDSClient: imdsClient,
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
 					},
 				})
 				tc.assertError(t, err)
@@ -964,4 +978,90 @@ func (c *fakeIMDSClient) GetAttestedData(_ context.Context, nonce string) ([]byt
 
 func (c *fakeIMDSClient) GetAccessToken(_ context.Context, clientID string) (string, error) {
 	return c.accessToken, trace.Wrap(c.accessTokenErr)
+}
+
+type fakeAzureCAChain struct {
+	intermediateKey     crypto.Signer
+	intermediateCert    *x509.Certificate
+	intermediateCertDER []byte
+	rootCert            *x509.Certificate
+}
+
+func newFakeAzureCAChain(t *testing.T) *fakeAzureCAChain {
+	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	rootCertTemplate := &x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: "test root CA",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	rootCertDER, err := x509.CreateCertificate(rand.Reader, rootCertTemplate, rootCertTemplate, rootKey.Public(), rootKey)
+	require.NoError(t, err)
+	rootCert, err := x509.ParseCertificate(rootCertDER)
+	require.NoError(t, err)
+
+	intermediateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	intermediateCertTemplate := &x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: "test intermediate CA",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	intermediateCertDER, err := x509.CreateCertificate(rand.Reader, intermediateCertTemplate, rootCert, intermediateKey.Public(), rootKey)
+	require.NoError(t, err)
+	intermediateCert, err := x509.ParseCertificate(intermediateCertDER)
+	require.NoError(t, err)
+
+	return &fakeAzureCAChain{
+		intermediateKey:     intermediateKey,
+		intermediateCert:    intermediateCert,
+		intermediateCertDER: intermediateCertDER,
+		rootCert:            rootCert,
+	}
+}
+
+func (c *fakeAzureCAChain) issueLeafCert(t *testing.T, pub crypto.PublicKey, commonName, issuerURL string) *x509.Certificate {
+	leafCertTemplate := &x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: commonName,
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(time.Hour),
+		IssuingCertificateURL: []string{issuerURL},
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+	}
+	leafCertDER, err := x509.CreateCertificate(rand.Reader, leafCertTemplate, c.intermediateCert, pub, c.intermediateKey)
+	require.NoError(t, err)
+	leafCert, err := x509.ParseCertificate(leafCertDER)
+	require.NoError(t, err)
+	return leafCert
+}
+
+type fakeAzureIssuerHTTPClient struct {
+	issuerCertDER []byte
+	called        int
+}
+
+func newFakeAzureIssuerHTTPClient(issuerCertDER []byte) *fakeAzureIssuerHTTPClient {
+	return &fakeAzureIssuerHTTPClient{
+		issuerCertDER: issuerCertDER,
+	}
+}
+func (c *fakeAzureIssuerHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	c.called++
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(c.issuerCertDER)),
+	}, nil
 }
