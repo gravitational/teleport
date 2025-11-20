@@ -174,10 +174,10 @@ func TestRootWatch(t *testing.T) {
 		User:           "foo@example.com",
 		PID:            cmd.Process.Pid,
 		Emitter:        emitter,
-		Events: map[string]bool{
-			constants.EnhancedRecordingCommand: true,
-			constants.EnhancedRecordingDisk:    true,
-			constants.EnhancedRecordingNetwork: true,
+		Events: map[string]struct{}{
+			constants.EnhancedRecordingCommand: {},
+			constants.EnhancedRecordingDisk:    {},
+			constants.EnhancedRecordingNetwork: {},
 		},
 	})
 	require.NoError(t, err)
@@ -277,8 +277,8 @@ func TestRootScripts(t *testing.T) {
 				User:           "foo@example.com",
 				PID:            os.Getpid(),
 				Emitter:        emitter,
-				Events: map[string]bool{
-					constants.EnhancedRecordingCommand: true,
+				Events: map[string]struct{}{
+					constants.EnhancedRecordingCommand: {},
 				},
 			}
 			_, err := service.OpenSession(scx)

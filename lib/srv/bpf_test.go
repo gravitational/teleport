@@ -69,6 +69,12 @@ const (
 var (
 	longArg    = strings.Repeat(longArgBase, (maxArgLength/4)/len(longArgBase))
 	overMaxArg = strings.Repeat(longArgBase, (maxArgLength)/len(longArgBase)+1)
+
+	recordAllEvents = map[string]struct{}{
+		constants.EnhancedRecordingCommand: {},
+		constants.EnhancedRecordingDisk:    {},
+		constants.EnhancedRecordingNetwork: {},
+	}
 )
 
 type expectedEvents struct {
@@ -523,7 +529,7 @@ eval $(echo %s | base64 --decode)`,
 			})
 
 			// Run the command and capture the events.
-			recordedEvents := runCommand(t, srv, bpfSrv, tt.command, expectedCmdFail)
+			recordedEvents := runCommand(t, srv, bpfSrv, tt.command, expectedCmdFail, recordAllEvents)
 
 			commandArgs := make(map[string]int)
 			programPaths := make(map[string]string)
@@ -631,6 +637,116 @@ eval $(echo %s | base64 --decode)`,
 	}
 }
 
+// TestBPFRoleOptions verifies that only event types configured in
+// role options will be recorded in the audit log.
+func TestBPFRoleOptions(t *testing.T) {
+	checkBPF(t)
+
+	srv := newMockServer(t)
+	bpfSrv := newBPFService(t)
+
+	lis, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Go(func() { handleConnections(lis) })
+	t.Cleanup(func() {
+		lis.Close()
+		wg.Wait()
+	})
+
+	tests := []struct {
+		name   string
+		events map[string]struct{}
+	}{
+		{
+			name: "no events",
+		},
+		{
+			name:   "command events",
+			events: map[string]struct{}{constants.EnhancedRecordingCommand: {}},
+		},
+		{
+			name:   "disk events",
+			events: map[string]struct{}{constants.EnhancedRecordingDisk: {}},
+		},
+		{
+			name:   "network events",
+			events: map[string]struct{}{constants.EnhancedRecordingNetwork: {}},
+		},
+		{
+			name: "command and disk events",
+			events: map[string]struct{}{
+				constants.EnhancedRecordingCommand: {},
+				constants.EnhancedRecordingDisk:    {},
+			},
+		},
+		{
+			name: "command and network events",
+			events: map[string]struct{}{
+				constants.EnhancedRecordingCommand: {},
+				constants.EnhancedRecordingNetwork: {},
+			},
+		},
+		{
+			name: "disk and network events",
+			events: map[string]struct{}{
+				constants.EnhancedRecordingDisk:    {},
+				constants.EnhancedRecordingNetwork: {},
+			},
+		},
+	}
+
+	// curl can generate all 3 types of events.
+	command := "curl " + lis.Addr().String()
+
+	// Teleport re-execs (executing /proc/self/exe) and the /bin/sh child
+	// may trigger events that we can ignore when checking that all
+	// events are from 'curl'.
+	skipProgramEvents := []string{"exe", "sh"}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Run the command and capture the events.
+			recordedEvents := runCommand(t, srv, bpfSrv, command, true, tt.events)
+
+			// Check that only configured events were recorded.
+			if len(tt.events) == 0 {
+				require.Empty(t, recordedEvents)
+				return
+			}
+
+			_, recCmd := tt.events[constants.EnhancedRecordingCommand]
+			_, recDisk := tt.events[constants.EnhancedRecordingDisk]
+			_, recNet := tt.events[constants.EnhancedRecordingNetwork]
+
+			for _, e := range recordedEvents {
+				switch e := e.(type) {
+				case *apievents.SessionCommand:
+					require.True(t, recCmd, "expected not to see command events")
+					if !slices.Contains(skipProgramEvents, e.BPFMetadata.Program) {
+						require.Equal(t, "curl", e.BPFMetadata.Program)
+					}
+				case *apievents.SessionDisk:
+					require.True(t, recDisk, "expected not to see disk events")
+					if !slices.Contains(skipProgramEvents, e.BPFMetadata.Program) {
+						require.Equal(t, "curl", e.BPFMetadata.Program)
+					}
+				case *apievents.SessionNetwork:
+					require.True(t, recNet, "expected not to see network events")
+					// Both Teleport re-execs and their child /bin/sh
+					// processes shouldn't generate network events, so
+					// we can assert that all network events are from
+					// curl here.
+					require.Equal(t, "curl", e.BPFMetadata.Program)
+				default:
+					t.Fatalf("Unexpected event type: %T", e)
+				}
+			}
+		})
+	}
+}
+
 type countedValue[T comparable] struct {
 	value T
 	count int
@@ -683,7 +799,7 @@ func handleConnections(l net.Listener) {
 
 // runCommand runs the given command with Enhanced Session Recording
 // enabled and returns the recorded events.
-func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool) []apievents.AuditEvent {
+func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}) []apievents.AuditEvent {
 	scx := newExecServerContext(t, srv)
 	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
 	scx.execRequest.SetCommand(command)
@@ -718,11 +834,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 		User:           "foo@example.com",
 		PID:            cmd.Process.Pid,
 		Emitter:        emitter,
-		Events: map[string]bool{
-			constants.EnhancedRecordingCommand: true,
-			constants.EnhancedRecordingDisk:    true,
-			constants.EnhancedRecordingNetwork: true,
-		},
+		Events:         recordEvents,
 	}
 	cgroupID, err := bpfSrv.OpenSession(sessionCtx)
 	require.NoError(t, err)
