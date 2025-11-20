@@ -640,14 +640,14 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 				groups[i] = int(g)
 			}
 			if err := unix.Setgroups(groups); err != nil {
-				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
+				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process, is Teleport running as root?")
 			}
 		}
 		if err := unix.Setgid(int(cred.Gid)); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process, is Teleport running as root?")
 		}
 		if err := unix.Setuid(int(cred.Uid)); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process, is Teleport running as root?")
 		}
 	}
 
