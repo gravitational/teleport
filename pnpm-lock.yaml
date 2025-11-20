@@ -4487,8 +4487,8 @@ packages:
     resolution: {integrity: sha512-XxwI8EOhVQgWp6iDL+3b0r86f4d6AX6zSU55HfB4ydCEuXLXc5FcYeOu+nnGftS4TEju/11rt4KJPTMgbfmv4A==}
     engines: {node: '>=10.13.0'}
 
-  glob@10.4.5:
-    resolution: {integrity: sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==}
+  glob@10.5.0:
+    resolution: {integrity: sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==}
     hasBin: true
 
   glob@7.2.3:
@@ -8720,7 +8720,7 @@ snapshots:
 
   '@joshwooding/vite-plugin-react-docgen-typescript@0.6.1(typescript@5.7.2)(vite@5.4.8(@types/node@22.14.1))':
     dependencies:
-      glob: 10.4.5
+      glob: 10.5.0
       magic-string: 0.30.17
       react-docgen-typescript: 2.2.2(typescript@5.7.2)
       vite: 5.4.8(@types/node@22.14.1)
@@ -10599,7 +10599,7 @@ snapshots:
 
   config-file-ts@0.2.8-rc1:
     dependencies:
-      glob: 10.4.5
+      glob: 10.5.0
       typescript: 5.7.2
 
   convert-source-map@1.9.0: {}
@@ -11768,7 +11768,7 @@ snapshots:
     dependencies:
       is-glob: 4.0.3
 
-  glob@10.4.5:
+  glob@10.5.0:
     dependencies:
       foreground-child: 3.1.1
       jackspeak: 3.4.2
