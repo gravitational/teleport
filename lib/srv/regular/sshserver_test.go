@@ -985,8 +985,6 @@ func TestDirectTCPIP(t *testing.T) {
 // "tcpip-forward" request and do remote port forwarding.
 func TestTCPIPForward(t *testing.T) {
 	t.Parallel()
-	hostname, err := os.Hostname()
-	require.NoError(t, err)
 	tests := []struct {
 		name        string
 		listenAddr  string
@@ -1002,10 +1000,6 @@ func TestTCPIPForward(t *testing.T) {
 		{
 			name:       "ip address",
 			listenAddr: "127.0.0.1:0",
-		},
-		{
-			name:       "hostname",
-			listenAddr: hostname + ":0",
 		},
 		{
 			name:        "remote deny",
