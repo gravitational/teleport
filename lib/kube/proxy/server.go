@@ -449,7 +449,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster, true))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
