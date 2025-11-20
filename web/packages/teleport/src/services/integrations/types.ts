@@ -21,45 +21,109 @@ import { Label } from 'teleport/types';
 
 import { ResourceLabel } from '../agents';
 
-export type IntegrationCreateResult<T extends IntegrationCreateRequest> =
-  T['subKind'] extends IntegrationKind.GitHub
-    ? IntegrationGitHub
-    : IntegrationAwsOidc;
-
-export type IntegrationUpdateResult<T extends IntegrationUpdateRequest> =
-  T['kind'] extends IntegrationKind.GitHub
-    ? IntegrationGitHub
-    : IntegrationAwsOidc;
-
-export type Integration =
-  | IntegrationGitHub
-  | IntegrationAwsOidc
-  | IntegrationAzureOidc
-  | IntegrationAwsRa;
+/**
+ * IntegrationKindToType maps each {@link IntegrationKind} to its corresponding
+ * {@link Integration} type.
+ */
+export type IntegrationKindToType = {
+  [IntegrationKind.GitHub]: IntegrationGitHub;
+  [IntegrationKind.AwsOidc]: IntegrationAwsOidc;
+  [IntegrationKind.AwsRa]: IntegrationAwsRa;
+  [IntegrationKind.AzureOidc]: IntegrationAzureOidc;
+};
 
 /**
- * type Integration v. type Plugin:
+ * Integration defines the union type of all supported integration kinds.
+ */
+export type Integration = IntegrationKindToType[keyof IntegrationKindToType];
+
+/**
+ * ModifiableIntegration defines all integration kinds supporting
+ * create/update request payloads.
+ */
+export type ModifiableIntegration = Exclude<
+  keyof IntegrationKindToType,
+  'azure-oidc'
+>;
+
+/**
+ * IntegrationKindToCreateRequest maps each {@link ModifiableIntegration} to its
+ * corresponding {@link IntegrationCreateRequest} type.
+ */
+type IntegrationKindToCreateRequest = {
+  [IntegrationKind.GitHub]: IntegrationCreateGitHubRequest;
+  [IntegrationKind.AwsOidc]: IntegrationCreateAwsOidcRequest;
+  [IntegrationKind.AwsRa]: IntegrationCreateAwsRaRequest;
+};
+
+/**
+ * IntegrationKindToUpdateRequest maps each {@link ModifiableIntegration} to its
+ * corresponding {@link IntegrationUpdateRequest} type.
+ */
+type IntegrationKindToUpdateRequest = {
+  [IntegrationKind.GitHub]: UpdateIntegrationGitHub;
+  [IntegrationKind.AwsOidc]: UpdateIntegrationAwsOidc;
+  [IntegrationKind.AwsRa]: UpdateIntegrationAwsRa;
+};
+
+/**
+ * IntegrationCreateRequest defines the shape of the request to create a
+ * {@link ModifiableIntegration}.
+ */
+export type IntegrationCreateRequest<
+  K extends
+    keyof IntegrationKindToCreateRequest = keyof IntegrationKindToCreateRequest,
+> = IntegrationKindToCreateRequest[K];
+
+/**
+ * IntegrationCreateResult defines the shape of the response after creating a
+ * {@link ModifiableIntegration}.
+ */
+export type IntegrationCreateResult<
+  T extends Pick<
+    IntegrationCreateRequest,
+    'subKind'
+  > = IntegrationCreateRequest,
+> = IntegrationKindToType[T['subKind']];
+
+/**
+ * IntegrationUpdateRequest defines the shape of the request to update a
+ * {@link ModifiableIntegration}.
+ */
+export type IntegrationUpdateRequest<
+  K extends
+    keyof IntegrationKindToUpdateRequest = keyof IntegrationKindToUpdateRequest,
+> = IntegrationKindToUpdateRequest[K];
+
+/**
+ * IntegrationUpdateResult defines the shape of the response after updating a
+ * {@link ModifiableIntegration}.
+ */
+export type IntegrationUpdateResult<
+  T extends Pick<IntegrationUpdateRequest, 'kind'> = IntegrationUpdateRequest,
+> = IntegrationKindToType[T['kind']];
+
+/**
+ * Template for "integration" and "plugin" resources.
  *
- * Before "integration" resource was made, a "plugin" resource existed.
- * They are essentially the same where plugin resource could've
- * been defined with the integration resource. But it's too late for
- * renames/changes. There are small differences between the two resource,
- * so they are separate types.
+ * @remarks
+ * The legacy {@link Plugin} resource predates the {@link Integration} resource.
+ * They are conceptually similar and could have been defined using a single
+ * resource type, but there are small behavioral differences, so they remain
+ * separate types.
  *
- * "integration" resource is supported in both OS and Enterprise
- * while "plugin" resource is only supported in enterprise. Plugin
- * type exists in OS for easier typing when combining the resources
- * into one list.
+ * - `integration` resources are supported in both OS and Enterprise.
+ * - `plugin` resources are Enterprise-only, but the `plugin` type also exists
+ *   in OS to make it easier to combine both resource types into a single list.
  *
- * Generics:
- *  T is resource type "integration" or "plugin"
- *  K is the kind of integration (eg: aws-oidc) or plugin (eg: okta)
- *  SP is the provider-specific spec of integration or plugin
- *  SD is the provider-specific status containing status details
- *   - currently only defined for plugin resource
+ * @typeParam T - Resource type literal, usually `"integration"` or `"plugin"`.
+ * @typeParam K - Integration or plugin kind (e.g., `"aws-oidc"` or `"okta"`).
+ * @typeParam SP - Provider-specific spec shape for the integration or plugin.
+ * @typeParam SD - Provider-specific status shape containing status details;
+ *                 currently only defined for `plugin` resources.
  */
 export type IntegrationTemplate<
-  T extends string,
+  T extends 'integration' | 'plugin' | (string & {}),
   K extends string,
   SP extends Record<string, any> = null,
   SD extends Record<string, any> = null,
@@ -73,9 +137,13 @@ export type IntegrationTemplate<
   status?: SD;
   credentials?: PluginCredentials;
 };
-// IntegrationKind string values should be in sync
-// with the backend value for defining the integration
-// resource's subKind field.
+
+/**
+ * IntegrationKind defines the supported kinds of integrations.
+ *
+ * These values should be in sync with the back-end values for
+ * defining the integration resource's subKind field.
+ */
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   /* AWS Roles Anywhere */
@@ -98,9 +166,15 @@ export type IntegrationGitHub = IntegrationTemplate<
   IntegrationSpecGitHub
 >;
 
+export type IntegrationSpecAzureOidc = {
+  tenant_id: string;
+  client_id: string;
+};
+
 export type IntegrationAzureOidc = IntegrationTemplate<
   'integration',
-  IntegrationKind.AzureOidc
+  IntegrationKind.AzureOidc,
+  IntegrationSpecAzureOidc
 >;
 
 /**
@@ -284,12 +358,30 @@ export type ExternalAuditStorageIntegration = IntegrationTemplate<
   ExternalAuditStorage
 >;
 
-export type Plugin<SP = any, D = any> = IntegrationTemplate<
-  'plugin',
-  PluginKind,
-  SP,
-  PluginStatus<D>
->;
+/**
+ * Specialization of {@link IntegrationTemplate} for `plugin` resources.
+ *
+ * @remarks
+ * A `Plugin` represents the legacy Enterprise-only "plugin" resource,
+ * modeled using the shared {@link IntegrationTemplate} shape with:
+ *
+ * - `resourceType` fixed to `"plugin"`.
+ * - `kind` constrained to {@link PluginKind}.
+ * - `status` wrapped in {@link PluginStatus}.
+ *
+ * This allows `plugin` resources to be combined with {@link Integration}
+ * resources while preserving plugin-specific status details.
+ *
+ * @typeParam SP - Provider-specific spec shape for the plugin.
+ * @typeParam D - Provider-specific status details payload type wrapped in
+ *                {@link PluginStatus}.
+ * @typeParam K - Plugin kind (e.g., `"okta"`).
+ */
+export type Plugin<
+  SP = any,
+  D = any,
+  K extends PluginKind = PluginKind,
+> = IntegrationTemplate<'plugin', K, SP, PluginStatus<D>>;
 
 export type PluginStatus<D = any> = {
   /**
@@ -480,11 +572,6 @@ type IntegrationCreateAwsRaRequest = {
   subKind: IntegrationKind.AwsRa;
   awsRa: IntegrationSpecAwsRa;
 };
-
-export type IntegrationCreateRequest =
-  | IntegrationCreateAwsOidcRequest
-  | IntegrationCreateGitHubRequest
-  | IntegrationCreateAwsRaRequest;
 
 export type IntegrationListResponse = {
   items: Integration[];
@@ -923,16 +1010,11 @@ export type UpdateIntegrationAwsRa = {
   awsRa: IntegrationSpecAwsRa;
 };
 
-export type UpdateIntegrationGithub = {
+export type UpdateIntegrationGitHub = {
   kind: IntegrationKind.GitHub;
   oauth: IntegrationOAuthCredentials;
-  github: { organization: string };
+  github: IntegrationSpecGitHub;
 };
-
-export type IntegrationUpdateRequest =
-  | UpdateIntegrationAwsOidc
-  | UpdateIntegrationAwsRa
-  | UpdateIntegrationGithub;
 
 export type AwsOidcDeployServiceRequest = {
   deploymentMode: 'database-service';
