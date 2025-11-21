@@ -86,6 +86,7 @@ const (
 	TypeLatencyStats                    = MessageType(35)
 	TypePing                            = MessageType(36)
 	TypeClientKeyboardLayout            = MessageType(37)
+	TypeUpgrade                         = MessageType(38)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -192,6 +193,9 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodePing(in)
 	case TypeClientKeyboardLayout:
 		return decodeClientKeyboardLayout(in)
+	case TypeUpgrade:
+		// Upgrade should only be sent to web clients
+		fallthrough
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
@@ -1719,6 +1723,17 @@ func decodeClientKeyboardLayout(in io.Reader) (ClientKeyboardLayout, error) {
 	var c ClientKeyboardLayout
 	err := binary.Read(in, binary.BigEndian, &c)
 	return c, trace.Wrap(err)
+}
+
+type TDPUpgrade struct {
+	Version uint8
+}
+
+func (t *TDPUpgrade) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeUpgrade))
+	buf.WriteByte(t.Version)
+	return buf.Bytes(), nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
