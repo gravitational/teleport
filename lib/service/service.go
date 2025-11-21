@@ -122,6 +122,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -2800,9 +2801,10 @@ func (process *TeleportProcess) initAuthService() error {
 					Name:      connector.HostUUID(),
 				},
 				Spec: types.ServerSpecV2{
-					Addr:     authAddr,
-					Hostname: process.Config.Hostname,
-					Version:  teleport.Version,
+					Addr:              authAddr,
+					Hostname:          process.Config.Hostname,
+					Version:           teleport.Version,
+					ComponentFeatures: componentfeatures.ForAuthServer(),
 				},
 			}
 			state, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin)
