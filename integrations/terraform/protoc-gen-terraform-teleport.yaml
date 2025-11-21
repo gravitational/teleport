@@ -170,6 +170,7 @@ exclude_fields:
 
     # Server
     - "ServerSpecV2.CmdLabels"
+    - "ServerSpecV2.component_features"
 
     # SessionRecordingConfig
     - "SessionRecordingConfigV2.Metadata.Name" # It's a singleton resource
