@@ -4,6 +4,7 @@ inputs:
   - directory: .
     paths:
       - api/proto/teleport/attestation/
+      - api/proto/teleport/componentfeatures/
       - api/proto/teleport/legacy/
       - api/proto/teleport/mfa/
       - api/proto/teleport/usageevents/
