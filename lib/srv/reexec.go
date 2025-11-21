@@ -227,7 +227,7 @@ type UaccMetadata struct {
 // system state related to the process and/or thread for PAM and SELinux.
 // The process should exit after this function returns so the potentially
 // modified process and/or thread isn't used with a non-standard state.
-func RunCommand() (errw io.Writer, code int, err error) {
+func RunCommand() (code int, err error) {
 	ctx := context.Background()
 
 	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
@@ -236,23 +236,18 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
-	// errorWriter is used to return any error message back to the client. By
-	// default, it writes to stdout, but if a TTY is allocated, it will write
-	// to it instead.
-	errorWriter := os.Stdout
-
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
+		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
 	if contfd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
+		return teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
 	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
 	if readyfd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
+		return teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
 	}
 
 	// Ensure that the ready signal is sent if a failure causes execution
@@ -267,13 +262,13 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
+		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
 	// Read in the command payload.
 	var c ExecCommand
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
-		return io.Discard, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	initLogger("reexec", c.LogConfig)
@@ -292,8 +287,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	defer func() {
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to run command", "error", err)
-
 			if errors.Is(err, user.UnknownUserError(c.Login)) {
 				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
 					slog.DebugContext(ctx, "failed to send UserErr event to auditd", "error", err)
@@ -315,9 +308,16 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if c.Terminal {
 		tty = os.NewFile(TTYFile, fdName(TTYFile))
 		if tty == nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
+			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
 		}
-		errorWriter = tty
+
+		// If we have a terminal and failed to launch the command, write the error the client.
+		defer func() {
+			if err != nil && code == teleport.RemoteCommandFailure {
+				s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
+				io.Copy(tty, bytes.NewBufferString(s))
+			}
+		}()
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
@@ -355,7 +355,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			Stderr: stderr,
 		})
 		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+			return teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 		defer pamContext.Close()
 
@@ -367,7 +367,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// and that we are now waiting for the continue signal before proceeding. This is needed
 	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
 	if err := readyfd.Close(); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 	readyfd = nil
 	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
@@ -382,7 +382,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		if uaccErr := uaccHandler.FailedLogin(c.Login, &c.UaccMetadata.RemoteAddr); uaccErr != nil {
 			slog.DebugContext(ctx, "unable to write failed login attempt to uacc", "error", uaccErr)
 		}
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	if c.Terminal {
@@ -404,14 +404,14 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// Build the actual command that will launch the shell.
 	cmd, err := buildCommand(&c, localUser, tty, pamEnvironment)
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
 	err = waitForSignal(ctx, contfd, 10*time.Second)
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	// If we're planning on changing credentials, we should first park an
@@ -428,7 +428,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			cmd.SysProcAttr.Credential,
 			c.Login, &systemUser{u: localUser})
 		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+			return teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 	}
 
@@ -442,7 +442,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if c.SetSELinuxContext {
 		seContext, err := selinux.UserContext(c.Login)
 		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
+			return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
 		}
 
 		// SetExecLabel changes the SELinux exec context for the
@@ -454,20 +454,20 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		// restrictive)SELinux context.
 		runtime.LockOSThread()
 		if err := ocselinux.SetExecLabel(seContext); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
+			return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
 		}
 	}
 
 	// Start the command.
 	if err := cmd.Start(); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	parkerCancel()
 
 	err = waitForShell(terminatefd, cmd)
 
-	return errorWriter, exitCode(err), trace.Wrap(err)
+	return exitCode(err), trace.Wrap(err)
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
@@ -594,32 +594,28 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 
 const rootDirectory = "/"
 
-func RunNetworking() (errw io.Writer, code int, err error) {
+func RunNetworking() (code int, err error) {
 	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
 	// existing exec sessions to close before ending the process. For this to
 	// work when closing the entire teleport process group, exec sessions must
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
-	// errorWriter is used to return any error message back to the client.
-	// Use stderr so that it's not forwarded to the remote client.
-	errorWriter := os.Stderr
-
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
+		return teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 
 	terminatefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if terminatefd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
+		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
 	// Read in the command payload.
 	var c ExecCommand
 	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	initLogger("networking", c.LogConfig)
@@ -642,7 +638,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 			Env: c.PAMConfig.Environment,
 		})
 		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+			return teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 		defer pamContext.Close()
 
@@ -654,12 +650,12 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// done with the user's permissions.
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound("%s", err)
+		return teleport.RemoteCommandFailure, trace.NotFound("%s", err)
 	}
 
 	cred, err := host.GetHostUserCredential(localUser)
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	if os.Getuid() != int(cred.Uid) || os.Getgid() != int(cred.Gid) {
@@ -669,14 +665,14 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 				groups[i] = int(g)
 			}
 			if err := unix.Setgroups(groups); err != nil {
-				return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
+				return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
 			}
 		}
 		if err := unix.Setgid(int(cred.Gid)); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
+			return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
 		}
 		if err := unix.Setuid(int(cred.Uid)); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
+			return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
 		}
 	}
 
@@ -695,28 +691,28 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	for _, kv := range pamEnvironment {
 		key, value, ok := strings.Cut(strings.TrimSpace(kv), "=")
 		if !ok {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("bad environment variable from PAM, expected format \"key=value\" but got %q", kv)
+			return teleport.RemoteCommandFailure, trace.BadParameter("bad environment variable from PAM, expected format \"key=value\" but got %q", kv)
 		}
 		if err := os.Setenv(key, value); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+			return teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 	}
 
 	// Ensure that the working directory is one that the local user has access to.
 	if err := os.Chdir(workingDir); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", workingDir)
+		return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", workingDir)
 	}
 
 	// Build request listener from first extra file that was passed to command.
 	ffd := os.NewFile(FirstExtraFile, "listener")
 	if ffd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
+		return teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
 	}
 
 	parentConn, err := uds.FromFile(ffd)
 	_ = ffd.Close()
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -751,7 +747,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				// parent connection closed, process should exit.
-				return errorWriter, teleport.RemoteCommandSuccess, nil
+				return teleport.RemoteCommandSuccess, nil
 			}
 			writeErrorToConn(parentConn, trace.Wrap(err, "error reading networking request from parent"))
 			continue
@@ -938,7 +934,7 @@ func getConnFile(conn net.Conn) (*os.File, error) {
 }
 
 // runCheckHomeDir checks if the active user's $HOME dir exists and is accessible.
-func runCheckHomeDir() (errw io.Writer, code int, err error) {
+func runCheckHomeDir() (code int, err error) {
 	code = teleport.RemoteCommandSuccess
 	if err := hasAccessibleHomeDir(); err != nil {
 		switch {
@@ -951,11 +947,11 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	return io.Discard, code, nil
+	return code, nil
 }
 
 // runPark does nothing, forever.
-func runPark() (errw io.Writer, code int, err error) {
+func runPark() (code int, err error) {
 	// Do not replace this with an empty select because there are no other
 	// goroutines running so it will panic.
 	for {
@@ -967,25 +963,23 @@ func runPark() (errw io.Writer, code int, err error) {
 // allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
 func RunAndExit(commandType string) {
-	var w io.Writer
 	var code int
 	var err error
 
 	switch commandType {
 	case teleport.ExecSubCommand:
-		w, code, err = RunCommand()
+		code, err = RunCommand()
 	case teleport.NetworkingSubCommand:
-		w, code, err = RunNetworking()
+		code, err = RunNetworking()
 	case teleport.CheckHomeDirSubCommand:
-		w, code, err = runCheckHomeDir()
+		code, err = runCheckHomeDir()
 	case teleport.ParkSubCommand:
-		w, code, err = runPark()
+		code, err = runPark()
 	default:
-		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
+		code, err = teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
-		s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
-		io.Copy(w, bytes.NewBufferString(s))
+		slog.ErrorContext(context.Background(), "Failed to launch subprocess", "commandType", commandType, "err", err)
 	}
 	os.Exit(code)
 }
