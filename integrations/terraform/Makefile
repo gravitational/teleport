@@ -142,6 +142,13 @@ endif
 		--terraform_out=config=protoc-gen-terraform-healthcheckconfig.yaml:./tfschema \
 		teleport/healthcheckconfig/v1/health_check_config.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-discoveryconfig.yaml:./tfschema \
+		teleport/discoveryconfig/v1/discoveryconfig.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
@@ -149,6 +156,7 @@ endif
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1/resource_terraform.go ./tfschema/workloadidentity/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1/autoupdate_terraform.go ./tfschema/autoupdate/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1/health_check_config_terraform.go ./tfschema/healthcheckconfig/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1/discoveryconfig_terraform.go ./tfschema/discoveryconfig/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
@@ -192,11 +200,7 @@ ifndef TERRAFORM_EXISTS
 	terraform -version
 	@exit -1
 endif
-# NOTE: This is related to an old bug in Terraform and will be fixed in future releases (possibly, by a workaround on our side)
-ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
-	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
-	@exit -1
-endif
+
 	gotestsum --junitfile unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
 
 .PHONY: test-full

@@ -259,3 +259,45 @@ func CopyToStrings(diags diag.Diagnostics, o wrappers.Strings, t attr.Type, v at
 
 	return value
 }
+
+// GenSchemaJoinMethod returns Terraform schema for JoinMethod type
+func GenSchemaJoinMethod(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfsdk.Attribute{
+		Optional:    true,
+		Type:        types.StringType,
+		Description: attr.Description,
+		Computed:    attr.Computed,
+	}
+}
+
+// CopyFromJoinMethod copies a JoinMethod from Terraform value to proto object
+func CopyFromJoinMethod(diags diag.Diagnostics, v attr.Value, o *apitypes.JoinMethod) {
+	value, ok := v.(types.String)
+	if !ok {
+		diags.AddError("Error reading from Terraform object", "Can not convert to String")
+		return
+	}
+
+	if value.Null || value.Unknown {
+		*o = ""
+	} else {
+		*o = apitypes.JoinMethod(value.Value)
+	}
+}
+
+// CopyToJoinMethod copies a JoinMethod from proto object to Terraform value
+func CopyToJoinMethod(diags diag.Diagnostics, o apitypes.JoinMethod, t attr.Type, v attr.Value) attr.Value {
+	value, ok := v.(types.String)
+	if !ok {
+		value = types.String{}
+	}
+
+	if string(o) == "" {
+		value.Null = true
+	} else {
+		value.Value = string(o)
+		value.Unknown = false
+	}
+
+	return value
+}
