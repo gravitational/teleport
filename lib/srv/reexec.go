@@ -979,7 +979,17 @@ func RunAndExit(commandType string) {
 		code, err = teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
-		slog.ErrorContext(context.Background(), "Failed to launch subprocess", "commandType", commandType, "err", err)
+		msg := "Failed to launch subprocess"
+
+		// The "operation not permitted" error is expected from a variety of operations if the
+		// teleport process is running as a non-root user and is trying to spawn a process for
+		// a different OS user.
+		if strings.Contains(err.Error(), "operation not permitted") {
+			msg = ", is Teleport running as root?"
+		}
+
+		slog.ErrorContext(context.Background(), msg, "commandType", commandType, "err", err)
+
 	}
 	os.Exit(code)
 }
