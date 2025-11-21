@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.4.1"
+const Version = "18.4.1-dev.fred-macos15-1"
 
 const VersionMajor = 18
 const VersionMinor = 4
 const VersionPatch = 1
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.fred-macos15-1"
 const VersionMetadata = ""

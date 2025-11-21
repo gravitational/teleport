@@ -1,4 +1,4 @@
-.version: &version "18.4.1"
+.version: &version "18.4.1-dev.fred-macos15-1"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
