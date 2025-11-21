@@ -54,7 +54,7 @@ const (
 // cmpOpts are general cmpOpts for all comparisons.
 var cmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-	cmpopts.IgnoreFields(accesslist.Status{}, "CurrentUserAssignments"),
+	cmpopts.IgnoreFields(accesslist.Status{}, "CurrentUserAssignments", "UserAssignments"),
 	cmpopts.SortSlices(func(a, b *accesslist.AccessList) bool {
 		return a.GetName() < b.GetName()
 	}),
@@ -3235,6 +3235,156 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 			}
 		})
 	}
+}
+
+type fakeAuthWithUsers struct {
+	*fakeAuth
+	svc *Service
+}
+
+func (a *fakeAuthWithUsers) GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error) {
+	return a.svc.cache.(services.Identity).GetUser(ctx, userName, withSecrets)
+}
+
+func TestService_ListUserAccessLists(t *testing.T) {
+	c := initSvc(t)
+
+	c.svc.authServer = &fakeAuthWithUsers{
+		fakeAuth: &fakeAuth{},
+		svc:      c.svc,
+	}
+
+	a1 := newAccessList(t, "1", c.clock)
+	a2 := newAccessList(t, "2", c.clock)
+	a3 := newAccessList(t, "3", c.clock)
+	a4 := newAccessList(t, "4", c.clock)
+	a5 := newAccessListWithPartialSpec(t, "5", c.clock.Now().Add(time.Hour*24*365), accesslist.Spec{
+		Owners: []accesslist.Owner{
+			{Name: ownerUser2, Description: "owner user 2", MembershipKind: accesslist.MembershipKindUser},
+			{Name: a3.GetName(), Description: "acl 3", MembershipKind: accesslist.MembershipKindList},
+		},
+	})
+
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+	a1ma4 := newAccessListMember(t, a1.GetName(), a4.GetName(), accesslist.MembershipKindList, c.clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, accesslist.MembershipKindUser, c.clock)
+	a4m2 := newAccessListMember(t, a4.GetName(), member2, accesslist.MembershipKindUser, c.clock)
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
+		[]*accesslist.AccessList{a1, a2, a3, a4, a5}, []*accesslist.AccessListMember{
+			a1m1, a1ma4, a2m1, a3m2, a4m2,
+		})
+
+	// member 1
+	req := &accesslistv1.ListUserAccessListsRequest{
+		Username: member1,
+	}
+
+	resp, err := c.svc.ListUserAccessLists(c.userCtx, req)
+	require.NoError(t, err)
+	require.Len(t, resp.AccessLists, 2)
+
+	a3.Status.OwnerOf = []string{"5"}
+	a4.Status.MemberOf = []string{"1"}
+
+	a1.Status.MemberCount = ptrToUint32(1)
+	a1.Status.MemberListCount = ptrToUint32(1)
+	a2.Status.MemberCount = ptrToUint32(1)
+	a2.Status.MemberListCount = ptrToUint32(0)
+
+	gotACLs := mustFromProtoAll(t, resp.AccessLists...)
+	wantACLs := []*accesslist.AccessList{a1, a2}
+	require.Empty(t, cmp.Diff(wantACLs, gotACLs, cmpOpts...))
+
+	explicitMembership := &accesslistv1.UserAssignments{
+		MembershipType: accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT,
+		OwnershipType:  accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+	}
+
+	gotAssignments := make([]*accesslistv1.UserAssignments, len(resp.AccessLists))
+	for i, al := range resp.AccessLists {
+		gotAssignments[i] = al.Status.UserAssignments
+	}
+	wantAssignments := []*accesslistv1.UserAssignments{explicitMembership, explicitMembership}
+	require.Equal(t, wantAssignments, gotAssignments)
+
+	// member 2
+	req.Username = member2
+	resp, err = c.svc.ListUserAccessLists(c.userCtx, req)
+	require.NoError(t, err)
+	require.Len(t, resp.AccessLists, 4)
+
+	a3.Status.MemberCount = ptrToUint32(1)
+	a3.Status.MemberListCount = ptrToUint32(0)
+	a4.Status.MemberCount = ptrToUint32(1)
+	a4.Status.MemberListCount = ptrToUint32(0)
+	a5.Status.MemberCount = ptrToUint32(0)
+	a5.Status.MemberListCount = ptrToUint32(0)
+
+	gotACLs = mustFromProtoAll(t, resp.AccessLists...)
+
+	wantACLs = []*accesslist.AccessList{a1, a3, a4, a5}
+	require.Empty(t, cmp.Diff(wantACLs, gotACLs, cmpOpts...))
+
+	inheritedMembership := &accesslistv1.UserAssignments{
+		MembershipType: accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED,
+		OwnershipType:  accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+	}
+
+	inheritedOwnership := &accesslistv1.UserAssignments{
+		MembershipType: accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+		OwnershipType:  accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED,
+	}
+
+	gotAssignments = make([]*accesslistv1.UserAssignments, len(resp.AccessLists))
+	for i, al := range resp.AccessLists {
+		gotAssignments[i] = al.Status.UserAssignments
+	}
+	wantAssignments = []*accesslistv1.UserAssignments{inheritedMembership, explicitMembership, explicitMembership, inheritedOwnership}
+	require.Equal(t, wantAssignments, gotAssignments)
+
+	// member 2 pagination
+	req.Username = member2
+	req.PageToken = "3"
+	req.PageSize = 2
+
+	resp, err = c.svc.ListUserAccessLists(c.userCtx, req)
+	require.NoError(t, err)
+	require.Len(t, resp.AccessLists, 2)
+
+	gotACLs = mustFromProtoAll(t, resp.AccessLists...)
+	wantACLs = []*accesslist.AccessList{a3, a4}
+	require.Empty(t, cmp.Diff(wantACLs, gotACLs, cmpOpts...))
+
+	// member 3
+	req = &accesslistv1.ListUserAccessListsRequest{
+		Username: member3,
+	}
+	resp, err = c.svc.ListUserAccessLists(c.userCtx, req)
+	require.NoError(t, err)
+	require.Empty(t, resp.AccessLists)
+
+	// owner
+	req.Username = ownerUser
+	resp, err = c.svc.ListUserAccessLists(c.userCtx, req)
+	require.NoError(t, err)
+	require.Len(t, resp.AccessLists, 4)
+
+	gotACLs = mustFromProtoAll(t, resp.AccessLists...)
+	wantACLs = []*accesslist.AccessList{a1, a2, a3, a4}
+	require.Empty(t, cmp.Diff(wantACLs, gotACLs, cmpOpts...))
+
+	explicitOwnership := &accesslistv1.UserAssignments{
+		MembershipType: accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+		OwnershipType:  accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT,
+	}
+
+	gotAssignments = make([]*accesslistv1.UserAssignments, len(resp.AccessLists))
+	for i, al := range resp.AccessLists {
+		gotAssignments[i] = al.Status.UserAssignments
+	}
+	wantAssignments = []*accesslistv1.UserAssignments{explicitOwnership, explicitOwnership, explicitOwnership, explicitOwnership}
+	require.Equal(t, wantAssignments, gotAssignments)
 }
 
 func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {

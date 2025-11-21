@@ -2228,6 +2228,166 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, request *accessli
 	}, nil
 }
 
+// ListUserAccessLists returns a paginated list of all access lists where the
+// user is explicitly an owner or member.
+func (s *Service) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) (*accesslistv1.ListUserAccessListsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAccessList, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	user, err := s.authServer.GetUser(ctx, req.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userAcls, err := s.listAccessListsForUser(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	filteredAcls, err := s.filterResults(ctx, userAcls, false, nil, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	paginatedAcls, nextToken, err := paginateSlice(filteredAcls, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslistv1.AccessList, len(paginatedAcls))
+	for i, r := range paginatedAcls {
+		accessLists[i] = conv.ToProto(r)
+	}
+
+	return &accesslistv1.ListUserAccessListsResponse{
+		AccessLists:   accessLists,
+		NextPageToken: nextToken,
+	}, nil
+}
+
+// listAccessListsForUser returns a slice of all access lists associated with
+// the given user, including those inherited through hierarchical membership or
+// ownership.
+func (s *Service) listAccessListsForUser(ctx context.Context, user types.User) ([]*accesslist.AccessList, error) {
+	h, err := accesslists.NewHierarchy(accesslists.HierarchyConfig{
+		AccessListsService: s.accessLists,
+		Clock:              s.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userAccessLists := make(map[string]*accesslist.AccessList)
+
+	// process member/owner hierarchy and update aggregated acl assignments
+	processAssignment := func(hierarchy []*accesslist.AccessList, accessListName string, isOwner bool) {
+		for _, acl := range hierarchy {
+			aclName := acl.GetName()
+
+			var assignmentType accesslistv1.AccessListUserAssignmentType
+			if aclName == accessListName {
+				assignmentType = accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT
+			} else {
+				assignmentType = accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED
+			}
+
+			if _, exists := userAccessLists[aclName]; !exists {
+				acl.Status.UserAssignments = &accesslist.UserAssignments{}
+				userAccessLists[aclName] = acl
+			}
+
+			if isOwner {
+				userAccessLists[aclName].Status.UserAssignments.OwnershipType = assignmentType
+			} else {
+				userAccessLists[aclName].Status.UserAssignments.MembershipType = assignmentType
+			}
+		}
+	}
+
+	iterFn := func(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
+		req := &accesslistv1.ListAccessListsV2Request{
+			PageSize:  int32(pageSize),
+			PageToken: nextToken,
+		}
+		page, nextToken, err := s.cache.ListAccessListsV2(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return page, nextToken, nil
+	}
+
+	for acl, err := range clientutils.Resources(ctx, iterFn) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		memberOf, ownerOf, err := h.GetHierarchyForUser(ctx, acl, user)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// no explicit assignment
+		if len(memberOf) == 0 && len(ownerOf) == 0 {
+			continue
+		}
+
+		processAssignment(memberOf, acl.GetName(), false)
+		processAssignment(ownerOf, acl.GetName(), true)
+	}
+
+	return slices.Collect(maps.Values(userAccessLists)), nil
+}
+
+// paginateSlice paginates a slice of access lists. It sorts by name and returns
+// pageSize results starting from the access list whose name matches pageToken.
+func paginateSlice(acls []*accesslist.AccessList, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+	if pageSize == 0 {
+		pageSize = defaultAccessListPageSize
+	}
+
+	slices.SortFunc(acls, func(a, b *accesslist.AccessList) int {
+		return strings.Compare(a.GetName(), b.GetName())
+	})
+
+	pageStart := 0
+
+	if pageToken != "" {
+		for i, item := range acls {
+			if item.GetName() == pageToken {
+				pageStart = i
+				break
+			}
+		}
+	}
+
+	pageEnd := pageSize + pageStart
+
+	var nextToken string
+	var err error
+	if pageEnd >= len(acls) {
+		pageEnd = len(acls)
+	} else {
+		nextToken, err = services.CreateAccessListNextKey(acls[pageEnd], "name")
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	results := acls[pageStart:pageEnd]
+
+	return results, nextToken, nil
+}
+
 // Check if the user is either authorized for the access list or owns this access list.
 // Returns early if user has RBAC access (skips the step for retrieving an access list).
 func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb string, additionalVerbs ...string) (*authz.Context, error) {

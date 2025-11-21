@@ -486,6 +486,58 @@ func getAccessListNoMFACtx(ctx context.Context, clt services.AccessLists, name s
 	return accessList, trace.Wrap(err)
 }
 
+// listUserAccessLists is the handler for GET /enterprise/users/:username/accesslists.
+func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	username := params.ByName("username")
+	if username == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	values := r.URL.Query()
+
+	startKey := values.Get("startKey")
+
+	limit, err := web.QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessListClient := clt.AccessListClient()
+
+	req := &accesslistv1.ListUserAccessListsRequest{
+		Username:  username,
+		PageSize:  limit,
+		PageToken: startKey,
+	}
+
+	page, nextKey, err := accessListClient.ListUserAccessLists(r.Context(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*ui.AccessList, 0, len(page))
+	for _, accessList := range page {
+		uiList := &ui.AccessList{
+			AccessList:             accessList,
+			MembersCount:           accessList.GetStatus().MemberCount,
+			MemberListCount:        accessList.GetStatus().MemberListCount,
+			CurrentUserAssignments: accessList.GetStatus().CurrentUserAssignments,
+			UserAssignments:        accessList.GetStatus().UserAssignments,
+		}
+		accessLists = append(accessLists, uiList)
+	}
+
+	return ui.AccessListsResponse{
+		AccessLists: accessLists,
+		StartKey:    nextKey,
+	}, nil
+}
+
 // isUIReadOnlyAccessListType returns true if the AccessList type is static. Those access lists are
 // supposed to be managed only by the IaC tools. It may change in the future.
 func isUIReadOnlyAccessListType(typ accesslist.Type) bool {

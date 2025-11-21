@@ -25,6 +25,8 @@ type AccessList struct {
 
 	// CurrentUserAssignments describes the current user's ownership and membership status in the access list.
 	CurrentUserAssignments *accesslist.CurrentUserAssignments `json:"current_user_assignments"`
+	// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+	UserAssignments *accesslist.UserAssignments `json:"user_assignments,omitempty"`
 }
 
 // AccessListResponse is a UI representation of an access list response.

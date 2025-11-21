@@ -287,6 +287,13 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.GET("/enterprise/accessrequest/:requestId/suggestions/accesslist", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
 	h.POST("/enterprise/accessrequest/:requestId/promote", h.WithClusterClientProvider(p.accessRequestPromoteHandle))
 
+	// TODO(alexhemard): add WithAuthAndLimiter middleware in OSS
+	h.GET("/enterprise/users/:username/accesslists", h.WithAuth(func(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
+		return h.WithLimiterHandlerFunc(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+			return p.listUserAccessLists(w, r, params, ctx)
+		})(w, r, params)
+	}))
+
 	// Deprecated: use /v2/enterprise/accesslists instead.
 	h.GET("/enterprise/accesslist", h.WithAuth(p.getAccessLists))
 	h.GET("/v2/enterprise/accesslists", h.WithAuth(p.listAccessLists))
