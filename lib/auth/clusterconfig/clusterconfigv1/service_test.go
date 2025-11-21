@@ -328,7 +328,7 @@ func TestResetAuthPreference(t *testing.T) {
 	cases := []struct {
 		name       string
 		authorizer authz.Authorizer
-		modules    modules.Modules
+		modules    modulestest.Modules
 		preference types.AuthPreference
 		assertion  func(t *testing.T, reset types.AuthPreference, err error)
 	}{
@@ -656,7 +656,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				return cnc
 			}(),
 			config: func(p types.ClusterNetworkingConfig) {
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestBuildType: modules.BuildEnterprise,
 					TestFeatures: modules.Features{
 						Cloud: true,
@@ -684,7 +684,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				}, nil
 			}),
 			config: func(p types.ClusterNetworkingConfig) {
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestBuildType: modules.BuildEnterprise,
 					TestFeatures: modules.Features{
 						Cloud: true,
@@ -717,7 +717,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				return cnc
 			}(),
 			config: func(p types.ClusterNetworkingConfig) {
-				modules.SetTestModules(t, &modules.TestModules{
+				modulestest.SetTestModules(t, modulestest.Modules{
 					TestBuildType: modules.BuildEnterprise,
 					TestFeatures: modules.Features{
 						Cloud: true,
@@ -872,7 +872,7 @@ func TestResetClusterNetworkingConfig(t *testing.T) {
 	cases := []struct {
 		name       string
 		authorizer authz.Authorizer
-		modules    modules.Modules
+		modules    modulestest.Modules
 		config     types.ClusterNetworkingConfig
 		assertion  func(t *testing.T, reset types.ClusterNetworkingConfig, err error)
 	}{
