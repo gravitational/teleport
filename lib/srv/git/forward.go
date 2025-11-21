@@ -762,6 +762,7 @@ func (s *ForwardServer) LogConfig() srv.LogConfig {
 		ExecLogConfig: srv.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},
+		Writer: io.Discard,
 	}
 }
 
