@@ -290,8 +290,6 @@ func (s *Server) handleJoinMethod(
 	joinMethod types.JoinMethod,
 ) (messages.Response, error) {
 	switch joinMethod {
-	case types.JoinMethodToken:
-		return s.handleTokenJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodBitbucket:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateBitbucketToken)
 	case types.JoinMethodBoundKeypair:
@@ -316,6 +314,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodToken:
+		return s.handleTokenJoin(stream, authCtx, clientInit, token)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
