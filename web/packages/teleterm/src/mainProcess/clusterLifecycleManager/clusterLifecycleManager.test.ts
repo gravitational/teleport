@@ -91,7 +91,7 @@ const tests: {
     },
   },
   {
-    name: 'when cluster is removed, it removes it and notifies renderer',
+    name: 'when cluster is removed, it updates state and notifies renderer',
     setup: async ({ tshdClient }) => {
       jest.spyOn(tshdClient, 'logout');
       jest
@@ -138,7 +138,7 @@ const tests: {
     },
   },
   {
-    name: 'when cluster becomes logged-out, it logs out and notifies renderer',
+    name: 'when cluster becomes logged-out, it updates state and notifies renderer',
     setup: async ({ tshdClient }) => {
       const next = makeRootCluster({
         connected: false,
