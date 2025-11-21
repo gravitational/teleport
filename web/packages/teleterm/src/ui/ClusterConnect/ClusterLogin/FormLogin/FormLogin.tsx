@@ -22,15 +22,20 @@ import styled from 'styled-components';
 import { Box, ButtonText, Flex } from 'design';
 import * as Alerts from 'design/Alert';
 import { StepSlider, type StepComponentProps } from 'design/StepSlider';
-import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
+import {
+  AuthProvider,
+  AuthSettings,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { Attempt } from 'shared/hooks/useAsync';
 import type { PrimaryAuthType } from 'shared/services';
 
 import { Platform } from 'teleterm/mainProcess/types';
-import * as types from 'teleterm/ui/services/clusters/types';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
+import { ClusterGetter, WidgetView } from 'teleterm/ui/AppUpdater';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { outermostPadding } from '../../spacing';
-import type { PasswordlessLoginState } from '../useClusterLogin';
+import type { PasswordlessLoginState, SsoPrompt } from '../useClusterLogin';
 import { CompatibilityWarning } from './CompatibilityWarning';
 import { FormLocal } from './FormLocal';
 import { FormPasswordless } from './FormPasswordless';
@@ -43,7 +48,7 @@ export default function LoginForm(props: Props) {
     loginAttempt,
     onAbort,
     authSettings: { authProviders, localAuthEnabled = true },
-    shouldPromptSsoStatus,
+    ssoPrompt,
     passwordlessLoginState,
   } = props;
 
@@ -55,10 +60,10 @@ export default function LoginForm(props: Props) {
     );
   }
 
-  if (shouldPromptSsoStatus) {
+  if (ssoPrompt !== 'no-prompt') {
     return (
       <OutermostPadding>
-        <PromptSsoStatus onCancel={onAbort} />
+        <PromptSsoStatus ssoPrompt={ssoPrompt} onCancel={onAbort} />
       </OutermostPadding>
     );
   }
@@ -68,6 +73,19 @@ export default function LoginForm(props: Props) {
     shouldSkipVersionCheck: props.shouldSkipVersionCheck,
     disableVersionCheck: props.disableVersionCheck,
     platform: props.platform,
+    isAnyClusterProvidingUpdates:
+      props.appUpdateEvent.autoUpdatesStatus?.options.clusters.some(
+        c => c.toolsAutoUpdate
+      ),
+    onSwitchToAppUpdateDetails: props.switchToAppUpdateDetails,
+  };
+  const appUpdateWidgetViewProps = {
+    updateEvent: props.appUpdateEvent,
+    onDownload: () => props.downloadAppUpdate(),
+    onInstall: () => props.quitAndInstallAppUpdate(),
+    platform: props.platform,
+    onMore: () => props.switchToAppUpdateDetails(),
+    clusterGetter: props.clusterGetter,
   };
   const ssoEnabled = authProviders?.length > 0;
 
@@ -82,6 +100,7 @@ export default function LoginForm(props: Props) {
           </Alerts.Danger>
         )}
         <CompatibilityWarning {...compatibilityWarningProps} />
+        <WidgetView {...appUpdateWidgetViewProps} />
         <FormSso {...props} />
       </FlexBordered>
     );
@@ -97,6 +116,7 @@ export default function LoginForm(props: Props) {
           Login has not been enabled
         </Alerts.Danger>
         <CompatibilityWarning {...compatibilityWarningProps} />
+        <WidgetView {...appUpdateWidgetViewProps} />
       </FlexBordered>
     );
   }
@@ -120,6 +140,7 @@ export default function LoginForm(props: Props) {
         mx={outermostPadding}
         {...compatibilityWarningProps}
       />
+      <WidgetView mx={outermostPadding} {...appUpdateWidgetViewProps} />
       <StepSlider<typeof loginViews>
         flows={loginViews}
         currFlow={'default'}
@@ -307,20 +328,28 @@ type LoginAttempt = Attempt<void>;
 
 export type Props = {
   authSettings: AuthSettings;
-  shouldPromptSsoStatus: boolean;
+  ssoPrompt: SsoPrompt;
   passwordlessLoginState: PasswordlessLoginState;
   loginAttempt: LoginAttempt;
   clearLoginAttempt(): void;
   primaryAuthType: PrimaryAuthType;
   loggedInUserName?: string;
   onAbort(): void;
-  onLoginWithSso(provider: types.AuthProvider): void;
+  onLoginWithSso(provider: AuthProvider): void;
   onLoginWithPasswordless(): void;
   onLogin(username: string, password: string): void;
   autoFocus?: boolean;
   shouldSkipVersionCheck: boolean;
   disableVersionCheck(): void;
   platform: Platform;
+  switchToAppUpdateDetails(): void;
+  appUpdateEvent: AppUpdateEvent;
+  downloadAppUpdate(): Promise<void>;
+  cancelAppUpdateDownload(): Promise<void>;
+  checkForAppUpdates(): Promise<void>;
+  quitAndInstallAppUpdate(): void;
+  changeAppUpdatesManagingCluster(clusterUri: RootClusterUri): Promise<void>;
+  clusterGetter: ClusterGetter;
 };
 
 const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;

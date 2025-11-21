@@ -373,7 +373,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// Configure the poll interval
 	tickerInterval := defaultPollInterval
 	if s.Config.Matchers.AccessGraph != nil {
-		if s.Config.Matchers.AccessGraph.PollInterval > defaultPollInterval {
+		if s.Config.Matchers.AccessGraph.PollInterval >= defaultPollInterval {
 			tickerInterval = s.Config.Matchers.AccessGraph.PollInterval
 		} else {
 			s.Log.WarnContext(ctx,

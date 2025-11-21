@@ -177,7 +177,9 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+		resource, err := s.unmarshalFunc(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -220,7 +222,9 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 	out := make([]T, 0, len(result.Items))
 	var lastKey backend.Key
 	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
+		resource, err := s.unmarshalFunc(item.Value,
+			services.WithRevision(item.Revision),
+			services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, nil, "", trace.Wrap(err)
 		}
@@ -262,7 +266,9 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		pageSize+1,
 		func(items []backend.Item) (stop bool, err error) {
 			for _, item := range items {
-				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
+				resource, err := s.unmarshalFunc(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
 				if err != nil {
 					return false, trace.Wrap(err)
 				}
@@ -299,7 +305,8 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 		return resource, trace.Wrap(err)
 	}
 	resource, err = s.unmarshalFunc(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision))
 	return resource, trace.Wrap(err)
 }
 
@@ -429,7 +436,8 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
-		services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
+		services.WithExpires(existingItem.Expires),
+		services.WithRevision(existingItem.Revision))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}

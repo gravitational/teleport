@@ -23,82 +23,170 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
 // Variables might to be overridden during compilation time for integration tests.
 var (
-	// version is the current version of the Teleport.
-	version = teleport.Version
-	// baseURL is CDN URL for downloading official Teleport packages.
-	baseURL = autoupdate.DefaultBaseURL
+	// Version is the current version of the Teleport.
+	// The variable is overloaded during integration tests to emulate different
+	// Teleport versions. See `integration/autoupdate/tools/updater/modules.go`.
+	Version = teleport.Version
 )
 
-// CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
-// is set and a version is defined (or disabled by setting it to "off"). The requested
-// version is compared with the current client tools version. If they differ, the version
-// package is downloaded, extracted to the client tools directory, and re-executed
-// with the updated version.
-// If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
-// using the version from the home directory.
-func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
-	toolsDir, err := Dir()
-	if err != nil {
-		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
-		return nil
-	}
-
+// newUpdater inits the updater with default base URL and creates directory
+// if it doesn't exist.
+func newUpdater(toolsDir string) (*Updater, error) {
+	baseURL := autoupdate.DefaultBaseURL
 	// Overrides default base URL for custom CDN for downloading updates.
 	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
 		baseURL = envBaseURL
 	}
 
-	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
-	// At process startup, check if a version has already been downloaded to
-	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
-	// environment variable. If so, re-exec that version of client tools.
-	toolsVersion, reExec, err := updater.CheckLocal()
-	if err != nil {
-		return trace.Wrap(err)
+	// Create tools directory if it does not exist.
+	if err := os.MkdirAll(toolsDir, 0o755); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if reExec {
-		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion, reExecArgs))
+
+	return NewUpdater(toolsDir, Version, WithBaseURL(baseURL)), nil
+}
+
+// CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
+// is set and whether a version is defined (or explicitly disabled by setting it to "off").
+// The environment variable always takes precedence over other version settings.
+//
+// If `currentProfileName` is specified, the function attempts to find the tools version
+// required for the specified cluster in configuration file and re-execute it.
+//
+// The requested version is compared to the currently running client tools version.
+// If they differ, the requested version is downloaded and extracted into the client tools directory,
+// the installation is recorded in the configuration file, and the tool is re-executed with the updated version.
+func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
+	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
+	// so we don't try to read te user home directory, fail, and log warnings.
+	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled {
+		return nil
+	}
+
+	var err error
+	if currentProfileName == "" {
+		home := os.Getenv(types.HomeEnvVar)
+		if home != "" {
+			home = filepath.Clean(home)
+		}
+		profilePath := profile.FullProfilePath(home)
+		currentProfileName, err = profile.GetCurrentProfileName(profilePath)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	toolsDir, err := Dir()
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to detect the teleport home directory, client tools updates are disabled", "error", err)
+		return nil
+	}
+	updater, err := newUpdater(toolsDir)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to create the updater, client tools updates are disabled", "error", err)
+		return nil
+	}
+
+	slog.DebugContext(ctx, "Attempting to local update", "current_profile_name", currentProfileName)
+	resp, err := updater.CheckLocal(ctx, currentProfileName)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to check local teleport versions, client tools updates are disabled", "error", err)
+		return nil
+	}
+
+	if resp.ReExec {
+		return trace.Wrap(updateAndReExec(ctx, updater, resp.Version, reExecArgs))
 	}
 
 	return nil
 }
 
-// CheckAndUpdateRemote verifies client tools version is set for update in cluster
-// configuration by making the http request to `webapi/find` endpoint. The requested
-// version is compared with the current client tools version. If they differ, the version
-// package is downloaded, extracted to the client tools directory, and re-executed
+// CheckAndUpdateRemote verifies the client tools version configured for updates in the cluster
+// by making an HTTP request to the `webapi/find` endpoint.
+//
+// If the TELEPORT_TOOLS_VERSION environment variable is set during the remote check,
+// the version specified in the environment variable takes precedence over the version
+// provided by the cluster. This version will also be recorded in the configuration for the cluster.
+//
+// The requested version is compared with the current client tools version.
+// If they differ, the requested version is downloaded, extracted into the client tools directory,
+// the installed version is recorded in the configuration, and the tool is re-executed
 // with the updated version.
-// If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
-// using the version from the home directory.
-func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reExecArgs []string) error {
+func CheckAndUpdateRemote(ctx context.Context, currentProfileName string, insecure bool, reExecArgs []string) error {
+	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
+	// so we don't try to read te user home directory, fail, and log warnings.
+	// If we are re-executed, we ignore the "off" version because some previous Teleport versions
+	// are disabling execution too aggressively and this causes stuck updates.
+	// If "off" was set by the user, we would not be re-executed.
+	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled && os.Getenv(teleportToolsVersionReExecEnv) == "" {
+		return nil
+	}
+
+	toolsDir, err := Dir()
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to detect the teleport home directory, client tools updates are disabled", "error", err)
+		return nil
+	}
+	updater, err := newUpdater(toolsDir)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to create the updater, client tools updates are disabled", "error", err)
+		return nil
+	}
+
+	slog.DebugContext(ctx, "Attempting to remote update", "current_profile_name", currentProfileName, "insecure", insecure)
+	resp, err := updater.CheckRemote(ctx, currentProfileName, insecure)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to check remote teleport versions, client tools updates are disabled", "error", err)
+		return nil
+	}
+
+	if !resp.Disabled && resp.ReExec {
+		return trace.Wrap(updateAndReExec(ctx, updater, resp.Version, reExecArgs))
+	}
+
+	return nil
+}
+
+// DownloadUpdate checks if a client tools version is set for update in the cluster
+// configuration by making an HTTP request to the `webapi/find` endpoint.
+// Downloads the new version if it is not already installed without re-execution.
+func DownloadUpdate(ctx context.Context, name string, insecure bool) error {
 	toolsDir, err := Dir()
 	if err != nil {
 		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
 		return nil
 	}
-
-	// Overrides default base URL for custom CDN for downloading updates.
-	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
-		baseURL = envBaseURL
-	}
-
-	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
-	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
+	updater, err := newUpdater(toolsDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if reExec {
-		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion, reExecArgs))
+
+	slog.DebugContext(ctx, "Attempting to remote update", "name", name, "insecure", insecure)
+	resp, err := updater.CheckRemote(ctx, name, insecure)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !resp.Disabled && resp.ReExec {
+		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
+		defer cancel()
+		err := updater.Update(ctxUpdate, resp.Version)
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -110,15 +198,18 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	// Download the version of client tools required by the cluster. This
 	// is required if the user passed in the TELEPORT_TOOLS_VERSION
 	// explicitly.
-	err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
-	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, errNoBaseURL) {
-		return trace.Wrap(err)
+	err := updater.Update(ctxUpdate, toolsVersion)
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
+		slog.ErrorContext(ctx, "Failed to update tools version", "error", err, "version", toolsVersion)
+		// Continue executing the current version of the client tools (tsh, tctl)
+		// to avoid potential issues with update process (timeout, missing version).
+		return nil
 	}
 
 	// Re-execute client tools with the correct version of client tools.
-	code, err := updater.Exec(args)
+	code, err := updater.Exec(ctx, toolsVersion, args)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err)
+		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
 		os.Exit(code)
 	} else if err == nil {
 		os.Exit(code)

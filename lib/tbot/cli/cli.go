@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -195,7 +196,7 @@ func LoadConfigWithMutators(globals *GlobalArgs, mutators ...ConfigMutator) (*co
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.AuthServerAddressMode = config.WarnIfAuthServerIsProxy
+	cfg.AuthServerAddressMode = connection.WarnIfAuthServerIsProxy
 
 	return cfg, nil
 }

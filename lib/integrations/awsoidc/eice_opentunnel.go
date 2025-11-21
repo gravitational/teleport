@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -366,12 +365,11 @@ func (i *eicedConn) handleIOError(err error) error {
 	var closeErr *websocket.CloseError
 	if errors.As(err, &closeErr) {
 		return trace.ConnectionProblem(err,
-			fmt.Sprintf("Could not connect to %s via EC2 Instance Connect Endpoint %s. "+
+			"Could not connect to %s via EC2 Instance Connect Endpoint %s. "+
 				"Please ensure the instance's SecurityGroups allow inbound TCP traffic on port 22 from %s",
-				i.ec2InstanceID,
-				i.eiceID,
-				i.subnetID,
-			),
+			i.ec2InstanceID,
+			i.eiceID,
+			i.subnetID,
 		)
 	}
 	return trace.Wrap(err)

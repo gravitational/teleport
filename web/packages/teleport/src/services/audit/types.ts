@@ -325,6 +325,23 @@ export const eventCodes = {
   AUTOUPDATE_VERSION_CREATE: 'AUV001I',
   AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
   AUTOUPDATE_VERSION_DELETE: 'AUV003I',
+  AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
+  AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
+  AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
+  BOUND_KEYPAIR_RECOVERY: 'TBK001I',
+  BOUND_KEYPAIR_ROTATION: 'TBK002I',
+  BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
+  SCIM_RESOURCE_CREATE: 'TSCIM001I',
+  SCIM_RESOURCE_CREATE_FAILURE: 'TSCIM001E',
+  SCIM_RESOURCE_UPDATE: 'TSCIM002I',
+  SCIM_RESOURCE_UPDATE_FAILURE: 'TSCIM002E',
+  SCIM_RESOURCE_DELETE: 'TSCIM003I',
+  SCIM_RESOURCE_DELETE_FAILURE: 'TSCIM003E',
+  SCIM_RESOURCE_GET: 'TSCIM004I',
+  SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
+  SCIM_RESOURCE_LIST: 'TSCIM005I',
+  SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
+  CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
 } as const;
 
 /**
@@ -380,11 +397,15 @@ export type RawEvents = {
     {
       proto: 'kube';
       kubernetes_cluster: string;
+      sid: string;
     }
   >;
   [eventCodes.EXEC_FAILURE]: RawEvent<
     typeof eventCodes.EXEC_FAILURE,
-    { exitError: string }
+    {
+      exitError: string;
+      sid: string;
+    }
   >;
   [eventCodes.BILLING_CARD_CREATE]: RawEvent<
     typeof eventCodes.BILLING_CARD_CREATE
@@ -1171,6 +1192,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: RawEvent<
@@ -1179,6 +1201,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: RawEvent<
@@ -1187,6 +1210,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: RawEvent<
@@ -1195,6 +1219,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: RawEvent<
@@ -1205,6 +1230,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: RawEvent<
@@ -1215,6 +1241,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: RawEvent<
@@ -1225,6 +1252,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: RawEvent<
@@ -1235,6 +1263,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DEVICE_CREATE]: RawDeviceEvent<typeof eventCodes.DEVICE_CREATE>;
@@ -1276,7 +1305,7 @@ export type RawEvents = {
     typeof eventCodes.CERTIFICATE_CREATED,
     {
       cert_type: 'user';
-      identity: { user: string };
+      identity: { user: string; usage?: string[] };
     }
   >;
   [eventCodes.UPGRADE_WINDOW_UPDATED]: RawEvent<
@@ -1879,6 +1908,92 @@ export type RawEvents = {
       user: string;
     }
   >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_RECOVERY,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+      recovery_count: number;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_ROTATION,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_LIST]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST
+  >;
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_GET]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET
+  >;
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
+  >;
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: RawEvent<
+    typeof eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE,
+    {
+      client_ip_restrictions: string[];
+      success: boolean;
+    }
+  >;
 };
 
 /**
@@ -2077,6 +2192,25 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
     db_service: string;
     db_name: string;
     args: { sql?: string };
+  }
+>;
+
+type RawSCIMListingEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    integration: string;
+  }
+>;
+
+type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    teleport_id: string;
+    external_id: string;
+    integration: string;
+    display: string;
   }
 >;
 

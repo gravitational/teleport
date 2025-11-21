@@ -92,8 +92,8 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 	// signed by the same private key and having the same subject (happens in tests)
 	config.Entity.SerialNumber = serialNumber.String()
 
-	// Note: KeyUsageCRLSign is set only to generate empty CRLs for Desktop
-	// Access authentication with Windows.
+	// Note: KeyUsageCRLSign is set only to generate empty CRLs for
+	// desktop and database access on Windows
 	keyUsage := x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 	if _, isRSA := config.Signer.Public().(*rsa.PublicKey); isRSA {
 		// The KeyEncipherment bit is necessary for RSA key exchanges
@@ -145,7 +145,7 @@ func ParseCertificateRequestPEM(bytes []byte) (*x509.CertificateRequest, error) 
 	}
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	return csr, nil
 }
@@ -177,7 +177,7 @@ func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	return cert, nil
 }
@@ -197,7 +197,7 @@ func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
 	for _, block := range blocks {
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		certs = append(certs, cert)
 	}

@@ -25,7 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // TestIdentityCommand tests that the IdentityCommand properly parses its arguments
@@ -62,7 +64,7 @@ func TestIdentityCommand(t *testing.T) {
 				require.Equal(t, "0.0.0.0:8080", cfg.DiagAddr)
 				require.Equal(t, "example.com:443", cfg.ProxyServer)
 
-				dir, ok := cfg.Storage.Destination.(*config.DestinationDirectory)
+				dir, ok := cfg.Storage.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/foo", dir.Path)
 
@@ -70,10 +72,10 @@ func TestIdentityCommand(t *testing.T) {
 
 				// It must configure an identity output with a directory destination.
 				svc := cfg.Services[0]
-				ident, ok := svc.(*config.IdentityOutput)
+				ident, ok := svc.(*identity.OutputConfig)
 				require.True(t, ok)
 
-				dir, ok = ident.Destination.(*config.DestinationDirectory)
+				dir, ok = ident.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 				require.True(t, ident.AllowReissue)

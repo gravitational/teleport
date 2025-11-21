@@ -44,6 +44,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -80,7 +81,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	authproto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -100,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -113,6 +115,7 @@ import (
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -122,6 +125,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/player"
@@ -165,7 +169,7 @@ type WebSuite struct {
 	webHandler *APIHandler
 
 	mockU2F     *mocku2f.Key
-	server      *auth.TestServer
+	server      *authtest.Server
 	proxyClient *authclient.Client
 	clock       clockwork.FakeClock
 }
@@ -181,10 +185,13 @@ func TestMain(m *testing.M) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
-	cryptosuites.PrecomputeRSATestKeys(m)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 
 	// Otherwise run tests as normal.
 	code := m.Run()
+	cancel()
 	os.Exit(code)
 }
 
@@ -198,6 +205,8 @@ type webSuiteConfig struct {
 
 	disableDiskBasedRecording bool
 
+	onSessionRecordEvent func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error
+
 	uiConfig webclient.UIConfig
 
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
@@ -205,7 +214,7 @@ type webSuiteConfig struct {
 	HealthCheckAppServer healthCheckAppServerFunc
 
 	// ClusterFeatures allows overriding default auth server features
-	ClusterFeatures *authproto.Features
+	ClusterFeatures *clientproto.Features
 
 	// presenceChecker executes presence prompts for tests
 	presenceChecker PresenceChecker
@@ -249,8 +258,8 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
-	authCfg := auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
+	authCfg := authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
 			ClusterName:             "localhost",
 			Dir:                     t.TempDir(),
 			Clock:                   s.clock,
@@ -261,9 +270,20 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	if cfg.disableDiskBasedRecording {
 		authCfg.Auth.AuditLog = events.NewDiscardAuditLog()
+		if cfg.onSessionRecordEvent != nil {
+			streamer, err := events.NewCallbackStreamer(
+				events.CallbackStreamerConfig{
+					// Inner emits events to the underlying store
+					Inner:         events.NewDiscardStreamer(),
+					OnRecordEvent: cfg.onSessionRecordEvent,
+				},
+			)
+			require.NoError(t, err)
+			authCfg.Auth.Streamer = streamer
+		}
 	}
 
-	s.server, err = auth.NewTestServer(authCfg)
+	s.server, err = authtest.NewTestServer(authCfg)
 	require.NoError(t, err)
 
 	if cfg.disableDiskBasedRecording {
@@ -273,6 +293,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		recConfig.SetMode(types.RecordAtNodeSync)
 		_, err := s.server.AuthServer.AuthServer.UpsertSessionRecordingConfig(context.Background(), recConfig)
 		require.NoError(t, err)
+
 	}
 
 	// Register the auth server, since test auth server doesn't start its own
@@ -295,14 +316,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	nodeID := "node"
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&authproto.HostCertsRequest{
+		&clientproto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     nodeID,
 			Role:         types.RoleNode,
@@ -314,7 +335,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
-	nodeClient, err := s.server.NewClient(auth.TestIdentity{
+	nodeClient, err := s.server.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
@@ -368,7 +389,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// create reverse tunnel service:
 	proxyID := "proxy"
-	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
+	s.proxyClient, err = s.server.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
@@ -604,12 +625,12 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&authproto.HostCertsRequest{
+		&clientproto.HostCertsRequest{
 			HostID:       uuid,
 			NodeName:     hostname,
 			Role:         types.RoleNode,
@@ -621,7 +642,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	signer, err := sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
-	nodeClient, err := s.server.NewClient(auth.TestIdentity{
+	nodeClient, err := s.server.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: uuid,
@@ -701,7 +722,7 @@ type authPack struct {
 	session   *CreateSessionResponse
 	clt       *TestWebClient
 	cookies   []*http.Cookie
-	device    *auth.TestDevice
+	device    *authtest.Device
 }
 
 // authPack returns new authenticated package consisting of created valid
@@ -777,10 +798,10 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 	})
 	require.NoError(t, err)
 
-	res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+	res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &clientproto.CreateRegisterChallengeRequest{
 		TokenID:     token.GetName(),
-		DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		DeviceType:  clientproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: clientproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	require.NoError(t, err)
 
@@ -796,11 +817,11 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 	ccr, err := device.SignCredentialCreation("https://"+rpID, cc)
 	require.NoError(t, err)
 
-	_, err = s.server.Auth().ChangeUserAuthentication(s.ctx, &authproto.ChangeUserAuthenticationRequest{
+	_, err = s.server.Auth().ChangeUserAuthentication(s.ctx, &clientproto.ChangeUserAuthenticationRequest{
 		TokenID:     token.GetName(),
 		NewPassword: []byte(password),
-		NewMFARegisterResponse: &authproto.MFARegisterResponse{
-			Response: &authproto.MFARegisterResponse_Webauthn{
+		NewMFARegisterResponse: &clientproto.MFARegisterResponse{
+			Response: &clientproto.MFARegisterResponse_Webauthn{
 				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 			},
 		},
@@ -831,7 +852,7 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 		session: sess,
 		clt:     clt,
 		cookies: httpResp.Cookies(),
-		device:  &auth.TestDevice{Key: device},
+		device:  &authtest.Device{Key: device},
 	}
 }
 
@@ -1861,7 +1882,53 @@ func TestUIConfig(t *testing.T) {
 
 func TestResizeTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+	const fooUser = "foo"
+
+	eventsChan := make(chan apievents.AuditEvent, 10)
+	isInitialResizeComplete := make(chan struct{})
+	go func() {
+		var once sync.Once
+		for {
+			select {
+			case <-t.Context().Done():
+				return
+			case evt, ok := <-eventsChan:
+				if !ok {
+					return
+				}
+				// we are only interested in resize events
+				if evt.GetType() != events.ResizeEvent {
+					continue
+				}
+				resize, ok := evt.(*apievents.Resize)
+				assert.True(t, ok)
+
+				// we are only interested in resize events from foo user with 100x100 terminal size
+				// which is the initial size the client connects with.
+				if resize.GetUser() != fooUser || resize.TerminalSize != "100:100" {
+					continue
+				}
+
+				// signal that the initial resize events have been processed
+				// by the server
+				once.Do(func() {
+					close(isInitialResizeComplete)
+				})
+
+			}
+		}
+	}()
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
+		onSessionRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
+			select {
+			case eventsChan <- pe.GetAuditEvent():
+			case <-ctx.Done():
+			}
+			return nil
+		},
+	})
 	sid := session.NewID()
 
 	ctx, cancel := context.WithCancel(s.ctx)
@@ -1872,7 +1939,7 @@ func TestResizeTerminal(t *testing.T) {
 	ws2Messages := make(chan *terminal.Envelope)
 	// Create a new user "foo", open a terminal to a new session
 	term, err := connectToHost(ctx, connectConfig{
-		pack:  s.authPack(t, "foo"),
+		pack:  s.authPack(t, fooUser),
 		host:  s.node.ID(),
 		proxy: s.webServer.Listener.Addr().String(),
 		handlers: map[string]terminal.WSHandlerFunc{
@@ -1883,6 +1950,22 @@ func TestResizeTerminal(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, term.Close()) })
+
+	// The client connects to the server with an initial terminal size of 100x100.
+	// We must ensure the server processes this initial resize event before proceeding
+	// with bar joining the session and sending a new resize event.
+	// This is done by waiting for the resize event to be recorded
+	// by the onSessionRecordEvent callback above.
+	// If this does not happen within 10 seconds, the test fails.
+	// This ensures that the bar user joining never receives any possible
+	// pending resize events from foo creating the session.
+	select {
+	case <-isInitialResizeComplete:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "", "timeout waiting for initial resize events")
+	case <-t.Context().Done():
+		require.FailNow(t, "", "test context done: %v", t.Context().Err())
+	}
 
 	sess := term.GetSession()
 	// Wait for session to have started
@@ -2178,14 +2261,14 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 	const username = "llama2999"
 	pack := proxy.authPack(t, username, nil /* roles */)
 
-	userClient, err := env.server.NewClient(auth.TestUser(username))
+	userClient, err := env.server.NewClient(authtest.TestUser(username))
 	require.NoError(t, err)
 
 	cases := []struct {
 		name                      string
 		getAuthPreference         func(t *testing.T) types.AuthPreference
-		registerDevice            func(t *testing.T) *auth.TestDevice
-		getChallengeResponseBytes func(t *testing.T, chal client.MFAAuthenticateChallenge, testDev *auth.TestDevice) []byte
+		registerDevice            func(t *testing.T) *authtest.Device
+		getChallengeResponseBytes func(t *testing.T, chal client.MFAAuthenticateChallenge, testDev *authtest.Device) []byte
 	}{
 		{
 			name: "with webauthn",
@@ -2202,17 +2285,17 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 				return ap
 			},
-			registerDevice: func(t *testing.T) *auth.TestDevice {
-				webauthnDev, err := auth.RegisterTestDevice(
+			registerDevice: func(t *testing.T) *authtest.Device {
+				webauthnDev, err := authtest.RegisterTestDevice(
 					ctx,
 					userClient,
-					"webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, pack.device /* authenticator */)
+					"webauthn", clientproto.DeviceType_DEVICE_TYPE_WEBAUTHN, pack.device /* authenticator */)
 				require.NoError(t, err)
 
 				return webauthnDev
 			},
-			getChallengeResponseBytes: func(t *testing.T, chal client.MFAAuthenticateChallenge, testDev *auth.TestDevice) []byte {
-				res, err := testDev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
+			getChallengeResponseBytes: func(t *testing.T, chal client.MFAAuthenticateChallenge, testDev *authtest.Device) []byte {
+				res, err := testDev.SolveAuthn(&clientproto.MFAAuthenticateChallenge{
 					WebauthnChallenge: wantypes.CredentialAssertionToProto(chal.WebauthnChallenge),
 				})
 				require.NoError(t, err)
@@ -2339,8 +2422,8 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 	tests := []struct {
 		name           string
 		authPref       types.AuthPreferenceSpecV2
-		mfaHandler     func(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice)
-		registerDevice func(t *testing.T, ctx context.Context, clt *authclient.Client) *auth.TestDevice
+		mfaHandler     func(t *testing.T, ws *websocket.Conn, dev *authtest.Device)
+		registerDevice func(t *testing.T, ctx context.Context, clt *authclient.Client) *authtest.Device
 	}{
 		{
 			name: "webauthn",
@@ -2353,8 +2436,8 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			mfaHandler: handleDesktopMFAWebauthnChallenge,
-			registerDevice: func(t *testing.T, ctx context.Context, clt *authclient.Client) *auth.TestDevice {
-				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+			registerDevice: func(t *testing.T, ctx context.Context, clt *authclient.Client) *authtest.Device {
+				webauthnDev, err := authtest.RegisterTestDevice(ctx, clt, "webauthn", clientproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 				require.NoError(t, err)
 				return webauthnDev
 			},
@@ -2368,7 +2451,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 			proxy := env.proxies[0]
 			pack := proxy.authPack(t, "llama", nil /* roles */)
 
-			clt, err := env.server.NewClient(auth.TestUser("llama"))
+			clt, err := env.server.NewClient(authtest.TestUser("llama"))
 			require.NoError(t, err)
 			wdID := uuid.New().String()
 
@@ -2410,7 +2493,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 	}
 }
 
-func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
+func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
 	wsrwc := &WebsocketIO{Conn: ws}
 	tdpConn := tdp.NewConn(wsrwc)
 
@@ -2424,14 +2507,14 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 
 	mfaChallange, err := tdp.DecodeMFAChallenge(br)
 	require.NoError(t, err)
-	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
+	res, err := dev.SolveAuthn(&clientproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
 	err = tdpConn.WriteMessage(tdp.MFA{
 		Type: defaults.WebsocketMFAChallenge[0],
-		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_Webauthn{
+		MFAAuthenticateResponse: &clientproto.MFAAuthenticateResponse{
+			Response: &clientproto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: res.GetWebauthn(),
 			},
 		},
@@ -2463,7 +2546,7 @@ func TestWebAgentForward(t *testing.T) {
 
 func TestActiveSessions(t *testing.T) {
 	// Use enterprise license (required for moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
@@ -2613,7 +2696,7 @@ type httpErrorResponse struct {
 }
 
 func TestLogin_PrivateKeyEnabledError(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		MockAttestationData: &keys.AttestationData{
 			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 		},
@@ -2793,7 +2876,7 @@ func TestMotD(t *testing.T) {
 func TestPingAutomaticUpgrades(t *testing.T) {
 	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
 		// Enable Automatic Upgrades
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
 			AutomaticUpgrades: true,
 		}})
 
@@ -2811,7 +2894,7 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 	})
 	t.Run("Automatic Upgrades are disabled", func(t *testing.T) {
 		// Disable Automatic Upgrades
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
 			AutomaticUpgrades: false,
 		}})
 
@@ -2832,7 +2915,7 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: true,
@@ -2906,7 +2989,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 
 	t.Run("cloud without automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: false,
@@ -2963,7 +3046,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 
 	t.Run("oss or enterprise with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildOSS,
 			TestFeatures: modules.Features{
 				Cloud:             false,
@@ -3711,7 +3794,7 @@ func TestKnownWebPathsWithAndWithoutV1Prefix(t *testing.T) {
 
 func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildCommunity})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildCommunity})
 
 	// Users should be able to create Tokens even if they can't update them
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
@@ -4511,7 +4594,7 @@ func TestClusterAppsGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -4604,7 +4687,7 @@ func TestClusterAppsGet(t *testing.T) {
 // TestApplicationAccessDisabled makes sure application access can be disabled
 // via modules.
 func TestApplicationAccessDisabled(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.App: {Enabled: false},
@@ -4904,6 +4987,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+			string(entitlements.ClientIPRestrictions):       {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -4935,7 +5019,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 
 	// update features and assert that it is properly updated on the config object
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud:               true,
 			IsUsageBasedBilling: true,
@@ -4991,8 +5075,8 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	// use mock client to assert that if ping returns an error, we'll default to
 	// cluster config
 	mockClient := mockedPingTestProxy{
-		mockedPing: func(ctx context.Context) (authproto.PingResponse, error) {
-			return authproto.PingResponse{}, errors.New("err")
+		mockedPing: func(ctx context.Context) (clientproto.PingResponse, error) {
+			return clientproto.PingResponse{}, errors.New("err")
 		},
 	}
 	env.proxies[0].client = mockClient
@@ -5003,7 +5087,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud:               false,
 			IsUsageBasedBilling: false,
@@ -5030,7 +5114,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			ProductType:         modules.ProductTypeTeam,
 			IsUsageBasedBilling: true,
@@ -5091,6 +5175,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+			string(entitlements.ClientIPRestrictions):       {Enabled: false},
 		},
 		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
 		IsPolicyRoleVisualizerEnabled: true,
@@ -5184,13 +5269,13 @@ func TestAddMFADevice(t *testing.T) {
 			deviceName: "new-totp",
 			getTOTPCode: func() string {
 				// Create totp secrets.
-				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &clientproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
-					DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
+					DeviceType: clientproto.DeviceType_DEVICE_TYPE_TOTP,
 				})
 				require.NoError(t, err)
 
-				_, regRes, err := auth.NewTestDeviceFromChallenge(res, auth.WithTestDeviceClock(env.clock))
+				_, regRes, err := authtest.NewTestDeviceFromChallenge(res, authtest.WithTestDeviceClock(env.clock))
 				require.NoError(t, err)
 
 				return regRes.GetTOTP().Code
@@ -5201,13 +5286,13 @@ func TestAddMFADevice(t *testing.T) {
 			deviceName: "new-webauthn",
 			getWebauthnResp: func() *wantypes.CredentialCreationResponse {
 				// Get webauthn register challenge.
-				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &clientproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
-					DeviceType: authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceType: clientproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				})
 				require.NoError(t, err)
 
-				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
+				_, regRes, err := authtest.NewTestDeviceFromChallenge(res)
 				require.NoError(t, err)
 
 				return wantypes.CredentialCreationResponseFromProto(regRes.GetWebauthn())
@@ -5793,17 +5878,17 @@ func TestCreateAppSession_RequireSessionMFA(t *testing.T) {
 	require.NoError(t, err)
 
 	// register an mfa device for the user.
-	userClient, err := s.server.NewClient(auth.TestUser(pack.user))
+	userClient, err := s.server.NewClient(authtest.TestUser(pack.user))
 	require.NoError(t, err)
-	webauthnDev, err := auth.RegisterTestDevice(
+	webauthnDev, err := authtest.RegisterTestDevice(
 		ctx,
 		userClient,
-		"webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, pack.device /* authenticator */)
+		"webauthn", clientproto.DeviceType_DEVICE_TYPE_WEBAUTHN, pack.device /* authenticator */)
 	require.NoError(t, err)
 
 	// Prepare a valid mfa response for the user.
-	chal, err := userClient.CreateAuthenticateChallenge(ctx, &authproto.CreateAuthenticateChallengeRequest{
-		Request: &authproto.CreateAuthenticateChallengeRequest_ContextUser{},
+	chal, err := userClient.CreateAuthenticateChallenge(ctx, &clientproto.CreateAuthenticateChallengeRequest{
+		Request: &clientproto.CreateAuthenticateChallengeRequest_ContextUser{},
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
@@ -6042,7 +6127,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
@@ -6059,9 +6144,9 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "invalid-name-for-recovery",
 	})
 	require.NoError(t, err)
-	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &clientproto.CreateRegisterChallengeRequest{
 		TokenID:    resetToken.GetName(),
-		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
+		DeviceType: clientproto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
@@ -6069,11 +6154,11 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 
 	// Test invalid username does not receive codes.
 	clt := env.proxies[0].client
-	re, err := clt.ChangeUserAuthentication(ctx, &authproto.ChangeUserAuthenticationRequest{
+	re, err := clt.ChangeUserAuthentication(ctx, &clientproto.ChangeUserAuthenticationRequest{
 		TokenID:     resetToken.GetName(),
 		NewPassword: []byte("abcdef123456"),
-		NewMFARegisterResponse: &authproto.MFARegisterResponse{Response: &authproto.MFARegisterResponse_TOTP{
-			TOTP: &authproto.TOTPRegisterResponse{Code: totpCode},
+		NewMFARegisterResponse: &clientproto.MFARegisterResponse{Response: &clientproto.MFARegisterResponse_TOTP{
+			TOTP: &clientproto.TOTPRegisterResponse{Code: totpCode},
 		}},
 	})
 	require.NoError(t, err)
@@ -6091,20 +6176,20 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "valid-username@example.com",
 	})
 	require.NoError(t, err)
-	res, err = env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
+	res, err = env.server.Auth().CreateRegisterChallenge(ctx, &clientproto.CreateRegisterChallengeRequest{
 		TokenID:    resetToken.GetName(),
-		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
+		DeviceType: clientproto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 	totpCode, err = totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test valid username (email) returns codes.
-	re, err = clt.ChangeUserAuthentication(ctx, &authproto.ChangeUserAuthenticationRequest{
+	re, err = clt.ChangeUserAuthentication(ctx, &clientproto.ChangeUserAuthenticationRequest{
 		TokenID:     resetToken.GetName(),
 		NewPassword: []byte("abcdef123456"),
-		NewMFARegisterResponse: &authproto.MFARegisterResponse{Response: &authproto.MFARegisterResponse_TOTP{
-			TOTP: &authproto.TOTPRegisterResponse{Code: totpCode},
+		NewMFARegisterResponse: &clientproto.MFARegisterResponse{Response: &clientproto.MFARegisterResponse_TOTP{
+			TOTP: &clientproto.TOTPRegisterResponse{Code: totpCode},
 		}},
 	})
 	require.NoError(t, err)
@@ -6132,7 +6217,7 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Enable cloud feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
@@ -6152,9 +6237,9 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 		Name: "valid-username@example.com",
 	})
 	require.NoError(t, err)
-	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &clientproto.CreateRegisterChallengeRequest{
 		TokenID:    resetToken.GetName(),
-		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
+		DeviceType: clientproto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
@@ -6238,7 +6323,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
 				},
@@ -6291,10 +6376,10 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 			})
 			require.NoError(t, err)
 
-			res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &authproto.CreateRegisterChallengeRequest{
+			res, err := s.server.Auth().CreateRegisterChallenge(s.ctx, &clientproto.CreateRegisterChallengeRequest{
 				TokenID:     token.GetName(),
-				DeviceType:  authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-				DeviceUsage: authproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+				DeviceType:  clientproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				DeviceUsage: clientproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 			})
 			require.NoError(t, err)
 
@@ -6749,7 +6834,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error:   "target host notanode is offline or does not exist",
 				},
 			},
 		},
@@ -6767,7 +6852,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "launchctl print 'system/Teleport Service'".`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error:   "target host notanode is offline or does not exist",
 				},
 			},
 		},
@@ -6786,7 +6871,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Open the Connect My Computer tab in Teleport Connect and make sure that the agent is running.`,
-					Error:   "direct dialing to nodes not found in inventory is not supported",
+					Error:   "target host notanode is offline or does not exist",
 				},
 			},
 		},
@@ -7037,7 +7122,11 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	}
 	require.NotNil(t, rolesWithoutAccessToKubeCluster)
 
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1,
+		withWebPackProxyOptions(
+			withKubeProxy(),
+		),
+	)
 
 	rt := http.NewServeMux()
 	rt.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -8029,7 +8118,7 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
-func (mock authProviderMock) ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error) {
+func (mock authProviderMock) ListUnifiedResources(ctx context.Context, req *clientproto.ListUnifiedResourcesRequest) (*clientproto.ListUnifiedResourcesResponse, error) {
 	return nil, nil
 }
 
@@ -8041,23 +8130,23 @@ func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID st
 	return nil, trace.NotFound("foo")
 }
 
-func (mock authProviderMock) IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error) {
+func (mock authProviderMock) IsMFARequired(ctx context.Context, req *clientproto.IsMFARequiredRequest) (*clientproto.IsMFARequiredResponse, error) {
 	return nil, nil
 }
 
-func (mock authProviderMock) CreateAuthenticateChallenge(ctx context.Context, req *authproto.CreateAuthenticateChallengeRequest) (*authproto.MFAAuthenticateChallenge, error) {
+func (mock authProviderMock) CreateAuthenticateChallenge(ctx context.Context, req *clientproto.CreateAuthenticateChallengeRequest) (*clientproto.MFAAuthenticateChallenge, error) {
 	return nil, nil
 }
 
-func (mock authProviderMock) GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error) {
+func (mock authProviderMock) GenerateUserCerts(ctx context.Context, req clientproto.UserCertsRequest) (*clientproto.Certs, error) {
 	return nil, nil
 }
 
-func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
+func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *clientproto.OpenSSHCertRequest) (*clientproto.OpenSSHCert, error) {
 	return nil, nil
 }
 
-func (mock authProviderMock) MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error) {
+func (mock authProviderMock) MaintainSessionPresence(ctx context.Context) (clientproto.AuthService_MaintainSessionPresenceClient, error) {
 	return nil, nil
 }
 
@@ -8185,16 +8274,42 @@ func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
-func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
+type WebPackOptions struct {
+	proxyOptions    []proxyOption
+	enableAuthCache bool
+}
+
+type webPackOptions func(*WebPackOptions)
+
+func withWebPackProxyOptions(opts ...proxyOption) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.proxyOptions = opts
+	}
+}
+
+func withWebPackAuthCacheEnabled(enable bool) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.enableAuthCache = enable
+	}
+}
+
+func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
+	options := &WebPackOptions{}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 
-	server, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
-			ClusterName: "localhost",
-			Dir:         t.TempDir(),
-			Clock:       clock,
-			AuditLog:    events.NewDiscardAuditLog(),
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			ClusterName:  "localhost",
+			Dir:          t.TempDir(),
+			Clock:        clock,
+			AuditLog:     events.NewDiscardAuditLog(),
+			CacheEnabled: options.enableAuthCache,
 		},
 	})
 	require.NoError(t, err)
@@ -8227,13 +8342,13 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
 
 	const nodeID = "node"
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
-		&authproto.HostCertsRequest{
+		&clientproto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     nodeID,
 			Role:         types.RoleNode,
@@ -8246,7 +8361,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	require.NoError(t, err)
 	hostSigners := []ssh.Signer{signer}
 
-	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
+	nodeClient, err := server.TLS.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
@@ -8306,7 +8421,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, opts...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -8343,6 +8458,7 @@ func (w *wrappedAuthClient) DevicesClient() devicepb.DeviceTrustServiceClient {
 type proxyConfig struct {
 	minimalHandler        bool
 	devicesClientOverride devicepb.DeviceTrustServiceClient
+	kubeProxy             bool
 }
 
 type proxyOption func(cfg *proxyConfig)
@@ -8353,7 +8469,13 @@ func withDevicesClientOverride(c devicepb.DeviceTrustServiceClient) proxyOption 
 	}
 }
 
-func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
+func withKubeProxy() proxyOption {
+	return func(cfg *proxyConfig) {
+		cfg.kubeProxy = true
+	}
+}
+
+func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
 	hostSigners []ssh.Signer, clock clockwork.FakeClock, opts ...proxyOption,
 ) *testProxy {
 	cfg := proxyConfig{}
@@ -8361,7 +8483,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		opt(&cfg)
 	}
 	// create reverse tunnel service:
-	authClient, err := authServer.NewClient(auth.TestIdentity{
+	authClient, err := authServer.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
@@ -8649,16 +8771,18 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	handler.handler.sshPort = sshPort
 
-	kubeProxyAddr := startKube(
-		ctx,
-		t,
-		startKubeOptions{
-			serviceType: kubeproxy.ProxyService,
-			authServer:  authServer,
-			revTunnel:   revTunServer,
-		},
-	)
-	handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+	if cfg.kubeProxy {
+		kubeProxyAddr := startKube(
+			ctx,
+			t,
+			startKubeOptions{
+				serviceType: kubeproxy.ProxyService,
+				authServer:  authServer,
+				revTunnel:   revTunServer,
+			},
+		)
+		handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+	}
 	handler.handler.cfg.PublicProxyAddr = webServer.Listener.Addr().String()
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
@@ -8686,7 +8810,7 @@ func (m *mockIntegrationAppHandler) HandleConnection(_ net.Conn) {}
 // directly.
 type webPack struct {
 	proxies []*testProxy
-	server  *auth.TestServer
+	server  *authtest.Server
 	node    *regular.Server
 	clock   clockwork.FakeClock
 }
@@ -8694,7 +8818,7 @@ type webPack struct {
 type testProxy struct {
 	clock   clockwork.FakeClock
 	client  authclient.ClientI
-	auth    *auth.TestTLSServer
+	auth    *authtest.TLSServer
 	revTun  reversetunnelclient.Server
 	node    *regular.Server
 	proxy   *regular.Server
@@ -8754,7 +8878,7 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 		clt:       clt,
 		cookies:   httpResp.Cookies(),
 		password:  pass,
-		device: &auth.TestDevice{
+		device: &authtest.Device{
 			TOTPSecret: otpSecret,
 		},
 	}
@@ -9231,7 +9355,7 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...kubeCluste
 
 type startKubeOptions struct {
 	clusters    []kubeClusterConfig
-	authServer  *auth.TestTLSServer
+	authServer  *authtest.TLSServer
 	revTunnel   reversetunnelclient.Server
 	serviceType kubeproxy.KubeServiceType
 }
@@ -9262,11 +9386,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	hostID := uuid.New().String()
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters))
-	client, err := cfg.authServer.NewClient(auth.TestServerID(role, hostID))
+	client, err := cfg.authServer.NewClient(authtest.TestServerID(role, hostID))
 	require.NoError(t, err)
 
 	// Auth client, lock watcher and authorizer for Kube proxy.
-	proxyAuthClient, err := cfg.authServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := cfg.authServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
@@ -9316,13 +9440,21 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		KubernetesServerGetter: client,
 	})
 	require.NoError(t, err)
+	t.Cleanup(watcher.Close)
 
-	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, authproto.UpstreamInventoryHello{
-		ServerID: hostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{role},
-		Hostname: "test",
-	})
+	// wait for the watcher to init before continuing
+	require.NoError(t, watcher.WaitInitialization())
+
+	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
+		func(ctx context.Context) (clientproto.UpstreamInventoryHello, error) {
+			return clientproto.UpstreamInventoryHello{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{role},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
@@ -9356,9 +9488,9 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			},
 
 			Clock: clockwork.NewRealClock(),
-			ClusterFeatures: func() authproto.Features {
-				return authproto.Features{
-					Entitlements: map[string]*authproto.EntitlementInfo{
+			ClusterFeatures: func() clientproto.Features {
+				return clientproto.Features{
+					Entitlements: map[string]*clientproto.EntitlementInfo{
 						string(entitlements.K8s): {Enabled: true},
 					},
 				}
@@ -9399,8 +9531,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		}
 		errChan <- err
 	}()
-	// wait for the watcher to init or it may race with test cleanup.
-	require.NoError(t, watcher.WaitInitialization())
 
 	// Waits for len(clusters) heartbeats to start
 	heartbeatsToExpect := len(cfg.clusters)
@@ -9756,11 +9886,11 @@ func TestLogout(t *testing.T) {
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
 	// Auth client, lock watcher and authorizer for Kube proxy.
-	proxyAuthClient, err := env.server.TLS.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := env.server.TLS.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
-	serverIdentity, err := auth.NewServerIdentity(env.server.Auth(), uuid.NewString(), types.RoleProxy)
+	serverIdentity, err := authtest.NewServerIdentity(env.server.Auth(), uuid.NewString(), types.RoleProxy)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -10132,10 +10262,10 @@ func TestSimultaneousAuthenticateRequest(t *testing.T) {
 // mockedPingTestProxy is a test proxy with a mocked Ping method
 type mockedPingTestProxy struct {
 	authclient.ClientI
-	mockedPing func(ctx context.Context) (authproto.PingResponse, error)
+	mockedPing func(ctx context.Context) (clientproto.PingResponse, error)
 }
 
-func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, error) {
+func (m mockedPingTestProxy) Ping(ctx context.Context) (clientproto.PingResponse, error) {
 	return m.mockedPing(ctx)
 }
 
@@ -10145,7 +10275,7 @@ func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, 
 // is allowed to access the host and start entering input and receiving
 // output until the moderator terminates the session.
 func TestModeratedSession(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
@@ -10227,7 +10357,7 @@ func TestModeratedSession(t *testing.T) {
 // presence checks are performed by the moderator. When presence checks are not performed
 // the session is aborted.
 func TestModeratedSessionWithMFA(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	const RPID = "localhost"
 
@@ -10289,7 +10419,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		host:  s.node.ID(),
 		proxy: s.webServer.Listener.Addr().String(),
 		mfaCeremony: func(challenge client.MFAAuthenticateChallenge) []byte {
-			res, err := peer.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
+			res, err := peer.device.SolveAuthn(&clientproto.MFAAuthenticateChallenge{
 				WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
 			})
 			require.NoError(t, err)
@@ -10320,7 +10450,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		sessionID:       peerTerm.GetSession().ID,
 		participantMode: types.SessionModeratorMode,
 		mfaCeremony: func(challenge client.MFAAuthenticateChallenge) []byte {
-			res, err := moderator.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
+			res, err := moderator.device.SolveAuthn(&clientproto.MFAAuthenticateChallenge{
 				WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
 			})
 			require.NoError(t, err)
@@ -10399,7 +10529,7 @@ func (pc *proxyClientMock) GetToken(_ context.Context, token string) (types.Prov
 		return tok, nil
 	}
 
-	return nil, trace.NotFound(token)
+	return nil, trace.NotFound("%s", token)
 }
 
 func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
@@ -10408,7 +10538,7 @@ func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
 		delete(pc.tokens, token)
 		return nil
 	}
-	return trace.NotFound(token)
+	return trace.NotFound("%s", token)
 }
 
 func Test_consumeTokenForAPICall(t *testing.T) {
@@ -10797,53 +10927,6 @@ func TestGithubConnector(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
 
-func TestCalculateSSHLogins(t *testing.T) {
-	cases := []struct {
-		name              string
-		allowedLogins     []string
-		grantedPrincipals []string
-		expectedLogins    []string
-	}{
-		{
-			name:              "no matching logins",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"fish"},
-		},
-		{
-			name:              "identical logins",
-			allowedLogins:     []string{"llama", "shark", "goose"},
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"goose", "shark", "llama"},
-		},
-		{
-			name:              "subset of logins",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"llama"},
-		},
-		{
-			name:              "no allowed logins",
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-		},
-		{
-			name:          "no granted logins",
-			allowedLogins: []string{"shark", "goose", "llama"},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			identity := &tlsca.Identity{Principals: test.grantedPrincipals}
-
-			logins, err := calculateSSHLogins(identity, test.allowedLogins)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
-				return strings.Compare(a, b) < 0
-			})))
-		})
-	}
-}
-
 func TestCalculateAppLogins(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -11015,24 +11098,24 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 	tests := []struct {
 		name            string
 		config          *webclient.WebConfig
-		clusterFeatures authproto.Features
+		clusterFeatures clientproto.Features
 		expected        *webclient.WebConfig
 	}{
 		{
 			name:   "sets entitlements",
 			config: &webclient.WebConfig{},
-			clusterFeatures: authproto.Features{
+			clusterFeatures: clientproto.Features{
 				AccessControls: false,
 				AccessGraph:    false,
-				AccessList: &authproto.AccessListFeature{
+				AccessList: &clientproto.AccessListFeature{
 					CreateLimit: 10,
 				},
-				AccessMonitoring: &authproto.AccessMonitoringFeature{
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
 					Enabled:             false,
 					MaxReportRangeLimit: 20,
 				},
 				AccessMonitoringConfigured: false,
-				AccessRequests: &authproto.AccessRequestsFeature{
+				AccessRequests: &clientproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 30,
 				},
 				AdvancedAccessWorkflows: false,
@@ -11043,7 +11126,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				CustomTheme:             "theme",
 				DB:                      false,
 				Desktop:                 false,
-				DeviceTrust: &authproto.DeviceTrustFeature{
+				DeviceTrust: &clientproto.DeviceTrustFeature{
 					Enabled:           false,
 					DevicesUsageLimit: 40,
 				},
@@ -11065,7 +11148,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				SAML:                   false,
 				SupportType:            0,
 				// since present, becomes source of truth  for feature enablement
-				Entitlements: map[string]*authproto.EntitlementInfo{
+				Entitlements: map[string]*clientproto.EntitlementInfo{
 					string(entitlements.AccessLists):                {Enabled: true, Limit: 99},
 					string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 99},
 					string(entitlements.AccessRequests):             {Enabled: true, Limit: 99},
@@ -11092,6 +11175,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: true, Limit: 99},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
+					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
 				},
 			},
 			expected: &webclient.WebConfig{
@@ -11156,13 +11240,14 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: true, Limit: 99},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: true, Limit: 99},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: true, Limit: 99},
+					string(entitlements.ClientIPRestrictions):       {Enabled: true, Limit: 99},
 				},
 			},
 		},
 		{
 			name:   "sets legacy features when no entitlements are present (Identity true)",
 			config: &webclient.WebConfig{},
-			clusterFeatures: authproto.Features{
+			clusterFeatures: clientproto.Features{
 				AccessControls:             false,
 				AccessGraph:                false,
 				AccessMonitoringConfigured: false,
@@ -11193,21 +11278,21 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				MobileDeviceManagement: true,
 				OIDC:                   true,
 				SAML:                   true,
-				AccessRequests: &authproto.AccessRequestsFeature{
+				AccessRequests: &clientproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 88,
 				},
-				AccessList: &authproto.AccessListFeature{
+				AccessList: &clientproto.AccessListFeature{
 					CreateLimit: 88,
 				},
-				AccessMonitoring: &authproto.AccessMonitoringFeature{
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
 					Enabled:             true,
 					MaxReportRangeLimit: 88,
 				},
-				DeviceTrust: &authproto.DeviceTrustFeature{
+				DeviceTrust: &clientproto.DeviceTrustFeature{
 					Enabled:           true,
 					DevicesUsageLimit: 88,
 				},
-				Policy: &authproto.PolicyFeature{
+				Policy: &clientproto.PolicyFeature{
 					Enabled: true,
 				},
 			},
@@ -11259,6 +11344,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
 
 					// set to equivalent legacy feature
 					string(entitlements.ExternalAuditStorage):   {Enabled: true},
@@ -11283,7 +11369,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 		{
 			name:   "sets legacy features when no entitlements are present (Identity false)",
 			config: &webclient.WebConfig{},
-			clusterFeatures: authproto.Features{
+			clusterFeatures: clientproto.Features{
 				AccessControls:             false,
 				AccessGraph:                false,
 				AccessMonitoringConfigured: false,
@@ -11314,21 +11400,21 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				MobileDeviceManagement: true,
 				OIDC:                   true,
 				SAML:                   true,
-				AccessRequests: &authproto.AccessRequestsFeature{
+				AccessRequests: &clientproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 88,
 				},
-				AccessList: &authproto.AccessListFeature{
+				AccessList: &clientproto.AccessListFeature{
 					CreateLimit: 88,
 				},
-				AccessMonitoring: &authproto.AccessMonitoringFeature{
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
 					Enabled:             true,
 					MaxReportRangeLimit: 88,
 				},
-				DeviceTrust: &authproto.DeviceTrustFeature{
+				DeviceTrust: &clientproto.DeviceTrustFeature{
 					Enabled:           true,
 					DevicesUsageLimit: 88,
 				},
-				Policy: &authproto.PolicyFeature{
+				Policy: &clientproto.PolicyFeature{
 					Enabled: true,
 				},
 			},
@@ -11389,6 +11475,8 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.SAML):                       {Enabled: true},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
+
 					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
 					string(entitlements.AccessLists):       {Enabled: true, Limit: 88},
 					string(entitlements.AccessMonitoring):  {Enabled: true, Limit: 88},
@@ -11428,12 +11516,12 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				IsStripeManaged:                true,
 				PremiumSupport:                 true,
 			},
-			clusterFeatures: authproto.Features{
-				DeviceTrust:      &authproto.DeviceTrustFeature{},
-				AccessRequests:   &authproto.AccessRequestsFeature{},
-				AccessList:       &authproto.AccessListFeature{},
-				AccessMonitoring: &authproto.AccessMonitoringFeature{},
-				Policy:           &authproto.PolicyFeature{},
+			clusterFeatures: clientproto.Features{
+				DeviceTrust:      &clientproto.DeviceTrustFeature{},
+				AccessRequests:   &clientproto.AccessRequestsFeature{},
+				AccessList:       &clientproto.AccessListFeature{},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{},
+				Policy:           &clientproto.PolicyFeature{},
 			},
 			expected: &webclient.WebConfig{
 				Auth: webclient.WebConfigAuthSettings{
@@ -11500,6 +11588,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.LicenseAutoUpdate):          {Enabled: false},
 					string(entitlements.AccessGraphDemoMode):        {Enabled: false},
 					string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+					string(entitlements.ClientIPRestrictions):       {Enabled: false},
 				},
 			},
 		},
@@ -11595,4 +11684,79 @@ func TestPingWithSAMLURL(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+func TestGetLocksV2(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	clusterName := env.server.ClusterName()
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+	endpoint := pack.clt.Endpoint("v2", "webapi", "sites", clusterName, "locks")
+
+	locks := []types.Lock{
+		newLock(t, "test-lock-1", false, types.LockTarget{User: "test-user-1"}),
+		newLock(t, "test-lock-2", false, types.LockTarget{Role: "test-role-1"}),
+		newLock(t, "test-lock-3", false, types.LockTarget{Login: "test-login-1"}),
+		newLock(t, "test-lock-4", false, types.LockTarget{MFADevice: "test-mfa-1"}),
+		newLock(t, "test-lock-5", false, types.LockTarget{WindowsDesktop: "test-win-1"}),
+		newLock(t, "test-lock-6", false, types.LockTarget{Device: "test-device-1"}),
+		newLock(t, "test-lock-7", false, types.LockTarget{ServerID: "test-server-1"}),
+
+		newLock(t, "test-lock-10", true, types.LockTarget{
+			User: "test-user-1",
+			Role: "test-role-1",
+		}),
+	}
+
+	for _, l := range locks {
+		err := env.server.Auth().UpsertLock(ctx, l)
+		require.NoError(t, err)
+	}
+
+	// Without filters - returns all items
+	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	resp := GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, len(locks))
+
+	// With target filter - returns partial matching items also
+	re, err = pack.clt.Get(ctx, endpoint, url.Values{
+		"target": []string{"user|test-user-1", "login|test-login-1"},
+	})
+	require.NoError(t, err)
+	resp = GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, 3)
+
+	// With target filter and in_force_only - returns only non-expired items
+	re, err = pack.clt.Get(ctx, endpoint, url.Values{
+		"target":        []string{"user|test-user-1"},
+		"in_force_only": []string{"true"},
+	})
+	require.NoError(t, err)
+	resp = GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, 1)
+}
+
+func newLock(t *testing.T, name string, expired bool, target types.LockTarget) types.Lock {
+	t.Helper()
+
+	expires := time.Now()
+	if expired {
+		expires = expires.Add(-time.Hour)
+	} else {
+		expires = expires.Add(time.Hour)
+	}
+
+	lock, err := types.NewLock(name, types.LockSpecV2{
+		Target:  target,
+		Expires: &expires,
+	})
+	require.NoError(t, err)
+
+	return lock
 }

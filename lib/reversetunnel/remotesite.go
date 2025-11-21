@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -799,6 +799,10 @@ func (s *remoteSite) DialAuthServer(params reversetunnelclient.DialParams) (net.
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	if params.TargetServer == nil && params.ConnType == types.NodeTunnel {
+		return nil, trace.BadParameter("target server is required for teleport nodes")
+	}
+
 	localRecCfg, err := s.localAccessPoint.GetSessionRecordingConfig(s.ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -829,13 +833,15 @@ func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, erro
 func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
 	s.logger.Debugf("Dialing from %v to %v.", params.From, params.To)
 
+	isAgentless := params.TargetServer != nil && params.TargetServer.IsOpenSSHNode()
+
 	conn, err := s.connThroughTunnel(&sshutils.DialReq{
 		Address:         params.To.String(),
 		ServerID:        params.ServerID,
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		IsAgentlessNode: params.IsAgentlessNode,
+		IsAgentlessNode: isAgentless,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -845,13 +851,13 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 }
 
 func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
 		return nil, trace.BadParameter("user agent getter is required for teleport nodes")
 	}
 	s.logger.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
 	// request user agent connection if a SSH user agent is set
-	var userAgent teleagent.Agent
+	var userAgent sshagent.Client
 	if params.GetUserAgent != nil {
 		ua, err := params.GetUserAgent()
 		if err != nil {
@@ -877,7 +883,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		IsAgentlessNode: params.IsAgentlessNode,
+		IsAgentlessNode: params.TargetServer.IsOpenSSHNode(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -890,7 +896,6 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		LocalAuthClient:          s.localClient,
 		TargetClusterAccessPoint: s.remoteAccessPoint,
 		UserAgent:                userAgent,
-		IsAgentlessNode:          params.IsAgentlessNode,
 		AgentlessSigner:          params.AgentlessSigner,
 		TargetConn:               targetConn,
 		SrcAddr:                  params.From,
@@ -912,10 +917,6 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		TargetHostname:           params.Address,
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
-	}
-	// Ensure the hostname is set correctly if we have details of the target
-	if params.TargetServer != nil {
-		serverConfig.TargetHostname = params.TargetServer.GetHostname()
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
@@ -976,11 +977,10 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 	if err == nil {
 		// Return the appropriate message if the user is trying to connect to a
 		// cluster or a node.
-		message := fmt.Sprintf("cluster %v is offline", s.GetName())
 		if req.Address != constants.RemoteAuthServer {
-			message = fmt.Sprintf("node %v is offline", req.Address)
+			return nil, trace.ConnectionProblem(nil, "node %v is offline", req.Address)
 		}
-		err = trace.ConnectionProblem(nil, message)
+		return nil, trace.ConnectionProblem(nil, "cluster %v is offline", s.GetName())
 	}
 	return nil, err
 }

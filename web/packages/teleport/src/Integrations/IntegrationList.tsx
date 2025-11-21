@@ -351,6 +351,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'AWS IAM Identity Center';
         icon = <IconContainer name="aws" />;
         break;
+      case 'scim':
+        formattedText = 'SCIM';
+        icon = <IconContainer name="scim" />;
+        break;
     }
   } else {
     // Default is integration.

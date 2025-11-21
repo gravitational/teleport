@@ -172,7 +172,7 @@ func (p *PluginsCommand) netIQSetupGuide(ctx context.Context) (netIQSettings, er
 	return settings, nil
 }
 
-func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args installPluginArgs) error {
+func (p *PluginsCommand) InstallNetIQ(ctx context.Context, args pluginServices) error {
 	settings, err := p.netIQSetupGuide(ctx)
 	if err != nil {
 		if errors.Is(err, errCancel) {

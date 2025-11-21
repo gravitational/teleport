@@ -35,6 +35,7 @@ type LockGetter interface {
 	GetLock(ctx context.Context, name string) (types.Lock, error)
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
 }
 
 // Access service manages roles and permissions.
@@ -79,12 +80,12 @@ func CheckDynamicLabelsInDenyRules(r types.Role) error {
 		}
 		for label := range labelMatchers.Labels {
 			if strings.HasPrefix(label, types.TeleportDynamicLabelPrefix) {
-				return trace.BadParameter(dynamicLabelsErrorMessage)
+				return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 			}
 		}
 		const expressionMatch = `"` + types.TeleportDynamicLabelPrefix
 		if strings.Contains(labelMatchers.Expression, expressionMatch) {
-			return trace.BadParameter(dynamicLabelsErrorMessage)
+			return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 		}
 	}
 
@@ -93,7 +94,7 @@ func CheckDynamicLabelsInDenyRules(r types.Role) error {
 		r.GetImpersonateConditions(types.Deny).Where,
 	} {
 		if strings.Contains(where, types.TeleportDynamicLabelPrefix) {
-			return trace.BadParameter(dynamicLabelsErrorMessage)
+			return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 		}
 	}
 

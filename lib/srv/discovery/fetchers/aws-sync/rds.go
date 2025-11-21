@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -141,9 +140,8 @@ func awsRDSInstanceToRDS(instance *rds.DBInstance, region, accountID string) *ac
 			Engine:  aws.StringValue(instance.Engine),
 			Version: aws.StringValue(instance.EngineVersion),
 		},
-		IsCluster:    false,
-		ResourceId:   aws.StringValue(instance.DbiResourceId),
-		LastSyncTime: timestamppb.Now(),
+		IsCluster:  false,
+		ResourceId: aws.StringValue(instance.DbiResourceId),
 	}
 }
 
@@ -170,8 +168,7 @@ func awsRDSClusterToRDS(instance *rds.DBCluster, region, accountID string) *acce
 			Engine:  aws.StringValue(instance.Engine),
 			Version: aws.StringValue(instance.EngineVersion),
 		},
-		IsCluster:    true,
-		ResourceId:   aws.StringValue(instance.DbClusterResourceId),
-		LastSyncTime: timestamppb.Now(),
+		IsCluster:  true,
+		ResourceId: aws.StringValue(instance.DbClusterResourceId),
 	}
 }

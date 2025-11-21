@@ -52,6 +52,7 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -961,7 +962,7 @@ type adminActionTestSuite struct {
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	t.Helper()
 	ctx := context.Background()
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -982,7 +983,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	authPref.SetOrigin(types.OriginDefaults)
 
 	var proxyPublicAddr utils.NetAddr
-	process := testserver.MakeTestServer(t,
+	process, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			proxyPublicAddr = cfg.Proxy.WebAddr
@@ -990,6 +991,11 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	authAddr, err := process.AuthAddr()
 	require.NoError(t, err)
 	authServer := process.GetAuthServer()

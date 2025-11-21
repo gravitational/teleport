@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -36,8 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -95,6 +96,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	var err error
 
 	var postgresListener, mysqlListener, mongoListener, cassandaListener net.Listener
+	var dbProcessUUID string
 
 	postgresListener, pack.postgresAddr = mustListen(t)
 	pack.PostgresService = servicecfg.Database{
@@ -114,7 +116,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	pack.MongoService = servicecfg.Database{
 		Name:     fmt.Sprintf("%s-mongo", pack.name),
 		Protocol: defaults.ProtocolMongoDB,
-		URI:      pack.mongoAddr,
+		URI:      fmt.Sprintf("mongodb://%s/?heartbeatintervalms=500", pack.mongoAddr),
 	}
 
 	cassandaListener, pack.cassandraAddr = mustListen(t)
@@ -142,7 +144,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	}
 	conf.Clock = clock
 	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	pack.dbProcess, pack.dbAuthClient, err = pack.Cluster.StartDatabase(conf)
+	pack.dbProcess, pack.dbAuthClient, dbProcessUUID, err = pack.Cluster.StartDatabase(conf)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { require.NoError(t, pack.dbProcess.Close()) })
@@ -172,7 +174,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 		AuthClient: pack.dbAuthClient,
 		Name:       pack.MongoService.Name,
 		Listener:   mongoListener,
-	})
+	}, mongodb.TestServerSetFakeUserAuthError("nonexistent", trace.NotFound("user does not exist")))
 	require.NoError(t, err)
 	go pack.mongo.Serve()
 	t.Cleanup(func() { pack.mongo.Close() })
@@ -186,6 +188,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	go pack.cassandra.Serve()
 	t.Cleanup(func() { pack.cassandra.Close() })
 
+	helpers.WaitForDatabaseService(t, pack.Cluster.Process.GetAuthServer(), dbProcessUUID)
 	helpers.WaitForDatabaseServers(t, pack.Cluster.Process.GetAuthServer(), conf.Databases.Databases)
 }
 
@@ -358,7 +361,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 	var err error
 
-	p.Root.User, p.Root.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "root-user", nil, nil)
+	p.Root.User, p.Root.role, err = authtest.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "root-user", nil, nil)
 	require.NoError(t, err)
 
 	p.Root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -366,7 +369,7 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 	p.Root.role, err = p.Root.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Root.role)
 	require.NoError(t, err)
 
-	p.Leaf.User, p.Leaf.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "leaf-user", nil, nil)
+	p.Leaf.User, p.Leaf.role, err = authtest.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "leaf-user", nil, nil)
 	require.NoError(t, err)
 
 	p.Leaf.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -441,12 +444,13 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.Databases.ResourceMatchers = params.resourceMatchers
 	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-	server, authClient, err := p.Root.Cluster.StartDatabase(conf)
+	server, authClient, hostUUID, err := p.Root.Cluster.StartDatabase(conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		server.Close()
 	})
 
+	helpers.WaitForDatabaseService(t, p.Root.Cluster.Process.GetAuthServer(), hostUUID)
 	helpers.WaitForDatabaseServers(t, p.Root.Cluster.Process.GetAuthServer(), conf.Databases.Databases)
 	return server, authClient
 }

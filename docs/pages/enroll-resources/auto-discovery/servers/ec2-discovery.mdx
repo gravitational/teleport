@@ -1,6 +1,9 @@
 ---
 title: Server Auto-Discovery for Amazon EC2
 description: How to configure Teleport to automatically enroll EC2 instances.
+tags:
+ - how-to
+ - zero-trust
 ---
 
 This guide shows you how to configure Teleport to automatically enroll EC2
@@ -223,6 +226,10 @@ parameters:
   scriptName:
     type: String
     description: "(Required) The Teleport installer script to use when joining the cluster."
+  env:
+    type: String
+    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
+    default: "X=$X"
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent

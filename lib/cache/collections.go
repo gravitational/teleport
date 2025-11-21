@@ -21,6 +21,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -47,6 +50,13 @@ type collectionHandler interface {
 // that the [Cache] supports.
 type collections struct {
 	byKind map[resourceKind]collectionHandler
+
+	botInstances                 *collection[*machineidv1.BotInstance, botInstanceIndex]
+	remoteClusters               *collection[types.RemoteCluster, remoteClusterIndex]
+	plugins                      *collection[types.Plugin, pluginIndex]
+	autoUpdateAgentReports       *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
+	autoUpdateBotInstanceReports *collection[*autoupdatev1.AutoUpdateBotInstanceReport, autoUpdateBotInstanceReportIndex]
+	workloadIdentity             *collection[*workloadidentityv1.WorkloadIdentity, workloadIdentityIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -76,13 +86,59 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
+		case types.KindBotInstance:
+			collect, err := newBotInstanceCollection(c.BotInstanceService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.botInstances = collect
+			out.byKind[resourceKind] = out.botInstances
+		case types.KindAutoUpdateAgentReport:
+			collect, err := newAutoUpdateAgentReportCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateAgentReports = collect
+			out.byKind[resourceKind] = out.autoUpdateAgentReports
+		case types.KindAutoUpdateBotInstanceReport:
+			collect, err := newAutoUpdateBotInstanceReportCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateBotInstanceReports = collect
+			out.byKind[resourceKind] = out.autoUpdateBotInstanceReports
+		case types.KindRemoteCluster:
+			collect, err := newRemoteClusterCollection(c.Trust, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.remoteClusters = collect
+			out.byKind[resourceKind] = out.remoteClusters
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
+		case types.KindWorkloadIdentity:
+			collect, err := newWorkloadIdentityCollection(c.WorkloadIdentity, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.workloadIdentity = collect
+			out.byKind[resourceKind] = out.workloadIdentity
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 			}
 		}
-
 	}
 
 	return out, nil

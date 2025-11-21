@@ -1,6 +1,7 @@
 packages:
   - web/packages/*
   - e/web/*
+  - e2e
 onlyBuiltDependencies:
   - '@swc/core'
   - electron
@@ -28,3 +29,9 @@ peerDependencyRules:
     - electron-builder-squirrel-windows
 # shellEmulator enables cross-platform scripting, allowing POSIX-style shell variables to work on Windows.
 shellEmulator: true
+# packageImportMethod avoids an issue building the web UI in docker on mac. It does not seem to
+# affect performance outside of docker.
+# https://github.com/gravitational/teleport/issues/46019
+packageImportMethod: clone-or-copy
+# Do not install packages released less than 2 days (2880 minutes) ago
+minimumReleaseAge: 2880

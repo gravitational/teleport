@@ -56,7 +56,7 @@ func TestKubeControllerDriver(t *testing.T) {
 
 	bk := newFakeKubeBackend()
 
-	driver, err := NewKubeControllerDriver(KubeControllerDriverConfig{
+	driver, err := NewKubeControllerDriver(ctx, KubeControllerDriverConfig{
 		Backend: bk,
 	})
 	require.NoError(t, err)

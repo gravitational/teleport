@@ -35,7 +35,7 @@ import (
 // interface that the daemon uses to query application names and get user
 // certificates for apps. If successful it sets p.processManager and
 // p.networkStackInfo.
-func (p *UserProcess) runPlatformUserProcess(ctx context.Context) error {
+func (p *UserProcess) runPlatformUserProcess(processCtx context.Context) error {
 	ipcCreds, err := newIPCCredentials()
 	if err != nil {
 		return trace.Wrap(err, "creating credentials for IPC")
@@ -67,16 +67,14 @@ func (p *UserProcess) runPlatformUserProcess(ctx context.Context) error {
 	)
 	vnetv1.RegisterClientApplicationServiceServer(grpcServer, p.clientApplicationService)
 
-	pm, processCtx := newProcessManager()
-	p.processManager = pm
-	pm.AddCriticalBackgroundTask("admin process", func() error {
+	p.processManager.AddCriticalBackgroundTask("admin process", func() error {
 		defer func() {
 			// Delete service credentials after the service terminates.
 			if ipcCreds.client.remove(credDir); err != nil {
-				log.ErrorContext(ctx, "Failed to remove service credential files", "error", err)
+				log.ErrorContext(processCtx, "Failed to remove service credential files", "error", err)
 			}
 			if err := os.RemoveAll(credDir); err != nil {
-				log.ErrorContext(ctx, "Failed to remove service credential directory", "error", err)
+				log.ErrorContext(processCtx, "Failed to remove service credential directory", "error", err)
 			}
 		}()
 		daemonConfig := daemon.Config{
@@ -85,13 +83,13 @@ func (p *UserProcess) runPlatformUserProcess(ctx context.Context) error {
 		}
 		return trace.Wrap(execAdminProcess(processCtx, daemonConfig))
 	})
-	pm.AddCriticalBackgroundTask("gRPC service", func() error {
+	p.processManager.AddCriticalBackgroundTask("gRPC service", func() error {
 		log.InfoContext(processCtx, "Starting gRPC service",
 			"addr", listener.Addr().String())
 		return trace.Wrap(grpcServer.Serve(listener),
 			"serving VNet user process gRPC service")
 	})
-	pm.AddCriticalBackgroundTask("gRPC server closer", func() error {
+	p.processManager.AddCriticalBackgroundTask("gRPC server closer", func() error {
 		// grpcServer.Serve does not stop on its own when processCtx is done, so
 		// this task waits for processCtx and then explicitly stops grpcServer.
 		<-processCtx.Done()
@@ -104,6 +102,6 @@ func (p *UserProcess) runPlatformUserProcess(ctx context.Context) error {
 		p.networkStackInfo = nsi
 		return nil
 	case <-processCtx.Done():
-		return trace.Wrap(pm.Wait(), "process manager exited before network stack info was received")
+		return trace.Wrap(p.processManager.Wait(), "process manager exited before network stack info was received")
 	}
 }

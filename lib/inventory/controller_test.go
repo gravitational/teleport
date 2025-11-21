@@ -21,13 +21,15 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"io"
+	"math/rand/v2"
 	"os"
-	"slices"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -173,15 +175,16 @@ func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) 
 // TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an ssh service.
 func TestSSHServerBasics(t *testing.T) {
+	t.Parallel()
+	maybeSynctest(t, testSSHServerBasics)
+}
+func testSSHServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const zeroAddr = "0.0.0.0:123"
 	const peerAddr = "1.2.3.4:456"
 	const wantAddr = "1.2.3.4:123"
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -274,6 +277,10 @@ func TestSSHServerBasics(t *testing.T) {
 	oldExpiry, expiry := expiry, auth.getLastServerExpiry()
 	require.Greater(t, expiry, oldExpiry)
 
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
 	err = downstream.Send(ctx, proto.InventoryHeartbeat{
 		SSHServer: &types.ServerV2{
 			Metadata: types.Metadata{
@@ -288,10 +295,6 @@ func TestSSHServerBasics(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	auth.mu.Lock()
-	auth.failUpserts = 1
-	auth.mu.Unlock()
 
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
@@ -379,13 +382,14 @@ func TestSSHServerBasics(t *testing.T) {
 // TestAppServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an app service.
 func TestAppServerBasics(t *testing.T) {
+	t.Parallel()
+	maybeSynctest(t, testAppServerBasics)
+}
+func testAppServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const appCount = 3
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -603,13 +607,14 @@ func TestAppServerBasics(t *testing.T) {
 // TestDatabaseServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // a database server.
 func TestDatabaseServerBasics(t *testing.T) {
+	t.Parallel()
+	maybeSynctest(t, testDatabaseServerBasics)
+}
+func testDatabaseServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const dbCount = 3
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -827,6 +832,10 @@ func TestDatabaseServerBasics(t *testing.T) {
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat_Disabled(t *testing.T) {
+	t.Parallel()
+	maybeSynctest(t, testInstanceHeartbeat_Disabled)
+}
+func testInstanceHeartbeat_Disabled(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -875,6 +884,10 @@ func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat(t *testing.T) {
+	t.Parallel()
+	maybeSynctest(t, testInstanceHeartbeat)
+}
+func testInstanceHeartbeat(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -977,6 +990,9 @@ func TestInstanceHeartbeat(t *testing.T) {
 // inventory control stream.
 func TestUpdateLabels(t *testing.T) {
 	t.Parallel()
+	maybeSynctest(t, testUpdateLabels)
+}
+func testUpdateLabels(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -1004,11 +1020,21 @@ func TestUpdateLabels(t *testing.T) {
 		ServerID: "auth",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, upstreamHello)
+	downstreamHandle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return nil, context.Canceled
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, downstreamHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1028,17 +1054,18 @@ func TestUpdateLabels(t *testing.T) {
 	labels := map[string]string{"a": "1", "b": "2"}
 	require.NoError(t, upstreamHandle.UpdateLabels(ctx, proto.LabelUpdateKind_SSHServerCloudLabels, labels))
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
-		return true
-	}, time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestAgentMetadata verifies that an instance's agent metadata is received in
 // inventory control stream.
 func TestAgentMetadata(t *testing.T) {
 	t.Parallel()
-
+	maybeSynctest(t, testAgentMetadata)
+}
+func testAgentMetadata(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -1066,13 +1093,15 @@ func TestAgentMetadata(t *testing.T) {
 		ServerID: "auth",
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	NewDownstreamHandle(
+	inventoryHandle, err := NewDownstreamHandle(
 		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 			return downstream, nil
 		},
-		upstreamHello,
+		func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
 		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return &metadata.Metadata{
 				OS:                    "llamaOS",
@@ -1086,6 +1115,8 @@ func TestAgentMetadata(t *testing.T) {
 			}, nil
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1102,25 +1133,33 @@ func TestAgentMetadata(t *testing.T) {
 	require.True(t, ok)
 
 	// Validate that the agent's metadata ends up in the auth server.
-	require.Eventually(t, func() bool {
-		return slices.Equal([]string{"llama", "alpaca"}, upstreamHandle.AgentMetadata().InstallMethods) &&
-			upstreamHandle.AgentMetadata().OS == "llamaOS"
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		md := upstreamHandle.AgentMetadata()
+		require.NotNil(t, md)
+		require.ElementsMatch(t, []string{"llama", "alpaca"}, md.InstallMethods)
+		require.Equal(t, "llamaOS", md.OS)
 	}, 10*time.Second, 200*time.Millisecond)
 }
 
 func TestGoodbye(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name            string
 		supportsGoodbye bool
+		deleteResources bool
+		softReload      bool
 	}{
 		{
 			name: "no goodbye",
 		},
 		{
-			name:            "goodbye",
+			name:            "goodbye termination",
+			deleteResources: true,
 			supportsGoodbye: true,
+		},
+		{
+			name:            "goodbye soft-reload",
+			supportsGoodbye: true,
+			softReload:      true,
 		},
 	}
 
@@ -1131,18 +1170,17 @@ func TestGoodbye(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+		inner := func(t *testing.T) {
+			// Test Setup: crafting a controller and an upstream/downstream stream pipe
 			controller := NewController(
 				&fakeAuth{},
 				usagereporter.DiscardUsageReporter{},
 				withInstanceHBInterval(time.Millisecond*200),
 			)
 			defer controller.Close()
-
-			// Set up fake in-memory control stream.
 			upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
 
+			currentDownstream := downstream
 			downstreamHello := proto.DownstreamInventoryHello{
 				Version:  teleport.Version,
 				ServerID: "auth",
@@ -1153,13 +1191,28 @@ func TestGoodbye(t *testing.T) {
 				},
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-				return downstream, nil
-			}, upstreamHello)
+			// Test setup: creating downstream handler
+			clock := clockwork.NewFakeClock()
+			handle, err := NewDownstreamHandle(
+				func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+					return currentDownstream, nil
+				},
+				func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+					return upstreamHello, nil
+				},
+				WithDownstreamClock(clock),
+				withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+					return nil, context.Canceled
+				}),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, handle.Close())
+			})
 
-			// Wait for upstream hello.
+			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
 			select {
 			case msg := <-upstream.Recv():
 				require.Equal(t, upstreamHello, msg)
@@ -1168,53 +1221,139 @@ func TestGoodbye(t *testing.T) {
 			}
 			require.NoError(t, upstream.Send(ctx, downstreamHello))
 
-			// Attempt to send a goodbye.
+			// Test execution part 1: Validating that calling SetAndSendGoodbye does
+			// cause the downstream handler t send a goodbye.
+
+			// Fire a routine that will call SetAndSendGoodbye
+			// Then send a Pong message to indicate the test is done.
+			nonce := rand.Int()
 			go func() {
-				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+				ctx, cancel = context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
-				assert.NoError(t, handle.SendGoodbye(ctx))
-				// Close the handle to unblock receive below.
-				assert.NoError(t, handle.Close())
+				handle.SetAndSendGoodbye(ctx, test.deleteResources, test.softReload)
+
+				// After calling the goodbye, we do a little hack by sending a pong
+				// This will allow us to know that this routine is done on the other side of the test
+				// while making sure we are strictly after the goodbye message
+				// (SendGoodBye is synchronous, and we send messages over the same channel)
+				select {
+				case sender := <-handle.Sender():
+					sender.Send(ctx, proto.UpstreamInventoryPong{ID: uint64(nonce)})
+				case <-ctx.Done():
+					assert.Fail(t, "never got downstream sender, was not able to send 'end-of-test pong'")
+				}
 			}()
 
-			// Wait to see if a goodbye is received.
+			// Wait until we receive the pong.
+			var receivedGoodbye *proto.UpstreamInventoryGoodbye
 			timeoutC := time.After(10 * time.Second)
+		OuterLoop:
 			for {
 				select {
 				case msg := <-upstream.Recv():
-					switch msg.(type) {
+					switch msg := msg.(type) {
+					case proto.UpstreamInventoryHello, proto.InventoryHeartbeat,
+						proto.UpstreamInventoryAgentMetadata:
+						// We skip all usual messages
+					case proto.UpstreamInventoryGoodbye:
+						// We register the goodbye
+						receivedGoodbye = &msg
+					case proto.UpstreamInventoryPong:
+						// The emitter routine is done with its part, we stop waiting for events
+						require.Equal(t, nonce, int(msg.ID), "received pong message without the 'end-of-test ID'")
+						break OuterLoop
+					default:
+						require.Fail(t, "unexpected message type", msg)
+					}
+				case <-upstream.Done():
+					require.Fail(t, "upstream unexpectedly closed")
+				case <-timeoutC:
+					require.Fail(t, "timed out waiting for 'end-of-test pong'")
+				}
+			}
+
+			// Test validation pt.1: Check if we received a pong
+			if test.supportsGoodbye {
+				require.NotNil(t, receivedGoodbye)
+				require.Equal(t, test.deleteResources, receivedGoodbye.DeleteResources)
+				require.Equal(t, test.softReload, receivedGoodbye.SoftReload)
+			} else {
+				require.Nil(t, receivedGoodbye)
+			}
+
+			// Don't test further if we don't support goodbye
+			if !test.supportsGoodbye {
+				return
+			}
+
+			// Test execution pt.2: See that the downstreamHandler sends back the goodbye
+			// when the stream is re-established.
+
+			newUpstream, newDownstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
+			currentDownstream = newDownstream
+
+			// Simulating a failure on the old control stream, asking for a reconnection
+			require.NoError(t, downstream.CloseWithError(io.EOF))
+
+			ctx, cancel = context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			// Wait to hit the handle linear retry, then jump into the future
+			clock.BlockUntil(1)
+			select {
+			case <-ctx.Done():
+				require.Fail(t, "upstream never waited")
+			default:
+				clock.Advance(time.Minute)
+			}
+
+			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
+			select {
+			case msg := <-newUpstream.Recv():
+				require.Equal(t, upstreamHello, msg)
+			case <-ctx.Done():
+				require.Fail(t, "never got upstream hello")
+			}
+			require.NoError(t, newUpstream.Send(ctx, downstreamHello))
+
+			// Test execution: wait until we receive at least 1 goodbye.
+			timeoutC = time.After(10 * time.Second)
+			for {
+				select {
+				case msg := <-newUpstream.Recv():
+					switch msg := msg.(type) {
 					case proto.UpstreamInventoryHello, proto.InventoryHeartbeat,
 						proto.UpstreamInventoryPong, proto.UpstreamInventoryAgentMetadata:
 					case proto.UpstreamInventoryGoodbye:
-						if test.supportsGoodbye {
-							require.Equal(t, proto.UpstreamInventoryGoodbye{DeleteResources: true}, msg)
-						} else {
-							t.Fatalf("received an unexpected message %v", msg)
-						}
+						require.Equal(t, receivedGoodbye, &msg, "re-emitted goodbye should be identical")
 						return
+					default:
+						require.Fail(t, "unexpected message type", msg)
 					}
-				case <-upstream.Done():
-					return
+
+				case <-newUpstream.Done():
+					require.Fail(t, "upstream unexpectedly closed")
 				case <-timeoutC:
-					if test.supportsGoodbye {
-						require.FailNow(t, "timeout waiting for goodbye message")
-					} else {
-						return
-					}
+					require.Fail(t, "timeout waiting for goodbye message")
 				}
 			}
+
+		}
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			maybeSynctest(t, inner)
 		})
 	}
 }
 
 func TestKubernetesServerBasics(t *testing.T) {
+	t.Parallel()
+	maybeSynctest(t, testKubernetesServerBasics)
+}
+func testKubernetesServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const kubeCount = 3
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -1435,6 +1574,10 @@ func TestKubernetesServerBasics(t *testing.T) {
 }
 
 func TestGetSender(t *testing.T) {
+	t.Parallel()
+	maybeSynctest(t, testGetSender)
+}
+func testGetSender(t *testing.T) {
 	controller := NewController(
 		&fakeAuth{},
 		usagereporter.DiscardUsageReporter{},
@@ -1461,9 +1604,19 @@ func TestGetSender(t *testing.T) {
 		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
 	}
 
-	handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, upstreamHello)
+	handle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return nil, context.Canceled
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
 
 	// Validate that the sender is not present prior to
 	// the stream becoming healthy.
@@ -1480,7 +1633,7 @@ func TestGetSender(t *testing.T) {
 	}
 	// Send the downstream hello so that the
 	// sender becomes available.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	require.NoError(t, upstream.Send(ctx, downstreamHello))
 

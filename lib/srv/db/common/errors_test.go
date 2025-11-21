@@ -19,10 +19,13 @@
 package common
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,4 +50,64 @@ func Test_isRDSMySQLIAMAuthError(t *testing.T) {
 	require.False(t, isRDSMySQLIAMAuthError(dbAccessError))
 	require.False(t, isRDSMySQLIAMAuthError(noDBError))
 	require.False(t, isRDSMySQLIAMAuthError(trace.AccessDenied("access denied")))
+}
+
+type someErr struct {
+	inner error
+}
+
+func (e *someErr) Error() string {
+	if e.inner == nil {
+		return "inner: nil"
+	}
+	return "inner: " + e.inner.Error()
+}
+func (e *someErr) Unwrap() error {
+	return e.inner
+}
+
+func TestConvertError(t *testing.T) {
+	tests := []struct {
+		name               string
+		input              error
+		checkError         require.ErrorAssertionFunc
+		checkErrorContains string
+	}{
+		{
+			name:       "nil",
+			input:      nil,
+			checkError: require.NoError,
+		},
+		{
+			name: "PgError",
+			input: trace.Wrap(&pgconn.PgError{
+				Code:    pgerrcode.CannotConnectNow,
+				Message: "CannotConnectNow",
+			}),
+			checkError:         require.Error,
+			checkErrorContains: "CannotConnectNow",
+		},
+		{
+			name:               "wrapped",
+			input:              &someErr{inner: trace.Wrap(fmt.Errorf("dummy error"))},
+			checkError:         require.Error,
+			checkErrorContains: "dummy error",
+		},
+		{
+			name:  "wrapped nil",
+			input: &someErr{inner: &someErr{inner: nil}},
+			// We should NOT return `nil` by unwrapping.
+			checkError:         require.Error,
+			checkErrorContains: "inner: inner: nil",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := ConvertError(tt.input)
+			tt.checkError(t, output)
+			if output != nil {
+				require.ErrorContains(t, output, tt.checkErrorContains)
+			}
+		})
+	}
 }

@@ -287,8 +287,10 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 
 	// Create a new jwt key using the client public key to verify and parse the token.
 	clientJWTKey, err := jwt.New(&jwt.Config{
-		Clock:       t.c.clock,
-		PublicKey:   r.TLS.PeerCertificates[0].PublicKey,
+		Clock:     t.c.clock,
+		PublicKey: r.TLS.PeerCertificates[0].PublicKey,
+		// TODO(gabrielcorado): use the cluster name. This value must match the
+		// one used by the proxy.
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -301,8 +303,10 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 		return trace.Wrap(err)
 	}
 	wsJWTKey, err := jwt.New(&jwt.Config{
-		Clock:       t.c.clock,
-		PrivateKey:  wsPrivateKey,
+		Clock:      t.c.clock,
+		PrivateKey: wsPrivateKey,
+		// TODO(gabrielcorado): use the cluster name. This value must match the
+		// one used by the proxy.
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -357,7 +361,22 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		appIntegration := appServer.GetApp().GetIntegration()
 		if appIntegration != "" {
 			src, dst := net.Pipe()
-			go t.c.integrationAppHandler.HandleConnection(src)
+
+			// Creating the connection using `net.Pipe()` results in both ends having the same local/remote address: "pipe".
+			// This causes IP Pinning checks to fail when validating that the connection remote address matches the certificate pinned IP.
+			//
+			// To fix this, we need to wrap the `src` connection to return the client source address as the remote address.
+			// The client source address is extracted from the context, the same way as in `dialAppServer`.
+			srcWithClientSrcAddr, err := wrapConnWithClientSrcAddrFromContext(ctx, src)
+			if err != nil {
+				// Log a warning and use the original remote address if we fail to extract the client source address from context.
+				// This will result in an error if the flow has pinned IP restrictions.
+				t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
+					Warnf("Failed to extract client source address from context when proxying access to Application with integration credentials. IP Pinning checks will fail. error: %v", err)
+				srcWithClientSrcAddr = src
+			}
+
+			go t.c.integrationAppHandler.HandleConnection(srcWithClientSrcAddr)
 			return dst, nil
 		}
 
@@ -376,26 +395,32 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		break
 	}
 
-	t.mu.Lock()
-	// Only attempt to tidy up the list of servers if they weren't altered
-	// while the dialing happened. Since the lock is only held initially when
-	// making the servers copy and released during the dials, another dial attempt
-	// may have already happened and modified the list of servers.
-	if len(servers) == len(t.c.servers) {
-		// eliminate any servers from the head of the list that were unreachable
-		if i < len(t.c.servers) {
-			t.c.servers = t.c.servers[i:]
-		} else {
-			t.c.servers = nil
-		}
-	}
-	t.mu.Unlock()
-
 	if conn != nil || err != nil {
 		return conn, trace.Wrap(err)
 	}
 
 	return nil, trace.ConnectionProblem(nil, "no application servers remaining to connect")
+}
+
+type connWithCustomRemoteAddr struct {
+	net.Conn
+	remoteAddr net.Addr
+}
+
+func (w *connWithCustomRemoteAddr) RemoteAddr() net.Addr {
+	return w.remoteAddr
+}
+
+func wrapConnWithClientSrcAddrFromContext(ctx context.Context, conn net.Conn) (net.Conn, error) {
+	clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &connWithCustomRemoteAddr{
+		Conn:       conn,
+		remoteAddr: clientSrcAddr,
+	}, nil
 }
 
 // DialWebsocket dials a websocket connection over the transport's reverse

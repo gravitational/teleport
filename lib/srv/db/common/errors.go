@@ -46,30 +46,20 @@ func ConvertError(err error) error {
 	if err == nil {
 		return nil
 	}
-	// Unwrap original error first.
-	var traceErr *trace.TraceErr
-	if errors.As(err, &traceErr) {
-		return ConvertError(trace.Unwrap(err))
-	}
-	var pgErr pgError
-	if errors.As(err, &pgErr) {
-		return ConvertError(pgErr.Unwrap())
-	}
 
-	var c causer
-	if errors.As(err, &c) {
-		return ConvertError(c.Cause())
-	}
-	if _, ok := status.FromError(err); ok {
-		return trail.FromGRPC(err)
-	}
-
+	var causeErr causer
 	var googleAPIErr *googleapi.Error
 	var awsRequestFailureErr awserr.RequestFailure
 	var azResponseErr *azcore.ResponseError
 	var pgError *pgconn.PgError
 	var myError *mysql.MyError
+
+	// Unwrap trace error first.
 	switch err := trace.Unwrap(err); {
+	case errors.As(err, &causeErr):
+		return ConvertError(causeErr.Cause())
+	case isGRPCStatusError(err):
+		return trail.FromGRPC(err)
 	case errors.As(err, &googleAPIErr):
 		return convertGCPError(googleAPIErr)
 	case errors.As(err, &awsRequestFailureErr):
@@ -84,13 +74,18 @@ func ConvertError(err error) error {
 	return err // Return unmodified.
 }
 
+func isGRPCStatusError(err error) bool {
+	_, ok := status.FromError(err)
+	return ok
+}
+
 // convertGCPError converts GCP errors to trace errors.
 func convertGCPError(err *googleapi.Error) error {
 	switch err.Code {
 	case http.StatusForbidden:
-		return trace.AccessDenied(err.Error())
+		return trace.AccessDenied("%s", err)
 	case http.StatusConflict:
-		return trace.CompareFailed(err.Error())
+		return trace.CompareFailed("%s", err)
 	}
 	return err // Return unmodified.
 }
@@ -99,7 +94,7 @@ func convertGCPError(err *googleapi.Error) error {
 func convertPostgresError(err *pgconn.PgError) error {
 	switch err.Code {
 	case pgerrcode.InvalidAuthorizationSpecification, pgerrcode.InvalidPassword:
-		return trace.AccessDenied(err.Error())
+		return trace.AccessDenied("%s", err)
 	}
 	return err // Return unmodified.
 }
@@ -108,7 +103,7 @@ func convertPostgresError(err *pgconn.PgError) error {
 func convertMySQLError(err *mysql.MyError) error {
 	switch err.Code {
 	case mysql.ER_ACCESS_DENIED_ERROR, mysql.ER_DBACCESS_DENIED_ERROR:
-		return trace.AccessDenied(fmtEscape(err))
+		return trace.AccessDenied("%s", fmtEscape(err))
 	}
 	return err // Return unmodified.
 }
@@ -122,11 +117,6 @@ func fmtEscape(err error) string {
 // causer defines an interface for errors wrapped by the "errors" package.
 type causer interface {
 	Cause() error
-}
-
-// pgError defines an interface for errors wrapped by Postgres driver.
-type pgError interface {
-	Unwrap() error
 }
 
 // ConvertConnectError converts common connection errors to trace errors with

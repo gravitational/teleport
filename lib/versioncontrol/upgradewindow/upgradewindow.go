@@ -316,10 +316,10 @@ type Driver interface {
 }
 
 // NewDriver sets up a new export driver corresponding to the specified upgrader kind.
-func NewDriver(kind string) (Driver, error) {
+func NewDriver(ctx context.Context, kind string) (Driver, error) {
 	switch kind {
 	case types.UpgraderKindKubeController:
-		return NewKubeControllerDriver(KubeControllerDriverConfig{})
+		return NewKubeControllerDriver(ctx, KubeControllerDriverConfig{})
 	case types.UpgraderKindSystemdUnit:
 		return NewSystemdUnitDriver(SystemdUnitDriverConfig{})
 	default:
@@ -344,10 +344,10 @@ type kubeDriver struct {
 	cfg KubeControllerDriverConfig
 }
 
-func NewKubeControllerDriver(cfg KubeControllerDriverConfig) (Driver, error) {
+func NewKubeControllerDriver(ctx context.Context, cfg KubeControllerDriverConfig) (Driver, error) {
 	if cfg.Backend == nil {
 		var err error
-		cfg.Backend, err = kubernetes.NewShared()
+		cfg.Backend, err = kubernetes.NewShared(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

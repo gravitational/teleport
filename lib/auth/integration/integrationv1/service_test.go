@@ -39,6 +39,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -51,7 +53,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestIntegrationCRUD(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	clusterName := "test-cluster"
 	proxyPublicAddr := "127.0.0.1.nip.io"
@@ -887,11 +889,17 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		PluginStaticCredentialsService: localCredService,
 	}
 
+	keystoreManager, err := keystore.NewManager(ctx, &servicecfg.KeystoreConfig{}, &keystore.Options{
+		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
+		AuthPreferenceGetter: clusterConfigSvc,
+	})
+	require.NoError(t, err)
+
 	resourceSvc, err := NewService(&ServiceConfig{
 		Backend:         backendSvc,
 		Authorizer:      authorizer,
 		Cache:           cache,
-		KeyStoreManager: keystore.NewSoftwareKeystoreForTests(t),
+		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
 	})
 	require.NoError(t, err)

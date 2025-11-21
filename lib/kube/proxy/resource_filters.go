@@ -251,6 +251,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 				arrayToPointerArray(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
+	//nolint:staticcheck // SA1019. TODO(tross|creack) Update to use discoveryv1.EndpointSlice instead.
 	case *corev1.Endpoints:
 		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {

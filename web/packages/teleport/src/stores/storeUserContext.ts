@@ -40,6 +40,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.cluster.clusterId;
   }
 
+  getClusterAuthVersion() {
+    return this.state.cluster.authVersion;
+  }
+
   getEventAccess() {
     return this.state.acl.events;
   }
@@ -265,5 +269,13 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getGitServersAccess() {
     return this.state.acl.gitServers;
+  }
+
+  getWorkloadIdentityAccess() {
+    return this.state.acl.workloadIdentity;
+  }
+
+  geClientIpRestrictionAccess() {
+    return this.state.acl.clientIpRestriction;
   }
 }

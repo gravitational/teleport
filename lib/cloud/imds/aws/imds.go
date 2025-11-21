@@ -55,7 +55,7 @@ func convertLoadConfigError(configErr error) error {
 	var sharedConfigProfileNotExistError config.SharedConfigProfileNotExistError
 	switch {
 	case errors.As(configErr, &sharedConfigProfileNotExistError):
-		return trace.NotFound(configErr.Error())
+		return trace.NotFound("%s", configErr)
 	}
 
 	return configErr

@@ -210,36 +210,6 @@ test('sync root cluster', async () => {
   });
 });
 
-test('login into cluster and sync cluster', async () => {
-  const client = getClientMocks();
-  const service = createService(client);
-  const loginParams = {
-    kind: 'local' as const,
-    clusterUri,
-    username: 'admin',
-    password: 'admin',
-    token: '1234',
-  };
-
-  await service.loginLocal(loginParams, undefined);
-
-  expect(client.login).toHaveBeenCalledWith(
-    {
-      clusterUri: loginParams.clusterUri,
-      params: {
-        oneofKind: 'local',
-        local: {
-          password: loginParams.password,
-          user: loginParams.username,
-          token: loginParams.token,
-        },
-      },
-    },
-    { abort: undefined }
-  );
-  expect(service.findCluster(clusterUri).connected).toBe(true);
-});
-
 test('logout from cluster', async () => {
   const { logout, removeCluster } = getClientMocks();
   const service = createService({

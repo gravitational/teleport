@@ -109,7 +109,7 @@ export const DiagnosticsAlert = (props: {
         </Flex>
 
         <ActionButton
-          fill="minimal"
+          fill="filled"
           intent="neutral"
           inputAlignment
           action={{
@@ -142,7 +142,7 @@ export const DiagnosticsAlert = (props: {
       buttons={
         <>
           <ActionButton
-            fill="border"
+            fill="filled"
             intent="neutral"
             inputAlignment
             action={{

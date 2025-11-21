@@ -328,13 +328,16 @@ func (ns *networkStack) run(ctx context.Context) error {
 		// When the context is canceled for any reason (the caller or one of the other concurrent tasks may
 		// have canceled it) destroy everything and quit.
 		<-ctx.Done()
+		ns.slog.InfoContext(ctx, "Context canceled, beginning network stack shutdown.")
 
 		// In-flight connections should start terminating after closing [ns.destroyed].
 		close(ns.destroyed)
 
 		// Close the link endpoint and the TUN, this should cause [forwardBetweenTunAndNetstack] to terminate
 		// if it hasn't already.
+		ns.slog.InfoContext(ctx, "Closing link endpoint.")
 		ns.linkEndpoint.Close()
+		ns.slog.InfoContext(ctx, "Closing TUN device.")
 		err := trace.Wrap(ns.tun.Close(), "closing TUN device")
 
 		allErrors <- err
@@ -345,9 +348,11 @@ func (ns *networkStack) run(ctx context.Context) error {
 	_ = g.Wait()
 
 	// Wait for all connections and goroutines to clean themselves up.
+	ns.slog.InfoContext(ctx, "Waiting for all connections and goroutines to clean up.")
 	ns.wg.Wait()
 
 	// Now we can destroy the gVisor networking stack and wait for all its goroutines to terminate.
+	ns.slog.InfoContext(ctx, "Destroying networking stack.")
 	ns.stack.Destroy()
 
 	close(allErrors)
@@ -620,7 +625,9 @@ func forwardBetweenTunAndNetstack(ctx context.Context, tun tunDevice, linkEndpoi
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return forwardNetstackToTUN(ctx, linkEndpoint, tun) })
 	g.Go(func() error { return forwardTUNtoNetstack(ctx, tun, linkEndpoint) })
-	return trace.Wrap(g.Wait())
+	err := g.Wait()
+	slog.DebugContext(ctx, "Finished forwarding IP packets between OS and VNet.")
+	return trace.Wrap(err)
 }
 
 func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, tun tunDevice) error {

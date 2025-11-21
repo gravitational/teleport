@@ -23,6 +23,7 @@ import path from 'node:path';
 import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
+import { ensureError } from 'shared/utils/error';
 
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
@@ -40,6 +41,8 @@ import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
+import { setTray } from './tray';
+
 if (!app.isPackaged) {
   // Sets app name and data directories to Electron.
   // Allows running packaged and non-packaged Connect at the same time.
@@ -56,7 +59,9 @@ if (!process.defaultApp) {
 app.commandLine.appendSwitch('gtk-version', '3');
 
 if (app.requestSingleInstanceLock()) {
-  initializeApp();
+  initializeApp().catch(error =>
+    showDialogWithError('Could not initialize the app', error)
+  );
 } else {
   console.log('Attempted to open a second instance of the app, exiting.');
   // All windows will be closed immediately without asking the user,
@@ -84,22 +89,37 @@ async function initializeApp(): Promise<void> {
   });
 
   nativeTheme.themeSource = configService.get('theme').value;
-  const windowsManager = new WindowsManager(appStateFileStorage, settings);
+  const windowsManager = new WindowsManager(
+    appStateFileStorage,
+    settings,
+    configService
+  );
 
   process.on('uncaughtException', (error, origin) => {
-    logger.error(origin, error);
-    app.quit();
+    logger.error('Uncaught exception', origin, error);
+    showDialogWithError(`Uncaught exception (${origin} origin)`, error);
+    app.exit(1);
   });
 
-  // init main process
-  const mainProcess = MainProcess.create({
-    settings,
-    logger,
-    configService,
-    appStateFileStorage,
-    configFileStorage,
-    windowsManager,
-  });
+  let mainProcess: MainProcess;
+  try {
+    mainProcess = MainProcess.create({
+      settings,
+      logger,
+      configService,
+      appStateFileStorage,
+      configFileStorage,
+      windowsManager,
+    });
+  } catch (error) {
+    const message = 'Could not initialize the main process';
+    logger.error(message, error);
+    showDialogWithError(message, error);
+    // app.exit(1) isn't equivalent to throwing an error, use an explicit return to stop further
+    // execution. See https://github.com/gravitational/teleport/issues/56272.
+    app.exit(1);
+    return;
+  }
 
   //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
   app.on(
@@ -147,7 +167,17 @@ async function initializeApp(): Promise<void> {
     }
   });
 
+  // On Windows/Linux: Re-launching the app while it's already running
+  // triggers 'second-instance' (because of app.requestSingleInstanceLock()).
+  //
+  // On macOS: Re-launching the app (from places like Finder, Spotlight, or Dock)
+  // does not trigger 'second-instance'. Instead, the system emits 'activate'.
+  // However, launching the app outside the desktop manager (e.g., from the command
+  // line) does trigger 'second-instance'.
   app.on('second-instance', () => {
+    windowsManager.focusWindow();
+  });
+  app.on('activate', () => {
     windowsManager.focusWindow();
   });
 
@@ -159,22 +189,18 @@ async function initializeApp(): Promise<void> {
   const rootClusterProxyHostAllowList = new Set<string>();
 
   (async () => {
-    const tshdClient = await mainProcess.getTshdClient();
+    const { terminalService } = await mainProcess.getTshdClients();
 
     manageRootClusterProxyHostAllowList({
-      tshdClient,
+      tshdClient: terminalService,
       logger,
       allowList: rootClusterProxyHostAllowList,
     });
   })().catch(error => {
-    const message =
-      'Could not initialize tsh daemon client in the main process';
+    const message = 'Could not initialize the tshd client in the main process';
     logger.error(message, error);
-    dialog.showErrorBox(
-      'Error during main process startup',
-      `${message}: ${error}`
-    );
-    app.quit();
+    showDialogWithError(message, error);
+    app.exit(1);
   });
 
   app
@@ -191,15 +217,16 @@ async function initializeApp(): Promise<void> {
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
+
+      if (configService.get('runInBackground').value) {
+        setTray(settings, { show: () => windowsManager.showWindow() });
+      }
     })
     .catch(error => {
-      const message = 'Could not initialize the app';
+      const message = 'Could not create the main app window';
       logger.error(message, error);
-      dialog.showErrorBox(
-        'Error during app initialization',
-        `${message}: ${error}`
-      );
-      app.quit();
+      showDialogWithError(message, error);
+      app.exit(1);
     });
 
   // Limit navigation capabilities to reduce the attack surface.
@@ -421,4 +448,11 @@ function launchDeepLink(
   // Always pass the result to the frontend app so that the error can be shown to the user.
   // Otherwise the app would receive focus but nothing would be visible in the UI.
   windowsManager.launchDeepLink(result);
+}
+
+function showDialogWithError(title: string, unknownError: unknown) {
+  const error = ensureError(unknownError);
+  // V8 includes the error message in the stack, so there's no need to append stack to message.
+  const content = error.stack || error.message;
+  dialog.showErrorBox(title, content);
 }

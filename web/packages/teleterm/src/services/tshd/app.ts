@@ -89,6 +89,10 @@ export function isWebApp(app: App): boolean {
   );
 }
 
+export function isMcp(app: App): boolean {
+  return app.endpointUri.startsWith('mcp+');
+}
+
 /**
  * Returns address with protocol which is an app protocol + a public address.
  * If the public address is empty, it falls back to the endpoint URI.
@@ -107,7 +111,10 @@ export function getAppAddrWithProtocol(source: App): string {
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
     } else {
-      addrWithProtocol = `https://${publicAddr}`;
+      // publicAddr for Identity Center account app is a URL with scheme.
+      addrWithProtocol = publicAddr.startsWith('https://')
+        ? publicAddr
+        : `https://${publicAddr}`;
     }
   }
 

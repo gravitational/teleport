@@ -23,8 +23,8 @@ jobs:
         role-to-assume: ${{ vars.IAM_ROLE }}
 
     - name: Create Amplify preview environment
-      uses: gravitational/shared-workflows/tools/amplify-preview@tools/amplify-preview/v0.0.1
-      continue-on-error: true
+      uses: gravitational/shared-workflows/tools/amplify-preview@664e788d45a7f56935cf63094b4fb52a41b12015 # tools/amplify-preview/v0.0.2
+      id: amplify_preview
       with:
         app_ids: ${{ vars.AMPLIFY_APP_IDS }}
         create_branches: "true"
@@ -37,6 +37,7 @@ jobs:
         ERR_TITLE: Teleport Docs preview build failed
         ERR_MESSAGE: >-
           Please refer to the following documentation for help: https://www.notion.so/goteleport/How-to-Amplify-deployments-162fdd3830be8096ba72efa1a49ee7bc?pvs=4
+          Execution info: ${{ steps.amplify_preview.outputs.amplify_app_id }} ${{ steps.amplify_preview.outputs.amplify_branch_name }} ${{ steps.amplify_preview.outputs.amplify_job_id }}
       run: |
         echo ::error title=$ERR_TITLE::$ERR_MESSAGE
         exit 1

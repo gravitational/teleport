@@ -95,7 +95,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -525,24 +524,6 @@ type CachePolicy struct {
 	NeverExpires bool
 }
 
-// MakeDefaultConfig returns default client config.
-// If store is not provided, it will default to in-memory storage without
-// hardware key support. This should only be used with static auth methods
-// (TLS and AuthMethods fields).
-func MakeDefaultConfig(store *Store) *Config {
-	if store == nil {
-		store = NewMemClientStore()
-	}
-	return &Config{
-		Stdout:         os.Stdout,
-		Stderr:         os.Stderr,
-		Stdin:          os.Stdin,
-		AddKeysToAgent: AddKeysToAgentAuto,
-		Tracer:         tracing.NoopProvider().Tracer("TeleportClient"),
-		ClientStore:    store,
-	}
-}
-
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ClientStore == nil {
 		if c.TLS == nil && c.AuthMethods == nil {
@@ -752,7 +733,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	// Save profile to record proxy credentials
+	// Save profile to record proxy credentials.
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
@@ -1262,10 +1243,6 @@ type TeleportClient struct {
 	statusMu   sync.Mutex
 
 	localAgent *LocalKeyAgent
-
-	// OnChannelRequest gets called when SSH channel requests are
-	// received. It's safe to keep it nil.
-	OnChannelRequest tracessh.ChannelRequestCallback
 
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil.
@@ -2251,7 +2228,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
@@ -2408,7 +2385,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, mode, session, tc.OnChannelRequest, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2520,7 +2497,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			message := "Desktop sessions cannot be played with tsh play." +
 				" Export the recording to video with tsh recordings export" +
 				" or view the recording in your web browser."
-			return trace.BadParameter(message)
+			return trace.BadParameter("%s", message)
 		case *apievents.AppSessionStart, *apievents.AppSessionChunk:
 			return trace.BadParameter("Interactive session replay is not supported for app sessions." +
 				" To play app sessions, specify --format=json or --format=yaml.")
@@ -2540,13 +2517,16 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			lastTime = evt.Time
 		case *apievents.DatabaseSessionStart:
 			if !slices.Contains(libplayer.SupportedDatabaseProtocols, evt.DatabaseProtocol) {
-				return trace.NotImplemented("Interactive database session replay is only supported for " +
-					strings.Join(libplayer.SupportedDatabaseProtocols, ",") + " databases." +
-					" To play other database sessions, specify --format=json or --format=yaml.")
+				return trace.NotImplemented("Interactive database session replay is only supported for %s databases."+
+					" To play other database sessions, specify --format=json or --format=yaml.", strings.Join(libplayer.SupportedDatabaseProtocols, ","))
 			}
 		default:
 			continue
 		}
+	}
+
+	if err := player.Err(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -2577,8 +2557,8 @@ func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination
 	)
 	defer span.End()
 
-	isDownload := strings.ContainsRune(source[0], ':')
-	isUpload := strings.ContainsRune(destination, ':')
+	isDownload := sftp.IsRemotePath(source[0])
+	isUpload := sftp.IsRemotePath(destination)
 
 	if !isUpload && !isDownload {
 		return trace.BadParameter("no remote destination specified")
@@ -3870,7 +3850,7 @@ func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType c
 	}
 
 	// authenticate via the web api
-	clt, session, err := SSHAgentLoginWeb(ctx, SSHLoginDirect{
+	clt, session, err := sshAgentLoginWeb(ctx, SSHLoginDirect{
 		SSHLogin: sshLogin,
 		User:     tc.Username,
 		Password: password,
@@ -3891,7 +3871,7 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
+	clt, session, err := sshAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
 		SSHLogin:             sshLogin,
 		User:                 tc.Username,
 		Password:             password,
@@ -4898,19 +4878,6 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 	return certPool
 }
 
-// connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
-func connectToSSHAgent() agent.ExtendedAgent {
-	socketPath := os.Getenv(teleport.SSHAuthSock)
-	conn, err := agentconn.Dial(socketPath)
-	if err != nil {
-		log.Warnf("[KEY AGENT] Unable to connect to SSH agent on socket %q: %v", socketPath, err)
-		return nil
-	}
-
-	log.Infof("[KEY AGENT] Connected to the system agent: %q", socketPath)
-	return agent.NewClient(conn)
-}
-
 // Username returns the current user's username
 func Username() (string, error) {
 	u, err := apiutils.CurrentUser()
@@ -5467,4 +5434,27 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 
 	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, mfaResp)
 	return trace.Wrap(err)
+}
+
+// CalculateSSHLogins returns the subset of the allowedLogins that exist in
+// the principals of the identity. This is required because SSH authorization
+// only allows using a login that exists in the certificates valid principals.
+// When connecting to servers in a leaf cluster, the root certificate is used,
+// so we need to ensure that we only present the allowed logins that would
+// result in a successful connection, if any exists.
+func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]string, error) {
+	allowed := make(map[string]struct{})
+	for _, login := range allowedLogins {
+		allowed[login] = struct{}{}
+	}
+
+	var logins []string
+	for _, local := range identityPrincipals {
+		if _, ok := allowed[local]; ok {
+			logins = append(logins, local)
+		}
+	}
+
+	slices.Sort(logins)
+	return logins, nil
 }

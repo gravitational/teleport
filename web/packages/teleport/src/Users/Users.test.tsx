@@ -25,13 +25,14 @@ import {
   screen,
   testQueryClient,
   userEvent,
+  waitFor,
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Access } from 'teleport/services/user';
-import { successGetUsers } from 'teleport/test/helpers/users';
+import { successGetUsersV2 } from 'teleport/test/helpers/users';
 
 import { Users } from './Users';
 import { State } from './useUsers';
@@ -61,7 +62,7 @@ describe('invite collaborators integration', () => {
   beforeEach(() => {
     props = {
       operation: { type: 'invite-collaborators' },
-
+      fetch: ctx.userService.fetchUsersV2,
       onStartCreate: () => undefined,
       onStartDelete: () => undefined,
       onStartEdit: () => undefined,
@@ -81,7 +82,7 @@ describe('invite collaborators integration', () => {
   });
 
   test('displays the Create New User button when not configured', async () => {
-    server.use(successGetUsers([]));
+    server.use(successGetUsersV2([]));
 
     render(
       <MemoryRouter>
@@ -94,13 +95,14 @@ describe('invite collaborators integration', () => {
     );
 
     await screen.findByPlaceholderText('Search...');
-
-    expect(screen.getByText('Create New User')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Create New User')).toBeInTheDocument();
+    });
     expect(screen.queryByText('Enroll Users')).not.toBeInTheDocument();
   });
 
   test('displays the Enroll Users button when configured', async () => {
-    server.use(successGetUsers([]));
+    server.use(successGetUsersV2([]));
 
     const startMock = jest.fn();
     props = {
@@ -123,11 +125,12 @@ describe('invite collaborators integration', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    const enrollButton = screen.getByText('Enroll Users');
+    const enrollButton = await screen.findByText('Enroll Users');
     expect(enrollButton).toBeInTheDocument();
     expect(screen.queryByText('Create New User')).not.toBeInTheDocument();
 
-    enrollButton.click();
+    const user = userEvent.setup();
+    await user.click(enrollButton);
     expect(startMock.mock.calls).toHaveLength(1);
 
     // This will display regardless since the dialog display is managed by the
@@ -138,13 +141,14 @@ describe('invite collaborators integration', () => {
 });
 
 test('Users not equal to MAU Notice', async () => {
-  server.use(successGetUsers([]));
+  server.use(successGetUsersV2([]));
 
   const ctx = createTeleportContext();
   let props: State;
 
   props = {
     operation: { type: 'invite-collaborators' },
+    fetch: ctx.userService.fetchUsersV2,
     onStartCreate: () => undefined,
     onStartDelete: () => undefined,
     onStartEdit: () => undefined,
@@ -176,8 +180,11 @@ test('Users not equal to MAU Notice', async () => {
 
   await screen.findByPlaceholderText('Search...');
 
-  expect(screen.getByTestId('users-not-mau-alert')).toBeInTheDocument();
+  const alert = await screen.findByTestId('users-not-mau-alert');
+  expect(alert).toBeInTheDocument();
+
   await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+
   expect(props.onDismissUsersMauNotice).toHaveBeenCalled();
   expect(screen.queryByTestId('users-not-mau-alert')).not.toBeInTheDocument();
 });
@@ -187,14 +194,14 @@ describe('email password reset integration', () => {
 
   let props: State;
   beforeEach(() => {
-    server.use(successGetUsers([]));
+    server.use(successGetUsersV2([]));
 
     props = {
       operation: {
         type: 'reset',
         user: { name: 'alice@example.com', roles: ['foo'] },
       },
-
+      fetch: ctx.userService.fetchUsersV2,
       onStartCreate: () => undefined,
       onStartDelete: () => undefined,
       onStartEdit: () => undefined,
@@ -227,32 +234,6 @@ describe('email password reset integration', () => {
     expect(screen.getByText('Reset User Authentication?')).toBeInTheDocument();
     expect(screen.queryByText('New Reset UI')).not.toBeInTheDocument();
   });
-
-  test('displays the email-based UI when configured', async () => {
-    props = {
-      ...props,
-      InviteCollaborators: () => (
-        <div data-testid="new-reset-ui">New Reset UI</div>
-      ),
-    };
-
-    render(
-      <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Users {...props} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
-      </MemoryRouter>
-    );
-
-    expect(screen.getByText('New Reset UI')).toBeInTheDocument();
-
-    // This will display regardless since the dialog display is managed by the
-    // dialog itself, and our mock above is trivial, but we can make sure it
-    // renders.
-    expect(screen.getByTestId('new-reset-ui')).toBeInTheDocument();
-  });
 });
 
 describe('permission handling', () => {
@@ -261,7 +242,7 @@ describe('permission handling', () => {
   let props: State;
   beforeEach(() => {
     server.use(
-      successGetUsers([
+      successGetUsersV2([
         {
           name: 'tester',
           roles: [],
@@ -275,7 +256,7 @@ describe('permission handling', () => {
         type: 'reset',
         user: { name: 'alice@example.com', roles: ['foo'] },
       },
-
+      fetch: ctx.userService.fetchUsersV2,
       onStartCreate: () => undefined,
       onStartDelete: () => undefined,
       onStartEdit: () => undefined,
@@ -337,6 +318,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
+    await waitFor(() => {
+      expect(screen.getByText('tester')).toBeInTheDocument();
+    });
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
@@ -369,7 +353,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByText('tester')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('tester')).toBeInTheDocument();
+    });
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
@@ -408,7 +394,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByText('tester')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('tester')).toBeInTheDocument();
+    });
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');

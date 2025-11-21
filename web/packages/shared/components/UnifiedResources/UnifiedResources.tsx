@@ -656,11 +656,14 @@ function getResourcePinningSupport(
   return PinningSupport.Supported;
 }
 
-function generateUnifiedResourceKey(
+export function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
   if (resource.kind === 'node' || resource.kind == 'git_server') {
     return `${resource.hostname}/${resource.id}/${resource.kind}`.toLowerCase();
+  }
+  if (resource.kind === 'app' && resource.friendlyName !== '') {
+    return `${resource.friendlyName}/${resource.name}/${resource.kind}`.toLowerCase();
   }
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }

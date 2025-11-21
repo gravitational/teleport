@@ -1,14 +1,13 @@
 ---
 title: Device Trust
 description: Teleport Device Trust Concepts
-layout: tocless-doc
+template: "no-toc"
 videoBanner: gBQyj_X1LVw
 sidebar_position: 5
+tags:
+ - conceptual
+ - identity-governance
 ---
-
-(!docs/pages/includes/device-trust/support-notice.mdx!)
-
-## Concepts
 
 Device Trust allows Teleport admins to enforce the use of trusted devices.
 Resources protected by the device mode "required" will enforce the use of a
@@ -23,6 +22,8 @@ Device Trust requires two of the following steps to have been configured:
 
 Categorically, we define these two requirements as Trusted Device management
 and Device Trust enforcement.
+
+(!docs/pages/includes/device-trust/support-notice.mdx!)
 
 ## Trusted Device management
 
@@ -70,10 +71,11 @@ the better the ongoing guarantees that the device itself is trustworthy.
 
 ## Device Trust enforcement
 
-Enforcing Device Trust means configuring Teleport with Device Trust mode, i.e. applying
-`device_trust_mode: required` rule, which tells Teleport Auth Service to only allow access
-with a trusted and an authenticated device, in addition to establishing the user's identity and enforcing
-the necessary roles.
+Enforcing Device Trust means configuring Teleport with Device Trust mode, i.e.
+applying a `device_trust_mode: required` or `device_trust_mode: required-for-humans`
+rule, which tells Teleport Auth Service to only allow access with a trusted and
+an authenticated device, in addition to establishing the user's identity and
+enforcing the necessary roles.
 
 Teleport supports two methods for device enforcement: Role-based
 enforcement and Cluster-wide enforcement.

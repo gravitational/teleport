@@ -491,9 +491,6 @@ func (h *Handler) dbConnect(
 	}
 	defer sess.Close()
 
-	// Don't close the terminal stream on session error, as it would also
-	// cause the underlying connection to be closed. This will prevent the
-	// middleware from properly writing the error into the WebSocket connection.
 	if err := sess.Run(); err != nil {
 		log.ErrorContext(ctx, "Database interactive session exited with error", "error", err)
 		return nil, trace.Wrap(err)
@@ -624,9 +621,25 @@ func newDatabaseInteractiveSession(ctx context.Context, cfg databaseInteractiveS
 		replConn:                         replConn,
 		alpnConn:                         alpnConn,
 		stream: terminal.NewStream(ctx, terminal.StreamConfig{
-			WS: cfg.ws,
+			// Don't close the terminal stream on session error, as it would also
+			// cause the underlying connection to be closed. This will prevent the
+			// middleware from properly writing the error into the WebSocket connection.
+			// The middleware initiates the connection, forwards it to our
+			// handler, and always closes it.
+			WS: noopCloserWS{Conn: cfg.ws},
 		}),
 	}, nil
+}
+
+// noopCloserWS prevents the stream from closing the websocket, to allow the
+// middleware to write any returned errors to the client before closing the
+// websocket.
+type noopCloserWS struct {
+	*websocket.Conn
+}
+
+func (c noopCloserWS) Close() error {
+	return nil
 }
 
 func (s *databaseInteractiveSession) Run() error {

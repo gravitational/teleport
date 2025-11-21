@@ -18,6 +18,7 @@
 
 import userEvent from '@testing-library/user-event';
 import { PropsWithChildren } from 'react';
+import selectEvent from 'react-select-event';
 
 import { fireEvent, render, screen, within } from 'design/utils/testing';
 import Validation, { useValidation } from 'shared/components/Validation';
@@ -299,10 +300,7 @@ describe('GithubJoinTokenForm', () => {
     const selectElement = screen.getByLabelText('Ref type');
     expect(selectElement).toBeEnabled();
 
-    // Seems to be the only way to interact with react-select component
-    fireEvent.keyDown(selectElement, { key: 'ArrowDown' });
-    const existingItem = await screen.findByText('Branch');
-    fireEvent.click(existingItem);
+    await selectEvent.select(selectElement, ['Branch']);
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(

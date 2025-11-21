@@ -1,0 +1,4 @@
+provider: custom
+# Downloads updates to <system cache dir>/teleport-connect-dev-updater directory.
+# E.g. ~/Library/Caches/teleport-connect-dev-updater on macOS.
+updaterCacheDirName: teleport-connect-dev-updater

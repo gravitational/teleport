@@ -29,7 +29,7 @@ func TestPrecomputeMode(t *testing.T) {
 	PrecomputeKeys()
 
 	select {
-	case <-precomputedKeys:
+	case <-PrecomputedKeys:
 	case <-time.After(time.Second * 10):
 		t.Fatal("Key precompute routine failed to start.")
 	}

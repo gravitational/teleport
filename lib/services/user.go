@@ -100,7 +100,7 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (*types.UserV2, error) {
 	case types.V2:
 		var u types.UserV2
 		if err := utils.FastUnmarshal(bytes, &u); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 
 		if err := ValidateUser(&u); err != nil {

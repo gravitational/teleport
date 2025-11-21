@@ -31,13 +31,13 @@ import (
 func TestGitServers(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForAuth)
+	p, err := newPack(t, ForAuth)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
 	testResources(t, p, testFuncs[types.Server]{
 		newResource: func(name string) (types.Server, error) {
-			return types.NewGitHubServer(
+			return types.NewGitHubServerWithName(name,
 				types.GitHubServerMetadata{
 					Integration:  name,
 					Organization: name,
@@ -47,19 +47,13 @@ func TestGitServers(t *testing.T) {
 			_, err := p.gitServers.CreateGitServer(ctx, server)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]types.Server, error) {
-			servers, _, err := p.gitServers.ListGitServers(ctx, 0, "")
-			return servers, trace.Wrap(err)
-		},
+		list: p.gitServers.ListGitServers,
 		update: func(ctx context.Context, server types.Server) error {
 			_, err := p.gitServers.UpdateGitServer(ctx, server)
 			return trace.Wrap(err)
 		},
 		deleteAll: p.gitServers.DeleteAllGitServers,
-		cacheList: func(ctx context.Context) ([]types.Server, error) {
-			servers, _, err := p.cache.ListGitServers(ctx, 0, "")
-			return servers, trace.Wrap(err)
-		},
-		cacheGet: p.cache.GetGitServer,
+		cacheList: p.cache.ListGitServers,
+		cacheGet:  p.cache.GetGitServer,
 	})
 }

@@ -87,6 +87,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	openSSHCfg := servicecfg.MakeDefaultConfig()
 
 	openSSHCfg.OpenSSH.Enabled = true
+	openSSHCfg.DebugService.Enabled = false
 	err = config.ConfigureOpenSSH(&config.CommandLineFlags{
 		DataDir:           teleportDataDir,
 		ProxyServer:       rc.Web,

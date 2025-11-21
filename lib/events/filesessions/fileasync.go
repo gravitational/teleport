@@ -528,7 +528,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	case <-stream.Done():
 		if errStream, ok := stream.(interface{ Error() error }); ok {
 			if err := errStream.Error(); err != nil {
-				return trace.ConnectionProblem(err, err.Error())
+				return trace.ConnectionProblem(err, "%s", err.Error())
 			}
 		}
 

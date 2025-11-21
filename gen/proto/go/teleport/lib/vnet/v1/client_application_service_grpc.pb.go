@@ -41,9 +41,14 @@ const (
 	ClientApplicationService_ResolveFQDN_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveFQDN"
 	ClientApplicationService_ReissueAppCert_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueAppCert"
 	ClientApplicationService_SignForApp_FullMethodName               = "/teleport.lib.vnet.v1.ClientApplicationService/SignForApp"
-	ClientApplicationService_OnNewConnection_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewConnection"
+	ClientApplicationService_OnNewAppConnection_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewAppConnection"
 	ClientApplicationService_OnInvalidLocalPort_FullMethodName       = "/teleport.lib.vnet.v1.ClientApplicationService/OnInvalidLocalPort"
 	ClientApplicationService_GetTargetOSConfiguration_FullMethodName = "/teleport.lib.vnet.v1.ClientApplicationService/GetTargetOSConfiguration"
+	ClientApplicationService_UserTLSCert_FullMethodName              = "/teleport.lib.vnet.v1.ClientApplicationService/UserTLSCert"
+	ClientApplicationService_SignForUserTLS_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/SignForUserTLS"
+	ClientApplicationService_SessionSSHConfig_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/SessionSSHConfig"
+	ClientApplicationService_SignForSSHSession_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/SignForSSHSession"
+	ClientApplicationService_ExchangeSSHKeys_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/ExchangeSSHKeys"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -72,15 +77,27 @@ type ClientApplicationServiceClient interface {
 	// SignForApp issues a signature with the private key associated with an x509
 	// certificate previously issued for a requested app.
 	SignForApp(ctx context.Context, in *SignForAppRequest, opts ...grpc.CallOption) (*SignForAppResponse, error)
-	// OnNewConnection gets called whenever a new connection is about to be
+	// OnNewAppConnection gets called whenever a new app connection is about to be
 	// established through VNet for observability.
-	OnNewConnection(ctx context.Context, in *OnNewConnectionRequest, opts ...grpc.CallOption) (*OnNewConnectionResponse, error)
+	OnNewAppConnection(ctx context.Context, in *OnNewAppConnectionRequest, opts ...grpc.CallOption) (*OnNewAppConnectionResponse, error)
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection
 	// to a multi-port TCP app because the provided port does not match any of the
 	// TCP ports in the app spec.
 	OnInvalidLocalPort(ctx context.Context, in *OnInvalidLocalPortRequest, opts ...grpc.CallOption) (*OnInvalidLocalPortResponse, error)
 	// GetTargetOSConfiguration gets the target OS configuration.
 	GetTargetOSConfiguration(ctx context.Context, in *GetTargetOSConfigurationRequest, opts ...grpc.CallOption) (*GetTargetOSConfigurationResponse, error)
+	// UserTLSCert returns the user TLS certificate for a specific profile.
+	UserTLSCert(ctx context.Context, in *UserTLSCertRequest, opts ...grpc.CallOption) (*UserTLSCertResponse, error)
+	// SignForUserTLS signs a digest with the user TLS private key.
+	SignForUserTLS(ctx context.Context, in *SignForUserTLSRequest, opts ...grpc.CallOption) (*SignForUserTLSResponse, error)
+	// SessionSSHConfig returns the user SSH configuration for an SSH session.
+	SessionSSHConfig(ctx context.Context, in *SessionSSHConfigRequest, opts ...grpc.CallOption) (*SessionSSHConfigResponse, error)
+	// SignForSSHSession signs a digest with the SSH private key associated with the
+	// session from a previous call to SessionSSHConfig.
+	SignForSSHSession(ctx context.Context, in *SignForSSHSessionRequest, opts ...grpc.CallOption) (*SignForSSHSessionResponse, error)
+	// ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
+	// returns the user public key.
+	ExchangeSSHKeys(ctx context.Context, in *ExchangeSSHKeysRequest, opts ...grpc.CallOption) (*ExchangeSSHKeysResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -151,10 +168,10 @@ func (c *clientApplicationServiceClient) SignForApp(ctx context.Context, in *Sig
 	return out, nil
 }
 
-func (c *clientApplicationServiceClient) OnNewConnection(ctx context.Context, in *OnNewConnectionRequest, opts ...grpc.CallOption) (*OnNewConnectionResponse, error) {
+func (c *clientApplicationServiceClient) OnNewAppConnection(ctx context.Context, in *OnNewAppConnectionRequest, opts ...grpc.CallOption) (*OnNewAppConnectionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(OnNewConnectionResponse)
-	err := c.cc.Invoke(ctx, ClientApplicationService_OnNewConnection_FullMethodName, in, out, cOpts...)
+	out := new(OnNewAppConnectionResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_OnNewAppConnection_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +192,56 @@ func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Co
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetTargetOSConfigurationResponse)
 	err := c.cc.Invoke(ctx, ClientApplicationService_GetTargetOSConfiguration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) UserTLSCert(ctx context.Context, in *UserTLSCertRequest, opts ...grpc.CallOption) (*UserTLSCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserTLSCertResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_UserTLSCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, in *SignForUserTLSRequest, opts ...grpc.CallOption) (*SignForUserTLSResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignForUserTLSResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_SignForUserTLS_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) SessionSSHConfig(ctx context.Context, in *SessionSSHConfigRequest, opts ...grpc.CallOption) (*SessionSSHConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionSSHConfigResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_SessionSSHConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) SignForSSHSession(ctx context.Context, in *SignForSSHSessionRequest, opts ...grpc.CallOption) (*SignForSSHSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignForSSHSessionResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_SignForSSHSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, in *ExchangeSSHKeysRequest, opts ...grpc.CallOption) (*ExchangeSSHKeysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExchangeSSHKeysResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ExchangeSSHKeys_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -207,15 +274,27 @@ type ClientApplicationServiceServer interface {
 	// SignForApp issues a signature with the private key associated with an x509
 	// certificate previously issued for a requested app.
 	SignForApp(context.Context, *SignForAppRequest) (*SignForAppResponse, error)
-	// OnNewConnection gets called whenever a new connection is about to be
+	// OnNewAppConnection gets called whenever a new app connection is about to be
 	// established through VNet for observability.
-	OnNewConnection(context.Context, *OnNewConnectionRequest) (*OnNewConnectionResponse, error)
+	OnNewAppConnection(context.Context, *OnNewAppConnectionRequest) (*OnNewAppConnectionResponse, error)
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection
 	// to a multi-port TCP app because the provided port does not match any of the
 	// TCP ports in the app spec.
 	OnInvalidLocalPort(context.Context, *OnInvalidLocalPortRequest) (*OnInvalidLocalPortResponse, error)
 	// GetTargetOSConfiguration gets the target OS configuration.
 	GetTargetOSConfiguration(context.Context, *GetTargetOSConfigurationRequest) (*GetTargetOSConfigurationResponse, error)
+	// UserTLSCert returns the user TLS certificate for a specific profile.
+	UserTLSCert(context.Context, *UserTLSCertRequest) (*UserTLSCertResponse, error)
+	// SignForUserTLS signs a digest with the user TLS private key.
+	SignForUserTLS(context.Context, *SignForUserTLSRequest) (*SignForUserTLSResponse, error)
+	// SessionSSHConfig returns the user SSH configuration for an SSH session.
+	SessionSSHConfig(context.Context, *SessionSSHConfigRequest) (*SessionSSHConfigResponse, error)
+	// SignForSSHSession signs a digest with the SSH private key associated with the
+	// session from a previous call to SessionSSHConfig.
+	SignForSSHSession(context.Context, *SignForSSHSessionRequest) (*SignForSSHSessionResponse, error)
+	// ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
+	// returns the user public key.
+	ExchangeSSHKeys(context.Context, *ExchangeSSHKeysRequest) (*ExchangeSSHKeysResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -244,14 +323,29 @@ func (UnimplementedClientApplicationServiceServer) ReissueAppCert(context.Contex
 func (UnimplementedClientApplicationServiceServer) SignForApp(context.Context, *SignForAppRequest) (*SignForAppResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignForApp not implemented")
 }
-func (UnimplementedClientApplicationServiceServer) OnNewConnection(context.Context, *OnNewConnectionRequest) (*OnNewConnectionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method OnNewConnection not implemented")
+func (UnimplementedClientApplicationServiceServer) OnNewAppConnection(context.Context, *OnNewAppConnectionRequest) (*OnNewAppConnectionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method OnNewAppConnection not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) OnInvalidLocalPort(context.Context, *OnInvalidLocalPortRequest) (*OnInvalidLocalPortResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method OnInvalidLocalPort not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) GetTargetOSConfiguration(context.Context, *GetTargetOSConfigurationRequest) (*GetTargetOSConfigurationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTargetOSConfiguration not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) UserTLSCert(context.Context, *UserTLSCertRequest) (*UserTLSCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UserTLSCert not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) SignForUserTLS(context.Context, *SignForUserTLSRequest) (*SignForUserTLSResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignForUserTLS not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) SessionSSHConfig(context.Context, *SessionSSHConfigRequest) (*SessionSSHConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SessionSSHConfig not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) SignForSSHSession(context.Context, *SignForSSHSessionRequest) (*SignForSSHSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignForSSHSession not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) ExchangeSSHKeys(context.Context, *ExchangeSSHKeysRequest) (*ExchangeSSHKeysResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExchangeSSHKeys not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -383,20 +477,20 @@ func _ClientApplicationService_SignForApp_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClientApplicationService_OnNewConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OnNewConnectionRequest)
+func _ClientApplicationService_OnNewAppConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OnNewAppConnectionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClientApplicationServiceServer).OnNewConnection(ctx, in)
+		return srv.(ClientApplicationServiceServer).OnNewAppConnection(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClientApplicationService_OnNewConnection_FullMethodName,
+		FullMethod: ClientApplicationService_OnNewAppConnection_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClientApplicationServiceServer).OnNewConnection(ctx, req.(*OnNewConnectionRequest))
+		return srv.(ClientApplicationServiceServer).OnNewAppConnection(ctx, req.(*OnNewAppConnectionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -437,6 +531,96 @@ func _ClientApplicationService_GetTargetOSConfiguration_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_UserTLSCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UserTLSCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).UserTLSCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_UserTLSCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).UserTLSCert(ctx, req.(*UserTLSCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_SignForUserTLS_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignForUserTLSRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).SignForUserTLS(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_SignForUserTLS_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).SignForUserTLS(ctx, req.(*SignForUserTLSRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_SessionSSHConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SessionSSHConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).SessionSSHConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_SessionSSHConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).SessionSSHConfig(ctx, req.(*SessionSSHConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_SignForSSHSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignForSSHSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).SignForSSHSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_SignForSSHSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).SignForSSHSession(ctx, req.(*SignForSSHSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_ExchangeSSHKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExchangeSSHKeysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).ExchangeSSHKeys(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_ExchangeSSHKeys_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).ExchangeSSHKeys(ctx, req.(*ExchangeSSHKeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -469,8 +653,8 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClientApplicationService_SignForApp_Handler,
 		},
 		{
-			MethodName: "OnNewConnection",
-			Handler:    _ClientApplicationService_OnNewConnection_Handler,
+			MethodName: "OnNewAppConnection",
+			Handler:    _ClientApplicationService_OnNewAppConnection_Handler,
 		},
 		{
 			MethodName: "OnInvalidLocalPort",
@@ -479,6 +663,26 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTargetOSConfiguration",
 			Handler:    _ClientApplicationService_GetTargetOSConfiguration_Handler,
+		},
+		{
+			MethodName: "UserTLSCert",
+			Handler:    _ClientApplicationService_UserTLSCert_Handler,
+		},
+		{
+			MethodName: "SignForUserTLS",
+			Handler:    _ClientApplicationService_SignForUserTLS_Handler,
+		},
+		{
+			MethodName: "SessionSSHConfig",
+			Handler:    _ClientApplicationService_SessionSSHConfig_Handler,
+		},
+		{
+			MethodName: "SignForSSHSession",
+			Handler:    _ClientApplicationService_SignForSSHSession_Handler,
+		},
+		{
+			MethodName: "ExchangeSSHKeys",
+			Handler:    _ClientApplicationService_ExchangeSSHKeys_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

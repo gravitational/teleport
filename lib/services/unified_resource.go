@@ -40,7 +40,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -825,40 +824,40 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 
 func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource, error) {
 	var accounts []resource
-	var pageRequest pagination.PageRequestToken
+	var startKey string
 	for {
-		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		resp, nextKey, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
-		for _, a := range resultsPage {
-			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+		for _, acct := range resp {
+			accounts = append(accounts, types.Resource153ToUnifiedResource(IdentityCenterAccount{Account: acct}))
 		}
 
-		if nextPage == pagination.EndOfList {
+		if nextKey == "" {
 			break
 		}
-		pageRequest.Update(nextPage)
+		startKey = nextKey
 	}
 	return accounts, nil
 }
 
 func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.Context) ([]resource, error) {
 	var accounts []resource
-	var pageRequest pagination.PageRequestToken
+	var startKey string
 	for {
-		resultsPage, nextPage, err := c.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		resp, nextKey, err := c.ListIdentityCenterAccountAssignments(ctx, apidefaults.DefaultChunkSize, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
-		for _, a := range resultsPage {
-			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+		for _, a := range resp {
+			accounts = append(accounts, types.Resource153ToUnifiedResource(IdentityCenterAccountAssignment{AccountAssignment: a}))
 		}
 
-		if nextPage == pagination.EndOfList {
+		if nextKey == "" {
 			break
 		}
-		pageRequest.Update(nextPage)
+		startKey = nextKey
 	}
 	return accounts, nil
 }
@@ -982,11 +981,11 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 				// so we unfortunately need to unwrap and re-wrap these values
 				// to restore them to a useful state.
 				switch unwrapped := r.Unwrap().(type) {
-				case IdentityCenterAccount:
-					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+				case *identitycenterv1.Account:
+					c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccount{Account: unwrapped}))
 
-				case IdentityCenterAccountAssignment:
-					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
+				case *identitycenterv1.AccountAssignment:
+					c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccountAssignment{AccountAssignment: unwrapped}))
 
 				default:
 					c.log.Warnf("unsupported Resource153 type %T.", unwrapped)

@@ -29,6 +29,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -50,7 +51,7 @@ func TestCloudProhibited(t *testing.T) {
 	service, err := NewService(cfg)
 	require.NoError(t, err)
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{Cloud: true},
 	})
 
@@ -258,6 +259,43 @@ func TestTrustedClusterRBAC(t *testing.T) {
 			},
 			expectChecks: []check{
 				{types.KindTrustedCluster, types.VerbUpdate},
+			},
+		},
+		{
+			desc: "list ok",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.ListTrustedClusters(ctx, &trustpb.ListTrustedClustersRequest{})
+				require.NoError(t, err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindTrustedCluster, types.VerbRead}: true,
+						{types.KindTrustedCluster, types.VerbList}: true,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindTrustedCluster, types.VerbRead},
+				{types.KindTrustedCluster, types.VerbList},
+			},
+		},
+		{
+			desc: "list no access",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.ListTrustedClusters(ctx, &trustpb.ListTrustedClustersRequest{})
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindTrustedCluster, types.VerbList}: true,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindTrustedCluster, types.VerbRead},
+				{types.KindTrustedCluster, types.VerbList},
 			},
 		},
 	}

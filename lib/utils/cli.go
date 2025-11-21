@@ -320,6 +320,51 @@ func formatCertError(err error) string {
 
 	var hostnameErr x509.HostnameError
 	if errors.As(err, &hostnameErr) {
+		// Special case for connecting to Auth via Proxy using internal cluster domain.
+		if strings.HasSuffix(hostnameErr.Host, ".teleport.cluster.local") {
+			var proxyEnvBuilder strings.Builder
+			for _, key := range []string{
+				"https_proxy", "http_proxy", "no_proxy",
+				"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
+			} {
+				if val, ok := os.LookupEnv(key); ok {
+					fmt.Fprintf(&proxyEnvBuilder, "    %s: %s\n", key, val)
+				}
+			}
+
+			return fmt.Sprintf(`Cannot connect to the Auth service via the Teleport Proxy.
+
+  There might be one or more network intermediaries (like a proxy or VPN) that are modifying your connection before it
+  reaches the Teleport Proxy. These intermediaries can alter how your connection is seen by the Teleport Proxy and
+  routed, leading to certificate mismatches.
+
+  To fix this, ensure that any network intermediaries are properly configured and not interfering with your connection.
+
+DEBUG INFO:
+  Host: %s
+
+  Proxy Environment Variables:
+%s
+  Server Certificate Details:
+    Subject: %s
+    Issuer: %s
+    Serial Number: %s
+    Not Before: %s
+    Not After: %s
+    DNS Names: %v
+    IP Addresses: %v`,
+				hostnameErr.Host,
+				proxyEnvBuilder.String(),
+				hostnameErr.Certificate.Subject,
+				hostnameErr.Certificate.Issuer,
+				hostnameErr.Certificate.SerialNumber,
+				hostnameErr.Certificate.NotBefore,
+				hostnameErr.Certificate.NotAfter,
+				hostnameErr.Certificate.DNSNames,
+				hostnameErr.Certificate.IPAddresses,
+			)
+		}
+
 		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
 			hostnameErr.Host,
 			hostnameErr.Error(),
@@ -375,6 +420,18 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 
 	// set our own help template
 	return app.UsageTemplate(createUsageTemplate())
+}
+
+// InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
+// or write any usage information to os.Stdout. Can be used in scenarios where multiple `kingpin.Application`
+// instances are needed without interfering with subsequent parsing. Usage output is completely suppressed,
+// and the default global `--help` flag is ignored to prevent the application from exiting.
+func InitHiddenCLIParser() (app *kingpin.Application) {
+	app = kingpin.New("", "")
+	app.UsageWriter(io.Discard)
+	app.Terminate(func(i int) {})
+
+	return app
 }
 
 // createUsageTemplate creates an usage template for kingpin applications.
@@ -654,4 +711,28 @@ func FormatAlert(alert types.ClusterAlert) string {
 		}
 	}
 	return buf.String()
+}
+
+// FilterArguments filters the input arguments, keeping only those defined in the provided `kingpin.ApplicationModel`.
+// For example, if the model defines only one boolean flag `--insecure`, all other arguments in `args`
+// will be excluded, and only the `--insecure` flag will remain.
+func FilterArguments(args []string, model *kingpin.ApplicationModel) []string {
+	var result []string
+	for _, flag := range model.Flags {
+		for i := range args {
+			if strings.HasPrefix(args[i], fmt.Sprint("--", flag.Name, "=")) {
+				result = append(result, args[i])
+				break
+			}
+			if args[i] == fmt.Sprint("--", flag.Name) {
+				if flag.IsBoolFlag() {
+					result = append(result, args[i])
+				} else if i+2 <= len(args) {
+					result = append(result, args[i], args[i+1])
+				}
+				break
+			}
+		}
+	}
+	return result
 }

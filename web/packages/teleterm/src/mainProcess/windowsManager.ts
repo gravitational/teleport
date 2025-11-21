@@ -21,7 +21,9 @@ import * as url from 'node:url';
 
 import {
   app,
+  autoUpdater,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   nativeTheme,
@@ -36,10 +38,15 @@ import {
   RuntimeSettings,
   WindowsManagerIpc,
 } from 'teleterm/mainProcess/types';
+import { ConfigService } from 'teleterm/services/config';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
+
+interface RunInBackgroundState {
+  notified?: boolean;
+}
 
 export class WindowsManager {
   private storageKey = 'windowState';
@@ -57,10 +64,16 @@ export class WindowsManager {
     reject: (error: Error) => void;
   };
   private readonly windowUrl: string;
+  /**
+   * Tracks if the window was hidden via `enterBackgroundMode()` rather than
+   * by the OS (e.g. Command+H).
+   */
+  private isInBackgroundMode: boolean;
 
   constructor(
     private fileStorage: FileStorage,
-    private settings: RuntimeSettings
+    private settings: RuntimeSettings,
+    private configService: ConfigService
   ) {
     this.selectionContextMenu = Menu.buildFromTemplate([{ role: 'copy' }]);
     this.frontendAppInit = {
@@ -125,11 +138,45 @@ export class WindowsManager {
       },
     });
 
-    window.once('close', () => {
+    // Flag to track if the app tries to quit.
+    // When true, the window should close rather than enter the background mode,
+    // as that would block the quit process.
+    let isAppQuitting = false;
+    // Fired when the app initiates shutdown explicitly, via app.quit().
+    app.on('before-quit', () => {
+      isAppQuitting = true;
+    });
+    // Fired when the app initiates shutdown due to an update.
+    //
+    // When using electron-updater's quitAndInstall, the windows close first,
+    // and then 'before-quit' is emitted. This sequence differs from the normal
+    // quit flow.
+    //
+    // Note: Although we use electron-updater (not Electron's native autoUpdater),
+    // this event is available because electron-updater emulates it.
+    autoUpdater.on('before-quit-for-update', () => {
+      isAppQuitting = true;
+    });
+
+    window.on('close', async e => {
       this.saveWindowState(window);
-      this.frontendAppInit.reject(
-        new Error('Window was closed before frontend app got initialized')
-      );
+
+      if (isAppQuitting || !this.configService.get('runInBackground').value) {
+        this.frontendAppInit.reject(
+          new Error('Window was closed before frontend app got initialized')
+        );
+        return;
+      }
+
+      e.preventDefault();
+
+      const shouldRun = await this.confirmIfShouldRunInBackgroundOnce();
+      if (shouldRun) {
+        this.enterBackgroundMode();
+        return;
+      }
+      // Retry closing.
+      window.close();
     });
 
     // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
@@ -198,13 +245,9 @@ export class WindowsManager {
     );
   }
 
-  /**
-   * focusWindow is for situations where the app has privileges to do so, for example in a scenario
-   * where the user attempts to launch a second instance of the app – the same process that the user
-   * interacted with asks for its window to receive focus.
-   */
-  focusWindow(): void {
-    if (!this.window) {
+  /** Shows the window when it's hidden or minimized. */
+  showWindow(): void {
+    if (!this.isWindowUsable()) {
       return;
     }
 
@@ -212,6 +255,59 @@ export class WindowsManager {
       this.window.restore();
     }
 
+    if (this.window.isVisible()) {
+      this.window.focus();
+      return;
+    }
+
+    this.window.show();
+    if (this.isInBackgroundMode) {
+      this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
+        isInBackgroundMode: false,
+      });
+      void app.dock?.show();
+      this.isInBackgroundMode = false;
+    }
+  }
+
+  /**
+   * Hides the window if it's visible.
+   * On macOS, it also hides the dock icon.
+   */
+  enterBackgroundMode(): void {
+    if (!this.isWindowUsable()) {
+      return;
+    }
+
+    if (!this.window.isVisible()) {
+      return;
+    }
+
+    this.window.hide();
+    this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
+      isInBackgroundMode: true,
+    });
+    // One side effect to be aware of:
+    // If you close the app window in one macOS space, switch to another space,
+    // and then show the app again, macOS will return you to the original space.
+    // If you close the window again, macOS automatically switches back
+    // to the space where you requested showing the window.
+    // This behavior can feel a bit awkward.
+    app.dock?.hide();
+    this.isInBackgroundMode = true;
+  }
+
+  /**
+   * focusWindow is for situations where the app has privileges to do so, for example in a scenario
+   * where the user attempts to launch a second instance of the app – the same process that the user
+   * interacted with asks for its window to receive focus.
+   */
+  focusWindow(): void {
+    if (!this.isWindowUsable()) {
+      return;
+    }
+
+    this.showWindow();
     this.window.focus();
   }
 
@@ -223,7 +319,7 @@ export class WindowsManager {
    * expired, Connect should receive focus and show an appropriate message to the user.
    */
   forceFocusWindow(): void {
-    if (!this.window) {
+    if (!this.isWindowUsable()) {
       return;
     }
 
@@ -263,12 +359,10 @@ export class WindowsManager {
     // https://github.com/electron/electron/issues/2867#issuecomment-142480964
     // https://github.com/electron/electron/issues/2867#issuecomment-142511956
 
+    this.showWindow();
+
     app.dock?.bounce('informational');
 
-    // app.focus() alone doesn't un-minimize the window if the window is minimized.
-    if (this.window.isMinimized()) {
-      this.window.restore();
-    }
     app.focus({ steal: true });
   }
 
@@ -384,6 +478,46 @@ export class WindowsManager {
       ...getDefaults(),
       ...getPositionAndSize(),
     };
+  }
+
+  private async confirmIfShouldRunInBackgroundOnce(): Promise<boolean> {
+    const runInBackgroundState = this.fileStorage.get(
+      'runInBackground'
+    ) as RunInBackgroundState;
+    if (
+      runInBackgroundState?.notified ||
+      // If the value is set in the config file, do not notify too.
+      this.configService.get('runInBackground').metadata.isStored
+    ) {
+      return true;
+    }
+
+    const isMac = this.settings.platform === 'darwin';
+
+    const { response } = await dialog.showMessageBox(this.window, {
+      type: 'question',
+      message: isMac
+        ? 'Keep Teleport Connect running in the menu bar?'
+        : 'Keep Teleport Connect running in the system tray?',
+      detail:
+        'VNet and connections to databases, Kubernetes clusters, and apps will remain active.',
+      buttons: ['Keep Running', 'Quit'],
+      noLink: true,
+      defaultId: 0,
+    });
+
+    const state: RunInBackgroundState = { notified: true };
+    this.fileStorage.put('runInBackground', state);
+
+    const keepRunning = response === 0;
+    if (!keepRunning) {
+      this.configService.set('runInBackground', false);
+    }
+    return keepRunning;
+  }
+
+  private isWindowUsable(): boolean {
+    return this.window && !this.window.isDestroyed();
   }
 }
 

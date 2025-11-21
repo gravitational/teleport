@@ -85,7 +85,6 @@ const resourceIds: ResourceID[] = [
 const smallAccessRequest = makeAccessRequest();
 const mediumAccessRequest = makeAccessRequest({
   id: '11929070-6886-77eb-90aa-c7223dd735',
-  resourceIds: resourceIds.slice(0, 4),
   resources: resourceIds.slice(0, 4).map(id => ({
     id,
     details: { friendlyName: '', hostname: '' },
@@ -93,7 +92,6 @@ const mediumAccessRequest = makeAccessRequest({
 });
 const largeAccessRequest = makeAccessRequest({
   id: '11929070-6886-77eb-90aa-c7223dd735',
-  resourceIds,
   resources: resourceIds.map(id => ({
     id,
     details: { friendlyName: '', hostname: '' },

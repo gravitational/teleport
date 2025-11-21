@@ -24,14 +24,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	debugclient "github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -46,18 +44,19 @@ type DebugClient interface {
 	GetLogLevel(context.Context) (string, error)
 	// CollectProfile collects a pprof profile.
 	CollectProfile(context.Context, string, int) ([]byte, error)
+	SocketPath() string
 }
 
 func onSetLogLevel(configPath string, level string) error {
 	ctx := context.Background()
-	clt, dataDir, socketPath, err := newDebugClient(configPath)
+	clt, dataDir, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	setMessage, err := setLogLevel(ctx, clt, level)
 	if err != nil {
-		return convertToReadableErr(err, dataDir, socketPath)
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
 
 	fmt.Println(setMessage)
@@ -74,14 +73,14 @@ func setLogLevel(ctx context.Context, clt DebugClient, level string) (string, er
 
 func onGetLogLevel(configPath string) error {
 	ctx := context.Background()
-	clt, dataDir, socketPath, err := newDebugClient(configPath)
+	clt, dataDir, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	currentLogLevel, err := getLogLevel(ctx, clt)
 	if err != nil {
-		return convertToReadableErr(err, dataDir, socketPath)
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
 
 	fmt.Printf("Current log level %q\n", currentLogLevel)
@@ -111,14 +110,14 @@ func onCollectProfiles(configPath string, rawProfiles string, seconds int) error
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	clt, dataDir, socketPath, err := newDebugClient(configPath)
+	clt, dataDir, err := newDebugClient(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var output bytes.Buffer
 	if err := collectProfiles(ctx, clt, &output, rawProfiles, seconds); err != nil {
-		return convertToReadableErr(err, dataDir, socketPath)
+		return convertToReadableErr(err, dataDir, clt.SocketPath())
 	}
 
 	fmt.Print(output.String())
@@ -169,10 +168,10 @@ func collectProfiles(ctx context.Context, clt DebugClient, buf io.Writer, rawPro
 
 // newDebugClient initializes the debug client based on the Teleport
 // configuration. It also returns the data dir and socket path used.
-func newDebugClient(configPath string) (DebugClient, string, string, error) {
+func newDebugClient(configPath string) (DebugClient, string, error) {
 	cfg, err := config.ReadConfigFile(configPath)
 	if err != nil {
-		return nil, "", "", trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	// ReadConfigFile returns nil configuration if the file doesn't exists.
@@ -183,8 +182,7 @@ func newDebugClient(configPath string) (DebugClient, string, string, error) {
 		dataDir = cfg.DataDir
 	}
 
-	socketPath := filepath.Join(dataDir, teleport.DebugServiceSocketName)
-	return debugclient.NewClient(socketPath), dataDir, socketPath, nil
+	return debugclient.NewClient(dataDir), dataDir, nil
 }
 
 // convertToReadableErr converts debug service client error into a more friendly

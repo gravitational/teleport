@@ -41,7 +41,6 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -177,7 +176,6 @@ type legacyCollections struct {
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	identityCenterAccountAssignments   collectionReader[identityCenterAccountAssignmentGetter]
-	workloadIdentity                   collectionReader[WorkloadIdentityReader]
 	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
 	gitServers                         collectionReader[services.GitServerGetter]
 }
@@ -356,15 +354,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.tunnelConnections
-		case types.KindRemoteCluster:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.remoteClusters = &genericCollection[types.RemoteCluster, remoteClusterGetter, remoteClusterExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.remoteClusters
 		case types.KindAppServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -700,15 +689,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.spiffeFederations
-		case types.KindWorkloadIdentity:
-			if c.Config.WorkloadIdentity == nil {
-				return nil, trace.BadParameter("missing parameter WorkloadIdentity")
-			}
-			collections.workloadIdentity = &genericCollection[*workloadidentityv1pb.WorkloadIdentity, WorkloadIdentityReader, workloadIdentityExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.workloadIdentity
 		case types.KindAutoUpdateConfig:
 			if c.AutoUpdateService == nil {
 				return nil, trace.BadParameter("missing parameter AutoUpdateService")
@@ -752,7 +732,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing upstream IdentityCenter collection")
 			}
 			collections.identityCenterAccounts = &genericCollection[
-				services.IdentityCenterAccount,
+				*identitycenterv1.Account,
 				identityCenterAccountGetter,
 				identityCenterAccountExecutor,
 			]{
@@ -780,7 +760,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter IdentityCenter")
 			}
 			collections.identityCenterAccountAssignments = &genericCollection[
-				services.IdentityCenterAccountAssignment,
+				*identitycenterv1.AccountAssignment,
 				identityCenterAccountAssignmentGetter,
 				identityCenterAccountAssignmentExecutor,
 			]{
@@ -1225,6 +1205,7 @@ func (provisionTokenExecutor) getReader(cache *Cache, cacheOK bool) tokenGetter 
 type tokenGetter interface {
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}
@@ -1371,7 +1352,27 @@ var _ executor[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter]
 type userExecutor struct{}
 
 func (userExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.User, error) {
-	return cache.Users.GetUsers(ctx, loadSecrets)
+	fn := func(ctx context.Context, pageSize int, token string) ([]types.User, string, error) {
+		rsp, err := cache.Users.ListUsers(ctx, &userspb.ListUsersRequest{
+			WithSecrets: loadSecrets,
+			PageSize:    int32(pageSize),
+			PageToken:   token,
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		out := make([]types.User, 0, len(rsp.Users))
+		for _, user := range rsp.Users {
+			out = append(out, user)
+		}
+
+		return out, rsp.NextPageToken, nil
+	}
+
+	// Use clientutils for auto pagesize backoff.
+	out, err := stream.Collect(clientutils.Resources(ctx, fn))
+	return out, trace.Wrap(err)
 }
 
 func (userExecutor) upsert(ctx context.Context, cache *Cache, resource types.User) error {
@@ -1521,7 +1522,13 @@ var _ executor[types.DatabaseService, noReader] = databaseServiceExecutor{}
 type databaseExecutor struct{}
 
 func (databaseExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Database, error) {
-	return cache.Databases.GetDatabases(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Databases.ListDatabases))
+	// TODO(lokraszewski): DELETE IN v21.0.0
+	if trace.IsNotImplemented(err) {
+		out, err := cache.Databases.GetDatabases(ctx)
+		return out, trace.Wrap(err)
+	}
+	return out, trace.Wrap(err)
 }
 
 func (databaseExecutor) upsert(ctx context.Context, cache *Cache, resource types.Database) error {
@@ -1588,7 +1595,13 @@ var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = dat
 type appExecutor struct{}
 
 func (appExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Application, error) {
-	return cache.Apps.GetApps(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Apps.ListApps))
+	// TODO(tross): DELETE IN v21.0.0
+	if trace.IsNotImplemented(err) {
+		apps, err := cache.Apps.GetApps(ctx)
+		return apps, trace.Wrap(err)
+	}
+	return out, trace.Wrap(err)
 }
 
 func (appExecutor) upsert(ctx context.Context, cache *Cache, resource types.Application) error {
@@ -1711,7 +1724,8 @@ var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}
 type snowflakeSessionExecutor struct{}
 
 func (snowflakeSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	webSessions, err := cache.SnowflakeSession.GetSnowflakeSessions(ctx)
+	webSessions, err := clientutils.CollectWithFallback(ctx, cache.SnowflakeSession.ListSnowflakeSessions, cache.SnowflakeSession.GetSnowflakeSessions)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1750,6 +1764,8 @@ func (snowflakeSessionExecutor) getReader(cache *Cache, cacheOK bool) snowflakeS
 
 type snowflakeSessionGetter interface {
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+	ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error)
+	GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error)
 }
 
 var _ executor[types.WebSession, snowflakeSessionGetter] = snowflakeSessionExecutor{}
@@ -1862,19 +1878,19 @@ var _ executor[types.WebSession, webSessionGetter] = webSessionExecutor{}
 type webTokenExecutor struct{}
 
 func (webTokenExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebToken, error) {
-	return cache.WebToken.List(ctx)
+	return clientutils.CollectWithFallback(ctx, cache.WebToken.ListWebTokens, cache.WebToken.GetWebTokens)
 }
 
 func (webTokenExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebToken) error {
-	return cache.webTokenCache.Upsert(ctx, resource)
+	return cache.webTokenCache.UpsertWebToken(ctx, resource)
 }
 
 func (webTokenExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.webTokenCache.DeleteAll(ctx)
+	return cache.webTokenCache.DeleteAllWebTokens(ctx)
 }
 
 func (webTokenExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.webTokenCache.Delete(ctx, types.DeleteWebTokenRequest{
+	return cache.webTokenCache.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
 		Token: resource.GetName(),
 	})
 }
@@ -1889,7 +1905,9 @@ func (webTokenExecutor) getReader(cache *Cache, cacheOK bool) webTokenGetter {
 }
 
 type webTokenGetter interface {
-	Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+	GetWebTokens(ctx context.Context) (out []types.WebToken, err error)
+	ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error)
 }
 
 var _ executor[types.WebToken, webTokenGetter] = webTokenExecutor{}
@@ -2194,7 +2212,17 @@ var _ executor[types.NetworkRestrictions, networkRestrictionGetter] = networkRes
 type lockExecutor struct{}
 
 func (lockExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Lock, error) {
-	return cache.Access.GetLocks(ctx, false)
+	return clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			var noFilter *types.LockFilter
+			return cache.accessCache.ListLocks(ctx, limit, start, noFilter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			const inForceOnlyFalse = false
+			return cache.accessCache.GetLocks(ctx, inForceOnlyFalse)
+		},
+	)
 }
 
 func (lockExecutor) upsert(ctx context.Context, cache *Cache, resource types.Lock) error {
@@ -2383,7 +2411,7 @@ var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dyna
 type kubeClusterExecutor struct{}
 
 func (kubeClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.KubeCluster, error) {
-	return cache.Kubernetes.GetKubernetesClusters(ctx)
+	return clientutils.CollectWithFallback(ctx, cache.Kubernetes.ListKubernetesClusters, cache.Kubernetes.GetKubernetesClusters)
 }
 
 func (kubeClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.KubeCluster) error {
@@ -2414,8 +2442,11 @@ func (kubeClusterExecutor) getReader(cache *Cache, cacheOK bool) kubernetesClust
 	return cache.Config.Kubernetes
 }
 
+var _ executor[types.KubeCluster, kubernetesClusterGetter] = kubeClusterExecutor{}
+
 type kubernetesClusterGetter interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 

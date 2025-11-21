@@ -2,6 +2,9 @@
 title: Run the Mattermost Access Request plugin
 sidebar_label: Mattermost
 description: How to set up Teleport's Mattermost plugin for privilege elevation approvals.
+tags:
+ - how-to
+ - identity-governance
 ---
 
 import BotLogo from "/static/avatar_logo.png";
@@ -79,7 +82,7 @@ dangerous if exfiltrated, though in demo deployments, you can generate
 longer-lived identity files with `tctl`:
 
 <Tabs>
-<TabItem label="Machine ID">
+<TabItem label="Machine & Workload Identity">
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-mattermost-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">

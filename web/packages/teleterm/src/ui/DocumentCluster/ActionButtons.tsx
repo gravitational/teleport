@@ -18,7 +18,14 @@
 
 import React from 'react';
 
-import { ButtonBorder, ButtonPrimary, ButtonWithMenu, MenuItem } from 'design';
+import {
+  Box,
+  ButtonBorder,
+  ButtonPrimary,
+  ButtonWithMenu,
+  Flex,
+  MenuItem,
+} from 'design';
 import {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
@@ -35,15 +42,17 @@ import {
   MenuLogin,
   MenuLoginProps,
 } from 'shared/components/MenuLogin';
+import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
 
 import {
   formatPortRange,
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
+  isMcp,
   isWebApp,
 } from 'teleterm/services/tshd/app';
-import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { GatewayProtocol } from 'teleterm/services/tshd/gateway';
 import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -57,16 +66,32 @@ import {
 import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useVnetAppLauncher, useVnetContext } from 'teleterm/ui/Vnet';
+import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+
+/**
+ * Width that should be consistent across all displayed buttons.
+ *
+ * The list view of unified resources is not an actual table but a flexbox, so it depends on widths
+ * of elements to be consistent across rows so that they line up.
+ */
+const buttonWidth = 124;
 
 export function ConnectServerActionButton(props: {
   server: Server;
 }): React.JSX.Element {
   const ctx = useAppContext();
+  const { isSupported: isVnetSupported } = useVnetContext();
+  const { launchVnet } = useVnetLauncher();
 
-  function getSshLogins(): string[] {
+  function connectWithVnet(): void {
+    const hostname = props.server.hostname;
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
-    return cluster?.loggedInUser?.sshLogins || [];
+    const clusterName = cluster?.name || '<cluster>';
+    const addr = `${hostname}.${clusterName}`;
+    launchVnet({
+      addrToCopy: addr,
+      resourceUri: props.server.uri,
+    });
   }
 
   function connect(login: string): void {
@@ -80,21 +105,30 @@ export function ConnectServerActionButton(props: {
     );
   }
 
+  const commonProps = {
+    inputType: MenuInputType.FILTER,
+    textTransform: 'none',
+    getLoginItems: () => props.server.logins.map(login => ({ login, url: '' })),
+    onSelect: (e, login) => connect(login),
+    transformOrigin: {
+      vertical: 'top',
+      horizontal: 'right',
+    },
+    anchorOrigin: {
+      vertical: 'bottom',
+      horizontal: 'right',
+    },
+  };
+
+  if (!isVnetSupported) {
+    return (
+      <MenuLogin {...commonProps} width={buttonWidth} alignButtonWidthToMenu />
+    );
+  }
   return (
-    <MenuLogin
-      inputType={MenuInputType.FILTER}
-      textTransform="none"
-      getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
-      onSelect={(e, login) => connect(login)}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'right',
-      }}
-    />
+    <MenuLoginWithActionMenu size="small" {...commonProps} width={buttonWidth}>
+      <MenuItem onClick={connectWithVnet}>Connect with VNet</MenuItem>
+    </MenuLoginWithActionMenu>
   );
 }
 
@@ -112,7 +146,12 @@ export function ConnectKubeActionButton(props: {
   }
 
   return (
-    <ButtonBorder textTransform="none" size="small" onClick={connect}>
+    <ButtonBorder
+      textTransform="none"
+      size="small"
+      onClick={connect}
+      width={buttonWidth}
+    >
       Connect
     </ButtonBorder>
   );
@@ -121,13 +160,13 @@ export function ConnectKubeActionButton(props: {
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
   const { isSupported: isVnetSupported } = useVnetContext();
-  const { launchVnet } = useVnetAppLauncher();
+  const { launchVnet } = useVnetLauncher();
 
   function connectWithVnet(targetPort?: number): void {
     void launchVnet({
       addrToCopy: appToAddrToCopy(props.app, targetPort),
       resourceUri: props.app.uri,
-      isMultiPort: !!props.app.tcpPorts.length,
+      isMultiPortApp: !!props.app.tcpPorts.length,
     });
   }
 
@@ -187,6 +226,7 @@ export function ConnectDatabaseActionButton(props: {
       )}
       textTransform="none"
       width="195px"
+      buttonWidth={buttonWidth}
       getLoginItems={() => getDatabaseUsers(appContext, props.database.uri)}
       onSelect={(_, user) => {
         connect(user);
@@ -249,6 +289,7 @@ function AppButton(props: {
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton
+        width={buttonWidth}
         awsRoles={props.app.awsRoles}
         getLaunchUrl={arn =>
           getAwsAppLaunchUrl({
@@ -276,10 +317,18 @@ function AppButton(props: {
           rootCluster: props.rootCluster,
         })}
         target="_blank"
+        width={buttonWidth}
       >
         Log In
       </ButtonBorder>
     );
+  }
+
+  if (isMcp(props.app)) {
+    // TODO(greedy52) decide what to do with MCP servers.
+    // In the meantime, display a box of specific width to make the other columns line up for MCP
+    // apps in the list view of unified resources.
+    return <Box width={buttonWidth} />;
   }
 
   if (isWebApp(props.app)) {
@@ -297,6 +346,7 @@ function AppButton(props: {
         onClick={props.onLaunchUrl}
         target="_blank"
         title="Launch the app in the browser"
+        width={buttonWidth}
       >
         <MenuItem onClick={() => props.setUpGateway()}>
           Set up connection
@@ -313,6 +363,7 @@ function AppButton(props: {
         textTransform="none"
         size="small"
         onClick={() => props.connectWithVnet()}
+        width={buttonWidth}
       >
         <MenuItem onClick={() => props.setUpGateway()}>
           Connect without VNet
@@ -338,6 +389,7 @@ function AppButton(props: {
         textTransform="none"
         size="small"
         onClick={() => props.setUpGateway()}
+        width={buttonWidth}
       >
         <AvailableTargetPorts
           tcpPorts={props.app.tcpPorts}
@@ -353,6 +405,7 @@ function AppButton(props: {
       size="small"
       onClick={() => props.setUpGateway()}
       textTransform="none"
+      width={buttonWidth}
     >
       Connect
     </ButtonBorder>
@@ -390,7 +443,7 @@ export function AccessRequestButton(props: {
   return props.isResourceAdded ? (
     <ButtonPrimary
       textTransform="none"
-      width="124px"
+      width={buttonWidth}
       size="small"
       onClick={props.onClick}
     >
@@ -399,7 +452,7 @@ export function AccessRequestButton(props: {
   ) : (
     <ButtonBorder
       textTransform="none"
-      width="124px"
+      width={buttonWidth}
       size="small"
       onClick={props.onClick}
     >
@@ -423,23 +476,26 @@ export function ConnectWindowsDesktopActionButton(props: {
   }
 
   return (
-    <MenuLogin
-      textTransform="none"
-      width="195px"
-      getLoginItems={() =>
-        props.windowsDesktop.logins.map(l => ({ login: l, url: '' }))
-      }
-      onSelect={(_, user) => {
-        connect(user);
-      }}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'right',
-      }}
-    />
+    <Flex width={buttonWidth}>
+      <MenuLogin
+        textTransform="none"
+        width="195px"
+        buttonWidth={buttonWidth}
+        getLoginItems={() =>
+          props.windowsDesktop.logins.map(l => ({ login: l, url: '' }))
+        }
+        onSelect={(_, user) => {
+          connect(user);
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+      />
+    </Flex>
   );
 }

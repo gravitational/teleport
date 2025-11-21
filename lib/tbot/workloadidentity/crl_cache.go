@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
@@ -65,6 +66,58 @@ func (b *CRLSet) Marshal() []byte {
 // and a new CRLSet is available.
 func (b *CRLSet) Stale() <-chan struct{} {
 	return b.stale
+}
+
+// NewCRLCacheFacade creates a new TrustBundleCacheFacade.
+func NewCRLCacheFacade() *CRLCacheFacade {
+	return &CRLCacheFacade{ready: make(chan struct{})}
+}
+
+// CRLCacheFacade wraps a CRLCache to provide lazy initialization using its
+// BuildService method. It allows you to create a cache and pass it to service
+// builders before it has been initialized by running the bot.
+type CRLCacheFacade struct {
+	mu       sync.Mutex
+	ready    chan struct{}
+	crlCache *CRLCache
+}
+
+// Builder returns a bot.ServiceBuilder to build the CRLCache once when the bot
+// starts up.
+func (f *CRLCacheFacade) Builder() bot.ServiceBuilder {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		if f.crlCache == nil {
+			var err error
+			f.crlCache, err = NewCRLCache(CRLCacheConfig{
+				RevocationsClient: deps.Client.WorkloadIdentityRevocationServiceClient(),
+				Logger:            deps.Logger,
+				StatusReporter:    deps.GetStatusReporter(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			close(f.ready)
+		}
+
+		return f.crlCache, nil
+	}
+	return bot.NewServiceBuilder("internal/crl-cache", "crl-cache", buildFn)
+}
+
+func (m *CRLCacheFacade) GetCRLSet(ctx context.Context) (*CRLSet, error) {
+	select {
+	case <-m.ready:
+		m.mu.Lock()
+		cache := m.crlCache
+		m.mu.Unlock()
+
+		return cache.GetCRLSet(ctx)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // CRLCache streams CRLs from the revocations service and caches them. It

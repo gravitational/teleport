@@ -847,6 +847,16 @@ const (
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 
+	// AutoUpdateAgentRolloutTriggerEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually triggered.
+	AutoUpdateAgentRolloutTriggerEvent = "auto_update_agent_rollout.trigger"
+	// AutoUpdateAgentRolloutForceDoneEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually forced to a done state.
+	AutoUpdateAgentRolloutForceDoneEvent = "auto_update_agent_rollout.force_done"
+	// AutoUpdateAgentRolloutRollbackEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually rolledback.
+	AutoUpdateAgentRolloutRollbackEvent = "auto_update_agent_rollout.rollback"
+
 	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
 	WorkloadIdentityCreateEvent = "workload_identity.create"
 	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
@@ -887,6 +897,38 @@ const (
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
+
+	// BoundKeypairRecovery is emitted when a bound keypair token is used to
+	// perform a recovery.
+	BoundKeypairRecovery = "join_token.bound_keypair.recovery"
+	// BoundKeypairRotation is emitted when a keypair rotation is attempted.
+	BoundKeypairRotation = "join_token.bound_keypair.rotation"
+	// BoundKeypairJoinStateVerificationFailed is emitted when join state
+	// document verification fails.
+	BoundKeypairJoinStateVerificationFailed = "join_token.bound_keypair.join_state_verification_failed"
+
+	// SCIMListingEvent is emitted when a SCIM client lists resources managed by
+	// the SCIM service.
+	SCIMListingEvent = "scim.list"
+
+	// SCIMCreateEvent is emitted when a client attempts to fetch a specific SCIM
+	// resource.
+	SCIMGetEvent = "scim.get"
+
+	// SCIMCreateEvent is emitted when a new resource is created by the
+	// SCIM service in response to a request. This includes taking ownership of
+	// existing users.
+	SCIMCreateEvent = "scim.create"
+
+	// SCIMUpdateEvent is emitted when a resource is updated via the SCIM
+	// service. Includes "deactivating" resources (per Okta).
+	SCIMUpdateEvent = "scim.update"
+
+	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
+	SCIMDeleteEvent = "scim.delete"
+
+	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
+	ClientIPRestrictionsUpdateEvent = "cir.update"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

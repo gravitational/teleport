@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -27,6 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
@@ -61,15 +63,15 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), func(server *Server) error {
-		server.k8sTokenReviewValidator = &mockK8STokenReviewValidator{tokens: tokenReviewTokens}
-		server.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*kubetoken.ValidationResult, error) {
+	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
+		server.SetK8sTokenReviewValidator(&mockK8STokenReviewValidator{tokens: tokenReviewTokens})
+		server.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, token string) (*kubetoken.ValidationResult, error) {
 			result, ok := jwksTokens[token]
 			if !ok {
 				return nil, errMockInvalidToken
 			}
 			return result, nil
-		}
+		})
 		return nil
 	})
 	require.NoError(t, err)
@@ -120,7 +122,7 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 	// Building a joinRequest builder
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	newRequest := func(token, idToken string) *types.RegisterUsingTokenRequest {

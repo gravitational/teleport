@@ -160,6 +160,9 @@ type FileSystem interface {
 	Readlink(name string) (string, error)
 	// Getwd gets the current working directory.
 	Getwd() (string, error)
+	// RealPath canonicalizes a path name, including resolving ".." and
+	// following symlinks.
+	RealPath(path string) (string, error)
 }
 
 // CreateUploadConfig returns a Config ready to upload files over SFTP.
@@ -303,7 +306,7 @@ func (c *Config) setDefaults() {
 
 	if !c.opts.Quiet {
 		c.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-			return NewProgressBar(fileInfo.Size(), fileInfo.Name(), cmp.Or(c.opts.ProgressWriter, io.Writer(os.Stdout)))
+			return newProgressBar(fileInfo.Size(), fileInfo.Name(), cmp.Or(c.opts.ProgressWriter, io.Writer(os.Stdout)))
 		}
 	}
 }
@@ -550,7 +553,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		}
 
 		if fi.IsDir() {
-			if err := c.transferDir(ctx, dstPath, matchedPaths[i], fi); err != nil {
+			if err := c.transferDir(ctx, dstPath, matchedPaths[i], fi, nil); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
@@ -564,10 +567,22 @@ func (c *Config) transfer(ctx context.Context) error {
 }
 
 // transferDir transfers a directory
-func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo, visited map[string]struct{}) error {
+	if visited == nil {
+		visited = make(map[string]struct{})
+	}
+	realSrcPath, err := c.srcFS.RealPath(srcPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, ok := visited[realSrcPath]; ok {
+		c.Log.Debugf("symlink loop detected at link %v, directory %v will be skipped", srcPath, realSrcPath)
+		return nil
+	}
+	visited[realSrcPath] = struct{}{}
 	c.Log.Debugf("copying %s dir %q to %s dir %q", c.srcFS.Type(), srcPath, c.dstFS.Type(), dstPath)
 
-	err := c.dstFS.Mkdir(dstPath)
+	err = c.dstFS.Mkdir(dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
@@ -585,7 +600,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 		lSubPath := path.Join(srcPath, info.Name())
 
 		if info.IsDir() {
-			if err := c.transferDir(ctx, dstSubPath, lSubPath, info); err != nil {
+			if err := c.transferDir(ctx, dstSubPath, lSubPath, info, visited); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
@@ -647,7 +662,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 			err,
 		)
 	}
-	if n != srcFileInfo.Size() {
+	if n < srcFileInfo.Size() {
 		return trace.Errorf("error copying %s file %q to %s file %q: short write: wrote %d bytes, expected to write %d bytes",
 			c.srcFS.Type(),
 			srcPath,
@@ -734,11 +749,35 @@ func getAtime(fi os.FileInfo) time.Time {
 	return scp.GetAtime(fi)
 }
 
-// NewProgressBar returns a new progress bar that writes to writer.
-func NewProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
+// unboundedProgressBar is a wrapper for a progress bar that increases its max
+// value when its internal count gets too big, instead of failing.
+type unboundedProgressBar struct {
+	pb *progressbar.ProgressBar
+}
+
+func (u *unboundedProgressBar) checkMax(n int) {
+	state := u.pb.State()
+	newNum := state.CurrentNum + int64(n)
+	if newNum > state.Max {
+		u.pb.ChangeMax64(newNum)
+	}
+}
+
+func (u *unboundedProgressBar) Read(p []byte) (int, error) {
+	u.checkMax(len(p))
+	return u.pb.Read(p)
+}
+
+func (u *unboundedProgressBar) Write(p []byte) (int, error) {
+	u.checkMax(len(p))
+	return u.pb.Write(p)
+}
+
+// newProgressBar returns a new progress bar that writes to writer.
+func newProgressBar(size int64, desc string, writer io.Writer) *unboundedProgressBar {
 	// this is necessary because progressbar.DefaultBytes doesn't allow
 	// the caller to specify a writer
-	return progressbar.NewOptions64(
+	return &unboundedProgressBar{pb: progressbar.NewOptions64(
 		size,
 		progressbar.OptionSetDescription(desc),
 		progressbar.OptionSetWriter(writer),
@@ -752,7 +791,7 @@ func NewProgressBar(size int64, desc string, writer io.Writer) *progressbar.Prog
 		progressbar.OptionSpinnerType(14),
 		progressbar.OptionFullWidth(),
 		progressbar.OptionSetRenderBlankState(true),
-	)
+	)}
 }
 
 // NonRecursiveDirectoryTransferError is returned when an attempt is made

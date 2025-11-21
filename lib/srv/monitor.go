@@ -60,11 +60,16 @@ type TrackingConn interface {
 	Close() error
 }
 
+type ConnectionMonitorAccessPoint interface {
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+}
+
 // ConnectionMonitorConfig contains dependencies required by
 // the ConnectionMonitor.
 type ConnectionMonitorConfig struct {
 	// AccessPoint is used to retrieve cluster configuration.
-	AccessPoint AccessPoint
+	AccessPoint ConnectionMonitorAccessPoint
 	// LockWatcher ensures lock information is up to date.
 	LockWatcher *services.LockWatcher
 	// Clock is a clock, realtime or fixed in tests.
@@ -443,7 +448,7 @@ func (w *Monitor) disconnectClient(reason string) {
 	w.Entry.Debugf("Disconnecting client: %v", reason)
 
 	if connWithCauseCloser, ok := w.Conn.(withCauseCloser); ok {
-		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied(reason)); err != nil {
+		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied("%s", reason)); err != nil {
 			w.Entry.WithError(err).Error("Failed to close connection.")
 		}
 	} else {

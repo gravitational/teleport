@@ -51,6 +51,9 @@ var scopes = []string{"https://graph.microsoft.com/.default"}
 // AzureTokenProvider defines a method to get an authorization token from the Entra STS.
 // Concrete implementations of this are defined by [github.com/Azure/azure-sdk-for-go/sdk/azidentity].
 type AzureTokenProvider interface {
+	// GetToken requests an access token from Microsoft Entra ID. Token providers from azidentity
+	// return cached tokens whenever possible and are safe for concurrent use.
+	// https://github.com/Azure/azure-sdk-for-go/blob/sdk/azidentity/v1.11.0/sdk/azidentity/TOKEN_CACHING.MD
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
 }
 
@@ -159,14 +162,6 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 		req.Header.Add("Content-Type", "application/json")
 	}
 
-	token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: scopes,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to get azure authentication token")
-	}
-	req.Header.Add("Authorization", "Bearer "+token.Token)
-
 	const maxRetries = 5
 	var retryAfter time.Duration
 
@@ -185,6 +180,13 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 				return nil, trace.NewAggregate(ctx.Err(), trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path))
 			}
 		}
+		token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
+			Scopes: scopes,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to get azure authentication token")
+		}
+		req.Header.Set("Authorization", "Bearer "+token.Token)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -203,7 +205,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 			lastErr = trace.Wrap(graphError)
 		} else {
 			// API did not return a valid error structure, best-effort reporting.
-			lastErr = trace.Errorf(resp.Status)
+			lastErr = trace.Errorf("%s", resp.Status)
 		}
 		if !isRetriable(resp.StatusCode) {
 			break

@@ -72,6 +72,13 @@ func (c *collection[T, _]) onDelete(r types.Resource) error {
 		}
 
 		return trace.Wrap(c.store.delete(tt))
+	case interface{ Unwrap() types.Resource153 }:
+		unwrapped := t.Unwrap()
+		tt, ok := unwrapped.(T)
+		if !ok {
+			return trace.BadParameter("unexpected type when calling Unwrap: %T (expected %v)", unwrapped, reflect.TypeFor[T]())
+		}
+		return trace.Wrap(c.store.delete(tt))
 	case *types.ResourceHeader:
 		if c.headerTransform == nil {
 			return trace.BadParameter("unable to convert types.ResourceHeader to %v (no transform specified, this is a bug)", reflect.TypeFor[T]())
@@ -106,6 +113,14 @@ func (c *collection[T, _]) onPut(r types.Resource) error {
 			return nil
 		}
 
+		c.store.put(tt)
+		return nil
+	case interface{ Unwrap() types.Resource153 }:
+		unwrapped := t.Unwrap()
+		tt, ok := unwrapped.(T)
+		if !ok {
+			return trace.BadParameter("unexpected type when calling Unwrap: %T (expected %v)", unwrapped, reflect.TypeFor[T]())
+		}
 		c.store.put(tt)
 		return nil
 	case T:

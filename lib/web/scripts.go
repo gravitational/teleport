@@ -36,7 +36,10 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
-const insecureParamName = "insecure"
+const (
+	insecureParamName = "insecure"
+	groupParamName    = "group"
+)
 
 // installScriptHandle handles calls for "/scripts/install.sh" and responds with a bash script installing Teleport
 // by downloading and running `teleport-update`. This installation script does not start the agent, join it,
@@ -61,6 +64,9 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 			return nil, trace.BadParameter("failed to parse insecure flag %q: %v", insecure, err)
 		}
 		opts.Insecure = v
+	}
+	if group := r.URL.Query().Get(groupParamName); group != "" {
+		opts.Group = group
 	}
 
 	script, err := scripts.GetInstallScript(r.Context(), opts)
@@ -89,7 +95,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 	version, err := h.autoUpdateAgentVersion(ctx, defaultGroup, defaultUpdater)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get intended agent version", "error", err)
-		version = teleport.Version
+		version = teleport.SemVer()
 	}
 
 	// if there's a rollout, we do new autoupdates
@@ -145,15 +151,10 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 // - "https://cdn.cloud.gravitational.io" (dev builds/staging)
 const EnvVarCDNBaseURL = "TELEPORT_CDN_BASE_URL"
 
-func getCDNBaseURL(version string) (string, error) {
+func getCDNBaseURL(version *semver.Version) (string, error) {
 	// If the user explicitly overrides the CDN base URL, we use it.
 	if override := os.Getenv(EnvVarCDNBaseURL); override != "" {
 		return override, nil
-	}
-
-	v, err := semver.NewVersion(version)
-	if err != nil {
-		return "", trace.Wrap(err)
 	}
 
 	// For backward compatibility we don't fail if the user is running AGPL and
@@ -161,5 +162,5 @@ func getCDNBaseURL(version string) (string, error) {
 	// cannot automatically install binaries subject to a license the user has
 	// not agreed to.
 
-	return teleportassets.CDNBaseURLForVersion(v), nil
+	return teleportassets.CDNBaseURLForVersion(version), nil
 }

@@ -273,6 +273,10 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateVersion, nil
 	case types.KindAutoUpdateAgentRollout:
 		return types.KindAutoUpdateAgentRollout, nil
+	case types.KindAutoUpdateAgentReport:
+		return types.KindAutoUpdateAgentReport, nil
+	case types.KindAutoUpdateBotInstanceReport:
+		return types.KindAutoUpdateBotInstanceReport, nil
 	case types.KindGitServer, types.KindGitServer + "s":
 		return types.KindGitServer, nil
 	case types.KindWorkloadIdentityX509Revocation, types.KindWorkloadIdentityX509Revocation + "s":

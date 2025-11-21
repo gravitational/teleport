@@ -60,6 +60,14 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
     MenuIcon?: ComponentType<IconProps>;
     size?: ButtonSize;
     forwardedAs?: Element;
+    /**
+     * Width of just the Button part of the component. Ignored if width is set.
+     */
+    buttonWidth?: ComponentPropsWithoutRef<typeof Flex>['width'];
+    /**
+     * Width of the whole component (Button + menu Button). buttonWidth is ignored if width is set.
+     */
+    width?: ComponentPropsWithoutRef<typeof Flex>['width'];
   } & ComponentPropsWithoutRef<typeof ButtonBorder<Element>>
 ) => {
   const {
@@ -67,6 +75,8 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
     MenuIcon = icons.MoreVert,
     children,
     size = 'medium',
+    width,
+    buttonWidth,
     ...buttonBorderProps
   } = props;
 
@@ -74,7 +84,7 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <Flex>
+    <Flex width={width}>
       <ButtonBorder
         css={`
           border-top-right-radius: 0;
@@ -82,6 +92,7 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
         `}
         size={size}
         {...buttonBorderProps}
+        width={width ? '100%' : buttonWidth}
       >
         {text}
       </ButtonBorder>

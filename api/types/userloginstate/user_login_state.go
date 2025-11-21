@@ -136,6 +136,13 @@ func (u *UserLoginState) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(u.Metadata)
 }
 
+// GetLabel fetches the given user label, with the same semantics
+// as a map read
+func (u *UserLoginState) GetLabel(key string) (value string, ok bool) {
+	value, ok = u.Metadata.Labels[key]
+	return
+}
+
 // GetGithubIdentities returns a list of connected Github identities
 func (u *UserLoginState) GetGithubIdentities() []types.ExternalIdentity {
 	if u.Spec.GitHubIdentity == nil {

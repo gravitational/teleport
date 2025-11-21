@@ -257,8 +257,8 @@ func (e *localExec) transformSecureCopy() error {
 	if err != nil {
 		e.Ctx.GetServer().EmitAuditEvent(context.WithoutCancel(e.Ctx.Context), &apievents.SFTP{
 			Metadata: apievents.Metadata{
-				Code: events.SCPDisallowedCode,
-				Type: events.SCPEvent,
+				Code: events.SFTPDisallowedCode,
+				Type: events.SFTPEvent,
 				Time: time.Now(),
 			},
 			UserMetadata:   e.Ctx.Identity.GetUserMetadata(),
@@ -362,8 +362,8 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
 		e.ctx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 			Metadata: apievents.Metadata{
-				Code: events.SCPDisallowedCode,
-				Type: events.SCPEvent,
+				Code: events.SFTPDisallowedCode,
+				Type: events.SFTPEvent,
 				Time: time.Now(),
 			},
 			UserMetadata:   e.ctx.Identity.GetUserMetadata(),

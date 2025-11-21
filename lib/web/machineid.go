@@ -17,6 +17,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,6 +25,7 @@ import (
 	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -218,38 +220,134 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 }
 
 // updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
-func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	var request updateBotRequest
+// TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
+// MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
+func (h *Handler) updateBotV1(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	var request updateBotRequestV1
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	botName := p.ByName("name")
+	return updateBot(r.Context(), p.ByName("name"), updateBotRequestV3{
+		Roles: request.Roles,
+	}, sctx, site)
+}
+
+type updateBotRequestV1 struct {
+	Roles []string `json:"roles"`
+}
+
+// updateBotV2 updates a bot with provided roles, traits and max_session_ttl.
+// TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV3
+// MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
+func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	var request updateBotRequestV2
+	if err := httplib.ReadResourceJSON(r, &request); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return updateBot(r.Context(), p.ByName("name"), updateBotRequestV3{
+		Roles:         request.Roles,
+		Traits:        request.Traits,
+		MaxSessionTtl: request.MaxSessionTtl,
+	}, sctx, site)
+}
+
+type updateBotRequestV2 struct {
+	Roles         []string                `json:"roles"`
+	Traits        []updateBotRequestTrait `json:"traits"`
+	MaxSessionTtl string                  `json:"max_session_ttl"`
+}
+
+type updateBotRequestTrait struct {
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
+}
+
+// updateBot updates a bot with provided roles, traits, max_session_ttl and
+// description.
+func (h *Handler) updateBotV3(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	var request updateBotRequestV3
+	if err := httplib.ReadResourceJSON(r, &request); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return updateBot(r.Context(), p.ByName("name"), request, sctx, site)
+}
+
+type updateBotRequestV3 struct {
+	Roles         []string                `json:"roles"`
+	Traits        []updateBotRequestTrait `json:"traits"`
+	MaxSessionTtl string                  `json:"max_session_ttl"`
+	Description   *string                 `json:"description"`
+}
+
+// updateBot updates a bot with provided roles, traits, max_session_ttl and
+// description.
+func updateBot(ctx context.Context, botName string, request updateBotRequestV3, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if botName == "" {
 		return nil, trace.BadParameter("empty name")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	mask, err := fieldmaskpb.New(&machineidv1.Bot{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	mask, err := fieldmaskpb.New(&machineidv1.Bot{}, "spec.roles")
-	if err != nil {
-		return nil, trace.Wrap(err)
+	metadata := headerv1.Metadata{
+		Name: botName,
+	}
+	spec := machineidv1.BotSpec{}
+
+	if request.Roles != nil {
+		mask.Append(&machineidv1.Bot{}, "spec.roles")
+
+		spec.Roles = request.Roles
 	}
 
-	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
+	if request.Traits != nil {
+		mask.Append(&machineidv1.Bot{}, "spec.traits")
+
+		traits := make([]*machineidv1.Trait, len(request.Traits))
+		for i, trait := range request.Traits {
+			traits[i] = &machineidv1.Trait{
+				Name:   trait.Name,
+				Values: trait.Values,
+			}
+		}
+
+		spec.Traits = traits
+	}
+
+	if request.MaxSessionTtl != "" {
+		mask.Append(&machineidv1.Bot{}, "spec.max_session_ttl")
+
+		ttl, err := time.ParseDuration(request.MaxSessionTtl)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		spec.MaxSessionTtl = durationpb.New(ttl)
+	}
+
+	if request.Description != nil {
+		mask.Append(&machineidv1.Bot{}, "metadata.description")
+
+		metadata.Description = *request.Description
+	}
+
+	updated, err := clt.BotServiceClient().UpdateBot(ctx, &machineidv1.UpdateBotRequest{
 		UpdateMask: mask,
 		Bot: &machineidv1.Bot{
-			Kind:    types.KindBot,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: botName,
-			},
-			Spec: &machineidv1.BotSpec{
-				Roles: request.Roles,
-			},
+			Kind:     types.KindBot,
+			Version:  types.V1,
+			Metadata: &metadata,
+			Spec:     &spec,
 		},
 	})
 	if err != nil {
@@ -257,10 +355,6 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	return updated, nil
-}
-
-type updateBotRequest struct {
-	Roles []string `json:"roles"`
 }
 
 // getBotInstance retrieves a bot instance by id
@@ -317,11 +411,19 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 		}
 	}
 
+	var sort *types.SortBy
+	if r.URL.Query().Has("sort") {
+		sortString := r.URL.Query().Get("sort")
+		s := types.GetSortByFromString(sortString)
+		sort = &s
+	}
+
 	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
 		FilterBotName:    r.URL.Query().Get("bot_name"),
 		PageSize:         int32(pageSize),
 		PageToken:        r.URL.Query().Get("page_token"),
 		FilterSearchTerm: r.URL.Query().Get("search"),
+		Sort:             sort,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -344,6 +446,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 			uiInstance.HostNameLatest = heartbeat.Hostname
 			uiInstance.VersionLatest = heartbeat.Version
 			uiInstance.ActiveAtLatest = heartbeat.RecordedAt.AsTime().Format(time.RFC3339)
+			uiInstance.OSLatest = heartbeat.Os
 		}
 
 		return uiInstance
@@ -367,4 +470,5 @@ type BotInstance struct {
 	HostNameLatest   string `json:"host_name_latest,omitempty"`
 	VersionLatest    string `json:"version_latest,omitempty"`
 	ActiveAtLatest   string `json:"active_at_latest,omitempty"`
+	OSLatest         string `json:"os_latest,omitempty"`
 }

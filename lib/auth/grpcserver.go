@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1072,6 +1073,18 @@ func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.Acces
 	return caps, nil
 }
 
+func (g *GRPCServer) GetRemoteAccessCapabilities(ctx context.Context, req *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := auth.ServerWithRoles.GetRemoteAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1241,6 +1254,34 @@ func (g *GRPCServer) GetSemaphores(ctx context.Context, req *types.SemaphoreFilt
 	}, nil
 }
 
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (g *GRPCServer) ListSemaphores(ctx context.Context, req *authpb.ListSemaphoresRequest) (*authpb.ListSemaphoresResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	semaphores, next, err := auth.ListSemaphores(ctx, int(req.GetPageSize()), req.GetPageToken(), req.GetFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSemaphoresResponse{
+		Semaphores:    make([]*types.SemaphoreV3, 0, len(semaphores)),
+		NextPageToken: next,
+	}
+
+	for _, sem := range semaphores {
+		v3, ok := sem.(*types.SemaphoreV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected semaphore type: %T", sem)
+		}
+		resp.Semaphores = append(resp.Semaphores, v3)
+	}
+
+	return resp, nil
+}
+
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
 func (g *GRPCServer) DeleteSemaphore(ctx context.Context, req *types.SemaphoreFilter) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1395,6 +1436,10 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1518,6 +1563,35 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	return &authpb.GetSnowflakeSessionsResponse{
 		Sessions: out,
 	}, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake sessions.
+func (g *GRPCServer) ListSnowflakeSessions(ctx context.Context, req *authpb.ListSnowflakeSessionsRequest) (*authpb.ListSnowflakeSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, next, err := auth.ListSnowflakeSessions(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSnowflakeSessionsResponse{
+		Sessions:      make([]*types.WebSessionV2, 0, len(sessions)),
+		NextPageToken: next,
+	}
+
+	for _, session := range sessions {
+		webessionV2, ok := session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unsupported web session type %T", session)
+		}
+		resp.Sessions = append(resp.Sessions, webessionV2)
+	}
+
+	return resp, nil
 }
 
 // GetSAMLIdPSession gets a SAML IdPsession.
@@ -1893,7 +1967,7 @@ func (g *GRPCServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequ
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := auth.WebTokens().Get(ctx, *req)
+	resp, err := auth.GetWebToken(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1914,7 +1988,7 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := auth.WebTokens().List(ctx)
+	tokens, err := auth.GetWebTokens(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1933,6 +2007,34 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 	}, nil
 }
 
+// ListWebTokens returns a page of web tokens
+func (g *GRPCServer) ListWebTokens(ctx context.Context, req *authpb.ListWebTokensRequest) (*authpb.ListWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, next, err := auth.ListWebTokens(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListWebTokensResponse{
+		Tokens:        make([]*types.WebTokenV3, 0, len(tokens)),
+		NextPageToken: next,
+	}
+
+	for _, t := range tokens {
+		tokenV3, ok := t.(*types.WebTokenV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", t)
+		}
+		resp.Tokens = append(resp.Tokens, tokenV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteWebToken removes the web token given with req.
 func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTokenRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1940,7 +2042,7 @@ func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *types.DeleteWebTok
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().Delete(ctx, *req); err != nil {
+	if err := auth.DeleteWebToken(ctx, *req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1954,7 +2056,7 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := auth.WebTokens().DeleteAll(ctx); err != nil {
+	if err := auth.DeleteAllWebTokens(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2125,6 +2227,21 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 		downgradedRoles = append(downgradedRoles, downgraded)
 	}
 	rsp.Roles = downgradedRoles
+
+	return rsp, nil
+}
+
+// ListRequestableRoles is a paginated requestable role getter.
+func (g *GRPCServer) ListRequestableRoles(ctx context.Context, req *authpb.ListRequestableRolesRequest) (*authpb.ListRequestableRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return rsp, nil
 }
@@ -2507,6 +2624,31 @@ func (g *GRPCServer) GetOIDCConnectors(ctx context.Context, req *types.Resources
 	}, nil
 }
 
+// ListOIDCConnectors returns a page of valid registered connectors.
+func (g *GRPCServer) ListOIDCConnectors(ctx context.Context, req *authpb.ListOIDCConnectorsRequest) (*authpb.ListOIDCConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ocs, next, err := auth.ServerWithRoles.ListOIDCConnectors(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectors := make([]*types.OIDCConnectorV3, len(ocs))
+	for i, oc := range ocs {
+		var ok bool
+		if connectors[i], ok = oc.(*types.OIDCConnectorV3); !ok {
+			return nil, trace.Errorf("encountered unexpected OIDC connector type %T", oc)
+		}
+	}
+
+	return &authpb.ListOIDCConnectorsResponse{
+		Connectors:    connectors,
+		NextPageToken: next,
+	}, nil
+}
+
 // CreateOIDCConnector creates a new OIDC connector.
 func (g *GRPCServer) CreateOIDCConnector(ctx context.Context, req *authpb.CreateOIDCConnectorRequest) (*types.OIDCConnectorV3, error) {
 	auth, err := g.authenticate(ctx)
@@ -2649,6 +2791,40 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	return &types.SAMLConnectorV2List{
 		SAMLConnectors: samlConnectorsV2,
 	}, nil
+}
+
+// ListSAMLConnectors returns a page of valid registered connectors.
+// withSecrets adds or removes client secret from return results.
+func (g *GRPCServer) ListSAMLConnectors(ctx context.Context, req *authpb.ListSAMLConnectorsRequest) (*authpb.ListSAMLConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	scs, next, err := auth.ServerWithRoles.ListSAMLConnectorsWithOptions(
+		ctx,
+		int(req.PageSize),
+		req.PageToken,
+		req.WithSecrets,
+		types.SAMLConnectorValidationFollowURLs(!req.NoFollowUrls),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListSAMLConnectorsResponse{
+		NextPageToken: next,
+		Connectors:    make([]*types.SAMLConnectorV2, 0, len(scs)),
+	}
+	for _, sc := range scs {
+		scpb, ok := sc.(*types.SAMLConnectorV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected SAML connector type: %T", sc)
+		}
+		resp.Connectors = append(resp.Connectors, scpb)
+	}
+
+	return resp, nil
 }
 
 // CreateSAMLConnector creates a new SAML connector.
@@ -2795,6 +2971,33 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	return &types.GithubConnectorV3List{
 		GithubConnectors: githubConnectorsV3,
 	}, nil
+}
+
+// ListGithubConnectors returns a page of valid registered Github connectors.
+func (g *GRPCServer) ListGithubConnectors(ctx context.Context, req *authpb.ListGithubConnectorsRequest) (*authpb.ListGithubConnectorsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectors, next, err := auth.ServerWithRoles.ListGithubConnectors(ctx, int(req.PageSize), req.PageToken, req.WithSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListGithubConnectorsResponse{
+		Connectors:    make([]*types.GithubConnectorV3, 0, len(connectors)),
+		NextPageToken: next,
+	}
+
+	for _, connector := range connectors {
+		if v3, ok := connector.(*types.GithubConnectorV3); ok {
+			resp.Connectors = append(resp.Connectors, v3)
+		} else {
+			return nil, trace.Errorf("encountered unexpected Github connector type %T", connector)
+		}
+	}
+
+	return resp, nil
 }
 
 // UpsertGithubConnectorV2 creates a new or replaces an existing Github connector.
@@ -3105,6 +3308,35 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}
 	return &types.ProvisionTokenV2List{
 		ProvisionTokens: provisionTokensV2,
+	}, nil
+}
+
+// ListProvisionTokens retrieves a paginated list of provision tokens.
+func (g *GRPCServer) ListProvisionTokens(ctx context.Context, req *authpb.ListProvisionTokensRequest) (*authpb.ListProvisionTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := types.NewTeleportRoles(req.FilterRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ts, nextKey, err := auth.ServerWithRoles.ListProvisionTokens(ctx, int(req.Limit), req.StartKey, roles, req.FilterBotName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	provisionTokensV2 := make([]*types.ProvisionTokenV2, len(ts))
+	for i, t := range ts {
+		var ok bool
+		if provisionTokensV2[i], ok = t.(*types.ProvisionTokenV2); !ok {
+			return nil, trace.Errorf("encountered unexpected token type: %T", t)
+		}
+	}
+	return &authpb.ListProvisionTokensResponse{
+		Tokens:  provisionTokensV2,
+		NextKey: nextKey,
 	}, nil
 }
 
@@ -3565,6 +3797,39 @@ func (g *GRPCServer) GetLocks(ctx context.Context, req *authpb.GetLocksRequest) 
 	}, nil
 }
 
+// ListLocks returns a page of locks matching a filter
+func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest) (*authpb.ListLocksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	locks, next, err := auth.ListLocks(
+		ctx,
+		int(req.PageSize),
+		req.PageToken,
+		req.Filter,
+	)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lockV2s := make([]*types.LockV2, 0, len(locks))
+	for _, lock := range locks {
+		lockV2, ok := lock.(*types.LockV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected lock type %T", lock)
+		}
+		lockV2s = append(lockV2s, lockV2)
+	}
+
+	return &authpb.ListLocksResponse{
+		Locks:         lockV2s,
+		NextPageToken: next,
+	}, nil
+}
+
 // UpsertLock upserts a lock.
 func (g *GRPCServer) UpsertLock(ctx context.Context, lock *types.LockV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3614,6 +3879,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3628,6 +3896,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
+	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
@@ -3673,6 +3944,32 @@ func (g *GRPCServer) GetApps(ctx context.Context, _ *emptypb.Empty) (*types.AppV
 	return &types.AppV3List{
 		Apps: appsV3,
 	}, nil
+}
+
+// ListApps returns a page of application resources.
+func (g *GRPCServer) ListApps(ctx context.Context, req *authpb.ListAppsRequest) (*authpb.ListAppsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	apps, next, err := auth.ListApps(ctx, int(req.Limit), req.StartKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListAppsResponse{
+		Applications: make([]*types.AppV3, 0, len(apps)),
+		NextKey:      next,
+	}
+
+	for _, app := range apps {
+		appV3, ok := app.(*types.AppV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported application type %T", app)
+		}
+		resp.Applications = append(resp.Applications, appV3)
+	}
+	return resp, nil
 }
 
 // DeleteApp removes the specified application resource.
@@ -3773,6 +4070,34 @@ func (g *GRPCServer) GetDatabases(ctx context.Context, _ *emptypb.Empty) (*types
 	return &types.DatabaseV3List{
 		Databases: databasesV3,
 	}, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (g *GRPCServer) ListDatabases(ctx context.Context, req *authpb.ListDatabasesRequest) (*authpb.ListDatabasesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, next, err := auth.ListDatabases(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListDatabasesResponse{
+		Databases:     make([]*types.DatabaseV3, 0, len(databases)),
+		NextPageToken: next,
+	}
+
+	for _, database := range databases {
+		databaseV3, ok := database.(*types.DatabaseV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported database type %T", database)
+		}
+		resp.Databases = append(resp.Databases, databaseV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteDatabase removes the specified database.
@@ -4713,6 +5038,34 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 	}, nil
 }
 
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusters, next, err := auth.ListKubernetesClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListKubernetesClustersResponse{
+		KubernetesClusters: make([]*types.KubernetesClusterV3, 0, len(clusters)),
+		NextPageToken:      next,
+	}
+
+	for _, cluster := range clusters {
+		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported kubernetes cluster type %T", clusterV3)
+		}
+		resp.KubernetesClusters = append(resp.KubernetesClusters, clusterV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -5167,6 +5520,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
 		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
@@ -5227,6 +5581,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
 		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services.BotInstance,
 		Clock:      cfg.AuthServer.GetClock(),
 	})
@@ -5442,7 +5797,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationAWSOIDCServiceServer, err := integrationv1.NewAWSOIDCService(&integrationv1.AWSOIDCServiceConfig{
 		Authorizer:            cfg.Authorizer,
 		IntegrationService:    integrationServiceServer,
-		Cache:                 cfg.AuthServer,
+		Cache:                 cfg.AuthServer.Cache,
+		TokenCreator:          cfg.AuthServer,
 		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
 		Clock:                 cfg.AuthServer.clock,
 	})

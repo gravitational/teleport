@@ -163,7 +163,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", kubeCluster)
+			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
@@ -848,7 +848,7 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *cli
 
 	cred, ok := keyRing.KubeTLSCredentials[kubeClusterName]
 	if !ok {
-		return trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
+		return trace.NotFound("TLS credential for Kubernetes cluster %q not found", kubeClusterName)
 	}
 
 	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
@@ -1283,7 +1283,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 			if trace.IsNotFound(err) {
 				// rewrap not found errors as access denied, so we can retry
 				// fetching clusters with an access request.
-				return trace.AccessDenied(err.Error())
+				return trace.AccessDenied("%s", err)
 			}
 			return trace.Wrap(err)
 		}
@@ -1361,10 +1361,10 @@ func checkClusterSelection(cf *CLIConf, clusters types.KubeClusters, name string
 		query:  cf.PredicateExpression,
 	}
 	if len(clusters) == 0 {
-		return trace.NotFound(formatKubeNotFound(cf.SiteName, selectors))
+		return trace.NotFound("%s", formatKubeNotFound(cf.SiteName, selectors))
 	}
 	errMsg := formatAmbiguousKubeCluster(cf, selectors, clusters)
-	return trace.BadParameter(errMsg)
+	return trace.BadParameter("%s", errMsg)
 }
 
 func (c *kubeLoginCommand) getSelectors() resourceSelectors {
@@ -1743,7 +1743,7 @@ func formatAmbiguousKubeCluster(cf *CLIConf, selectors resourceSelectors, kubeCl
 func formatKubeNotFound(clusterFlag string, selectors resourceSelectors) string {
 	listCmd := formatKubeListCommand(clusterFlag)
 	if selectors.IsEmpty() {
-		return fmt.Sprintf("no kubernetes clusters found, check '%v' for a list of known clusters",
+		return fmt.Sprintf("no Kubernetes clusters found, check '%v' for a list of known clusters",
 			listCmd)
 	}
 	return fmt.Sprintf("%v not found, check '%v' for a list of known clusters",

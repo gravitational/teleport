@@ -51,6 +51,8 @@ type transportConfig struct {
 	jwt          string
 	traits       wrappers.Traits
 	log          *slog.Logger
+	// hostID is purely for troubleshooting purposes (put in the error messages)
+	hostID string
 }
 
 // Check validates configuration.
@@ -162,6 +164,10 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		if t.log.Enabled(r.Context(), slog.LevelDebug) {
 			t.log.DebugContext(r.Context(), "application request failed with a network error",
 				"raw_error", err, "human_error", strings.Join(strings.Fields(message), " "))
+		}
+
+		if t.hostID != "" {
+			message = message + "\n\nThe ID of the Teleport Application Service instance that generated this error is " + t.hostID + "."
 		}
 
 		code := trace.ErrorToCode(err)

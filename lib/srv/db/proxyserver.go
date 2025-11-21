@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ProxyServer runs inside Teleport proxy and is responsible to accepting
@@ -226,7 +227,7 @@ func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 			defer clientConn.Close()
 			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
 			if err != nil && !utils.IsOKNetworkError(err) {
-				s.log.WarnContext(s.closeCtx, "Failed to handle Postgres client connection.", "error", err)
+				s.log.ErrorContext(s.closeCtx, "Failed to handle Postgres client connection.", "error", err)
 			}
 		}()
 	}
@@ -594,7 +595,6 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	s.log.DebugContext(ctx, "Available database servers.", "cluster", cluster.GetName(), "servers", servers)
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
 	var result []types.DatabaseServer
@@ -603,6 +603,12 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 			result = append(result, server)
 		}
 	}
+
+	s.log.DebugContext(ctx, "Available database servers",
+		"cluster", cluster.GetName(),
+		"servers", logutils.StringerSliceAttr(servers),
+	)
+
 	if len(result) != 0 {
 		return cluster, result, nil
 	}

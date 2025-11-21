@@ -44,6 +44,10 @@ func (f *UserFilter) Match(user *UserV2) bool {
 		}
 	}
 
+	if f.SkipSystemUsers && IsSystemResource(user) {
+		return false
+	}
+
 	return true
 }
 

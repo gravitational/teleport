@@ -31,7 +31,7 @@ import { ResourceRequest } from 'teleterm/ui/services/workspacesService/accessRe
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
 import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
-import { VnetAppLauncher } from 'teleterm/ui/Vnet';
+import { VnetLauncher } from 'teleterm/ui/Vnet';
 
 export interface SimpleAction {
   type: 'simple-action';
@@ -73,7 +73,7 @@ export type SearchAction = SimpleAction | ParametrizedAction;
 
 export function mapToAction(
   ctx: IAppContext,
-  launchVnet: VnetAppLauncher,
+  launchVnet: VnetLauncher,
   searchContext: SearchContext,
   result: SearchResult
 ): SearchAction {
@@ -91,15 +91,11 @@ export function mapToAction(
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
-          getSuggestions: async () => {
-            const sshLogins = ctx.clustersService.findClusterByResource(
-              result.resource.uri
-            )?.loggedInUser?.sshLogins;
-            return sshLogins?.map(login => ({
+          getSuggestions: async () =>
+            result.resource.logins.map(login => ({
               value: login,
               displayText: login,
-            }));
-          },
+            })),
           placeholder: 'Provide login',
         },
         perform: login => {

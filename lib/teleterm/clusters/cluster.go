@@ -63,6 +63,8 @@ type Cluster struct {
 	clock clockwork.Clock
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
+	// WebProxyAddr is the host:port the web proxy can be accessed at.
+	WebProxyAddr string
 }
 
 type ClusterWithDetails struct {

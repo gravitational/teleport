@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 )
 
 // DatabaseCommand implements `tbot start database` and
@@ -51,7 +52,7 @@ func NewDatabaseCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode
 	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("format", "The database output format if necessary").Default("").EnumVar(&c.Format, config.SupportedDatabaseFormatStrings()...)
+	cmd.Flag("format", "The database output format if necessary").Default("").EnumVar(&c.Format, database.SupportedDatabaseFormatStrings()...)
 	cmd.Flag("service", "The database service name").Required().StringVar(&c.Service)
 	cmd.Flag("username", "The database user name").Required().StringVar(&c.Username)
 	cmd.Flag("database", "The name of the database available in the requested database service").Required().StringVar(&c.Database)
@@ -69,9 +70,9 @@ func (c *DatabaseCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.DatabaseOutput{
+	cfg.Services = append(cfg.Services, &database.OutputConfig{
 		Destination: dest,
-		Format:      config.DatabaseFormat(c.Format),
+		Format:      database.DatabaseFormat(c.Format),
 		Username:    c.Username,
 		Database:    c.Database,
 		Service:     c.Service,

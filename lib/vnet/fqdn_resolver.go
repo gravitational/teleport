@@ -146,7 +146,7 @@ func (r *fqdnResolver) clusterClientForAppFQDN(ctx context.Context, profileName,
 			log.ErrorContext(ctx, "Failed to get VNet config, apps in this cluster will not be resolved.", "profile", profileName, "leaf_cluster", leafClusterName, "error", err)
 			continue
 		}
-		for _, zone := range clusterConfig.DNSZones {
+		for _, zone := range clusterConfig.appDNSZones() {
 			if isDescendantSubdomain(fqdn, zone) {
 				return clusterClient, nil
 			}
@@ -226,11 +226,12 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	}, nil
 }
 
-// VNet SSH handles SSH hostnames matching "<hostname>.<cluster_name>." or
-// "<hostname>.<leaf_cluster_name>.<cluster_name>.". tryResolveSSH checks if
-// fqdn matches that pattern for any logged-in cluster and if so returns a
-// match. We never actually query for whether or not a matching SSH node exists,
-// we just attempt to dial it when the client connects to the assigned IP.
+// VNet SSH handles SSH hostnames matching "<hostname>.<cluster_name>.", where
+// the <cluster-name> may be the name of a root or leaf cluster.
+// tryResolveSSH checks if fqdn matches that pattern for any known cluster
+// and if so returns a match. We never actually query for whether or not a
+// matching SSH node exists, we just attempt to dial it when the client
+// connects to the assigned IP.
 func (r *fqdnResolver) tryResolveSSH(ctx context.Context, profileNames []string, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
 	for _, profileName := range profileNames {
 		log := log.With("profile", profileName)
@@ -240,23 +241,21 @@ func (r *fqdnResolver) tryResolveSSH(ctx context.Context, profileNames []string,
 			continue
 		}
 		rootClusterName := rootClient.ClusterName()
-		if !isDescendantSubdomain(fqdn, rootClusterName) {
-			continue
-		}
+		log = log.With("root_cluster", rootClusterName)
 		leafClusters, err := r.cfg.leafClusterCache.getLeafClusters(ctx, rootClient)
 		if err != nil {
 			// Good chance we're here because the user is not logged in to the profile.
 			log.ErrorContext(ctx, "Failed to list leaf clusters, SSH nodes in this cluster will not be resolved", "error", err)
-			return nil, errNoMatch
+			continue
 		}
 		rootDialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, profileName)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to get cluster dial options, SSH nodes in this cluster will not be resolved", "error", err)
-			return nil, errNoMatch
+			continue
 		}
 		for _, leafClusterName := range leafClusters {
 			log := log.With("leaf_cluster", leafClusterName)
-			if !isDescendantSubdomain(fqdn, leafClusterName+"."+rootClusterName) {
+			if !isDescendantSubdomain(fqdn, leafClusterName) {
 				continue
 			}
 			leafClient, err := r.cfg.clientApplication.GetCachedClient(ctx, profileName, leafClusterName)
@@ -275,12 +274,17 @@ func (r *fqdnResolver) tryResolveSSH(ctx context.Context, profileNames []string,
 					MatchedCluster: &vnetv1.MatchedCluster{
 						WebProxyAddr:  rootDialOpts.GetWebProxyAddr(),
 						Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+						Profile:       profileName,
+						RootCluster:   rootClusterName,
+						LeafCluster:   leafClusterName,
 					},
 				},
 			}, nil
 		}
-		// If it didn't match any leaf cluster assume it matches the root
-		// cluster.
+		// Didn't match any leaf, check if it's in the root cluster.
+		if !isDescendantSubdomain(fqdn, rootClusterName) {
+			continue
+		}
 		clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, rootClient)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to get VNet config, SSH nodes in this cluster will not be resolved", "error", err)
@@ -292,6 +296,8 @@ func (r *fqdnResolver) tryResolveSSH(ctx context.Context, profileNames []string,
 				MatchedCluster: &vnetv1.MatchedCluster{
 					WebProxyAddr:  rootDialOpts.GetWebProxyAddr(),
 					Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+					Profile:       profileName,
+					RootCluster:   rootClusterName,
 				},
 			},
 		}, nil

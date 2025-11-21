@@ -108,29 +108,42 @@ class JoinTokenService {
     mfaResponse: MfaChallengeResponse
   ) {
     return api
-      .post(cfg.getJoinTokensUrl(), req, null /* abortSignal */, mfaResponse)
+      .post(
+        cfg.getJoinTokenUrl({ action: 'create' }),
+        req,
+        null /* abortSignal */,
+        mfaResponse
+      )
       .then(makeJoinToken);
   }
 
   async editJoinToken(
     req: CreateJoinTokenRequest,
-    mfaResponse: MfaChallengeResponse
+    mfaResponse: MfaChallengeResponse,
+    abortSignal?: AbortSignal
   ) {
-    const json = await api.put(cfg.getJoinTokensUrl(), req, mfaResponse);
+    const json = await api.put(
+      cfg.getJoinTokenUrl({ action: 'update' }),
+      req,
+      abortSignal,
+      mfaResponse
+    );
     return makeJoinToken(json);
   }
 
   fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
-    return api.get(cfg.getJoinTokensUrl(), signal).then(resp => {
-      return {
-        items: resp.items?.map(makeJoinToken) || [],
-      };
-    });
+    return api
+      .get(cfg.getJoinTokenUrl({ action: 'list' }), signal)
+      .then(resp => {
+        return {
+          items: resp.items?.map(makeJoinToken) || [],
+        };
+      });
   }
 
   deleteJoinToken(id: string, signal: AbortSignal = null) {
     return api.deleteWithHeaders(
-      cfg.getJoinTokensUrl(),
+      cfg.getJoinTokenUrl({ action: 'list' }),
       { [TeleportTokenNameHeader]: id },
       signal
     );

@@ -741,7 +741,7 @@ func TestReviewThresholds(t *testing.T) {
 
 			// perform request validation (necessary in order to initialize internal
 			// request variables like annotations and thresholds).
-			validator, err := newRequestValidator(ctx, clock, g, tt.requestor, WithExpandVars(true))
+			validator, err := NewRequestValidator(ctx, clock, g, tt.requestor, WithExpandVars(true))
 			require.NoError(t, err, "scenario=%q", tt.desc)
 
 			err = validator.validate(ctx, req, identity)
@@ -1276,7 +1276,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			validator, err := newRequestValidator(context.Background(), clock, g, uls.GetName(), WithExpandVars(true))
+			validator, err := NewRequestValidator(context.Background(), clock, g, uls.GetName(), WithExpandVars(true))
 			require.NoError(t, err)
 
 			err = validator.validate(context.Background(), req, identity)
@@ -1290,9 +1290,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 	}
 }
 
-func TestPruneRequestRoles(t *testing.T) {
-	ctx := context.Background()
-
+func newFixture(t *testing.T) (*mockGetter, string) {
 	clusterName := "my-cluster"
 
 	g := &mockGetter{
@@ -1473,6 +1471,13 @@ func TestPruneRequestRoles(t *testing.T) {
 	require.NoError(t, err)
 	g.desktops[desktop.GetName()] = desktop
 
+	return g, user
+}
+
+func TestPruneMappedSearchAs(t *testing.T) {
+	ctx := context.Background()
+	g, user := newFixture(t)
+
 	testCases := []struct {
 		desc               string
 		requestResourceIDs []types.ResourceID
@@ -1484,7 +1489,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "without login hint",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
@@ -1497,7 +1502,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "label expression role",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "responders-node",
 				},
@@ -1508,7 +1513,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "user login hint",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
@@ -1521,12 +1526,12 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "multiple nodes",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node-2",
 				},
@@ -1539,7 +1544,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "root login hint",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
@@ -1552,7 +1557,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "root login unavailable",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "denied-node",
 				},
@@ -1565,7 +1570,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "kube request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindKubernetesCluster,
 					Name:        "kube",
 				},
@@ -1577,7 +1582,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "db request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindDatabase,
 					Name:        "db",
 				},
@@ -1589,7 +1594,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "app request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindApp,
 					Name:        "app",
 				},
@@ -1601,7 +1606,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "windows request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindWindowsDesktop,
 					Name:        "windows",
 				},
@@ -1613,27 +1618,27 @@ func TestPruneRequestRoles(t *testing.T) {
 			desc: "mixed request",
 			requestResourceIDs: []types.ResourceID{
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindNode,
 					Name:        "admins-node",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindKubernetesCluster,
 					Name:        "kube",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindDatabase,
 					Name:        "db",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindApp,
 					Name:        "app",
 				},
 				{
-					ClusterName: clusterName,
+					ClusterName: g.clusterName,
 					Kind:        types.KindWindowsDesktop,
 					Name:        "windows",
 				},
@@ -1686,6 +1691,251 @@ func TestPruneRequestRoles(t *testing.T) {
 			require.Len(t, req.GetRoleThresholdMapping(), len(req.GetRoles()),
 				"Length of rtm does not match number of roles. rtm: %v roles %v",
 				req.GetRoleThresholdMapping(), req.GetRoles())
+		})
+	}
+}
+
+// requireBadParameter is a [require.ErrorAssertionFunc] that asserts the supplied error value is a BadParameter error
+func requireBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+	var bpe *trace.BadParameterError
+	require.ErrorAs(t, err, &bpe, msgAndArgs...)
+}
+
+// remoteCapsAssertion is the signature for functions assrting the properties of
+type remoteCapsAssertion func(t require.TestingT, actual []string, msgAndArgs ...any)
+
+// expectRoles is a [remoteCapsAssertion] that asserts the returned role set contains a specific set of roles.
+// The role order is ignored, but otherwise the role sets must be identical.
+func expectRoles(expected ...string) remoteCapsAssertion {
+	return func(t require.TestingT, actual []string, msgAndArgs ...any) {
+		require.ElementsMatch(t, expected, actual, msgAndArgs...)
+	}
+}
+
+// undefinedRoles is a [remoteCapsAssertion] that makes no assertions about the supplied capabilities.
+// The correct value is literally undefined.
+func undefinedRoles(require.TestingT, []string, ...any) {
+}
+
+func TestPruneMappedRoles(t *testing.T) {
+	ctx := context.Background()
+	g, username := newFixture(t)
+
+	// GIVEN a user state with no standing roles, implying that the search-as roles *must*
+	// come from the supplied list...
+	userState, ok := g.userStates[username]
+	require.True(t, ok, "user should exist")
+	userState.Spec.Roles = nil
+
+	testCases := []struct {
+		desc               string
+		loginHint          string
+		requestResourceIDs []types.ResourceID
+		errorAssertion     require.ErrorAssertionFunc
+		capsAssertion      remoteCapsAssertion
+		expectRoles        []string
+	}{
+		{
+			desc: "without login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			errorAssertion: require.NoError,
+			capsAssertion:  expectRoles("node-admins", "node-access"),
+		},
+		{
+			desc: "label expression role",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "responders-node",
+				},
+			},
+			errorAssertion: require.NoError,
+			capsAssertion:  expectRoles("node-team", "node-access"),
+		},
+		{
+			desc: "user login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			loginHint:      "responder",
+			errorAssertion: require.NoError,
+			// With "responder" login hint, only request node-access.
+			capsAssertion: expectRoles("node-access"),
+		},
+		{
+			desc: "multiple nodes with login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node-2",
+				},
+			},
+			loginHint:      "responder",
+			errorAssertion: require.NoError,
+			// With "responder" login hint, only request node-access.
+			capsAssertion: expectRoles("node-access"),
+		},
+		{
+			desc: "root login hint",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			loginHint:      "root",
+			errorAssertion: require.NoError,
+			// With "root" login hint, request node-admins.
+			capsAssertion: expectRoles("node-admins"),
+		},
+		{
+			desc: "root login unavailable",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "denied-node",
+				},
+			},
+			loginHint: "root",
+			// No roles grant access with the desired login, return an error.
+			errorAssertion: requireBadParameter,
+			capsAssertion:  undefinedRoles,
+		},
+		{
+			desc: "kube request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindKubernetesCluster,
+					Name:        "kube",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for kube cluster should only request kube-admins
+			capsAssertion: expectRoles("kube-admins"),
+		},
+		{
+			desc: "db request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindDatabase,
+					Name:        "db",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for db should only request db-admins
+			capsAssertion: expectRoles("db-admins"),
+		},
+		{
+			desc: "app request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindApp,
+					Name:        "app",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for app should only request app-admins
+			capsAssertion: expectRoles("app-admins"),
+		},
+		{
+			desc: "windows request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindWindowsDesktop,
+					Name:        "windows",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for windows should only request windows-admins
+			capsAssertion: expectRoles("windows-admins"),
+		},
+		{
+			desc: "mixed request",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindKubernetesCluster,
+					Name:        "kube",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindDatabase,
+					Name:        "db",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindApp,
+					Name:        "app",
+				},
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindWindowsDesktop,
+					Name:        "windows",
+				},
+			},
+			errorAssertion: require.NoError,
+			// Request for different kinds should request all necessary roles
+			capsAssertion: expectRoles("node-access", "node-admins", "kube-admins", "db-admins", "app-admins", "windows-admins"),
+		},
+		{
+			desc: "foreign resource",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: "leaf",
+					Kind:        types.KindNode,
+					Name:        "admins-node",
+				},
+			},
+			errorAssertion: requireBadParameter,
+			capsAssertion:  undefinedRoles,
+		},
+	}
+
+	localSearchAsRoles := []string{
+		"node-admins",
+		"node-access",
+		"node-team",
+		"kube-admins",
+		"db-admins",
+		"app-admins",
+		"windows-admins",
+		"empty",
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.desc, func(t *testing.T) {
+			clock := clockwork.NewFakeClock()
+			caps, err := PruneMappedSearchAsRoles(ctx, clock, g, userState, localSearchAsRoles, testCase.requestResourceIDs, testCase.loginHint)
+			testCase.errorAssertion(t, err)
+			testCase.capsAssertion(t, caps)
 		})
 	}
 }
@@ -1941,7 +2191,7 @@ func TestCalculatePendingRequestTTL(t *testing.T) {
 				roles:      map[string]types.Role{"bar": role},
 			}
 
-			validator, err := newRequestValidator(context.Background(), clock, getter, "foo", WithExpandVars(true))
+			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", WithExpandVars(true))
 			require.NoError(t, err)
 
 			request, err := types.NewAccessRequest("some-id", "foo", "bar")
@@ -2016,7 +2266,7 @@ func TestSessionTTL(t *testing.T) {
 				roles: map[string]types.Role{"bar": role},
 			}
 
-			validator, err := newRequestValidator(context.Background(), clock, getter, "foo", WithExpandVars(true))
+			validator, err := NewRequestValidator(context.Background(), clock, getter, "foo", WithExpandVars(true))
 			require.NoError(t, err)
 
 			request, err := types.NewAccessRequest("some-id", "foo", "bar")
@@ -2071,11 +2321,11 @@ func TestAutoRequest(t *testing.T) {
 	cases := []struct {
 		name      string
 		roles     []types.Role
-		assertion func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities)
+		assertion func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities)
 	}{
 		{
 			name: "no roles",
-			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.False(t, validator.autoRequestOnLogin)
 				require.Empty(t, validator.reasonPrompts)
@@ -2088,7 +2338,7 @@ func TestAutoRequest(t *testing.T) {
 		{
 			name:  "with prompt",
 			roles: []types.Role{empty, optionalRole, promptRole},
-			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.False(t, validator.autoRequestOnLogin)
 				require.Len(t, validator.reasonPrompts, 1)
@@ -2102,7 +2352,7 @@ func TestAutoRequest(t *testing.T) {
 		{
 			name:  "with auto request",
 			roles: []types.Role{alwaysRole},
-			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequestOnLogin)
 				require.Empty(t, validator.reasonPrompts)
@@ -2115,7 +2365,7 @@ func TestAutoRequest(t *testing.T) {
 		{
 			name:  "with prompt and auto request",
 			roles: []types.Role{promptRole, alwaysRole},
-			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequestOnLogin)
 				require.Len(t, validator.reasonPrompts, 1)
@@ -2129,7 +2379,7 @@ func TestAutoRequest(t *testing.T) {
 		{
 			name:  "with reason and auto prompt",
 			roles: []types.Role{reasonRole},
-			assertion: func(t *testing.T, validator *requestValidator, accessCaps *types.AccessCapabilities) {
+			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.True(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequestOnLogin)
 				require.Empty(t, validator.reasonPrompts)
@@ -2162,7 +2412,7 @@ func TestAutoRequest(t *testing.T) {
 
 		getter.userStates[uls.GetName()] = uls
 
-		validator, err := newRequestValidator(ctx, clock, getter, uls.GetName(), WithExpandVars(true))
+		validator, err := NewRequestValidator(ctx, clock, getter, uls.GetName(), WithExpandVars(true))
 		require.NoError(t, err)
 
 		accessCapabilities, err := CalculateAccessCapabilities(ctx, clock, getter, tlsca.Identity{}, types.AccessCapabilitiesRequest{
@@ -2431,7 +2681,7 @@ func TestReasonRequired(t *testing.T) {
 
 			// test RequestValidator.Validate
 			{
-				validator, err := newRequestValidator(ctx, clock, g, uls.GetName(), WithExpandVars(true))
+				validator, err := NewRequestValidator(ctx, clock, g, uls.GetName(), WithExpandVars(true))
 				require.NoError(t, err)
 
 				req, err := types.NewAccessRequestWithResources(
@@ -2853,7 +3103,7 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 				Expires: now.Add(defaultSessionTTL),
 			}
 
-			validator, err := newRequestValidator(context.Background(), clock, g, tt.requestor, WithExpandVars(true))
+			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, WithExpandVars(true))
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
@@ -2903,7 +3153,7 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 		Expires: now.Add(defaultSessionTTL),
 	}
 
-	validator, err := newRequestValidator(context.Background(), clock, g, "alice", WithExpandVars(true))
+	validator, err := NewRequestValidator(context.Background(), clock, g, "alice", WithExpandVars(true))
 	require.NoError(t, err)
 
 	requestedMaxDuration := 4 * day
@@ -3486,7 +3736,7 @@ func TestValidate_WithAllowRequestKubernetesResources(t *testing.T) {
 				Expires: clock.Now().UTC().Add(8 * time.Hour),
 			}
 
-			validator, err := newRequestValidator(context.Background(), clock, g, uls.GetName(), WithExpandVars(true))
+			validator, err := NewRequestValidator(context.Background(), clock, g, uls.GetName(), WithExpandVars(true))
 			require.NoError(t, err)
 
 			err = validator.validate(context.Background(), req, identity)

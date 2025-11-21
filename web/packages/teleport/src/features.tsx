@@ -55,6 +55,7 @@ import { BotInstances } from './BotInstances/BotInstances';
 import { BotInstanceDetails } from './BotInstances/Details/BotInstanceDetails';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
+import { BotDetails } from './Bots/Details/BotDetails';
 import { Clusters } from './Clusters';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { Discover } from './Discover';
@@ -70,7 +71,7 @@ import { TrustedClusters } from './TrustedClusters';
 import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
 import { UnifiedResources } from './UnifiedResources';
 import { Users } from './Users';
-import { EmptyState as WorkloadIdentityEmptyState } from './WorkloadIdentity/EmptyState/EmptyState';
+import { WorkloadIdentities } from './WorkloadIdentity/WorkloadIdentities';
 
 // to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
 // However, there are some cases where hiding the feature is explicitly requested. Use this as a backdoor to hide the features that
@@ -125,7 +126,7 @@ export class FeatureJoinTokens implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags): boolean {
-    return flags.tokens;
+    return flags.listTokens;
   }
 }
 
@@ -308,7 +309,23 @@ export class FeatureBotInstanceDetails implements TeleportFeature {
   route = {
     title: 'Bot instance details',
     path: cfg.routes.botInstance,
+    exact: true,
     component: BotInstanceDetails,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
+export class FeatureBotDetails implements TeleportFeature {
+  parent = FeatureBots;
+
+  route = {
+    title: 'Bot details',
+    path: cfg.routes.bot,
+    exact: true,
+    component: BotDetails,
   };
 
   hasAccess() {
@@ -458,7 +475,7 @@ export class FeatureNewLock implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.newLocks;
+    return flags.addLocks;
   }
 
   // getRoute allows child class extending this
@@ -486,7 +503,38 @@ export class FeatureDiscover implements TeleportFeature {
     getLink() {
       return cfg.routes.discover;
     },
-    searchableTags: ['new', 'add', 'enroll', 'resources'],
+    searchableTags: [
+      'new',
+      'add',
+      'enroll',
+      'resources',
+      'discover',
+      'saml',
+      'idp',
+      'grafana',
+      'entra',
+      'aws',
+      'kubernetes',
+      'node',
+      'ssh',
+      'linux',
+      'ubuntu',
+      'centos',
+      'debian',
+      'windows',
+      'desktop',
+      'ec2',
+      'eks',
+      'rds',
+      'mysql',
+      'postgresql',
+      'mariadb',
+      'dynamodb',
+      'cassandra',
+      'azure',
+      'cockroachdb',
+      'mongodb',
+    ],
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -628,7 +676,7 @@ export class FeatureClusters implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return cfg.isDashboard || flags.trustedClusters;
+    return flags.trustedClusters && !cfg.isCloud && !cfg.isDashboard;
   }
 
   showInDashboard = true;
@@ -676,17 +724,17 @@ export class FeatureTrust implements TeleportFeature {
 export class FeatureWorkloadIdentity implements TeleportFeature {
   category = NavigationCategory.MachineWorkloadId;
   route = {
-    title: 'Workload Identity',
-    path: cfg.routes.workloadIdentity,
+    title: 'Workload Identities',
+    path: cfg.routes.workloadIdentities,
     exact: true,
-    component: WorkloadIdentityEmptyState,
+    component: WorkloadIdentities,
   };
 
-  // for now, workload identity page is just a placeholder so everyone has
-  // access, unless feature hiding is off
-  hasAccess(): boolean {
+  hasAccess(flags: FeatureFlags): boolean {
+    // if feature hiding is enabled, only show
+    // if the user has access
     if (shouldHideFromNavigation(cfg)) {
-      return false;
+      return flags.listWorkloadIdentities;
     }
     return true;
   }
@@ -694,7 +742,7 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
     title: NavTitle.WorkloadIdentity,
     icon: License,
     getLink() {
-      return cfg.routes.workloadIdentity;
+      return cfg.routes.workloadIdentities;
     },
     searchableTags: ['workload identity', 'workload', 'identity'],
   };
@@ -791,7 +839,14 @@ export class FeatureHelpAndSupport implements TeleportFeature {
     getLink() {
       return cfg.routes.support;
     },
-    searchableTags: ['help', 'support', NavTitle.HelpAndSupport],
+    searchableTags: [
+      'help',
+      'support',
+      'contacts',
+      'security',
+      'business',
+      'version',
+    ],
   };
 }
 
@@ -808,6 +863,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureBots(),
+    new FeatureBotDetails(),
     new FeatureBotInstances(),
     new FeatureBotInstanceDetails(),
     new FeatureAddBotsShortcut(),

@@ -25,6 +25,6 @@ package packaging
 // toolsDir/[name].
 //
 // For Windows, archivePath must be a .zip file.
-func ReplaceToolsBinaries(toolsDir string, archivePath string, extractPath string, execNames []string) error {
-	return replaceZip(toolsDir, archivePath, extractPath, execNames)
+func ReplaceToolsBinaries(archivePath string, extractPath string, execNames []string) (map[string]string, error) {
+	return replaceZip(archivePath, extractPath, execNames)
 }

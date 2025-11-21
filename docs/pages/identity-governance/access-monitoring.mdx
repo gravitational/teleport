@@ -2,6 +2,9 @@
 title: Access Monitoring
 description: Learn how to use Access Monitoring.
 sidebar_position: 6
+tags:
+ - how-to
+ - identity-governance
 ---
 
 Access Monitoring allows users to understand and analyze the access patterns in a Teleport cluster.
@@ -23,7 +26,7 @@ Users are able to write their own custom access monitoring queries by querying t
 </Admonition>
 
 ## Prerequisites
-- Teleport v14 or later.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 - For self-hosted Teleport the [Amazon Athena Backend](../reference/backends.mdx) is required.
 
 
@@ -476,7 +479,7 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Use short lived certificates less than a working day. Check out Machine ID to get short lived certificates for your automation.
+**Suggestion:**  Use short lived certificates less than a working day. Check out Machine & Workload Identity to get short lived certificates for your automation.
 
 ### Long-lived join tokens
 

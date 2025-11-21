@@ -27,3 +27,5 @@ import (
 func Version() *semver.Version {
 	return api.SemVer()
 }
+
+var SemVersion = api.SemVer()

@@ -249,6 +249,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 				requestedTTL:          req.RequestedTtl.AsDuration(),
 				attrs:                 attrs,
 				sigstorePolicyResults: decision.sigstorePolicyResults,
+				nameSelector:          req.GetName(),
 			},
 		)
 		if err != nil {
@@ -269,6 +270,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 				requestedTTL:          req.RequestedTtl.AsDuration(),
 				attrs:                 attrs,
 				sigstorePolicyResults: decision.sigstorePolicyResults,
+				nameSelector:          req.GetName(),
 			},
 		)
 		if err != nil {
@@ -357,6 +359,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 					x509Params:       v.X509SvidParams,
 					requestedTTL:     req.RequestedTtl.AsDuration(),
 					attrs:            attrs,
+					labelSelectors:   req.LabelSelectors,
 				},
 			)
 			if err != nil {
@@ -383,6 +386,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 					jwtParams:        v.JwtSvidParams,
 					requestedTTL:     req.RequestedTtl.AsDuration(),
 					attrs:            attrs,
+					labelSelectors:   req.LabelSelectors,
 				},
 			)
 			if err != nil {
@@ -516,6 +520,8 @@ func baseEvent(
 	spiffeID spiffeid.ID,
 	attrs *workloadidentityv1pb.Attrs,
 	sigstorePolicyResults map[string]error,
+	nameSelector string,
+	labelSelectors []*workloadidentityv1pb.LabelSelector,
 ) (*apievents.SPIFFESVIDIssued, error) {
 	structAttrs, err := rawAttrsToStruct(attrs)
 	if err != nil {
@@ -563,7 +569,25 @@ func baseEvent(
 		WorkloadIdentity:         wi.GetMetadata().GetName(),
 		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
 		Attributes:               structAttrs,
+		NameSelector:             nameSelector,
+		LabelSelectors:           labelSelectorsToAudit(labelSelectors),
 	}, nil
+}
+
+func labelSelectorsToAudit(
+	in []*workloadidentityv1pb.LabelSelector,
+) []*apievents.LabelSelector {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*apievents.LabelSelector, 0, len(in))
+	for _, ls := range in {
+		out = append(out, &apievents.LabelSelector{
+			Key:    ls.Key,
+			Values: ls.Values,
+		})
+	}
+	return out
 }
 
 func calculateTTL(
@@ -599,6 +623,8 @@ type issueX509SVIDParams struct {
 	requestedTTL          time.Duration
 	attrs                 *workloadidentityv1pb.Attrs
 	sigstorePolicyResults map[string]error
+	nameSelector          string
+	labelSelectors        []*workloadidentityv1pb.LabelSelector
 }
 
 func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVIDParams) (_ *workloadidentityv1pb.Credential, err error) {
@@ -657,7 +683,15 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 		return nil, trace.Wrap(err)
 	}
 
-	evt, err := baseEvent(ctx, params.workloadIdentity, spiffeID, params.attrs, params.sigstorePolicyResults)
+	evt, err := baseEvent(
+		ctx,
+		params.workloadIdentity,
+		spiffeID,
+		params.attrs,
+		params.sigstorePolicyResults,
+		params.nameSelector,
+		params.labelSelectors,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating base event")
 	}
@@ -739,6 +773,8 @@ type issueJWTSVIDParams struct {
 	requestedTTL          time.Duration
 	attrs                 *workloadidentityv1pb.Attrs
 	sigstorePolicyResults map[string]error
+	nameSelector          string
+	labelSelectors        []*workloadidentityv1pb.LabelSelector
 }
 
 func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDParams) (_ *workloadidentityv1pb.Credential, err error) {
@@ -788,7 +824,15 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 		return nil, trace.Wrap(err, "signing jwt")
 	}
 
-	evt, err := baseEvent(ctx, params.workloadIdentity, spiffeID, params.attrs, params.sigstorePolicyResults)
+	evt, err := baseEvent(
+		ctx,
+		params.workloadIdentity,
+		spiffeID,
+		params.attrs,
+		params.sigstorePolicyResults,
+		params.nameSelector,
+		params.labelSelectors,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating base event")
 	}
@@ -828,7 +872,7 @@ func (s *IssuanceService) getAllWorkloadIdentities(
 	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
 	page := ""
 	for {
-		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page)
+		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

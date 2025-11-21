@@ -74,7 +74,7 @@ func UnmarshalDynamicWindowsDesktop(data []byte, opts ...MarshalOption) (types.D
 	case types.V1:
 		var s types.DynamicWindowsDesktopV1
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

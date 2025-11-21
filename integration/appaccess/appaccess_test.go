@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -264,7 +265,7 @@ func testForwardModes(p *Pack, t *testing.T) {
 // testClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func testClientCert(p *Pack, t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -575,7 +576,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 	require.Contains(t, body, p.rootMessage)
 
 	// session start event
-	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) bool {
 		expectedEvent := &apievents.AppSessionStart{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionStartEvent,
@@ -589,16 +590,16 @@ func testAuditEvents(p *Pack, t *testing.T) {
 			},
 			PublicAddr: p.rootAppPublicAddr,
 		}
-		require.Empty(t, cmp.Diff(
+		return len(cmp.Diff(
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
-		))
+		)) == 0
 	})
 
 	// session chunk event
-	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) bool {
 		expectedEvent := &apievents.AppSessionChunk{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionChunkEvent,
@@ -611,13 +612,13 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppName:       p.rootAppName,
 			},
 		}
-		require.Empty(t, cmp.Diff(
+		return len(cmp.Diff(
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "Index"),
 			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
-		))
+		)) == 0
 	})
 }
 

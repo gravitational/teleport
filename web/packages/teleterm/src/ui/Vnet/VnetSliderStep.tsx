@@ -19,11 +19,13 @@
 import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 
 import { Box, ButtonSecondary, Flex, Text } from 'design';
+import { ActionButton } from 'design/Alert';
 import { StepComponentProps } from 'design/StepSlider';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 
+import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { DiagnosticsAlert } from './DiagnosticsAlert';
@@ -104,18 +106,19 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           ) : (
             <Flex flexDirection="column" gap={1}>
               <Text>
-                VNet enables any program to connect to TCP apps protected by
-                Teleport.
+                VNet enables any program to connect to TCP apps or SSH servers
+                protected by Teleport.
               </Text>
               <Text>
-                Start VNet and connect to any TCP app over its public address –
-                VNet authenticates the connection for you under the hood.
+                Start VNet and connect to any TCP app or SSH server at its own
+                DNS address – VNet authenticates the connection for you under
+                the hood.
               </Text>
             </Flex>
           ))}
       </Flex>
 
-      {status.value === 'running' && <DnsZones />}
+      {status.value === 'running' && <VnetStatus />}
 
       <DiagnosticsAlert
         runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
@@ -132,41 +135,42 @@ const ErrorText = (props: PropsWithChildren) => (
 );
 
 /**
- * DnsZones displays the list of currently proxied DNS zones, as understood by the VNet admin
- * process. The list is cached in the context and updated when the VNet panel gets opened.
+ * VnetStatus displays the status of the running VNet service. The list is cached in the context and
+ * updated when the VNet panel gets opened.
  *
  * As for 95% of users the list will never change during the lifespan of VNet, the VNet panel always
  * optimistically displays previously fetched results while fetching new list.
  */
-const DnsZones = () => {
-  const { listDNSZones, listDNSZonesAttempt: eagerListDNSZonesAttempt } =
-    useVnetContext();
-  const listDNSZonesAttempt = useDelayedRepeatedAttempt(
-    eagerListDNSZonesAttempt
-  );
-  const dnsZonesRefreshRequestedRef = useRef(false);
+const VnetStatus = () => {
+  const {
+    refreshServiceInfoAttempt,
+    serviceInfoAttempt: eagerServiceInfoAttempt,
+    openSSHConfigurationModal,
+  } = useVnetContext();
+  const serviceInfoAttempt = useDelayedRepeatedAttempt(eagerServiceInfoAttempt);
+  const serviceInfoRefreshRequestedRef = useRef(false);
 
   useEffect(
     function refreshListOnOpen() {
-      if (!dnsZonesRefreshRequestedRef.current) {
-        dnsZonesRefreshRequestedRef.current = true;
-        listDNSZones();
+      if (!serviceInfoRefreshRequestedRef.current) {
+        serviceInfoRefreshRequestedRef.current = true;
+        refreshServiceInfoAttempt();
       }
     },
-    [listDNSZones]
+    [refreshServiceInfoAttempt]
   );
 
-  if (listDNSZonesAttempt.status === 'error') {
+  if (serviceInfoAttempt.status === 'error') {
     return (
       <Text p={textSpacing}>
         <ConnectionStatusIndicator status="warning" inline mr={2} />
-        VNet is working, but Teleport Connect could not fetch DNS zones:{' '}
-        {listDNSZonesAttempt.statusText}
+        VNet is running, but Teleport Connect could not fetch its status:{' '}
+        {serviceInfoAttempt.statusText}
         <ButtonSecondary
           ml={2}
           size="small"
           type="button"
-          onClick={listDNSZones}
+          onClick={refreshServiceInfoAttempt}
         >
           Retry
         </ButtonSecondary>
@@ -175,36 +179,115 @@ const DnsZones = () => {
   }
 
   if (
-    listDNSZonesAttempt.status === '' ||
-    (listDNSZonesAttempt.status === 'processing' && !listDNSZonesAttempt.data)
+    serviceInfoAttempt.status === '' ||
+    (serviceInfoAttempt.status === 'processing' && !serviceInfoAttempt.data)
   ) {
     return (
       <Text p={textSpacing}>
         <ConnectionStatusIndicator status="processing" inline mr={2} />
-        Updating the list of DNS zones…
+        Updating VNet status…
       </Text>
     );
   }
 
-  const dnsZones = listDNSZonesAttempt.data;
+  const statusIndicator = (
+    <ConnectionStatusIndicator
+      status={serviceInfoAttempt.status === 'success' ? 'on' : 'processing'}
+      title={
+        serviceInfoAttempt.status === 'processing'
+          ? 'Updating VNet status…'
+          : undefined
+      }
+      inline
+      mr={2}
+      mt={2}
+    />
+  );
+
+  const serviceInfo = serviceInfoAttempt.data;
+
+  const sshConfiguredIndicator = serviceInfo.sshConfigured ? null : (
+    <Flex justifyContent="space-between" alignItems="center">
+      <Flex>
+        <ConnectionStatusIndicator status={'warning'} inline mr={2} />
+        <Text>SSH clients are not configured to use VNet</Text>
+      </Flex>
+
+      <ActionButton
+        fill="filled"
+        intent="neutral"
+        inputAlignment
+        action={{
+          onClick: () =>
+            openSSHConfigurationModal({
+              vnetSSHConfigPath: serviceInfo.vnetSshConfigPath,
+            }),
+          content: 'Resolve',
+        }}
+      />
+    </Flex>
+  );
+
+  if (serviceInfo.appDnsZones.length == 0 && serviceInfo.clusters.length == 0) {
+    return (
+      <Flex p={textSpacing}>
+        {statusIndicator}
+        No clusters connected yet, VNet is not proxying any connections.
+      </Flex>
+    );
+  }
+
+  const appDNSZones = new Set(serviceInfo.appDnsZones);
+  const sshClusters = new Set(serviceInfo.clusters);
+  const appAndSshAreEqual =
+    appDNSZones.size == sshClusters.size && appDNSZones.isSubsetOf(sshClusters);
+
+  if (appAndSshAreEqual) {
+    return (
+      <Text p={textSpacing}>
+        <Flex>
+          {statusIndicator}
+          Proxying TCP and SSH connections to {[...appDNSZones].join(', ')}
+        </Flex>
+        {sshConfiguredIndicator}
+      </Text>
+    );
+  }
+
+  const both = [...appDNSZones.intersection(sshClusters)].sort();
+  const justTCP = [...appDNSZones.difference(sshClusters)].sort();
+  const justSSH = [...sshClusters.difference(appDNSZones)].sort();
 
   return (
-    <Text p={textSpacing}>
-      <ConnectionStatusIndicator
-        status={listDNSZonesAttempt.status === 'success' ? 'on' : 'processing'}
-        title={
-          listDNSZonesAttempt.status === 'processing'
-            ? 'Updating the list of DNS zones…'
-            : undefined
-        }
-        inline
-        mr={2}
-      />
-      {dnsZones.length === 0 ? (
-        <>No clusters connected yet, VNet is not proxying any connections.</>
-      ) : (
-        <>Proxying TCP connections to {dnsZones.join(', ')}</>
-      )}
-    </Text>
+    <Box p={textSpacing}>
+      <Flex>
+        {statusIndicator}
+        <Box>
+          Proxying TCP and SSH connections to:
+          <Text typography="body2">
+            {both.length ? (
+              <Box>
+                <ConnectionKindIndicator bold>TCP</ConnectionKindIndicator>
+                <ConnectionKindIndicator bold>SSH</ConnectionKindIndicator>
+                {both.join(', ')}
+              </Box>
+            ) : null}
+            {justTCP.length ? (
+              <Box>
+                <ConnectionKindIndicator bold>TCP</ConnectionKindIndicator>
+                {justTCP.join(', ')}
+              </Box>
+            ) : null}
+            {justSSH.length ? (
+              <Box>
+                <ConnectionKindIndicator bold>SSH</ConnectionKindIndicator>
+                {justSSH.join(', ')}
+              </Box>
+            ) : null}
+          </Text>
+        </Box>
+      </Flex>
+      {sshConfiguredIndicator}
+    </Box>
   );
 };

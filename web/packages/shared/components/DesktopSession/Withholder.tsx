@@ -18,7 +18,7 @@
 
 import { ButtonState } from 'shared/libs/tdp';
 
-import { KeyboardEventParams } from './KeyboardHandler';
+import { InputEventParams } from './InputHandler';
 
 /**
  * The Withholder class manages keyboard events, particularly for alt/cmd keys. It delays handling these keys to determine the user's intent:
@@ -39,25 +39,26 @@ export class Withholder {
    */
   private keysToWithhold: string[] = ['Meta', 'Alt'];
   /**
-   * The internal array of keystrokes that are currently
+   * The internal array of inputs that are currently
    * being withheld.
    */
-  private withheldKeys: Array<WithheldKeyboardEventHandler> = [];
+  private withheldInputs: WithheldInputEventHandler[] = [];
 
   /**
-   * All keyboard events should be handled via this function.
+   * All input events should be handled via this function.
    */
-  public handleKeyboardEvent(
-    params: KeyboardEventParams,
-    handleKeyboardEvent: (params: KeyboardEventParams) => void
+  public handleInputEvent(
+    params: InputEventParams,
+    handleInputEvent: (params: InputEventParams) => void
   ) {
-    const key = params.e.key;
-
-    // If this is not a key we withhold, immediately flush any withheld keys
+    // If this is not a key we withhold or a mouse event, immediately flush any withheld keys
     // and handle this key.
-    if (!this.keysToWithhold.includes(key)) {
+    if (
+      params.e instanceof MouseEvent ||
+      !this.keysToWithhold.includes(params.e.key)
+    ) {
       this.flush();
-      handleKeyboardEvent(params);
+      handleInputEvent(params);
       return;
     }
 
@@ -84,32 +85,32 @@ export class Withholder {
       }, UP_DELAY_MS);
     }
 
-    this.withheldKeys.push({
+    this.withheldInputs.push({
       params,
-      handler: handleKeyboardEvent,
+      handler: handleInputEvent,
       timeout,
     });
   }
 
   // Cancel all withheld keys.
   public cancel() {
-    this.withheldKeys.forEach(w => clearTimeout(w.timeout));
-    this.withheldKeys = [];
+    this.withheldInputs.forEach(w => clearTimeout(w.timeout));
+    this.withheldInputs = [];
   }
 
   // Flush all withheld keys.
   private flush() {
-    this.withheldKeys.forEach(w => {
+    this.withheldInputs.forEach(w => {
       clearTimeout(w.timeout);
       w.handler(w.params);
     });
-    this.withheldKeys = [];
+    this.withheldInputs = [];
   }
 }
 
-type WithheldKeyboardEventHandler = {
-  handler: (params: KeyboardEventParams) => void;
-  params: KeyboardEventParams;
+type WithheldInputEventHandler = {
+  handler: (params: InputEventParams) => void;
+  params: InputEventParams;
   timeout?: NodeJS.Timeout;
 };
 

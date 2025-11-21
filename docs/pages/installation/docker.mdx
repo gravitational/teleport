@@ -1,6 +1,9 @@
 ---
 title: Installing Teleport on Docker
 description: How to install and run Teleport on Docker using our pre-built images from Amazon ECR Public, with details on configuration, data persistence, and networking.
+tags:
+- reference
+- platform-wide
 ---
 
 Docker provides a convenient way to deploy Teleport in containerized environments, offering consistent deployment across platforms and simplified dependency management. Teleport's pre-built Docker images are optimized for different use cases, from production deployments to development and troubleshooting scenarios. 
@@ -124,10 +127,10 @@ Alternatively, you can use the debug variant of the image, which contains [busyb
 $ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busybox sh
 ```
 
-### Machine ID (tbot)
+### Machine & Workload Identity (tbot)
 
 We also provide a slimmed down distroless image that only contains the `tbot`
-binary for use with Teleport Machine ID.
+binary for use with Teleport Machine & Workload Identity.
 
 | Image name                                                               | FIPS Support | Image base                                                                 |
 |--------------------------------------------------------------------------|--------------|----------------------------------------------------------------------------|
@@ -138,13 +141,13 @@ The version tagging follows the same pattern as the main `teleport-distroless`
 image.
 
 Whilst the `teleport-distroless` image also includes `tbot`, using the `tbot`
-specific image should be preferred for Machine ID deployments. This image is
-smaller, improving pull times, and has a smaller attack surface. In addition,
-the image is customized in order to improve the experience of running `tbot` in a
-container environment.
+specific image should be preferred for Machine & Workload Identity deployments.
+This image is smaller, improving pull times, and has a smaller attack surface.
+In addition, the image is customized in order to improve the experience of
+running `tbot` in a container environment.
 
 To learn more, read the
-[Deploying Machine ID on Kubernetes](../machine-workload-identity/machine-id/deployment/kubernetes.mdx)
+[Deploying Machine & Workload Identity on Kubernetes](../machine-workload-identity/deployment/kubernetes.mdx)
 guide.
 
 ## Running Teleport on Docker
@@ -267,7 +270,7 @@ From there, open another terminal and make sure your Teleport container's web
 API is functioning as intended:
 
 ```code
-$ curl --insecure https://localhost:3080/webapi/ping
+$ curl --insecure https://localhost:3080/webapi/ping | jq
 ```
 
 You should see JSON output similar to the following:

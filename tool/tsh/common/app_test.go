@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -85,7 +86,15 @@ func testDummyAppConn(addr string, tlsCerts ...tls.Certificate) (*http.Response,
 func TestAppCommands(t *testing.T) {
 	ctx := context.Background()
 
-	testserver.WithResyncInterval(t, 0)
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
 
 	accessUser, err := types.NewUser("access")
 	require.NoError(t, err)
@@ -96,15 +105,23 @@ func TestAppCommands(t *testing.T) {
 	accessUser.SetLogins([]string{user.Name})
 	connector := mockConnector(t)
 
+	rootApp := testserver.StartDummyHTTPServer("rootapp")
+	t.Cleanup(rootApp.Close)
+
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
-		testserver.WithClusterName(t, "root"),
-		testserver.WithTestApp(t, "rootapp"),
+		testserver.WithClusterName("root"),
+		testserver.WithTestApp("rootapp", rootApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
 	rootAuthServer := rootServer.GetAuthServer()
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
@@ -115,16 +132,24 @@ func TestAppCommands(t *testing.T) {
 	_, err = rootAuthServer.UpdateAuthPreference(ctx, cap)
 	require.NoError(t, err)
 
+	leafApp := testserver.StartDummyHTTPServer("leafapp")
+	t.Cleanup(leafApp.Close)
+
 	leafServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(accessUser),
-		testserver.WithClusterName(t, "leaf"),
-		testserver.WithTestApp(t, "leafapp"),
+		testserver.WithClusterName("leaf"),
+		testserver.WithTestApp("leafapp", leafApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+	leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, leafServer.Close())
+		require.NoError(t, leafServer.Wait())
+	})
+	SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 	// Set up user with MFA device for per session MFA tests below.
 	origin := "https://127.0.0.1"

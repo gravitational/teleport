@@ -75,6 +75,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -86,10 +87,12 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -104,7 +107,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 type integrationTestSuite struct {
@@ -188,6 +190,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("SessionStreaming", suite.bind(testSessionStreaming))
 	t.Run("SFTP", suite.bind(testSFTP))
+	t.Run("WebSFTP", suite.bind(testWebSFTP))
 	t.Run("SSHExitCode", suite.bind(testSSHExitCode))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("Shutdown", suite.bind(testShutdown))
@@ -206,7 +209,7 @@ func TestIntegrations(t *testing.T) {
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
 func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
@@ -236,7 +239,9 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	site := teleInstance.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
 
-	connectionProblem := func(t require.TestingT, err error, i ...interface{}) {
+	require.NoError(t, teleInstance.WaitForNodeCount(t.Context(), helpers.Site, 1))
+
+	connectionProblem := func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err, i...)
 		require.True(t, trace.IsConnectionProblem(err), "expected a connection problem error, got: %v", err)
 	}
@@ -1128,7 +1133,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
@@ -2035,11 +2040,18 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
 				site := teleport.GetSiteAPI(helpers.Site)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					sems, err := site.GetSemaphores(ctx, types.SemaphoreFilter{
+					filter := types.SemaphoreFilter{
 						SemaphoreKind: types.SemaphoreKindConnection,
-					})
-					assert.NoError(t, err)
-					assert.Len(t, sems, 1)
+					}
+					sems, err := site.GetSemaphores(ctx, filter)
+					require.NoError(t, err)
+					require.Len(t, sems, 1)
+
+					sems, next, err := site.ListSemaphores(ctx, 0, "", &filter)
+					require.Empty(t, next)
+					require.NoError(t, err)
+					require.Len(t, sems, 1)
+
 				}, 2*time.Second, 100*time.Millisecond)
 
 				timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -2288,7 +2300,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(context.Background(), cmd)
-	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tlooking up remote cluster \"wrong-site\"\n\t\tnot found"))
+	require.ErrorContains(t, err, "failed connecting to host localhost: looking up remote cluster \"wrong-site\"\n\tnot found")
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -2451,6 +2463,10 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	})
 	require.NoError(t, err)
 	tc.Stdout = &outputB
+
+	// Wait for the target host to appear in the inventory before connecting to it.
+	b.WaitForNodeCount(ctx, b.Secrets.SiteName, 1)
+
 	err = tc.SSH(ctx, cmd)
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
@@ -2603,6 +2619,10 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	cmd := []string{"echo", "hello world"}
 	tc, err := b.NewClient(helpers.ClientConfig{
 		Login:   username,
@@ -2612,19 +2632,16 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	output := &bytes.Buffer{}
 	tc.Stdout = output
-	// try to execute an SSH command using the same old client  to helpers.Site-B
+	// try to execute an SSH command using the same old client to helpers.Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.NoError(t, tc.SSH(ctx, cmd))
 	require.Equal(t, "hello world\n", output.String())
 
 	// Stop cluster "a" to force existing tunnels to close.
@@ -2647,17 +2664,14 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	// try to execute an SSH command using the same old client to site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for i := 0; i < 30; i++ {
-		time.Sleep(1 * time.Second)
-		err = tc.SSH(ctx, cmd)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.NoError(t, tc.SSH(ctx, cmd))
 
 	// stop cluster and remaining nodes
 	require.NoError(t, a.StopAll())
@@ -3868,7 +3882,10 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// create agentless node in leaf cluster
-	node := testenv.CreateAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
+	node := CreateAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
+
+	err = main.WaitForNodeCount(ctx, clusterAux, 1)
+	require.NoError(t, err)
 
 	// connect to leaf agentless node
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
@@ -7764,7 +7781,7 @@ func isNilOrEOFErr(t *testing.T, err error) {
 }
 
 func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -7918,7 +7935,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	conn, details, err := modClusterClient.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
 	require.NoError(t, err)
 	sshConfig := modClusterClient.ProxyClient.SSHConfig(username)
-	modSSHConn, modSSHChans, modSSHReqs, err := tracessh.NewClientConn(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)
+	modSSHConn, modSSHChans, modSSHReqs, err := tracessh.NewClientConnWithTimeout(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)
 	require.NoError(t, err)
 
 	// We pass an empty channel which we close right away to ssh.NewClient
@@ -7948,138 +7965,194 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	err = modSess.Shell(ctx)
 	require.NoError(t, err)
 
-	// Create and approve a file download request
-	tempDir := t.TempDir()
-	reqFile := filepath.Join(tempDir, "req-file")
-	err = os.WriteFile(reqFile, []byte("contents"), 0o666)
-	require.NoError(t, err)
-
-	err = peerSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
-		Download: true,
-		Location: reqFile,
-	})
-	require.NoError(t, err)
-
 	sshReq := sshRquestIgnoringKeepalives(t, modSSHReqs)
 	var joinEvent apievents.SessionJoin
 	err = json.Unmarshal(sshReq.Payload, &joinEvent)
 	require.NoError(t, err)
 
-	sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
-	var fileReq apievents.FileTransferRequestEvent
-	err = json.Unmarshal(sshReq.Payload, &fileReq)
+	peer2Client, err := instance.NewClient(helpers.ClientConfig{
+		TeleportUser: peerUsername,
+		Login:        teleport.SSHSessionJoinPrincipal,
+		Cluster:      helpers.Site,
+		Host:         Host,
+	})
 	require.NoError(t, err)
-
-	err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
+	peer2ClusterClient, err := peer2Client.ConnectToCluster(ctx)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, peer2ClusterClient.Close()) })
+	peer2NodeClient, err := peer2Client.ConnectToNode(ctx, peer2ClusterClient, nodeDetails, username)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, peer2NodeClient.Close()) })
 
-	// Ignore file transfer request approve event
-	sshRquestIgnoringKeepalives(t, modSSHReqs)
-
-	// Test that only operations needed to complete the download
-	// are allowed
-	transferSess, err := peerSSH.NewSession(ctx)
+	peer2SSH := peer2NodeClient.Client
+	peer2Sess, err := peer2SSH.NewSession(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		isNilOrEOFErr(t, transferSess.Close())
+		require.NoError(t, peer2Sess.Close())
 	})
 
-	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	peer2Term := NewTerminal(250)
+	peer2Sess.Stdin = peer2Term
+	peer2Sess.Stdout = peer2Term
+	peer2Sess.Stderr = peer2Term
+	err = peer2Sess.Setenv(ctx, sshutils.SessionEnvVar, sessTracker.GetSessionID())
 	require.NoError(t, err)
-
-	err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
+	err = peer2Sess.Setenv(ctx, teleport.EnvSSHJoinMode, string(types.SessionPeerMode))
 	require.NoError(t, err)
-	w, err := transferSess.StdinPipe()
-	require.NoError(t, err)
-	r, err := transferSess.StdoutPipe()
-	require.NoError(t, err)
-	sftpClient, err := sftp.NewClientPipe(r, w)
-	require.NoError(t, err)
-
-	// A file not in the request shouldn't be allowed
-	_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
-	require.ErrorContains(t, err, `method get is not allowed`)
-	// Since this is a download no files should be allowed to be written to
-	_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_WRONLY)
-	require.ErrorContains(t, err, `method put is not allowed`)
-	// Only stats and reads should be allowed
-	err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
-	require.ErrorContains(t, err, `method mkdir is not allowed`)
-	// Since this is a download no files should be allowed to have
-	// their permissions changed
-	err = sftpClient.Chmod(reqFile, 0o777)
-	require.ErrorContains(t, err, `method setstat is not allowed`)
-
-	// Only necessary operations should be allowed
-	_, err = sftpClient.Stat(reqFile)
-	require.NoError(t, err)
-	_, err = sftpClient.Lstat(reqFile)
-	require.NoError(t, err)
-	rf, err := sftpClient.Open(reqFile)
-	require.NoError(t, err)
-	require.NoError(t, rf.Close())
-
-	require.NoError(t, sftpClient.Close())
-
-	// Create and approve a file upload request
-	err = peerSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
-		Download: false,
-		Filename: "upload-file",
-		Location: reqFile,
-	})
+	err = peer2Sess.Shell(ctx)
 	require.NoError(t, err)
 
 	sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
-	err = json.Unmarshal(sshReq.Payload, &fileReq)
+	err = json.Unmarshal(sshReq.Payload, &joinEvent)
 	require.NoError(t, err)
 
-	err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
-	require.NoError(t, err)
+	tests := []struct {
+		name      string
+		sshClient *tracessh.Client
+		sess      *tracessh.Session
+	}{
+		{
+			name:      "session originator",
+			sshClient: peerSSH,
+			sess:      peerSess,
+		},
+		{
+			name:      "session joiner",
+			sshClient: peer2SSH,
+			sess:      peer2Sess,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create and approve a file download request
+			tempDir := t.TempDir()
+			reqFile := filepath.Join(tempDir, "req-file")
+			err = os.WriteFile(reqFile, []byte("contents"), 0o666)
+			require.NoError(t, err)
 
-	// Ignore file transfer request approve event
-	sshRquestIgnoringKeepalives(t, modSSHReqs)
+			err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+				Download: true,
+				Location: reqFile,
+			})
+			require.NoError(t, err)
 
-	isNilOrEOFErr(t, transferSess.Close())
-	transferSess, err = peerSSH.NewSession(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, transferSess.Close())
-	})
+			sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
+			var fileReq apievents.FileTransferRequestEvent
+			err = json.Unmarshal(sshReq.Payload, &fileReq)
+			require.NoError(t, err)
 
-	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
-	require.NoError(t, err)
+			err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
+			require.NoError(t, err)
 
-	// Test that only operations needed to complete the download
-	// are allowed
-	err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
-	require.NoError(t, err)
-	w, err = transferSess.StdinPipe()
-	require.NoError(t, err)
-	r, err = transferSess.StdoutPipe()
-	require.NoError(t, err)
-	sftpClient, err = sftp.NewClientPipe(r, w)
-	require.NoError(t, err)
+			// Ignore file transfer request approve event
+			sshRquestIgnoringKeepalives(t, modSSHReqs)
 
-	// A file not in the request shouldn't be allowed
-	_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
-	require.ErrorContains(t, err, `method get is not allowed`)
-	// Since this is an upload no files should be allowed to be read from
-	_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_RDONLY)
-	require.ErrorContains(t, err, `method get is not allowed`)
-	// Only stats, writes, and chmods should be allowed
-	err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
-	require.ErrorContains(t, err, `method mkdir is not allowed`)
+			// Test that only operations needed to complete the download
+			// are allowed
+			transferSess, err := tc.sshClient.NewSession(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				isNilOrEOFErr(t, transferSess.Close())
+			})
 
-	// Only necessary operations should be allowed
-	_, err = sftpClient.Stat(reqFile)
-	require.NoError(t, err)
-	_, err = sftpClient.Lstat(reqFile)
-	require.NoError(t, err)
-	err = sftpClient.Chmod(reqFile, 0o777)
-	require.NoError(t, err)
-	wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
-	require.NoError(t, err)
-	require.NoError(t, wf.Close())
+			err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+			require.NoError(t, err)
+
+			err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
+			require.NoError(t, err)
+			w, err := transferSess.StdinPipe()
+			require.NoError(t, err)
+			r, err := transferSess.StdoutPipe()
+			require.NoError(t, err)
+			sftpClient, err := sftp.NewClientPipe(r, w)
+			require.NoError(t, err)
+
+			// A file not in the request shouldn't be allowed
+			_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
+			require.ErrorContains(t, err, `method get is not allowed`)
+			// Since this is a download no files should be allowed to be written to
+			_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_WRONLY)
+			require.ErrorContains(t, err, `method put is not allowed`)
+			// Only stats and reads should be allowed
+			err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
+			require.ErrorContains(t, err, `method mkdir is not allowed`)
+			// Since this is a download no files should be allowed to have
+			// their permissions changed
+			err = sftpClient.Chmod(reqFile, 0o777)
+			require.ErrorContains(t, err, `method setstat is not allowed`)
+
+			// Only necessary operations should be allowed
+			_, err = sftpClient.Stat(reqFile)
+			require.NoError(t, err)
+			_, err = sftpClient.Lstat(reqFile)
+			require.NoError(t, err)
+			rf, err := sftpClient.Open(reqFile)
+			require.NoError(t, err)
+			require.NoError(t, rf.Close())
+
+			require.NoError(t, sftpClient.Close())
+
+			// Create and approve a file upload request
+			err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+				Download: false,
+				Filename: "upload-file",
+				Location: reqFile,
+			})
+			require.NoError(t, err)
+
+			sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
+			err = json.Unmarshal(sshReq.Payload, &fileReq)
+			require.NoError(t, err)
+
+			err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
+			require.NoError(t, err)
+
+			// Ignore file transfer request approve event
+			sshRquestIgnoringKeepalives(t, modSSHReqs)
+
+			isNilOrEOFErr(t, transferSess.Close())
+			transferSess, err = tc.sshClient.NewSession(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, transferSess.Close())
+			})
+
+			err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+			require.NoError(t, err)
+
+			// Test that only operations needed to complete the download
+			// are allowed
+			err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
+			require.NoError(t, err)
+			w, err = transferSess.StdinPipe()
+			require.NoError(t, err)
+			r, err = transferSess.StdoutPipe()
+			require.NoError(t, err)
+			sftpClient, err = sftp.NewClientPipe(r, w)
+			require.NoError(t, err)
+
+			// A file not in the request shouldn't be allowed
+			_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
+			require.ErrorContains(t, err, `method get is not allowed`)
+			// Since this is an upload no files should be allowed to be read from
+			_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_RDONLY)
+			require.ErrorContains(t, err, `method get is not allowed`)
+			// Only stats, writes, and chmods should be allowed
+			err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
+			require.ErrorContains(t, err, `method mkdir is not allowed`)
+
+			// Only necessary operations should be allowed
+			_, err = sftpClient.Stat(reqFile)
+			require.NoError(t, err)
+			_, err = sftpClient.Lstat(reqFile)
+			require.NoError(t, err)
+			err = sftpClient.Chmod(reqFile, 0o777)
+			require.NoError(t, err)
+			wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
+			require.NoError(t, err)
+			require.NoError(t, wf.Close())
+		})
+	}
 }
 
 func sshRquestIgnoringKeepalives(t *testing.T, ch <-chan *ssh.Request) *ssh.Request {
@@ -8106,7 +8179,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	agentlessHost := "agentless-node"
-	agentlessNode := testenv.CreateAgentlessNode(t, teleport.Process.GetAuthServer(), helpers.Site, agentlessHost)
+	agentlessNode := CreateAgentlessNode(t, teleport.Process.GetAuthServer(), helpers.Site, agentlessHost)
 
 	teleportClient, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
@@ -8350,6 +8423,67 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
+func testWebSFTP(t *testing.T, suite *integrationTestSuite) {
+	for _, proxyProtocolMode := range []multiplexer.PROXYProtocolMode{
+		multiplexer.PROXYProtocolOff,
+		multiplexer.PROXYProtocolOn,
+	} {
+		t.Run(fmt.Sprintf("proxy protocol %v", proxyProtocolMode), func(t *testing.T) {
+			cfg := suite.defaultServiceConfig()
+			cfg.Auth.Enabled = true
+			cfg.Auth.Preference.SetSecondFactor("off")
+			cfg.Auth.PROXYProtocolMode = proxyProtocolMode
+			cfg.Proxy.DisableWebService = false
+			cfg.Proxy.DisableWebInterface = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
+			teleport := suite.NewTeleportWithConfig(t, []string{"alice"}, nil, cfg)
+			t.Cleanup(func() { require.NoError(t, teleport.StopAll()) })
+			password := uuid.NewString()
+			teleport.CreateWebUser(t, suite.Me.Username, password)
+
+			lbFrontend := utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
+			webAddr, err := teleport.Process.ProxyWebAddr()
+			require.NoError(t, err)
+			lb, err := utils.NewLoadBalancer(context.Background(), *lbFrontend, *webAddr)
+			require.NoError(t, err)
+			if proxyProtocolMode == multiplexer.PROXYProtocolOn {
+				lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n")
+			}
+			require.NoError(t, lb.Listen())
+			t.Cleanup(func() { _ = lb.Close() })
+			*lbFrontend = utils.FromAddr(lb.Addr())
+
+			webClient, err := teleport.NewWebClient(helpers.ClientConfig{
+				Login:    suite.Me.Username,
+				Password: password,
+				Cluster:  helpers.Site,
+				Host:     Loopback,
+				Port:     lbFrontend.Port(0),
+			})
+			require.NoError(t, err)
+			require.NoError(t, teleport.WaitForNodeCount(t.Context(), helpers.Site, 1))
+
+			t.Run("upload", func(t *testing.T) {
+				localFile := filepath.Join(t.TempDir(), "foo.txt")
+				_, err := webClient.SFTP(localFile, []byte("foo"))
+				require.NoError(t, err)
+				require.FileExists(t, localFile)
+				fileContents, err := os.ReadFile(localFile)
+				require.NoError(t, err)
+				require.Equal(t, []byte("foo"), fileContents)
+			})
+			t.Run("download", func(t *testing.T) {
+				localFile := filepath.Join(t.TempDir(), "foo.txt")
+				require.NoError(t, os.WriteFile(localFile, []byte("foo"), 0o644))
+				out, err := webClient.SFTP(localFile, nil)
+				require.NoError(t, err)
+				require.Equal(t, []byte("foo"), out)
+			})
+		})
+	}
+}
+
 func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	// create Teleport instance
 	teleInst := suite.newTeleport(t, nil, true)
@@ -8359,7 +8493,7 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 
 	// get OpenSSH CA public key and create host certs
 	authSrv := teleInst.Process.GetAuthServer()
-	node := testenv.CreateAgentlessNode(t, authSrv, helpers.Site, "agentless-node")
+	node := CreateAgentlessNode(t, authSrv, helpers.Site, "agentless-node")
 
 	// create client
 	tc, err := teleInst.NewClient(helpers.ClientConfig{
@@ -8572,7 +8706,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 // can/cannot be established with an existing certificate
 // based on cluster configuration or roles.
 func TestConnectivityWithoutAuth(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	tests := []struct {
 		name         string
@@ -8703,6 +8837,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 			nodeCfg.Auth.Enabled = false
+			nodeCfg.DebugService.Enabled = false
 			// Configure Proxy.
 			nodeCfg.Proxy.Enabled = true
 			nodeCfg.Proxy.DisableWebService = false
@@ -8711,7 +8846,6 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.Proxy.SSHAddr.Addr = node.SSHProxy
 			nodeCfg.Proxy.WebAddr.Addr = node.Web
 			nodeCfg.Proxy.ReverseTunnelListenAddr.Addr = node.Secrets.TunnelAddr
-
 			// Configure Node.
 			nodeCfg.SSH.Enabled = true
 			nodeCfg.SSH.Addr.Addr = node.SSH
@@ -8845,6 +8979,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	nodeCfg.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerType("diag"), &node.Fds))
 	nodeCfg.Auth.Enabled = false
+	nodeCfg.DebugService.Enabled = false
 	// Configure Proxy.
 	nodeCfg.Proxy.Enabled = true
 	nodeCfg.Proxy.DisableWebService = false
@@ -8937,7 +9072,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 }
 
 func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	const password = "supersecretpassword"
 	inputReader := prompt.NewFakeReader().
@@ -9322,4 +9457,217 @@ func testForceListenerInTunnelMode(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, teleport.Version, string(resp))
 		})
 	})
+}
+
+func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
+	t.Helper()
+
+	ctx := context.Background()
+	openSSHCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OpenSSHCA,
+		DomainName: clusterName,
+	}, false)
+	require.NoError(t, err)
+
+	caCheckers, err := sshutils.GetCheckers(openSSHCA)
+	require.NoError(t, err)
+
+	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	require.NoError(t, err)
+
+	nodeUUID := uuid.New().String()
+	hostCertBytes, err := authServer.GenerateHostCert(
+		ctx,
+		ssh.MarshalAuthorizedKey(sshPub),
+		"",
+		"",
+		[]string{nodeUUID, nodeHostname, Loopback},
+		clusterName,
+		types.RoleNode,
+		0,
+	)
+	require.NoError(t, err)
+
+	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
+	require.NoError(t, err)
+	signer, err := ssh.NewSignerFromSigner(key)
+	require.NoError(t, err)
+	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
+	require.NoError(t, err)
+
+	// start SSH server
+	sshAddr := startSSHServer(t, caCheckers, hostKeySigner)
+
+	// create node resource
+	node := &types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: nodeUUID,
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     sshAddr,
+			Hostname: nodeHostname,
+		},
+	}
+	_, err = authServer.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// wait for node resource to be written to the backend
+	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	t.Cleanup(cancel)
+	w, err := authServer.NewWatcher(timedCtx, types.Watch{
+		Name: "node-create watcher",
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindNode,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	for nodeCreated := false; !nodeCreated; {
+		select {
+		case e := <-w.Events():
+			if e.Type == types.OpPut {
+				nodeCreated = true
+			}
+		case <-w.Done():
+			t.Fatal("Did not receive node create event")
+		}
+	}
+	require.NoError(t, w.Close())
+
+	return node
+}
+
+// startSSHServer starts a SSH server that roughly mimics an unregistered
+// OpenSSH (agentless) server. The SSH server started only handles a small
+// subset of SSH requests necessary for testing.
+func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
+	t.Helper()
+
+	sshCfg := ssh.ServerConfig{
+		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			cert, ok := key.(*ssh.Certificate)
+			if !ok {
+				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
+			}
+
+			// Sanity check incoming cert from proxy has Ed25519 key.
+			if cert.Key.Type() != ssh.KeyAlgoED25519 {
+				return nil, trace.BadParameter("expected Ed25519 key, got %v", cert.Key.Type())
+			}
+
+			for _, pubKey := range caPubKeys {
+				if bytes.Equal(cert.SignatureKey.Marshal(), pubKey.Marshal()) {
+					return &ssh.Permissions{}, nil
+				}
+			}
+
+			return nil, fmt.Errorf("signature key %v does not match OpenSSH CA", cert.SignatureKey)
+		},
+	}
+	sshCfg.AddHostKey(hostKey)
+
+	lis, err := net.Listen("tcp", Loopback+":")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, lis.Close())
+	})
+
+	go func() {
+		nConn, err := lis.Accept()
+		if utils.IsOKNetworkError(err) {
+			return
+		}
+		assert.NoError(t, err)
+		t.Cleanup(func() {
+			if nConn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = nConn.Close()
+			}
+		})
+
+		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
+		assert.NoError(t, err)
+		t.Cleanup(func() {
+			if conn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = conn.Close()
+			}
+		})
+		go ssh.DiscardRequests(reqs)
+
+		var agentForwarded bool
+		var shellRequested bool
+		var execRequested bool
+		var sftpRequested bool
+		for {
+			channelReq := <-channels
+			if channelReq == nil { // server is closed
+				return
+			}
+			if !assert.Equal(t, "session", channelReq.ChannelType()) {
+				assert.NoError(t, channelReq.Reject(ssh.Prohibited, "only session channels expected"))
+				continue
+			}
+			channel, reqs, err := channelReq.Accept()
+			assert.NoError(t, err)
+			t.Cleanup(func() {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = channel.Close()
+			})
+
+			go func() {
+			outer:
+				for {
+					req := <-reqs
+					if req == nil { // channel is closed
+						return
+					}
+					if req.WantReply {
+						assert.NoError(t, req.Reply(true, nil))
+					}
+					switch req.Type {
+					case sshutils.AgentForwardRequest:
+						agentForwarded = true
+					case sshutils.ShellRequest:
+						assert.NoError(t, channel.Close())
+						shellRequested = true
+						break outer
+					case sshutils.ExecRequest:
+						_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
+						assert.NoError(t, err)
+						assert.NoError(t, channel.Close())
+						execRequested = true
+						break outer
+					case sshutils.SubsystemRequest:
+						var r sshutils.SubsystemReq
+						err := ssh.Unmarshal(req.Payload, &r)
+						assert.NoError(t, err)
+						assert.Equal(t, "sftp", r.Name)
+						sftpRequested = true
+
+						sftpServer, err := sftp.NewServer(channel)
+						assert.NoError(t, err)
+						go sftpServer.Serve()
+						t.Cleanup(func() {
+							err := sftpServer.Close()
+							if err != nil {
+								assert.ErrorIs(t, err, io.EOF)
+							}
+						})
+						break outer
+					}
+				}
+				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
+			}()
+		}
+	}()
+
+	return lis.Addr().String()
 }

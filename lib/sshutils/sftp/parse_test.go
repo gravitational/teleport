@@ -272,3 +272,62 @@ func FuzzParseDestination(f *testing.F) {
 		_, _ = ParseDestination(input)
 	})
 }
+
+func TestIsRemotePath(t *testing.T) {
+	t.Parallel()
+	accept := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "remote path",
+			input: "foo:path/to/bar",
+		},
+		{
+			name:  "remote path with user",
+			input: "user@foo:/path/to/bar",
+		},
+		{
+			name:  "empty path",
+			input: "foo:",
+		},
+		{
+			name:  "remote with no slashes",
+			input: "foo:bar",
+		},
+		{
+			name:  "fake Windows path",
+			input: `foo:\valid\unix\file\name\weirdly`,
+		},
+	}
+	for _, tc := range accept {
+		t.Run("accept "+tc.name, func(t *testing.T) {
+			require.True(t, IsRemotePath(tc.input))
+		})
+	}
+	reject := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "local path",
+			input: "path/to/bar",
+		},
+		{
+			name:  "Windows absolute path",
+			input: `C:\path\to\bar`,
+		},
+		{
+			name:  "local path with colon",
+			input: "/foo:bar",
+		},
+		{
+			name: "empty path",
+		},
+	}
+	for _, tc := range reject {
+		t.Run("reject "+tc.name, func(t *testing.T) {
+			require.False(t, IsRemotePath(tc.input))
+		})
+	}
+}

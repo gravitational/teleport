@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/srv/git"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 )
@@ -244,23 +244,31 @@ func (s *localSite) DialAuthServer(params reversetunnelclient.DialParams) (net.C
 // shouldDialAndForward returns whether a connection should be proxied
 // and forwarded or not.
 func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types.SessionRecordingConfig) bool {
+	// only proxy and forward ssh connections
+	if params.ConnType != types.NodeTunnel {
+		return false
+	}
 	// connection is already being tunneled, do not forward
 	if params.FromPeerProxy {
 		return false
 	}
 	// the node is an agentless node, the connection must be forwarded
-	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
+	if params.TargetServer.IsOpenSSHNode() {
 		return true
 	}
 	// proxy session recording mode is being used and an SSH session
 	// is being requested, the connection must be forwarded
-	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+	if services.IsRecordAtProxy(recConfig.GetMode()) {
 		return true
 	}
 	return false
 }
 
 func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	if params.TargetServer == nil && params.ConnType == types.NodeTunnel {
+		return nil, trace.BadParameter("target server is required for teleport nodes")
+	}
+
 	if params.TargetServer != nil && params.TargetServer.GetKind() == types.KindGitServer {
 		return s.dialAndForwardGit(params)
 	}
@@ -289,7 +297,8 @@ func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
+	isAgentless := params.TargetServer != nil && params.TargetServer.IsOpenSSHNode()
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, isAgentless, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -407,13 +416,13 @@ func (s *localSite) dialAndForwardGit(params reversetunnelclient.DialParams) (_ 
 }
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && !params.IsAgentlessNode {
-		return nil, trace.BadParameter("agentless node require an agent getter")
+	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes (this is a bug)")
 	}
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
 	// request user agent connection if a SSH user agent is set
-	var userAgent teleagent.Agent
+	var userAgent sshagent.Client
 	if params.GetUserAgent != nil {
 		ua, err := params.GetUserAgent()
 		if err != nil {
@@ -451,7 +460,6 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		LocalAuthClient:          s.client,
 		TargetClusterAccessPoint: s.accessPoint,
 		UserAgent:                userAgent,
-		IsAgentlessNode:          params.IsAgentlessNode,
 		AgentlessSigner:          params.AgentlessSigner,
 		TargetConn:               targetConn,
 		SrcAddr:                  params.From,
@@ -473,10 +481,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
 	}
-	// Ensure the hostname is set correctly if we have details of the target
-	if params.TargetServer != nil {
-		serverConfig.TargetHostname = params.TargetServer.GetHostname()
-	}
+
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -572,6 +577,15 @@ func getTunnelErrorMessage(params reversetunnelclient.DialParams, connStr string
 This usually means that the agent is offline or has disconnected. Check the
 agent logs and, if the issue persists, try restarting it or re-registering it
 with the cluster.`
+
+	if params.TargetServer != nil && (params.TargetServer.IsOpenSSHNode() || params.TargetServer.IsEICE()) {
+		errorMessageTemplate = `Teleport proxy failed to connect to %q server %q over %s:
+
+  %v
+
+This usually means that the server is offline or a firewall restriction is blocking the SSH connection.
+Check the firewall restrictions, verify that the instance is running and the sshd service is active.`
+	}
 
 	var toAddr string
 	if params.To != nil {
@@ -703,14 +717,14 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.
 	if !trace.IsNotFound(tunnelErr) {
-		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, "%s", tunnelMsg)
 	}
 
 	skip, err := s.skipDirectDial(params)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	} else if skip {
-		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, "%s", tunnelMsg)
 	}
 
 	// If no tunnel connection was found, dial to the target host.
@@ -719,7 +733,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithField("address", params.To.String()).Debugf("All attempted dial methods failed. tunnel=%q, peer=%q, direct=%q", tunnelErr, peerErr, directErr)
 		aggregateErr := trace.NewAggregate(tunnelErr, peerErr, directErr)
-		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
+		return nil, false, trace.ConnectionProblem(aggregateErr, "%s", directMsg)
 	}
 
 	// Return a direct dialed connection.

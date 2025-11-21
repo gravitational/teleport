@@ -166,7 +166,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 				"error", err,
 				"version", teleport.Version)
 		} else {
-			teleportVersionTag = autoUpdateVersion
+			teleportVersionTag = autoUpdateVersion.String()
 		}
 	}
 
@@ -222,7 +222,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 				"error", err,
 				"version", teleport.Version)
 		} else {
-			teleportVersionTag = autoUpdateVersion
+			teleportVersionTag = autoUpdateVersion.String()
 		}
 
 	}
@@ -836,7 +836,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		Region:             req.Region,
 		EksClusterNames:    req.ClusterNames,
 		EnableAppDiscovery: req.EnableAppDiscovery,
-		AgentVersion:       agentVersion,
+		AgentVersion:       agentVersion.String(),
 		ExtraLabels:        extraLabels,
 	})
 	if err != nil {

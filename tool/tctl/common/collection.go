@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -1251,7 +1252,7 @@ type botCollection struct {
 func (c *botCollection) resources() []types.Resource {
 	resources := make([]types.Resource, len(c.bots))
 	for i, b := range c.bots {
-		resources[i] = types.Resource153ToLegacy(b)
+		resources[i] = types.ProtoResource153ToLegacy(b)
 	}
 	return resources
 }
@@ -2034,6 +2035,54 @@ func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) 
 	return trace.Wrap(err)
 }
 
+type autoUpdateAgentReportCollection struct {
+	reports []*autoupdatev1pb.AutoUpdateAgentReport
+}
+
+func (c *autoUpdateAgentReportCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.reports))
+	for i, report := range c.reports {
+		resources[i] = types.ProtoResource153ToLegacy(report)
+	}
+	return resources
+}
+
+func (c *autoUpdateAgentReportCollection) writeText(w io.Writer, verbose bool) error {
+	groupSet := make(map[string]any)
+	versionsSet := make(map[string]any)
+	for _, report := range c.reports {
+		for groupName, group := range report.GetSpec().GetGroups() {
+			groupSet[groupName] = struct{}{}
+			for versionName := range group.GetVersions() {
+				versionsSet[versionName] = struct{}{}
+			}
+		}
+	}
+
+	groupNames := slices.Collect(maps.Keys(groupSet))
+	versionNames := slices.Collect(maps.Keys(versionsSet))
+	slices.Sort(groupNames)
+	slices.Sort(versionNames)
+
+	t := asciitable.MakeTable(append([]string{"Auth Server ID", "Agent Version"}, groupNames...))
+	for _, report := range c.reports {
+		for i, versionName := range versionNames {
+			row := make([]string, len(groupNames)+2)
+			if i == 0 {
+				row[0] = report.GetMetadata().GetName()
+			}
+			row[1] = versionName
+			for j, groupName := range groupNames {
+				row[j+2] = strconv.Itoa(int(report.GetSpec().GetGroups()[groupName].GetVersions()[versionName].GetCount()))
+			}
+			t.AddRow(row)
+		}
+		t.AddRow(make([]string, len(versionNames)+2))
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type accessMonitoringRuleCollection struct {
 	items []*accessmonitoringrulesv1pb.AccessMonitoringRule
 }
@@ -2059,6 +2108,30 @@ func (c *accessMonitoringRuleCollection) writeText(w io.Writer, verbose bool) er
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateBotInstanceReportCollection struct {
+	report *autoupdatev1pb.AutoUpdateBotInstanceReport
+}
+
+func (c *autoUpdateBotInstanceReportCollection) resources() []types.Resource {
+	return []types.Resource{types.ProtoResource153ToLegacy(c.report)}
+}
+
+func (c *autoUpdateBotInstanceReportCollection) writeText(w io.Writer, _ bool) error {
+	t := asciitable.MakeTable([]string{"Update Group", "Version", "Count"})
+	for groupName, groupMetrics := range c.report.GetSpec().GetGroups() {
+		if groupName == "" {
+			groupName = "<no update group>"
+		}
+		for versionName, versionMetrics := range groupMetrics.GetVersions() {
+			t.AddRow([]string{groupName, versionName, strconv.Itoa(int(versionMetrics.Count))})
+		}
+	}
+	t.SortRowsBy([]int{0, 1}, true)
+
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

@@ -27,6 +27,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -200,7 +201,8 @@ func (c *BotsCommand) ListBots(ctx context.Context, client *authclient.Client) e
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
 
-		fmt.Fprintf(c.stdout, "\nTo view active instances of a bot, run:\n\n> %s bots instances list [name]\n", os.Args[0])
+		executableFileName := filepath.Base(os.Args[0])
+		fmt.Fprintf(c.stdout, "\nTo view active instances of a bot, run:\n\n> %s bots instances list [name]\n", executableFileName)
 	} else {
 		err := utils.WriteJSONArray(c.stdout, bots)
 		if err != nil {
@@ -664,10 +666,11 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 	}
 	fmt.Fprintln(c.stdout, t.AsBuffer().String())
 
-	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", os.Args[0])
+	executableFileName := filepath.Base(os.Args[0])
+	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", executableFileName)
 
 	if c.botName != "" {
-		fmt.Fprintf(c.stdout, "\nTo onboard a new instance for this bot, run:\n\n> %s bots instances add %s\n", os.Args[0], c.botName)
+		fmt.Fprintf(c.stdout, "\nTo onboard a new instance for this bot, run:\n\n> %s bots instances add %s\n", executableFileName, c.botName)
 	}
 
 	return nil

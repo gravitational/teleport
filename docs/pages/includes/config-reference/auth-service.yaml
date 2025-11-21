@@ -258,6 +258,9 @@ auth_service:
       # - 'required' - enables device authentication and device-aware audit.
       #   Additionally, it requires a trusted device for all SSH, Database
       #   and Kubernetes connections.
+      # - 'required-for-humans' - enables device authentication and device-aware
+      #   audit. Additionally, it requires a trusted device for all SSH, Database
+      #   and Kubernetes connections, for human users only (bots are exempt).
       mode: optional # always "off" for Teleport Community Edition
 
     # Determines the default time to live for user certificates
@@ -373,8 +376,8 @@ auth_service:
   # unlikely that you'll need to change this.
   # session_control_timeout: 2m
 
-  # Determines the routing strategy used to connect to nodes. Can be
-  # 'unambiguous_match' (default), or 'most_recent'.
+  # Determines the routing strategy used to connect to nodes when connecting via 
+  # node name. Can be 'unambiguous_match' (default), or 'most_recent'.
   routing_strategy: unambiguous_match
 
   # License file to start auth server with. Note that this setting is ignored

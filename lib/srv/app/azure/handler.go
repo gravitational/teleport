@@ -180,7 +180,7 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
 	forwardedHost, err := utils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, trace.AccessDenied("%s", err)
 	} else if !azure.IsAzureEndpoint(forwardedHost) {
 		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
 	}
@@ -265,8 +265,10 @@ func (s *handler) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.A
 
 	// Create a new key that can sign and verify tokens.
 	key, err := jwt.New(&jwt.Config{
-		Clock:       s.Clock,
-		PublicKey:   pubKey,
+		Clock:     s.Clock,
+		PublicKey: pubKey,
+		// TODO(gabrielcorado): use the cluster name. This value must match the
+		// one used by the local proxy middleware.
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {

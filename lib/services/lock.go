@@ -36,7 +36,7 @@ func LockInForceAccessDenied(lock types.Lock) error {
 	if len(msg) > 0 {
 		s += ": " + msg
 	}
-	err := trace.AccessDenied(s)
+	err := trace.AccessDenied("%s", s)
 	return trace.WithField(err, "lock-in-force", lock)
 }
 
@@ -52,6 +52,12 @@ func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
 	}
 	if id.DeviceExtensions.DeviceID != "" {
 		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
+	}
+	if id.JoinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: id.JoinToken})
+	}
+	if id.BotInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
 	}
 	lockTargets = append(lockTargets, AccessRequestsToLockTargets(id.ActiveRequests)...)
 	return lockTargets
@@ -85,7 +91,7 @@ func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {
 
 	var lock types.LockV2
 	if err := utils.FastUnmarshal(bytes, &lock); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := lock.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

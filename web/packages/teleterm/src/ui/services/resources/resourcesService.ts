@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SortType } from 'design/DataTable/types';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 
@@ -282,7 +283,22 @@ export type SearchResultResource<Kind extends SearchResult['kind']> =
             ? SearchResultWindowsDesktop['resource']
             : never;
 
-function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
+type GetResourcesParams = {
+  clusterUri: uri.ClusterUri;
+  // sort is a required field because it has direct implications on performance of ListResources.
+  sort: SortType | null;
+  // limit cannot be omitted and must be greater than zero, otherwise ListResources is going to
+  // return an error.
+  limit: number;
+  // search is used for regular search.
+  search?: string;
+  searchAsRoles?: string;
+  startKey?: string;
+  // query is used for advanced search.
+  query?: string;
+};
+
+function makeGetResourcesParamsRequest(params: GetResourcesParams) {
   return {
     ...params,
     search: params.search || '',

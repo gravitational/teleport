@@ -339,6 +339,15 @@ const (
 	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
 	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
 
+	// KindAutoUpdateAgentReport is the resource that tracks connected agents.
+	KindAutoUpdateAgentReport = "autoupdate_agent_report"
+
+	// KindAutoUpdateBotInstanceReport is the resource that tracks connected bots.
+	KindAutoUpdateBotInstanceReport = "autoupdate_bot_instance_report"
+
+	// MetaNameAutoUpdateBotInstanceReport is the name of the singleton auto update bot report.
+	MetaNameAutoUpdateBotInstanceReport = "autoupdate-bot-instance-report"
+
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
 
@@ -641,6 +650,9 @@ const (
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
 
+	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
+	KindClientIPRestriction = "client_ip_restriction"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -872,6 +884,8 @@ const (
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
 	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
+	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
+	DiscoveryDescription = TeleportNamespace + "/description"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -902,6 +916,8 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+	// TeleportAzureIdentityEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
+	TeleportAzureIdentityEndpoint = "azure-identity." + TeleportNamespace
 
 	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
 	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].

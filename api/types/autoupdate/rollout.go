@@ -93,6 +93,12 @@ func ValidateAutoUpdateAgentRollout(v *autoupdate.AutoUpdateAgentRollout) error 
 		if v.Spec.Strategy == AgentsStrategyHaltOnError && i == 0 && group.ConfigWaitHours != 0 {
 			return trace.BadParameter("status.schedules.groups[0].config_wait_hours must be zero as it's the first group")
 		}
+		if group.CanaryCount > MaxCanaryCount {
+			return trace.BadParameter("status.schedules.groups[%d].canary_count must be less than %d", i, MaxCanaryCount)
+		}
+		if len(group.Canaries) > MaxCanaryCount {
+			return trace.BadParameter("status.schedules.groups[%d].canaries must be contain less than %d elements", i, MaxCanaryCount)
+		}
 		if conflictingGroup, ok := seenGroups[group.Name]; ok {
 			return trace.BadParameter("spec.agents.schedules.regular contains groups with the same name %q at indices %d and %d", group.Name, conflictingGroup, i)
 		}

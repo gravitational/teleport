@@ -48,7 +48,8 @@ func NewPeerDialer(server Tunnel) PeerDialerFunc {
 			FromPeerProxy: true,
 		}
 
-		conn, err := site.Dial(dialParams)
+		// peered dials should be passthru so we call [localCluster.DialTCP] directly
+		conn, err := site.DialTCP(dialParams)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

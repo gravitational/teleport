@@ -36,12 +36,13 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -65,6 +66,8 @@ type proxyTunnelStrategy struct {
 	postgresDB   *postgres.TestServer
 
 	log *logrus.Logger
+
+	expectedTunnels int
 }
 
 func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.TunnelStrategyV1) *proxyTunnelStrategy {
@@ -153,11 +156,17 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy.
 func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
-	// TODO(jakule): Fix the test.
-	t.Skip("this test is flaky as it very sensitive to our timeouts")
+	// NOTE(eriktate): Testing database tunnels appears to be flaky (or possibly never works?)
+	// so we currently skip adding a database altogether in order to ensure peered tunnels have
+	// some automatic test coverage. Gating this behind a flag in case we want to restore the
+	// database portion of the test at some point.
+	withDB := false
+	testProxyTunnelStrategyProxyPeering(t, withDB)
+}
 
+func testProxyTunnelStrategyProxyPeering(t *testing.T, withDB bool) {
 	// This test cannot run in parallel as set module changes the global state.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -187,11 +196,13 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	// bootstrap a node instance.
 	p.makeNode(t)
 
-	// bootstrap a db instance.
-	p.makeDatabase(t)
+	if withDB {
+		// bootstrap a db instance.
+		p.makeDatabase(t)
+	}
 
 	// wait for the node and db to open reverse tunnels to the first proxy.
-	helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 2)
+	helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, p.expectedTunnels)
 
 	// bootstrap the second proxy instance after the node and db have already
 	// established reverse tunnels to the first proxy.
@@ -206,9 +217,11 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	p.waitForNodeToBeReachable(t)
 	p.dialNode(t)
 
-	// make sure we can connect to the database going through any proxy.
-	p.waitForDatabaseToBeReachable(t)
-	p.dialDatabase(t)
+	if withDB {
+		// make sure we can connect to the database going through any proxy.
+		p.waitForDatabaseToBeReachable(t)
+		p.dialDatabase(t)
+	}
 }
 
 // dialNode starts a client conn to a node reachable through a specific proxy.
@@ -337,6 +350,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.DebugService.Enabled = false
 	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
@@ -387,6 +401,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.DataDir = t.TempDir()
 	conf.Log = node.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	conf.DebugService.Enabled = false
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -401,6 +416,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	require.NoError(t, node.Start())
 
 	p.node = node
+	p.expectedTunnels += 1
 }
 
 // makeDatabase bootstraps a new teleport db instance.
@@ -427,6 +443,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.DebugService.Enabled = false
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
@@ -446,7 +463,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		},
 	}
 
-	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username}, nil)
+	_, role, err := authtest.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username}, nil)
 	require.NoError(t, err)
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -490,6 +507,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	p.db = db
 	p.dbAuthClient = client
 	p.postgresDB = postgresDB
+	p.expectedTunnels += 1
 }
 
 // waitForNodeToBeReachable waits for the node to be reachable from all

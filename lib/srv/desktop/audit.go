@@ -47,6 +47,7 @@ type desktopSessionAuditor struct {
 	clusterName        string
 	desktopServiceUUID string
 
+	compactor  auditCompactor
 	auditCache sharedDirectoryAuditCache
 }
 
@@ -75,17 +76,16 @@ func (s *WindowsService) newSessionAuditor(
 	return &desktopSessionAuditor{
 		clock: s.cfg.Clock,
 
-		sessionID:   sessionID,
-		identity:    identity,
-		windowsUser: windowsUser,
-		desktop:     desktop,
-		enableNLA:   s.enableNLA,
-
+		sessionID:          sessionID,
+		identity:           identity,
+		windowsUser:        windowsUser,
+		desktop:            desktop,
+		enableNLA:          s.enableNLA,
 		startTime:          s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		clusterName:        s.clusterName,
 		desktopServiceUUID: s.cfg.Heartbeat.HostUUID,
-
-		auditCache: newSharedDirectoryAuditCache(),
+		compactor:          newAuditCompactor(3*time.Second, 10*time.Second, s.emit),
+		auditCache:         newSharedDirectoryAuditCache(),
 	}
 }
 
@@ -100,6 +100,7 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 			ClusterName: d.clusterName,
 			Time:        d.startTime,
 		},
+		CertMetadata:          new(events.WindowsCertificateMetadata),
 		UserMetadata:          userMetadata,
 		SessionMetadata:       d.getSessionMetadata(),
 		ConnectionMetadata:    d.getConnectionMetadata(),
@@ -120,6 +121,10 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 	}
 
 	return event
+}
+
+func (d *desktopSessionAuditor) teardown(ctx context.Context) {
+	d.compactor.flush(ctx)
 }
 
 func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDesktopSessionEnd {
@@ -162,6 +167,7 @@ func (d *desktopSessionAuditor) makeClipboardSend(length int32) *events.DesktopC
 		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.desktop.GetAddr(),
 		Length:             length,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -178,6 +184,7 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.desktop.GetAddr(),
 		Length:             length,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -213,6 +220,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m tdp.SharedDirectoryA
 		DesktopAddr:   d.desktop.GetAddr(),
 		DirectoryName: m.Name,
 		DirectoryID:   m.DirectoryID,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 
@@ -243,6 +251,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAc
 		DesktopAddr:        d.desktop.GetAddr(),
 		DirectoryName:      string(name),
 		DirectoryID:        m.DirectoryID,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -291,6 +300,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m tdp.SharedDirecto
 		Path:          path,
 		Length:        m.Length,
 		Offset:        offset,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 
@@ -343,6 +353,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDire
 		Path:               path,
 		Length:             m.ReadDataLength,
 		Offset:             offset,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -393,6 +404,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirect
 		Path:          path,
 		Length:        m.WriteDataLength,
 		Offset:        offset,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 
@@ -444,6 +456,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDir
 		Path:               path,
 		Length:             m.BytesWritten,
 		Offset:             offset,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 

@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -46,12 +47,38 @@ var retryConfig = retryutils.RetryV2Config{
 	Driver: retryutils.NewLinearDriver(time.Second),
 }
 
-type fakeTokenProvider struct{}
+type fakeTokenProvider struct {
+	mu    sync.Mutex
+	token string
+}
 
 func (t *fakeTokenProvider) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.token == "" {
+		t.token = uuid.NewString()
+	}
+
 	return azcore.AccessToken{
-		Token: "foo",
+		Token: t.token,
 	}, nil
+}
+
+func (t *fakeTokenProvider) clearToken() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.token = ""
+}
+
+// inspectToken returns the current token without generating a new one if the current token is
+// empty. Useful in tests that need to verify that the client requested a new token after it was
+// cleared.
+func (t *fakeTokenProvider) inspectToken() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.token
 }
 
 const usersPayload = `[
@@ -415,6 +442,68 @@ func TestRetry(t *testing.T) {
 
 		_, err = client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
 		require.Error(t, err)
+	})
+
+	// This test simulates a situation in which the token expires between retries. It verifies that
+	// the client requests a token before each retry rather than requesting it just once before it
+	// enters the retry loop.
+	t.Run("refreshing token between retries", func(t *testing.T) {
+		handler := &failingHandler{
+			t:              t,
+			timesToFail:    1,
+			statusCode:     http.StatusTooManyRequests,
+			expectedBody:   objPayload,
+			successPayload: objPayload,
+			retryAfter:     10,
+		}
+		mux := http.NewServeMux()
+		mux.Handle(route, handler)
+
+		srv := httptest.NewServer(mux)
+		t.Cleanup(func() { srv.Close() })
+
+		uri, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		tokenProvider := &fakeTokenProvider{}
+		client := &Client{
+			httpClient:    &http.Client{},
+			tokenProvider: tokenProvider,
+			clock:         clock,
+			retryConfig:   retryConfig,
+			baseURL:       uri,
+		}
+		require.NoError(t, err)
+
+		ret := make(chan error, 1)
+		go func() {
+			out, err := client.CreateFederatedIdentityCredential(context.Background(), appID, fic)
+			assert.Equal(t, fic, out)
+			ret <- err
+		}()
+
+		// First failure, the client now waits before retrying.
+		clock.BlockUntil(1)
+		require.EqualValues(t, 1, handler.timesCalled.Load())
+		tokenBefore := tokenProvider.inspectToken()
+		require.NotEmpty(t, tokenBefore)
+
+		// Clear the token to simulate expiry.
+		tokenProvider.clearToken()
+
+		// Advance time to make the client try again.
+		clock.Advance(time.Duration(handler.retryAfter) * time.Second)
+		select {
+		case err := <-ret:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			require.Fail(t, "expected client to return")
+		}
+
+		tokenAfter := tokenProvider.inspectToken()
+		require.NotEmpty(t, tokenAfter,
+			"the client did not request a new token after the previous one was cleared")
+		require.NotEqual(t, tokenAfter, tokenBefore,
+			"the client did not get a new token for the second request")
 	})
 }
 

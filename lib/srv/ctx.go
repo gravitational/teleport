@@ -246,6 +246,11 @@ type IdentityContext struct {
 	// access
 	AllowedResourceIDs []types.ResourceID
 
+	// JoinToken is the name of the join token used to join this bot identity,
+	// if any, and will not be set for bot instances that joined using the
+	// `token` join method.
+	JoinToken string
+
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
 	// identity/cert was derived from. It is used to determine a session's hard
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
@@ -567,6 +572,31 @@ func (c *ServerContext) SessionID() rsession.ID {
 // GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
+}
+
+// GetJoinParams gets join params if they are set.
+//
+// These params (env vars) are set synchronously between the "session" channel request
+// and the "shell" / "exec" channel request. Therefore, these params are only guaranteed
+// to be accurately set during and after the "shell" / "exec" channel request.
+//
+// TODO(Joerger): Rather than relying on the out-of-band env var params, we should
+// provide session params upfront as extra data in the session channel request.
+func (c *ServerContext) GetJoinParams() (string, types.SessionParticipantMode) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	sid, found := c.getEnvLocked(sshutils.SessionEnvVar)
+	if !found {
+		return "", ""
+	}
+
+	mode := types.SessionPeerMode // default
+	if modeString, found := c.getEnvLocked(teleport.EnvSSHJoinMode); found {
+		mode = types.SessionParticipantMode(modeString)
+	}
+
+	return sid, mode
 }
 
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If

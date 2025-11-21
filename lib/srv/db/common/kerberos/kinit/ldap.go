@@ -122,7 +122,7 @@ func (s *ldapConnector) GetActiveDirectorySID(ctx context.Context, username stri
 	// Find the user's SID
 	filter := windows.CombineLDAPFilters([]string{
 		fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
-		fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
+		fmt.Sprintf("(%s=%s)", attrSAMAccountName, ldap.EscapeFilter(username)),
 	})
 
 	domainDN := windows.DomainDN(s.ldapConfig.Domain)
@@ -174,7 +174,6 @@ func (s *ldapConnector) tlsConfigForLDAP(ctx context.Context) (*tls.Config, erro
 		AuthClient:         s.authClient,
 		Domain:             s.ldapConfig.Domain,
 		ActiveDirectorySID: s.ldapConfig.ServiceAccountSID,
-		OmitCDP:            true,
 	}
 
 	certPEM, keyPEM, caCerts, err := windows.DatabaseCredentials(ctx, req)

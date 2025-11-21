@@ -892,8 +892,14 @@ func shouldUseSystemCertPool(database types.Database) bool {
 	case types.DatabaseTypeOpenSearch:
 		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
 		return true
+
 	case types.DatabaseTypeSpanner:
 		// Spanner is hosted on GCP.
+		return true
+
+	case types.DatabaseTypeMongoAtlas:
+		// Atlas may use either Let's Encrypt or Google GTS Root R3/R4:
+		// https://www.mongodb.com/docs/atlas/reference/faq/security/
 		return true
 	}
 	return false

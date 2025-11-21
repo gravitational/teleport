@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
@@ -87,11 +88,11 @@ func TestExportAuthorities(t *testing.T) {
 	ctx := context.Background()
 	const localClusterName = "localcluster"
 
-	testAuth, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: localClusterName,
 		Dir:         t.TempDir(),
 	})
-	require.NoError(t, err, "failed to create auth.NewTestAuthServer")
+	require.NoError(t, err, "failed to create authtest.NewAuthServer")
 
 	validateTLSCertificateDERFunc := func(t *testing.T, s string) {
 		cert, err := x509.ParseCertificate([]byte(s))

@@ -79,7 +79,7 @@ func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstat
 	}
 	uls := &userloginstate.UserLoginState{}
 	if err := utils.FastUnmarshal(data, &uls); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := uls.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

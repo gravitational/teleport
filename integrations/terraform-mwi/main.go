@@ -37,7 +37,7 @@ func main() {
 		ctx,
 		provider.New(),
 		providerserver.ServeOpts{
-			Address: "terraform.releases.teleport.dev/gravitational/teleport-mwi",
+			Address: "terraform.releases.teleport.dev/gravitational/teleportmwi",
 			Debug:   debug,
 		},
 	)
