@@ -54,7 +54,7 @@ const (
 
 	// The child does not signal until completing PAM setup, which can take an arbitrary
 	// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
-	childContinueWaitTimeout = 3 * time.Minute
+	childReadyWaitTimeout = 3 * time.Minute
 )
 
 // ExecResult is used internally to send the result of a command execution from
@@ -229,7 +229,7 @@ func (e *localExec) Wait() *ExecResult {
 }
 
 func (e *localExec) WaitForChild(ctx context.Context) error {
-	err := waitForSignal(ctx, e.Ctx.readyr, childContinueWaitTimeout)
+	err := waitForSignal(ctx, e.Ctx.readyr, childReadyWaitTimeout)
 	closeErr := e.Ctx.readyr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	e.Ctx.readyr = nil

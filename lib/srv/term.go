@@ -258,7 +258,7 @@ func (t *terminal) Wait() (*ExecResult, error) {
 }
 
 func (t *terminal) WaitForChild(ctx context.Context) error {
-	err := waitForSignal(ctx, t.serverContext.readyr, childContinueWaitTimeout)
+	err := waitForSignal(ctx, t.serverContext.readyr, childReadyWaitTimeout)
 	closeErr := t.serverContext.readyr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	t.serverContext.readyr = nil
