@@ -183,14 +183,13 @@ const InfoGuide = () => (
       blocks).
     </InfoParagraph>
 
-    {/* TODO(mcbattirola): uncomment this whenn we add audit logs for this feature
-    <InfoParagraph>Changes are recorded in the audit log.</InfoParagraph> */}
+    <InfoParagraph>Changes are recorded in the audit log.</InfoParagraph>
 
     <InfoParagraph>Add one CIDR block per line, without commas.</InfoParagraph>
 
     <InfoParagraph>
-      Changes will take effect during your next upgrade window; existing
-      connections will be terminated.
+      Changes take effect in 5–15 minutes and will terminate existing
+      connections. Maintenance windows are ignored.
     </InfoParagraph>
 
     <InfoParagraph>
