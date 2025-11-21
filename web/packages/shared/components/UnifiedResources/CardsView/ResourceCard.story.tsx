@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta, StoryObj } from '@storybook/react-vite';
+import { Meta } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router';
 import styled from 'styled-components';
 
@@ -87,10 +87,28 @@ const additionalResources = [
   }),
 ];
 
-const meta: Meta<typeof ResourceCard> = {
-  component: ResourceCard,
-  title: 'Shared/UnifiedResources/Items',
+type StoryProps = {
+  withoutCheckbox: boolean;
+  withoutPin: boolean;
 };
+
+const meta: Meta<StoryProps> = {
+  title: 'Shared/UnifiedResources/Items',
+  argTypes: {
+    withoutCheckbox: {
+      control: { type: 'boolean' },
+    },
+    withoutPin: {
+      control: { type: 'boolean' },
+    },
+  },
+  // default
+  args: {
+    withoutCheckbox: false,
+    withoutPin: false,
+  },
+};
+export default meta;
 
 const Grid = styled.div<GapProps>`
   display: grid;
@@ -98,58 +116,57 @@ const Grid = styled.div<GapProps>`
   ${gap}
 `;
 
-export default meta;
-type Story = StoryObj<typeof ResourceCard>;
-
 const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 
-export const Cards: Story = {
-  render() {
-    return (
-      <MemoryRouter>
-        <SamlAppActionProvider>
-          <Grid gap={2}>
-            {[
-              ...apps.map(resource =>
-                makeUnifiedResourceViewItemApp(resource, {
-                  ActionButton: <ResourceActionButton resource={resource} />,
-                })
-              ),
-              ...databases.map(resource =>
-                makeUnifiedResourceViewItemDatabase(resource, {
-                  ActionButton,
-                })
-              ),
-              ...kubes.map(resource =>
-                makeUnifiedResourceViewItemKube(resource, { ActionButton })
-              ),
-              ...nodes.map(resource =>
-                makeUnifiedResourceViewItemNode(resource, {
-                  ActionButton,
-                })
-              ),
-              ...additionalResources.map(resource =>
-                makeUnifiedResourceViewItemApp(resource, { ActionButton })
-              ),
-              ...desktops.map(resource =>
-                makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
-              ),
-            ].map((res, i) => (
-              <ResourceCard
-                key={i}
-                pinned={false}
-                pinResource={() => {}}
-                selectResource={() => {}}
-                selected={false}
-                pinningSupport={PinningSupport.Supported}
-                onShowStatusInfo={() => null}
-                showingStatusInfo={false}
-                viewItem={res}
-              />
-            ))}
-          </Grid>
-        </SamlAppActionProvider>
-      </MemoryRouter>
-    );
-  },
-};
+export function Cards(props: StoryProps) {
+  return (
+    <MemoryRouter>
+      <SamlAppActionProvider>
+        <Grid gap={2}>
+          {[
+            ...apps.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, {
+                ActionButton: <ResourceActionButton resource={resource} />,
+              })
+            ),
+            ...databases.map(resource =>
+              makeUnifiedResourceViewItemDatabase(resource, {
+                ActionButton,
+              })
+            ),
+            ...kubes.map(resource =>
+              makeUnifiedResourceViewItemKube(resource, { ActionButton })
+            ),
+            ...nodes.map(resource =>
+              makeUnifiedResourceViewItemNode(resource, {
+                ActionButton,
+              })
+            ),
+            ...additionalResources.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, { ActionButton })
+            ),
+            ...desktops.map(resource =>
+              makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
+            ),
+          ].map((res, i) => (
+            <ResourceCard
+              key={i}
+              pinned={false}
+              pinResource={() => {}}
+              selectResource={() => {}}
+              selected={false}
+              pinningSupport={PinningSupport.Supported}
+              onShowStatusInfo={() => null}
+              showingStatusInfo={false}
+              viewItem={res}
+              visibleInputFields={{
+                checkbox: !props.withoutCheckbox,
+                pin: !props.withoutPin,
+              }}
+            />
+          ))}
+        </Grid>
+      </SamlAppActionProvider>
+    </MemoryRouter>
+  );
+}

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta, StoryObj } from '@storybook/react-vite';
+import { Meta } from '@storybook/react-vite';
 
 import { ButtonBorder, Flex } from 'design';
 
@@ -80,56 +80,73 @@ const additionalResources = [
   }),
 ];
 
-const meta: Meta<typeof ResourceListItem> = {
-  component: ResourceListItem,
-  title: 'Shared/UnifiedResources/Items',
+type StoryProps = {
+  withoutCheckbox: boolean;
+  withoutPin: boolean;
 };
 
+const meta: Meta<StoryProps> = {
+  title: 'Shared/UnifiedResources/Items',
+  argTypes: {
+    withoutCheckbox: {
+      control: { type: 'boolean' },
+    },
+    withoutPin: {
+      control: { type: 'boolean' },
+    },
+  },
+  // default
+  args: {
+    withoutCheckbox: false,
+    withoutPin: false,
+  },
+};
 export default meta;
-type Story = StoryObj<typeof ResourceListItem>;
 
 const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 
-export const ListItems: Story = {
-  render() {
-    return (
-      <Flex flexDirection="column">
-        {[
-          ...apps.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, { ActionButton })
-          ),
-          ...databases.map(resource =>
-            makeUnifiedResourceViewItemDatabase(resource, {
-              ActionButton,
-            })
-          ),
-          ...kubes.map(resource =>
-            makeUnifiedResourceViewItemKube(resource, { ActionButton })
-          ),
-          ...nodes.map(resource =>
-            makeUnifiedResourceViewItemNode(resource, { ActionButton })
-          ),
-          ...additionalResources.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, { ActionButton })
-          ),
-          ...desktops.map(resource =>
-            makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
-          ),
-        ].map((res, i) => (
-          <ResourceListItem
-            key={i}
-            pinned={false}
-            pinResource={() => {}}
-            selectResource={() => {}}
-            selected={false}
-            pinningSupport={PinningSupport.Supported}
-            expandAllLabels={false}
-            onShowStatusInfo={() => null}
-            showingStatusInfo={false}
-            viewItem={res}
-          />
-        ))}
-      </Flex>
-    );
-  },
-};
+export function ListItems(props: StoryProps) {
+  return (
+    <Flex flexDirection="column">
+      {[
+        ...apps.map(resource =>
+          makeUnifiedResourceViewItemApp(resource, { ActionButton })
+        ),
+        ...databases.map(resource =>
+          makeUnifiedResourceViewItemDatabase(resource, {
+            ActionButton,
+          })
+        ),
+        ...kubes.map(resource =>
+          makeUnifiedResourceViewItemKube(resource, { ActionButton })
+        ),
+        ...nodes.map(resource =>
+          makeUnifiedResourceViewItemNode(resource, { ActionButton })
+        ),
+        ...additionalResources.map(resource =>
+          makeUnifiedResourceViewItemApp(resource, { ActionButton })
+        ),
+        ...desktops.map(resource =>
+          makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
+        ),
+      ].map((res, i) => (
+        <ResourceListItem
+          key={i}
+          pinned={false}
+          pinResource={() => {}}
+          selectResource={() => {}}
+          selected={false}
+          pinningSupport={PinningSupport.Supported}
+          expandAllLabels={false}
+          onShowStatusInfo={() => null}
+          showingStatusInfo={false}
+          viewItem={res}
+          visibleInputFields={{
+            checkbox: !props.withoutCheckbox,
+            pin: !props.withoutPin,
+          }}
+        />
+      ))}
+    </Flex>
+  );
+}

@@ -26,7 +26,7 @@ import React, {
   useState,
   type JSX,
 } from 'react';
-import styled from 'styled-components';
+import styled, { CSSProp } from 'styled-components';
 
 import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
@@ -57,7 +57,7 @@ import {
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
-import { ResourcesResponse } from 'teleport/services/agents';
+import { ResourceLabel, ResourcesResponse } from 'teleport/services/agents';
 
 import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
 import { CardsView } from './CardsView/CardsView';
@@ -73,6 +73,8 @@ import {
   UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
+  VisibleFilterPanelFields,
+  VisibleResourceItemFields,
 } from './types';
 
 // get 48 resources to start
@@ -181,6 +183,11 @@ export interface UnifiedResourcesProps {
    * */
   NoResources: React.ReactElement;
   /**
+   * If true, it will render the "NoResources" component
+   * without doing other internal "no result" checks.
+   */
+  overrideNoResultsCheck?: boolean;
+  /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
    */
@@ -212,6 +219,32 @@ export interface UnifiedResourcesProps {
    * with selected resources status info.
    */
   onShowStatusInfo(resource: UnifiedResourceDefinition): void;
+
+  /**
+   * onLabelClick is a custom label click handler.
+   *
+   * Default behavior is to append clicked label to
+   * the query string (aka predicate expression).
+   */
+  onLabelClick?(label: ResourceLabel): void;
+  /**
+   * Provide custom CSS to this components container.
+   */
+  cssStyle?: CSSProp;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   *
+   * Applies to FilterPanel component.
+   */
+  visibleFilterPanelFields?: VisibleFilterPanelFields;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   *
+   * Applies to row item elements (CardView or ListView).
+   */
+  visibleResourceItemFields?: VisibleResourceItemFields;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -230,6 +263,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     ClusterDropdown,
     bulkActions = [],
     onShowStatusInfo,
+    visibleFilterPanelFields,
+    visibleResourceItemFields,
+    onLabelClick,
+    cssStyle,
+    overrideNoResultsCheck,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -472,17 +510,34 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       ? CardsView
       : ListView;
 
+  let footerElement: JSX.Element;
+  if (overrideNoResultsCheck) {
+    footerElement = props.NoResources;
+  } else if (noResults) {
+    if (isSearchEmpty && !params.pinnedOnly) {
+      footerElement = props.NoResources;
+    }
+    if (params.pinnedOnly && isSearchEmpty) {
+      footerElement = <NoPinned />;
+    }
+    if (!isSearchEmpty) {
+      footerElement = (
+        <NoResults
+          isPinnedTab={params.pinnedOnly}
+          query={params?.query || params?.search}
+        />
+      );
+    }
+  }
+
+  if (resourcesFetchAttempt.status === 'failed' && resources.length > 0) {
+    footerElement = (
+      <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
+    );
+  }
+
   return (
-    <div
-      className="ContainerContext"
-      css={`
-        width: 100%;
-        max-width: 1800px;
-        margin: 0 auto;
-        min-width: 450px;
-      `}
-      ref={containerRef}
-    >
+    <Container className="ContainerContext" ref={containerRef} css={cssStyle}>
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
           <Danger
@@ -532,6 +587,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
       {props.Header}
       <FilterPanel
+        visibleInputFields={visibleFilterPanelFields}
         availabilityFilter={availabilityFilter}
         changeAvailableResourceMode={changeAvailableResourceMode}
         params={params}
@@ -605,12 +661,15 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         </Flex>
       )}
       <ViewComponent
-        onLabelClick={label =>
-          setParams({
-            ...params,
-            search: '',
-            query: makeAdvancedSearchQueryForLabel(label, params),
-          })
+        onLabelClick={
+          onLabelClick
+            ? onLabelClick
+            : label =>
+                setParams({
+                  ...params,
+                  search: '',
+                  query: makeAdvancedSearchQueryForLabel(label, params),
+                })
         }
         pinnedResources={pinnedResources}
         selectedResources={selectedResources}
@@ -656,22 +715,11 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             : []
         }
         expandAllLabels={expandAllLabels}
+        visibleInputFields={visibleResourceItemFields}
       />
       <div ref={setTrigger} />
-      <ListFooter>
-        {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
-          <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
-        )}
-        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
-        {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
-        {noResults && !isSearchEmpty && (
-          <NoResults
-            isPinnedTab={params.pinnedOnly}
-            query={params?.query || params?.search}
-          />
-        )}
-      </ListFooter>
-    </div>
+      <ListFooter>{footerElement}</ListFooter>
+    </Container>
   );
 }
 
@@ -840,3 +888,10 @@ export function getResourceAvailabilityFilter(
       availableResourceMode satisfies never;
   }
 }
+
+const Container = styled.div`
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  min-width: 450px;
+`;

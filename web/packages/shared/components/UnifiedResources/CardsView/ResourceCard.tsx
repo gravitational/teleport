@@ -37,7 +37,7 @@ import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { SingleLineBox } from '../shared/SingleLineBox';
 import { shouldWarnResourceStatus } from '../shared/StatusInfo';
-import { ResourceItemProps } from '../types';
+import { ResourceItemProps, VisibleResourceItemFields } from '../types';
 import { WarningRightEdgeBadgeSvg } from './WarningRightEdgeBadgeSvg';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
@@ -66,7 +66,14 @@ export function ResourceCard({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
+  visibleInputFields,
 }: Omit<ResourceItemProps, 'expandAllLabels'>) {
+  // Conditionally render input fields.
+  const show: VisibleResourceItemFields = visibleInputFields ?? {
+    pin: true,
+    checkbox: true,
+  };
+
   const {
     name,
     primaryIconName,
@@ -186,7 +193,7 @@ export function ResourceCard({
           p={3}
           // we set padding left a bit larger so we can have space to absolutely
           // position the pin/checkbox buttons
-          pl={6}
+          pl={show.pin || show.checkbox ? 6 : 2}
           alignItems="start"
           onMouseLeave={onMouseLeave}
           pinned={pinned}
@@ -199,27 +206,31 @@ export function ResourceCard({
           {...(shouldDisplayStatusWarning && !showAllLabels && { pr: '35px' })}
           {...(shouldDisplayStatusWarning && showAllLabels && { pr: '7px' })}
         >
-          <CheckboxInput
-            checked={selected}
-            onChange={selectResource}
-            style={{ position: 'absolute', top: '16px', left: '16px' }}
-          />
-          <Box
-            css={`
-              position: absolute;
-              // we position far from the top so the layout of the pin doesn't change if we expand the card
-              top: ${props => props.theme.space[9]}px;
-              transition: none;
-              left: 16px;
-            `}
-          >
-            <PinButton
-              setPinned={pinResource}
-              pinned={pinned}
-              pinningSupport={pinningSupport}
-              hovered={hovered}
+          {show.checkbox && (
+            <CheckboxInput
+              checked={selected}
+              onChange={selectResource}
+              style={{ position: 'absolute', top: '16px', left: '16px' }}
             />
-          </Box>
+          )}
+          {show.pin && (
+            <Box
+              css={`
+                position: absolute;
+                // we position far from the top so the layout of the pin doesn't change if we expand the card
+                top: ${props => props.theme.space[9]}px;
+                transition: none;
+                left: 16px;
+              `}
+            >
+              <PinButton
+                setPinned={pinResource}
+                pinned={pinned}
+                pinningSupport={pinningSupport}
+                hovered={hovered}
+              />
+            </Box>
+          )}
           <ResourceIcon
             name={primaryIconName}
             width="45px"
