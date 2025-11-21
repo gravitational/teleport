@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package endpoints
+package healthchecks
 
 import (
 	"context"
@@ -24,24 +24,29 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/healthcheck"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
-func TestGetResolver(t *testing.T) {
+func TestGetHealthChecker(t *testing.T) {
 	tests := []struct {
 		desc    string
-		builder ResolverBuilder
+		builder HealthCheckerBuilder
 		wantErr string
 	}{
 		{
 			desc:    "valid",
-			builder: fakeResolverBuilder{}.builderFunc(),
+			builder: fakeHealthCheckerBuilder{}.builderFunc(),
 		},
 		{
 			desc:    "builder error",
-			builder: fakeResolverBuilder{builderErr: trace.Errorf("failed to build resolver")}.builderFunc(),
+			builder: fakeHealthCheckerBuilder{builderErr: trace.Errorf("failed to build resolver")}.builderFunc(),
 			wantErr: "failed to build resolver",
 		},
 		{
@@ -60,15 +65,22 @@ func TestGetResolver(t *testing.T) {
 			db.SetName("dummy")
 			db.Spec.Protocol = fmt.Sprintf("fake-%v", i)
 			if test.builder != nil {
-				RegisterResolver(test.builder, db.Spec.Protocol)
+				RegisterHealthChecker(test.builder, db.Spec.Protocol)
 				t.Cleanup(func() {
-					resolverBuildersMu.Lock()
-					defer resolverBuildersMu.Unlock()
-					delete(resolverBuilders, db.Spec.Protocol)
+					healthCheckerBuildersMu.Lock()
+					defer healthCheckerBuildersMu.Unlock()
+					delete(healthCheckerBuilders, db.Spec.Protocol)
 				})
 			}
 
-			resolver, err := GetResolver(ctx, db, ResolverBuilderConfig{})
+			resolver, err := GetHealthChecker(ctx, HealthCheckerConfig{
+				Auth:                  fakeAuth{},
+				AuthClient:            &authclient.Client{},
+				Clock:                 clockwork.NewFakeClock(),
+				Database:              db,
+				GCPClients:            fakeGCPClients{},
+				UpdateProxiedDatabase: func(string, func(types.Database) error) error { return nil },
+			})
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				require.Nil(t, resolver)
@@ -80,21 +92,25 @@ func TestGetResolver(t *testing.T) {
 	}
 }
 
-type fakeResolverBuilder struct {
+type fakeHealthCheckerBuilder struct {
 	builderErr error
 }
 
-func (f fakeResolverBuilder) builderFunc() ResolverBuilder {
-	return func(context.Context, types.Database, ResolverBuilderConfig) (Resolver, error) {
+func (f fakeHealthCheckerBuilder) builderFunc() HealthCheckerBuilder {
+	return func(context.Context, HealthCheckerConfig) (healthcheck.HealthChecker, error) {
 		if f.builderErr != nil {
 			return nil, trace.Wrap(f.builderErr)
 		}
-		return fakeResolver{}, nil
+		return healthcheck.NewTargetDialer(func(ctx context.Context) ([]string, error) {
+			return nil, nil
+		}), nil
 	}
 }
 
-type fakeResolver struct{}
+type fakeAuth struct {
+	common.Auth
+}
 
-func (f fakeResolver) Resolve(context.Context) ([]string, error) {
-	return nil, nil
+type fakeGCPClients struct {
+	cloud.GCPClients
 }
