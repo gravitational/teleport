@@ -36,6 +36,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -1224,7 +1225,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	executableDir, _ := filepath.Split(executable)
 
 	// The channel/request type determines the subcommand to execute.
 	var subCommand string
@@ -1247,7 +1247,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	cmd := &exec.Cmd{
 		Path: executable,
 		Args: args,
-		Dir:  executableDir,
 		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
@@ -1300,6 +1299,13 @@ func coerceHomeDirError(usr *user.User, err error) error {
 	return err
 }
 
+// accessibleHomeDirMu is locked by [hasAccessibleHomeDir] to avoid race
+// conditions between different goroutines while manipulating the global state
+// of the process' working directory. This should be made into a more general
+// global lock if we ever end up relying on this sort of temporary chdir in more
+// places (but we really should not).
+var accessibleHomeDirMu sync.Mutex
+
 // hasAccessibleHomeDir checks if the current user has access to an existing home directory.
 func hasAccessibleHomeDir() error {
 	// this should usually be fetching a cached value
@@ -1317,12 +1323,20 @@ func hasAccessibleHomeDir() error {
 		return trace.BadParameter("%q is not a directory", currentUser.HomeDir)
 	}
 
-	cwd, err := os.Getwd()
+	accessibleHomeDirMu.Lock()
+	defer accessibleHomeDirMu.Unlock()
+
+	cwd, err := os.Open(".")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// make sure we return to the original working directory
-	defer os.Chdir(cwd)
+	defer cwd.Close()
+
+	// make sure we return to the original working directory; we ought to panic
+	// if this fails but nothing should actually depend on the working directory
+	// (which is why we can afford to just change it without additional
+	// synchronization here) so we just let it slide
+	defer cwd.Chdir()
 
 	// attemping to cd into the target directory is the easiest, cross-platform way to test
 	// whether or not the current user has access

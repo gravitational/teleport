@@ -37,14 +37,9 @@ discovery_service:
   aws:
    - types: ["ec2"]
      regions: ["us-east-1","us-west-1"]
+     ssm:
+       document_name: "AWS-RunShellScript"
      install:
-        # Optional: use a non-global teleport installation, allowing for multiple agent installations.
-        # Requires managed updates to be enabled.
-        # Supported characters are alphanumeric characters and `-`.
-        suffix: "<suffix>"
-        # Optional: when using managed updates, set the update group of the installation.
-        # Supported characters are alphanumeric characters and `-`.
-        update_group: "<update-group>"
         join_params:
           token_name: aws-discovery-iam-token
           method: iam
@@ -57,8 +52,3 @@ discovery_service:
 - Adjust the keys under `discovery_service.aws` to match your EC2 environment,
   specifically the regions and tags you want to associate with the Discovery
   Service.
-- Set the `install.suffix` key to install teleport in a non-global location, allowing
-  for multiple, simultaneously installations from different clusters.
-  Requires [agent managed updates](../../upgrading/agent-managed-updates/agent-managed-updates.mdx).
-- When using [agent managed updates](../../upgrading/agent-managed-updates/agent-managed-updates.mdx), you can
-  configure the update group by setting the `install.update_group` key.

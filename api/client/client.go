@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
+	scopedaccess "github.com/gravitational/teleport/api/client/scopes/access"
 	"github.com/gravitational/teleport/api/client/secreport"
 	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
 	"github.com/gravitational/teleport/api/client/userloginstate"
@@ -826,8 +827,8 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 
 // ScopedAccessServiceClient returns an unadorned Scoped Access Service client, using the underlying
 // Auth gRPC connection.
-func (c *Client) ScopedAccessServiceClient() scopedaccessv1.ScopedAccessServiceClient {
-	return scopedaccessv1.NewScopedAccessServiceClient(c.conn)
+func (c *Client) ScopedAccessServiceClient() *scopedaccess.Client {
+	return scopedaccess.NewClient(scopedaccessv1.NewScopedAccessServiceClient(c.conn))
 }
 
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying
@@ -1052,25 +1053,29 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 // GetUsers returns all currently registered users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	req := userspb.ListUsersRequest{
-		WithSecrets: withSecrets,
-	}
+	userstream := clientutils.Resources(
+		ctx,
+		func(ctx context.Context, limit int, token string) ([]*types.UserV2, string, error) {
+			rsp, err := c.ListUsers(ctx, &userspb.ListUsersRequest{
+				WithSecrets: withSecrets,
+				PageToken:   token,
+				PageSize:    int32(limit),
+			})
+
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			return rsp.Users, rsp.NextPageToken, nil
+		})
 
 	var out []types.User
-	for {
-		rsp, err := c.ListUsers(ctx, &req)
+	for user, err := range userstream {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, user := range rsp.Users {
-			out = append(out, user)
-		}
-
-		req.PageToken = rsp.NextPageToken
-		if req.PageToken == "" {
-			break
-		}
+		out = append(out, user)
 	}
 
 	return out, nil

@@ -92,10 +92,8 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Log = slog.With(teleport.ComponentKey, "gcp:fwd")
 	}
 	if s.cloudClientGCP == nil {
-		clients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		// TODO (Tener): clients should be closed when no longer in use.
+		clients := cloud.NewGCPClients()
 		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
 	return nil
