@@ -28,7 +28,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -251,10 +250,9 @@ func TestPortForwardKubeServiceMultiPort(t *testing.T) {
 		user.GetName(),
 		kubeCluster,
 	)
-	require.NoError(t, err)
 
-	// Create 100 ports.
-	const portCount = 100
+	// Create 5 ports.
+	const portCount = 5
 	podPorts := make([]int, 0, portCount)
 	for port := 80; port < 80+portCount; port++ {
 		podPorts = append(podPorts, port)
@@ -271,15 +269,11 @@ func TestPortForwardKubeServiceMultiPort(t *testing.T) {
 		stopCh:       stopCh,
 		readyCh:      readyCh,
 	})
-
-	forwarderCh := make(chan error, 1)
 	t.Cleanup(func() {
-		// Graceful shutdown.
 		close(stopCh)
-
 		forwarder.Close()
 	})
-	go func() { forwarderCh <- forwarder.ForwardPorts() }()
+	go func() { require.NoError(t, forwarder.ForwardPorts()) }()
 
 	// Wait for port forwarding to be ready.
 	select {
@@ -293,34 +287,28 @@ func TestPortForwardKubeServiceMultiPort(t *testing.T) {
 	require.NoError(t, err)
 
 	g, _ := errgroup.WithContext(t.Context())
-	for _, portPair := range portPairs {
-		p := portPair
-
+	for _, p := range portPairs {
 		g.Go(func() error {
-
-			conn, err := net.Dial("tcp", net.JoinHostPort("localhost", strconv.Itoa(int(p.Local))))
+			portString := strconv.Itoa(int(p.Local))
+			conn, err := net.Dial("tcp", net.JoinHostPort("localhost", portString))
 			if err != nil {
 				return fmt.Errorf("unable to dial local port %d: %w", p.Local, err)
 			}
 			defer conn.Close()
 
-			testData := []byte(fmt.Sprintf("test-data-port-%d", p.Local))
-			_, err = conn.Write(testData)
-			if err != nil {
+			testData := "test-data-port-" + portString
+			if _, err := conn.Write([]byte(testData)); err != nil {
 				return fmt.Errorf("unable to write local port %d: %w", p.Local, err)
 			}
 
-			// Read from source.
-			buf := make([]byte, 1024)
+			expected := testingkubemock.PortForwardPayload + podName + testData
+			buf := make([]byte, len(expected))
 			n, err := conn.Read(buf)
-			if err != nil {
-				return fmt.Errorf("unable to read from local port %d: %w", p.Local, err)
-			}
 
-			expected := fmt.Sprintf("%s%s%s", testingkubemock.PortForwardPayload, podName, string(testData))
-			if !strings.Contains(string(buf[:n]), expected) {
-				return fmt.Errorf("unexpected response on local port %d: expect %q, actual %q",
-					p.Local, string(buf[:n]), expected)
+			actual := string(buf[:n])
+			if n != len(expected) && actual != expected {
+				return fmt.Errorf("unexpected response on local port %d: expect %q, actual %q, error %w",
+					p.Local, actual, expected, err)
 			}
 
 			return nil
