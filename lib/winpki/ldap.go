@@ -192,16 +192,18 @@ func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username st
 		domain = parts[1]
 	}
 
+	followReferrals := domain != l.cfg.Domain
+
 	queries := []func() ([]*ldap.Entry, error){
 		func() ([]*ldap.Entry, error) {
 			//User principal name and configured baseDN
 			filter := fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
-			return l.queryLDAP(ctx, filter, username, DomainDN(l.cfg.Domain))
+			return l.queryLDAP(ctx, filter, username, DomainDN(l.cfg.Domain), followReferrals)
 		},
 		func() ([]*ldap.Entry, error) {
 			//User principal name and baseDN derived from username
 			filter := fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
-			return l.queryLDAP(ctx, filter, username, DomainDN(domain))
+			return l.queryLDAP(ctx, filter, username, DomainDN(domain), followReferrals)
 		},
 		func() ([]*ldap.Entry, error) {
 			//sAMAccountName and baseDN derived from username
@@ -210,7 +212,7 @@ func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username st
 				username = username[:20]
 			}
 			filter := fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username))
-			return l.queryLDAP(ctx, filter, username, DomainDN(domain))
+			return l.queryLDAP(ctx, filter, username, DomainDN(domain), followReferrals)
 		},
 	}
 
@@ -241,14 +243,14 @@ func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username st
 	return activeDirectorySID, distinguishedName, nil
 }
 
-func (l *LDAPClient) queryLDAP(ctx context.Context, filter string, username string, domainDN string) ([]*ldap.Entry, error) {
+func (l *LDAPClient) queryLDAP(ctx context.Context, filter string, username string, domainDN string, followReferrals bool) ([]*ldap.Entry, error) {
 	filter = CombineLDAPFilters([]string{
 		fmt.Sprintf("(%s=%s)", AttrSAMAccountType, AccountTypeUser),
 		filter,
 	})
 	l.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter, "domain", domainDN)
 
-	entries, err := l.ReadWithFilter(ctx, domainDN, filter, []string{AttrObjectSid})
+	entries, err := l.ReadWithFilter(ctx, domainDN, filter, []string{AttrObjectSid}, followReferrals)
 
 	return entries, err
 }
@@ -319,7 +321,7 @@ func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchReque
 
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
-func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
+func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string, followReferrals bool) ([]*ldap.Entry, error) {
 	req := ldap.NewSearchRequest(
 		dn,
 		ldap.ScopeWholeSubtree,
@@ -337,7 +339,7 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 		return nil, trace.Wrap(err)
 	}
 
-	if len(entries) > 0 {
+	if len(entries) > 0 || !followReferrals {
 		return entries, nil
 	}
 
@@ -395,7 +397,7 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
 func (l *LDAPClient) Read(ctx context.Context, dn string, class string, attrs []string) ([]*ldap.Entry, error) {
-	return l.ReadWithFilter(ctx, dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
+	return l.ReadWithFilter(ctx, dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs, false)
 }
 
 // Create creates an LDAP entry at the given path, with the given class and
