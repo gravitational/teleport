@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -252,6 +253,9 @@ type Server struct {
 
 	// enableSELinux configures whether SELinux support is enable or not.
 	enableSELinux bool
+
+	// scope is the scope the server is constrained to
+	scope string
 }
 
 // TargetMetadata returns metadata about the server.
@@ -757,6 +761,23 @@ func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 	}
 }
 
+// SetScope sets the server's scope.
+func SetScope(scope string) ServerOption {
+	return func(s *Server) error {
+		if scope == "" {
+			s.scope = ""
+			return nil
+		}
+
+		if err := scopes.WeakValidate(scope); err != nil {
+			return trace.Wrap(err)
+		}
+		s.scope = scope
+		return nil
+
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -1123,6 +1144,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
+		Scope:   s.scope,
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),

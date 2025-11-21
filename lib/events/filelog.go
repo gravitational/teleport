@@ -195,7 +195,7 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 // This function may never return more than 1 MiB of event data.
 func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	l.logger.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
-	return l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes, search: req.Search})
+	return l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 }
 
 func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
@@ -373,7 +373,6 @@ func (l *FileLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetE
 type searchEventsFilter struct {
 	eventTypes []string
 	condition  utils.FieldsCondition
-	search     string
 }
 
 // Close closes the audit log, which includes closing all file handles and
@@ -579,21 +578,6 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 		if filter.condition != nil {
 			accepted = accepted && filter.condition(utils.Fields(ef))
 		}
-		// Check if search filter matches.
-		if accepted && filter.search != "" {
-			eventJSON := strings.ToLower(string(scanner.Bytes()))
-			searchTerms := strings.Fields(strings.ToLower(filter.search))
-
-			matchedAll := true
-			for _, term := range searchTerms {
-				if !strings.Contains(eventJSON, term) {
-					matchedAll = false
-					break
-				}
-			}
-
-			accepted = matchedAll
-		}
 
 		if accepted {
 			retval = append(retval, ef)
@@ -621,11 +605,9 @@ type eventFile struct {
 // byDate implements sort.Interface.
 type byDate []eventFile
 
-func (f byDate) Len() int { return len(f) }
-
+func (f byDate) Len() int           { return len(f) }
 func (f byDate) Less(i, j int) bool { return f[i].ModTime().Before(f[j].ModTime()) }
-
-func (f byDate) Swap(i, j int) { f[i], f[j] = f[j], f[i] }
+func (f byDate) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
 
 // ByTimeAndIndex sorts events by time extracting timestamp from JSON field
 // and if there are several session events with the same session
