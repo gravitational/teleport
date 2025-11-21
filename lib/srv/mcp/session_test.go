@@ -105,7 +105,7 @@ func Test_sessionHandler(t *testing.T) {
 					requestEvent, ok := event.(*apievents.MCPSessionRequest)
 					require.True(t, ok)
 					require.True(t, requestEvent.Success)
-					require.Equal(t, string(mcp.MethodToolsCall), requestEvent.Message.Method)
+					require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
 					checkParamsHaveNameField(t, requestEvent.Message.Params, allowedTool)
 				})
 			}
@@ -124,7 +124,7 @@ func Test_sessionHandler(t *testing.T) {
 					requestEvent, ok := event.(*apievents.MCPSessionRequest)
 					require.True(t, ok)
 					require.False(t, requestEvent.Success)
-					require.Equal(t, string(mcp.MethodToolsCall), requestEvent.Message.Method)
+					require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
 					checkParamsHaveNameField(t, requestEvent.Message.Params, deniedTool)
 				})
 			}
