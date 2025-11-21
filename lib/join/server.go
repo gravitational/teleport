@@ -300,21 +300,20 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateCircleCIToken)
 	case types.JoinMethodEC2:
 		return s.handleEC2Join(stream, authCtx, clientInit, token)
-	case types.JoinMethodEnv0:
-		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
-	case types.JoinMethodIAM:
-		return s.handleIAMJoin(stream, authCtx, clientInit, token)
-	case types.JoinMethodKubernetes:
-		// TODO: sort me
-		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateKubernetesToken)
-	case types.JoinMethodOracle:
-		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodGCP:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGCPToken)
 	case types.JoinMethodGitHub:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGitlabToken)
+	case types.JoinMethodEnv0:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
+	case types.JoinMethodIAM:
+		return s.handleIAMJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodKubernetes:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateKubernetesToken)
+	case types.JoinMethodOracle:
+		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	default:
