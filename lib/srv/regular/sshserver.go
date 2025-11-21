@@ -358,11 +358,14 @@ func (s *Server) LogConfig() srv.LogConfig {
 		return *s.childLogConfig
 	}
 
+	// Default to stderr debug logs (tests)
+	level := new(slog.LevelVar)
+	level.Set(slog.LevelDebug)
 	return srv.LogConfig{
 		ExecLogConfig: srv.ExecLogConfig{
-			Level: &slog.LevelVar{},
+			Level: level,
 		},
-		Writer: io.Discard,
+		Writer: os.Stderr,
 	}
 }
 
