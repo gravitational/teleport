@@ -81,6 +81,9 @@ type App struct {
 
 	// MCP includes MCP specific configuration.
 	MCP *MCP `json:"mcp,omitempty"`
+
+	// SupportsResourceConstraints indicates whether an app, and the path to it, supports Resource Constraints.
+	SupportsResourceConstraints bool `json:"supportsResourceConstraints,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -135,6 +138,8 @@ type MakeAppsConfig struct {
 	Logger *slog.Logger
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool
+	// SupportsResourceConstraints indicates whether an app, and the path to it, supports Resource Constraints.
+	SupportsResourceConstraints bool
 }
 
 // MakeApp creates an application object for the WebUI.
@@ -170,23 +175,24 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	permissionSets := makePermissionSets(app.GetIdentityCenter().GetPermissionSets())
 
 	resultApp := App{
-		Kind:                  types.KindApp,
-		SubKind:               app.GetSubKind(),
-		Name:                  app.GetName(),
-		Description:           description,
-		URI:                   app.GetURI(),
-		PublicAddr:            app.GetPublicAddr(),
-		Labels:                labels,
-		ClusterID:             c.AppClusterName,
-		FQDN:                  fqdn,
-		AWSConsole:            app.IsAWSConsole(),
-		FriendlyName:          types.FriendlyName(app),
-		UserGroups:            userGroupAndDescriptions,
-		SAMLApp:               false,
-		RequiresRequest:       c.RequiresRequest,
-		Integration:           app.GetIntegration(),
-		PermissionSets:        permissionSets,
-		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
+		Kind:                        types.KindApp,
+		SubKind:                     app.GetSubKind(),
+		Name:                        app.GetName(),
+		Description:                 description,
+		URI:                         app.GetURI(),
+		PublicAddr:                  app.GetPublicAddr(),
+		Labels:                      labels,
+		ClusterID:                   c.AppClusterName,
+		FQDN:                        fqdn,
+		AWSConsole:                  app.IsAWSConsole(),
+		FriendlyName:                types.FriendlyName(app),
+		UserGroups:                  userGroupAndDescriptions,
+		SAMLApp:                     false,
+		RequiresRequest:             c.RequiresRequest,
+		Integration:                 app.GetIntegration(),
+		PermissionSets:              permissionSets,
+		UseAnyProxyPublicAddr:       app.GetUseAnyProxyPublicAddr(),
+		SupportsResourceConstraints: c.SupportsResourceConstraints,
 	}
 
 	if app.IsAWSConsole() {

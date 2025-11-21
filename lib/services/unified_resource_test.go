@@ -193,6 +193,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.EquateEmpty(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.AppServerSpecV3{}, "ComponentFeatures"),
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 	))
@@ -225,6 +226,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.EquateEmpty(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.AppServerSpecV3{}, "ComponentFeatures"),
 
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
@@ -337,6 +339,7 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 	compareResourceOpts := []cmp.Option{cmpopts.EquateEmpty(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.AppServerSpecV3{}, "ComponentFeatures"),
 
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
@@ -1214,6 +1217,7 @@ func TestUnifiedResourceCacheIterateMCPServers(t *testing.T) {
 	compareResourceOpts := []cmp.Option{cmpopts.EquateEmpty(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.AppServerSpecV3{}, "ComponentFeatures"),
 
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
