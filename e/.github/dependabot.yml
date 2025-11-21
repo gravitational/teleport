@@ -6,6 +6,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 10
     groups:
       go:
@@ -16,13 +18,15 @@ updates:
       - 'dependencies'
       - 'go'
       - 'no-changelog'
-    
+
   - package-ecosystem: cargo
     directory: '/windowsauth'
     schedule:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 10
     groups:
       rust:
@@ -41,6 +45,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'
@@ -56,6 +62,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'
@@ -68,6 +76,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'
@@ -80,6 +90,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'
@@ -92,6 +104,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'
