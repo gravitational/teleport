@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -86,6 +87,8 @@ type InferenceProvider interface {
 	Summarize(
 		ctx context.Context, sessionID session.ID, systemPrompt string, reader io.ReadCloser,
 	) (string, error)
+	// SummarizeCommand summarizes a single command and returns the analysis.
+	SummarizeCommand(ctx context.Context, sessionID session.ID, username, loginName, command string) (*schema.CommandAnalysis, error)
 }
 
 // SessionSummarizer summarizes session recordings using language model

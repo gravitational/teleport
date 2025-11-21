@@ -2,21 +2,23 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"github.com/openai/openai-go/packages/param"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	libmetrics "github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -191,8 +193,85 @@ func (p *InferenceProvider) Summarize(
 			openai.SystemMessage(systemPrompt),
 			openai.UserMessage(string(transcript)),
 		},
-		MaxCompletionTokens: param.NewOpt(maxCompletionTokens),
 	}
+
+	res, err := p.makeRequest(ctx, sessionID, completionParams)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Session summary generated",
+		"session_id", sessionID,
+		"session_length", len(transcript),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return res.result, nil
+}
+
+// SummarizeCommand summarizes a single command using OpenAI.
+func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID session.ID, username, loginName, command string) (*schema.CommandAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing command from session", "session_id", sessionID)
+
+	systemPrompt := schema.SummarizeCommandSystemPrompt(username, loginName)
+
+	res, err := p.makeStructuredRequest(ctx, sessionID, "CommandAnalysis", schema.CommandAnalysisSchema, systemPrompt, command)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Command summary generated",
+		"session_id", sessionID,
+		"command_length", len(command),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	var analysis schema.CommandAnalysis
+	if err := json.Unmarshal([]byte(res.result), &analysis); err != nil {
+		return nil, trace.Wrap(summarizererrors.BadResponseError{
+			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
+		})
+	}
+
+	return &analysis, nil
+}
+
+func (p *InferenceProvider) makeStructuredRequest(ctx context.Context, sessionID session.ID, schemaName string, schema any, systemPrompt, message string) (*response, error) {
+	schemaParam := openai.ResponseFormatJSONSchemaJSONSchemaParam{
+		Name:   schemaName,
+		Schema: schema,
+		Strict: openai.Bool(true),
+	}
+
+	completionParams := openai.ChatCompletionNewParams{
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemPrompt),
+			openai.UserMessage(message),
+		},
+		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
+				JSONSchema: schemaParam,
+			},
+		},
+		Model: p.openAIModelName,
+	}
+
+	return p.makeRequest(ctx, sessionID, completionParams)
+}
+
+type response struct {
+	promptTokens     int64
+	completionTokens int64
+	finishReason     string
+	result           string
+}
+
+func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.ID, completionParams openai.ChatCompletionNewParams) (*response, error) {
+	completionParams.MaxCompletionTokens = param.NewOpt(maxCompletionTokens)
 
 	if p.temperature > 0.0 {
 		completionParams.Temperature = param.NewOpt(p.temperature)
@@ -217,31 +296,31 @@ func (p *InferenceProvider) Summarize(
 				labelApiErrorCode:               apierr.Code,
 			}).Inc()
 		}
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if len(completion.Choices) == 0 {
-		return "", trace.Wrap(summarizererrors.BadResponseError{
+		return nil, trace.Wrap(summarizererrors.BadResponseError{
 			Message: "model returned no choices",
 		})
 	}
 
 	choice := completion.Choices[0]
-	p.logger.DebugContext(ctx, "Session summary generated",
-		"session_id", sessionID,
-		"session_length", len(transcript),
-		"prompt_tokens", completion.Usage.PromptTokens,
-		"completion_tokens", completion.Usage.CompletionTokens,
-		"finish_reason", choice.FinishReason,
-	)
+
+	res := &response{
+		promptTokens:     completion.Usage.PromptTokens,
+		completionTokens: completion.Usage.CompletionTokens,
+		finishReason:     choice.FinishReason,
+		result:           choice.Message.Content,
+	}
 
 	switch choice.FinishReason {
 	case string(openai.CompletionChoiceFinishReasonStop):
-		return choice.Message.Content, nil
+		return res, nil
 	case string(openai.CompletionChoiceFinishReasonLength):
-		return choice.Message.Content, trace.LimitExceeded("model response length limit exceeded")
+		return res, trace.LimitExceeded("model response length limit exceeded")
 	default:
-		return choice.Message.Content, trace.Wrap(summarizererrors.BadResponseError{
+		return res, trace.Wrap(summarizererrors.BadResponseError{
 			Message: fmt.Sprintf("model returned unexpected finish reason: %q", choice.FinishReason),
 		})
 	}

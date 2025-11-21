@@ -1,0 +1,3 @@
+## Root Session Context
+
+This is a root session. Evaluate commands based on their actual activity and impact, not privilege level alone. Only flag concerning activities like unauthorized access, persistence mechanisms, or system compromise attempts.

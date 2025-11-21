@@ -2,7 +2,7 @@ package prompts
 
 import (
 	_ "embed"
-	rand "math/rand/v2"
+	"math/rand/v2"
 )
 
 var (
@@ -14,16 +14,26 @@ var (
 	sshPromptObfuscated []byte
 	//go:embed prompt-db.bin
 	databasePromptObfuscated []byte
+	//go:embed prompt-command.bin
+	commandPromptObfuscated []byte
+	//go:embed prompt-root.bin
+	rootPromptObfuscated []byte
 
 	// Prompt for summarizing SSH sessions.
 	SSHPrompt string
 	// Prompt for summarizing database sessions.
 	DatabasePrompt string
+	// Prompt for summarizing commands.
+	CommandPrompt string
+	// Prompt to add to the command prompt when the user is root.
+	RootPrompt string
 )
 
 func init() {
 	SSHPrompt = deobfuscate(sshPromptObfuscated)
 	DatabasePrompt = deobfuscate(databasePromptObfuscated)
+	CommandPrompt = deobfuscate(commandPromptObfuscated)
+	RootPrompt = deobfuscate(rootPromptObfuscated)
 }
 
 // Obfuscates a byte slice by XOR'ing it with a random sequence of a given

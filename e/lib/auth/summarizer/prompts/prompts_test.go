@@ -24,6 +24,16 @@ func TestPromptsUpToDate(t *testing.T) {
 			prompt:           SSHPrompt,
 			obfuscatedPrompt: sshPromptObfuscated,
 		},
+		{
+			filename:         "prompt-command.txt",
+			prompt:           CommandPrompt,
+			obfuscatedPrompt: commandPromptObfuscated,
+		},
+		{
+			filename:         "prompt-root.txt",
+			prompt:           RootPrompt,
+			obfuscatedPrompt: rootPromptObfuscated,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.filename, func(t *testing.T) {
@@ -34,6 +44,7 @@ func TestPromptsUpToDate(t *testing.T) {
 				"The obfuscated prompts are not up-to-date with their sources. Please run:\n"+
 					"make -C e obfuscate-prompts",
 			)
+
 		})
 	}
 }

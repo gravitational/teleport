@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/aws/smithy-go"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 )
 
 type FakeClientFactory struct {
@@ -33,7 +36,12 @@ func (m *fakeClient) Converse(
 	// Advance the clock to test if the inference end timestamp is captured.
 	m.clock.Advance(10 * time.Second)
 
-	content := params.Messages[0].Content[0].(*bedrocktypes.ContentBlockMemberText).Value
+	messageCount := len(params.Messages)
+	if messageCount == 0 {
+		return nil, errors.New("no content in the message")
+	}
+
+	content := params.Messages[messageCount-1].Content[0].(*bedrocktypes.ContentBlockMemberText).Value
 
 	switch content {
 	case "cause an error":
@@ -97,6 +105,74 @@ func (m *fakeClient) Converse(
 							Value: "",
 						},
 					},
+				},
+			},
+			StopReason: bedrocktypes.StopReasonEndTurn,
+		}, nil
+	case "json response for command analysis":
+		ca := &schema.CommandAnalysis{
+			Command:          "ls -al",
+			RiskLevel:        "low",
+			Category:         "file_operation",
+			TimelineTitle:    "Listed directory contents",
+			TimelineSubtitle: "",
+			ShortDescription: "Listed all files in the directory",
+			Description:      "The command 'ls -al' was executed to list all files, including hidden ones, in the current directory.",
+			ThreatCategory:   "none",
+		}
+
+		jsonStr, err := json.Marshal(ca)
+		if err != nil {
+			return nil, err
+		}
+
+		return &bedrockruntime.ConverseOutput{
+			Output: &bedrocktypes.ConverseOutputMemberMessage{
+				Value: bedrocktypes.Message{
+					Content: []bedrocktypes.ContentBlock{
+						&bedrocktypes.ContentBlockMemberText{
+							Value: string(jsonStr),
+						},
+					},
+				},
+			},
+			StopReason: bedrocktypes.StopReasonEndTurn,
+		}, nil
+	case "respond with json over multiple content blocks":
+		ca := &schema.CommandAnalysis{
+			Command:          "ls -al",
+			RiskLevel:        "low",
+			Category:         "file_operation",
+			TimelineTitle:    "Listed directory contents",
+			TimelineSubtitle: "",
+			ShortDescription: "Listed all files in the directory",
+			Description:      "The command 'ls -al' was executed to list all files, including hidden ones, in the current directory.",
+			ThreatCategory:   "none",
+		}
+
+		jsonStr, err := json.Marshal(ca)
+		if err != nil {
+			return nil, err
+		}
+
+		blockCount := 3
+		var contentBlocks []bedrocktypes.ContentBlock
+		chunkSize := len(jsonStr) / blockCount
+		for i := 0; i < blockCount; i++ {
+			start := i * chunkSize
+			end := start + chunkSize
+			if i == blockCount-1 {
+				end = len(jsonStr)
+			}
+			contentBlocks = append(contentBlocks, &bedrocktypes.ContentBlockMemberText{
+				Value: string(jsonStr[start:end]),
+			})
+		}
+
+		return &bedrockruntime.ConverseOutput{
+			Output: &bedrocktypes.ConverseOutputMemberMessage{
+				Value: bedrocktypes.Message{
+					Content: contentBlocks,
 				},
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,

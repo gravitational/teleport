@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	libmetrics "github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
@@ -181,11 +183,10 @@ func (p *InferenceProvider) Summarize(
 	// We have read enough, we may close the reader.
 	reader.Close()
 
-	maxTokens := maxCompletionTokens
 	convInput := bedrockruntime.ConverseInput{
 		ModelId: &p.bedrockModelID,
 		InferenceConfig: &bedrocktypes.InferenceConfiguration{
-			MaxTokens: &maxTokens,
+			MaxTokens: aws.Int32(maxCompletionTokens),
 		},
 		System: []bedrocktypes.SystemContentBlock{
 			&bedrocktypes.SystemContentBlockMemberText{
@@ -203,6 +204,100 @@ func (p *InferenceProvider) Summarize(
 		},
 	}
 
+	res, err := p.makeRequest(ctx, sessionID, &convInput)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Session summary generated",
+		"session_id", sessionID,
+		"session_length", len(transcript),
+		"input_tokens", res.inputTokens,
+		"output_tokens", res.outputTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return res.result, nil
+}
+
+// SummarizeCommand summarizes a single command using Bedrock.
+func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID session.ID, username, loginName, command string) (*schema.CommandAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing command from session", "session_id", sessionID)
+
+	systemPrompt := schema.SummarizeCommandSystemPrompt(username, loginName)
+
+	res, err := p.makeStructuredRequest(ctx, sessionID, schema.CommandAnalysisSchema, systemPrompt, command)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var analysis schema.CommandAnalysis
+	if err := json.Unmarshal([]byte(res.result), &analysis); err != nil {
+		return nil, trace.Wrap(summarizererrors.BadResponseError{
+			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
+		})
+	}
+
+	p.logger.DebugContext(ctx, "Command summary generated",
+		"session_id", sessionID,
+		"command_length", len(command),
+		"input_tokens", res.inputTokens,
+		"output_tokens", res.outputTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return &analysis, nil
+}
+
+func (p *InferenceProvider) makeStructuredRequest(ctx context.Context, sessionID session.ID, schema any, systemPrompt, message string) (*response, error) {
+	schemaBytes, err := json.Marshal(schema)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	jsonPrompt := "Generate a JSON response that compiles with the provided schema. If required fields are missing, return available fields with `null` for missing ones."
+
+	convInput := bedrockruntime.ConverseInput{
+		ModelId: &p.bedrockModelID,
+		InferenceConfig: &bedrocktypes.InferenceConfiguration{
+			MaxTokens: aws.Int32(maxCompletionTokens),
+		},
+		System: []bedrocktypes.SystemContentBlock{
+			&bedrocktypes.SystemContentBlockMemberText{
+				Value: systemPrompt + jsonPrompt,
+			},
+		},
+		Messages: []bedrocktypes.Message{
+			{
+				Role: bedrocktypes.ConversationRoleUser,
+				Content: []bedrocktypes.ContentBlock{
+					&bedrocktypes.ContentBlockMemberText{
+						Value: string(schemaBytes),
+					},
+				},
+			},
+			{
+				Role: bedrocktypes.ConversationRoleUser,
+				Content: []bedrocktypes.ContentBlock{
+					&bedrocktypes.ContentBlockMemberText{
+						Value: message,
+					},
+				},
+			},
+		},
+	}
+
+	return p.makeRequest(ctx, sessionID, &convInput)
+}
+
+type response struct {
+	inputTokens  int32
+	outputTokens int32
+	finishReason string
+	result       string
+}
+
+func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.ID, convInput *bedrockruntime.ConverseInput) (*response, error) {
 	if p.temperature > 0.0 {
 		convInput.InferenceConfig.Temperature = &p.temperature
 	}
@@ -217,7 +312,7 @@ func (p *InferenceProvider) Summarize(
 	reqInFlightMetric.Inc()
 	defer reqInFlightMetric.Dec()
 
-	resp, err := p.client.Converse(ctx, &convInput)
+	resp, err := p.client.Converse(ctx, convInput)
 	if err != nil {
 		var apierr smithy.APIError
 		if errors.As(err, &apierr) {
@@ -227,42 +322,50 @@ func (p *InferenceProvider) Summarize(
 			}).Inc()
 		}
 
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	res := &response{
+		finishReason: string(resp.StopReason),
+	}
+
+	if resp.Usage != nil {
+		res.inputTokens = aws.ToInt32(resp.Usage.InputTokens)
+		res.outputTokens = aws.ToInt32(resp.Usage.OutputTokens)
 	}
 
 	switch resp.StopReason {
 	case bedrocktypes.StopReasonEndTurn:
 		msg, ok := resp.Output.(*bedrocktypes.ConverseOutputMemberMessage)
 		if !ok {
-			return "", trace.Wrap(summarizererrors.BadResponseError{
+			return nil, trace.Wrap(summarizererrors.BadResponseError{
 				Message: fmt.Sprintf("expected ConverseOutputMemberMessage, got %T", resp.Output),
 			})
 		}
 		if msg == nil {
-			return "", trace.Wrap(summarizererrors.BadResponseError{
+			return nil, trace.Wrap(summarizererrors.BadResponseError{
 				Message: "model did not return any output message",
 			})
 		}
 
-		result := ""
 		for _, block := range msg.Value.Content {
 			text, ok := block.(*bedrocktypes.ContentBlockMemberText)
 			if ok {
-				result += text.Value
+				res.result += text.Value
 			}
 		}
 
-		if result == "" {
-			return "", trace.Wrap(summarizererrors.BadResponseError{
+		if res.result == "" {
+			return nil, trace.Wrap(summarizererrors.BadResponseError{
 				Message: "model returned a message without content",
 			})
 		}
 
-		return result, nil
+		return res, nil
 	case bedrocktypes.StopReasonMaxTokens:
-		return "", trace.LimitExceeded("model response length limit exceeded")
+		return nil, trace.LimitExceeded("model response length limit exceeded")
 	default:
-		return "", trace.Wrap(summarizererrors.BadResponseError{
+		return nil, trace.Wrap(summarizererrors.BadResponseError{
 			Message: fmt.Sprintf("model returned unexpected stop reason: %q", resp.StopReason),
 		})
 	}
