@@ -195,7 +195,7 @@ export const Account = ({
         </Text>
       </Flex>
 
-      <ButtonText inputAlignment onClick={() => setShowTable(!showTable)}>
+      <ButtonText $inputAlignment onClick={() => setShowTable(!showTable)}>
         {showTable ? 'Hide' : 'Show'} Accounts
         {showTable ? (
           <Icons.ChevronUp ml={2} size={'small'} />
@@ -267,7 +267,7 @@ export const GroupsWithAssignment = ({
         <GroupDescription />
       </Flex>
 
-      <ButtonText inputAlignment onClick={() => setShowTable(!showTable)}>
+      <ButtonText $inputAlignment onClick={() => setShowTable(!showTable)}>
         {showTable ? 'Hide' : 'Show'} Groups
         {showTable ? (
           <Icons.ChevronUp ml={2} size={'small'} />
@@ -350,7 +350,7 @@ export const PermissionSets = ({
         <PermisionSetDescription />
       </Flex>
 
-      <ButtonText inputAlignment onClick={() => setShowTable(!showTable)}>
+      <ButtonText $inputAlignment onClick={() => setShowTable(!showTable)}>
         {showTable ? 'Hide' : 'Show'} Permission Sets
         {showTable ? (
           <Icons.ChevronUp ml={2} size={'small'} />
