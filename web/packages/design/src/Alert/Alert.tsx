@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 import { color, ColorProps, style } from 'styled-system';
 
@@ -145,7 +145,7 @@ export interface Action {
   /**
    * a link that takes you to a different route within the app
    */
-  internalLink?: string;
+  linkTo?: string;
   onClick?: (event: React.MouseEvent) => void;
 }
 
@@ -406,7 +406,7 @@ const ActionButtons = ({
 
 /** Renders either a regular or a link button, depending on the action. */
 export const ActionButton = ({
-  action: { href, content, onClick, internalLink },
+  action: { href, content, onClick, linkTo },
   fill,
   intent,
   inputAlignment = false,
@@ -440,9 +440,9 @@ export const ActionButton = ({
     );
   }
 
-  if (internalLink) {
+  if (linkTo) {
     return (
-      <Button {...sharedProps} as={InternalLink} to={internalLink}>
+      <Button {...sharedProps} as={Link} to={linkTo}>
         {content}
       </Button>
     );

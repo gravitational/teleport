@@ -258,7 +258,7 @@ const NotificationBody = ({
           <ActionButton
             intent="neutral"
             action={{
-              internalLink: action.internalLink,
+              linkTo: action.linkTo,
               href: action.href,
               content: action.content,
               onClick: event => {
