@@ -19,10 +19,12 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/tls"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -35,21 +37,24 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/sso"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+const (
+	TDPB_QUERY_PARAMETER = "tdpb"
+	TDPB_VERSION_ONE     = "teleport-tdpb-1.0"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>
@@ -83,6 +88,337 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
+// In summary, we need to:
+//   - Receive initial client message(s)
+//   - Cut certs and handle MFA (if required)
+//   - Connect to Desktop agent and forward initial message(s)
+//   - Proxy the connections (with translation if needed)
+type MessageReadWriter interface {
+	io.Writer
+	ReadMessage() ([]byte, error)
+}
+
+// 1. Check if this will be TDP or TDPB client connection
+// 2. If TDP, no change from today (except setting up translation)
+// 3. If TDPB, send the upgrade request and wait for a client hello
+// 4. Eventually need a TDPB only handshake
+func readTDPMessage(rw MessageReadWriter) (tdp.Message, error) {
+	data, err := rw.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+	return tdp.Decode(data)
+}
+
+// Reads TDPB messages from the reader and discards TDP messages
+// TDP messages are identified as any message whose first octet is non-zero
+func readTDPBMessageWithDiscard(rw MessageReadWriter) (tdp.TdpbMessage, error) {
+	for {
+		data, err := rw.ReadMessage()
+		if err != nil {
+			return tdp.TdpbMessage{}, err
+		}
+		if len(data) < 1 {
+			return tdp.TdpbMessage{}, errors.New("received empty message")
+		}
+
+		if data[0] == 0 {
+			return tdp.DecodeTDPB(bytes.NewBuffer(data))
+		}
+	}
+}
+
+// Receive screenspec and keyboardlayout
+func readTDPInitialMessages(ctx context.Context, rw MessageReadWriter, log *slog.Logger) (data handshakeData, errorFunc func(io.Writer, error) error, err error) {
+	// Handle wrapping returned errors and sending TDP errors to the client
+	errorFunc = SendTDPError
+	defer func() {
+		if err != nil {
+			err = trace.Wrap(errors.Join(SendTDPError(rw, err)))
+			return
+		}
+	}()
+
+	// 1. READ TDP Screen spec
+	msg, err := readTDPMessage(rw)
+	if err != nil {
+		return
+	}
+	screenSpec, ok := msg.(tdp.ClientScreenSpec)
+	if !ok {
+		err = trace.BadParameter("client sent unexpected message %T", msg)
+		return
+	}
+
+	data.screenSpec = &screenSpec
+	width, height := screenSpec.Width, screenSpec.Height
+	if width > types.MaxRDPScreenWidth || height > types.MaxRDPScreenHeight {
+		err = trace.BadParameter(
+			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
+		)
+		return
+	}
+
+	log = log.With("width", width, "height", height)
+	msg, err = readTDPMessage(rw)
+	if err != nil {
+		return
+	}
+
+	keyboardLayout, gotKeyboardLayout := msg.(tdp.ClientKeyboardLayout)
+	if !gotKeyboardLayout {
+		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
+		//withheld = append(withheld, msg)
+	} else {
+		data.keyboardLayout = &keyboardLayout
+	}
+	return
+}
+
+type handshakeInitializer struct {
+	ClientHandshakeHandler func(MessageReadWriter) (handshakeData, func(io.Writer, error) error, error)
+	MFAPromptFunc          func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+}
+
+// Send upgrade. Ignore messages until Client Hello is received
+func handleTDPUpgrade(rw MessageReadWriter) (data handshakeData, errorFunc func(io.Writer, error) error, err error) {
+	// Handle wrapping returned errors and sending TDP errors to the client
+	errorFunc = SendTDPError
+	defer func() {
+		if err != nil {
+			err = trace.Wrap(errors.Join(SendTDPError(rw, err)))
+			return
+		}
+	}()
+	// Send a TDP upgrade message.
+	// Use a special TDPB decoder to read messages from the websocket while safely ignoring
+	// and discarding any TDP messages received.
+	upgrade := tdp.TDPUpgrade{Version: uint8(1)}
+	var encoded []byte
+	encoded, err = upgrade.Encode()
+	if err != nil {
+		return
+	}
+
+	_, err = rw.Write(encoded)
+	if err != nil {
+		return
+	}
+
+	// Now wait patiently for the client to reply with a CLIENT_HELLO TDPB message
+	var msg tdp.TdpbMessage
+	msg, err = readTDPBMessageWithDiscard(rw)
+	if err != nil {
+		return
+	}
+	protoMsg, err := msg.Proto()
+	if err != nil {
+		return
+	}
+
+	hello, isHello := protoMsg.(*tdpbv1.ClientHello)
+	if !isHello {
+		err = trace.Errorf("expected ClientHello message but got %T", protoMsg)
+		return
+	}
+
+	// Switch errorFunc to TDPB
+	errorFunc = SendTDPBError
+	data.hello = hello
+	return
+}
+
+type withheldMsgs[T any] = *[]T
+
+type withHeldMessages[T any] struct {
+	messages []T
+}
+
+func (w *withHeldMessages[T]) Append(msg T) {
+	w.messages = append(w.messages, msg)
+}
+
+func (w *withHeldMessages[T]) Get(T) []T {
+	return w.messages
+}
+
+// Handle TDP MFA ceremony
+func tdpMFAPrompt(rw MessageReadWriter, withheld *[]tdp.Message) func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	return func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+
+	}
+}
+
+// Handle TDPB MFA ceremony
+func tdpbMFAPrompt(rw MessageReadWriter, withheld *[]tdp.Message) func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	return func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		mfaMsg := tdp.NewTDPBMessage(&tdpbv1.MFA{
+			Challenge: chal,
+		})
+
+		_, err := mfaMsg.WriteTo(rw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		want := &tdpbv1.MFA{}
+		for {
+			msg, err := readTDPBMessageWithDiscard(rw)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Is this an MFA message?
+			err = msg.As(want)
+			if err == nil {
+				break
+			}
+
+			if !errors.Is(err, tdp.ErrUnexpectedMessageType) {
+				return nil, trace.Wrap(err)
+			}
+			// This is fine. We got a valid TDPB message, but it
+			// wasn't an MFA message
+			*withheld = append(*withheld, &msg)
+
+		}
+		return want.AuthenticationResponse, nil
+	}
+}
+
+// TDP -> TDPB (screenspec & keyboardlayout to translate client_hello)
+// TDP -> TDP (forward messages)
+// TDPB -> TDP (translate client_hello to screenspec & keyboardlayout)
+// TDPB -> TDPB (forward hello)
+type handshakeData struct {
+	// Think of this as a union of TDP handshake data and
+	// TDPB handshake data.
+	// As an invariant we expect that
+	// ClientScreenSpec != nil XOR ClientHello != nil
+	screenSpec *tdp.ClientScreenSpec
+	// May or may not be nil. Some web client versions will send this and
+	// others will not.
+	keyboardLayout *tdp.ClientKeyboardLayout
+
+	// TDPB capable clients are required to send a hello
+	hello *tdpbv1.ClientHello
+}
+
+// ForwardTDP forwards legacy TDP handshake messages (Username, ClientScreenSpec, KeyboardLayout (optional))
+func (h *handshakeData) ForwardTDP(w io.Writer, username string, forwardKeyboardLayout bool) error {
+	// Do we need to construct the screenspec from modern messages?
+	if h.screenSpec == nil {
+		h.screenSpec = &tdp.ClientScreenSpec{Width: h.hello.ScreenSpec.Width, Height: h.screenSpec.Height}
+		h.keyboardLayout = &tdp.ClientKeyboardLayout{KeyboardLayout: h.keyboardLayout.KeyboardLayout}
+	}
+
+	messages := make([]tdp.Message, 0, 3)
+	messages = append(messages, tdp.ClientUsername{Username: username}, h.screenSpec)
+	if forwardKeyboardLayout {
+		messages = append(messages, h.keyboardLayout)
+	}
+
+	for _, msg := range messages {
+		if msg == nil {
+			// keyboardlayout may be nil
+			continue
+		}
+
+		data, err := msg.Encode()
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(data)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ForwardTDPB forwards the handshake data in the form of a TDPB CLIENT_HELLO message
+func (h *handshakeData) ForwardTDPB(w io.Writer, username string, forwardKeyboardLayout bool) error {
+	// Do we need to construct the hello from legacy messages?
+	if h.hello == nil {
+		h.hello = &tdpbv1.ClientHello{
+			ScreenSpec: &tdpbv1.ClientScreenSpec{
+				Width:  h.screenSpec.Width,
+				Height: h.screenSpec.Height,
+			},
+			Username: username,
+		}
+
+		if h.keyboardLayout != nil {
+			h.hello.KeyboardLayout = h.keyboardLayout.KeyboardLayout
+		}
+	}
+	_, err := tdp.NewTDPBMessage(h.hello).WriteTo(w)
+	return err
+}
+
+func SendTDPError(w io.Writer, err error) error {
+	if err != nil {
+		slog.Warn("SendTDPError called with empty message")
+		err = errors.New("")
+	}
+
+	data, err := tdp.Alert{
+		Message:  err.Error(),
+		Severity: tdp.SeverityError,
+	}.Encode()
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func SendTDPBError(w io.Writer, err error) error {
+	if err != nil {
+		slog.Warn("SendTDPBError called with empty message")
+		err = errors.New("")
+	}
+
+	_, err = tdp.NewTDPBMessage(&tdpbv1.Alert{
+		Message:  err.Error(),
+		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
+	}).WriteTo(w)
+	return err
+}
+
+type wsAdapter struct {
+	ws *websocket.Conn
+}
+
+func NewWebsocketAdapter(ws *websocket.Conn) wsAdapter {
+	return wsAdapter{
+		ws: ws,
+	}
+}
+
+func (a *wsAdapter) ReadMessage() ([]byte, error) {
+	typ, data, err := a.ws.ReadMessage()
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "error message from websocket")
+	}
+	if typ != websocket.BinaryMessage {
+		return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
+	}
+	return data, nil
+}
+
+func (a *wsAdapter) Write(data []byte) (int, error) {
+	err := a.ws.WriteMessage(websocket.BinaryMessage, data)
+	if err != nil {
+		return 0, err
+	}
+	return len(data), nil
+}
+
+// Write generic pre-connection handlers (receive server_hello, or screenspec & keyboard messages)
+// write generic post-connect handlers (forward server_hello, or screenspec & keyboard messages)
+// Write two generic implementations for performing MFA ceremony
 func (h *Handler) createDesktopConnection(
 	r *http.Request,
 	desktopName string,
@@ -95,98 +431,71 @@ func (h *Handler) createDesktopConnection(
 	defer ws.Close()
 	ctx := r.Context()
 
-	sendTDPError := func(err error) error {
-		sendErr := sendTDPAlert(ws, err, tdp.SeverityError)
-		if sendErr != nil {
-			return sendErr
-		}
-		return err
+	//sendTDPError := func(err error) error {
+	//	sendErr := sendTDPAlert(ws, err, tdp.SeverityError)
+	//	if sendErr != nil {
+	//		return sendErr
+	//	}
+	//	return err
+	//}
+
+	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter
+	// - if 'tdpb' exists, we'll need to send an upgrade message to the client ASAP, then listen for
+	//   a "CLIENT_HELLO" message (discard any TDP messages received) until then.
+	// - Otherwise fall back to the "legacy" behavior
+	//
+	// After either receiving a CLIENT_HELLO or our initial TDP messages, we can dial the server which
+	// ALSO might speak TDP or TDPB. Unlike the client, the agent only speaks on or the other, so we'll
+	// translate here.
+	isTDPB := r.URL.Query().Get(TDPB_QUERY_PARAMETER) == TDPB_QUERY_PARAMETER
+	// TODO: Switch handshake intiializer based on isTDPB
+	adapter := NewWebsocketAdapter(ws)
+	init := handshakeInitializer{
+		ClientHandshakeHandler: handleTDPUpgrade,
+		MFAPromptFunc:          tdpbMFAPrompt(&adapter),
 	}
 
-	readClientMessage := func() (tdp.Message, error) {
-		typ, data, err := ws.ReadMessage()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if typ != websocket.BinaryMessage {
-			return nil, trace.BadParameter("expected binary websocket message, got %v", typ)
-		}
-
-		msg, err := tdp.Decode(data)
-		return msg, trace.Wrap(err)
-	}
+	handshakeData, sendError, err := init.ClientHandshakeHandler(&adapter)
 
 	username, err := readUsername(r)
 	if err != nil {
-		return sendTDPError(err)
+		return sendError(&adapter, err)
 	}
-	log.DebugContext(ctx, "Attempting to connect to desktop", "username", username)
-
-	// The first thing we expect from the client is the screen spec.
-	msg, err := readClientMessage()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	screenSpec, ok := msg.(tdp.ClientScreenSpec)
-	if !ok {
-		return sendTDPError(trace.BadParameter("client sent unexpected message %T", msg))
-	}
-
-	width, height := screenSpec.Width, screenSpec.Height
-	if width > types.MaxRDPScreenWidth || height > types.MaxRDPScreenHeight {
-		return sendTDPError(trace.BadParameter(
-			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
-			width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
-		))
-	}
-
-	log = log.With("username", username, "width", width, "height", height)
-
-	// Holds any messages withheld while issuing certs.
-	var withheld []tdp.Message
-
-	// Try to read the keyboard layout, which is sent by v18+ clients.
-	msg, err = readClientMessage()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	keyboardLayout, gotKeyboardLayout := msg.(tdp.ClientKeyboardLayout)
-	if !gotKeyboardLayout {
-		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
-		withheld = append(withheld, msg)
-	}
-
-	clt, err := sctx.GetUserClient(ctx, cluster)
-	if err != nil {
-		return sendTDPError(trace.Wrap(err))
-	}
+	log = log.With("username", username)
+	log.DebugContext(ctx, "Attempting to connect to desktop")
 
 	// Parse the private key of the user from the session context.
 	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
-		return sendTDPError(err)
+		return sendError(&adapter, err)
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
 	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username)
 	if err != nil {
-		return sendTDPError(err)
+		return sendError(&adapter, err)
 	}
 
 	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
-	certs, err := h.issueCerts(ctx, ws, sctx, mfaRequired, certsReq, &withheld)
+	// 3. OPTIONALLY HANDLE MFA (MUST HANDLE TDP OR TDPB SELECTION)
+	certs, err := h.issueCerts(ctx, sctx, mfaRequired, certsReq, init.MFAPromptFunc)
 	if err != nil {
-		return sendTDPError(err)
+		return sendError(&adapter, err)
 	}
 
 	// Create a TLS config for connecting to the Windows Desktop Service.
+	// 4. DIAL THE DESKTOP
 	tlsConfig, err := h.createDesktopTLSConfig(ctx, sctx, desktopName, pk, certs)
 	if err != nil {
-		return sendTDPError(err)
+		return sendError(&adapter, err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, cluster)
+	if err != nil {
+		return sendError(&adapter, err)
 	}
 
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
-
 	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
 		Log:            log,
 		DesktopsGetter: clt,
@@ -197,49 +506,57 @@ func (h *Handler) createDesktopConnection(
 		ClusterName:    clusterName,
 	})
 	if err != nil {
-		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
+		return sendError(&adapter, (trace.Wrap(err, "cannot connect to Windows Desktop Service")))
 	}
 	defer serviceConn.Close()
 
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.HandshakeContext(ctx); err != nil {
-		return sendTDPError(err)
+		return sendError(&adapter, err)
 	}
 	log.DebugContext(ctx, "Connected to windows_desktop_service")
 
-	tdpConn := tdp.NewConn(serviceConnTLS)
-
+	alpnResult := serviceConnTLS.ConnectionState().NegotiatedProtocol
+	sendKeyboardLayout, _ := utils.MinVerWithoutPreRelease(version, "18.0.0")
 	// Now that we have a connection to the Windows Desktop Service, we can
 	// send the username and screen spec to the service, and any withheld
 	// messages that were received before the MFA ceremony was completed.
-	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
-	if err != nil {
-		return sendTDPError(err)
+	// 5. FORWARD CLIENT SCREEN SPEC AND OPTIONALLY KEYBOARDLAYOUT
+	if alpnResult == TDPB_VERSION_ONE {
+		err = handshakeData.ForwardTDPB(serviceConnTLS, username, sendKeyboardLayout)
+	} else {
+		err = handshakeData.ForwardTDP(serviceConnTLS, username, sendKeyboardLayout)
 	}
-	err = tdpConn.WriteMessage(screenSpec)
-	if err != nil {
-		return sendTDPError(err)
-	}
+
+	//tdpConn := tdp.NewConn(serviceConnTLS)
+	//err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
+	//if err != nil {
+	//	return sendError(&adapter, err)
+	//}
+	//err = tdpConn.WriteMessage(screenSpec)
+	//if err != nil {
+	//	return sendError(&adapter, err)
+	//}
 
 	// Forward the user's keyboard layout to the agent, as long as the agent is new enough.
-	if keyboardLayoutSupported, _ := utils.MinVerWithoutPreRelease(version, "18.0.0"); keyboardLayoutSupported && gotKeyboardLayout {
-		if err := tdpConn.WriteMessage(keyboardLayout); err != nil {
-			return sendTDPError(err)
-		}
-	} else {
-		log.DebugContext(ctx, "Client sent keyboard layout but agent is too old", "agent_version", version)
-	}
+	//if keyboardLayoutSupported, _ := utils.MinVerWithoutPreRelease(version, "18.0.0"); keyboardLayoutSupported && gotKeyboardLayout {
+	//	if err := tdpConn.WriteMessage(keyboardLayout); err != nil {
+	//		return sendTDPError(err)
+	//	}
+	//} else {
+	//	log.DebugContext(ctx, "Client sent keyboard layout but agent is too old", "agent_version", version)
+	//}
 
-	for _, msg := range withheld {
-		log.DebugContext(ctx, "Sending withheld message", "message", logutils.TypeAttr(msg))
-		if err := tdpConn.WriteMessage(msg); err != nil {
-			return sendTDPError(err)
-		}
-	}
+	//for _, msg := range withheld {
+	//	log.DebugContext(ctx, "Sending withheld message", "message", logutils.TypeAttr(msg))
+	//	if err := tdpConn.WriteMessage(msg); err != nil {
+	//		return sendTDPError(err)
+	//	}
+	//}
 	// nil out the slice so we don't hang on to these messages
 	// for the rest of the connection
-	withheld = nil
+	//withheld = nil
 
 	// this blocks until the connection is closed
 	handleProxyWebsocketConnErr(
@@ -325,14 +642,13 @@ func (h *Handler) prepareForCertIssuance(
 // the MFA ceremony if required.
 func (h *Handler) issueCerts(
 	ctx context.Context,
-	ws *websocket.Conn,
 	sctx *SessionContext,
 	mfaRequired bool,
 	certsReq *proto.UserCertsRequest,
-	withheld *[]tdp.Message,
+	promptFunc mfa.PromptFunc,
 ) (certs *proto.Certs, err error) {
 	if mfaRequired {
-		certs, err = h.performSessionMFACeremony(ctx, ws, sctx, certsReq, withheld)
+		certs, err = h.performSessionMFACeremony(ctx, sctx, certsReq, promptFunc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -376,10 +692,9 @@ func (h *Handler) createDesktopTLSConfig(
 // in order to perform the assertion.
 func (h *Handler) performSessionMFACeremony(
 	ctx context.Context,
-	ws *websocket.Conn,
 	sctx *SessionContext,
 	certsReq *proto.UserCertsRequest,
-	withheld *[]tdp.Message,
+	promptFunc mfa.PromptFunc,
 ) (_ *proto.Certs, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/performSessionMFACeremony")
 	defer func() {
@@ -404,82 +719,83 @@ func (h *Handler) performSessionMFACeremony(
 			}, nil
 		},
 		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
-			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-				// Convert from proto to JSON types.
-				var challenge client.MFAAuthenticateChallenge
-				if chal.WebauthnChallenge != nil {
-					challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
-				}
-
-				if chal.SSOChallenge != nil {
-					challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
-					challenge.SSOChallenge.ChannelID = channelID
-				}
-
-				if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
-					return nil, trace.Wrap(authclient.ErrNoMFADevices)
-				}
-
-				// Send the challenge over the socket.
-				var codec tdpMFACodec
-				msg, err := codec.Encode(&challenge, defaults.WebsocketMFAChallenge)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				// Special case: if we've already received an MFA response (because an old web UI
-				// that doesn't send the keyboard layout is connected), then we're done.
-				if len(*withheld) > 0 {
-					mfaResp, ok := (*withheld)[0].(*tdp.MFA)
-					if ok {
-						return mfaResp.MFAAuthenticateResponse, nil
-					}
-				}
-
-				span.AddEvent("waiting for user to complete mfa ceremony")
-				var buf []byte
-				// Loop through incoming messages until we receive an MFA message that lets us
-				// complete the ceremony. Non-MFA messages (e.g. ClientScreenSpecs representing
-				// screen resizes) are withheld for later.
-				for {
-					var ty int
-					ty, buf, err = ws.ReadMessage()
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					if ty != websocket.BinaryMessage {
-						return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
-					}
-					if len(buf) == 0 {
-						return nil, trace.BadParameter("empty message received")
-					}
-
-					if tdp.MessageType(buf[0]) != tdp.TypeMFA {
-						// This is not an MFA message, withhold it for later.
-						msg, err := tdp.Decode(buf)
-						h.logger.DebugContext(ctx, "Received non-MFA message, withholding", "msg_type", logutils.TypeAttr(msg))
-						if err != nil {
-							return nil, trace.Wrap(err)
-						}
-						*withheld = append(*withheld, msg)
-						continue
-					}
-
-					break
-				}
-
-				assertion, err := codec.DecodeResponse(buf, defaults.WebsocketMFAChallenge)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				span.AddEvent("mfa ceremony completed")
-
-				return assertion, nil
-			})
+			return mfa.PromptFunc(promptFunc)
+			//func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			//// Convert from proto to JSON types.
+			//var challenge client.MFAAuthenticateChallenge
+			//if chal.WebauthnChallenge != nil {
+			//	challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
+			//}
+			//
+			//if chal.SSOChallenge != nil {
+			//	challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+			//	challenge.SSOChallenge.ChannelID = channelID
+			//}
+			//
+			//if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
+			//	return nil, trace.Wrap(authclient.ErrNoMFADevices)
+			//}
+			//
+			//// Send the challenge over the socket.
+			//var codec tdpMFACodec
+			//msg, err := codec.Encode(&challenge, defaults.WebsocketMFAChallenge)
+			//if err != nil {
+			//	return nil, trace.Wrap(err)
+			//}
+			//
+			//if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+			//	return nil, trace.Wrap(err)
+			//}
+			//
+			//// Special case: if we've already received an MFA response (because an old web UI
+			//// that doesn't send the keyboard layout is connected), then we're done.
+			//if len(*withheld) > 0 {
+			//	mfaResp, ok := (*withheld)[0].(*tdp.MFA)
+			//	if ok {
+			//		return mfaResp.MFAAuthenticateResponse, nil
+			//	}
+			//}
+			//
+			//span.AddEvent("waiting for user to complete mfa ceremony")
+			//var buf []byte
+			//// Loop through incoming messages until we receive an MFA message that lets us
+			//// complete the ceremony. Non-MFA messages (e.g. ClientScreenSpecs representing
+			//// screen resizes) are withheld for later.
+			//for {
+			//	var ty int
+			//	ty, buf, err = ws.ReadMessage()
+			//	if err != nil {
+			//		return nil, trace.Wrap(err)
+			//	}
+			//	if ty != websocket.BinaryMessage {
+			//		return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
+			//	}
+			//	if len(buf) == 0 {
+			//		return nil, trace.BadParameter("empty message received")
+			//	}
+			//
+			//	if tdp.MessageType(buf[0]) != tdp.TypeMFA {
+			//		// This is not an MFA message, withhold it for later.
+			//		msg, err := tdp.Decode(buf)
+			//		h.logger.DebugContext(ctx, "Received non-MFA message, withholding", "msg_type", logutils.TypeAttr(msg))
+			//		if err != nil {
+			//			return nil, trace.Wrap(err)
+			//		}
+			//		*withheld = append(*withheld, msg)
+			//		continue
+			//	}
+			//
+			//	break
+			//}
+			//
+			//assertion, err := codec.DecodeResponse(buf, defaults.WebsocketMFAChallenge)
+			//if err != nil {
+			//	return nil, trace.Wrap(err)
+			//}
+			//span.AddEvent("mfa ceremony completed")
+			//
+			//return assertion, nil
+			//})
 		},
 	}
 
@@ -634,11 +950,11 @@ func handleProxyWebsocketConnErr(ctx context.Context, proxyWsConnErr error, log 
 
 // sendTDPAlert sends a tdp Notification over the supplied websocket with the
 // error message of err.
-func sendTDPAlert(ws *websocket.Conn, err error, severity tdp.Severity) error {
-	msg := tdp.Alert{Message: err.Error(), Severity: severity}
-	b, err := msg.Encode()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return ws.WriteMessage(websocket.BinaryMessage, b)
-}
+//func sendTDPAlert(ws *websocket.Conn, err error, severity tdp.Severity) error {
+//	msg := tdp.Alert{Message: err.Error(), Severity: severity}
+//	b, err := msg.Encode()
+//	if err != nil {
+//		return trace.Wrap(err)
+//	}
+//	return ws.WriteMessage(websocket.BinaryMessage, b)
+//}
