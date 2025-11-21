@@ -203,7 +203,7 @@ These messages will be exchanged at the start of the connection.
 
 ### Notable Message Updates
 
-#### 2 - PNG frame and 27 - PNG Frame 2 
+#### Messages 2 - PNG frame and 27 - PNG Frame 2 
 Messages 2 and 27, (PNG Frame and PNG Frame 2) will be consolidated into a
 single message. The optimization brought on by the PNG 2 message is obsoleted
 under protobufs.
@@ -225,9 +225,19 @@ message PNG frame {
 }
 ```
 
+#### Message 7 - Client Username
+The Client Username message has been removed. It will be composed into the
+new `ClientHello` message.
+
 #### Message 10 - MFA 
 The MFA message will no longer contain json. Instead, it will compose the
 existing `MFAAuthenticationChallenge` and `MFAAuthenticateResponse` messages.
+
+#### Consolidation of Shared Directory Messages
+The bulk of the shared directory request/response messages have been consolidated
+into a single pair of generic request/response messages. `DirectoryOperation` enum
+has been added to represent the type of directory operation being requested. Responses
+can be matched to their corresponding request via the existing `completionId` field.
 
 ## Backwards Compatibility with Screen Recordings
 RFD 48 defines a protocol buffer message `DesktopRecordingEvent` that captures
