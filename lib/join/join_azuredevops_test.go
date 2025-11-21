@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
@@ -28,10 +28,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/azuredevops"
+	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 )
 
 type mockAzureDevopsTokenValidator struct {
@@ -53,7 +53,7 @@ func (m *mockAzureDevopsTokenValidator) Validate(
 	return &claims, nil
 }
 
-func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
+func TestJoinAzureDevops(t *testing.T) {
 	const (
 		validIDToken          = "test.fake.jwt"
 		validOrgID            = "0000-0000-0000-1337"
@@ -86,28 +86,18 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
-		server.SetAzureDevopsIDTokenValidator(idTokenValidator)
-		return nil
+	ctx := t.Context()
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
 	})
 	require.NoError(t, err)
-	auth := p.a
+	auth := server.Auth()
+	auth.SetAzureDevopsIDTokenValidator(idTokenValidator)
 
-	// helper for creating RegisterUsingTokenRequest
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	nopClient, err := server.NewClient(authtest.TestNop())
 	require.NoError(t, err)
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
-	require.NoError(t, err)
-	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
-		return &types.RegisterUsingTokenRequest{
-			HostID:       "host-id",
-			Role:         types.RoleNode,
-			IDToken:      idToken,
-			PublicTLSKey: tlsPublicKey,
-			PublicSSHKey: sshPublicKey,
-		}
-	}
 
 	allowRule := func(modifier func(devops *types.ProvisionTokenSpecV2AzureDevops_Rule)) *types.ProvisionTokenSpecV2AzureDevops_Rule {
 		rule := &types.ProvisionTokenSpecV2AzureDevops_Rule{
@@ -133,7 +123,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		request     *types.RegisterUsingTokenRequest
+		idToken     string
 		tokenSpec   types.ProvisionTokenSpecV2
 		assertError require.ErrorAssertionFunc
 	}{
@@ -149,7 +139,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: require.NoError,
 		},
 		{
@@ -167,7 +157,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: require.NoError,
 		},
 		{
@@ -184,7 +174,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: allowRulesNotMatched,
 		},
 		{
@@ -201,7 +191,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: allowRulesNotMatched,
 		},
 		{
@@ -218,7 +208,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: allowRulesNotMatched,
 		},
 		{
@@ -235,7 +225,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: allowRulesNotMatched,
 		},
 		{
@@ -252,7 +242,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: allowRulesNotMatched,
 		},
 		{
@@ -269,7 +259,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: allowRulesNotMatched,
 		},
 		{
@@ -286,7 +276,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: allowRulesNotMatched,
 		},
 		{
@@ -303,7 +293,7 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request:     newRequest(validIDToken),
+			idToken:     validIDToken,
 			assertError: allowRulesNotMatched,
 		},
 		{
@@ -318,23 +308,49 @@ func TestAuth_RegisterUsingToken_AzureDevops(t *testing.T) {
 					},
 				},
 			},
-			request: newRequest("some other token"),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, errMockInvalidToken)
+			idToken: "some other token",
+			assertError: func(t require.TestingT, err error, i ...any) {
+				// The error identity is lost at the gRPC boundary, preventing
+				// ErrorIs, but we can check the string.
+				require.Error(t, err)
+				require.ErrorContains(t, err, errMockInvalidToken.Error())
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			token, err := types.NewProvisionTokenFromSpec(
-				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,
+				"testtoken", time.Now().Add(time.Minute), tt.tokenSpec,
 			)
 			require.NoError(t, err)
-			require.NoError(t, auth.CreateToken(ctx, token))
-			tt.request.Token = tt.name
+			require.NoError(t, auth.UpsertToken(ctx, token))
 
-			_, err = auth.RegisterUsingToken(ctx, tt.request)
-			tt.assertError(t, err)
+			t.Run("new", func(t *testing.T) {
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: token.GetName(),
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						NodeName: "testnode",
+					},
+					IDToken:    tt.idToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
+			t.Run("legacy", func(t *testing.T) {
+				_, err = joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      token.GetName(),
+					JoinMethod: types.JoinMethodAzureDevops,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						HostUUID: "testuuid",
+						NodeName: "testnode",
+					},
+					IDToken:    tt.idToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
 		})
 	}
 }
