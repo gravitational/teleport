@@ -2078,7 +2078,7 @@ Aggregates the agent autoupdate reports and displays agent count per version and
 ## tctl autoupdate agents start-update
 
 ```code
-$ tctl autoupdate agents start-update [<groups>...]
+$ tctl autoupdate agents start-update [--force] [<groups>...]
 ```
 
 Manually initiates an update for the specified groups.
@@ -2086,6 +2086,7 @@ Manually initiates an update for the specified groups.
 ### Arguments
 
 - `<groups>` - Groups to update. If not specified, all groups will be started.
+- `--force` - Skips progressive deployment mechanism such as canaries or backpressure.
 
 ### Examples
 
