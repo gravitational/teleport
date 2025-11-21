@@ -31,6 +31,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |addr|string|Addr is a host:port address where this server can be reached.|
 |cloud_metadata|[object](#speccloud_metadata)|CloudMetadata contains info about the cloud instance the server is running on, if any.|
+|component_features|[object](#speccomponent_features)|component_features represents features supported by this server|
 |github|[object](#specgithub)|GitHub contains info about GitHub proxies where each server represents a GitHub organization.|
 |hostname|string|Hostname is server hostname|
 |peer_addr|string|PeerAddr is the address a proxy server is reachable at by its peer proxies.|
@@ -58,6 +59,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |region|string|Region is the AWS EC2 Instance Region.|
 |subnet_id|string|SubnetID is the Subnet ID in use by the instance.|
 |vpc_id|string|VPCID is the AWS VPC ID where the Instance is running.|
+
+### spec.component_features
+
+|Field|Type|Description|
+|---|---|---|
+|features|[]|features is a list of supported feature identifiers.|
 
 ### spec.github
 
