@@ -371,7 +371,8 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 			if err != nil {
 				// Log a warning and use the original remote address if we fail to extract the client source address from context.
 				// This will result in an error if the flow has pinned IP restrictions.
-				t.c.log.WarnContext(ctx, "Failed to extract client source address from context when proxying access to Application with integration credentials. IP Pinning checks will fail.", "error", err)
+				t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
+					Warnf("Failed to extract client source address from context when proxying access to Application with integration credentials. IP Pinning checks will fail. error: %v", err)
 				srcWithClientSrcAddr = src
 			}
 
