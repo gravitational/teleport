@@ -8832,6 +8832,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 			nodeCfg.Auth.Enabled = false
+			nodeCfg.DebugService.Enabled = false
 			// Configure Proxy.
 			nodeCfg.Proxy.Enabled = true
 			nodeCfg.Proxy.DisableWebService = false
@@ -8840,7 +8841,6 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.Proxy.SSHAddr.Addr = node.SSHProxy
 			nodeCfg.Proxy.WebAddr.Addr = node.Web
 			nodeCfg.Proxy.ReverseTunnelListenAddr.Addr = node.Secrets.TunnelAddr
-
 			// Configure Node.
 			nodeCfg.SSH.Enabled = true
 			nodeCfg.SSH.Addr.Addr = node.SSH
@@ -8972,6 +8972,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	nodeCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	nodeCfg.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerType("diag"), &node.Fds))
 	nodeCfg.Auth.Enabled = false
+	nodeCfg.DebugService.Enabled = false
 	// Configure Proxy.
 	nodeCfg.Proxy.Enabled = true
 	nodeCfg.Proxy.DisableWebService = false
