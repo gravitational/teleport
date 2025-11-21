@@ -205,24 +205,35 @@ func printKeypairFromState(state *boundkeypair.FSClientState, format string) err
 	}, format))
 }
 
+func loadExistingStaticKeypair(path string) (crypto.Signer, error) {
+	bytes, err := os.ReadFile(path)
+	if trace.IsNotFound(err) {
+		// No existing keypair was found at the path, nothing to load.
+		return nil, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err, "could not read from static key path %s", path)
+	}
+
+	parsed, err := keys.ParsePrivateKey(bytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not parse existing key at static key path %s", path)
+	}
+
+	// MarshalPrivateKey expects an actual signer impl, so unpack it.
+	return parsed.Signer, nil
+}
+
 // generateStaticKeypair generates a static keypair, used when --static is set
 func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cli.KeypairCreateCommand) error {
 	var key crypto.Signer
 	var err error
 
 	if cmd.StaticKeyPath != "" {
-		bytes, err := os.ReadFile(cmd.StaticKeyPath)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err, "could not read from static key path %s", cmd.StaticKeyPath)
-		}
-
-		parsed, err := keys.ParsePrivateKey(bytes)
+		key, err = loadExistingStaticKeypair(cmd.StaticKeyPath)
 		if err != nil {
-			return trace.Wrap(err, "could not parse existing key at static key path %s", cmd.StaticKeyPath)
+			return trace.Wrap(err)
 		}
 
-		// MarshalPrivateKey expects an actual signer impl, so unpack it.
-		key = parsed.Signer
 		log.InfoContext(ctx, "Loaded existing static key from path", "path", cmd.StaticKeyPath)
 	}
 
