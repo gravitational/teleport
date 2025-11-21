@@ -609,19 +609,18 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	// If the log writer is a file, we can pass it directly to the child
 	// process to write to. Otherwise, we need to create a pipe to the child
 	// process and stream the logs to the log writer.
-	if logCfg := child.srv.LogConfig(); logCfg.Writer != nil {
-		fileWriter, ok := logCfg.Writer.(*os.File)
-		if ok {
-			child.logw = fileWriter
-		} else {
-			child.logr, child.logw, err = os.Pipe()
-			if err != nil {
-				childErr := child.Close()
-				return nil, trace.NewAggregate(err, childErr)
-			}
-			child.AddCloser(child.logr)
-			child.AddCloser(child.logw)
+	logCfg := child.srv.LogConfig()
+	fileWriter, ok := logCfg.Writer.(*os.File)
+	if ok {
+		child.logw = fileWriter
+	} else {
+		child.logr, child.logw, err = os.Pipe()
+		if err != nil {
+			childErr := child.Close()
+			return nil, trace.NewAggregate(err, childErr)
 		}
+		child.AddCloser(child.logr)
+		child.AddCloser(child.logw)
 	}
 
 	return child, nil

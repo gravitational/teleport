@@ -100,7 +100,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 		// Return nil writer as the os log does not implement [io.Writer]. This writer would need to be
 		// provided for a teleport reexec child process to record logs, except that the teleport binary
 		// does not currently support os_log anyways.
-		return logger, level, nil, nil
+		return logger, level, io.Discard, nil
 	}
 
 	const (
@@ -124,7 +124,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 		if err != nil {
 			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
 			slog.SetDefault(slog.New(slog.DiscardHandler))
-			return slog.Default(), level, nil, nil
+			return slog.Default(), level, io.Discard, nil
 		}
 	default:
 		// Assume a file path for all other provided output values.
