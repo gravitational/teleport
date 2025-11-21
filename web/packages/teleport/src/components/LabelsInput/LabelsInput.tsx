@@ -318,7 +318,7 @@ export function LabelsInput({
           size="small"
           pr={3}
           compact={false}
-          inputAlignment
+          $inputAlignment
         />
       )}
     </Fieldset>
