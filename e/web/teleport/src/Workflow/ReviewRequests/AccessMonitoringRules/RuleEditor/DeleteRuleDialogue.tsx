@@ -7,9 +7,6 @@ import Dialog, {
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-
 export function DeleteRuleDialogue({
   name,
   onClose,
@@ -19,19 +16,11 @@ export function DeleteRuleDialogue({
   onDelete(): void;
   name: string;
 }) {
-  const { clusterId } = useStickyClusterId();
   const { attempt, run } = useAttempt();
   const isDisabled = attempt.status === 'processing';
 
   function handleDelete() {
-    run(() =>
-      accessMonitoringRuleService
-        .deleteAccessMonitoringRule({
-          clusterId,
-          name: name,
-        })
-        .then(onDelete)
-    );
+    run(async () => onDelete());
   }
 
   return (

@@ -1,30 +1,28 @@
-import { forwardRef, useCallback, useEffect, useState } from 'react';
+import { forwardRef, JSX, useEffect, useState } from 'react';
 import type { TransitionStatus } from 'react-transition-group';
 import { useTheme } from 'styled-components';
 
-import { Alert, Box, ButtonIcon, Flex, Indicator, Text } from 'design';
+import { Alert, Box, ButtonIcon, Flex, Text } from 'design';
 import Dialog from 'design/Dialog';
 import { Cross } from 'design/Icon';
 import { Theme } from 'design/theme/themes/types';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import { useKeyBasedPagination } from 'shared/hooks/useInfiniteScroll';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 import {
-  AccessMonitoringRule,
   AccessMonitoringRuleType,
   AccessMonitoringRuleWithYaml,
 } from 'e-teleport/services/accessmonitoringrule/types';
 import { pluginsService } from 'e-teleport/services/plugins';
+import { useServerSidePagination } from 'teleport/components/hooks';
 import { Plugin } from 'teleport/services/integrations';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
-import { AccessMonitoringRuleList } from './AccessMonitoringRuleList';
 import { RuleEditor } from './RuleEditor/RuleEditor';
+import { RuleList } from './RuleList/RuleList';
+import { useRules } from './useRules';
 
 export const AccessMonitoringRulesDialog = forwardRef<
   HTMLDivElement,
@@ -34,11 +32,11 @@ export const AccessMonitoringRulesDialog = forwardRef<
   }
 >(({ onClose, transitionState }, ref) => {
   const ctx = useTeleport();
+  const { fetch, create, update, remove, rulesAcl } = useRules(ctx);
   const pluginAccess = ctx.storeUser.getPluginsAccess();
   const hasPluginAccess = pluginAccess.read;
-  const amRuleAccess = ctx.storeUser.getAccessMonitoringRuleAccess();
   const missingPermissions = [
-    { hasAccess: amRuleAccess.create, label: 'access_monitoring_rule.create' },
+    { hasAccess: rulesAcl.create, label: 'access_monitoring_rule.create' },
     { hasAccess: hasPluginAccess, label: 'plugin.read' },
   ]
     .filter(perm => !perm.hasAccess)
@@ -46,9 +44,9 @@ export const AccessMonitoringRulesDialog = forwardRef<
   const hasAmRuleCreateAccess = missingPermissions.length === 0;
 
   const theme = useTheme();
-  const { clusterId } = useStickyClusterId();
   const [editor, setEditor] = useState<AccessMonitoringRuleType>();
   const [plugins, setPlugins] = useState<Plugin[]>([]);
+  const [search, setSearch] = useState('');
 
   const [viewingRule, setViewingRule] =
     useState<AccessMonitoringRuleWithYaml>();
@@ -57,43 +55,33 @@ export const AccessMonitoringRulesDialog = forwardRef<
     editor === AccessMonitoringRuleType.Notification ||
     editor === AccessMonitoringRuleType.Review;
 
+  const serverSidePagination =
+    useServerSidePagination<AccessMonitoringRuleWithYaml>({
+      pageSize: 20,
+      fetchFunc: async (_, params) => {
+        return await fetch(params);
+      },
+      clusterId: '',
+      params: { search },
+    });
+
   const {
     attempt: fetchPluginsAttempt,
     setAttempt: setPluginsAttempt,
     run: pluginRun,
   } = useAttempt('processing');
 
-  const fetchRulesFunc = useCallback(async (params, signal) => {
-    const response =
-      await accessMonitoringRuleService.fetchAccessMonitoringRulesForAccessRequests(
-        clusterId,
-        {
-          startKey: params.startKey || undefined,
-          limit: params.limit,
-        },
-        signal
-      );
-    return response;
-  }, []);
-
-  const {
-    fetch: fetchRules,
-    resources: rules,
-    attempt: fetchRulesAttempt,
-    updateFetchedResources,
-  } = useKeyBasedPagination<AccessMonitoringRuleWithYaml>({
-    fetchFunc: fetchRulesFunc,
-    initialFetchSize: 30,
-    fetchMoreSize: 30,
-    dataKey: 'rules',
-  });
-
-  useEffect(() => {
+  function fetchResources() {
+    serverSidePagination.fetch();
     if (hasPluginAccess) {
       fetchPlugins();
     } else {
       setPluginsAttempt({ status: 'success' });
     }
+  }
+
+  useEffect(() => {
+    fetchResources();
   }, []);
 
   function fetchPlugins() {
@@ -131,10 +119,14 @@ export const AccessMonitoringRulesDialog = forwardRef<
     }
   }
 
-  function onDelete(deletedRule: AccessMonitoringRule) {
-    updateFetchedResources(
-      rules.filter(r => r.object.metadata.name !== deletedRule.metadata.name)
-    );
+  async function onDelete() {
+    await remove(viewingRule.object.metadata.name);
+    serverSidePagination.modifyFetchedData(resp => ({
+      ...resp,
+      agents: resp.agents.filter(
+        rule => rule.object.metadata.name !== viewingRule.object.metadata.name
+      ),
+    }));
     setViewingRule(null);
     setEditor(null);
   }
@@ -146,17 +138,29 @@ export const AccessMonitoringRulesDialog = forwardRef<
     setEditor(editor);
   }
 
-  function onEdit(editedRule: AccessMonitoringRuleWithYaml) {
-    const index = rules.findIndex(
-      a => a.object.metadata.name === editedRule.object.metadata.name
+  async function onEdit(editedRule: Partial<AccessMonitoringRuleWithYaml>) {
+    const response: AccessMonitoringRuleWithYaml = await update(
+      viewingRule.object.metadata.name,
+      editedRule
     );
-    if (index >= 0) {
-      const newResources = [...rules];
-      newResources[index] = editedRule;
-      updateFetchedResources(newResources);
-    } else {
-      updateFetchedResources([...rules, editedRule]);
-    }
+    serverSidePagination.modifyFetchedData(resp => ({
+      ...resp,
+      agents: resp.agents.map(rule =>
+        rule.object.metadata.name === response.object.metadata.name
+          ? response
+          : rule
+      ),
+    }));
+    setEditor(null);
+    setViewingRule(null);
+  }
+
+  async function onSave(newRule: Partial<AccessMonitoringRuleWithYaml>) {
+    const response: AccessMonitoringRuleWithYaml = await create(newRule);
+    serverSidePagination.modifyFetchedData(resp => ({
+      ...resp,
+      agents: [response, ...resp.agents],
+    }));
     setEditor(null);
     setViewingRule(null);
   }
@@ -187,7 +191,7 @@ export const AccessMonitoringRulesDialog = forwardRef<
           <Flex alignItems="center" mb={3} justifyContent="space-between">
             <Flex alignItems="center" mr={3}>
               <HoverTooltip
-                position="bottom"
+                placement="bottom"
                 tipContent="Back to Access Requests"
               >
                 <ButtonIcon onClick={onClose} mr={2} ml={'-8px'}>
@@ -198,7 +202,7 @@ export const AccessMonitoringRulesDialog = forwardRef<
             </Flex>
             {fetchPluginsAttempt.status === 'success' && (
               <HoverTooltip
-                position="bottom"
+                placement="bottom"
                 tipContent={
                   hasAmRuleCreateAccess ? null : (
                     <MissingPermissionsTooltip
@@ -217,8 +221,8 @@ export const AccessMonitoringRulesDialog = forwardRef<
                     intent: 'primary',
                     color: 'inherit',
                     fill:
-                      fetchRulesAttempt.status === 'success' &&
-                      rules.length === 0
+                      serverSidePagination.attempt.status === 'success' &&
+                      serverSidePagination.fetchedData.agents.length === 0
                         ? 'filled'
                         : 'border',
                     disabled:
@@ -249,32 +253,19 @@ export const AccessMonitoringRulesDialog = forwardRef<
               </HoverTooltip>
             )}
           </Flex>
-          {fetchPluginsAttempt.status === 'failed' && (
-            <Alert
-              mt={3}
-              primaryAction={{ content: 'Retry', onClick: fetchPlugins }}
-            >
-              <Flex alignItems="center">
-                <Text>{fetchPluginsAttempt.statusText}</Text>
-              </Flex>
-            </Alert>
+          {renderAlert(
+            serverSidePagination.attempt,
+            fetchPluginsAttempt,
+            fetchResources
           )}
-          {fetchPluginsAttempt.status === 'success' && (
-            <AccessMonitoringRuleList
-              attempt={fetchRulesAttempt}
-              fetch={fetchRules}
-              rules={rules}
-              viewingRule={viewingRule?.object}
-              toggleViewingRule={toggleViewingRule}
-              plugins={plugins}
-            />
-          )}
-          {(fetchRulesAttempt.status === 'processing' ||
-            fetchPluginsAttempt.status === 'processing') && (
-            <Flex justifyContent="center">
-              <Indicator />
-            </Flex>
-          )}
+          <RuleList
+            serversidePagination={serverSidePagination}
+            plugins={plugins}
+            onSearchChange={setSearch}
+            search={search}
+            onEdit={toggleViewingRule}
+            viewingRule={viewingRule}
+          />
         </Box>
         {showEditor && (
           <RuleEditor
@@ -282,6 +273,7 @@ export const AccessMonitoringRulesDialog = forwardRef<
             // instead of updating the mounted component
             key={viewingRule?.object.metadata.name}
             selectedRule={viewingRule}
+            onSave={onSave}
             onCancel={handleEditorCancel}
             onEdit={onEdit}
             onDelete={onDelete}
@@ -293,6 +285,31 @@ export const AccessMonitoringRulesDialog = forwardRef<
     </Dialog>
   );
 });
+
+function renderAlert(
+  rulesAttempt: Attempt,
+  pluginsAttempt: Attempt,
+  onClick: () => void
+): JSX.Element {
+  const fetchRulesFailed = rulesAttempt.status === 'failed';
+  const fetchPluginsFailed = pluginsAttempt.status === 'failed';
+  if (!fetchRulesFailed && !fetchPluginsFailed) return null;
+
+  return (
+    <Alert mt={3} primaryAction={{ content: 'Retry', onClick: onClick }}>
+      <Box>
+        {fetchRulesFailed && (
+          <Text>
+            Failed to fetch Access Automation Rules: {rulesAttempt.statusText}
+          </Text>
+        )}
+        {fetchPluginsFailed && (
+          <Text>Failed to fetch Integrations: {pluginsAttempt.statusText}</Text>
+        )}
+      </Box>
+    </Alert>
+  );
+}
 
 const menuListCss = () => `
   width: 280px;

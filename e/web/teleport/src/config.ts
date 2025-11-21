@@ -422,6 +422,7 @@ const cfg = {
     return generatePath(cfg.api.accessMonitoringRule.list, {
       clusterId,
       ...filter,
+      startKey: filter?.startKey || undefined,
     });
   },
 

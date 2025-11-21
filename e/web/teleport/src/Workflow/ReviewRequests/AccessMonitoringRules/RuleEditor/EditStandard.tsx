@@ -16,7 +16,6 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { State as Attempt } from 'shared/hooks/useAttemptNext';
 
-import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 import {
   AccessMonitoringRuleType,
   AccessMonitoringRuleWithYaml,
@@ -24,7 +23,6 @@ import {
 import { LabelsInput } from 'teleport/components/LabelsInput';
 import { nonEmptyLabels } from 'teleport/components/LabelsInput/LabelsInput';
 import { Plugin } from 'teleport/services/integrations';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
 import {
@@ -57,9 +55,10 @@ export const EditStandard = ({
   fetchAttempt,
   yamlIsDirty,
   editor,
+  onSave,
 }: {
   selectedRule: AccessMonitoringRuleWithYaml;
-  onEdit(r: AccessMonitoringRuleWithYaml): void;
+  onEdit(r: Partial<AccessMonitoringRuleWithYaml>): void;
   onCancel(): void;
   plugins: Plugin[];
   standardEditor: StandardEditor;
@@ -74,11 +73,11 @@ export const EditStandard = ({
    */
   yamlIsDirty: boolean;
   editor: AccessMonitoringRuleType;
+  onSave(r: Partial<AccessMonitoringRuleWithYaml>): void;
 }) => {
   const isEditing = !!selectedRule;
   const ctx = useTeleport();
   const { attempt, run } = fetchAttempt;
-  const { clusterId } = useStickyClusterId();
   const { rule, ...configurableFields } = standardEditor;
   const {
     ruleCondition,
@@ -121,29 +120,18 @@ export const EditStandard = ({
     setScheduleEnabled(enabled);
   }
 
-  function onSave(validator: Validator) {
+  function handleSave(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
 
     if (isEditing) {
-      run(() =>
-        accessMonitoringRuleService
-          .updateAccessMonitoringRule(
-            { name: rule.metadata.name, clusterId },
-            {
-              object: buildRuleFromStandardEditor(standardEditor),
-            }
-          )
-          .then(onEdit)
+      run(async () =>
+        onEdit({ object: buildRuleFromStandardEditor(standardEditor) })
       );
     } else {
-      run(() =>
-        accessMonitoringRuleService
-          .createAccessMonitoringRule(clusterId, {
-            object: buildRuleFromStandardEditor(standardEditor),
-          })
-          .then(onEdit)
+      run(async () =>
+        onSave({ object: buildRuleFromStandardEditor(standardEditor) })
       );
     }
   }
@@ -435,7 +423,7 @@ export const EditStandard = ({
             </Box>
           </EditorWrapper>
           <EditorSaveCancelButton
-            onSave={() => onSave(validator)}
+            onSave={() => handleSave(validator)}
             onCancel={onCancel}
             disabled={
               attempt.status === 'processing' ||

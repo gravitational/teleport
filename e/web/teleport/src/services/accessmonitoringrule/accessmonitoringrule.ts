@@ -4,8 +4,6 @@ import api from 'teleport/services/api';
 
 import {
   AccessMonitoringRuleFilter,
-  AccessMonitoringRulePage,
-  AccessMonitoringRuleSubject,
   AccessMonitoringRuleUpsertRequest,
   AccessMonitoringRuleWithYaml,
 } from './types';
@@ -13,30 +11,12 @@ import {
 export const accessMonitoringRuleService = {
   fetchAccessMonitoringRules(
     clusterId: string,
-    filter: AccessMonitoringRuleFilter
-  ): Promise<AccessMonitoringRulePage> {
-    return api
-      .get(cfg.getAccessMonitoringRulesUrl(clusterId, filter))
-      .then(resp => ({ rules: resp.rules ?? [], startKey: resp.startKey }));
-  },
-
-  fetchAccessMonitoringRulesForAccessRequests(
-    clusterId: string,
     filter: AccessMonitoringRuleFilter,
-    signal: AbortSignal
+    signal?: AbortSignal
   ): Promise<ResourcesResponse<AccessMonitoringRuleWithYaml>> {
     return api
-      .get(
-        cfg.getAccessMonitoringRulesUrl(clusterId, {
-          ...filter,
-          subject: AccessMonitoringRuleSubject.AccessRequest,
-        }),
-        signal
-      )
-      .then(resp => {
-        resp.rules = resp.rules ?? [];
-        return resp;
-      });
+      .get(cfg.getAccessMonitoringRulesUrl(clusterId, filter), signal)
+      .then(resp => ({ agents: resp.rules ?? [], startKey: resp.startKey }));
   },
 
   createAccessMonitoringRule(

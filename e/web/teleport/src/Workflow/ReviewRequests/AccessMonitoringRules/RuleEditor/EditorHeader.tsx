@@ -19,7 +19,7 @@ export const EditorHeader = ({
   onDelete,
   editor,
 }: {
-  onDelete?(r: AccessMonitoringRule): void;
+  onDelete?(): void;
   rule?: AccessMonitoringRule;
   requiresEnrollingPlugins: boolean;
   onCancel(): void;
@@ -77,7 +77,7 @@ export const EditorHeader = ({
         <DeleteRuleDialogue
           name={rule.metadata.name}
           onClose={() => setDeleteConfirm(false)}
-          onDelete={() => onDelete(rule)}
+          onDelete={onDelete}
         />
       )}
     </Box>

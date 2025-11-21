@@ -406,7 +406,7 @@ CreateAndViewValidRule.parameters = {
       ),
       http.post(cfg.oss.api.yaml.stringify, () =>
         HttpResponse.json({
-          aml: ruleYaml,
+          yaml: ruleYaml,
         })
       ),
     ],

@@ -39,15 +39,17 @@ export const RuleEditor = ({
   plugins,
   onDelete,
   editor,
+  onSave,
 }: {
   // selectedRule can be null if a user is creaitng
   // a new rule instead.
   selectedRule?: AccessMonitoringRuleWithYaml;
   onCancel(): void;
-  onEdit(r: AccessMonitoringRuleWithYaml): void;
+  onEdit(r: Partial<AccessMonitoringRuleWithYaml>): void;
   plugins: Plugin[];
-  onDelete(r: AccessMonitoringRule): void;
+  onDelete(): void;
   editor: AccessMonitoringRuleType;
+  onSave(r: Partial<AccessMonitoringRuleWithYaml>): void;
 }) => {
   const ctx = useTeleport();
   const fetchAttempt = useAttempt('');
@@ -282,6 +284,7 @@ export const RuleEditor = ({
               fetchAttempt={fetchAttempt}
               yamlIsDirty={yamlEditor.isDirty}
               editor={editor}
+              onSave={onSave}
             />
           </>
         )}
@@ -290,10 +293,10 @@ export const RuleEditor = ({
             yamlEditor={yamlEditor}
             onYamlEditorChange={setYamlEditor}
             onEdit={onEdit}
-            ruleName={standardEditor.ruleName}
             onCancel={onCancel}
             selectedRule={selectedRule}
             fetchAttempt={fetchAttempt}
+            onSave={onSave}
           />
         )}
       </EditorWrapper>

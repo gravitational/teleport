@@ -2,9 +2,7 @@ import { Flex } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { State as Attempt } from 'shared/hooks/useAttemptNext';
 
-import { accessMonitoringRuleService } from 'e-teleport/services/accessmonitoringrule';
 import { AccessMonitoringRuleWithYaml } from 'e-teleport/services/accessmonitoringrule/types';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import {
   EditorSaveCancelButton,
@@ -14,23 +12,22 @@ import { YamlEditor } from './yamleditor';
 
 export const EditYaml = ({
   selectedRule,
-  ruleName,
   onEdit,
   onCancel,
   yamlEditor,
   onYamlEditorChange,
   fetchAttempt,
+  onSave,
 }: {
   selectedRule: AccessMonitoringRuleWithYaml;
-  ruleName: string;
-  onEdit(r: AccessMonitoringRuleWithYaml): void;
+  onEdit(r: Partial<AccessMonitoringRuleWithYaml>): void;
   onCancel(): void;
   yamlEditor: YamlEditor;
   onYamlEditorChange(y: YamlEditor): void;
   fetchAttempt: Attempt;
+  onSave(r: Partial<AccessMonitoringRuleWithYaml>): void;
 }) => {
   const isEditing = !!selectedRule;
-  const { clusterId } = useStickyClusterId();
   const { attempt, run } = fetchAttempt;
 
   function handleSetYaml(newContent) {
@@ -40,26 +37,11 @@ export const EditYaml = ({
     });
   }
 
-  function onSave() {
+  function handleSave() {
     if (isEditing) {
-      run(() =>
-        accessMonitoringRuleService
-          .updateAccessMonitoringRule(
-            { clusterId, name: ruleName },
-            {
-              yaml: yamlEditor.content,
-            }
-          )
-          .then(onEdit)
-      );
+      run(async () => onEdit({ yaml: yamlEditor.content }));
     } else {
-      run(() =>
-        accessMonitoringRuleService
-          .createAccessMonitoringRule(clusterId, {
-            yaml: yamlEditor.content,
-          })
-          .then(onEdit)
-      );
+      run(async () => onSave({ yaml: yamlEditor.content }));
     }
   }
 
@@ -74,7 +56,7 @@ export const EditYaml = ({
       </Flex>
       {getDefaultPluginNotificationMessage()}
       <EditorSaveCancelButton
-        onSave={onSave}
+        onSave={handleSave}
         onCancel={onCancel}
         disabled={attempt.status === 'processing' || !yamlEditor.isDirty}
         isEditing={isEditing}

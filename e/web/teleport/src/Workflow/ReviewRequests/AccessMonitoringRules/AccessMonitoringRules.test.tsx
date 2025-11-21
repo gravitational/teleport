@@ -39,17 +39,14 @@ describe('AccessMonitoringRulesDialog', () => {
         yaml: '',
       });
     jest
-      .spyOn(
-        accessMonitoringRuleService,
-        'fetchAccessMonitoringRulesForAccessRequests'
-      )
+      .spyOn(accessMonitoringRuleService, 'fetchAccessMonitoringRules')
       .mockResolvedValue({
         startKey: '',
-        rules: [
+        agents: [
           { object: validRuleObject, yaml: ruleYaml },
           { object: invalidRuleObject, yaml: ruleYaml },
         ],
-      } as any);
+      });
   });
 
   afterEach(() => {
@@ -67,7 +64,7 @@ describe('AccessMonitoringRulesDialog', () => {
 
     act(mio.enterAll); // trigger the isIntersecting of IntersectionObserver
     expect(
-      accessMonitoringRuleService.fetchAccessMonitoringRulesForAccessRequests
+      accessMonitoringRuleService.fetchAccessMonitoringRules
     ).toHaveBeenCalledTimes(1);
   }
 
@@ -181,14 +178,11 @@ describe('AccessMonitoringRulesDialog', () => {
 
   test('viewing a valid rule, defaults to standard editor', async () => {
     jest
-      .spyOn(
-        accessMonitoringRuleService,
-        'fetchAccessMonitoringRulesForAccessRequests'
-      )
+      .spyOn(accessMonitoringRuleService, 'fetchAccessMonitoringRules')
       .mockResolvedValue({
         startKey: '',
-        rules: [{ object: validRuleObject, yaml: ruleYaml }],
-      } as any);
+        agents: [{ object: validRuleObject, yaml: ruleYaml }],
+      });
 
     render(<Component />);
     await waitForAllAsyncCalls();
@@ -218,14 +212,11 @@ describe('AccessMonitoringRulesDialog', () => {
   test('viewing a invalid rule defaults to yaml editor and renders reset button on switching to standard', async () => {
     jest.spyOn(yamlService, 'parse').mockResolvedValue(invalidRuleObject);
     jest
-      .spyOn(
-        accessMonitoringRuleService,
-        'fetchAccessMonitoringRulesForAccessRequests'
-      )
+      .spyOn(accessMonitoringRuleService, 'fetchAccessMonitoringRules')
       .mockResolvedValue({
         startKey: '',
-        rules: [{ object: invalidRuleObject, yaml: ruleYaml }],
-      } as any);
+        agents: [{ object: invalidRuleObject, yaml: ruleYaml }],
+      });
 
     render(<Component />);
     await waitForAllAsyncCalls();

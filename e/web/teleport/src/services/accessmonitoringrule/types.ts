@@ -155,8 +155,3 @@ type UpsertAccessMonitoringRuleYaml = {
    */
   yaml: string;
 };
-
-export interface AccessMonitoringRulePage {
-  rules: AccessMonitoringRuleWithYaml[];
-  startKey?: string;
-}
