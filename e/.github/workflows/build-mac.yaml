@@ -41,7 +41,7 @@ on:
 jobs:
   build-release-artifacts:
     environment: ${{ inputs.environment }}
-    runs-on: macos-13-xlarge
+    runs-on: macos-15-xlarge
     permissions:
       contents: read
       id-token: write

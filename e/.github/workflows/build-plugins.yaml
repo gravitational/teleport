@@ -34,7 +34,7 @@ jobs:
           - os: linux
             runs-on: ubuntu-22.04-16core
           - os: darwin
-            runs-on: macos-13-xlarge
+            runs-on: macos-15-xlarge
           - os: windows
             runs-on: ubuntu-22.04-16core # Perform cross-compile on a Linux runner
     runs-on: ${{ matrix.target.runs-on }}
@@ -203,11 +203,11 @@ jobs:
             normalized_file="${file%.manifest}"
             normalized_file="${normalized_file%.exe}"
             normalized_file="${normalized_file%-bin.tar.gz}"
-    
+
             PLUGIN_ARCH="${normalized_file##*-}" # last dash-separated field
             PLUGIN_OS="${normalized_file%-*}" # remove last field
             PLUGIN_OS="${PLUGIN_OS##*-}" # last field of remaining
-  
+
             PLUGIN_NAME="${normalized_file#teleport-}"
             PLUGIN_NAME="${PLUGIN_NAME#access-}" # This is a noop for event-handler
             PLUGIN_NAME="${PLUGIN_NAME%-v*}"
@@ -401,9 +401,9 @@ jobs:
         arch: [amd64, arm64]
         include:
           - arch: amd64
-            runs-on: macos-13
+            runs-on: macos-15
           - arch: arm64
-            runs-on: macos-13-xlarge
+            runs-on: macos-15-xlarge
     name: Smoke Test Darwin ${{ matrix.arch }} Artifacts
     environment: ${{ inputs.environment }}
     permissions:

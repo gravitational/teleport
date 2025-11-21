@@ -45,7 +45,7 @@ on:
 jobs:
   build-release-artifacts:
     environment: ${{ inputs.environment }}
-    runs-on: macos-13-xlarge
+    runs-on: macos-15-xlarge
     permissions:
       contents: read
       id-token: write
@@ -225,7 +225,7 @@ jobs:
             --path "teleport-${TELEPORT_VERSION}.pkg" \
             --products 'teleport' --os 'darwin' --architecture 'universal' \
             --description "MacOS Universal .pkg installer"
-          
+
           "${RELCLI_PATH}" generate-manifest \
             --path "teleport-tools-${TELEPORT_VERSION}.pkg" \
             --products 'teleport' --os 'darwin' --architecture 'universal' \
@@ -237,7 +237,7 @@ jobs:
               --products 'teleport' --products 'teleport-ent' \
               --os 'darwin' --architecture 'universal' \
               --description "Teleport Connect"
-          
+
             "${RELCLI_PATH}" generate-manifest \
               --path "Teleport Connect-${TELEPORT_VERSION}-mac.zip" \
               --products 'teleport' --products 'teleport-ent' \
@@ -261,7 +261,7 @@ jobs:
               --products 'teleport' \
               --os 'darwin' --architecture 'universal' \
               --description "Teleport Connect"
-          
+
             "${RELCLI_PATH}" generate-manifest \
               --path "Teleport Connect-${TELEPORT_VERSION}-mac.zip" \
               --products 'teleport' \
