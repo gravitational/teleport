@@ -208,6 +208,9 @@ Messages 2 and 27, (PNG Frame and PNG Frame 2) will be consolidated into a
 single message. The optimization brought on by the PNG 2 message is obsoleted
 under protobufs.
 
+Note: These messages are preserved in TDPB to facilitate playback of old session
+recordings. They should not be used during live desktop sessions.
+
 ```protobuf
 message Rectangle {
     uint32 left = 1;
