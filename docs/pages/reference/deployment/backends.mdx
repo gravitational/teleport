@@ -165,9 +165,11 @@ do it:
    ```sh
    cfssl print-defaults csr > client.json`
    ```
+
 1. Remove all hostnames from the hosts element of the `client.json` file, as
    this CSR doesn't represent any host, but a client. Also customize any other
    options if required.
+
 1. For each Auth Service instance, generate the client certificate:
    ```sh
    cfssl gencert -ca=certs/ca.pem -ca-key=certs/ca-key.pem -config=config/ca-config.json -profile=client client.json | cfssljson -bare certs/client
