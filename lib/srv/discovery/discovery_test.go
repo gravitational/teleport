@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/cloudtest"
@@ -99,6 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
@@ -1478,6 +1480,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					Regions:        []string{types.Wildcard},
 					ResourceGroups: []string{types.Wildcard},
 					Subscriptions:  []string{"sub1"},
+					Integration:    "dummy-azure-integration",
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
@@ -1530,8 +1533,10 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			azureClients := &cloudtest.AzureClients{
-				AzureAKSClient: newPopulatedAKSMock(),
+			initAzureClients := func(opts ...cloud.AzureClientsOption) (cloud.AzureClients, error) {
+				return &cloudtest.AzureClients{
+					AzureAKSClient: newPopulatedAKSMock(),
+				}, nil
 			}
 
 			gcpClients := &cloudtest.GCPClients{
@@ -1607,7 +1612,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			discServer, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
-					azureClients:       azureClients,
+					initAzureClients:   initAzureClients,
 					gcpClients:         gcpClients,
 					AWSFetchersClients: mockedClients,
 					ClusterFeatures:    func() proto.Features { return proto.Features{} },
@@ -1624,8 +1629,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				})
 			require.NoError(t, err)
 
+			require.NoError(t, discServer.Start())
 			t.Cleanup(discServer.Stop)
-			go discServer.Start()
 
 			clustersNotUpdatedMap := set.New(tc.clustersNotUpdated...)
 			clustersFoundInAuth := false
@@ -1668,6 +1673,15 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				require.Never(t, func() bool {
 					return reporter.ResourceCreateEventCount() != 0
 				}, time.Second, 100*time.Millisecond)
+			}
+
+			// verify usage of integration credentials.
+			for _, matcher := range tc.azureMatchers {
+				require.NotNil(t, discServer.azureClientCache)
+				_, err = libutils.FnCacheGet(t.Context(), discServer.azureClientCache, matcher.Integration, func(ctx context.Context) (cloud.AzureClients, error) {
+					return nil, trace.NotFound("cache key %q not found", matcher.Integration)
+				})
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -2202,6 +2216,20 @@ func TestDiscoveryDatabase(t *testing.T) {
 			wantEvents:      1,
 		},
 		{
+			name: "discover Azure database with integration",
+			azureMatchers: []types.AzureMatcher{{
+				Types:          []string{types.AzureMatcherRedis},
+				ResourceTags:   map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:        []string{types.Wildcard},
+				ResourceGroups: []string{types.Wildcard},
+				Subscriptions:  []string{"sub1"},
+				Integration:    integrationName,
+			}},
+			expectDatabases:             []types.Database{azRedisDB},
+			wantEvents:                  1,
+			integrationsOnlyCredentials: true,
+		},
+		{
 			name: "update existing database",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
@@ -2554,7 +2582,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 						AWSConfigProvider: *fakeConfigProvider,
 						eksClusters:       []*ekstypes.Cluster{eksAWSResource},
 					},
-					azureClients:              azureClients,
+					initAzureClients: func(opts ...cloud.AzureClientsOption) (cloud.AzureClients, error) {
+						return azureClients, nil
+					},
 					ClusterFeatures:           func() proto.Features { return proto.Features{} },
 					KubernetesClient:          fake.NewSimpleClientset(),
 					AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -2589,8 +2619,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 				}, 1*time.Second, 100*time.Millisecond)
 			}
 
+			require.NoError(t, srv.Start())
 			t.Cleanup(srv.Stop)
-			go srv.Start()
 
 			select {
 			case <-waitForReconcile:
@@ -2631,6 +2661,15 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}
 			if tc.userTasksCheck != nil {
 				tc.userTasksCheck(t, tlsServer.Auth())
+			}
+
+			// verify usage of integration credentials.
+			for _, matcher := range tc.azureMatchers {
+				require.NotNil(t, srv.azureClientCache)
+				_, err = libutils.FnCacheGet(t.Context(), srv.azureClientCache, matcher.Integration, func(ctx context.Context) (cloud.AzureClients, error) {
+					return nil, trace.NotFound("cache key %q not found", matcher.Integration)
+				})
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -2928,18 +2967,33 @@ func (m *mockAzureInstaller) GetInstalledInstances() []string {
 func TestAzureVMDiscovery(t *testing.T) {
 	t.Parallel()
 
-	defaultDiscoveryGroup := "dc001"
+	const defaultDiscoveryGroup = "dc001"
+
+	const noIntegration = ""
+	const dummyIntegration = "dummy"
 
 	vmMatcherFn := func() Matchers {
 		return Matchers{
-			Azure: []types.AzureMatcher{{
-				Types:          []string{"vm"},
-				Subscriptions:  []string{"testsub"},
-				ResourceGroups: []string{"testrg"},
-				Regions:        []string{"westcentralus"},
-				ResourceTags:   types.Labels{"teleport": {"yes"}},
-				Params:         &types.InstallerParams{},
-			}},
+			Azure: []types.AzureMatcher{
+				{
+					Types:          []string{"vm"},
+					Subscriptions:  []string{"testsub"},
+					ResourceGroups: []string{"testrg"},
+					Regions:        []string{"westcentralus"},
+					ResourceTags:   types.Labels{"teleport": {"yes"}},
+					Params:         &types.InstallerParams{},
+					Integration:    noIntegration,
+				},
+				{
+					Types:          []string{"vm"},
+					Subscriptions:  []string{"testsub"},
+					ResourceGroups: []string{"testrg"},
+					Regions:        []string{"westcentralus"},
+					ResourceTags:   types.Labels{"teleport-integration": {"yes"}},
+					Params:         &types.InstallerParams{},
+					Integration:    dummyIntegration,
+				},
+			},
 		}
 	}
 
@@ -2956,128 +3010,88 @@ func TestAzureVMDiscovery(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	foundAzureVMs := func() []*armcompute.VirtualMachine {
+		return []*armcompute.VirtualMachine{
+			{
+				ID: aws.String((&arm.ResourceID{
+					SubscriptionID:    "testsub",
+					ResourceGroupName: "rg",
+					Name:              "testvm",
+				}).String()),
+				Name:     aws.String("testvm"),
+				Location: aws.String("westcentralus"),
+				Tags: map[string]*string{
+					"teleport": aws.String("yes"),
+				},
+				Properties: &armcompute.VirtualMachineProperties{
+					VMID: aws.String("test-vmid"),
+				},
+			},
+			{
+				ID: aws.String((&arm.ResourceID{
+					SubscriptionID:    "testsub",
+					ResourceGroupName: "rg",
+					Name:              "testvm-integration",
+				}).String()),
+				Name:     aws.String("testvm-integration"),
+				Location: aws.String("westcentralus"),
+				Tags: map[string]*string{
+					"teleport-integration": aws.String("yes"),
+				},
+				Properties: &armcompute.VirtualMachineProperties{
+					VMID: aws.String("test-vmid-integration"),
+				},
+			},
+		}
+	}
+
+	presentNode := &types.ServerV2{
+		Kind: types.KindNode,
+		Metadata: types.Metadata{
+			Name: "name",
+			Labels: map[string]string{
+				"teleport.internal/subscription-id": "testsub",
+				"teleport.internal/vm-id":           "test-vmid",
+			},
+			Namespace: defaults.Namespace,
+		},
+	}
+
+	presentNodeAlt := presentNode.DeepCopy().(*types.ServerV2)
+	presentNodeAlt.Metadata.Labels["teleport.internal/vm-id"] = "alternate-vmid"
+
 	tests := []struct {
-		name                   string
-		presentVMs             []types.Server
-		foundAzureVMs          []*armcompute.VirtualMachine
-		discoveryConfig        *discoveryconfig.DiscoveryConfig
-		staticMatchers         Matchers
-		wantInstalledInstances []string
+		name                     string
+		presentVMs               []types.Server
+		discoveryConfig          *discoveryconfig.DiscoveryConfig
+		staticMatchers           Matchers
+		wantInstalledInstances   []string
+		expectedIntegrationNames []string
 	}{
 		{
-			name:       "no nodes present, 1 found",
-			presentVMs: []types.Server{},
-			foundAzureVMs: []*armcompute.VirtualMachine{
-				{
-					ID: aws.String((&arm.ResourceID{
-						SubscriptionID:    "testsub",
-						ResourceGroupName: "rg",
-						Name:              "testvm",
-					}).String()),
-					Name:     aws.String("testvm"),
-					Location: aws.String("westcentralus"),
-					Tags: map[string]*string{
-						"teleport": aws.String("yes"),
-					},
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: aws.String("test-vmid"),
-					},
-				},
-			},
+			name:                   "no nodes present, 1 found",
+			presentVMs:             []types.Server{},
 			staticMatchers:         vmMatcherFn(),
-			wantInstalledInstances: []string{"testvm"},
+			wantInstalledInstances: []string{"testvm", "testvm-integration"},
 		},
 		{
-			name: "nodes present, instance filtered",
-			presentVMs: []types.Server{
-				&types.ServerV2{
-					Kind: types.KindNode,
-					Metadata: types.Metadata{
-						Name: "name",
-						Labels: map[string]string{
-							"teleport.internal/subscription-id": "testsub",
-							"teleport.internal/vm-id":           "test-vmid",
-						},
-						Namespace: defaults.Namespace,
-					},
-				},
-			},
-			staticMatchers: vmMatcherFn(),
-			foundAzureVMs: []*armcompute.VirtualMachine{
-				{
-					ID: aws.String((&arm.ResourceID{
-						SubscriptionID:    "testsub",
-						ResourceGroupName: "rg",
-						Name:              "testvm",
-					}).String()),
-					Location: aws.String("westcentralus"),
-					Tags: map[string]*string{
-						"teleport": aws.String("yes"),
-					},
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: aws.String("test-vmid"),
-					},
-				},
-			},
+			name:                   "nodes present, instance filtered",
+			presentVMs:             []types.Server{presentNode},
+			staticMatchers:         vmMatcherFn(),
+			wantInstalledInstances: []string{"testvm-integration"},
 		},
 		{
-			name: "nodes present, instance not filtered",
-			presentVMs: []types.Server{
-				&types.ServerV2{
-					Kind: types.KindNode,
-					Metadata: types.Metadata{
-						Name: "name",
-						Labels: map[string]string{
-							"teleport.internal/subscription-id": "testsub",
-							"teleport.internal/vm-id":           "alternate-vmid",
-						},
-						Namespace: defaults.Namespace,
-					},
-				},
-			},
-			staticMatchers: vmMatcherFn(),
-			foundAzureVMs: []*armcompute.VirtualMachine{
-				{
-					ID: aws.String((&arm.ResourceID{
-						SubscriptionID:    "testsub",
-						ResourceGroupName: "rg",
-						Name:              "testvm",
-					}).String()),
-					Name:     aws.String("testvm"),
-					Location: aws.String("westcentralus"),
-					Tags: map[string]*string{
-						"teleport": aws.String("yes"),
-					},
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: aws.String("test-vmid"),
-					},
-				},
-			},
-			wantInstalledInstances: []string{"testvm"},
+			name:                   "nodes present, instance not filtered",
+			presentVMs:             []types.Server{presentNodeAlt},
+			staticMatchers:         vmMatcherFn(),
+			wantInstalledInstances: []string{"testvm", "testvm-integration"},
 		},
 		{
-			name:       "no nodes present, 1 found using dynamic matchers",
-			presentVMs: []types.Server{},
-			foundAzureVMs: []*armcompute.VirtualMachine{
-				{
-					ID: aws.String((&arm.ResourceID{
-						SubscriptionID:    "testsub",
-						ResourceGroupName: "rg",
-						Name:              "testvm",
-					}).String()),
-					Name:     aws.String("testvm"),
-					Location: aws.String("westcentralus"),
-					Tags: map[string]*string{
-						"teleport": aws.String("yes"),
-					},
-					Properties: &armcompute.VirtualMachineProperties{
-						VMID: aws.String("test-vmid"),
-					},
-				},
-			},
+			name:                   "no nodes present, 1 found using dynamic matchers",
+			presentVMs:             []types.Server{},
 			discoveryConfig:        defaultDiscoveryConfig,
 			staticMatchers:         Matchers{},
-			wantInstalledInstances: []string{"testvm"},
+			wantInstalledInstances: []string{"testvm", "testvm-integration"},
 		},
 	}
 
@@ -3085,11 +3099,13 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testAzureClients := &cloudtest.AzureClients{
-				AzureVirtualMachines: &mockAzureClient{
-					vms: tc.foundAzureVMs,
-				},
-				AzureRunCommand: &mockAzureRunCommandClient{},
+			initAzureClients := func(opts ...cloud.AzureClientsOption) (cloud.AzureClients, error) {
+				return &cloudtest.AzureClients{
+					AzureVirtualMachines: &mockAzureClient{
+						vms: foundAzureVMs(),
+					},
+					AzureRunCommand: &mockAzureRunCommandClient{},
+				}, nil
 			}
 
 			ctx := context.Background()
@@ -3114,6 +3130,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			logtest.InitLogger(func() bool { return true })
 			logger := logtest.NewLogger()
 
 			emitter := &mockEmitter{}
@@ -3123,7 +3140,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				azureClients:     testAzureClients,
+				initAzureClients: initAzureClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -3147,22 +3164,28 @@ func TestAzureVMDiscovery(t *testing.T) {
 					server.muDynamicServerAzureFetchers.RLock()
 					defer server.muDynamicServerAzureFetchers.RUnlock()
 					return len(server.dynamicServerAzureFetchers) > 0
-				}, 1*time.Second, 100*time.Millisecond)
+				}, 1*time.Second, 50*time.Millisecond)
 			}
 
-			go server.Start()
+			require.NoError(t, server.Start())
 			t.Cleanup(server.Stop)
 
-			if len(tc.wantInstalledInstances) > 0 {
-				require.Eventually(t, func() bool {
-					instances := installer.GetInstalledInstances()
-					slices.Sort(instances)
-					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
-				}, 500*time.Millisecond, 50*time.Millisecond)
-			} else {
-				require.Never(t, func() bool {
-					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
-				}, 500*time.Millisecond, 50*time.Millisecond)
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				require.ElementsMatch(c, tc.wantInstalledInstances, installer.GetInstalledInstances())
+
+				// all current tests install at least one VM, so this cannot be zero.
+				// multiple installations will trigger just one event.
+				const expectedEventCount = 1
+				require.Equal(c, expectedEventCount, reporter.ResourceCreateEventCount())
+			}, 500*time.Millisecond, 50*time.Millisecond)
+
+			// make sure azure client cache has expected entries
+			for _, integrationName := range tc.expectedIntegrationNames {
+				require.NotNil(t, server.azureClientCache)
+				_, err = libutils.FnCacheGet(t.Context(), server.azureClientCache, integrationName, func(ctx context.Context) (cloud.AzureClients, error) {
+					return nil, trace.NotFound("cache key %q not found", integrationName)
+				})
+				require.NoError(t, err)
 			}
 		})
 
@@ -3591,12 +3614,50 @@ func TestServer_onCreate(t *testing.T) {
 	})
 }
 
+func TestDiscardAmbientCredentialMatchers(t *testing.T) {
+	t.Parallel()
+
+	logger := logtest.NewLogger()
+
+	awsDrop := types.AWSMatcher{
+		Types:   []string{"ec2"},
+		Regions: []string{"us-west-1"},
+	}
+	awsKeep := types.AWSMatcher{
+		Types:       []string{"ec2"},
+		Regions:     []string{"us-west-2"},
+		Integration: "aws-int",
+	}
+
+	azureDrop := types.AzureMatcher{
+		Subscriptions: []string{"dummy"},
+	}
+	azureKeep := types.AzureMatcher{
+		Subscriptions: []string{"dummy"},
+		Integration:   "azure-int",
+	}
+
+	matchers := Matchers{
+		AWS:   []types.AWSMatcher{awsDrop, awsKeep},
+		Azure: []types.AzureMatcher{azureDrop, azureKeep},
+		GCP: []types.GCPMatcher{
+			{ProjectIDs: []string{"proj"}},
+		},
+		Kubernetes: []types.KubernetesMatcher{
+			{Types: []string{"app"}},
+		},
+	}
+
+	discardAmbientCredentialMatchers(t.Context(), logger, &matchers)
+
+	require.Equal(t, []types.AWSMatcher{awsKeep}, matchers.AWS)
+	require.Equal(t, []types.AzureMatcher{azureKeep}, matchers.Azure)
+	require.Empty(t, matchers.GCP)
+	require.Empty(t, matchers.Kubernetes)
+}
+
 func TestEmitUsageEvents(t *testing.T) {
 	t.Parallel()
-	azureClients := &cloudtest.AzureClients{
-		AzureVirtualMachines: &mockAzureClient{},
-		AzureRunCommand:      &mockAzureRunCommandClient{},
-	}
 
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
@@ -3618,7 +3679,6 @@ func TestEmitUsageEvents(t *testing.T) {
 	tlsServer.Auth().SetUsageReporter(reporter)
 
 	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-		azureClients:    azureClients,
 		ClusterFeatures: func() proto.Features { return proto.Features{} },
 		AccessPoint:     getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers: Matchers{
