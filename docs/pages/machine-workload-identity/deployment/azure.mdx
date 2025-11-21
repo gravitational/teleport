@@ -137,19 +137,20 @@ instance successfully joined the cluster and is issuing credentials.
 Run the following command on the Azure VM:
 
 ```code
-$ sudo tbot status
+$ tsh --proxy example.teleport.sh:443 -i /opt/machine-id/identity status
 ```
 
 If tbot is running correctly, you’ll see output similar to:
 
 ```code
-
-BOT STATUS
-Joined via: azure
-Auth server: example.teleport.sh:443
-Last renewal: 2025-03-10T15:05:22Z
-Next renewal: 2025-03-10T16:05:22Z
-Certificate destination: /var/lib/tbot/destinations/default
+> Profile URL:        https://example.teleport.sh:443
+  Logged in as:       bot-example
+  Cluster:            example.teleport.sh
+  Roles:              access, auditor, breakglass
+  Logins:             root, ubuntu, ec2-user, breakglass, mmcallister, device-admin, device-enroll, editor
+  Kubernetes:         disabled
+  Valid until:        2025-11-20 22:02:39 -0800 PST [valid for 12h0m0s]
+  Extensions:         bot-instance-id@goteleport.com, bot-name@goteleport.com, disallow-reissue, impersonator, login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
 ```
 
 To further confirm that credentials are valid, list the generated identity files:
@@ -164,13 +165,13 @@ your workloads can use to authenticate through Teleport.
 If you’re using Workload Identity or SPIFFE, you can also run `spiffe-inspect` and see similar output:
 
 ```code
-$ tbot spiffe-inspect
+$ tbot spiffe-inspect --path=PATH
 
 INFO [TBOT] Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/workload.sock
 INFO [TBOT] Received X.509 SVID context from Workload API bundles_count:1 svids_count:1
 SVIDS
 - spiffe://example.teleport.sh/svc/foo
-  - Expiry: 2025-03-20 10:55:52 +0000 UTC
+  - Expiry: 2025-11-20 18:05:10 -0800 PST
 Trust Bundles
 - example.teleport.sh
 ```
