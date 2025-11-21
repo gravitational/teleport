@@ -79,7 +79,7 @@ func CheckIDToken(
 	params *CheckIDTokenParams,
 ) (*ValidationResult, error) {
 	if err := params.validate(); err != nil {
-		return nil, trace.AccessDenied("%s", err.Error())
+		return nil, trace.Wrap(err)
 	}
 
 	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
