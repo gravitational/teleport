@@ -1430,3 +1430,30 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 
 	return nil
 }
+
+// waitForSignal will wait for the other side of the pipe to signal, if not
+// received, it will stop waiting and exit.
+func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
+	waitCh := make(chan error, 1)
+	go func() {
+		// Reading from the file descriptor will block until it's closed.
+		_, err := fd.Read(make([]byte, 1))
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		waitCh <- err
+	}()
+
+	// Timeout if no signal has been sent within the provided duration.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "got context error while waiting for continue signal")
+	case <-timer.C:
+		return trace.LimitExceeded("timed out waiting for continue signal")
+	case err := <-waitCh:
+		return err
+	}
+}

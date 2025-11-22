@@ -1455,34 +1455,11 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Events:                eventsMap,
 	}
 
-	bpfService := scx.srv.GetBPF()
-	pam, err := scx.srv.GetPAM()
-	if err != nil {
+	if err := s.term.WaitForChild(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
-	// because PAM might inadvertently move the child process to another cgroup
-	// by invoking systemd. If this happens, then the cgroup filter used by BPF
-	// will be looking for events in the wrong cgroup and no events will be captured.
-	// However, unconditionally waiting for the child to be ready results in PAM
-	// deadlocking because stdin/stdout/stderr which it uses to relay details from
-	// PAM auth modules are not properly copied until _after_ the shell request is
-	// replied to.
-	if bpfService.Enabled() && pam.Enabled {
-		if err := s.term.WaitForChild(ctx); err != nil {
-			s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
-			return trace.Wrap(err)
-		}
-	} else {
-		// Clean up the read half of the pipe, and set it to nil so that when the
-		// ServerContext is closed it doesn't attempt to a second close.
-		if err := s.scx.readyr.Close(); err != nil {
-			s.logger.ErrorContext(ctx, "Failed closing child ready pipe", "error", err)
-		}
-		s.scx.readyr = nil
-	}
-
+	bpfService := scx.srv.GetBPF()
 	if cgroupID, err := bpfService.OpenSession(sessionContext); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
 		return trace.Wrap(err)
@@ -1675,32 +1652,8 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Events:                eventsMap,
 	}
 
-	bpfService := scx.srv.GetBPF()
-	pam, err := scx.srv.GetPAM()
-	if err != nil {
+	if err := execRequest.WaitForChild(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
-	// because PAM might inadvertently move the child process to another cgroup
-	// by invoking systemd. If this happens, then the cgroup filter used by BPF
-	// will be looking for events in the wrong cgroup and no events will be captured.
-	// However, unconditionally waiting for the child to be ready results in PAM
-	// deadlocking because stdin/stdout/stderr which it uses to relay details from
-	// PAM auth modules are not properly copied until _after_ the shell request is
-	// replied to.
-	if bpfService.Enabled() && pam.Enabled {
-		if err := execRequest.WaitForChild(ctx); err != nil {
-			s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
-			return trace.Wrap(err)
-		}
-	} else {
-		// Clean up the read half of the pipe, and set it to nil so that when the
-		// ServerContext is closed it doesn't attempt to a second close.
-		if err := s.scx.readyr.Close(); err != nil {
-			s.logger.ErrorContext(ctx, "Failed closing child ready pipe", "error", err)
-		}
-		s.scx.readyr = nil
 	}
 
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)

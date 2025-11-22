@@ -1330,3 +1330,36 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferReques
 
 	return req
 }
+
+// The child does not signal until completing PAM setup, which can take an arbitrary
+// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
+const childReadyWaitTimeout = 3 * time.Minute
+
+// WaitForChild waits for the child process to signal ready through the named pipe.
+func (c *ServerContext) WaitForChild(ctx context.Context) error {
+	bpfService := c.srv.GetBPF()
+	pam, err := c.srv.GetPAM()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
+	// because PAM might inadvertently move the child process to another cgroup
+	// by invoking systemd. If this happens, then the cgroup filter used by BPF
+	// will be looking for events in the wrong cgroup and no events will be captured.
+	// However, unconditionally waiting for the child to be ready results in PAM
+	// deadlocking because stdin/stdout/stderr which it uses to relay details from
+	// PAM auth modules are not properly copied until _after_ the shell request is
+	// replied to.
+	if bpfService.Enabled() && pam.Enabled {
+		if err := waitForSignal(ctx, c.readyr, childReadyWaitTimeout); err != nil {
+			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
+			return trace.Wrap(err)
+		}
+	}
+
+	closeErr := c.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	c.readyr = nil
+	return trace.NewAggregate(err, closeErr)
+}
