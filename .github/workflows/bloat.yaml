@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout base
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.before }}
 
@@ -37,7 +37,7 @@ jobs:
         uses: ./.github/actions/prepare-workspace
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
@@ -83,13 +83,13 @@ jobs:
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - name: Checkout branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           clean: false
           ref: ${{ github.event.after }}
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
