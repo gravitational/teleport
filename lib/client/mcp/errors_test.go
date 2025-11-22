@@ -21,17 +21,17 @@ package mcp
 import (
 	"testing"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
 
 func TestIsServerInfoChangedError(t *testing.T) {
 	err := &serverInfoChangedError{
-		expectedInfo: mcp.Implementation{
+		expectedInfo: &mcp.Implementation{
 			Name:    "i-am-mcp",
 			Version: "1.0.0",
 		},
-		currentInfo: mcp.Implementation{
+		currentInfo: &mcp.Implementation{
 			Name:    "i-am-mcp",
 			Version: "1.1.0",
 		},

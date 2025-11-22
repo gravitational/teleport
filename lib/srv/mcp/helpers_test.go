@@ -31,7 +31,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	docker "github.com/docker/docker/client"
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -220,41 +221,50 @@ type requestBuilder struct {
 	idCounter int64
 }
 
-func (c *requestBuilder) makeRequestID() mcp.RequestId {
-	return mcp.NewRequestId(atomic.AddInt64(&c.idCounter, 1))
+func (c *requestBuilder) makeRequestID(t *testing.T) jsonrpc.ID {
+	t.Helper()
+	id, err := jsonrpc.MakeID(float64(atomic.AddInt64(&c.idCounter, 1)))
+	require.NoError(t, err)
+	return id
 }
 
-func (c *requestBuilder) makeToolsCallRequest(toolName string) *mcputils.JSONRPCRequest {
-	return &mcputils.JSONRPCRequest{
-		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      c.makeRequestID(),
-		Method:  mcputils.MethodToolsCall,
-		Params: mcputils.JSONRPCParams{
-			"name": toolName,
-		},
+func (c *requestBuilder) makeToolsCallRequest(t *testing.T, toolName string) *jsonrpc.Request {
+	t.Helper()
+	params := mcp.CallToolParams{
+		Name: toolName,
+	}
+	paramsData, err := json.Marshal(&params)
+	require.NoError(t, err)
+
+	return &jsonrpc.Request{
+		ID:     c.makeRequestID(t),
+		Method: mcputils.MethodToolsCall,
+		Params: paramsData,
 	}
 }
 
-func (c *requestBuilder) makeToolsListRequest() *mcputils.JSONRPCRequest {
-	return &mcputils.JSONRPCRequest{
-		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      c.makeRequestID(),
-		Method:  mcputils.MethodToolsList,
+func (c *requestBuilder) makeToolsListRequest(t *testing.T) *jsonrpc.Request {
+	t.Helper()
+	return &jsonrpc.Request{
+		ID:     c.makeRequestID(t),
+		Method: mcputils.MethodToolsList,
 	}
 }
 
-func makeToolsCallResponse(t *testing.T, requestID mcp.RequestId, toolNames ...string) *mcputils.JSONRPCResponse {
+func makeToolsCallResponse(t *testing.T, requestID jsonrpc.ID, toolNames ...string) *jsonrpc.Response {
 	t.Helper()
 	result := mcp.ListToolsResult{}
 	for _, toolName := range toolNames {
-		result.Tools = append(result.Tools, mcp.NewTool(toolName, mcp.WithDescription("description")))
+		result.Tools = append(result.Tools, &mcp.Tool{
+			Name:        toolName,
+			Description: "description",
+		})
 	}
 	resultJSON, err := json.Marshal(&result)
 	require.NoError(t, err)
-	return &mcputils.JSONRPCResponse{
-		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      requestID,
-		Result:  resultJSON,
+	return &jsonrpc.Response{
+		ID:     requestID,
+		Result: resultJSON,
 	}
 }
 
@@ -281,18 +291,12 @@ func checkParamsHaveNameField(t *testing.T, params *apievents.Struct, wantName s
 	require.Equal(t, wantName, value.GetStringValue())
 }
 
-func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mcp.RequestId, wantTools []string) {
+func checkToolsListResponse(t *testing.T, response *jsonrpc.Response, wantID jsonrpc.ID, wantTools []string) {
 	t.Helper()
-	// assume we don't know the internal type of response.
-	data, err := json.Marshal(response)
-	require.NoError(t, err)
-
-	var mcpResponse mcputils.JSONRPCResponse
-	require.NoError(t, json.Unmarshal(data, &mcpResponse))
-	require.Equal(t, wantID.String(), mcpResponse.ID.String())
+	require.Equal(t, wantID, response.ID)
 
 	var result mcp.ListToolsResult
-	require.NoError(t, json.Unmarshal(mcpResponse.Result, &result))
+	require.NoError(t, json.Unmarshal(response.Result, &result))
 	checkToolsListResult(t, &result, wantTools)
 }
 

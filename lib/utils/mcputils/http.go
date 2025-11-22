@@ -21,7 +21,6 @@ package mcputils
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"mime"
@@ -29,8 +28,8 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
-	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -41,9 +40,9 @@ import (
 // and notifications.
 type ServerMessageProcessor interface {
 	// ProcessResponse process a response and returns the message for client.
-	ProcessResponse(context.Context, *JSONRPCResponse) mcp.JSONRPCMessage
+	ProcessResponse(context.Context, *jsonrpc.Response) jsonrpc.Message
 	// ProcessNotification process a notification and returns the message for client.
-	ProcessNotification(context.Context, *JSONRPCNotification) mcp.JSONRPCMessage
+	ProcessNotification(context.Context, *jsonrpc.Request) jsonrpc.Message
 }
 
 // ReplaceHTTPResponse handles replacing the MCP server response for the
@@ -72,7 +71,7 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processor Ser
 			return trace.Wrap(err)
 		}
 		respToClient := processor.ProcessResponse(ctx, respFromServer)
-		respToClientAsBody, err := json.Marshal(respToClient)
+		respToClientAsBody, err := jsonrpc.EncodeMessage(respToClient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -126,22 +125,25 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 		return 0, trace.Wrap(err)
 	}
 
-	var base BaseJSONRPCMessage
-	if err := json.Unmarshal([]byte(msg), &base); err != nil {
+	base, err := jsonrpc.DecodeMessage([]byte(msg))
+	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	var respToClient mcp.JSONRPCMessage
-	switch {
-	case base.IsResponse():
-		respToClient = r.processor.ProcessResponse(r.ctx, base.MakeResponse())
-	case base.IsNotification():
-		respToClient = r.processor.ProcessNotification(r.ctx, base.MakeNotification())
+	var respToClient jsonrpc.Message
+	switch v := base.(type) {
+	case *jsonrpc.Response:
+		respToClient = r.processor.ProcessResponse(r.ctx, v)
+	case *jsonrpc.Request:
+		if v.ID.IsValid() {
+			return 0, trace.BadParameter("message is not a response or a notification")
+		}
+		respToClient = r.processor.ProcessNotification(r.ctx, v)
 	default:
 		return 0, trace.BadParameter("message is not a response or a notification")
 	}
 
-	respToSendAsBody, err := json.Marshal(respToClient)
+	respToSendAsBody, err := jsonrpc.EncodeMessage(respToClient)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -158,8 +160,8 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 // HTTPReaderWriter implements MessageWriter and TransportReader for
 // streamable HTTP transport.
 type HTTPReaderWriter struct {
-	targetClient   *mcpclienttransport.StreamableHTTP
-	messagesToRead chan string
+	targetConn     mcp.Connection
+	messagesToRead chan jsonrpc.Message
 }
 
 // NewHTTPReaderWriter creates a new HTTPReaderWriter that implements
@@ -168,73 +170,51 @@ type HTTPReaderWriter struct {
 func NewHTTPReaderWriter(
 	ctx context.Context,
 	serverURL string,
-	opts ...mcpclienttransport.StreamableHTTPCOption,
+	httpClient *http.Client,
 ) (*HTTPReaderWriter, error) {
 	// Use a real client transport from mcp-go to avoid writing custom logic.
-	targetClient, err := mcpclienttransport.NewStreamableHTTP(serverURL, opts...)
+	targetClient := mcp.StreamableClientTransport{
+		Endpoint:   serverURL,
+		HTTPClient: httpClient,
+		MaxRetries: -1,
+	}
+	// TODO(greedy52) this input context is used in conn.Close for sending
+	// DELETE session request. Use TODO for now. It doesn't interfere with
+	// Read/Write as they use the context passed to those calls.
+	targetConn, err := targetClient.Connect(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	h := &HTTPReaderWriter{
-		targetClient: targetClient,
+		targetConn: targetConn,
 		// Normally only one message at a time. Use a small buffer just in case.
-		messagesToRead: make(chan string, 10),
+		messagesToRead: make(chan jsonrpc.Message, 10),
 	}
 
-	// Notification will only be received if mcpclienttransport.WithContinuousListening
-	// is set and the listen (GET) request is successful.
-	h.targetClient.SetNotificationHandler(func(notification mcp.JSONRPCNotification) {
-		if err := h.sendMessageToRead(notification); err != nil {
-			// Error should never happen. Log a warning just in case.
-			slog.WarnContext(ctx, "failed to marshal msg", "error", err)
+	go func() {
+		for {
+			msg, err := targetConn.Read(ctx)
+			if err != nil {
+				if !IsOKCloseError(err) {
+					slog.WarnContext(ctx, "failed to read from target conn", "error", err)
+				}
+				break
+			}
+			h.messagesToRead <- msg
 		}
-	})
-	if err := h.targetClient.Start(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return h, nil
-}
+	}()
 
-func (h *HTTPReaderWriter) sendMessageToRead(msg any) error {
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	h.messagesToRead <- string(data)
-	return nil
+	// TODO(greedy52) mcp.StreamableClientTransport does not expose the
+	// "sessionUpdated" function to start listening stream. We need to manually
+	// implement that before backporting sdk migration to a release.
+	return h, nil
 }
 
 // WriteMessage sends out a HTTP request to target. WriteMessage implements
 // MessageWriter.
-func (h *HTTPReaderWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
-	switch v := msg.(type) {
-	case *JSONRPCRequest:
-		resp, err := h.targetClient.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
-			JSONRPC: v.JSONRPC,
-			ID:      v.ID,
-			Method:  v.Method,
-			Params:  v.Params,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(h.sendMessageToRead(resp))
-
-	case *JSONRPCNotification:
-		return trace.Wrap(h.targetClient.SendNotification(ctx, mcp.JSONRPCNotification{
-			JSONRPC: v.JSONRPC,
-			Notification: mcp.Notification{
-				Method: v.Method,
-				Params: mcp.NotificationParams{
-					AdditionalFields: v.Params,
-				},
-			},
-		}))
-
-	default:
-		return trace.BadParameter("unrecognized message type: %T", msg)
-	}
+func (h *HTTPReaderWriter) WriteMessage(ctx context.Context, msg jsonrpc.Message) error {
+	return h.targetConn.Write(ctx, msg)
 }
 
 // Type implements TransportReader.
@@ -249,11 +229,15 @@ func (h *HTTPReaderWriter) ReadMessage(ctx context.Context) (string, error) {
 	case <-ctx.Done():
 		return "", io.EOF
 	case msg := <-h.messagesToRead:
-		return msg, nil
+		data, err := jsonrpc.EncodeMessage(msg)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return string(data), nil
 	}
 }
 
 // Close implements TransportReader.
 func (h *HTTPReaderWriter) Close() error {
-	return trace.Wrap(h.targetClient.Close())
+	return trace.Wrap(h.targetConn.Close())
 }

@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,9 +28,10 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -111,7 +113,7 @@ func ProxyStdioConn(ctx context.Context, cfg ProxyStdioConnConfig) error {
 		Transport:    mcputils.NewStdioReader(cfg.ClientStdio),
 		Logger:       cfg.Logger.With("client", "stdin"),
 		OnParseError: mcputils.ReplyParseError(cfg.clientResponseWriter),
-		OnNotification: func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		OnNotification: func(ctx context.Context, notification *jsonrpc.Request) error {
 			// By spec, we should not reply to notifications. Try our best to
 			// send a notification with the error message. In practice, only the
 			// initialize notification is sent from client after receiving the
@@ -122,27 +124,33 @@ func ProxyStdioConn(ctx context.Context, cfg ProxyStdioConnConfig) error {
 				}
 				cfg.Logger.WarnContext(ctx, "failed to write notification to server. Notification is dropped.", "error", writeError)
 				userMessage := cfg.MakeReconnectUserMessage(writeError)
-				errNotification := mcp.Notification{
-					Method: "notifications/tsherr",
-					Params: mcp.NotificationParams{
-						AdditionalFields: map[string]any{
-							"error": fmt.Sprintf("Notification %q was dropped. %s", notification.Method, userMessage),
-						},
+				return trace.Wrap(mcputils.WriteRequest(
+					ctx,
+					cfg.clientResponseWriter,
+					jsonrpc.ID{},
+					"notifications/tsherr",
+					map[string]string{
+						"error": fmt.Sprintf("Notification %q was dropped. %s", notification.Method, userMessage),
 					},
-				}
-				return trace.Wrap(cfg.clientResponseWriter.WriteMessage(ctx, errNotification))
+				))
 			}
 			return nil
 		},
-		OnRequest: func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
+		OnRequest: func(ctx context.Context, request *jsonrpc.Request) error {
 			if writeError := serverConn.WriteMessage(ctx, request); writeError != nil {
 				if serverConn.shouldExitOnWriteError() {
 					return trace.Wrap(writeError)
 				}
 				cfg.Logger.WarnContext(ctx, "failed to write request to server", "error", writeError)
 				userMessage := cfg.MakeReconnectUserMessage(writeError)
-				errResp := mcp.NewJSONRPCError(request.ID, mcp.INTERNAL_ERROR, userMessage, writeError)
-				return trace.Wrap(cfg.clientResponseWriter.WriteMessage(ctx, errResp))
+				return trace.Wrap(mcputils.WriteError(
+					ctx,
+					cfg.clientResponseWriter,
+					request.ID,
+					mcputils.ErrCodeInternal,
+					userMessage,
+					writeError,
+				))
 			}
 			return nil
 		},
@@ -164,9 +172,9 @@ type serverConnWithAutoReconnect struct {
 	serverMessageWriter mcputils.MessageWriter
 	serverMessageReader *mcputils.MessageReader
 	firstConnectionDone bool
-	initRequest         *mcputils.JSONRPCRequest
+	initRequest         *jsonrpc.Request
 	initResponse        *mcp.InitializeResult
-	initNotification    *mcputils.JSONRPCNotification
+	initNotification    *jsonrpc.Request
 }
 
 func newServerConnWithAutoReconnect(parentCtx context.Context, cfg ProxyStdioConnConfig) (*serverConnWithAutoReconnect, error) {
@@ -195,7 +203,7 @@ func (r *serverConnWithAutoReconnect) Close() error {
 	return nil
 }
 
-func (r *serverConnWithAutoReconnect) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
+func (r *serverConnWithAutoReconnect) WriteMessage(ctx context.Context, msg jsonrpc.Message) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -225,11 +233,12 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 		httpReaderWriter, err := mcputils.NewHTTPReaderWriter(
 			r.closeCtx,
 			"http://localhost", // does not matter with the custom transport.
-			mcpclienttransport.WithHTTPBasicClient(&http.Client{
-				Transport: transport,
-			}),
-			mcpclienttransport.WithContinuousListening(),
-			mcpclienttransport.WithHTTPHeaders(r.HTTPHeaders),
+			&http.Client{
+				Transport: &extraHeaderTransport{
+					RoundTripper: transport,
+					extraHeaders: r.HTTPHeaders,
+				},
+			},
 		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -291,7 +300,7 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 		r.serverMessageWriter = serverWriter
 	} else {
 		r.serverMessageWriter = mcputils.NewMultiMessageWriter(
-			mcputils.MessageWriterFunc(func(ctx context.Context, msg mcp.JSONRPCMessage) error {
+			mcputils.MessageWriterFunc(func(ctx context.Context, msg jsonrpc.Message) error {
 				r.cacheMessageLocked(ctx, msg)
 				return nil
 			}),
@@ -322,10 +331,10 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 		},
 		Logger:       r.Logger.With("server", "stdout"),
 		OnParseError: mcputils.LogAndIgnoreParseError(r.Logger),
-		OnNotification: func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		OnNotification: func(ctx context.Context, notification *jsonrpc.Request) error {
 			return trace.Wrap(r.clientResponseWriter.WriteMessage(ctx, notification))
 		},
-		OnResponse: func(ctx context.Context, response *mcputils.JSONRPCResponse) error {
+		OnResponse: func(ctx context.Context, response *jsonrpc.Response) error {
 			r.cacheMessageLocked(ctx, response)
 			return trace.Wrap(r.clientResponseWriter.WriteMessage(ctx, response))
 		},
@@ -372,23 +381,23 @@ func (r *serverConnWithAutoReconnect) replayInitializeLocked(ctx context.Context
 	return nil
 }
 
-func (r *serverConnWithAutoReconnect) checkReplyResponseLocked(msg mcp.JSONRPCMessage) error {
-	resp, ok := msg.(*mcputils.JSONRPCResponse)
+func (r *serverConnWithAutoReconnect) checkReplyResponseLocked(msg jsonrpc.Message) error {
+	resp, ok := msg.(*jsonrpc.Response)
 	if !ok {
 		return trace.Errorf("expected initialize response, got %T", resp)
 	}
 	if resp.Error != nil {
 		return trace.Errorf("expected initialize result but got error")
 	}
-	if resp.ID.String() != r.initRequest.ID.String() {
-		return trace.CompareFailed("expected initialize response with ID %s, got %s", r.initRequest.ID, resp.ID.String())
+	if resp.ID != r.initRequest.ID {
+		return trace.CompareFailed("expected initialize response with ID %s, got %s", r.initRequest.ID, resp.ID)
 	}
 
-	newResult, err := resp.GetInitializeResult()
-	if err != nil {
+	var newResult mcp.InitializeResult
+	if err := json.Unmarshal(resp.Result, &newResult); err != nil {
 		return trace.Wrap(err)
 	}
-	if newResult.ServerInfo != r.initResponse.ServerInfo {
+	if cmp.Diff(newResult.ServerInfo, r.initResponse.ServerInfo) != "" {
 		return trace.Wrap(&serverInfoChangedError{
 			expectedInfo: r.initResponse.ServerInfo,
 			currentInfo:  newResult.ServerInfo,
@@ -398,31 +407,45 @@ func (r *serverConnWithAutoReconnect) checkReplyResponseLocked(msg mcp.JSONRPCMe
 }
 
 // cacheMessageLocked caches client init request and notification.
-func (r *serverConnWithAutoReconnect) cacheMessageLocked(ctx context.Context, msg mcp.JSONRPCMessage) {
+func (r *serverConnWithAutoReconnect) cacheMessageLocked(ctx context.Context, msg jsonrpc.Message) {
 	if r.initializedLocked() {
 		return
 	}
 
 	switch m := msg.(type) {
-	case *mcputils.JSONRPCRequest:
-		if r.initRequest == nil && m.Method == mcputils.MethodInitialize {
-			r.initRequest = m
-			r.Logger.DebugContext(ctx, "Cached initialize", "request", m)
+	case *jsonrpc.Request:
+		if m.ID.IsValid() {
+			if r.initRequest == nil && m.Method == mcputils.MethodInitialize {
+				r.initRequest = m
+				r.Logger.DebugContext(ctx, "Cached initialize", "request", m)
+			}
+		} else {
+			if r.initNotification == nil && m.Method == mcputils.MethodNotificationInitialized {
+				r.initNotification = m
+				r.Logger.DebugContext(ctx, "Cached notification", "notification", m)
+			}
 		}
-	case *mcputils.JSONRPCNotification:
-		if r.initNotification == nil && m.Method == mcputils.MethodNotificationInitialized {
-			r.initNotification = m
-			r.Logger.DebugContext(ctx, "Cached notification", "notification", m)
-		}
-	case *mcputils.JSONRPCResponse:
-		if r.initResponse == nil && r.initRequest != nil && r.initRequest.ID.String() == m.ID.String() {
-			initResponse, err := m.GetInitializeResult()
-			if err != nil {
+	case *jsonrpc.Response:
+		if r.initResponse == nil && r.initRequest != nil && r.initRequest.ID == m.ID {
+			var initResponse mcp.InitializeResult
+			if err := json.Unmarshal(m.Result, &initResponse); err != nil {
 				r.Logger.DebugContext(ctx, "Error parsing init response", "error", err)
 			} else {
-				r.initResponse = initResponse
+				r.initResponse = &initResponse
 				r.Logger.DebugContext(ctx, "Cached response", "response", m)
 			}
 		}
 	}
+}
+
+type extraHeaderTransport struct {
+	http.RoundTripper
+	extraHeaders map[string]string
+}
+
+func (t *extraHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	for k, v := range t.extraHeaders {
+		req.Header.Set(k, v)
+	}
+	return t.RoundTripper.RoundTrip(req)
 }

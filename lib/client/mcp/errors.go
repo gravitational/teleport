@@ -25,7 +25,7 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const (
@@ -75,8 +75,8 @@ func IsServerInfoChangedError(err error) bool {
 }
 
 type serverInfoChangedError struct {
-	expectedInfo mcp.Implementation
-	currentInfo  mcp.Implementation
+	expectedInfo *mcp.Implementation
+	currentInfo  *mcp.Implementation
 }
 
 func (e *serverInfoChangedError) Error() string {

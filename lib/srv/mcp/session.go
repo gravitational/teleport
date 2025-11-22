@@ -29,7 +29,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -203,20 +204,20 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 	return trace.NewAggregate(authErr, err)
 }
 
-func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+func (s *sessionHandler) processClientNotification(ctx context.Context, notification *jsonrpc.Request) {
 	s.emitNotificationEvent(ctx, notification)
 	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
 func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
-	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+	return func(ctx context.Context, notification *jsonrpc.Request) error {
 		s.processClientNotification(ctx, notification)
 		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, notification))
 	}
 }
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
-	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
+	return func(ctx context.Context, request *jsonrpc.Request) error {
 		msg, replyDirection := s.processClientRequest(ctx, request)
 		if replyDirection == replyToClient {
 			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msg))
@@ -226,14 +227,14 @@ func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWrit
 }
 
 func (s *sessionHandler) onServerNotification(clientResponseWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
-	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+	return func(ctx context.Context, notification *jsonrpc.Request) error {
 		s.processServerNotification(ctx, notification)
 		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, notification))
 	}
 }
 
 func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageWriter) mcputils.HandleResponseFunc {
-	return func(ctx context.Context, response *mcputils.JSONRPCResponse) error {
+	return func(ctx context.Context, response *jsonrpc.Response) error {
 		msgToClient := s.processServerResponse(ctx, response)
 		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msgToClient))
 	}
@@ -246,7 +247,7 @@ const (
 	replyToServer replyDirection = false
 )
 
-func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, replyDirection) {
+func (s *sessionHandler) processClientRequest(ctx context.Context, req *jsonrpc.Request) (jsonrpc.Message, replyDirection) {
 	s.idTracker.PushRequest(req)
 	reply, authErr := s.processClientRequestNoAudit(ctx, req)
 	s.emitRequestEvent(ctx, req, eventWithError(authErr))
@@ -258,21 +259,22 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 	return reply, replyToServer
 }
 
-func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
+func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *jsonrpc.Request) (jsonrpc.Message, error) {
 	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
 
 	s.idTracker.PushRequest(req)
 	switch req.Method {
 	case mcputils.MethodToolsCall:
-		methodName, _ := req.Params.GetName()
-		if authErr := s.checkAccessToTool(ctx, methodName); authErr != nil {
+		var params mcp.CallToolParams
+		_ = json.Unmarshal(req.Params, &params)
+		if authErr := s.checkAccessToTool(ctx, params.Name); authErr != nil {
 			return makeToolAccessDeniedResponse(req, authErr), trace.Wrap(authErr)
 		}
 	}
 	return req, nil
 }
 
-func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+func (s *sessionHandler) processServerResponse(ctx context.Context, response *jsonrpc.Response) *jsonrpc.Response {
 	method, _ := s.idTracker.PopByID(response.ID)
 	messagesFromServer.WithLabelValues(s.transport, "response", reportRequestMethod(method)).Inc()
 
@@ -283,12 +285,12 @@ func (s *sessionHandler) processServerResponse(ctx context.Context, response *mc
 	return response
 }
 
-func (s *sessionHandler) processServerNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+func (s *sessionHandler) processServerNotification(ctx context.Context, notification *jsonrpc.Request) {
 	s.logger.DebugContext(ctx, "Received server notification.", "method", notification.Method)
 	messagesFromServer.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
-func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *jsonrpc.Response) *jsonrpc.Response {
 	// Nothing to do, likely an error response.
 	if resp.Result == nil {
 		return resp
@@ -296,10 +298,16 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 
 	var listResult mcp.ListToolsResult
 	if err := json.Unmarshal(resp.Result, &listResult); err != nil {
-		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
+		return &jsonrpc.Response{
+			ID: resp.ID,
+			Error: &mcputils.WireError{
+				Code:    mcputils.ErrCodeInternal,
+				Message: "failed to unmarshal tools/list response: " + err.Error(),
+			},
+		}
 	}
 
-	var allowed []mcp.Tool
+	var allowed []*mcp.Tool
 	for _, tool := range listResult.Tools {
 		if s.checkAccessToTool(ctx, tool.Name) == nil {
 			allowed = append(allowed, tool)
@@ -309,10 +317,19 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 	s.logger.DebugContext(ctx, "Received tools/list result", "received", len(listResult.Tools), "allowed", len(allowed))
 	listResult.Tools = allowed
 
-	return mcp.JSONRPCResponse{
-		JSONRPC: resp.JSONRPC,
-		ID:      resp.ID,
-		Result:  listResult,
+	listResultData, err := json.Marshal(listResult)
+	if err != nil {
+		return &jsonrpc.Response{
+			ID: resp.ID,
+			Error: &mcputils.WireError{
+				Code:    mcputils.ErrCodeInternal,
+				Message: "failed to marshal tools/list response: " + err.Error(),
+			},
+		}
+	}
+	return &jsonrpc.Response{
+		ID:     resp.ID,
+		Result: listResultData,
 	}
 }
 
@@ -329,13 +346,16 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) {
 	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, s.traitsForRewriteHeaders, s.logger)
 }
 
-func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) mcp.JSONRPCMessage {
-	return mcp.NewJSONRPCError(
-		msg.ID,
-		mcp.INVALID_PARAMS,
-		"RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
-		authErr,
-	)
+func makeToolAccessDeniedResponse(msg *jsonrpc.Request, authErr error) jsonrpc.Message {
+	data, _ := json.Marshal(authErr)
+	return &jsonrpc.Response{
+		ID: msg.ID,
+		Error: &mcputils.WireError{
+			Code:    mcputils.ErrCodeInternal,
+			Message: "RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
+			Data:    data,
+		},
+	}
 }
 
 type atomicString struct {

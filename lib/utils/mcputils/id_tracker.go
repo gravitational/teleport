@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
 // IDTracker tracks message information like method based on ID. IDTracker
@@ -31,12 +31,12 @@ import (
 // growing infinitely. IDTracker is safe for concurrent use.
 type IDTracker struct {
 	mu       sync.Mutex
-	lruCache *simplelru.LRU[mcp.RequestId, string]
+	lruCache *simplelru.LRU[jsonrpc.ID, string]
 }
 
 // NewIDTracker creates a new IDTracker with provided maximum size.
 func NewIDTracker(size int) (*IDTracker, error) {
-	lruCache, err := simplelru.NewLRU[mcp.RequestId, string](size, nil)
+	lruCache, err := simplelru.NewLRU[jsonrpc.ID, string](size, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -47,8 +47,8 @@ func NewIDTracker(size int) (*IDTracker, error) {
 
 // PushRequest tracks a request. Returns true if the request has been added to
 // cache.
-func (t *IDTracker) PushRequest(msg *JSONRPCRequest) bool {
-	if msg == nil || msg.ID.IsNil() || msg.Method == "" {
+func (t *IDTracker) PushRequest(msg *jsonrpc.Request) bool {
+	if msg == nil || !msg.ID.IsValid() || msg.Method == "" {
 		return false
 	}
 	t.mu.Lock()
@@ -58,8 +58,8 @@ func (t *IDTracker) PushRequest(msg *JSONRPCRequest) bool {
 }
 
 // PopByID retrieves the tracked information and remove it from the tracker.
-func (t *IDTracker) PopByID(id mcp.RequestId) (string, bool) {
-	if id.IsNil() {
+func (t *IDTracker) PopByID(id jsonrpc.ID) (string, bool) {
+	if !id.IsValid() {
 		return "", false
 	}
 

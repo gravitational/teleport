@@ -19,12 +19,12 @@
 package mcputils
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
 
-	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils/mcptest"
@@ -44,26 +44,21 @@ func TestConnectSSEServer(t *testing.T) {
 	require.NotEmpty(t, writer.GetSessionID())
 
 	// Send initialize.
-	initReq := mcpclienttransport.JSONRPCRequest{
-		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      mcp.NewRequestId(int64(1)),
-		Method:  MethodInitialize,
-		Params: mcp.InitializeParams{
-			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
-			ClientInfo: mcp.Implementation{
-				Name:    "test-client",
-				Version: "1.0.0",
-			},
+	initParams := mcp.InitializeParams{
+		ProtocolVersion: "2025-06-18",
+		ClientInfo: &mcp.Implementation{
+			Name:    "test-client",
+			Version: "1.0.0",
 		},
 	}
-	require.NoError(t, writer.WriteMessage(t.Context(), initReq))
+	require.NoError(t, WriteRequest(t.Context(), writer, mustMakeIntID(t, 1), MethodInitialize, initParams))
 
 	// Receive response.
 	initResp, err := ReadOneResponse(t.Context(), reader)
 	require.NoError(t, err)
-	require.Equal(t, initReq.ID.String(), initResp.ID.String())
-	initResult, err := initResp.GetInitializeResult()
-	require.NoError(t, err)
+	require.Equal(t, mustMakeIntID(t, 1), initResp.ID)
+	var initResult mcp.InitializeResult
+	require.NoError(t, json.Unmarshal(initResp.Result, &initResult))
 	require.Equal(t, "test-server", initResult.ServerInfo.Name)
 }
 

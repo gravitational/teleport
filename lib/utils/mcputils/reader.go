@@ -20,41 +20,39 @@ package mcputils
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // HandleParseErrorFunc handles parse errors.
-type HandleParseErrorFunc func(context.Context, mcp.RequestId, error) error
+type HandleParseErrorFunc func(context.Context, jsonrpc.ID, error) error
 
 // HandleRequestFunc handles a request.
-type HandleRequestFunc func(context.Context, *JSONRPCRequest) error
+type HandleRequestFunc func(context.Context, *jsonrpc.Request) error
 
 // HandleResponseFunc handles a response.
-type HandleResponseFunc func(context.Context, *JSONRPCResponse) error
+type HandleResponseFunc func(context.Context, *jsonrpc.Response) error
 
 // HandleNotificationFunc handles a notification.
-type HandleNotificationFunc func(context.Context, *JSONRPCNotification) error
+type HandleNotificationFunc func(context.Context, *jsonrpc.Request) error
 
 // ReplyParseError returns a HandleParseErrorFunc that forwards the error to
 // provided writer.
 func ReplyParseError(w MessageWriter) HandleParseErrorFunc {
-	return func(ctx context.Context, id mcp.RequestId, parseError error) error {
-		rpcError := mcp.NewJSONRPCError(id, mcp.PARSE_ERROR, parseError.Error(), nil)
-		return trace.Wrap(w.WriteMessage(ctx, rpcError))
+	return func(ctx context.Context, id jsonrpc.ID, parseError error) error {
+		return trace.Wrap(WriteError(ctx, w, id, ErrCodeParseError, parseError.Error(), nil))
 	}
 }
 
 // LogAndIgnoreParseError returns a HandleParseErrorFunc that logs the parse
 // error.
 func LogAndIgnoreParseError(log *slog.Logger) HandleParseErrorFunc {
-	return func(ctx context.Context, id mcp.RequestId, parseError error) error {
+	return func(ctx context.Context, id jsonrpc.ID, parseError error) error {
 		log.DebugContext(ctx, "Ignore parse error", "error", parseError, "id", id)
 		return nil
 	}
@@ -184,7 +182,7 @@ func (r *MessageReader) processNextLine(ctx context.Context) error {
 	rawMessage, err := r.cfg.Transport.ReadMessage(ctx)
 	switch {
 	case isReaderParseError(err):
-		if err := r.cfg.OnParseError(ctx, mcp.NewRequestId(nil), err); err != nil {
+		if err := r.cfg.OnParseError(ctx, jsonrpc.ID{}, err); err != nil {
 			return trace.Wrap(err, "handling reader parse error")
 		}
 	case err != nil:
@@ -193,33 +191,34 @@ func (r *MessageReader) processNextLine(ctx context.Context) error {
 
 	r.cfg.Logger.Log(ctx, logutils.TraceLevel, "Trace read", "raw", rawMessage)
 
-	var base BaseJSONRPCMessage
-	if parseError := json.Unmarshal([]byte(rawMessage), &base); parseError != nil {
-		if err := r.cfg.OnParseError(ctx, mcp.NewRequestId(nil), parseError); err != nil {
+	base, parseError := jsonrpc.DecodeMessage([]byte(rawMessage))
+	if parseError != nil {
+		if err := r.cfg.OnParseError(ctx, jsonrpc.ID{}, parseError); err != nil {
 			return trace.Wrap(err, "handling JSON unmarshal error")
 		}
 	}
 
-	switch {
-	case base.IsNotification():
-		return trace.Wrap(r.cfg.OnNotification(ctx, base.MakeNotification()), "handling notification")
-	case base.IsRequest():
-		if r.cfg.OnRequest != nil {
-			return trace.Wrap(r.cfg.OnRequest(ctx, base.MakeRequest()), "handling request")
+	switch v := base.(type) {
+	case *jsonrpc.Request:
+		if v.ID.IsValid() {
+			if r.cfg.OnRequest != nil {
+				return trace.Wrap(r.cfg.OnRequest(ctx, v), "handling request")
+			}
+			// Should not happen. Log something just in case.
+			r.cfg.Logger.DebugContext(ctx, "Skipping request", "id", v.ID)
+			return nil
 		}
-		// Should not happen. Log something just in case.
-		r.cfg.Logger.DebugContext(ctx, "Skipping request", "id", base.ID)
-		return nil
-	case base.IsResponse():
+		return trace.Wrap(r.cfg.OnNotification(ctx, v), "handling notification")
+	case *jsonrpc.Response:
 		if r.cfg.OnResponse != nil {
-			return trace.Wrap(r.cfg.OnResponse(ctx, base.MakeResponse()), "handling response")
+			return trace.Wrap(r.cfg.OnResponse(ctx, v), "handling response")
 		}
 		// Should not happen. Log something just in case.
-		r.cfg.Logger.DebugContext(ctx, "Skipping response", "id", base.ID)
+		r.cfg.Logger.DebugContext(ctx, "Skipping response", "id", v.ID)
 		return nil
 	default:
 		return trace.Wrap(
-			r.cfg.OnParseError(ctx, base.ID, trace.BadParameter("unknown message type")),
+			r.cfg.OnParseError(ctx, jsonrpc.ID{}, trace.BadParameter("unknown message type")),
 			"handling unknown message type error",
 		)
 	}
@@ -227,7 +226,7 @@ func (r *MessageReader) processNextLine(ctx context.Context) error {
 
 // ReadOneResponse reads one message from the reader and marshals it to a
 // response.
-func ReadOneResponse(ctx context.Context, reader TransportReader) (*JSONRPCResponse, error) {
+func ReadOneResponse(ctx context.Context, reader TransportReader) (*jsonrpc.Response, error) {
 	rawMessage, err := reader.ReadMessage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -242,13 +241,13 @@ func NewForwardMessageReader(logger *slog.Logger, reader TransportReader, writer
 	return NewMessageReader(MessageReaderConfig{
 		Logger:    logger,
 		Transport: reader,
-		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
+		OnNotification: func(ctx context.Context, notification *jsonrpc.Request) error {
 			return trace.Wrap(writer.WriteMessage(ctx, notification))
 		},
-		OnRequest: func(ctx context.Context, request *JSONRPCRequest) error {
+		OnRequest: func(ctx context.Context, request *jsonrpc.Request) error {
 			return trace.Wrap(writer.WriteMessage(ctx, request))
 		},
-		OnResponse: func(ctx context.Context, response *JSONRPCResponse) error {
+		OnResponse: func(ctx context.Context, response *jsonrpc.Response) error {
 			return trace.Wrap(writer.WriteMessage(ctx, response))
 		},
 		OnParseError: LogAndIgnoreParseError(logger),

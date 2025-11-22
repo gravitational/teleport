@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 
 	hostutils "github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
@@ -45,21 +45,27 @@ import (
 // the handler callbacks.
 func (s *Server) handleAuthErrStdio(ctx context.Context, clientConn net.Conn, authErr error) error {
 	logger := s.cfg.Log.With("client_ip", clientConn.RemoteAddr())
-	errMsg := mcp.NewJSONRPCError(mcp.NewRequestId(nil), mcp.INTERNAL_ERROR, authErr.Error(), nil)
+	errMsg := &jsonrpc.Response{
+		Error: &mcputils.WireError{
+			Code:    mcputils.ErrCodeInternal,
+			Message: authErr.Error(),
+		},
+	}
 	writer := mcputils.NewStdioMessageWriter(clientConn)
 	reader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
 		Transport: mcputils.NewStdioReader(clientConn),
 		Logger:    logger,
-		OnRequest: func(ctx context.Context, req *mcputils.JSONRPCRequest) error {
+		OnRequest: func(ctx context.Context, req *jsonrpc.Request) error {
 			// Use request ID when available. Return auth error after writing
 			// back to client to stop the reader.
 			errMsg.ID = req.ID
 			return trace.NewAggregate(writer.WriteMessage(ctx, errMsg), authErr)
 		},
-		OnParseError: func(ctx context.Context, _ mcp.RequestId, _ error) error {
+		OnParseError: func(ctx context.Context, id jsonrpc.ID, _ error) error {
+			errMsg.ID = id
 			return trace.NewAggregate(writer.WriteMessage(ctx, errMsg), authErr)
 		},
-		OnNotification: func(ctx context.Context, _ *mcputils.JSONRPCNotification) error {
+		OnNotification: func(ctx context.Context, _ *jsonrpc.Request) error {
 			return trace.NewAggregate(writer.WriteMessage(ctx, errMsg), authErr)
 		},
 	})

@@ -20,16 +20,17 @@ package mcputils
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 )
 
 // MessageWriter defines an interface for writing JSON RPC messages.
 type MessageWriter interface {
 	// WriteMessage writes an JSON RPC message.
-	WriteMessage(context.Context, mcp.JSONRPCMessage) error
+	WriteMessage(context.Context, jsonrpc.Message) error
 }
 
 // SyncMessageWriter process goroutine safety for MessageWriter
@@ -46,7 +47,7 @@ func NewSyncMessageWriter(w MessageWriter) *SyncMessageWriter {
 }
 
 // WriteMessage acquires a lock then writes the message.
-func (s *SyncMessageWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
+func (s *SyncMessageWriter) WriteMessage(ctx context.Context, msg jsonrpc.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.w.WriteMessage(ctx, msg)
@@ -54,10 +55,10 @@ func (s *SyncMessageWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMes
 
 // MessageWriterFunc defines a message writer function that implements
 // MessageWriter.
-type MessageWriterFunc func(context.Context, mcp.JSONRPCMessage) error
+type MessageWriterFunc func(context.Context, jsonrpc.Message) error
 
 // WriteMessage writes an JSON RPC message.
-func (f MessageWriterFunc) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
+func (f MessageWriterFunc) WriteMessage(ctx context.Context, msg jsonrpc.Message) error {
 	return f(ctx, msg)
 }
 
@@ -77,11 +78,60 @@ func NewMultiMessageWriter(writers ...MessageWriter) *MultiMessageWriter {
 }
 
 // WriteMessage writes the message to each listed writer, one at a time.
-func (w *MultiMessageWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
+func (w *MultiMessageWriter) WriteMessage(ctx context.Context, msg jsonrpc.Message) error {
 	for _, writer := range w.writers {
 		if err := writer.WriteMessage(ctx, msg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
+}
+
+// WriteRequest writes an JSON RPC Request.
+func WriteRequest(ctx context.Context, w MessageWriter, id jsonrpc.ID, method string, params any) error {
+	paramsData, err := marshalIfNotNil(params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return w.WriteMessage(ctx, &jsonrpc.Request{
+		ID:     id,
+		Method: method,
+		Params: paramsData,
+	})
+}
+
+// WriteResult writes a success JSON RPC Response.
+func WriteResult(ctx context.Context, w MessageWriter, id jsonrpc.ID, result any) error {
+	resultData, err := marshalIfNotNil(result)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return w.WriteMessage(ctx, &jsonrpc.Response{
+		ID:     id,
+		Result: resultData,
+	})
+}
+
+// WriteError writes an error JSON RPC Response.
+func WriteError(ctx context.Context, w MessageWriter, id jsonrpc.ID, errorCode int64, userMessage string, extra any) error {
+	extraData, err := marshalIfNotNil(extra)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return w.WriteMessage(ctx, &jsonrpc.Response{
+		ID: id,
+		Error: &WireError{
+			Code:    errorCode,
+			Message: userMessage,
+			Data:    extraData,
+		},
+	})
+}
+
+func marshalIfNotNil(v any) ([]byte, error) {
+	if v == nil {
+		return nil, nil
+	}
+	data, err := json.Marshal(v)
+	return data, trace.Wrap(err)
 }
