@@ -804,7 +804,7 @@ func SetScope(scope string) ServerOption {
 func SetChildLogConfig(level *slog.LevelVar, cfg servicecfg.LogConfig) ServerOption {
 	return func(s *Server) error {
 		if cfg.Writer == nil {
-			return trace.BadParameter("missing parameter writer")
+			cfg.Writer = io.Discard
 		}
 
 		s.childLogConfig = &srv.LogConfig{
