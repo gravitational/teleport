@@ -14,12 +14,12 @@ require (
 	github.com/gravitational/trace v1.5.1
 	github.com/stretchr/testify v1.11.1
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
-	golang.org/x/mod v0.29.0
+	golang.org/x/mod v0.30.0
 	golang.org/x/oauth2 v0.33.0
 	google.golang.org/protobuf v1.36.10
-	helm.sh/helm/v3 v3.19.1
+	helm.sh/helm/v3 v3.19.2
 	howett.net/plist v1.0.1
-	k8s.io/apiextensions-apiserver v0.34.1
+	k8s.io/apiextensions-apiserver v0.34.2
 )
 
 require (
@@ -69,7 +69,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.34.1 // indirect
+	k8s.io/apimachinery v0.34.2 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 // indirect
 	pluginrpc.com/pluginrpc v0.5.0 // indirect
