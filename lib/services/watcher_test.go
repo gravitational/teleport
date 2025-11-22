@@ -70,6 +70,10 @@ func (n nopProxyGetter) GetProxies() ([]types.Server, error) {
 	return nil, nil
 }
 
+func (n nopProxyGetter) ListProxies(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	return nil, "", nil
+}
+
 func TestResourceWatcher_Backoff(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

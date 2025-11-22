@@ -81,3 +81,21 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 
 	return servers, nil
 }
+
+// ListProxies returns a paginated list of registered proxy servers.
+func (c *Cache) ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListProxies")
+	defer span.End()
+
+	lister := genericLister[types.Server, proxyServerIndex]{
+		cache:        c,
+		collection:   c.collections.proxyServers,
+		index:        proxyServerNameIndex,
+		upstreamList: c.Config.Presence.ListProxies,
+		nextToken: func(t types.Server) string {
+			return t.GetMetadata().Name
+		},
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}

@@ -94,6 +94,13 @@ func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockProxyGetter) ListProxies(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	if m.returnErr != nil {
+		return nil, "", m.returnErr
+	}
+	return m.proxies, "", nil
+}
+
 func TestIssuerForCluster(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range []struct {

@@ -19,6 +19,7 @@
 package services
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -201,6 +202,23 @@ func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
 	}
 
 	return servers, nil
+}
+
+func (m *mockProxyGetter) ListProxies(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	servers := make([]types.Server, 0, len(m.addrs))
+
+	for _, addr := range m.addrs {
+		servers = append(
+			servers,
+			&types.ServerV2{
+				Spec: types.ServerSpecV2{
+					PublicAddrs: []string{addr},
+				},
+			},
+		)
+	}
+
+	return servers, "", nil
 }
 
 // TestApplicationUnmarshal verifies an app resource can be unmarshaled.

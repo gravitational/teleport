@@ -226,8 +226,14 @@ type ReadProxyAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
+	// ListProxies returns a paginated list of proxy servers registered in the cluster
+	ListProxies(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
+
 	// GetAuthServers returns a list of auth servers registered in the cluster
 	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster
+	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// ListReverseTunnels returns a list of reverse tunnels with pagination.
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
@@ -447,8 +453,14 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
+	// ListProxies returns a paginated list of proxy servers registered in the cluster
+	ListProxies(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
+
 	// GetAuthServers returns a list of auth servers registered in the cluster
 	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster
+	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -623,6 +635,9 @@ type ReadAppsAccessPoint interface {
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
+
+	// ListProxies returns a paginated list of proxy servers registered in the cluster
+	ListProxies(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
@@ -1100,8 +1115,14 @@ type Cache interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
+	// ListProxies returns a paginated list of proxy servers registered in the cluster
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+
 	// GetAuthServers returns a list of auth servers registered in the cluster
 	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)

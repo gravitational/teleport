@@ -3627,6 +3627,60 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 	return &emptypb.Empty{}, nil
 }
 
+// ListAuthServers returns a paginated list of auth servers.
+func (g *GRPCServer) ListAuthServers(ctx context.Context, req *authpb.ListAuthServersRequest) (*authpb.ListAuthServersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, next, err := auth.ListAuthServers(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		srv, ok := server.(*types.ServerV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected server type: %T", server)
+		}
+		serverV2s = append(serverV2s, srv)
+	}
+
+	return &authpb.ListAuthServersResponse{
+		Servers:       serverV2s,
+		NextPageToken: next,
+	}, nil
+}
+
+// ListProxies returns a paginated list of proxy servers.
+func (g *GRPCServer) ListProxies(ctx context.Context, req *authpb.ListProxiesRequest) (*authpb.ListProxiesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, next, err := auth.ListProxies(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		srv, ok := server.(*types.ServerV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected server type: %T", server)
+		}
+		serverV2s = append(serverV2s, srv)
+	}
+
+	return &authpb.ListProxiesResponse{
+		Servers:       serverV2s,
+		NextPageToken: next,
+	}, nil
+}
+
 // GetNode retrieves a node by name and namespace.
 func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*types.ServerV2, error) {
 	if req.Namespace == "" {

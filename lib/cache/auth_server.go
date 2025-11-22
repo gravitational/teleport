@@ -80,3 +80,21 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 
 	return servers, nil
 }
+
+// ListAuthServers returns a paginated list of registered auth servers.
+func (c *Cache) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAuthServers")
+	defer span.End()
+
+	lister := genericLister[types.Server, authServerIndex]{
+		cache:        c,
+		collection:   c.collections.authServers,
+		index:        authServerNameIndex,
+		upstreamList: c.Config.Presence.ListAuthServers,
+		nextToken: func(t types.Server) string {
+			return t.GetMetadata().Name
+		},
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}
