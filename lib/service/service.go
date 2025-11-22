@@ -6575,7 +6575,7 @@ func (process *TeleportProcess) initApps() {
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(accessPoint, app)
+			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -7114,7 +7114,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -7123,7 +7123,7 @@ func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) 
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
+			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
 			if err == nil {
 				return publicAddr, nil
 			}

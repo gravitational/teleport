@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -90,7 +91,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 			case apps := <-watcher.ResourcesC:
 				for _, app := range apps {
 					if app.GetPublicAddr() == "" {
-						pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
 						if err == nil {
 							app.SetPublicAddr(pubAddr)
 						} else {
@@ -119,21 +120,31 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 // FindPublicAddrClient is a client used for finding public addresses.
 type FindPublicAddrClient interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of registered proxy servers.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // FindPublicAddr tries to resolve the public address of the proxy of this cluster.
-func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
+func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
 	// If the application has a public address already set, use it.
 	if appPublicAddr != "" {
 		return appPublicAddr, nil
 	}
 
 	// Fetch list of proxies, if first has public address set, use it.
-	servers, err := client.GetProxies()
+	servers, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return client.GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

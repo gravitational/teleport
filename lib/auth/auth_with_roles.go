@@ -51,6 +51,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -2403,6 +2404,9 @@ func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) 
 	return a.authServer.UpsertAuthServer(ctx, s)
 }
 
+// Deprecated: Prefer paginated variant [ListAuthServers].
+//
+// TODO(kiosion) DELETE IN 21.0.0
 func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 	if a.scopedContext != nil {
 		ruleCtx := a.scopedContext.RuleContext()
@@ -2416,13 +2420,39 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		return a.authServer.GetAuthServers()
+		out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListAuthServers))
+		return out, trace.Wrap(err)
 	}
 
 	if err := a.authorizeAction(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetAuthServers()
+
+	out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListAuthServers))
+	return out, trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// For auth server reads we do not enforce scope pinning. This ensures that auths are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// teleport functionality.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindAuthServer, types.VerbList, types.VerbRead)
+		}); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		return a.authServer.ListAuthServers(ctx, pageSize, pageToken)
+	}
+
+	if err := a.authorizeAction(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListAuthServers(ctx, pageSize, pageToken)
 }
 
 // DeleteAuthServer deletes auth server by name
@@ -2440,6 +2470,9 @@ func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error
 	return a.authServer.UpsertProxy(ctx, s)
 }
 
+// Deprecated: Prefer paginated variant [ListProxyServers].
+//
+// TODO(kiosion) DELETE IN 21.0.0
 func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 	if a.scopedContext != nil {
 		ruleCtx := a.scopedContext.RuleContext()
@@ -2453,13 +2486,39 @@ func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		return a.authServer.GetProxies()
+		out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListProxyServers))
+		return out, trace.Wrap(err)
 	}
 
 	if err := a.authorizeAction(types.KindProxy, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetProxies()
+
+	out, err := iterstream.Collect(clientutils.Resources(context.TODO(), a.authServer.ListProxyServers))
+	return out, trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	if a.scopedContext != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		// For proxy reads we do not enforce scope pinning. This ensures that proxies are readable for
+		// all scoped identities regardless of their current scope pinning. This pattern should not
+		// be used for any checks save essential global configuration reads that are necessary for basic
+		// teleport functionality.
+		if err := a.scopedContext.CheckerContext.RiskyUnpinnedDecision(a.CloseContext(), scopes.Root, func(checker *services.SplitAccessChecker) error {
+			return checker.Common().CheckAccessToRules(&ruleCtx, types.KindProxy, types.VerbList, types.VerbRead)
+		}); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
+	}
+
+	if err := a.authorizeAction(types.KindProxy, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
 }
 
 // DeleteAllProxies deletes all proxies

@@ -96,8 +96,8 @@ func (a *Server) CreateRecoveryToken(ctx context.Context, username, tokenType st
 	return a.createRecoveryToken(ctx, username, tokenType, usage)
 }
 
-func (a *Server) NewUserToken(req authclient.CreateUserTokenRequest) (types.UserToken, error) {
-	return a.newUserToken(req)
+func (a *Server) NewUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
+	return a.newUserToken(ctx, req)
 }
 
 func CreatePrivilegeToken(ctx context.Context, srv *Server, username, tokenKind string) (*types.UserTokenV3, error) {
@@ -246,7 +246,7 @@ func ValidServerHostname(hostname string) bool {
 }
 
 func FormatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
-	return formatAccountName(s, username, authHostname)
+	return formatAccountName(context.TODO(), s, username, authHostname)
 }
 
 func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuthority) {
