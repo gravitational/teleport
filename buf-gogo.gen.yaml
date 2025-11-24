@@ -5,7 +5,7 @@ inputs:
     paths:
       - api/proto/teleport/attestation/
       - api/proto/teleport/legacy/
-      # mfa v1 uses gogoprotobuf, but mfa v2 does not. Be careful to only include v1 here.
+      # mfa v1 uses gogoproto, but mfa v2 does not. Be careful to only include v1 here.
       - api/proto/teleport/mfa/v1/
       - api/proto/teleport/usageevents/
       - proto/teleport/lib/web/terminal/envelope.proto
