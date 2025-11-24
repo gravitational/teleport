@@ -153,32 +153,6 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     make install && \
     make clean
 
-## LIBBPF #####################################################################
-
-FROM --platform=$BUILDPLATFORM base AS libbpf
-
-# Install additional required dependencies.
-RUN yum install -y \
-        elfutils-libelf-devel && \
-    yum clean all
-
-# Install custom package with -fPIC.
-COPY --from=teleport-buildbox-centos7-assets /opt/custom-packages /opt/custom-packages
-RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
-    rpm -ivh /opt/custom-packages/elfutils-libelf-devel-static-*.el*.${BUILDARCH}.rpm && \
-    rm -rf /opt/custom-packages
-
-# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
-# BUILD_STATIC_ONLY - builds only static libraries without shared ones
-# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
-# DESTDIR - where to install the library
-# V=1 - verbose build
-ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    scl enable ${DEVTOOLSET} "BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers"
-
 ## LIBPCSCLITE #####################################################################
 
 FROM --platform=$BUILDPLATFORM base AS libpcsclite
@@ -319,10 +293,6 @@ COPY --from=libpcsclite \
     /usr/local/lib/
 # Set LIBRARY_PATH so that libpcsclite can be found by the linker.
 ENV LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH}
-
-# Copy libbpf into the final image.
-ARG LIBBPF_VERSION
-COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm

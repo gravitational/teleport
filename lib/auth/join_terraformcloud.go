@@ -20,19 +20,23 @@ package auth
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/terraformcloud"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
 )
 
-type terraformCloudIDTokenValidator interface {
-	Validate(
-		ctx context.Context, audience, hostname, token string,
-	) (*terraformcloud.IDTokenClaims, error)
+// GetTerraformIDTokenValidator returns the server's currently configured
+// Terraform Cloud ID token validator
+func (a *Server) GetTerraformIDTokenValidator() terraformcloud.Validator {
+	return a.terraformIDTokenValidator
+}
+
+// SetTerraformIDTokenValidator sets the current Terraform Cloud OIDC token
+// validator, used in tests.
+func (a *Server) SetTerraformIDTokenValidator(validator terraformcloud.Validator) {
+	a.terraformIDTokenValidator = validator
 }
 
 func (a *Server) checkTerraformCloudJoinRequest(
@@ -40,74 +44,19 @@ func (a *Server) checkTerraformCloudJoinRequest(
 	req *types.RegisterUsingTokenRequest,
 	pt types.ProvisionToken,
 ) (*terraformcloud.IDTokenClaims, error) {
-	if req.IDToken == "" {
-		return nil, trace.BadParameter("id_token not provided for terraform_cloud join request")
-	}
-	token, ok := pt.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("terraform_cloud join method only supports ProvisionTokenV2, '%T' was provided", pt)
-	}
-
-	hostnameOverride := token.Spec.TerraformCloud.Hostname
-	if hostnameOverride != "" && modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, fmt.Errorf(
-			"terraform_cloud joining for Terraform Enterprise: %w",
-			ErrRequiresEnterprise,
-		)
-	}
-
-	aud := token.Spec.TerraformCloud.Audience
-	if aud == "" {
-		clusterName, err := a.GetClusterName(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		aud = clusterName.GetClusterName()
-	}
-
-	claims, err := a.terraformIDTokenValidator.Validate(
-		ctx, aud, hostnameOverride, req.IDToken,
-	)
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "Terraform Cloud run trying to join cluster",
-		"claims", claims,
-		"token", pt.GetName(),
-	)
+	claims, err := terraformcloud.CheckIDToken(ctx, &terraformcloud.CheckIDTokenParams{
+		ProvisionToken: pt,
+		IDToken:        []byte(req.IDToken),
+		Validator:      a.terraformIDTokenValidator,
+		ClusterName:    clusterName.GetClusterName(),
+	})
 
-	return claims, trace.Wrap(checkTerraformCloudAllowRules(token, claims))
-}
-
-func checkTerraformCloudAllowRules(token *types.ProvisionTokenV2, claims *terraformcloud.IDTokenClaims) error {
-	for _, rule := range token.Spec.TerraformCloud.Allow {
-		if rule.OrganizationID != "" && claims.OrganizationID != rule.OrganizationID {
-			continue
-		}
-		if rule.OrganizationName != "" && claims.OrganizationName != rule.OrganizationName {
-			continue
-		}
-		if rule.ProjectID != "" && claims.ProjectID != rule.ProjectID {
-			continue
-		}
-		if rule.ProjectName != "" && claims.ProjectName != rule.ProjectName {
-			continue
-		}
-		if rule.WorkspaceID != "" && claims.WorkspaceID != rule.WorkspaceID {
-			continue
-		}
-		if rule.WorkspaceName != "" && claims.WorkspaceName != rule.WorkspaceName {
-			continue
-		}
-		if rule.RunPhase != "" && claims.RunPhase != rule.RunPhase {
-			continue
-		}
-
-		// All provided rules met.
-		return nil
-	}
-
-	return trace.AccessDenied("id token claims did not match any allow rules")
+	// As usual, attempt to return claims regardless of whether or not an error
+	// was encountered.
+	return claims, trace.Wrap(err)
 }

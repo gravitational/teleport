@@ -13,7 +13,7 @@ address: 0.0.0.0:8080
 registration_cas:
   - /var/is/teleport-host-ca.pem
   - /var/is/teleport-host-ca2.pem
-  
+
 # TLS certificate for the HTTPS/gRPC connections. Configuring these properly is
 # critical for security.
 tls:
@@ -50,7 +50,7 @@ backend:
 
     # Maximum connection lifetime jitter in seconds.
     max_conn_lifetime_jitter: 10s
-    
+
     # If you want to use IAM authentication instead of password authentication,
     # you can uncomment the following section and provide the AWS region.
     #
@@ -108,6 +108,8 @@ identity_activity_center:
   s3_results: s3://transient-bucket/results/
   # Transient S3 bucket location used by the Identity Activity Center to store large files.
   s3_large_files: s3://transient-bucket/large_files
+  # Workgroup name used by the Identity Activity Center to execute Athena queries.
+  workgroup: identity-activity-center-workgroup
   # AWS SQS queue URL used by the Identity Activity Center to send notifications
   # between the Teleport Identity Security replicas.
   sqs_queue_url: https://sqs.eu-central-1.amazonaws.com/123456789/example-queue

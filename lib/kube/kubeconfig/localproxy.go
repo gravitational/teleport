@@ -68,6 +68,8 @@ func (s LocalProxyClusters) TeleportClusters() []string {
 
 // LocalProxyValues contains values for generating local proxy kubeconfig
 type LocalProxyValues struct {
+	// TeleportProfileName is the name of the profile used for credentials.
+	TeleportProfileName string
 	// TeleportKubeClusterAddr is the Teleport Kubernetes access address.
 	TeleportKubeClusterAddr string
 	// LocalProxyURL is the local forward proxy's URL.
@@ -104,6 +106,7 @@ func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyV
 	// entries before adding the ones for local proxy.
 	config := originalKubeConfig.DeepCopy()
 	config.CurrentContext = ""
+	removeByProfileName(config, localProxyValues.TeleportProfileName)
 	removeByServerAddr(config, localProxyValues.TeleportKubeClusterAddr)
 
 	for _, cluster := range localProxyValues.Clusters {
@@ -120,17 +123,28 @@ func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyV
 			CertificateAuthorityData: localProxyValues.LocalProxyCAs[cluster.TeleportCluster],
 			TLSServerName:            common.KubeLocalProxySNI(cluster.TeleportCluster, cluster.KubeCluster),
 		}
+		setStringExtensionInCluster(config.Clusters[contextName], extProfileName, localProxyValues.TeleportProfileName)
+		setStringExtensionInCluster(config.Clusters[contextName], extTeleClusterName, cluster.TeleportCluster)
+		setStringExtensionInCluster(config.Clusters[contextName], extKubeClusterName, cluster.KubeCluster)
+
 		config.Contexts[contextName] = &clientcmdapi.Context{
 			Namespace: cluster.Namespace,
 			Cluster:   contextName,
 			AuthInfo:  contextName,
 		}
+		setStringExtensionInContext(config.Contexts[contextName], extProfileName, localProxyValues.TeleportProfileName)
+		setStringExtensionInContext(config.Contexts[contextName], extTeleClusterName, cluster.TeleportCluster)
+		setStringExtensionInContext(config.Contexts[contextName], extKubeClusterName, cluster.KubeCluster)
+
 		config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 			ClientCertificateData: localProxyValues.LocalProxyCAs[cluster.TeleportCluster],
 			ClientKeyData:         localProxyValues.ClientKeyData,
 			Impersonate:           cluster.Impersonate,
 			ImpersonateGroups:     cluster.ImpersonateGroups,
 		}
+		setStringExtensionInAuthInfo(config.AuthInfos[contextName], extProfileName, localProxyValues.TeleportProfileName)
+		setStringExtensionInAuthInfo(config.AuthInfos[contextName], extTeleClusterName, cluster.TeleportCluster)
+		setStringExtensionInAuthInfo(config.AuthInfos[contextName], extKubeClusterName, cluster.KubeCluster)
 
 		// Set the first as current context or if matching the one from default
 		// kubeconfig.
@@ -143,40 +157,63 @@ func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyV
 
 // LocalProxyClustersFromDefaultConfig loads Teleport kube clusters data saved
 // by `tsh kube login` in the default kubeconfig.
-func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clusterAddr string) (clusters LocalProxyClusters) {
-	for teleportClusterName, cluster := range defaultConfig.Clusters {
+func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, profileName, clusterAddr string) (clusters LocalProxyClusters) {
+	for contextName, context := range defaultConfig.Contexts {
+		cluster, found := defaultConfig.Clusters[context.Cluster]
+		if !found {
+			continue
+		}
+		auth, found := defaultConfig.AuthInfos[context.AuthInfo]
+		if !found {
+			continue
+		}
+
+		if p, ok := getStringExtensionFromContext(context, extProfileName); ok {
+			// the context has the new extensions, no need to match by clusterAddr
+			if p != profileName {
+				continue
+			}
+
+			teleportCluster, _ := getStringExtensionFromContext(context, extTeleClusterName)
+			kubeCluster, _ := getStringExtensionFromContext(context, extKubeClusterName)
+
+			clusters = append(clusters, LocalProxyCluster{
+				TeleportCluster:   teleportCluster,
+				KubeCluster:       kubeCluster,
+				Namespace:         context.Namespace,
+				Impersonate:       auth.Impersonate,
+				ImpersonateGroups: auth.ImpersonateGroups,
+			})
+			continue
+		}
+
+		// the context was created by an older version, match by clusterAddr and
+		// try to guess at the kube cluster name
 		if cluster.Server != clusterAddr {
 			continue
 		}
 
-		for contextName, ctx := range defaultConfig.Contexts {
-			if ctx.Cluster != teleportClusterName {
-				continue
-			}
-			auth, found := defaultConfig.AuthInfos[contextName]
-			if !found {
-				continue
-			}
-
-			clusters = append(clusters, LocalProxyCluster{
-				TeleportCluster:   teleportClusterName,
-				KubeCluster:       KubeClusterFromContext(contextName, ctx, teleportClusterName),
-				Namespace:         ctx.Namespace,
-				Impersonate:       auth.Impersonate,
-				ImpersonateGroups: auth.ImpersonateGroups,
-			})
-		}
+		clusters = append(clusters, LocalProxyCluster{
+			TeleportCluster:   context.Cluster,
+			KubeCluster:       KubeClusterFromContext(contextName, context, context.Cluster),
+			Namespace:         context.Namespace,
+			Impersonate:       auth.Impersonate,
+			ImpersonateGroups: auth.ImpersonateGroups,
+		})
 	}
+
 	return clusters
 }
 
-// FindTeleportClusterForLocalProxy finds the Teleport kube cluster based on
-// provided cluster address and context name, and prepares a LocalProxyCluster.
+// FindTeleportClusterForLocalProxy finds the Kube cluster name for a given
+// context (or the current context), and prepares a LocalProxyCluster if the
+// context is for the given Teleport cluster name or if the server addr matches
+// the expected one.
 //
 // When the cluster has a ProxyURL set, it means the provided kubeconfig is
 // already pointing to a local proxy through this ProxyURL and thus can be
 // skipped as there is no need to create a new local proxy.
-func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, clusterAddr, contextName string) (LocalProxyCluster, bool) {
+func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, contextName, profileName, serverAddr string) (LocalProxyCluster, bool) {
 	if contextName == "" {
 		contextName = defaultConfig.CurrentContext
 	}
@@ -185,8 +222,9 @@ func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, cluste
 	if !found {
 		return LocalProxyCluster{}, false
 	}
+
 	cluster, found := defaultConfig.Clusters[context.Cluster]
-	if !found || cluster.Server != clusterAddr || cluster.ProxyURL != "" {
+	if !found {
 		return LocalProxyCluster{}, false
 	}
 	auth, found := defaultConfig.AuthInfos[context.AuthInfo]
@@ -194,9 +232,36 @@ func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, cluste
 		return LocalProxyCluster{}, false
 	}
 
+	if cluster.ProxyURL != "" {
+		// a proxy is already set, it's either an existing local proxy or
+		// something we don't understand is going on, and either way we should
+		// skip this
+		return LocalProxyCluster{}, false
+	}
+
+	var teleportCluster, kubeCluster string
+	if c, ok := getStringExtensionFromCluster(cluster, extProfileName); ok {
+		// we have found the profile name extension, this is a modern
+		// configuration and we can just work by extensions without having to
+		// make guesses based on URLs and context names
+		if c != profileName {
+			return LocalProxyCluster{}, false
+		}
+		teleportCluster, _ = getStringExtensionFromCluster(cluster, extTeleClusterName)
+		kubeCluster, _ = getStringExtensionFromCluster(cluster, extKubeClusterName)
+	} else {
+		// this kubeconfig is old, match by server URL and try to guess what the
+		// kube cluster name is
+		if cluster.Server != serverAddr {
+			return LocalProxyCluster{}, false
+		}
+		teleportCluster = context.Cluster
+		kubeCluster = KubeClusterFromContext(contextName, context, context.Cluster)
+	}
+
 	return LocalProxyCluster{
-		TeleportCluster:   context.Cluster,
-		KubeCluster:       KubeClusterFromContext(contextName, context, context.Cluster),
+		TeleportCluster:   teleportCluster,
+		KubeCluster:       kubeCluster,
 		Namespace:         context.Namespace,
 		Impersonate:       auth.Impersonate,
 		ImpersonateGroups: auth.ImpersonateGroups,

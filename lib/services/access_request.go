@@ -68,6 +68,11 @@ const (
 	// `request.kubernetes_resources` config. It's also used to determine if a returned error
 	// contains this string (in tests and tsh) to customize error messages shown to user.
 	InvalidKubernetesKindAccessRequest = `your Teleport role's "request.kubernetes_resources" field`
+
+	// CannotRequestRole is used in error messages when a user attempts to request
+	// a role they are not allowed to use. It is also checked in returned errors
+	// (in tests and tsh) to customize the error message shown to the user.
+	CannotRequestRole = "can not request role"
 )
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
@@ -1272,11 +1277,11 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 				// Roles are normally determined automatically for resource
 				// access requests, this role must have been explicitly
 				// requested, or a new deny rule has since been added.
-				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+				return trace.BadParameter("user %q %s %q", req.GetUser(), CannotRequestRole, roleName)
 			}
 		} else {
 			if !m.CanRequestRole(roleName) {
-				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+				return trace.BadParameter("user %q %s %q", req.GetUser(), CannotRequestRole, roleName)
 			}
 		}
 	}

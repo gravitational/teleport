@@ -68,7 +68,7 @@ type ServerConfig struct {
 	// Dialer is used to establish remote connections.
 	Dialer Dialer
 	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
-	SignerFn func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator
+	SignerFn func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator
 	// ConnectionMonitor is used to monitor the connection for activity and terminate it
 	// when conditions are met.
 	ConnectionMonitor ConnectionMonitor
@@ -79,7 +79,7 @@ type ServerConfig struct {
 	agentGetterFn func(rw io.ReadWriter) sshagent.ClientGetter
 
 	// authzContextFn used by tests to inject an access checker
-	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
+	authzContextFn func(info credentials.AuthInfo) (*authz.ScopedContext, error)
 }
 
 // CheckAndSetDefaults ensures required parameters are set
@@ -104,13 +104,20 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.authzContextFn == nil {
-		c.authzContextFn = func(info credentials.AuthInfo) (*authz.Context, error) {
-			identityInfo, ok := info.(interface{ AuthzContext() *authz.Context })
+		c.authzContextFn = func(info credentials.AuthInfo) (*authz.ScopedContext, error) {
+			identityInfo, ok := info.(interface {
+				ScopedAuthzContext() (ctx *authz.ScopedContext, ok bool)
+			})
 			if !ok {
 				return nil, trace.AccessDenied("client is not authenticated")
 			}
 
-			return identityInfo.AuthzContext(), nil
+			ctx, ok := identityInfo.ScopedAuthzContext()
+			if !ok {
+				return nil, trace.AccessDenied("missing required authz context")
+			}
+
+			return ctx, nil
 		}
 	}
 
@@ -286,7 +293,16 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
-	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker.CheckAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
+
+	checkAccessToRemoteCluster := func(types.RemoteCluster) error {
+		return trace.AccessDenied("scoped identities do not support cross-cluster access")
+	}
+
+	if unscopedCtx, ok := authzContext.UnscopedContext(); ok {
+		checkAccessToRemoteCluster = unscopedCtx.Checker.CheckAccessToRemoteCluster
+	}
+
+	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, checkAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		// Return ambiguous errors unadorned so that clients can detect them easily.
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
@@ -308,9 +324,17 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 
 	// monitor the user connection
 	conn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
-	monitorCtx, userConn, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, conn)
-	if err != nil {
-		return trace.Wrap(err)
+	var monitorCtx context.Context
+	var userConn net.Conn
+	if unscopedCtx, ok := authzContext.UnscopedContext(); ok {
+		monitorCtx, userConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, unscopedCtx, conn)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// TODO(fspmarshall/scopes): implement connection monitoring for scoped identities
+		userConn = conn
+		monitorCtx = ctx
 	}
 
 	// send back the cluster details to alert the other side that
@@ -426,9 +450,14 @@ func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportServi
 		return trace.BadParameter("failed to find peer")
 	}
 
-	authzContext, err := s.cfg.authzContextFn(p.AuthInfo)
+	scopedAuthzContext, err := s.cfg.authzContextFn(p.AuthInfo)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	authzContext, ok := scopedAuthzContext.UnscopedContext()
+	if !ok {
+		return trace.AccessDenied("scoped identities are not supported for windows desktop connections")
 	}
 
 	// Wait for the first request to arrive with the dial request.

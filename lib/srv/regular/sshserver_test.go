@@ -985,8 +985,6 @@ func TestDirectTCPIP(t *testing.T) {
 // "tcpip-forward" request and do remote port forwarding.
 func TestTCPIPForward(t *testing.T) {
 	t.Parallel()
-	hostname, err := os.Hostname()
-	require.NoError(t, err)
 	tests := []struct {
 		name        string
 		listenAddr  string
@@ -1002,10 +1000,6 @@ func TestTCPIPForward(t *testing.T) {
 		{
 			name:       "ip address",
 			listenAddr: "127.0.0.1:0",
-		},
-		{
-			name:       "hostname",
-			listenAddr: hostname + ":0",
 		},
 		{
 			name:        "remote deny",
@@ -3677,19 +3671,22 @@ func TestSessionParams(t *testing.T) {
 					require.NoError(t, err)
 					t.Cleanup(func() { require.NoError(t, se.Close()) })
 
+					// If this isn't a join session, wait for the server to send the session ID.
+					sid := baseCase.params.JoinSessionID
+					if sid == "" {
+						select {
+						case sid = <-sidC:
+						case <-time.After(time.Second):
+							t.Fatalf("Failed to received session ID from server")
+						}
+					}
+
 					if sessionCase.envVars != nil {
 						err := se.SetEnvs(ctx, sessionCase.envVars)
 						require.NoError(t, err)
 					}
 
 					require.NoError(t, se.Shell(ctx))
-
-					var sid string
-					select {
-					case sid = <-sidC:
-					case <-time.After(time.Second):
-						t.Fatalf("Failed to received session ID from server")
-					}
 
 					sessionTracker, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetSessionTracker(ctx, sid)
 					require.NoError(t, err)

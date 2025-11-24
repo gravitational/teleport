@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on Linux
-description: How to install and configure Machine ID on a Linux host
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on a Linux host
 sidebar_label: Linux
 tags:
  - how-to
@@ -8,7 +8,8 @@ tags:
  - infrastructure-identity
 ---
 
-This page explains how to deploy Machine ID on a Linux host.
+This page explains how to deploy the Machine & Workload Identity agent, `tbot`,
+on a Linux host.
 
 ## How it works
 
@@ -27,16 +28,16 @@ is not possible to use the same token multiple times.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A Linux host that you wish to install Machine ID onto.
-- A Linux user on that host that you wish Machine ID to run as. In the guide,
-  we will use `teleport` for this.
+- A Linux host that you wish to install `tbot` onto.
+- A Linux user on that host that you wish `tbot` to run as. In the guide, we
+  will use `teleport` for this.
 
 ## Step 1/4. Install `tbot`
 
 **This step is completed on the Linux host.**
 
-First, `tbot` needs to be installed on the VM that you wish to use Machine ID
-on.
+First, `tbot` needs to be installed on the VM that you wish to use Machine &
+Workload Identity on.
 
 Install Teleport as appropriate for your platform:
 
