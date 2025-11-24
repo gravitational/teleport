@@ -21,6 +21,7 @@ package kubeconfig
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -84,8 +85,9 @@ type Values struct {
 	// This value is empty if a proxy was not specified.
 	ProxyAddr string
 
-	// TLSServerName is SNI host value passed to the server.
-	TLSServerName string
+	// TLSServerNameFunc, if set, returns the SNI used when connecting to a
+	// given kube cluster in a given Teleport cluster.
+	TLSServerNameFunc func(teleportClusterName, kubeClusterName string) string
 
 	// Impersonate allows to define the default impersonated user.
 	// Must be a subset of kubernetes_users or the Teleport username
@@ -105,6 +107,14 @@ type Values struct {
 	// OverrideContext is the name of the context or template used when adding a new cluster.
 	// If empty, the context name will be generated from the {teleport-cluster}-{kube-cluster}.
 	OverrideContext string
+}
+
+func (v Values) TLSServerName(teleportClusterName, kubeClusterName string) string {
+	if v.TLSServerNameFunc == nil {
+		return ""
+	}
+
+	return v.TLSServerNameFunc(teleportClusterName, kubeClusterName)
 }
 
 // ExecValues contain values for configuring tsh as an exec auth plugin in
@@ -227,7 +237,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 			config.Clusters[contextName] = &clientcmdapi.Cluster{
 				Server:                   v.ClusterAddr,
 				CertificateAuthorityData: cas,
-				TLSServerName:            v.TLSServerName,
+				TLSServerName:            v.TLSServerName(v.TeleportClusterName, c),
 			}
 
 			setStringExtensionInCluster(config.Clusters[contextName], extTeleClusterName, v.TeleportClusterName)
@@ -304,7 +314,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 			config.Clusters[contextName] = &clientcmdapi.Cluster{
 				Server:                   v.ClusterAddr,
 				CertificateAuthorityData: cas,
-				TLSServerName:            v.TLSServerName,
+				TLSServerName:            v.TLSServerName(v.TeleportClusterName, cmp.Or(kubeClusterName, v.TeleportClusterName)),
 			}
 
 			setStringExtensionInCluster(config.Clusters[contextName], extTeleClusterName, v.TeleportClusterName)
