@@ -143,6 +143,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/pam"
@@ -719,8 +720,14 @@ type TeleportProcess struct {
 	// conflicts.
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
-	// Telepeort's metric service.
+	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
+
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	// optionally other systems can add their gatherers, this can be used if they
+	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
+	*metrics.SyncGatherers
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
@@ -993,6 +1000,12 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	return i, nil
 }
 
+// MetricsRegistry returns the process-scoped metrics registry.
+// New metrics must register against this and not the global prometheus registry.
+func (process *TeleportProcess) MetricsRegistry() prometheus.Registerer {
+	return process.metricsRegistry
+}
+
 // Process is a interface for processes
 type Process interface {
 	// Closer closes all resources used by the process
@@ -1084,14 +1097,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}()
 
-	// Use the custom metrics registry if specified, else create a new one.
-	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
-	// config.
-	metricsRegistry := cfg.MetricsRegistry
-	if metricsRegistry == nil {
-		metricsRegistry = prometheus.NewRegistry()
-	}
+	// config and reusing the same registry causes them to fail.
+	metricsRegistry := prometheus.NewRegistry()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1294,6 +1303,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
+		SyncGatherers: metrics.NewSyncGatherers(
+			metricsRegistry,
+			prometheus.DefaultGatherer,
+		),
 	}
 
 	process.registerExpectedServices(cfg)
