@@ -20,6 +20,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -35,6 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/spacelift"
 )
+
+var errMockInvalidToken = errors.New("invalid token")
 
 type mockSpaceliftTokenValidator struct {
 	tokens map[string]spacelift.IDTokenClaims
@@ -74,8 +77,12 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 		server.SetSpaceliftIDTokenValidator(idTokenValidator)
 		return nil
 	}
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
+
+	ctx := t.Context()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir:    t.TempDir(),
+		MutateAuth: withTokenValidator,
+	})
 	require.NoError(t, err)
 	auth := p.a
 

@@ -1,6 +1,6 @@
 ---
 title: Database Access Configuration Reference
-sidebar_label: Database Access Configuration
+sidebar_label: Configuration
 description: Configuration reference for Teleport database access.
 tags:
  - reference
@@ -180,6 +180,13 @@ spec:
     # In both cases MySQL server version reported to a client will be updated on the first successful
     # connection made by a user.
     server_version: 8.0.28
+
+  # Oracle only options.
+  oracle:
+    # Randomize host order per connection attempt to spread load. Optional.
+    shuffle_hostnames: true
+    # Retries per host on network errors only; non-network errors stop (default: 2). Optional.
+    retry_count: 5            
 
   # Optional AWS configuration for RDS/Aurora/Redshift. Can be auto-detected from the endpoint.
   aws:

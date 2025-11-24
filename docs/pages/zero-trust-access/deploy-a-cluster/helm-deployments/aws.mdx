@@ -1,5 +1,6 @@
 ---
 title: Running an HA Teleport cluster using AWS, EKS, and Helm
+sidebar_label: EKS
 description: Install and configure an HA Teleport cluster using an AWS EKS cluster
 tags:
  - how-to
@@ -35,6 +36,13 @@ requires the following resources, which we show you how to create in this guide:
   backend.
 
 ## Prerequisites
+
+This guide assumes that your infrastructure is **not** hosted in AWS GovCloud or
+in an air-gapped AWS environment (EKS Anywhere). If it is, [contact the Teleport
+team](https://goteleport.com/contact-us) for assistance planning your
+deployment.
+
+This guide also requires the following:
 
 (!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
 

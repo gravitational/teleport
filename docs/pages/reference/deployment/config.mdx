@@ -1,9 +1,8 @@
 ---
-title: Teleport Configuration
-h1: Teleport Configuration Reference
+title: Teleport Configuration Reference
+sidebar_label: Teleport Configuration
 description: The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
 keywords: [config, file, reference, yaml, etc]
-tocDepth: 3
 tags:
  - reference
  - platform-wide
@@ -72,6 +71,7 @@ Teleport supports the following services:
 |SSH Service|`ssh_service`|✅|
 |Desktop Service|`windows_desktop_service`|❌|
 |Jamf Service|`jamf_service`|❌|
+|Relay Service|`relay_service`|❌|
 |Debug Service|`debug_service`|✅|
 
 Teleport Cloud manages the Auth Service and Proxy Service for you. Instances of
@@ -215,6 +215,16 @@ These settings apply to the Jamf Service:
 
 ```yaml
 (!docs/pages/includes/config-reference/jamf-service.yaml!)
+```
+
+### Relay Service
+
+The Relay Service is available in Teleport v18.3.0 and later.
+
+These settings apply to the Relay Service:
+
+```yaml
+(!docs/pages/includes/config-reference/relay-service.yaml!)
 ```
 
 ### Debug Service

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -116,7 +117,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	pack.MongoService = servicecfg.Database{
 		Name:     fmt.Sprintf("%s-mongo", pack.name),
 		Protocol: defaults.ProtocolMongoDB,
-		URI:      pack.mongoAddr,
+		URI:      fmt.Sprintf("mongodb://%s/?heartbeatintervalms=500", pack.mongoAddr),
 	}
 
 	cassandaListener, pack.cassandraAddr = mustListen(t)
@@ -174,7 +175,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 		AuthClient: pack.dbAuthClient,
 		Name:       pack.MongoService.Name,
 		Listener:   mongoListener,
-	})
+	}, mongodb.TestServerSetFakeUserAuthError("nonexistent", trace.NotFound("user does not exist")))
 	require.NoError(t, err)
 	go pack.mongo.Serve()
 	t.Cleanup(func() { pack.mongo.Close() })
@@ -276,6 +277,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Logger:      log,
+		Clock:       opts.clock,
 	}
 	rootCfg.Listeners = opts.listenerSetup(t, &rootCfg.Fds)
 	p.Root.Cluster = helpers.NewInstance(t, rootCfg)
@@ -288,6 +290,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Logger:      log,
+		Clock:       opts.clock,
 	}
 	leafCfg.Listeners = opts.listenerSetup(t, &leafCfg.Fds)
 	p.Leaf.Cluster = helpers.NewInstance(t, leafCfg)
@@ -296,6 +299,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
+	rcConf.Auth.Clock = p.clock
 	rcConf.Auth.Preference.SetSecondFactor("off")
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
@@ -309,6 +313,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	lcConf := servicecfg.MakeDefaultConfig()
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
+	lcConf.Auth.Clock = p.clock
 	lcConf.Auth.Preference.SetSecondFactor("off")
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
@@ -338,6 +343,14 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 
 	// Setup users and roles on both clusters.
 	p.setupUsersAndRoles(t)
+
+	// disable health checks to reduce log noise during tests
+	defaultHCC := services.VirtualDefaultHealthCheckConfigDB()
+	defaultHCC.GetSpec().GetMatch().Disabled = true
+	_, err = p.Root.Cluster.Process.GetAuthServer().UpsertHealthCheckConfig(ctx, defaultHCC)
+	require.NoError(t, err)
+	_, err = p.Leaf.Cluster.Process.GetAuthServer().UpsertHealthCheckConfig(ctx, defaultHCC)
+	require.NoError(t, err)
 
 	// Update root's certificate authority on leaf to configure role mapping.
 	ca, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{

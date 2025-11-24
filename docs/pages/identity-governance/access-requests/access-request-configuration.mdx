@@ -1,7 +1,7 @@
 ---
 title: Configure Access Requests
+sidebar_label: Configuration
 description: Describes the options available for configuring just-in-time access to roles and resources in your Teleport cluster.
-tocDepth: 3
 tags:
  - access-requests
  - how-to
@@ -311,6 +311,9 @@ Allowed values are:
 | `optional` | The default. The user does not need to provide a reason when making a request. |
 | `required` | The user must provide a non-empty reason when making a request. |
 
+You can specify a scoped prompt to remind the user to provide a reason for specific requestable
+roles or resources using `spec.allow.request.reason.prompt`.
+
 Example:
 
 ```yaml
@@ -327,18 +330,67 @@ spec:
         - 'root-node-access'
       reason:
         mode: 'required'
+        prompt: 'Please give a reason for accessing node resources'
 ```
 
-If a user with "node-requester" role assigned makes an Access Request for "node-access" role or any
-resource allowed by "root-node-access" they will be required to provide a reason. If a user's
+If a user with `node-requester` role assigned makes an Access Request for `node-access` role or any
+resource allowed by `root-node-access` they will be required to provide a reason. If a user's
 role set includes multiple roles governing Access Requests to the same roles and resources,
-"require" mode takes precedence.
+`required` mode takes precedence.
 
 ## Custom request reason prompts
 
-As of right now it's only possible specify a custom prompt for all or none of the Access Requests
-for a particular user. A custom request prompt can be specified by assigned the user a role with
-`spec.options.request_prompt` set to non-empty string.
+It is possible to specify custom request prompts for a user:
+
+- for requestable resources or roles specified by a single role
+- for all Access Requests made by the user
+
+To specify a scoped prompt for requestable resources specified by a single role, set
+`spec.allow.request.reason.prompt` to a non-empty string. This will affect only Access Requests that
+contain the specific resource or role.
+
+A custom global request prompt can be specified by assigning the user a role
+with `spec.options.request_prompt` set to non-empty string. This global prompt will apply for
+all Access Requests made by the user.
+
+If multiple global prompts and scoped prompts apply to the same Access Request, all
+prompts will be listed in alphabetical order within the request reason form.
+
+Example:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: k8s-requester
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - 'k8s-viewer'
+      reason:
+        # If a user is assigned this role, the prompt below will be displayed
+        # when any resource allowed by k8s-viewer role is requested.
+        prompt: 'Please give a reason for accessing kubernetes resources'
+```
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: employee
+spec:
+  allow: {}
+  options:
+    # If a user is assigned this role, the prompt below will be displayed for
+    # all access requests made by this user.
+    request_prompt: 'Please provide your ticket ID'
+```
+
+If a user assigned with `k8s-requester` and `employee` roles makes an Access Request
+for resources searchable as `k8s-viewer`, they will be prompted with the text
+"Please give a reason for accessing kubernetes resources" on the first line and
+"Please provide your ticket ID" on the second line, in alphabetical order.
 
 ## Review thresholds
 
@@ -496,6 +548,17 @@ just the roles named in the same `role` resource as the suggested reviewers.
 While Teleport will accept a role with a nonempty
 `deny.request.suggested_reviewers` field, it only considers the
 `allow.request.suggested_reviewers` field when evaluating Access Requests.
+
+### Access List owners as suggested reviewers
+
+For resource-based Access Requests, owners of the Access Lists that grant access
+to the requested resources are automatically added as suggested reviewers.
+
+Note that those owners still need to have an appropriate Teleport role that
+allows them to review such Access Requests.
+
+You can learn more about this use-case in the [Reviewing Access Requests](../access-lists/reviewing-access-requests.mdx)
+guide.
 
 ## Roles that a reviewer can grant access to
 

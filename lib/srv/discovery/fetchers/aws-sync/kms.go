@@ -29,7 +29,6 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	pb "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -178,10 +177,9 @@ func isAccessDeniedException(err error) bool {
 func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region, keyID string) *pb.AWSKMSKeyV1 {
 	if output == nil {
 		return &pb.AWSKMSKeyV1{
-			Arn:          fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID),
-			Region:       region,
-			AccountId:    accountID,
-			LastSyncTime: timestamppb.Now(),
+			Arn:       fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID),
+			Region:    region,
+			AccountId: accountID,
 		}
 	}
 	var multiRegionType string
@@ -193,7 +191,6 @@ func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region, keyID st
 		CreatedAt:          awsTimeToProtoTime(output.KeyMetadata.CreationDate),
 		Region:             region,
 		AccountId:          accountID,
-		LastSyncTime:       timestamppb.Now(),
 		HsmClusterId:       aws.ToString(output.KeyMetadata.CloudHsmClusterId),
 		MultiRegionKeyType: multiRegionType,
 	}

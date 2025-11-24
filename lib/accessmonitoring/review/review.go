@@ -34,6 +34,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Client aggregates the parts of Teleport API client interface
@@ -42,8 +43,8 @@ import (
 type Client interface {
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 	client.ListResourcesClient
+	services.UserOrLoginStateGetter
 }
 
 // Config specifies access review handler configuration.
@@ -239,21 +240,8 @@ func (handler *Handler) getMatchingRule(
 	env accessmonitoring.AccessRequestExpressionEnv,
 ) *accessmonitoringrulesv1.AccessMonitoringRule {
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
-
-	for _, rule := range handler.rules.Get() {
-		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
-		if err != nil {
-			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
-				"error", err,
-				"rule", rule.GetMetadata().GetName(),
-			)
-			continue
-		}
-
-		if !conditionMatch {
-			continue
-		}
-
+	matchingRules := accessmonitoring.EvaluateRules(ctx, handler.Logger, env, handler.rules.Get())
+	for _, rule := range matchingRules {
 		if rule.GetSpec().GetAutomaticReview().GetDecision() == types.RequestState_DENIED.String() {
 			return rule
 		}
@@ -295,8 +283,7 @@ func isAlreadyReviewedError(err error) bool {
 }
 
 func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRequest) (accessmonitoring.AccessRequestExpressionEnv, error) {
-	const withSecretsFalse = false
-	user, err := handler.Client.GetUser(ctx, req.GetUser(), withSecretsFalse)
+	userState, err := services.GetUserOrLoginState(ctx, handler.Client, req.GetUser())
 	if err != nil {
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	}
@@ -306,15 +293,5 @@ func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRe
 		return accessmonitoring.AccessRequestExpressionEnv{}, trace.Wrap(err)
 	}
 
-	return accessmonitoring.AccessRequestExpressionEnv{
-		Roles:              req.GetRoles(),
-		RequestedResources: requestedResources,
-		SuggestedReviewers: req.GetSuggestedReviewers(),
-		Annotations:        req.GetSystemAnnotations(),
-		User:               req.GetUser(),
-		RequestReason:      req.GetRequestReason(),
-		CreationTime:       req.GetCreationTime(),
-		Expiry:             req.Expiry(),
-		UserTraits:         user.GetTraits(),
-	}, nil
+	return accessmonitoring.NewAccessRequestExpressionEnv(req, userState.GetTraits(), requestedResources), nil
 }

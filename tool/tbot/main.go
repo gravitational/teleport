@@ -53,12 +53,12 @@ func main() {
 	}
 }
 
-const appHelp = `Teleport Machine ID
+const appHelp = `Teleport Machine & Workload Identity 
 
-Machine ID issues and renews short-lived certificates so your machines can
-access Teleport protected resources in the same way your engineers do!
+Machine & Workload Identity issues and renews short-lived certificates so your
+machines can access Teleport protected resources in the same way your engineers do!
 
-Find out more at https://goteleport.com/docs/machine-id/introduction/`
+Find out more at https://goteleport.com/docs/machine-workload-identity/`
 
 func Run(args []string, stdout io.Writer) error {
 	ctx := context.Background()
@@ -166,6 +166,9 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewApplicationProxyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewApplicationProxyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewSSHMultiplexerCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewSSHMultiplexerCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really

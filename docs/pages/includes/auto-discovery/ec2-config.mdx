@@ -37,6 +37,8 @@ discovery_service:
   aws:
    - types: ["ec2"]
      regions: ["us-east-1","us-west-1"]
+     ssm:
+       document_name: "AWS-RunShellScript"
      install:
         join_params:
           token_name: aws-discovery-iam-token

@@ -1,4 +1,4 @@
-// Copyright 2024 Gravitational, Inc.
+// Copyright 2025 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,18 +39,20 @@ service IdentityCenterService {
 // provisioning and account assignment info.
 // buf:lint:ignore PAGINATION_REQUIRED
 message PrincipalSummary {
-  // AssignmentSummary holds summary details about a principal's account
-  // assignment state
-  message AssignmentSummary {
-    ProvisioningState status = 1;
+  // ProvisioningSummary holds summary details about a principal's SCIM
+  // provisioning state. SCIM provisioning tracks principal creation and group
+  // membership in AWS.
+  message ProvisioningSummary {
+    teleport.provisioning.v1.ProvisioningState status = 1;
     string external_id = 2;
     string error = 3;
   }
 
-  // ProvisioningSummary holds summary details about a principal's SCIM
-  // provisioning state assignment state
-  message ProvisioningSummary {
-    teleport.provisioning.v1.ProvisioningState status = 1;
+  // AssignmentSummary holds summary details about a principal's account assignment
+  // state, tracking whether the Teleport-calculated account assignments have been
+  // propagated to AWS.
+  message AssignmentSummary {
+    ProvisioningState status = 1;
     string external_id = 2;
     string error = 3;
   }
@@ -69,7 +71,8 @@ message PrincipalSummary {
   // state
   ProvisioningSummary provisioning = 4;
 
-  // AccountAssignments... Empty on listing
+  // AccountAssignments lists the teleport-calculated account assignments for
+  // this principal. This will not be populated in a user listing.
   repeated AccountAssignmentRef account_assignments = 5;
 }
 
@@ -79,7 +82,7 @@ message DescribePrincipalRequest {
   // PrincipalName is the Teleport name of the principal to describe
   string principal_name = 1;
 
-  // PrincipalType is the
+  // PrincipalType is the type of the principal to describe.
   PrincipalType principal_type = 2;
 }
 

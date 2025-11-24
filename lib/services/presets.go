@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -212,6 +213,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateAgentRollout, RO()),
+					types.NewRule(types.KindAutoUpdateBotInstanceReport, RO()),
 					types.NewRule(types.KindGitServer, RW()),
 					types.NewRule(types.KindWorkloadIdentityX509Revocation, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
@@ -221,6 +223,10 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindClientIPRestriction, RW()),
+					types.NewRule(scopedaccess.KindScopedRole, RW()),
+					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
+					types.NewRule(types.KindScopedToken, RW()),
 				},
 			},
 		},
@@ -619,6 +625,7 @@ func NewPresetAccessPluginRole() types.Role {
 					types.NewRule(types.KindAccessList, RO()),
 					types.NewRule(types.KindRole, RO()),
 					types.NewRule(types.KindUser, RO()),
+					types.NewRule(types.KindUserLoginState, RO()),
 				},
 				ReviewRequests: &types.AccessReviewConditions{
 					PreviewAsRoles: []string{
@@ -853,24 +860,50 @@ func NewPresetMCPUserRole() types.Role {
 	return role
 }
 
-// NewPresetHealthCheckConfig returns a preset default health_check_config that
-// enables health checks for all resources.
-func NewPresetHealthCheckConfig() *healthcheckconfigv1.HealthCheckConfig {
+// VirtualDefaultHealthCheckConfigDB returns a health_check_config enabling
+// health checks for all databases resources, and is intended to be used as a
+// virtual default resource. Its name is "default" for historical reasons.
+func VirtualDefaultHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig {
 	return &healthcheckconfigv1.HealthCheckConfig{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:        teleport.PresetDefaultHealthCheckConfigName,
-			Description: "Enables all health checks by default",
-			Namespace:   apidefaults.Namespace,
-			Labels: map[string]string{
-				types.TeleportInternalResourceType: types.PresetResource,
-			},
+			Name:        teleport.VirtualDefaultHealthCheckConfigDBName,
+			Description: "Enables health checks for all databases by default",
+			// this revision MUST be changed every time we change the contents
+			// of the preset so that conditional updates can check against it
+			Revision: "af391615-1e42-4237-aa2b-155e6abbd41a",
 		},
 		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
 			Match: &healthcheckconfigv1.Matcher{
 				// match all databases
 				DbLabels: []*labelv1.Label{{
+					Name:   types.Wildcard,
+					Values: []string{types.Wildcard},
+				}},
+			},
+		},
+	}
+}
+
+// VirtualDefaultHealthCheckConfigKube returns a health_check_config enabling
+// health checks for all Kubernetes resources. It's intended to be used as a
+// virtual default resource.
+func VirtualDefaultHealthCheckConfigKube() *healthcheckconfigv1.HealthCheckConfig {
+	return &healthcheckconfigv1.HealthCheckConfig{
+		Kind:    types.KindHealthCheckConfig,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:        teleport.VirtualDefaultHealthCheckConfigKubeName,
+			Description: "Enables health checks for all Kubernetes clusters by default.",
+			// this revision MUST be changed every time we change the contents
+			// of the preset so that conditional updates can check against it
+			Revision: "d796f007-e60c-4747-8dde-f479aff6b743",
+		},
+		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
+			Match: &healthcheckconfigv1.Matcher{
+				// match all kubernetes clusters
+				KubernetesLabels: []*labelv1.Label{{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
 				}},

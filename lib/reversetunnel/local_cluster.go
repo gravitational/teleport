@@ -411,7 +411,7 @@ func (s *localCluster) dialAndForward(params reversetunnelclient.DialParams) (_ 
 	ctx := s.srv.ctx
 
 	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
-		return nil, trace.BadParameter("agentless node require an agent getter")
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes (this is a bug)")
 	}
 	s.logger.DebugContext(ctx, "Initiating dial and forwarding request",
 		"source_addr", logutils.StringerAttr(params.From),
@@ -575,6 +575,15 @@ func getTunnelErrorMessage(params reversetunnelclient.DialParams, connStr string
 This usually means that the agent is offline or has disconnected. Check the
 agent logs and, if the issue persists, try restarting it or re-registering it
 with the cluster.`
+
+	if params.TargetServer != nil && (params.TargetServer.IsOpenSSHNode() || params.TargetServer.IsEICE()) {
+		errorMessageTemplate = `Teleport proxy failed to connect to %q server %q over %s:
+
+  %v
+
+This usually means that the server is offline or a firewall restriction is blocking the SSH connection.
+Check the firewall restrictions, verify that the instance is running and the sshd service is active.`
+	}
 
 	var toAddr string
 	if params.To != nil {

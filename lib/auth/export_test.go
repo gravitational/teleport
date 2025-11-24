@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -28,7 +27,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/grpc/credentials"
@@ -40,14 +38,12 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -84,8 +80,6 @@ var (
 	ErrDeleteRoleAccessList = errDeleteRoleAccessList
 
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
-
-	AWSRSA2048CertBytes = awsRSA2048CertBytes
 )
 
 func (a *Server) SetRemoteClusterRefreshLimit(limit int) {
@@ -197,32 +191,8 @@ func (a *Server) ResetPassword(ctx context.Context, username string) error {
 	return a.resetPassword(ctx, username)
 }
 
-func (a *Server) SetHTTPClientForAWSSTS(clt utils.HTTPDoClient) {
-	a.httpClientForAWSSTS = clt
-}
-
 func (a *Server) SetJWKSValidator(clt JWKSValidator) {
 	a.k8sJWKSValidator = clt
-}
-
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
-	a.azureDevopsIDTokenValidator = validator
-}
-
-func (a *Server) SetBitbucketIDTokenValidator(validator bitbucketIDTokenValidator) {
-	a.bitbucketIDTokenValidator = validator
-}
-
-func (a *Server) SetCircleCITokenValidate(validator func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)) {
-	a.circleCITokenValidate = validator
-}
-
-func (a *Server) SetGCPIDTokenValidator(validator gcpIDTokenValidator) {
-	a.gcpIDTokenValidator = validator
-}
-
-func (a *Server) SetGitlabIDTokenValidator(validator gitlabIDTokenValidator) {
-	a.gitlabIDTokenValidator = validator
 }
 
 func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
@@ -233,33 +203,11 @@ func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidato
 	a.spaceliftIDTokenValidator = validator
 }
 
-func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
-	a.terraformIDTokenValidator = validator
+func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
+	a.createBoundKeypairValidator = validator
 }
 
-func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
-	a.tpmValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenValidator(validator ghaIDTokenValidator) {
-	a.ghaIDTokenValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenJWKSValidator(validator ghaIDTokenJWKSValidator) {
-	a.ghaIDTokenJWKSValidator = validator
-}
-
-type BoundKeypairValidator = boundKeypairValidator
-
-type CreateBoundKeypairValidator func(subject string, clusterName string, publicKey crypto.PublicKey) (BoundKeypairValidator, error)
-
-func (a *Server) SetCreateBoundKeypairValidator(validator CreateBoundKeypairValidator) {
-	a.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
-		return validator(subject, clusterName, publicKey)
-	}
-}
-
-func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessChecker, error) {
 	return a.authenticateUserLogin(ctx, req)
 }
 
@@ -297,10 +245,6 @@ func CreatePresetUsers(ctx context.Context, um PresetUsers) error {
 
 func CreatePresetRoles(ctx context.Context, um PresetRoleManager) error {
 	return createPresetRoles(ctx, um)
-}
-
-func CreatePresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
-	return createPresetHealthCheckConfig(ctx, svc)
 }
 
 func GetPresetUsers() []types.User {
@@ -395,14 +339,6 @@ func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diag
 	return validateGithubAuthCallbackHelper(ctx, m, diagCtx, q, emitter, logger)
 }
 
-func IsGCPZoneInLocation(rawLocation, rawZone string) bool {
-	return isGCPZoneInLocation(rawLocation, rawZone)
-}
-
-func JoinRuleGlobMatch(want string, got string) (bool, error) {
-	return joinRuleGlobMatch(want, got)
-}
-
 func FormatHeaderFromMap(m map[string]string) http.Header {
 	return formatHeaderFromMap(m)
 }
@@ -411,12 +347,7 @@ func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 	return checkHeaders(headers, challenge, clock)
 }
 
-func CheckOracleAllowRules(claims oracle.Claims, token string, allowRules []*types.ProvisionTokenSpecV2Oracle_Rule) error {
-	return checkOracleAllowRules(claims, token, allowRules)
-}
-
 type GitHubManager = githubManager
-type AWSIdentity = awsIdentity
 type AttestedData = attestedData
 type SignedAttestedData = signedAttestedData
 type JWKSValidator = k8sJWKSValidator
@@ -425,9 +356,6 @@ type AzureRegisterConfig = azureRegisterConfig
 type AzureVMClientGetter = vmClientGetter
 type AzureVerifyTokenFunc = azureVerifyTokenFunc
 type AccessTokenClaims = accessTokenClaims
-type EC2Client = ec2Client
-type EC2ClientKey = ec2ClientKey
-type IAMRegisterOption = iamRegisterOption
 
 func WithAzureCerts(certs []*x509.Certificate) AzureRegisterOption {
 	return func(cfg *AzureRegisterConfig) {
@@ -445,14 +373,6 @@ func WithAzureVMClientGetter(getVMClient vmClientGetter) AzureRegisterOption {
 	return func(cfg *AzureRegisterConfig) {
 		cfg.getVMClient = getVMClient
 	}
-}
-
-func WithFIPS(b bool) iamRegisterOption {
-	return withFips(b)
-}
-
-func WithAuthVersion(v *semver.Version) iamRegisterOption {
-	return withAuthVersion(v)
 }
 
 func (s *TLSServer) GRPCServer() *GRPCServer {

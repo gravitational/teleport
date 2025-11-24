@@ -71,10 +71,10 @@ export class MockTshClient implements TshdClient {
       localConnectorName: '',
       clientVersionStatus: ClientVersionStatus.OK,
     });
-  removeCluster = () => new MockedUnaryCall({});
   login = () => new MockedUnaryCall({});
   loginPasswordless = undefined;
   logout = () => new MockedUnaryCall({});
+  clearStaleClusterClients = () => new MockedUnaryCall({});
   transferFile = undefined;
   reportUsageEvent = () => new MockedUnaryCall({});
   createConnectMyComputerRole = () =>
@@ -89,6 +89,8 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({ resources: [], nextKey: '' });
   listKubernetesResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
+  listKubernetesServers = () =>
+    new MockedUnaryCall({ resources: [], nextPageToken: '' });
   listDatabaseServers = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
   getUserPreferences = () =>

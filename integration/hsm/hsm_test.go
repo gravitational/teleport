@@ -57,6 +57,9 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// Enable verbose logging for HSM tests.
+	logtest.InitLogger(func() bool { return true })
+
 	// Enable HSM feature.
 	// This is safe to do here, as all tests in this package require HSM to be
 	// enabled.
@@ -535,8 +538,7 @@ func TestHSMMigrate(t *testing.T) {
 // software keys.
 func TestHSMRevert(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	log := logtest.With(teleport.ComponentKey, "TestHSMRevert")
 
 	log.DebugContext(ctx, "starting auth server")
@@ -553,12 +555,21 @@ func TestHSMRevert(t *testing.T) {
 	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1, err = newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		auth1.process.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		assert.NoError(t, auth1.waitForShutdown(ctx), "waiting for auth process to shut down")
+	})
 
 	// Make sure a cluster alert is created.
-	alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
-	require.NoError(t, err)
-	require.Len(t, alerts, 1)
-	alert := alerts[0]
+	var alert types.ClusterAlert
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+		require.NoError(t, err)
+		require.Len(t, alerts, 1)
+		alert = alerts[0]
+	}, time.Second*30, time.Millisecond*100, "waiting for cluster alert to be created")
 	assert.Equal(t, types.AlertSeverity_HIGH, alert.Spec.Severity)
 	assert.Contains(t, alert.Spec.Message, "configured to use raw software keys")
 	assert.Contains(t, alert.Spec.Message, "the following CAs do not contain any keys of that type:")
@@ -598,7 +609,7 @@ func TestHSMRevert(t *testing.T) {
 	// auth.AutoRotateCertAuthorities which reconciles the alert state.
 	clock.Advance(2 * defaults.HighResPollingPeriod)
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		alerts, err = auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+		alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, alerts)
 

@@ -936,10 +936,14 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		// effectively limit ourselves to only supporting local users by only checking the cert against local CAs.
 		clusterName = s.ClusterName
 
-		if len(ident.Roles) == 0 {
-			return nil, trace.BadParameter("certificate missing roles in %q extension; make sure your user has some roles assigned (or ask your Teleport admin to) and log in again (or export an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
+		if ident.ScopePin != nil {
+			certRole = "scoped-identity@" + ident.ScopePin.GetScope()
+		} else {
+			if len(ident.Roles) == 0 {
+				return nil, trace.BadParameter("certificate missing roles in %q extension; make sure your user has some roles assigned (or ask your Teleport admin to) and log in again (or export an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
+			}
+			certRole = ident.Roles[0]
 		}
-		certRole = ident.Roles[0]
 		certType = utils.ExtIntCertTypeUser
 		caType = types.UserCA
 	default:

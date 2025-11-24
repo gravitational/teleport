@@ -28,6 +28,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -57,19 +58,21 @@ type authServer interface {
 // ServiceConfig holds configuration options for
 // the trust gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      services.AuthorityGetter
-	Backend    services.TrustInternal
-	AuthServer authServer
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Cache            services.AuthorityGetter
+	Backend          services.TrustInternal
+	AuthServer       authServer
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
 type Service struct {
 	trustpb.UnimplementedTrustServiceServer
-	authorizer authz.Authorizer
-	cache      services.AuthorityGetter
-	backend    services.TrustInternal
-	authServer authServer
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	cache            services.AuthorityGetter
+	backend          services.TrustInternal
+	authServer       authServer
 }
 
 // NewService returns a new trust gRPC service.
@@ -81,15 +84,18 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
 	}
 
 	return &Service{
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		authServer: cfg.AuthServer,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		cache:            cfg.Cache,
+		backend:          cfg.Backend,
+		authServer:       cfg.AuthServer,
 	}, nil
 }
 
@@ -149,23 +155,47 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
 func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAuthoritiesRequest) (*trustpb.GetCertAuthoritiesResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
+	// for standard reads we do not enforce scope pinning. this ensures that CAs are readable for
+	// all scoped identities regardless of their current scope pinning. this pattern should not
+	// be used for any checks save essential global configuration reads that are necessary for basic
+	// teleport functionality.
+	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
 
 	if req.IncludeKey {
 		verbs = append(verbs, types.VerbRead)
 
-		// Require admin MFA to read secrets.
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-			return nil, trace.Wrap(err)
+		// for queries that include secrets we must enforce standard scope pinning rules.
+		// NOTE: technically we have no plans to introduce scoped CA secrets. as of the time of writing,
+		// attempts to read CA secrets by scoped identities are always denied by virtue of the scoped
+		// role verb limits enforced in scopes/access. this, however, would be the correct pattern should
+		// we choose to introduce scoped CA secrets in the future.
+		decisionFn = authCtx.CheckerContext.Decision
+
+		// Require admin MFA to read secrets (admin MFA is currently only supported for unscoped identities).
+		if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
+			if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.AccessDenied("cannot perform admin action %s:%s as scoped identity", types.KindCertAuthority, types.VerbRead)
 		}
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
+	// build rule context for where-clause evaluation once to avoid re-creation
+	// on each decision invocation.
+	ruleCtx := authCtx.RuleContext()
+
+	// perform access-control decision. all cert authorities can be considered as being "root" resources from
+	// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
+	if err := decisionFn(ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, verbs...)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

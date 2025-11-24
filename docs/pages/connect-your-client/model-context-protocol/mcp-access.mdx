@@ -1,5 +1,6 @@
 ---
-title: MCP Access
+title: Access MCP Servers with Teleport
+sidebar_label: MCP Servers
 description: How to configure MCP clients to use MCP servers served by Teleport.
 tags:
  - mcp
@@ -21,7 +22,7 @@ Teleport.
   <summary>Configure MCP Access</summary>
 
   - [Quick-start with demo MCP server](../../enroll-resources/mcp-access/getting-started.mdx).
-  - [MCP Access with Stdio MCP Server](../../enroll-resources/mcp-access/stdio.mdx)
+  - [MCP Access with Stdio MCP Server](../../enroll-resources/mcp-access/enrolling-mcp-servers/stdio.mdx)
   </details>
   
 ### Step 1/2. Installation
@@ -189,3 +190,7 @@ at least this version. You can check your `tsh` version by running
 
 Make sure your Teleport cluster has MCP access resources available and the
 correct permissions to reach them. [See our guides for enrollment instructions.](../../enroll-resources/mcp-access/mcp-access.mdx)
+
+### `tsh` path errors in your MCP clients
+
+(!docs/pages/includes/mcp-access/troubleshoot-tsh-binary-enoent.mdx!)

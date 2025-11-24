@@ -109,12 +109,6 @@ make grpc
 
 Resulting Go and JS files can be found in `gen/proto`.
 
-### Generating shared process gRPC protobuf files
-
-Run `generate-grpc-shared` script from `teleterm/package.json`.
-It generates protobuf files from `*.proto` files in `sharedProcess/api/proto`.
-Resulting files can be found in `sharedProcess/api/protogen`.
-
 ## Build process
 
 `pnpm package-term` is responsible for packaging the app code for distribution.
@@ -326,18 +320,18 @@ sequenceDiagram
     PS->>PHS: createPtyProcess(options)
     PHS->>PP: new PtyProcess()
     PHS-->>PS: ptyId of the process is returned
-    PS->>PHS: establishExchangeEvents(ptyId) channel
+    PS->>PHS: establishManagePtyProcess(ptyId) channel
     Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
     PS-->>DT: pty process object
     DT->>PS: start()
-    PS->>PHS: exchangeEvents.start()
-    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
+    PS->>PHS: managePtyProcess.start()
+    Note left of PP: managePtyProcess attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
     PHS->>PP: start()
     PP-->>PHS: onOpen()
-    PHS-->>PS: exchangeEvents.onOpen()
+    PHS-->>PS: managePtyProcess.onOpen()
     PS-->>DT: onOpen()
     DT->>PS: dispose()
-    PS->>PHS: end exchangeEvents channel
+    PS->>PHS: end managePtyProcess channel
     PHS->>PP: dispose process and remove it
 
 ```

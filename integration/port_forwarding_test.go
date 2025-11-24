@@ -211,6 +211,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			nodeCfg.SSH.Enabled = true
 			nodeCfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 			nodeCfg.SSH.Labels = map[string]string{"foo": "bar"}
+			nodeCfg.DebugService.Enabled = false
 
 			err = node.CreateWithConf(t, nodeCfg)
 			require.NoError(t, err)
@@ -280,11 +281,9 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cl.Stdin = term
 			cl.Labels = tt.labels
 
-			sshSessionCtx, sshSessionCancel := context.WithCancel(context.Background())
-			go cl.SSH(sshSessionCtx, []string{})
-			defer sshSessionCancel()
+			go cl.SSH(t.Context(), []string{})
 
-			timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			timeout, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			_, err = waitForSessionToBeEstablished(timeout, apidefaults.Namespace, site)
 			require.NoError(t, err)

@@ -21,19 +21,18 @@ package main
 import (
 	"bytes"
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"text/template"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
+	"github.com/gravitational/teleport/lib/tbot/config/systemd"
 )
 
 type onInstallSystemdCmdFunc func(
@@ -47,7 +46,7 @@ func setupInstallSystemdCmd(rootCmd *kingpin.Application) (
 	string,
 	onInstallSystemdCmdFunc,
 ) {
-	installCmd := rootCmd.Command("install", "Helper commands for installing Machine ID.")
+	installCmd := rootCmd.Command("install", "Helper commands for installing tbot.")
 	installSystemdCmd := installCmd.Command("systemd", "Generates and installs a systemd unit file for a specified tbot configuration file.")
 	unitName := installSystemdCmd.Flag("name", "Name for the systemd unit. Defaults to 'tbot'.").Default("tbot").String()
 	group := installSystemdCmd.Flag("group", "The group that the service should run as. Defaults to 'teleport'.").Default("teleport").String()
@@ -81,21 +80,6 @@ func setupInstallSystemdCmd(rootCmd *kingpin.Application) (
 	})
 
 	return installSystemdCmd.FullCommand(), f
-}
-
-var (
-	//go:embed systemd.tmpl
-	systemdTemplateData string
-	systemdTemplate     = template.Must(template.New("").Parse(systemdTemplateData))
-)
-
-type systemdTemplateParams struct {
-	UnitName           string
-	User               string
-	Group              string
-	AnonymousTelemetry bool
-	ConfigPath         string
-	TBotPath           string
 }
 
 func onInstallSystemdCmd(
@@ -132,7 +116,7 @@ func onInstallSystemdCmd(
 	}
 
 	buf := bytes.NewBuffer(nil)
-	err = systemdTemplate.Execute(buf, systemdTemplateParams{
+	err = systemd.Template.Execute(buf, systemd.TemplateParams{
 		UnitName:           unitName,
 		User:               user,
 		Group:              group,

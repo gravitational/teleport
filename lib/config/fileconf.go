@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -1019,6 +1020,9 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if roles.Include(types.RoleBot) {
+		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleBot)
+	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
 	if err != nil {
@@ -1637,6 +1641,17 @@ type AccessGraphAWSSync struct {
 	// CloudTrailLogs is the configuration for the SQS queue to poll for
 	// CloudTrail logs.
 	CloudTrailLogs *AccessGraphAWSSyncCloudTrailLogs `yaml:"cloud_trail_logs,omitempty"`
+	// EKSAuditLogs is the configuration for fetching audit logs for EKS
+	// clusters discovered.
+	EKSAuditLogs *AccessGraphEKSAuditLogs `yaml:"eks_audit_logs,omitempty"`
+}
+
+// AccessGraphEKSAuditLogs is the configuration for fetching audit logs from
+// clusters discovered for access graph.
+type AccessGraphEKSAuditLogs struct {
+	// Tags are AWS EKS tags to match. Clusters that have tags that match these
+	// will have their audit logs fetched and sent to Access Graph.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
@@ -1826,6 +1841,28 @@ type InstallParams struct {
 	// Valid values: script, eice.
 	// Optional.
 	EnrollMode string `yaml:"enroll_mode"`
+	// Suffix indicates the installation suffix for the teleport installation.
+	// Set this value if you want multiple installations of Teleport.
+	// See --install-suffix flag in teleport-update program.
+	Suffix string `yaml:"suffix,omitempty"`
+	// UpdateGroup indicates the update group for the teleport installation.
+	// This value is used to group installations in order to update them in batches.
+	// See --group flag in teleport-update program.
+	UpdateGroup string `yaml:"update_group,omitempty"`
+	// HTTPProxySettings configures HTTP proxy settings for the installation.
+	HTTPProxySettings *HTTPProxySettings `yaml:"http_proxy_settings,omitempty"`
+}
+
+// HTTPProxySettings configures HTTP proxy settings for the installation.
+// When set, the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables will be set when executing the installation script.
+type HTTPProxySettings struct {
+	// HTTPProxy is the HTTP proxy URL.
+	HTTPProxy string `yaml:"http_proxy,omitempty"`
+	// HTTPSProxy is the HTTPS proxy URL.
+	HTTPSProxy string `yaml:"https_proxy,omitempty"`
+	// NoProxy is a comma-separated list of hosts that should be excluded
+	// from proxying.
+	NoProxy string `yaml:"no_proxy,omitempty"`
 }
 
 const (
@@ -1835,7 +1872,7 @@ const (
 
 var validInstallEnrollModes = []string{installEnrollModeEICE, installEnrollModeScript}
 
-func (ip *InstallParams) parse() (*types.InstallerParams, error) {
+func (ip *InstallParams) parse(defaultProxyAddr string) (*types.InstallerParams, error) {
 	install := &types.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
@@ -1843,6 +1880,21 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
 		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+		Suffix:          ip.Suffix,
+		UpdateGroup:     ip.UpdateGroup,
+		PublicProxyAddr: cmp.Or(ip.PublicProxyAddr, defaultProxyAddr),
+	}
+
+	if ip.HTTPProxySettings != nil {
+		install.HTTPProxySettings = &types.HTTPProxySettings{
+			HTTPProxy:  ip.HTTPProxySettings.HTTPProxy,
+			HTTPSProxy: ip.HTTPProxySettings.HTTPSProxy,
+			NoProxy:    ip.HTTPProxySettings.NoProxy,
+		}
+
+		if err := install.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch ip.EnrollMode {
@@ -1854,6 +1906,12 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		install.EnrollMode = types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED
 	default:
 		return nil, trace.BadParameter("enroll mode %q is invalid, valid values: %v", ip.EnrollMode, validInstallEnrollModes)
+	}
+
+	if ip.Azure != nil {
+		install.Azure = &types.AzureInstallerParams{
+			ClientID: ip.Azure.ClientID,
+		}
 	}
 
 	if ip.InstallTeleport == "" {
@@ -1999,8 +2057,15 @@ type DatabaseMySQL struct {
 
 // DatabaseOracle are an additional Oracle database options.
 type DatabaseOracle struct {
-	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	// AuditUser is the name of the Oracle database user that should be used to access
+	// the internal audit trail.
 	AuditUser string `yaml:"audit_user,omitempty"`
+	// RetryCount is the maximum number of times to retry connecting to a
+	// host upon failure.
+	RetryCount int32 `yaml:"retry_count,omitempty"`
+	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+	// the provided list.
+	ShuffleHostnames bool `yaml:"shuffle_hostnames,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.

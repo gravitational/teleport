@@ -133,18 +133,18 @@ func (*grpcServerCredentials) ClientHandshake(ctx context.Context, authority str
 	return nil, nil, trace.NotImplemented("these transport credentials can only be used as a server")
 }
 
-// OverrideServerName implements implements [credentials.TransportCredentials].
+// OverrideServerName implements [credentials.TransportCredentials].
 func (*grpcServerCredentials) OverrideServerName(string) error {
 	return nil
 }
 
-// Clone implements implements [credentials.TransportCredentials].
+// Clone implements [credentials.TransportCredentials].
 func (s *grpcServerCredentials) Clone() credentials.TransportCredentials {
 	// s is immutable so there's no need to copy anything
 	return s
 }
 
-// Info implements implements [credentials.TransportCredentials].
+// Info implements [credentials.TransportCredentials].
 func (s *grpcServerCredentials) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{
 		SecurityProtocol: "tls",
@@ -152,7 +152,7 @@ func (s *grpcServerCredentials) Info() credentials.ProtocolInfo {
 	}
 }
 
-// ServerHandshake implements implements [credentials.TransportCredentials].
+// ServerHandshake implements [credentials.TransportCredentials].
 func (s *grpcServerCredentials) ServerHandshake(rawConn net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -332,6 +332,8 @@ func (s *Server) handleYamuxTunnel(c io.ReadWriteCloser, clientID *tlsca.Identit
 		switch tunnelType {
 		case types.NodeTunnel:
 			requiredRole = types.RoleNode
+		case types.KubeTunnel:
+			requiredRole = types.RoleKube
 		default:
 			return trace.BadParameter("unsupported tunnel type %q", tunnelType)
 		}
@@ -544,5 +546,14 @@ func (c *yamuxServerConn) dial(ctx context.Context, src net.Addr, dst net.Addr) 
 	<-explode
 	stream.SetDeadline(time.Time{})
 
-	return stream, nil
+	nc := &yamuxStreamConn{
+		Stream: stream,
+
+		// on this side of the connection we are the source and the peer is the
+		// destination, the tunnel client will do the opposite
+		localAddr:  src,
+		remoteAddr: dst,
+	}
+
+	return nc, nil
 }

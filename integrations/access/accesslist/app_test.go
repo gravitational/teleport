@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -118,12 +119,7 @@ func TestAccessListReminders_Single(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	server := newTestAuth(t)
-
-	as := server.Auth()
-	t.Cleanup(func() {
-		require.NoError(t, as.Close())
-	})
+	authServer := newTestAuth(t)
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
@@ -131,7 +127,7 @@ func TestAccessListReminders_Single(t *testing.T) {
 			"owner2": {Name: "owner2", ID: "owner2"},
 		},
 	}
-	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
+	app := common.NewApp(&mockPluginConfig{client: authServer, bot: bot}, "test-plugin")
 	app.Clock = clock
 	ctx := context.Background()
 	go func() {
@@ -170,42 +166,42 @@ func TestAccessListReminders_Single(t *testing.T) {
 		accessLists := []*accesslist.AccessList{accessList}
 
 		// No notifications for today
-		advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
+		advanceAndLookForRecipients(t, bot, authServer, clock, 0, accessLists)
 
 		// Advance by one week, expect no notifications.
-		advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
+		advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*7, accessLists)
 
 		// Advance by one week, expect a notification. "not-found" will be missing as a recipient.
-		advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1")
+		advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*7, accessLists, "owner1")
 
 		// Add a new owner.
 		accessList.Spec.Owners = append(accessList.Spec.Owners, accesslist.Owner{Name: "owner2"})
 
 		// Advance by one day, expect a notification only to the new owner.
-		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists, "owner2")
+		advanceAndLookForRecipients(t, bot, authServer, clock, oneDay, accessLists, "owner2")
 
 		// Advance by one day, expect no notifications.
-		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
+		advanceAndLookForRecipients(t, bot, authServer, clock, oneDay, accessLists)
 
 		// Advance by five more days, to the next week, expect two notifications
-		advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
+		advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*5, accessLists, "owner1", "owner2")
 
 		// Advance by one day, expect no notifications
-		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
+		advanceAndLookForRecipients(t, bot, authServer, clock, oneDay, accessLists)
 
 		// Advance by one day, expect no notifications
-		advanceAndLookForRecipients(t, bot, as, clock, oneDay, accessLists)
+		advanceAndLookForRecipients(t, bot, authServer, clock, oneDay, accessLists)
 
 		// Advance by five more days, to the next week, expect two notifications
-		advanceAndLookForRecipients(t, bot, as, clock, oneDay*5, accessLists, "owner1", "owner2")
+		advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*5, accessLists, "owner1", "owner2")
 
 		// Advance 60 days a day at a time, expect two notifications each time.
 		for range 60 {
 			// Make sure we only get a notification once per day by iterating through each 6 hours at a time.
 			for range 3 {
-				advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists)
+				advanceAndLookForRecipients(t, bot, authServer, clock, 6*time.Hour, accessLists)
 			}
-			advanceAndLookForRecipients(t, bot, as, clock, 6*time.Hour, accessLists, "owner1", "owner2")
+			advanceAndLookForRecipients(t, bot, authServer, clock, 6*time.Hour, accessLists, "owner1", "owner2")
 		}
 	}
 }
@@ -215,19 +211,14 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	server := newTestAuth(t)
-
-	as := server.Auth()
-	t.Cleanup(func() {
-		require.NoError(t, as.Close())
-	})
+	authServer := newTestAuth(t)
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
 			"static-owner": {Name: "static-owner", ID: "static-owner"},
 		},
 	}
-	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
+	app := common.NewApp(&mockPluginConfig{client: authServer, bot: bot}, "test-plugin")
 	app.Clock = clock
 	ctx := context.Background()
 	go func() {
@@ -254,7 +245,7 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 			// Clean up the AccessList. A single one has to be reused, otherwise:
 			// cluster has reached its limit for creating access lists, please contact
 			// the cluster administrator
-			err := as.DeleteAccessList(ctx, testAccessListName)
+			err := authServer.DeleteAccessList(ctx, testAccessListName)
 			require.True(t, err == nil || trace.IsNotFound(err), "err = %s", err)
 
 			nonReviewableAccessList, err := accesslist.NewAccessList(header.Metadata{
@@ -273,10 +264,10 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 			accessLists := []*accesslist.AccessList{nonReviewableAccessList}
 
 			// No notifications for today
-			advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
+			advanceAndLookForRecipients(t, bot, authServer, clock, 0, accessLists)
 
 			// Advance by one week, expect no notifications.
-			advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
+			advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*7, accessLists)
 		})
 	}
 }
@@ -292,12 +283,7 @@ func TestAccessListReminders_Batched(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	server := newTestAuth(t)
-
-	as := server.Auth()
-	t.Cleanup(func() {
-		require.NoError(t, as.Close())
-	})
+	authServer := newTestAuth(t)
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
@@ -305,7 +291,7 @@ func TestAccessListReminders_Batched(t *testing.T) {
 			"owner2": {Name: "owner2", ID: "owner2"},
 		},
 	}
-	app := common.NewApp(&mockPluginConfig{client: as, bot: bot}, "test-plugin")
+	app := common.NewApp(&mockPluginConfig{client: authServer, bot: bot}, "test-plugin")
 	app.Clock = clock
 	ctx := context.Background()
 	go func() {
@@ -359,16 +345,16 @@ func TestAccessListReminders_Batched(t *testing.T) {
 	accessLists := []*accesslist.AccessList{accessList1, accessList2}
 
 	// No notifications for today
-	advanceAndLookForRecipients(t, bot, as, clock, 0, accessLists)
+	advanceAndLookForRecipients(t, bot, authServer, clock, 0, accessLists)
 
 	// Advance by one week, expect no notifications.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists)
+	advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*7, accessLists)
 
 	// Advance by one week, expect a notification. "not-found" will be missing as a recipient.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1", "owner2")
+	advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*7, accessLists, "owner1", "owner2")
 
 	// Advance another week, expect notifications.
-	advanceAndLookForRecipients(t, bot, as, clock, oneDay*7, accessLists, "owner1", "owner2")
+	advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*7, accessLists, "owner1", "owner2")
 }
 
 type mockClient struct {
@@ -386,15 +372,11 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	server := newTestAuth(t)
-	as := server.Auth()
-	t.Cleanup(func() {
-		require.NoError(t, as.Close())
-	})
+	authServer := newTestAuth(t)
 
 	// Use this mock client so that we can force ListAccessLists to return an error.
 	client := &mockClient{
-		Client: as,
+		Client: authServer,
 	}
 	client.On("ListAccessLists", mock.Anything, mock.Anything, mock.Anything).Return(([]*accesslist.AccessList)(nil), "", trace.BadParameter("error"))
 
@@ -429,6 +411,51 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 	}
 }
 
+// TestAccessListReminders_NotImplemented does not return error (crash) if ListAccessLists is not supported.
+func TestAccessListReminders_NotImplemented(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+
+	authServer := newTestAuth(t)
+
+	// Use this mock client so that we can force ListAccessLists to return an error.
+	// The error we force is NotImplemented, which should not cause the app to crash.
+	client := &mockClient{
+		Client: authServer,
+	}
+	client.On("ListAccessLists", mock.Anything, mock.Anything, mock.Anything).Return(([]*accesslist.AccessList)(nil), "", trace.NotImplemented("error"))
+
+	bot := &mockMessagingBot{
+		recipients: map[string]*common.Recipient{
+			"owner1": {Name: "owner1"},
+			"owner2": {Name: "owner2"},
+		},
+	}
+	app := common.NewApp(&mockPluginConfig{client: client, bot: bot}, "test-plugin")
+	app.Clock = clock
+	ctx := context.Background()
+
+	go func() {
+		app.Run(ctx)
+	}()
+
+	ready, err := app.WaitReady(ctx)
+	require.NoError(t, err)
+	require.True(t, ready)
+
+	err = clock.BlockUntilContext(ctx, 1)
+	require.NoError(t, err)
+	clock.Advance(3 * time.Hour)
+
+	// ensure ListAccessLists was called only once, and app returns no error on termination
+	app.Terminate()
+	<-app.Done()
+	require.NoError(t, app.Err())
+
+	client.AssertNumberOfCalls(t, "ListAccessLists", 1)
+}
+
 func advanceAndLookForRecipients(t *testing.T,
 	bot *mockMessagingBot,
 	alSvc services.AccessLists,
@@ -459,7 +486,7 @@ func advanceAndLookForRecipients(t *testing.T,
 	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
 }
 
-func newTestAuth(t *testing.T) *authtest.Server {
+func newTestAuth(t *testing.T) *auth.Server {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			Dir:   t.TempDir(),
@@ -473,5 +500,10 @@ func newTestAuth(t *testing.T) *authtest.Server {
 		},
 	})
 	require.NoError(t, err)
-	return server
+
+	authServer := server.Auth()
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
+	return authServer
 }

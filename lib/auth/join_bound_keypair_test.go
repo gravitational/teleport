@@ -37,11 +37,11 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -99,6 +99,9 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 	return &doc
 }
 
+// TODO(nklaassen): DELETE IN 20 when the legacy join service is removed, this
+// test is superceded by lib/join.TestJoinBoundKeypair which exercises the new
+// join service.
 func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +116,7 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 
 	srv := newTestTLSServer(t, withClock(clock))
 	authServer := srv.Auth()
-	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
+	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (joinboundkeypair.BoundKeypairValidator, error) {
 		return &mockBoundKeypairValidator{
 			subject:     subject,
 			clusterName: clusterName,
@@ -944,6 +947,9 @@ func testExtractBotParamsFromCerts(t require.TestingT, certs *proto.Certs) (stri
 	return ident.BotInstanceID, ident.Generation
 }
 
+// TODO(nklaassen): DELETE IN 20 when the legacy join service is removed, this
+// test is superceded by lib/join.TestJoinBoundKeypair_GenerationCounter which
+// exercises the new join service.
 func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) {
 	t.Parallel()
 
@@ -960,7 +966,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 
 	srv := newTestTLSServer(t, withClock(clock))
 	authServer := srv.Auth()
-	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
+	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (joinboundkeypair.BoundKeypairValidator, error) {
 		return &mockBoundKeypairValidator{
 			subject:     subject,
 			clusterName: clusterName,
@@ -1147,6 +1153,9 @@ func TestServer_RegisterUsingBoundKeypairMethod_GenerationCounter(t *testing.T) 
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
+// TODO(nklaassen): DELETE IN 20 when the legacy join service is removed, this
+// test is superceded by lib/join.TestJoinBoundKeypair_JoinStateFailure which
+// exercises the new join service.
 func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 	// This tests that join state verification will trigger a lock if the
 	// original client and a secondary client both attempt to recover in
@@ -1166,7 +1175,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 
 	srv := newTestTLSServer(t, withClock(clock))
 	authServer := srv.Auth()
-	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
+	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (joinboundkeypair.BoundKeypairValidator, error) {
 		return &mockBoundKeypairValidator{
 			subject:     subject,
 			clusterName: clusterName,
@@ -1302,6 +1311,9 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailure(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
+// TODO(nklaassen): DELETE IN 20 when the legacy join service is removed, this
+// test is superceded by lib/join.TestJoinBoundKeypair_JoinStateFailureDuringRenewal
+// which exercises the new join service.
 func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailureDuringRenewal(t *testing.T) {
 	// Similar to _JoinStateFailure above, this exercises the case where the
 	// original client still has valid certs and isn't attempting a recovery of
@@ -1321,7 +1333,7 @@ func TestServer_RegisterUsingBoundKeypairMethod_JoinStateFailureDuringRenewal(t 
 
 	srv := newTestTLSServer(t, withClock(clock))
 	authServer := srv.Auth()
-	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (auth.BoundKeypairValidator, error) {
+	authServer.SetCreateBoundKeypairValidator(func(subject, clusterName string, publicKey crypto.PublicKey) (joinboundkeypair.BoundKeypairValidator, error) {
 		return &mockBoundKeypairValidator{
 			subject:     subject,
 			clusterName: clusterName,

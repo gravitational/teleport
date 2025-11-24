@@ -115,9 +115,6 @@ type gcpInstaller interface {
 
 // Config provides configuration for the discovery server.
 type Config struct {
-	// CloudClients is an interface for retrieving cloud clients.
-	CloudClients cloud.Clients
-
 	// AWSFetchersClients gets the AWS clients for the given region for the fetchers.
 	AWSFetchersClients fetchers.AWSClientGetter
 
@@ -189,6 +186,11 @@ type Config struct {
 	// jitter is a function which applies random jitter to a duration.
 	// It is used to add Expiration times to Resources that don't support Heartbeats (eg EICE Nodes).
 	jitter retryutils.Jitter
+
+	// azureClients is a reference to Azure clients.
+	azureClients cloud.AzureClients
+	// gcpClients is a reference to GCP clients.
+	gcpClients cloud.GCPClients
 }
 
 // AccessGraphConfig represents TAG server config.
@@ -238,13 +240,19 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter(`the DiscoveryGroup name should be set for discovery server if
 kubernetes matchers are present.`)
 	}
-	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
+
+	if c.azureClients == nil {
+		azureClients, err := cloud.NewAzureClients()
 		if err != nil {
-			return trace.Wrap(err, "unable to create cloud clients")
+			return trace.Wrap(err)
 		}
-		c.CloudClients = cloudClients
+		c.azureClients = azureClients
 	}
+
+	if c.gcpClients == nil {
+		c.gcpClients = cloud.NewGCPClients()
+	}
+
 	if c.AWSConfigProvider == nil {
 		provider, err := awsconfig.NewCache(
 			awsconfig.WithDefaults(
@@ -560,6 +568,25 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 	return nil
 }
 
+// publicProxyAddress returns the public proxy address to use for installation scripts.
+// This is only used if the matcher does not specify a ProxyAddress.
+// Example: proxy.example.com:3080 or proxy.example.com
+func (s *Server) publicProxyAddress(ctx context.Context) (string, error) {
+	proxies, err := s.AccessPoint.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, proxy := range proxies {
+		for _, proxyAddr := range proxy.GetPublicAddrs() {
+			if proxyAddr != "" {
+				return proxyAddr, nil
+			}
+		}
+	}
+
+	return "", trace.NotFound("could not find the public proxy address for server discovery")
+}
+
 // initAWSWatchers starts AWS resource watchers based on types provided.
 func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	var err error
@@ -568,7 +595,11 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.GetEC2Client, noDiscoveryConfig)
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
+		Matchers:              ec2Matchers,
+		EC2ClientGetter:       s.GetEC2Client,
+		PublicProxyAddrGetter: s.publicProxyAddress,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -687,7 +718,12 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.GetEC2Client, discoveryConfigName)
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherToEC2FetcherParams{
+		Matchers:              serverMatchers,
+		EC2ClientGetter:       s.GetEC2Client,
+		DiscoveryConfigName:   discoveryConfigName,
+		PublicProxyAddrGetter: s.publicProxyAddress,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -701,7 +737,7 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 		return matcherType == types.AzureMatcherVM
 	})
 
-	return server.MatchersToAzureInstanceFetchers(s.Log, serverMatchers, s.CloudClients, discoveryConfigName)
+	return server.MatchersToAzureInstanceFetchers(s.Log, serverMatchers, s.azureClients, discoveryConfigName)
 }
 
 // gcpServerFetchersFromMatchers converts Matchers into a set of GCP Servers Fetchers.
@@ -716,12 +752,11 @@ func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return nil, nil
 	}
 
-	client, err := s.CloudClients.GetGCPInstancesClient(ctx)
+	client, err := s.gcpClients.GetGCPInstancesClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	projectsClient, err := s.CloudClients.GetGCPProjectsClient(ctx)
+	projectsClient, err := s.gcpClients.GetGCPProjectsClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -746,7 +781,7 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers, discoveryConfig
 	// Azure
 	azureDatabaseMatchers, _ := splitMatchers(matchers.Azure, db.IsAzureMatcherType)
 	if len(azureDatabaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAzureFetchers(s.CloudClients, azureDatabaseMatchers, discoveryConfigName)
+		databaseFetchers, err := db.MakeAzureFetchers(s.azureClients, azureDatabaseMatchers, discoveryConfigName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -785,7 +820,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		return matcherType == types.AzureMatcherVM
 	})
 
-	s.staticServerAzureFetchers = server.MatchersToAzureInstanceFetchers(s.Log, vmMatchers, s.CloudClients, discoveryConfigName)
+	s.staticServerAzureFetchers = server.MatchersToAzureInstanceFetchers(s.Log, vmMatchers, s.azureClients, discoveryConfigName)
 
 	// VM watcher.
 	var err error
@@ -817,7 +852,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 			for _, t := range matcher.Types {
 				switch t {
 				case types.AzureMatcherKubernetes:
-					kubeClient, err := s.CloudClients.GetAzureKubernetesClient(subscription)
+					kubeClient, err := s.azureClients.GetAzureKubernetesClient(subscription)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -887,11 +922,11 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		return nil
 	}
 
-	kubeClient, err := s.CloudClients.GetGCPGKEClient(ctx)
+	kubeClient, err := s.gcpClients.GetGCPGKEClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	projectClient, err := s.CloudClients.GetGCPProjectsClient(ctx)
+	projectClient, err := s.gcpClients.GetGCPProjectsClient(ctx)
 	if err != nil {
 		return trace.Wrap(err, "unable to create gcp project client")
 	}
@@ -1322,11 +1357,13 @@ outer:
 }
 
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
-	client, err := s.CloudClients.GetAzureRunCommandClient(instances.SubscriptionID)
+	runClient, err := s.azureClients.GetAzureRunCommandClient(instances.SubscriptionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.filterExistingAzureNodes(instances); err != nil {
+
+	err = s.filterExistingAzureNodes(instances)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(instances.Instances) == 0 {
@@ -1335,14 +1372,12 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 
 	s.Log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "subscription_id", instances.SubscriptionID, "vms", genAzureInstancesLogStr(instances.Instances))
 	req := server.AzureRunRequest{
-		Client:          client,
+		Client:          runClient,
 		Instances:       instances.Instances,
 		Region:          instances.Region,
 		ResourceGroup:   instances.ResourceGroup,
-		Params:          instances.Parameters,
-		ScriptName:      instances.ScriptName,
-		PublicProxyAddr: instances.PublicProxyAddr,
-		ClientID:        instances.ClientID,
+		InstallerParams: instances.InstallerParams,
+		ProxyAddrGetter: s.publicProxyAddress,
 	}
 	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -1411,7 +1446,7 @@ outer:
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
-	client, err := s.CloudClients.GetGCPInstancesClient(s.ctx)
+	client, err := s.gcpClients.GetGCPInstancesClient(s.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1428,14 +1463,13 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(err, "finding algorithm for SSH key from ping response")
 	}
 	req := server.GCPRunRequest{
-		Client:          client,
-		Instances:       instances.Instances,
-		ProjectID:       instances.ProjectID,
-		Zone:            instances.Zone,
-		Params:          instances.Parameters,
-		ScriptName:      instances.ScriptName,
-		PublicProxyAddr: instances.PublicProxyAddr,
-		SSHKeyAlgo:      sshKeyAlgo,
+		Client:            client,
+		Instances:         instances.Instances,
+		ProjectID:         instances.ProjectID,
+		Zone:              instances.Zone,
+		InstallerParams:   instances.InstallerParams,
+		SSHKeyAlgo:        sshKeyAlgo,
+		PublicProxyGetter: s.publicProxyAddress,
 	}
 	if err := s.gcpInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -1894,6 +1928,9 @@ func (s *Server) Stop() {
 			s.Log.WarnContext(s.ctx, "Dynamic matcher watcher closing error", "error", err)
 		}
 	}
+	if s.gcpClients != nil {
+		_ = s.gcpClients.Close()
+	}
 }
 
 // Wait will block while the server is running.
@@ -1908,7 +1945,7 @@ func (s *Server) Wait() error {
 func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]string, error) {
 	subscriptionIds := subs
 	if slices.Contains(subs, types.Wildcard) {
-		subsClient, err := s.CloudClients.GetAzureSubscriptionClient()
+		subsClient, err := s.azureClients.GetAzureSubscriptionClient()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

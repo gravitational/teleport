@@ -67,6 +67,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -83,9 +84,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/cloudtest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
@@ -244,6 +245,18 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 		}},
 	}
+	staticMatcherUsingManagedSSMDoc := Matchers{
+		AWS: []types.AWSMatcher{{
+			Types:   []string{"ec2"},
+			Regions: []string{"eu-central-1"},
+			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+			SSM:     &types.AWSSSM{DocumentName: "AWS-RunShellScript"},
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+				EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+			},
+		}},
+	}
 
 	defaultDiscoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
 		header.Metadata{Name: uuid.NewString()},
@@ -318,7 +331,8 @@ func TestDiscoveryServer(t *testing.T) {
 	require.NoError(t, err)
 
 	tcs := []struct {
-		name string
+		name          string
+		requiresProxy bool
 		// presentInstances is a list of servers already present in teleport.
 		presentInstances          []types.Server
 		foundEC2Instances         []ec2types.Instance
@@ -376,6 +390,88 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			staticMatchers:         defaultStaticMatcher,
 			wantInstalledInstances: []string{"instance-id-1"},
+		},
+		{
+			name:             "no nodes present, 1 found, using the pre-defined SSM-RunShellScript",
+			requiresProxy:    true,
+			presentInstances: []types.Server{},
+			foundEC2Instances: []ec2types.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+					require.Equal(t, &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevents.SSMRunEvent,
+							Code: libevents.SSMRunSuccessCode,
+						},
+						CommandID:  "command-id-1",
+						AccountID:  "owner",
+						InstanceID: "instance-id-1",
+						Region:     "eu-central-1",
+						ExitCode:   0,
+						Status:     string(ssmtypes.CommandInvocationStatusSuccess),
+					}, ae)
+				},
+			},
+			staticMatchers:         staticMatcherUsingManagedSSMDoc,
+			wantInstalledInstances: []string{"instance-id-1"},
+		},
+		{
+			name:             "fails if proxy address is not available when using AWS-RunShellScript",
+			requiresProxy:    false,
+			presentInstances: []types.Server{},
+			foundEC2Instances: []ec2types.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []ec2types.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2types.InstanceState{
+						Name: ec2types.InstanceStateNameRunning,
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssmtypes.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       ssmtypes.CommandInvocationStatusSuccess,
+					ResponseCode: 0,
+				},
+			},
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+				},
+			},
+			staticMatchers:         staticMatcherUsingManagedSSMDoc,
+			wantInstalledInstances: []string{},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -705,6 +801,19 @@ func TestDiscoveryServer(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
+			if tc.requiresProxy {
+				err = testAuthServer.AuthServer.UpsertProxy(ctx, &types.ServerV2{
+					Kind: types.KindProxy,
+					Metadata: types.Metadata{
+						Name: "proxy",
+					},
+					Spec: types.ServerSpecV2{
+						PublicAddrs: []string{"proxy.example.com:443"},
+					},
+				})
+				require.NoError(t, err)
+			}
+
 			awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
 				Name: "my-integration",
 			}, &types.AWSOIDCIntegrationSpecV1{
@@ -858,7 +967,16 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 }
 
 func TestDiscoveryServerConcurrency(t *testing.T) {
-	t.Parallel()
+	// Most Server installations flows rely on installing teleport in the target server, which then joins the cluster.
+	// Even if multiple installations happen, only one agent will run at the same time in the target server.
+	// So, there's effectively no concurrency issue.
+	//
+	// EICE flow is different, because servers are created in the cluster directly.
+	// If two different discovery servers discover the same EC2 instance, they will both try to create
+	// the same EICE Node in the cluster, causing a conflict.
+	//
+	// After removing the EICE feature, this test must be removed as well.
+	t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
 	ctx := context.Background()
 	logger := logtest.NewLogger()
 
@@ -880,8 +998,6 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 			t.Helper()
 		},
 	}
-
-	testCloudClients := &cloud.TestCloudClients{}
 
 	ec2Client := &mockEC2Client{
 		output: &ec2.DescribeInstancesOutput{
@@ -934,7 +1050,6 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 
 	// Create Server1
 	server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
-		CloudClients:     testCloudClients,
 		GetEC2Client:     getEC2Client,
 		ClusterFeatures:  func() proto.Features { return proto.Features{} },
 		KubernetesClient: fake.NewSimpleClientset(),
@@ -948,7 +1063,6 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 
 	// Create Server2
 	server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
-		CloudClients:     testCloudClients,
 		GetEC2Client:     getEC2Client,
 		ClusterFeatures:  func() proto.Features { return proto.Features{} },
 		KubernetesClient: fake.NewSimpleClientset(),
@@ -1151,7 +1265,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					CloudClients:     &cloud.TestCloudClients{},
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
 					KubernetesClient: fake.NewSimpleClientset(objects...),
 					AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -1417,10 +1530,13 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testCloudClients := &cloud.TestCloudClients{
+			azureClients := &cloudtest.AzureClients{
 				AzureAKSClient: newPopulatedAKSMock(),
-				GCPGKE:         newPopulatedGCPMock(),
-				GCPProjects:    newPopulatedGCPProjectsMock(),
+			}
+
+			gcpClients := &cloudtest.GCPClients{
+				GCPGKE:      newPopulatedGCPMock(),
+				GCPProjects: newPopulatedGCPProjectsMock(),
 			}
 
 			ctx := context.Background()
@@ -1491,7 +1607,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			discServer, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
-					CloudClients:       testCloudClients,
+					azureClients:       azureClients,
+					gcpClients:         gcpClients,
 					AWSFetchersClients: mockedClients,
 					ClusterFeatures:    func() proto.Features { return proto.Features{} },
 					KubernetesClient:   fake.NewSimpleClientset(),
@@ -2028,7 +2145,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		return dc
 	}
 
-	testCloudClients := &cloud.TestCloudClients{
+	azureClients := &cloudtest.AzureClients{
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
 		}),
@@ -2437,7 +2554,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						AWSConfigProvider: *fakeConfigProvider,
 						eksClusters:       []*ekstypes.Cluster{eksAWSResource},
 					},
-					CloudClients:              testCloudClients,
+					azureClients:              azureClients,
 					ClusterFeatures:           func() proto.Features { return proto.Features{} },
 					KubernetesClient:          fake.NewSimpleClientset(),
 					AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -2821,6 +2938,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				ResourceGroups: []string{"testrg"},
 				Regions:        []string{"westcentralus"},
 				ResourceTags:   types.Labels{"teleport": {"yes"}},
+				Params:         &types.InstallerParams{},
 			}},
 		}
 	}
@@ -2967,7 +3085,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testCloudClients := &cloud.TestCloudClients{
+			testAzureClients := &cloudtest.AzureClients{
 				AzureVirtualMachines: &mockAzureClient{
 					vms: tc.foundAzureVMs,
 				},
@@ -3005,7 +3123,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:     testCloudClients,
+				azureClients:     testAzureClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -3190,6 +3308,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					ProjectIDs: []string{"*"},
 					Locations:  []string{"myzone"},
 					Labels:     types.Labels{"teleport": {"yes"}},
+					Params:     &types.InstallerParams{},
 				}},
 			},
 			wantInstalledInstances: []string{"myinstance1", "myinstance2"},
@@ -3274,7 +3393,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testCloudClients := &cloud.TestCloudClients{
+			gcpClients := &cloudtest.GCPClients{
 				GCPInstances: &mockGCPClient{
 					vms: tc.foundGCPVMs,
 				},
@@ -3311,7 +3430,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-				CloudClients:     testCloudClients,
+				gcpClients:       gcpClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -3474,10 +3593,11 @@ func TestServer_onCreate(t *testing.T) {
 
 func TestEmitUsageEvents(t *testing.T) {
 	t.Parallel()
-	testClients := cloud.TestCloudClients{
+	azureClients := &cloudtest.AzureClients{
 		AzureVirtualMachines: &mockAzureClient{},
 		AzureRunCommand:      &mockAzureRunCommandClient{},
 	}
+
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
@@ -3498,7 +3618,7 @@ func TestEmitUsageEvents(t *testing.T) {
 	tlsServer.Auth().SetUsageReporter(reporter)
 
 	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
-		CloudClients:    &testClients,
+		azureClients:    azureClients,
 		ClusterFeatures: func() proto.Features { return proto.Features{} },
 		AccessPoint:     getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers: Matchers{

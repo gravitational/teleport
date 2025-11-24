@@ -35,6 +35,10 @@ const logger = Logger.create('services/session');
 let sesstionCheckerTimerId = null;
 
 const session = {
+  _isRenewing: false,
+  _isDeviceTrustRequired: false,
+  _isDeviceTrusted: false,
+
   logout(rememberLocation = false) {
     let samlSloUrl = '';
 
@@ -204,17 +208,17 @@ const session = {
       });
   },
 
-  _setAndBroadcastIsRenewing(value) {
+  _setAndBroadcastIsRenewing(value: boolean) {
     this._setIsRenewing(value);
     storageService.broadcast(KeysEnum.TOKEN_RENEW, value);
   },
 
-  _setIsRenewing(value) {
+  _setIsRenewing(value: boolean) {
     this._isRenewing = value;
   },
 
   _getIsRenewing() {
-    return !!this._isRenewing;
+    return this._isRenewing;
   },
 
   setDeviceTrustRequired() {
@@ -222,11 +226,11 @@ const session = {
   },
 
   getDeviceTrustRequired() {
-    return !!this._isDeviceTrustRequired;
+    return this._isDeviceTrustRequired;
   },
 
   getIsDeviceTrusted() {
-    return !!this._isDeviceTrusted;
+    return this._isDeviceTrusted;
   },
 
   // a session will never be "downgraded" so we can just set to true

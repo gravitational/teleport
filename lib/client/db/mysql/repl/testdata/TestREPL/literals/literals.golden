@@ -18,16 +18,16 @@ ERR ERROR 1054 (42S22): Unknown column 'thing' in 'field list'
 
 (none)> SELECT "thing";
 
-thing   
-------- 
+thing
+-----
 'thing' 
 
 1 row in set
 
 (none)> select 1,  -1,1.24, -1.24, 'foo', null, 'null';
 
-1    -1   1.24   -1.24   foo   NULL null   
--    --   ------ ------- ----- ---- ------ 
+1    -1   1.24   -1.24   foo   NULL null
+-    --   ----   -----   ---   ---- ----
 1    -1   '1.24' '-1.24' 'foo' NULL 'null' 
 
 1 row in set
@@ -41,9 +41,9 @@ thing
      ->     null as 'actual NULL',
      ->     "null" as 'string null';
 
-unsigned int negative int float  negative float string actual NULL string null 
------------- ------------ ------ -------------- ------ ----------- ----------- 
-1            -1           '1.24' '-1.24'        'foo'  NULL        'null'      
+unsigned int negative int float  negative float string actual NULL string null
+------------ ------------ -----  -------------- ------ ----------- -----------
+1            -1           '1.24' '-1.24'        'foo'  NULL        'null' 
 
 1 row in set
 
@@ -62,15 +62,15 @@ unsigned int negative int float  negative float string actual NULL string null
      -> union
      ->     select 'null';
 
-multiple rows of literals 
-------------------------- 
-'1'                       
-'-1'                      
-'1.24'                    
-'-1.24'                   
-'foo'                     
-NULL                      
-'null'                    
+multiple rows of literals
+-------------------------
+'1'     
+'-1'    
+'1.24'  
+'-1.24' 
+'foo'   
+NULL    
+'null'  
 
 7 rows in set
 
@@ -79,8 +79,8 @@ NULL
      '> b
      '> c' as 'multiline-string';
 
-multiline-string 
----------------- 
+multiline-string
+----------------
 'a
 b
 c'   
@@ -94,8 +94,8 @@ c'
      '>     ;
      '> c' as 'multiline with delimiters';
 
-multiline with delimiters 
-------------------------- 
+multiline with delimiters
+-------------------------
 'a
     ;
     b
@@ -108,8 +108,8 @@ c'
 (none)> /* foo bar */
 (none)> select 1;
 
-1    
--    
+1
+-
 1    
 
 1 row in set
@@ -117,8 +117,8 @@ c'
 (none)> /* foo bar */select /*
     /*> baz */ 42;
 
-42   
---   
+42
+--
 42   
 
 1 row in set
@@ -127,16 +127,16 @@ c'
 (none)> delimiter $$
 (none)> select '$$1$$'$$
 
-$$1$$   
-------- 
+$$1$$
+-----
 '$$1$$' 
 
 1 row in set
 
 (none)> select '$$;$$';$$
 
-$$;$$   
-------- 
+$$;$$
+-----
 '$$;$$' 
 
 1 row in set
@@ -144,8 +144,8 @@ $$;$$
 (none)> delimiter ;
 (none)> select 1;
 
-1    
--    
+1
+-
 1    
 
 1 row in set

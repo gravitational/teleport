@@ -439,6 +439,43 @@ func TestBufferedEvents_LargeGap(t *testing.T) {
 	require.Equal(t, byte(eventTypeStop), responses[3][0], "Fourth message should be stop event")
 }
 
+func TestScreenWithNoEventsInRange(t *testing.T) {
+	ws, _ := createWebSocket(t, func(mockClient *mockStreamClient) {
+		<-mockClient.eventRequested
+
+		mockClient.sendEvent(&apievents.SessionStart{
+			TerminalSize: "80:24",
+		})
+		mockClient.sendEvent(&apievents.SessionPrint{
+			DelayMilliseconds: 500,
+			Data:              []byte("Early content"),
+		})
+		mockClient.sendEvent(&apievents.SessionPrint{
+			DelayMilliseconds: 1500,
+			Data:              []byte(" that should appear in screen"),
+		})
+		// No events in the 3000-4000ms range we'll request
+		mockClient.sendEvent(&apievents.SessionEnd{
+			StartTime: time.Now(),
+			EndTime:   time.Now().Add(5 * time.Second),
+		})
+	})
+
+	// Request a time range with no events but ask for screen
+	responses := fetchAndCollectResponses(t, ws, 3000, 4000, true, 1)
+
+	require.Len(t, responses, 3, "Should receive 3 messages: start, screen, stop")
+
+	require.Equal(t, byte(eventTypeStart), responses[0][0], "First message should be start event")
+	require.Equal(t, byte(eventTypeScreen), responses[1][0], "Second message should be screen event")
+
+	// The screen should contain the content from events before the requested range
+	require.Contains(t, string(responses[1][responseHeaderSize:]), "Early content that should appear in screen",
+		"Screen should contain terminal state even though no events in requested range")
+
+	require.Equal(t, byte(eventTypeStop), responses[2][0], "Third message should be stop event")
+}
+
 func TestUnsupportedRequest(t *testing.T) {
 	mockClient := newMockStreamClient()
 

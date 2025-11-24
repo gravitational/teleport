@@ -28,11 +28,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/protodelim"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/session"
@@ -46,6 +46,7 @@ type Service struct {
 	authorizer      Authorizer
 	streamer        player.Streamer
 	downloadHandler DownloadHandler
+	decrypter       events.DecryptionWrapper
 	logger          *slog.Logger
 }
 
@@ -71,6 +72,8 @@ type ServiceConfig struct {
 	Streamer player.Streamer
 	// DownloadHandler is used to handle uploads and downloads of session recording metadata and thumbnails.
 	DownloadHandler DownloadHandler
+	// Decrypter is used to decrypt session metadata and thumbnails.
+	Decrypter events.DecryptionWrapper
 }
 
 // NewService creates a new instance of the recording metadata service.
@@ -87,6 +90,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		streamer:        cfg.Streamer,
 		downloadHandler: cfg.DownloadHandler,
 		logger:          slog.With(teleport.ComponentKey, "recording_metadata"),
+		decrypter:       cfg.Decrypter,
 	}, nil
 }
 
@@ -103,8 +107,13 @@ func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest)
 		return nil, trace.Wrap(err)
 	}
 
+	payload, err := r.decryptIfNeeded(ctx, buf.Bytes())
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting session recording thumbnail")
+	}
+
 	thumbnail := &pb.SessionRecordingThumbnail{}
-	err = proto.Unmarshal(buf.Bytes(), thumbnail)
+	err = proto.Unmarshal(payload, thumbnail)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,56 +135,106 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		return trace.Wrap(err)
 	}
 
-	reader := bufio.NewReader(bytes.NewReader(buf.Bytes()))
-
-	metadata := &pb.SessionRecordingMetadata{}
-	err = protodelim.UnmarshalOptions{MaxSize: -1}.UnmarshalFrom(reader, metadata)
+	payload, err := r.decryptIfNeeded(stream.Context(), buf.Bytes())
 	if err != nil {
-		r.logger.ErrorContext(stream.Context(), "Failed to unmarshal session recording metadata",
-			"session_id", req.SessionId, "error", err)
-		return trace.Wrap(err)
+		return trace.Wrap(err, "decrypting session recording thumbnail")
 	}
-
-	metadataChunk := &pb.GetMetadataResponseChunk{
-		Chunk: &pb.GetMetadataResponseChunk_Metadata{
-			Metadata: metadata,
-		},
-	}
-
-	if err := stream.Send(metadataChunk); err != nil {
-		if !errors.Is(err, io.EOF) {
-			r.logger.ErrorContext(stream.Context(), "Failed to send session recording metadata",
-				"session_id", req.SessionId, "error", err)
-		}
-
-		return trace.Wrap(err)
-	}
+	reader := bufio.NewReader(bytes.NewReader(payload))
 
 	for {
-		frame := &pb.SessionRecordingThumbnail{}
-		err := protodelim.UnmarshalFrom(reader, frame)
-		if errors.Is(err, io.EOF) {
-			break
-		}
+		msgBytes, err := readDelimitedMessage(reader)
 		if err != nil {
-			r.logger.ErrorContext(stream.Context(), "Failed to unmarshal session recording frame",
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			r.logger.ErrorContext(stream.Context(), "Failed to read delimited message",
 				"session_id", req.SessionId, "error", err)
 			return trace.Wrap(err)
 		}
 
-		frameChunk := &pb.GetMetadataResponseChunk{
-			Chunk: &pb.GetMetadataResponseChunk_Frame{
-				Frame: frame,
-			},
-		}
-		if err := stream.Send(frameChunk); err != nil {
-			if !errors.Is(err, io.EOF) {
-				r.logger.ErrorContext(stream.Context(), "Failed to send session recording frame",
-					"session_id", req.SessionId, "error", err)
+		// Try to decode as metadata
+		metadata := &pb.SessionRecordingMetadata{}
+		if err := proto.Unmarshal(msgBytes, metadata); err == nil {
+			metadataChunk := &pb.GetMetadataResponseChunk{
+				Chunk: &pb.GetMetadataResponseChunk_Metadata{
+					Metadata: metadata,
+				},
 			}
-			return trace.Wrap(err)
+
+			if err := stream.Send(metadataChunk); err != nil {
+				if !errors.Is(err, io.EOF) {
+					r.logger.ErrorContext(stream.Context(), "Failed to send session recording metadata",
+						"session_id", req.SessionId, "error", err)
+				}
+				return trace.Wrap(err)
+			}
+
+			continue
 		}
+
+		// Try to decode as thumbnail
+		thumbnail := &pb.SessionRecordingThumbnail{}
+		if err := proto.Unmarshal(msgBytes, thumbnail); err == nil {
+			frameChunk := &pb.GetMetadataResponseChunk{
+				Chunk: &pb.GetMetadataResponseChunk_Frame{
+					Frame: thumbnail,
+				},
+			}
+
+			if err := stream.Send(frameChunk); err != nil {
+				if !errors.Is(err, io.EOF) {
+					r.logger.ErrorContext(stream.Context(), "Failed to send session recording thumbnail",
+						"session_id", req.SessionId, "error", err)
+				}
+				return trace.Wrap(err)
+			}
+
+			continue
+		}
+
+		r.logger.ErrorContext(stream.Context(), "Failed to parse message as metadata or thumbnail",
+			"session_id", req.SessionId)
+
+		return trace.Errorf("unable to parse message as metadata or thumbnail")
 	}
 
 	return nil
+}
+
+// readDelimitedMessage reads a varint-prefixed protobuf message from the reader
+// and returns the raw message bytes.
+func readDelimitedMessage(r *bufio.Reader) ([]byte, error) {
+	var length uint64
+
+	// Read varint length prefix
+	for shift := uint(0); ; shift += 7 {
+		if shift >= 64 {
+			return nil, trace.BadParameter("varint too long")
+		}
+
+		b, err := r.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+
+		length |= uint64(b&0x7F) << shift // Append 7 bits to length
+
+		if b&0x80 == 0 {
+			// MSB not set, end of varint
+			break
+		}
+	}
+
+	msgBytes := make([]byte, length)
+	if _, err := io.ReadFull(r, msgBytes); err != nil {
+		return nil, err
+	}
+
+	return msgBytes, nil
+}
+
+// decryptIfNeeded decrypts the data if it is encrypted. If the data is not encrypted, it is returned as-is.
+func (r *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
+	unencrypted, err := recordingencryption.DecryptBufferIfEncrypted(ctx, data, r.decrypter)
+	return unencrypted, trace.Wrap(err)
 }

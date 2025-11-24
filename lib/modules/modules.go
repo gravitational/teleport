@@ -25,6 +25,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"runtime"
 	"strconv"
@@ -249,6 +250,8 @@ type AccessResourcesGetter interface {
 
 	GetLock(ctx context.Context, name string) (types.Lock, error)
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
+	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 }
 
 type AccessListSuggestionClient interface {
@@ -326,7 +329,10 @@ func SetModules(m Modules) {
 	modules = m
 }
 
-// GetModules returns the modules interface
+// GetModules returns the modules interface. It only works in the auth service
+// process, so any code that may be executed in a different context needs to
+// obtain modules or derived options from an auth-specific caller or an RPC
+// call to the auth server.
 func GetModules() Modules {
 	mutex.Lock()
 	defer mutex.Unlock()

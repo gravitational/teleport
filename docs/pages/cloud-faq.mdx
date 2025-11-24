@@ -1,7 +1,6 @@
 ---
 title: Teleport Enterprise Cloud FAQ
 description: Teleport cloud frequently asked questions.
-tocDepth: 3
 tags:
  - faq
  - platform-wide
@@ -68,6 +67,15 @@ Access Controls Reference](reference/access-controls/roles.mdx).
 
 Teleport components communicate with themselves using mTLS, with a separate certificate authority for each tenant. Connections to AWS services, such as DynamoDB and
 S3, are established using encryption provided by AWS, both at rest and in transit. Each tenant has its own credentials that isolate it to interacting with only its own data.
+
+### Is Teleport Enterprise (cloud-hosted) PCI compliant?
+
+Teleport Enterprise (cloud-hosted) is a PCI DSS (Payment Card Industry Data Security Standard) Level 1 compliant service provider. This means we have met the highest standards for data security set by the PCI Security Standards Council. Our compliance is verified through an annual assessment conducted by a Qualified Security Assessor (QSA). Our most recent Attestation of Compliance can be viewed at [trust.goteleport.com](https://trust.goteleport.com).
+
+Teleport Enterprise (cloud-hosted) can be used to meet multiple security requirements for PCI environments and provides customers details on how to secure their Cardholder Data Environment when using Teleport Enterprise (cloud-hosted). This includes a shared responsibilities matrix that outlines Teleport's, the customer's, and shared responsibilities.
+
+Additionally, Teleport takes reasonable steps to identify and remove sensitive data that could be inadvertently stored or transmitted on systems it controls.  Any cardholder data received from a customer is considered an "unintended channel."
+
 ## Connecting resources
 
 ### How do I add resources to Teleport Enterprise Cloud?
@@ -126,9 +134,9 @@ Yes. We recommend Teleport's [event handler plugin](zero-trust-access/export-aud
 
 Yes, you can configure [External Audit Storage](zero-trust-access/management/external-audit-storage.mdx).
 
-### Is it possible to enable proxy recording mode?
+### Is it possible to enable recording proxy mode?
 
-Proxy recording mode is disabled for cloud customers
+Recording proxy mode is disabled for Teleport Cloud customers.
 
 ### Is there a way to download session recordings for easy playback?
 
@@ -177,7 +185,7 @@ update the software when new versions are found.
 If you enroll in automatic agent updates, Teleport Agents are automatically
 updated after your Teleport cluster is updated during your scheduled maintenance
 period. For more information, read the [Automatic Agent
-Updates](upgrading/agent-managed-updates.mdx) guide.
+Updates](upgrading/agent-managed-updates/agent-managed-updates.mdx) guide.
 
 ### How can I find version information on connected agents?
 
@@ -318,3 +326,36 @@ codes](../img/cloud/recovery-codes.png)
 Save the recovery codes into a safe location, such as your organization's
 password manager. You can use these codes to reset your account if you lose
 your password or multi-factor authentication credentials.
+
+### How do I update my security and business contacts?
+
+Teleport Cloud users can configure up to 3 security contacts and 3 business contacts for their cluster. It's important to
+keep these up to date so that we always know who to notify of important updates and alerts.
+
+To do this, log in to your Teleport Cloud account with the email address of the user that created the initial Cloud tenant. Open
+the user dropdown menu on the top right of the navigation bar, and select "Help & Support," then scroll down until you see the contacts sections.
+Once you add a contact, they will receive an invitation email which they must accept within 14 days.
+
+![Web UI view showing security and business contacts options](../img/cloud/security-business-contacts.png)
+
+If you don't see the contacts lists on the Help & Support page, ensure that your user has the required permissions to see and update contacts. You
+can also create a separate role that grants these permissions and assign it to your user and any other desired users:
+
+```yaml
+version: v6
+kind: role
+metadata:
+  description: Edit Contacts
+  name: contact-editor
+spec:
+  allow:
+    rules:
+    - resources:
+      - contact
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+```

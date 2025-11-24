@@ -11,8 +11,8 @@ Enterprise (Self-Hosted) and Teleport Enterprise (Cloud) to another Teleport
 plan. 
 
 We recommend that you try out a Teleport [demo
-cluster](linux-demo.mdx) with Teleport Community Edition,
-migrate to [Teleport Enterprise (Cloud)](get-started.mdx) to roll out
+cluster](./get-started/deploy-community.mdx) with Teleport Community Edition,
+migrate to [Teleport Enterprise (Cloud)](./get-started/deploy-cloud.mdx) to roll out
 Teleport across your organization, and deploy a
 [self-hosted](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) Teleport Enterprise cluster
 if you have security and compliance requirements that Teleport Enterprise
@@ -87,8 +87,8 @@ migrating from Teleport Enterprise to Teleport Community Edition.
    $ tctl inventory ls --newer-than=<version>
    ```
 
-1. We recommend that Teleport Enterprise (Self-Hosted) customers set up automatic updates to maintain a healthy set of Agents, and require this in Teleport Enterprise (Cloud). See how to 
-   [Set up Automatic Agent Updates](upgrading/agent-managed-updates.mdx) to
+1. We recommend that Teleport Enterprise (Self-Hosted) customers set up automatic updates to maintain a healthy set of Agents, and require this in Teleport Enterprise (Cloud). See how to
+   [Set up Automatic Agent Updates](upgrading/agent-managed-updates/agent-managed-updates.mdx) to
    incorporate this into your migration.
 
 
@@ -141,7 +141,7 @@ Teleport Auth Service backend. Since your original Teleport cluster uses a
 separate Auth Service backend from your new cluster, you must retrieve the
 resources on the first backend, then re-apply them against the second backend.
 
-Review the [dynamic resources](reference/infrastructure-as-code/resources.mdx) list to see if any
+Review the [dynamic resources](reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx) list to see if any
 other resources need to be migrated. Some common dynamic resources includes:
 
 - `windows_desktop`
@@ -188,12 +188,12 @@ and configure a new Auth Connector in the new Teleport Enterprise tenant.
 
 ## Step 3/4. Migrate Teleport services and plugins
 
-To migrate services such as Teleport Agents, Machine ID Bots, and plugins, start
-by cataloging the various services you're managing with Teleport. The following
-resources should be considered for migration:
+To migrate services such as Teleport Agents, Machine & Workload Identity Bots,
+and plugins, start by cataloging the various services you're managing with
+Teleport. The following resources should be considered for migration:
 
  - Teleport Agents 
- - Machine ID Bots
+ - Machine & Workload Identity Bots
  - Access Request plugins
  - The Teleport Event Handler
 
@@ -209,8 +209,8 @@ carrying out the actions involved in migrating agent configurations.
 
 To migrate Teleport Agents:
 
-1. For each Agent and Machine ID Bot, obtain a valid join token. We recommend
-   using a [delegated join
+1. For each Agent and Machine & Workload Identity Bot, obtain a valid join
+   token. We recommend using a [delegated join
    method](reference/deployment/join-methods.mdx).
 
 1. If using ephemeral tokens, ensure you specify the appropriate token type to
@@ -302,25 +302,25 @@ To migrate Teleport Agents:
    The settings for the new Teleport Kubernetes Agent should have the 
    `enterprise` value set to true.
 
-### Migrate Machine ID Bots
+### Migrate Machine & Workload Identity Bots
 
-In general, you can migrate a Machine ID Bot using the following steps:
+In general, you can migrate a Machine & Workload Identity Bot using the
+following steps:
 
 1. Obtain a new join token.
 1. In the `tbot` configuration file, edit the `proxy_server` configuration field
    to point to the new Teleport cluster address and port `443`.
 1. Restart `tbot`.
 
-To learn how to restart and configure a Machine ID Bot in your infrastructure,
-read the [full documentation](machine-workload-identity/machine-id/deployment/deployment.mdx) on deploying a
-Machine ID Bot.
+To learn how to restart and configure a Bot for your infrastructure, read the
+[Machine & Workload Identity deployment guide.](machine-workload-identity/deployment/deployment.mdx)
 
 ### Access Request plugins and the Event Handler
 
 In general, you can migrate Teleport plugins using the following steps:
 
-1. If you are using Machine ID to produce credentials for the plugin,
-   reconfigure the Machine ID Bot to connect to the new Teleport cluster and
+1. If you are using Machine & Workload Identity to produce credentials for the
+   plugin, reconfigure the Bot to connect to the new Teleport cluster and
    restart the Bot.
 
    Otherwise, connect to the new Teleport cluster with `tctl` and produce an
@@ -399,7 +399,7 @@ your new Teleport cluster, ensure that the setup is complete.
 
 For more information on using cloud-hosted Teleport Enterprise, refer to our
 documentation on [signing up for a cloud-hosted Teleport Enterprise
-account](get-started.mdx).
+account](./get-started/deploy-cloud.mdx).
 
 Read the documentation on [Self-Hosting Teleport
 Enterprise](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx).

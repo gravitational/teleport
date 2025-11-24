@@ -243,3 +243,66 @@ func TestRangeResources(t *testing.T) {
 		})
 	}
 }
+
+func TestCollectWithFallback(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name         string
+		pageFunc     func(context.Context, int, string) ([]string, string, error)
+		fallbackFunc func(context.Context) ([]string, error)
+		err          error
+	}{
+		{
+			name: "happy primary path",
+			pageFunc: func(context.Context, int, string) ([]string, string, error) {
+				return []string{"hello", "world"}, "", nil
+			},
+			fallbackFunc: func(context.Context) ([]string, error) {
+				panic("unexpected call")
+			},
+			err: nil,
+		},
+
+		{
+			name: "fallback fail",
+			pageFunc: func(context.Context, int, string) ([]string, string, error) {
+				return nil, "", trace.NotImplemented("")
+			},
+			fallbackFunc: func(context.Context) ([]string, error) {
+				return nil, trace.BadParameter("")
+			},
+			err: trace.BadParameter(""),
+		},
+		{
+			name: "fallback success",
+			pageFunc: func(context.Context, int, string) ([]string, string, error) {
+				return nil, "", trace.NotImplemented("")
+			},
+			fallbackFunc: func(context.Context) ([]string, error) {
+				return []string{"hello", "world"}, nil
+			},
+			err: nil,
+		},
+		{
+			name: "fallback no match",
+			pageFunc: func(context.Context, int, string) ([]string, string, error) {
+				return nil, "", trace.BadParameter("")
+			},
+			fallbackFunc: func(context.Context) ([]string, error) {
+				panic("unexpected call")
+			},
+			err: trace.BadParameter(""),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := CollectWithFallback(t.Context(), tc.pageFunc, tc.fallbackFunc)
+			if tc.err == nil {
+				require.NotNil(t, out)
+			}
+			require.ErrorIs(t, err, tc.err)
+		})
+	}
+}

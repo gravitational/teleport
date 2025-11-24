@@ -197,21 +197,25 @@ export function LabelsInput({
           </LabelContent>
         </Legend>
       )}
-      <LabelTable>
+      <LabelTable readOnly={readOnly}>
         <colgroup>
           {/* Column elements (for styling purposes, see LabelTable styles) */}
           <col />
           <col />
-          <col />
+          {!readOnly && <col />}
         </colgroup>
         {labels.length > 0 && (
           <thead>
             <tr>
               <th scope="col">
-                <LabelContent required>{labelKey.fieldName}</LabelContent>
+                <LabelContent required={!readOnly}>
+                  {labelKey.fieldName}
+                </LabelContent>
               </th>
               <th scope="col">
-                <LabelContent required>{labelVal.fieldName}</LabelContent>
+                <LabelContent required={!readOnly}>
+                  {labelVal.fieldName}
+                </LabelContent>
               </th>
             </tr>
           </thead>
@@ -314,7 +318,7 @@ export function LabelsInput({
           size="small"
           pr={3}
           compact={false}
-          inputAlignment
+          $inputAlignment
         />
       )}
     </Fieldset>
@@ -354,7 +358,7 @@ const Legend = styled.legend`
   ${props => props.theme.typography.body3}
 `;
 
-const LabelTable = styled.table`
+const LabelTable = styled.table<{ readOnly: boolean }>`
   width: 100%;
   border-collapse: collapse;
   /*
@@ -384,9 +388,11 @@ const LabelTable = styled.table`
     vertical-align: top;
     padding-bottom: ${props => props.theme.space[2]}px;
 
-    &:nth-child(1),
-    &:nth-child(2) {
+    &:nth-child(1) {
       padding-right: ${props => props.theme.space[2]}px;
+    }
+    &:nth-child(2) {
+      padding-right: ${p => (p.readOnly ? 0 : p.theme.space[2])}px;
     }
   }
 `;

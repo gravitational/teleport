@@ -34,7 +34,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/otel"
 
-	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -219,33 +218,37 @@ func NewTrustBundleCacheFacade() *TrustBundleCacheFacade {
 	return &TrustBundleCacheFacade{ready: make(chan struct{})}
 }
 
-// BuildService implements bot.ServiceBuilder to build the TrustBundleCache once
-// when the bot starts up.
-func (f *TrustBundleCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+// Builder returns a bot.ServiceBuilder to build the TrustBundleCache when the
+// bot starts up.
+func (f *TrustBundleCacheFacade) Builder() bot.ServiceBuilder {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
 
-	if f.bundleCache == nil {
-		var err error
-		f.bundleCache, err = NewTrustBundleCache(TrustBundleCacheConfig{
-			FederationClient:   deps.Client.SPIFFEFederationServiceClient(),
-			TrustClient:        deps.Client.TrustClient(),
-			EventsClient:       deps.Client,
-			ClusterName:        deps.BotIdentity().ClusterName,
-			BotIdentityReadyCh: deps.BotIdentityReadyCh,
-			Logger: deps.Logger.With(
-				teleport.ComponentKey,
-				teleport.Component(teleport.ComponentTBot, "spiffe-trust-bundle-cache"),
-			),
-			StatusReporter: deps.StatusRegistry.AddService("spiffe-trust-bundle-cache"),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if f.bundleCache == nil {
+			var err error
+			f.bundleCache, err = NewTrustBundleCache(TrustBundleCacheConfig{
+				FederationClient:   deps.Client.SPIFFEFederationServiceClient(),
+				TrustClient:        deps.Client.TrustClient(),
+				EventsClient:       deps.Client,
+				ClusterName:        deps.BotIdentity().ClusterName,
+				BotIdentityReadyCh: deps.BotIdentityReadyCh,
+				Logger:             deps.Logger,
+				StatusReporter:     deps.GetStatusReporter(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			close(f.ready)
 		}
-		close(f.ready)
+		return f.bundleCache, nil
 	}
 
-	return f.bundleCache, nil
+	return bot.NewServiceBuilder(
+		"internal/spiffe-trust-bundle-cache",
+		"spiffe-trust-bundle-cache",
+		buildFn,
+	)
 }
 
 func (f *TrustBundleCacheFacade) GetBundleSet(ctx context.Context) (*BundleSet, error) {
@@ -290,7 +293,10 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 	}, nil
 }
 
-const trustBundleInitFailureBackoff = 10 * time.Second
+const (
+	trustBundleInitFailureBackoff = 10 * time.Second
+	trustBundleInitTimeout        = 30 * time.Second
+)
 
 // Run initializes the cache and begins watching for events. It will block until
 // the context is canceled, at which point it will return nil.
@@ -367,12 +373,21 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 	}()
 
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
 			return trace.BadParameter("unexpected event type: %v", event.Type)
 		}
+		// When we receive the init event, we know the watcher is now active
+		// and we can begin streaming events.
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(trustBundleInitTimeout):
+		// If we don't explicitly time out here, then we'd "block" silently
+		// waiting for the init op to come through - which can be confusing to
+		// end users. This can happen if the auth cache fails to init. So
+		// instead, we give up after a reasonable amount of time and try again
+		// after a backoff.
+		return trace.LimitExceeded("timeout waiting for watcher init")
 	case <-watcher.Done():
 		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
 	}

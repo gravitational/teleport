@@ -460,7 +460,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	dialer := &agentDialer{
-		client:      p.Client,
+		client:      p.AccessPoint,
 		fips:        p.FIPS,
 		authMethods: p.AuthMethods,
 		options:     options,

@@ -720,8 +720,36 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 	http.Error(rw, respErr.Error(), http.StatusInternalServerError)
 }
 
-// formatStatusResponseError formats the error response into a kube Status object.
+// formatForwardResponseError handles errors returned from requests to the Kubernetes API.
+// Any errors produced as a result of a GOAWAY request are forwarded to users as [http.StatusTooManyRequests]
+// with a Retry-After header set to inform clients that they should retry the request. All
+// other errors are formatted as a [metav1.Status] and written to the [http.ResponseWriter].
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
+	// This detects failed requests that were terminated by the server due to GOAWAY. There
+	// is no direct way to detect these errors. No exported constants or error types exist from the
+	// standard library, see https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694.
+	// When a failed request is found, we return a response that indicates  to clients that they
+	// should retry the request themselves.
+	if errString := respErr.Error(); strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`) &&
+		strings.Contains(errString, `http2: Transport: cannot retry err`) {
+
+		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &kubeerrors.NewTooManyRequests("Connection closed by upstream Kubernetes server", 1).ErrStatus)
+		if err != nil {
+			f.log.WarnContext(f.ctx, "Failed encoding error into kube Status object", "error", err)
+			trace.WriteError(rw, respErr)
+			return
+		}
+
+		rw.Header().Set("Retry-After", "1")
+		rw.Header().Set(responsewriters.ContentTypeHeader, "application/json")
+		rw.WriteHeader(http.StatusTooManyRequests)
+
+		if _, err := rw.Write(data); err != nil && !utils.IsOKNetworkError(err) {
+			f.log.WarnContext(f.ctx, "Failed writing kube error response body", "error", err)
+		}
+		return
+	}
+
 	code := trace.ErrorToCode(respErr)
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
@@ -744,7 +772,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	// `Error from server (InternalError): an error on the server ("unknown")
 	// has prevented the request from succeeding`` instead of the correct reason.
 	rw.WriteHeader(trace.ErrorToCode(respErr))
-	if _, err := rw.Write(data); err != nil {
+	if _, err := rw.Write(data); err != nil && !utils.IsOKNetworkError(err) {
 		f.log.WarnContext(f.ctx, "Failed writing kube error response body", "error", err)
 	}
 }

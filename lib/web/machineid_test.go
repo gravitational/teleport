@@ -35,8 +35,11 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -345,7 +348,7 @@ func TestEditBot(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequest{
+	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequestV1{
 		Roles: []string{"new-new-role"},
 	})
 	require.NoError(t, err)
@@ -543,6 +546,71 @@ func TestEditBotMaxSessionTTL(t *testing.T) {
 		},
 	}, updatedBot.GetSpec().Traits)
 	assert.Equal(t, int64((1*time.Hour+2*time.Minute+3*time.Second)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
+}
+
+func TestEditBotDescription(t *testing.T) {
+	ctx := t.Context()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpointV1 := pack.clt.Endpoint(
+		"v1",
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+	endpointV3 := pack.clt.Endpoint(
+		"v3",
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+
+	// create a bot named `test-bot-edit`
+	botName := "test-bot-edit"
+	_, err := pack.clt.PostJSON(ctx, endpointV1, CreateBotRequest{
+		BotName: botName,
+		Roles:   []string{"test-role"},
+		Traits: []*machineidv1.Trait{
+			{
+				Name:   "test-trait-1",
+				Values: []string{"value-1"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	response, err := pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpointV1, botName), nil)
+	require.NoError(t, err)
+
+	var createdBot machineidv1.Bot
+	require.NoError(t, json.Unmarshal(response.Bytes(), &createdBot), "invalid response received")
+	assert.Equal(t, int64(43200), createdBot.GetSpec().GetMaxSessionTtl().GetSeconds())
+
+	description := "This is the bot's description."
+	response, err = pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV3, botName), updateBotRequestV3{
+		Description: &description,
+	})
+	require.NoError(t, err)
+
+	var updatedBot machineidv1.Bot
+	require.NoError(t, json.Unmarshal(response.Bytes(), &updatedBot), "invalid response received")
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
+	assert.Equal(t, botName, updatedBot.GetMetadata().GetName())
+	assert.Equal(t, []string{"test-role"}, updatedBot.GetSpec().GetRoles())
+	assert.Equal(t, []*machineidv1.Trait{
+		{
+			Name:   "test-trait-1",
+			Values: []string{"value-1"},
+		},
+	}, updatedBot.GetSpec().Traits)
+	assert.Equal(t, int64((12*time.Hour)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
+	assert.Equal(t, description, updatedBot.GetMetadata().GetDescription())
 }
 
 func TestListBotInstances(t *testing.T) {
@@ -1192,4 +1260,111 @@ func TestGetBotInstance(t *testing.T) {
 		},
 	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
 	assert.YAMLEq(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.Metadata.Revision), resp.YAML)
+}
+
+func TestBotInstanceMetrics_NotFound(t *testing.T) {
+	ctx := t.Context()
+	env := newWebPack(t, 1)
+	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+
+	// No report yet should return an empty `UpgradeStatuses`.
+	endpoint := pack.clt.Endpoint(
+		"webapi", "sites", clusterName, "machine-id", "bot-instance", "metrics",
+	)
+	rsp, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var body BotInstanceMetricsResponse
+	require.NoError(t, json.Unmarshal(rsp.Bytes(), &body))
+	require.Nil(t, body.UpgradeStatuses)
+}
+
+func TestBotInstanceMetrics_Success(t *testing.T) {
+	ctx := t.Context()
+	env := newWebPack(t, 1)
+	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+
+	const targetVersion = "19.1.1"
+
+	_, err := env.server.Auth().
+		CreateAutoUpdateVersion(ctx, &autoupdate.AutoUpdateVersion{
+			Kind:    types.KindAutoUpdateVersion,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: types.MetaNameAutoUpdateVersion,
+			},
+			Spec: &autoupdate.AutoUpdateVersionSpec{
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+					TargetVersion: targetVersion,
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	report, err := update.NewAutoUpdateBotInstanceReport(&autoupdate.AutoUpdateBotInstanceReportSpec{
+		Timestamp: timestamppb.New(env.clock.Now()),
+		Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
+			"prod": {
+				Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+					"19.1.1":     {Count: 1},      // Up to date
+					"19.2.0":     {Count: 10},     // Unsupported (too new)
+					"19.1.0":     {Count: 100},    // Patch available
+					"19.0.0-rc1": {Count: 1000},   // Patch available
+					"18.0.0":     {Count: 10000},  // Requires upgrade
+					"17.0.0":     {Count: 100000}, // Unsupported (too old)
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertAutoUpdateBotInstanceReport(ctx, report)
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint(
+		"webapi", "sites", clusterName, "machine-id", "bot-instance", "metrics",
+	)
+	rsp, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var body BotInstanceMetricsResponse
+	require.NoError(t, json.Unmarshal(rsp.Bytes(), &body))
+
+	// Up to date
+	require.Equal(t,
+		BotInstanceUpgradeStatus{
+			Count:  1,
+			Filter: `status.latest_heartbeat.version == "19.1.1"`,
+		},
+		body.UpgradeStatuses.UpToDate,
+	)
+
+	// Unsupported
+	require.Equal(t,
+		BotInstanceUpgradeStatus{
+			Count:  100010,
+			Filter: `older_than(status.latest_heartbeat.version, "18.0.0-aa") || status.latest_heartbeat.version == "20.0.0-aa" || newer_than(status.latest_heartbeat.version, "20.0.0-aa")`,
+		},
+		body.UpgradeStatuses.Unsupported,
+	)
+
+	// Patch available
+	require.Equal(t,
+		BotInstanceUpgradeStatus{
+			Count:  1100,
+			Filter: `between(status.latest_heartbeat.version, "19.0.0-aa", "19.1.1")`,
+		},
+		body.UpgradeStatuses.PatchAvailable,
+	)
+
+	// Requires upgrade
+	require.Equal(t,
+		BotInstanceUpgradeStatus{
+			Count:  10000,
+			Filter: `between(status.latest_heartbeat.version, "18.0.0-aa", "19.0.0-aa")`,
+		},
+		body.UpgradeStatuses.RequiresUpgrade,
+	)
 }

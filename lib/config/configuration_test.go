@@ -3898,6 +3898,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							Azure: &AzureInstallParams{
 								ClientID: "abcd1234",
 							},
+							Suffix: "blue",
 						},
 					},
 				},
@@ -3916,6 +3917,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							Azure: &types.AzureInstallerParams{
 								ClientID: "abcd1234",
 							},
+							Suffix: "blue",
 						},
 						Regions:        []string{"*"},
 						ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -4366,7 +4368,6 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name              string
-		installParams     *InstallParams
 		fc                *FileConfig
 		expectedProxyAddr string
 	}{
@@ -4374,18 +4375,6 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 			name:              "empty",
 			fc:                &FileConfig{},
 			expectedProxyAddr: "",
-		},
-		{
-			name: "explicit proxy addr",
-			installParams: &InstallParams{
-				PublicProxyAddr: "explicit.example.com",
-			},
-			fc: &FileConfig{
-				Global: Global{
-					ProxyServer: "proxy.example.com",
-				},
-			},
-			expectedProxyAddr: "explicit.example.com",
 		},
 		{
 			name: "proxy server",
@@ -4433,7 +4422,7 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.installParams, tc.fc))
+			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.fc))
 		})
 	}
 }
@@ -4750,6 +4739,7 @@ func TestDiscoveryConfig(t *testing.T) {
 								"method":     "iam",
 							},
 							"script_name": "installer-custom",
+							"suffix":      "blue",
 						},
 						"ssm": cfgMap{
 							"document_name": "hello_document",
@@ -4772,6 +4762,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					ScriptName:      "installer-custom",
 					InstallTeleport: true,
 					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					Suffix:          "blue",
 				},
 				SSM: &types.AWSSSM{DocumentName: "hello_document"},
 				AssumeRole: &types.AssumeRole{
@@ -4781,8 +4772,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			}},
 		},
 		{
-			desc:          "AWS section with eice enroll mode",
-			expectError:   require.NoError,
+			desc:          "AWS section with eice enroll mode, returns an error",
+			expectError:   require.Error,
 			expectEnabled: require.True,
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
@@ -4810,27 +4801,6 @@ func TestDiscoveryConfig(t *testing.T) {
 					},
 				}
 			},
-			expectedAWSMatchers: []types.AWSMatcher{{
-				Types:   []string{"ec2"},
-				Regions: []string{"eu-central-1"},
-				Tags: map[string]apiutils.Strings{
-					"discover_teleport": []string{"yes"},
-				},
-				Params: &types.InstallerParams{
-					JoinMethod:      types.JoinMethodIAM,
-					JoinToken:       "hello-iam-a-token",
-					SSHDConfig:      "/etc/ssh/sshd_config",
-					ScriptName:      "installer-custom",
-					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
-				},
-				SSM:         &types.AWSSSM{DocumentName: "hello_document"},
-				Integration: "my-integration",
-				AssumeRole: &types.AssumeRole{
-					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID: "externalID123",
-				},
-			}},
 		},
 		{
 			desc:          "AWS cannot use EICE mode without integration",
@@ -5023,6 +4993,51 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					InstallTeleport: true,
 					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+			}},
+		},
+		{
+			desc:          "AWS section is filled custom HTTP Proxy Settings",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-west-1"},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+							"http_proxy_settings": cfgMap{
+								"http_proxy":  "http://squid-local:8080",
+								"https_proxy": "http://squid-local:8081",
+								"no_proxy":    "intranet.local,localhost",
+							},
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types: []string{"ec2"},
+				SSM: &types.AWSSSM{
+					DocumentName: types.AWSInstallerDocument,
+				},
+				Regions: []string{"eu-west-1"},
+				Tags:    map[string]apiutils.Strings{"*": {"*"}},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					HTTPProxySettings: &types.HTTPProxySettings{
+						HTTPProxy:  "http://squid-local:8080",
+						HTTPSProxy: "http://squid-local:8081",
+						NoProxy:    "intranet.local,localhost",
+					},
 				},
 			}},
 		},

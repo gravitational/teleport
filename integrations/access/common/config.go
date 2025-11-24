@@ -24,9 +24,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
+	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -56,27 +57,26 @@ func (c BaseConfig) GetRecipients() RawRecipientsMap {
 	return c.Recipients
 }
 
+// client type alias are used to embed the types in the wrappedClient
+
+type accessListClient = *accesslist.Client
+type accessMonitoringRulesClient = *accessmonitoringrules.Client
+type userLoginStateClient = *userloginstate.Client
+
 type wrappedClient struct {
 	*client.Client
-}
-
-func (w *wrappedClient) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
-	return w.Client.AccessListClient().ListAccessLists(ctx, pageSize, pageToken)
-}
-
-func (w *wrappedClient) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
-	return w.Client.AccessListClient().GetAccessListOwners(ctx, accessListName)
-}
-
-// ListAccessMonitoringRulesWithFilter lists current access monitoring rules.
-func (w *wrappedClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	return w.Client.AccessMonitoringRulesClient().ListAccessMonitoringRulesWithFilter(ctx, req)
+	accessListClient
+	accessMonitoringRulesClient
+	userLoginStateClient
 }
 
 // wrapAPIClient will wrap the API client such that it conforms to the Teleport plugin client interface.
 func wrapAPIClient(clt *client.Client) teleport.Client {
 	return &wrappedClient{
-		Client: clt,
+		Client:                      clt,
+		accessListClient:            clt.AccessListClient(),
+		accessMonitoringRulesClient: clt.AccessMonitoringRulesClient(),
+		userLoginStateClient:        clt.UserLoginStateClient(),
 	}
 }
 

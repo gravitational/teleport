@@ -192,3 +192,32 @@ func TestEncodeCredentialProcessFormat(t *testing.T) {
 	expected := `{"Version":1,"AccessKeyId":"mock-access-key-id","SecretAccessKey":"mock-secret-access-key","SessionToken":"mock-session-token","Expiration":"2030-06-24T00:00:00Z"}`
 	require.JSONEq(t, expected, encoded)
 }
+
+func TestRoleSessionNameFromSubject(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		subject  string
+		expected string
+	}{
+		{
+			name:     "valid subject",
+			subject:  "my-service-name",
+			expected: "my-service-name",
+		},
+		{
+			name:     "using email",
+			subject:  "user@example.com",
+			expected: "user@example.com",
+		},
+		{
+			name:     "using email with plus sign",
+			subject:  "user+tag@example.com",
+			expected: "user_tag@example.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			result := roleSessionNameFromSubject(t.Context(), tt.subject)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}

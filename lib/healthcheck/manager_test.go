@@ -126,6 +126,9 @@ func TestManager(t *testing.T) {
 	healthConfigSvc, err := local.NewHealthCheckConfigService(bk)
 	require.NoError(t, err)
 
+	// disable virtual defaults to allow testing explicit config matching behavior
+	disableVirtualHealthCheckDefaults(t, ctx, healthConfigSvc)
+
 	// create a health check config that only matches prod databases
 	prodHCC := healthCheckConfigFixture(t, "prod")
 	prodHCC.Spec.Match.DbLabelsExpression = `labels.env == "prod"`
@@ -151,7 +154,8 @@ func TestManager(t *testing.T) {
 		mgr.mu.RLock()
 		configs := mgr.configs[:]
 		mgr.mu.RUnlock()
-		require.Len(t, configs, 1, "starting the manager should have blocked until configs were initialized")
+		require.Len(t, configs, 1+teleport.VirtualDefaultHealthCheckConfigCount,
+			"starting the manager should have blocked until configs were initialized")
 	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -237,7 +241,7 @@ func TestManager(t *testing.T) {
 	t.Run("duplicate target is an error", func(t *testing.T) {
 		err = mgr.AddTarget(devTarget)
 		require.Error(t, err)
-		require.IsType(t, trace.AlreadyExists(""), err)
+		require.ErrorIs(t, trace.AlreadyExists("target health checker \"name=devDB, kind=db\" already exists"), err)
 	})
 	t.Run("unsupported target resource is an error", func(t *testing.T) {
 		err = mgr.AddTarget(Target{
@@ -253,16 +257,8 @@ func TestManager(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorIs(t, trace.BadParameter("health check target resource kind \"node\" is not supported"), err)
 	})
-
-	requireTargetHealth := func(t *testing.T, r types.ResourceWithLabels, status types.TargetHealthStatus, reason types.TargetHealthTransitionReason) {
-		t.Helper()
-		health, err := mgr.GetTargetHealth(r)
-		require.NoError(t, err)
-		require.Equal(t, string(status), health.Status)
-		require.Equal(t, string(reason), health.TransitionReason)
-	}
 
 	prodPass := lastResultPassTestEvent(prodDB.GetName())
 	prodFail := lastResultFailTestEvent(prodDB.GetName())
@@ -272,8 +268,8 @@ func TestManager(t *testing.T) {
 		deny(prodFail),
 		denyAll(devDB.GetName()),
 	)
-	requireTargetHealth(t, devDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
-	requireTargetHealth(t, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, devDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
+	requireTargetHealth(t, mgr, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// another check should reach the prodHCC configured threshold.
 	awaitTestEvents(t, eventsCh, clock,
@@ -282,7 +278,7 @@ func TestManager(t *testing.T) {
 		deny(prodFail),
 		denyAll(devDB.GetName()),
 	)
-	requireTargetHealth(t, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// now reject health check connections to simulate an unhealthy endpoint
 	prodDialer.deny()
@@ -292,7 +288,7 @@ func TestManager(t *testing.T) {
 		expect(prodFail, prodFail),
 		deny(prodPass),
 		denyAll(devDB.GetName()))
-	requireTargetHealth(t, prodDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, prodDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// enable dev health checks for dev db and simulate an unhealthy endpoint on init
 	devDialer.deny()
@@ -314,7 +310,7 @@ func TestManager(t *testing.T) {
 		expect(devFail, prodFail),
 		deny(prodPass, devPass),
 	)
-	requireTargetHealth(t, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// the next dev check should update health status because the unhealthy threshold was met
 	awaitTestEvents(t, eventsCh, clock,
@@ -322,7 +318,7 @@ func TestManager(t *testing.T) {
 		expect(devFail, prodFail),
 		deny(prodPass, devPass),
 	)
-	requireTargetHealth(t, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// set the unhealthy threshold high for dev, so we can simulate several
 	// failing checks after dev becomes healthy without making it become unhealthy
@@ -347,8 +343,8 @@ func TestManager(t *testing.T) {
 		expect(devPass, prodPass),
 		deny(devFail, prodFail),
 	)
-	requireTargetHealth(t, devDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
-	requireTargetHealth(t, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, devDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// now disable the prod health checks
 	err = healthConfigSvc.DeleteHealthCheckConfig(ctx, "prod")
@@ -365,9 +361,9 @@ func TestManager(t *testing.T) {
 		deny(devFail, prodFail),
 	)
 	// prod db should be disabled eventually
-	requireTargetHealth(t, prodDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
+	requireTargetHealth(t, mgr, prodDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
 	// but dev db should still be healthy
-	requireTargetHealth(t, devDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, devDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// fail some checks, then update config to lower the unhealthy threshold
 	devDialer.deny()
@@ -377,7 +373,7 @@ func TestManager(t *testing.T) {
 		expect(devFail, devFail, devFail),
 		denyAll(prodDB.GetName()),
 	)
-	requireTargetHealth(t, devDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, devDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
 	devHCC.Spec.UnhealthyThreshold = 1
 	devHCC.Spec.Interval = durationpb.New(time.Second * 100)
 	_, err = healthConfigSvc.UpdateHealthCheckConfig(ctx, devHCC)
@@ -389,7 +385,7 @@ func TestManager(t *testing.T) {
 		deny(devPass, devFail),
 	)
 	// config update should set unhealthy status since the new threshold is already met
-	requireTargetHealth(t, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
+	requireTargetHealth(t, mgr, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// remove a target
 	err = mgr.RemoveTarget(devDB)
@@ -397,14 +393,14 @@ func TestManager(t *testing.T) {
 	// shouldn't be any target health after the target is removed
 	_, err = mgr.GetTargetHealth(devDB)
 	require.Error(t, err)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorIs(t, trace.NotFound("health checker \"name=devDB, kind=db\" not found"), err)
 
 	err = mgr.RemoveTarget(devDB)
 	require.Error(t, err)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorIs(t, trace.NotFound("health checker \"name=devDB, kind=db\" not found"), err)
 
 	// prodDB should still be disabled
-	requireTargetHealth(t, prodDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
+	requireTargetHealth(t, mgr, prodDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
 	err = mgr.RemoveTarget(prodDB)
 	require.NoError(t, err)
 
@@ -413,6 +409,198 @@ func TestManager(t *testing.T) {
 		advanceByHCC(prodHCC, devHCC),
 		expect(closedTestEvent(devDB.GetName()), closedTestEvent(prodDB.GetName())),
 	)
+}
+
+func TestManager_VirtualDefaults(t *testing.T) {
+	t.Parallel()
+	// Verify that health check Manager correctly loads and uses virtual defaults.
+	// Exercises Manager + HealthCheckConfigService + Worker coordination with virtual defaults.
+	tests := []struct {
+		name               string
+		component          string
+		virtualDefaultName string
+		createResource     func() (types.ResourceWithLabels, error)
+		setupHealthChecker func(t *testing.T) (HealthChecker, func())
+	}{
+		{
+			name:               "database",
+			component:          teleport.ComponentDatabase,
+			virtualDefaultName: teleport.VirtualDefaultHealthCheckConfigDBName,
+			createResource: func() (types.ResourceWithLabels, error) {
+				return types.NewDatabaseV3(types.Metadata{
+					Name: "test-db",
+				}, types.DatabaseSpecV3{
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "unused",
+				})
+			},
+			setupHealthChecker: func(t *testing.T) (HealthChecker, func()) {
+				listener, err := net.Listen("tcp", "localhost:0")
+				require.NoError(t, err)
+				dialer := &fakeDialer{}
+				checker := &TargetDialer{
+					Resolver: func(ctx context.Context) ([]string, error) {
+						return []string{listener.Addr().String()}, nil
+					},
+					dial: dialer.DialContext,
+				}
+				cleanup := func() { _ = listener.Close() }
+				return checker, cleanup
+			},
+		},
+		{
+			name:               "kube",
+			component:          teleport.ComponentKube,
+			virtualDefaultName: teleport.VirtualDefaultHealthCheckConfigKubeName,
+			createResource: func() (types.ResourceWithLabels, error) {
+				return types.NewKubernetesClusterV3(types.Metadata{
+					Name: "test-kube",
+				}, types.KubernetesClusterSpecV3{})
+			},
+			setupHealthChecker: func(t *testing.T) (HealthChecker, func()) {
+				checker := &fakeKubeHealthChecker{}
+				cleanup := func() {}
+				return checker, cleanup
+			},
+		},
+	}
+
+	ctx := t.Context()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// setup backend and health check config service
+			bk, err := memory.New(memory.Config{Context: ctx})
+			require.NoError(t, err)
+			healthConfigSvc, err := local.NewHealthCheckConfigService(bk)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClock()
+			eventsCh := make(chan testEvent, 1024)
+			mgr, err := NewManager(ctx, ManagerConfig{
+				Component:               tt.component,
+				Events:                  local.NewEventsService(bk),
+				HealthCheckConfigReader: healthConfigSvc,
+				Clock:                   clock,
+			})
+			require.NoError(t, err)
+			require.NoError(t, mgr.Start(ctx))
+			t.Cleanup(func() {
+				require.NoError(t, mgr.Close())
+			})
+
+			resource, err := tt.createResource()
+			require.NoError(t, err)
+
+			healthChecker, cleanup := tt.setupHealthChecker(t)
+			t.Cleanup(cleanup)
+
+			err = mgr.AddTarget(Target{
+				HealthChecker: healthChecker,
+				GetResource: func() types.ResourceWithLabels {
+					return resource
+				},
+				onHealthCheck: func(lastResultErr error) {
+					eventsCh <- lastResultTestEvent(resource.GetName(), lastResultErr)
+				},
+				onConfigUpdate: func() {
+					eventsCh <- configUpdateTestEvent(resource.GetName())
+				},
+			})
+			require.NoError(t, err)
+
+			// virtual defaults start with health checks enabled and matching all resources
+			passEvent := lastResultPassTestEvent(resource.GetName())
+			awaitTestEvents(t, eventsCh, clock,
+				advanceCount(int(apidefaults.HealthCheckHealthyThreshold)),
+				expect(passEvent, passEvent),
+			)
+			requireTargetHealth(t, mgr, resource,
+				types.TargetHealthStatusHealthy,
+				types.TargetHealthTransitionReasonThreshold)
+
+			// get the virtual default
+			// modify default to detect change after deletion
+			virtualDefault, err := healthConfigSvc.GetHealthCheckConfig(ctx, tt.virtualDefaultName)
+			require.NoError(t, err)
+			modifiedUnhealthyThreshold := uint32(3)
+			virtualDefault.Spec.UnhealthyThreshold = modifiedUnhealthyThreshold
+			virtualDefault.Spec.Match.Disabled = true
+
+			// save modified virtual default to the backend
+			_, err = healthConfigSvc.CreateHealthCheckConfig(ctx, virtualDefault)
+			require.NoError(t, err)
+			awaitTestEvents(t, eventsCh, nil,
+				expect(configUpdateTestEvent(resource.GetName())),
+			)
+			requireTargetHealth(t, mgr, resource,
+				types.TargetHealthStatusUnknown,
+				types.TargetHealthTransitionReasonDisabled)
+
+			// delete persisted virtual default
+			err = healthConfigSvc.DeleteHealthCheckConfig(ctx, tt.virtualDefaultName)
+			require.NoError(t, err)
+			awaitTestEvents(t, eventsCh, nil,
+				expect(configUpdateTestEvent(resource.GetName())),
+			)
+			requireTargetHealth(t, mgr, resource,
+				types.TargetHealthStatusUnknown,
+				types.TargetHealthTransitionReasonInit) // init because worker restarted with new config
+
+			// get the new virtual default which has not been persisted
+			// expect original default values
+			afterDelete, err := healthConfigSvc.GetHealthCheckConfig(ctx, tt.virtualDefaultName)
+			require.NoError(t, err)
+			require.False(t, afterDelete.Spec.Match.Disabled,
+				"expecting virtual default to revert enabled state")
+			require.NotEqual(t, modifiedUnhealthyThreshold, afterDelete.Spec.UnhealthyThreshold,
+				"expecting virtual default should revert to original unhealthy threshold")
+			awaitTestEvents(t, eventsCh, clock,
+				advanceCount(int(apidefaults.HealthCheckHealthyThreshold)),
+				expect(passEvent, passEvent),
+			)
+			requireTargetHealth(t, mgr, resource,
+				types.TargetHealthStatusHealthy,
+				types.TargetHealthTransitionReasonThreshold)
+
+			// disable to stop checking health
+			virtualDefault, err = healthConfigSvc.GetHealthCheckConfig(ctx, tt.virtualDefaultName)
+			require.NoError(t, err)
+			virtualDefault.Spec.Match.Disabled = true
+			_, err = healthConfigSvc.UpdateHealthCheckConfig(ctx, virtualDefault)
+			require.NoError(t, err)
+			awaitTestEvents(t, eventsCh, nil,
+				expect(configUpdateTestEvent(resource.GetName())),
+			)
+			requireTargetHealth(t, mgr, resource,
+				types.TargetHealthStatusUnknown,
+				types.TargetHealthTransitionReasonDisabled)
+
+			// re-enabling config matcher starts health checks
+			virtualDefault.Spec.Match.Disabled = false
+			_, err = healthConfigSvc.UpdateHealthCheckConfig(ctx, virtualDefault)
+			require.NoError(t, err)
+
+			awaitTestEvents(t, eventsCh, clock,
+				expect(configUpdateTestEvent(resource.GetName())),
+				advanceCount(int(apidefaults.HealthCheckHealthyThreshold)),
+				expect(passEvent),
+			)
+			requireTargetHealth(t, mgr, resource,
+				types.TargetHealthStatusHealthy,
+				types.TargetHealthTransitionReasonThreshold)
+
+		})
+	}
+}
+
+func requireTargetHealth(t *testing.T, mgr Manager, r types.ResourceWithLabels, status types.TargetHealthStatus, reason types.TargetHealthTransitionReason) {
+	t.Helper()
+	health, err := mgr.GetTargetHealth(r)
+	require.NoError(t, err)
+	require.Equal(t, string(status), health.Status)
+	require.Equal(t, string(reason), health.TransitionReason)
 }
 
 func healthCheckConfigFixture(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
@@ -569,6 +757,17 @@ func (f *fakeDialer) DialContext(ctx context.Context, network, addr string) (net
 	return f.Dialer.DialContext(ctx, network, addr)
 }
 
+type fakeKubeHealthChecker struct {
+}
+
+func (m *fakeKubeHealthChecker) CheckHealth(ctx context.Context) ([]string, error) {
+	return []string{"https://localhost:6443"}, nil
+}
+
+func (m *fakeKubeHealthChecker) GetProtocol() types.TargetHealthProtocol {
+	return types.TargetHealthProtocolHTTP
+}
+
 type testEvent struct {
 	name   testEventName
 	target string
@@ -615,5 +814,20 @@ func lastResultFailTestEvent(targetName string) testEvent {
 	return testEvent{
 		name:   lastResultFail,
 		target: targetName,
+	}
+}
+
+func disableVirtualHealthCheckDefaults(t *testing.T, ctx context.Context, svc *local.HealthCheckConfigService) {
+	t.Helper()
+	virtualDefaults := []string{
+		teleport.VirtualDefaultHealthCheckConfigDBName,
+		teleport.VirtualDefaultHealthCheckConfigKubeName,
+	}
+	for _, name := range virtualDefaults {
+		cfg, err := svc.GetHealthCheckConfig(ctx, name)
+		require.NoError(t, err)
+		cfg.Spec.Match.Disabled = true
+		_, err = svc.UpdateHealthCheckConfig(ctx, cfg)
+		require.NoError(t, err)
 	}
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { debounce } from 'shared/utils/highbar';
+import { getErrorMessage } from 'shared/utils/error';
 
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
@@ -25,6 +25,7 @@ import {
   MainProcessClient,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
+import { cleanUpBeforeLogout } from 'teleterm/ui/ClusterLogout/cleanUpBeforeLogout';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
@@ -40,7 +41,11 @@ import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
-import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
+import {
+  IAppContext,
+  ResourceRefreshListener,
+  UnexpectedVnetShutdownListener,
+} from 'teleterm/ui/types';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
@@ -81,6 +86,7 @@ export default class AppContext implements IAppContext {
   private _unexpectedVnetShutdownListener:
     | UnexpectedVnetShutdownListener
     | undefined;
+  private _resourceRefreshListener: ResourceRefreshListener | undefined;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
@@ -154,6 +160,9 @@ export default class AppContext implements IAppContext {
       tshClient,
       this.configService
     );
+
+    this.registerClusterLifecycleHandler();
+    this.subscribeToProfileWatcherErrors();
   }
 
   async pullInitialState(): Promise<void> {
@@ -161,7 +170,6 @@ export default class AppContext implements IAppContext {
       createTshdEventsContextBridgeService(this)
     );
 
-    this.notifyMainProcessAboutClusterListChanges();
     void this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
     this.workspacesService.restorePersistedState();
@@ -198,22 +206,77 @@ export default class AppContext implements IAppContext {
     return this._unexpectedVnetShutdownListener;
   }
 
-  private notifyMainProcessAboutClusterListChanges() {
-    // Debounce the notifications sent to the main process so that we don't unnecessarily send more
-    // than one notification per frame. The main process doesn't need to be notified absolutely
-    // immediately after a change in the cluster list.
-    //
-    // The clusters map in ClustersService gets updated a bunch of times during the start of the
-    // app. After each update, the renderer tells the main process to refresh the list. The main
-    // process sends a request to list root clusters and cancels any pending ones. Debouncing here
-    // helps to minimize those cancellations.
-    const refreshClusterList = debounce(
-      this.mainProcessClient.refreshClusterList,
-      16
-    );
-    this.clustersService.subscribeWithSelector(
-      state => state.clusters,
-      refreshClusterList
+  /** Sets the listener and returns a cleanup function which removes the listener. */
+  addResourceRefreshListener(listener: ResourceRefreshListener): () => void {
+    this._resourceRefreshListener = listener;
+
+    return () => {
+      this._resourceRefreshListener = undefined;
+    };
+  }
+
+  /** Gets called when `ClusterLifecycleManager` requests resource refresh. */
+  get resourceRefreshListener(): ResourceRefreshListener {
+    return this._resourceRefreshListener;
+  }
+
+  private registerClusterLifecycleHandler(): void {
+    // Queue chain ensures sequential processing.
+    let processingQueue = Promise.resolve();
+
+    this.mainProcessClient.registerClusterLifecycleHandler(({ uri, op }) => {
+      // Chain onto the queue and catch errors so it keeps processing
+      const task = processingQueue.then(async () => {
+        switch (op) {
+          case 'did-add-cluster':
+            return this.workspacesService.addWorkspace(uri);
+          case 'did-change-access':
+            if (!this.clustersService.findCluster(uri).connected) {
+              // Only refresh resources when the cluster is connected.
+              return;
+            }
+            return this.resourceRefreshListener(uri);
+          case 'will-logout':
+            return cleanUpBeforeLogout(this, uri, { removeWorkspace: false });
+          case 'will-logout-and-remove':
+            return cleanUpBeforeLogout(this, uri, { removeWorkspace: true });
+          default:
+            op satisfies never;
+        }
+      });
+
+      // Update the queue so the next event waits for this one.
+      // Catch errors, they will be returned below.
+      processingQueue = task.catch(() => {});
+
+      return task;
+    });
+  }
+
+  private subscribeToProfileWatcherErrors(): void {
+    let notificationId: string | undefined;
+    this.mainProcessClient.subscribeToProfileWatcherErrors(
+      ({ error, reason }) => {
+        let title: string;
+        switch (reason) {
+          case 'processing-error':
+            title =
+              'Failed to process the detected profile update. Changes made through tsh may not be reflected in the app.';
+            break;
+          case 'exited':
+            title =
+              "Stopped monitoring profiles. Changes made through tsh won't be reflected in the app.";
+            break;
+        }
+
+        if (notificationId) {
+          this.notificationsService.removeNotification(notificationId);
+        }
+        notificationId = this.notificationsService.notifyError({
+          title,
+          description: getErrorMessage(error),
+        });
+      }
     );
   }
 }

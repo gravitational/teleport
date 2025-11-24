@@ -532,6 +532,34 @@ func TestAccessLists(t *testing.T) {
 			expectedInheritedTraitCount: 1,
 		},
 		{
+			name:  "one level nested ownership inheritance chain",
+			cloud: true,
+			user:  userNoRolesOrTraits,
+			// user is member of acl child that is configured as owner of acl root
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "child", emptyGrants, accesslist.Grants{}),
+				newAccessListWithOwners(t, clock, "root", emptyGrants, grants([]string{"roleRoot"}, nil), []accesslist.Owner{{
+					Name:           "child",
+					MembershipKind: accesslist.MembershipKindList},
+				}),
+			},
+
+			members: newAccessListMembers(t, clock, "child", "user"),
+			roles:   []string{"roleRoot"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, "user",
+				nil,
+				nil,
+				nil,
+				[]string{"roleRoot"},
+				nil,
+			),
+			expectedRoleCount:           1,
+			expectedTraitCount:          0,
+			expectedInheritedRoleCount:  1,
+			expectedInheritedTraitCount: 0,
+		},
+		{
 			name:  "an access list that references a non-existent role should be skipped entirely",
 			user:  user,
 			cloud: true,

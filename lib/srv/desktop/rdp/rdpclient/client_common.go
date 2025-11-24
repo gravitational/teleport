@@ -85,7 +85,7 @@ type Config struct {
 	// KDCAddr is the address of Key Distribution Center.
 	// This is used to support RDP Network Level Authentication (NLA)
 	// when connecting to hosts enrolled in Active Directory.
-	// This filed is not used when AD is false.
+	// This field is not used when AD is false.
 	KDCAddr string
 
 	// AD indicates whether the desktop is part of an Active Directory domain.

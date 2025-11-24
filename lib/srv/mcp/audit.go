@@ -22,14 +22,18 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -76,21 +80,55 @@ func newSessionAuditor(cfg sessionAuditorConfig) (*sessionAuditor, error) {
 	}, nil
 }
 
-func (a *sessionAuditor) shouldEmitEvent(method mcp.MCPMethod) bool {
+type eventOptions struct {
+	err    error
+	header http.Header
+}
+
+type eventOptionFunc func(*eventOptions)
+
+func newEventOptions(options ...eventOptionFunc) (opt eventOptions) {
+	for _, fn := range options {
+		if fn != nil {
+			fn(&opt)
+		}
+	}
+	return
+}
+
+func eventWithError(err error) eventOptionFunc {
+	return func(o *eventOptions) {
+		o.err = err
+	}
+}
+
+func eventWithHTTPResponseError(resp *http.Response, err error) eventOptionFunc {
+	return eventWithError(convertHTTPResponseErrorForAudit(resp, err))
+}
+
+func eventWithHeader(header http.Header) eventOptionFunc {
+	return func(o *eventOptions) {
+		o.header = headersForAudit(header)
+	}
+}
+
+func (a *sessionAuditor) shouldEmitEvent(method string) bool {
 	// Do not record discovery, ping calls.
 	switch method {
-	case mcp.MethodPing,
-		mcp.MethodResourcesList,
-		mcp.MethodResourcesTemplatesList,
-		mcp.MethodPromptsList,
-		mcp.MethodToolsList:
+	case mcputils.MethodPing,
+		mcputils.MethodResourcesList,
+		mcputils.MethodResourcesTemplatesList,
+		mcputils.MethodPromptsList,
+		mcputils.MethodToolsList:
 		return false
 	default:
 		return true
 	}
 }
 
-func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
+func (a *sessionAuditor) emitStartEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+
 	a.emitEvent(ctx, &apievents.MCPSessionStart{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionStartEvent,
@@ -102,10 +140,13 @@ func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
 		McpSessionId:       a.sessionCtx.mcpSessionID.String(),
+		EgressAuthType:     guessEgressAuthType(opts.header, a.sessionCtx.App.GetRewrite()),
 	})
 }
 
-func (a *sessionAuditor) emitEndEvent(ctx context.Context, err error) {
+func (a *sessionAuditor) emitEndEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+
 	event := &apievents.MCPSessionEnd{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionEndEvent,
@@ -119,17 +160,20 @@ func (a *sessionAuditor) emitEndEvent(ctx context.Context, err error) {
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionEndFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
 	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, err error) {
-	if err == nil && !a.shouldEmitEvent(msg.Method) {
+func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
 	event := &apievents.MCPSessionNotification{
@@ -142,23 +186,25 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 		AppMetadata:     a.makeAppMetadata(),
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
-			Method:  string(msg.Method),
+			Method:  msg.Method,
 			Params:  msg.Params.GetEventParams(),
 		},
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionNotificationFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
 	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, err error) {
-	if err == nil && !a.shouldEmitEvent(msg.Method) {
+func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
 	event := &apievents.MCPSessionRequest{
@@ -174,22 +220,23 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 		},
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
-			Method:  string(msg.Method),
+			Method:  msg.Method,
 			ID:      msg.ID.String(),
 			Params:  msg.Params.GetEventParams(),
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
 
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionRequestFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
 	a.emitEvent(ctx, event)
 }
 
-//nolint:unused //TODO(greedy52) remove nolint
-func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error) {
+func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
 	event := &apievents.MCPSessionListenSSEStream{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionListenSSEStream,
@@ -201,16 +248,16 @@ func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionListenSSEStreamFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
 	a.emitEvent(ctx, event)
 }
 
-//nolint:unused //TODO(greedy52) remove nolint
 func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Request) {
 	body, _ := utils.GetAndReplaceRequestBody(r)
 	event := &apievents.MCPSessionInvalidHTTPRequest{
@@ -225,6 +272,7 @@ func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Req
 		Method:          r.Method,
 		Body:            body,
 		RawQuery:        r.URL.RawQuery,
+		Headers:         wrappers.Traits(r.Header),
 	}
 	a.emitEvent(ctx, event)
 }
@@ -287,4 +335,67 @@ func (a *sessionAuditor) makeSessionMetadata() apievents.SessionMetadata {
 
 func (a *sessionAuditor) makeUserMetadata() apievents.UserMetadata {
 	return a.sessionCtx.Identity.GetUserMetadata()
+}
+
+var headersWithSecret = []string{
+	"Authorization",
+	"X-API-Key",
+}
+
+func headersForAudit(h http.Header) http.Header {
+	if h == nil {
+		return nil
+	}
+	ret := h.Clone()
+	for _, key := range appcommon.ReservedHeaders {
+		ret.Del(key)
+	}
+	for _, key := range headersWithSecret {
+		if len(ret.Values(key)) > 0 {
+			ret.Set(key, "<REDACTED>")
+		}
+	}
+	return ret
+}
+
+// guessEgressAuthType makes an educated guess on what kind of auth is used to
+// for the remote MCP server.
+func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrite) string {
+	if rewrite != nil {
+		testJWTTraits := map[string][]string{
+			"jwt": {"test", "jwt"},
+		}
+
+		var rewriteAuth bool
+		for _, rewrite := range rewrite.Headers {
+			if strings.EqualFold(rewrite.Name, "Authorization") {
+				rewriteAuth = true
+			}
+
+			// Check if any header value includes "{{internal.jwt}}".
+			if strings.Contains(rewrite.Value, "internal.jwt") {
+				// Apply fake traits just to be sure. The fake traits will
+				// result two values if applied successfully.
+				if interpolated, _ := services.ApplyValueTraits(rewrite.Value, testJWTTraits); len(interpolated) > 1 {
+					return "app-jwt"
+				}
+			}
+		}
+
+		// Auth header has be defined in the app definition but not using
+		// "{{internal.jwt}}".
+		if rewriteAuth {
+			return "app-defined"
+		}
+	}
+
+	// Reach here when app.Rewrite not overwriting auth. Check if Auth header is
+	// defined by the user.
+	if headerWithoutRewrite.Get("Authorization") != "" {
+		return "user-defined"
+	}
+
+	// No auth required for the remote MCP server or something we don't
+	// understand yet.
+	return "unknown"
 }

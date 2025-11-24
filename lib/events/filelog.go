@@ -197,8 +197,11 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 //
 // This function may never return more than 1 MiB of event data.
 func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	l.logger.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
-	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
+	l.logger.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit, "search", req.Search)
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{
+		eventTypes: req.EventTypes,
+		search:     req.Search,
+	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -511,6 +514,7 @@ func (l *FileLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetE
 type searchEventsFilter struct {
 	eventTypes []string
 	condition  utils.FieldsCondition
+	search     string
 }
 
 // Close closes the audit log, which includes closing all file handles and
@@ -709,6 +713,21 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 		// Check that the filter condition is satisfied.
 		if filter.condition != nil {
 			accepted = accepted && filter.condition(utils.Fields(ef))
+		}
+		// Check if search filter matches.
+		if accepted && filter.search != "" {
+			eventJSON := strings.ToLower(string(scanner.Bytes()))
+			searchTerms := strings.Fields(strings.ToLower(filter.search))
+
+			matchedAll := true
+			for _, term := range searchTerms {
+				if !strings.Contains(eventJSON, term) {
+					matchedAll = false
+					break
+				}
+			}
+
+			accepted = matchedAll
 		}
 
 		if accepted {

@@ -177,7 +177,7 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 
 // Expiry returns the credential expiry.
 func (p *Profile) Expiry() (time.Time, bool) {
-	certPEMBlock, err := os.ReadFile(p.TLSCertPath())
+	certPEMBlock, err := p.TLSCert()
 	if err != nil {
 		return time.Time{}, false
 	}
@@ -186,6 +186,12 @@ func (p *Profile) Expiry() (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return cert.NotAfter, true
+}
+
+// TLSCert returns the profile's TLS certificate.
+func (p *Profile) TLSCert() ([]byte, error) {
+	certPEMBlock, err := os.ReadFile(p.TLSCertPath())
+	return certPEMBlock, trace.Wrap(err)
 }
 
 // RequireKubeLocalProxy returns true if this profile indicates a local proxy
