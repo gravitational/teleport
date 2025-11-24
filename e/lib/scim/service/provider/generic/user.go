@@ -19,6 +19,7 @@ import (
 type userHandler struct {
 	common.Config
 	Plugin *types.PluginV1
+	common.NotImplementedHandler
 }
 
 func userExternalID(u types.User) string {

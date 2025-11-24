@@ -114,7 +114,7 @@ func buildResourceType(name, endpoint, schema, location string) (*scimpb.Resourc
 
 // serviceProviderConfigHandler returns static configuration describing SCIM provider capabilities.
 type serviceProviderConfigHandler struct {
-	notImplementedHandler
+	common.NotImplementedHandler
 }
 
 // ServiceProviderConfigAttribute contains the supported operations and features of this SCIM provider.
@@ -150,7 +150,7 @@ func (serviceProviderConfigHandler) GetResource(ctx context.Context, req *scimpb
 type schemaHandler struct {
 	common.Config
 	Plugin *types.PluginV1
-	notImplementedHandler
+	common.NotImplementedHandler
 }
 
 // GetResource returns schema information for a requested SCIM resource type.
@@ -337,7 +337,7 @@ func buildUserSchemaResource() *scimpb.Resource {
 type resourceTypesHandler struct {
 	common.Config
 	Plugin *types.PluginV1
-	notImplementedHandler
+	common.NotImplementedHandler
 }
 
 // ListResources returns the available SCIM resource types.
@@ -362,31 +362,6 @@ func (h resourceTypesHandler) ListResources(ctx context.Context, req *scimpb.Lis
 		StartIndex:   1,
 		Resources:    resources,
 	}, nil
-}
-
-// notImplementedHandler provides default stub methods for unsupported SCIM operations.
-// It needs to fulfill the SCIM CRUD interface for the discovery resource that
-// support only List or Get operations.
-type notImplementedHandler struct{}
-
-func (notImplementedHandler) GetResource(context.Context, *scimpb.GetSCIMResourceRequest) (*scimpb.Resource, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
-func (notImplementedHandler) CreateResource(context.Context, *scimpb.CreateSCIMResourceRequest) (*scimpb.Resource, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
-func (notImplementedHandler) ListResources(context.Context, *scimpb.ListSCIMResourcesRequest) (*scimpb.ResourceList, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
-func (notImplementedHandler) UpdateResource(context.Context, *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
-func (notImplementedHandler) DeleteResource(context.Context, *scimpb.DeleteSCIMResourceRequest) error {
-	return trace.NotImplemented("not implemented")
 }
 
 // structToPB converts a Go struct to a Protocol Buffers Struct.

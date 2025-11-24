@@ -18,6 +18,7 @@ import (
 type groupHandler struct {
 	common.Config
 	Plugin *types.PluginV1
+	common.NotImplementedHandler
 }
 
 // CreateResource handles the creation of a new SCIM group resource.

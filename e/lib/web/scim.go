@@ -2,12 +2,14 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -474,16 +476,14 @@ func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, para
 	return nil
 }
 
-// scimPatchResource handles a PATCH request on a SCIM resource. We do not
-// currently support PATCH requests as our target SCIM clients do not use it
-// (e.g. Okta SAML App), so this method merely logs the request for
-// troubleshooting purposes and returns NotImplemented.
+// scimPatchResource handles SCIM PATCH requests to partially update a resource.
+// See RFC 7644 Section 3.5.2 for details
 func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	resourceID := params.ByName("resourceID")
 
-	p.Logger.InfoContext(r.Context(), "Unexpected PATCH resource request",
+	p.Logger.InfoContext(r.Context(), "Handling PATCH resource request",
 		teleport.ComponentKey, "scim",
 		"method", r.Method,
 		"integration", integration,
@@ -491,7 +491,34 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 		"resource_id", resourceID,
 	)
 
-	return trace.NotImplemented(http.MethodPatch)
+	m := map[string]any{}
+	if err := json.NewDecoder(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes}).Decode(&m); err != nil {
+		return trace.Wrap(err)
+	}
+
+	payload, err := structpb.NewStruct(m)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	updated, err := p.h.GetProxyClient().SCIMClient().PatchSCIMResource(r.Context(), &scimpb.PatchSCIMResourceRequest{
+		Target: &scimpb.RequestTarget{
+			Authorization: r.Header.Get("Authorization"),
+			PluginId:      integration,
+			ResourceType:  resourceType,
+			ResourceId:    resourceID,
+		},
+		Payload: payload,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	body, err := scimsdk.MarshalResource(updated)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	writeSCIMResponse(w, http.StatusOK, body, withETag(updated.GetMeta().GetVersion()))
+	return nil
 }
 
 func (p *Plugin) scimLogRequest(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {

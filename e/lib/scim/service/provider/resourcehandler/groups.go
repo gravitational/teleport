@@ -34,6 +34,7 @@ type ProviderGroup interface {
 type GroupHandler struct {
 	common.Config
 	ProviderGroup
+	common.NotImplementedHandler
 }
 
 // CreateResource handles the "create group" request from the SCIM client. If an

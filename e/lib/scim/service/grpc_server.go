@@ -140,6 +140,27 @@ func (s *Service) DeleteSCIMResource(ctx context.Context, req *pb.DeleteSCIMReso
 	return &emptypb.Empty{}, nil
 }
 
+// PatchSCIMResource handles a request to patch a single, specific instance of
+// a resource using SCIM PATCH operations as per RFC 7644 Section 3.5.2.
+func (s *Service) PatchSCIMResource(ctx context.Context, req *pb.PatchSCIMResourceRequest) (*pb.Resource, error) {
+	plugin, err := s.authorize(ctx, req.GetTarget())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	handler, err := s.CreateHandlerForPlugin(plugin, s.Config, req.GetTarget().GetResourceType())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := handler.PatchResource(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ensureMetadata(resp, req.GetTarget().GetResourceType()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 func ensureMetadata(resource *pb.Resource, rt string) error {
 	if len(resource.Schemas) == 0 {
 		var schemaID string

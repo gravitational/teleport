@@ -3,6 +3,8 @@ package common
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 )
 
@@ -18,4 +20,35 @@ type ResourceHandler interface {
 	UpdateResource(ctx context.Context, req *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error)
 	// DeleteResource deletes a resource.
 	DeleteResource(ctx context.Context, req *scimpb.DeleteSCIMResourceRequest) error
+	// PatchResource patches an existing resource.
+	PatchResource(ctx context.Context, req *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error)
+}
+
+// NotImplementedHandler provides default stub methods for unsupported SCIM operations.
+// It needs to fulfill the SCIM CRUD interface for the discovery resource that
+// support only List or Get operations.
+type NotImplementedHandler struct{}
+
+func (NotImplementedHandler) GetResource(context.Context, *scimpb.GetSCIMResourceRequest) (*scimpb.Resource, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (NotImplementedHandler) CreateResource(context.Context, *scimpb.CreateSCIMResourceRequest) (*scimpb.Resource, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (NotImplementedHandler) ListResources(context.Context, *scimpb.ListSCIMResourcesRequest) (*scimpb.ResourceList, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (NotImplementedHandler) UpdateResource(context.Context, *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (NotImplementedHandler) DeleteResource(context.Context, *scimpb.DeleteSCIMResourceRequest) error {
+	return trace.NotImplemented("not implemented")
+}
+
+func (NotImplementedHandler) PatchResource(context.Context, *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
+	return nil, trace.NotImplemented("not implemented")
 }

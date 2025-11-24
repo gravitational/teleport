@@ -32,6 +32,7 @@ type ProviderUser interface {
 type UserHandler struct {
 	common.Config
 	ProviderUser
+	common.NotImplementedHandler
 }
 
 // CreateResource handles the creation of a new SCIM resource.
