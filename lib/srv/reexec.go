@@ -1454,6 +1454,6 @@ func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) erro
 	case <-timer.C:
 		return trace.LimitExceeded("timed out waiting for continue signal")
 	case err := <-waitCh:
-		return err
+		return trace.Wrap(err)
 	}
 }

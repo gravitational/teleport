@@ -155,7 +155,7 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() (*servicecfg.PAMConfig, error)
+	GetPAM() *servicecfg.PAMConfig
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
@@ -1019,12 +1019,8 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		return nil, nil
 	}
 
-	localPAMConfig, err := c.srv.GetPAM()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// We use nil/empty to figure out if PAM is disabled later.
+	localPAMConfig := c.srv.GetPAM()
 	if !localPAMConfig.Enabled {
 		return nil, nil
 	}
@@ -1338,10 +1334,7 @@ const childReadyWaitTimeout = 3 * time.Minute
 // WaitForChild waits for the child process to signal ready through the named pipe.
 func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	bpfService := c.srv.GetBPF()
-	pam, err := c.srv.GetPAM()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	pam := c.srv.GetPAM()
 
 	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
 	// because PAM might inadvertently move the child process to another cgroup
@@ -1351,8 +1344,9 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// deadlocking because stdin/stdout/stderr which it uses to relay details from
 	// PAM auth modules are not properly copied until _after_ the shell request is
 	// replied to.
+	var err error
 	if bpfService.Enabled() && pam.Enabled {
-		if err := waitForSignal(ctx, c.readyr, childReadyWaitTimeout); err != nil {
+		if err = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); err != nil {
 			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
 			return trace.Wrap(err)
 		}
