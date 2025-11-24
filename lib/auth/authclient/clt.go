@@ -645,6 +645,11 @@ func (c *Client) NotificationServiceClient() notificationsv1.NotificationService
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
 }
 
+// MFAClient returns a client for the MFA service.
+func (c *Client) MFAClient() mfav2.MFAServiceClient {
+	return mfav2.NewMFAServiceClient(c.APIClient.GetConnection())
+}
+
 // DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
 func (c *Client) DatabaseObjectsClient() *databaseobject.Client {
 	return databaseobject.NewClient(c.APIClient.DatabaseObjectClient())
@@ -823,11 +828,6 @@ func (c *Client) UpsertAccessGraphSettings(context.Context, *clusterconfigpb.Acc
 // DeleteAccessGraphSettings deletes the access graph settings from the backend.
 func (c *Client) DeleteAccessGraphSettings(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// MFAClient returns a client for the MFA service.
-func (c *Client) MFAClient() mfav2.MFAServiceClient {
-	return mfav2.NewMFAServiceClient(c.APIClient.GetConnection())
 }
 
 type WebSessionReq struct {
@@ -1929,7 +1929,4 @@ type ClientI interface {
 	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
 	// are of the scoped access API available in agent access points to only what is necessary.
 	ScopedRoleReader() services.ScopedRoleReader
-
-	// MFAClient returns a client for the MFA service.
-	MFAClient() mfav2.MFAServiceClient
 }
