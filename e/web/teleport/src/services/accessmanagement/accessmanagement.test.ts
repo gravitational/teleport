@@ -57,6 +57,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
         nextDate: undefined,
       },
       currentUserAssignments: undefined,
+      userAssignments: undefined,
       ownershipRequires: {
         roles: [],
         traits: {},
@@ -88,6 +89,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     membersCount: undefined,
     memberListCount: undefined,
     currentUserAssignments: undefined,
+    userAssignments: undefined,
     membershipRequires: { roles: [], traits: {} },
     owners: [],
     ownershipRequires: { roles: [], traits: {} },
@@ -122,6 +124,7 @@ test('fetch an access list', async () => {
         ownership_type: AccessListUserAssignmentType.EXPLICIT,
         membership_type: AccessListUserAssignmentType.UNSPECIFIED,
       },
+      userAssignments: undefined,
       spec: {
         title: 'some title',
         description: 'some description',
@@ -207,6 +210,7 @@ test('fetch an access list', async () => {
       ownershipType: AccessListUserAssignmentType.EXPLICIT,
       membershipType: AccessListUserAssignmentType.UNSPECIFIED,
     },
+    userAssignments: undefined,
     members: [
       {
         name: 'george',

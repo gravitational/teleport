@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -488,10 +489,6 @@ func getAccessListNoMFACtx(ctx context.Context, clt services.AccessLists, name s
 
 // listUserAccessLists is the handler for GET /enterprise/users/:username/accesslists.
 func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	username := params.ByName("username")
 	if username == "" {
@@ -507,21 +504,28 @@ func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, par
 		return nil, trace.Wrap(err)
 	}
 
-	accessListClient := clt.AccessListClient()
-
-	req := &accesslistv1.ListUserAccessListsRequest{
-		Username:  username,
-		PageSize:  limit,
-		PageToken: startKey,
-	}
-
-	page, nextKey, err := accessListClient.ListUserAccessLists(r.Context(), req)
+	clt, err := p.getAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists := make([]*ui.AccessList, 0, len(page))
-	for _, accessList := range page {
+	aclClient := accesslistv1.NewAccessListServiceClient(clt.GetConnection())
+	resp, err := aclClient.ListUserAccessLists(r.Context(), &accesslistv1.ListUserAccessListsRequest{
+		Username:  username,
+		PageSize:  limit,
+		PageToken: startKey,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*ui.AccessList, 0, len(resp.AccessLists))
+	for _, protoAcl := range resp.AccessLists {
+		accessList, err := conv.FromProto(protoAcl, conv.WithOwnersIneligibleStatusField(protoAcl.GetSpec().GetOwners()))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		uiList := &ui.AccessList{
 			AccessList:             accessList,
 			MembersCount:           accessList.GetStatus().MemberCount,
@@ -534,7 +538,8 @@ func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, par
 
 	return ui.AccessListsResponse{
 		AccessLists: accessLists,
-		StartKey:    nextKey,
+		StartKey:    resp.NextPageToken,
+		TotalCount:  resp.TotalCount,
 	}, nil
 }
 

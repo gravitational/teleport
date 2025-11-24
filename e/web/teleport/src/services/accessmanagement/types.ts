@@ -86,6 +86,8 @@ export type AccessList = {
   inheritedMemberGrants: AccessListGrant;
   // currentUserAssignments describes the current user's membership and ownership in the access list.
   currentUserAssignments?: AccessListCurrentUserAssignments;
+  // userAssignments describes the requested user's membership and ownership in the access list.
+  userAssignments?: AccessListUserAssignments;
 };
 
 // A user must match both roles and traits to
@@ -152,6 +154,13 @@ export type AccessListGrant = {
 // AccessListCurrentUserAssignments describes the current user's
 // membership and ownership in a given access list.
 export type AccessListCurrentUserAssignments = {
+  ownershipType: AccessListUserAssignmentType;
+  membershipType: AccessListUserAssignmentType;
+};
+
+// AccessListUserAssignments describes the requested user's
+// membership and ownership in a given access list.
+export type AccessListUserAssignments = {
   ownershipType: AccessListUserAssignmentType;
   membershipType: AccessListUserAssignmentType;
 };

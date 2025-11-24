@@ -19,6 +19,7 @@ import {
   AccessListOwner,
   AccessListReview,
   AccessListType,
+  AccessListUserAssignments,
   AddMembersToAccessListRequest,
   IneligibleStatus,
   ReviewAccessListRequest,
@@ -28,6 +29,36 @@ import {
 } from './types';
 
 export const accessManagementService = {
+  fetchUserAccessLists(
+    {
+      username,
+      pageSize,
+      pageToken,
+    }: { username: string; pageSize?: number; pageToken?: string },
+    abortSignal?: AbortSignal
+  ): Promise<{
+    accessLists: AccessList[];
+    nextKey: string;
+    totalCount: number;
+  }> {
+    const urlParams = new URLSearchParams();
+    if (pageSize) {
+      urlParams.set('limit', pageSize.toString());
+    }
+    if (pageToken) {
+      urlParams.set('startKey', pageToken);
+    }
+
+    const url = urlParams.size
+      ? `${cfg.getUserAccessListsUrl(username)}?${urlParams}`
+      : cfg.getUserAccessListsUrl(username);
+
+    return api.get(url, abortSignal).then(resp => ({
+      accessLists: makeAccessLists(resp.accessLists),
+      nextKey: resp.startKey || '',
+      totalCount: resp.totalCount || 0,
+    }));
+  },
   fetchAccessListSuggestions(accessRequestId: string): Promise<AccessList[]> {
     return api
       .get(cfg.getAccessListSuggestionsUrl(accessRequestId))
@@ -309,12 +340,30 @@ function makeAccessList(json: any): AccessList {
     currentUserAssignments: makeAccessListCurrentUserAssignments(
       json?.current_user_assignments
     ),
+    userAssignments: makeAccessListUserAssignments(json?.user_assignments),
   };
 }
 
 const makeAccessListCurrentUserAssignments = (
   json: any
 ): AccessListCurrentUserAssignments => {
+  if (!json) {
+    return undefined;
+  }
+
+  const { ownership_type, membership_type } = json as {
+      ownership_type: number;
+      membership_type: number;
+    },
+    ownershipType = intToUserAssignmentType(ownership_type),
+    membershipType = intToUserAssignmentType(membership_type);
+
+  return { ownershipType, membershipType };
+};
+
+const makeAccessListUserAssignments = (
+  json: any
+): AccessListUserAssignments => {
   if (!json) {
     return undefined;
   }

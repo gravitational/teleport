@@ -44,6 +44,7 @@ type AccessListReviewsResponse struct {
 type AccessListsResponse struct {
 	AccessLists []*AccessList `json:"accessLists,omitempty"`
 	StartKey    string        `json:"startKey"`
+	TotalCount  int32         `json:"totalCount"`
 }
 
 // UpsertAccessListRequest is a UI representation of an upsert access list request.

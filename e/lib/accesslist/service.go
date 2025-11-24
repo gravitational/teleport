@@ -2259,7 +2259,7 @@ func (s *Service) ListUserAccessLists(ctx context.Context, req *accesslistv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedAcls, nextToken, err := paginateSlice(filteredAcls, int(req.PageSize), req.PageToken)
+	paginatedAcls, nextToken, totalCount, err := paginateSlice(filteredAcls, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2272,6 +2272,7 @@ func (s *Service) ListUserAccessLists(ctx context.Context, req *accesslistv1.Lis
 	return &accesslistv1.ListUserAccessListsResponse{
 		AccessLists:   accessLists,
 		NextPageToken: nextToken,
+		TotalCount:    int32(totalCount),
 	}, nil
 }
 
@@ -2350,7 +2351,7 @@ func (s *Service) listAccessListsForUser(ctx context.Context, user types.User) (
 
 // paginateSlice paginates a slice of access lists. It sorts by name and returns
 // pageSize results starting from the access list whose name matches pageToken.
-func paginateSlice(acls []*accesslist.AccessList, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+func paginateSlice(acls []*accesslist.AccessList, pageSize int, pageToken string) ([]*accesslist.AccessList, string, int, error) {
 	if pageSize == 0 {
 		pageSize = defaultAccessListPageSize
 	}
@@ -2379,13 +2380,14 @@ func paginateSlice(acls []*accesslist.AccessList, pageSize int, pageToken string
 	} else {
 		nextToken, err = services.CreateAccessListNextKey(acls[pageEnd], "name")
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, "", 0, trace.Wrap(err)
 		}
 	}
 
+	totalCount := len(acls)
 	results := acls[pageStart:pageEnd]
 
-	return results, nextToken, nil
+	return results, nextToken, totalCount, nil
 }
 
 // Check if the user is either authorized for the access list or owns this access list.
