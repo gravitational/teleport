@@ -983,7 +983,6 @@ func TestMakeClient(t *testing.T) {
 	localUser, err := client.Username()
 	require.NoError(t, err)
 
-	require.Equal(t, localUser, tc.Config.Username)
 	require.Equal(t, localUser, tc.Config.HostLogin)
 	require.Equal(t, time.Duration(0), tc.Config.KeyTTL)
 
@@ -3013,10 +3012,7 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 			assertErr: require.NoError,
 			assertConfig: func(t require.TestingT, c *client.Config) {
 				require.Equal(t, "other-proxy:3080", c.WebProxyAddr)
-				currentUsername, err := client.Username()
-				require.NoError(t, err)
-				// A default username is used, not the one from envMap.
-				require.Equal(t, currentUsername, c.Username)
+				require.Empty(t, c.Username)
 				require.Empty(t, c.SiteName)
 			},
 		}, {

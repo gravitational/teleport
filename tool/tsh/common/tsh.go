@@ -4847,14 +4847,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
-	if c.Username == "" {
-		username, err := client.Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		c.Username = username
-		slog.InfoContext(cf.Context, "No teleport login given, using default", "default_login", username)
-	}
 	c.ExplicitUsername = cf.ExplicitUsername
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
@@ -4900,13 +4892,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 	if hostLogin != "" {
 		c.HostLogin = hostLogin
-	} else {
-		username, err := client.Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		c.HostLogin = username
-		slog.InfoContext(cf.Context, "no host login given, using default", "default_host_login", username)
 	}
 	c.Labels = labels
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)

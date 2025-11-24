@@ -548,8 +548,24 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.ClientStore = NewMemClientStore()
 	}
 
+	// validate configuration
+	var err error
+	if c.Username == "" {
+		c.Username, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
+	}
 	if c.WebProxyAddr == "" {
 		return trace.BadParameter("No proxy address specified, missed --proxy flag?")
+	}
+	if c.HostLogin == "" {
+		c.HostLogin, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
 	}
 	if len(c.JumpHosts) > 1 {
 		return trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
