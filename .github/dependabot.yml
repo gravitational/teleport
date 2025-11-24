@@ -6,6 +6,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -34,6 +36,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       go:
@@ -51,6 +55,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -71,6 +77,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       go:
@@ -88,6 +96,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -108,6 +118,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     ignore:
       # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-framework
@@ -130,6 +142,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       go:
@@ -147,6 +161,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       go:
@@ -164,6 +180,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       rust:
@@ -181,6 +199,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       rust:
@@ -198,6 +218,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       rust:
@@ -215,6 +237,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     open-pull-requests-limit: 20
     groups:
       rust:
@@ -232,6 +256,8 @@ updates:
       interval: monthly
       day: 'sunday'
       time: '09:00' # 9am UTC
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'ui'
@@ -257,6 +283,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'
@@ -269,6 +297,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    cooldown:
+      default-days: 2
     labels:
       - 'dependencies'
       - 'github-actions'

@@ -2013,6 +2013,17 @@ audit-event-reference-up-to-date: must-start-clean/host audit-event-reference
 		exit 1; \
 	fi
 
+.PHONY: access-monitoring-reference
+access-monitoring-reference:
+	cd ./build.assets/tooling/cmd/gen-athena-docs && go run main.go > ../../../../docs/pages/includes/access-monitoring-events.mdx
+
+.PHONY: access-monitoring-reference-up-to-date
+access-monitoring-reference-up-to-date: access-monitoring-reference
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "Access Monitoring event reference docs" "make access-monitoring-reference"; \
+		exit 1; \
+	fi
+
 .PHONY: gen-docs
 gen-docs:
 	$(MAKE) -C integrations/terraform docs

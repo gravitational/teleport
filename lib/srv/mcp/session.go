@@ -263,7 +263,7 @@ func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *m
 
 	s.idTracker.PushRequest(req)
 	switch req.Method {
-	case mcp.MethodToolsCall:
+	case mcputils.MethodToolsCall:
 		methodName, _ := req.Params.GetName()
 		if authErr := s.checkAccessToTool(ctx, methodName); authErr != nil {
 			return makeToolAccessDeniedResponse(req, authErr), trace.Wrap(authErr)
@@ -277,7 +277,7 @@ func (s *sessionHandler) processServerResponse(ctx context.Context, response *mc
 	messagesFromServer.WithLabelValues(s.transport, "response", reportRequestMethod(method)).Inc()
 
 	switch method {
-	case mcp.MethodToolsList:
+	case mcputils.MethodToolsList:
 		return s.makeToolsCallResponse(ctx, response)
 	}
 	return response

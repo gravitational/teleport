@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
+	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -80,6 +81,9 @@ type KubeMiddleware struct {
 	clock clockwork.Clock
 	// headless controls whether proxy is working in headless login mode.
 	headless bool
+	// relay signals that the local proxy is routing requests to the kube
+	// forwarder of a relay with the given address rather than of a proxy.
+	relay bool
 
 	logger       *slog.Logger
 	closeContext context.Context
@@ -99,6 +103,11 @@ type KubeMiddlewareConfig struct {
 	Clock        clockwork.Clock
 	Logger       *slog.Logger
 	CloseContext context.Context
+
+	// Relay signals that the middleware should provide the appropriate SNI
+	// override to connect to the Kube forwarder of a Relay rather than the one
+	// of a Proxy.
+	Relay bool
 }
 
 // NewKubeMiddleware creates a new KubeMiddleware.
@@ -110,6 +119,7 @@ func NewKubeMiddleware(cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
 		clock:        cfg.Clock,
 		logger:       cfg.Logger,
 		closeContext: cfg.CloseContext,
+		relay:        cfg.Relay,
 	}
 }
 
@@ -203,6 +213,29 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 	return false
 }
 
+// GetServerName implements [LocalProxyHTTPMiddleware].
+func (m *KubeMiddleware) GetServerName(req *http.Request) (string, bool, error) {
+	if !m.relay {
+		// if we're not connecting to a Relay we should use the standard SNI
+		// configured in the LocalProxy
+		return "", false, nil
+	}
+
+	if req.TLS == nil {
+		return "", false, trace.BadParameter("expected a https request with a TLS connection state")
+	}
+	teleportCluster := common.TeleportClusterFromKubeLocalProxySNI(req.TLS.ServerName)
+	if teleportCluster == "" {
+		return "", false, trace.BadParameter("invalid Teleport cluster name in SNI %+q", req.TLS.ServerName)
+	}
+	kubeCluster, err := common.KubeClusterFromKubeLocalProxySNI(req.TLS.ServerName)
+	if err != nil {
+		return "", false, trace.BadParameter("invalid Kubernetes cluster name in SNI %+q", req.TLS.ServerName)
+	}
+
+	return kuberelay.FullSNIForKubeCluster(teleportCluster, kubeCluster), true, nil
+}
+
 func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, error) {
 	if req.TLS == nil {
 		return tls.Certificate{}, trace.BadParameter("expect a TLS request")
@@ -218,13 +251,13 @@ func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, 
 	return cert, nil
 }
 
-// OverwriteClientCerts overwrites the client certs used for upstream connection.
-func (m *KubeMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certificate, error) {
+// GetClientCerts implements [LocalProxyHTTPMiddleware].
+func (m *KubeMiddleware) GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error) {
 	cert, err := m.getCertForRequest(req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
-	return []tls.Certificate{cert}, nil
+	return []tls.Certificate{cert}, true, nil
 }
 
 // ErrUserInputRequired returned when user's input required to relogin and/or reissue new certificate.

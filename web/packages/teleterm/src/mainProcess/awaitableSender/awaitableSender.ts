@@ -40,6 +40,11 @@ function isMessageAck(v: unknown): v is MessageAck {
   return typeof v === 'object' && 'type' in v && v.type === 'ack';
 }
 
+export interface IAwaitableSender<T> {
+  send(payload: T, options?: { signal?: AbortSignal }): Promise<void>;
+  whenDisposed(): Promise<void>;
+}
+
 /**
  * Enables sending messages from the main process to the renderer
  * and awaiting delivery confirmation.
@@ -48,7 +53,7 @@ function isMessageAck(v: unknown): v is MessageAck {
  * `AwaitableSender` is pull-based — the renderer must explicitly subscribe
  * to receive messages.
  */
-export class AwaitableSender<T> {
+export class AwaitableSender<T> implements IAwaitableSender<T> {
   private messages = new Map<
     string,
     { resolve(): void; reject(reason: unknown): void }

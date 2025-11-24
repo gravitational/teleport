@@ -19,10 +19,19 @@
 package azuredevops
 
 import (
+	"context"
+
+	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
 )
+
+// Validator is a validator for Azure Devops OIDC tokens.
+type Validator interface {
+	Validate(ctx context.Context, organizationID string, idToken string) (*IDTokenClaims, error)
+}
 
 // IDTokenClaims for the pipeline OIDC ID Token issued by Azure Devops
 type IDTokenClaims struct {
@@ -108,4 +117,80 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsAzureDevops {
 			RunId:             c.RunID,
 		},
 	}
+}
+
+// CheckIDTokenParams are parameters used to validate Azure Devops OIDC tokens.
+type CheckIDTokenParams struct {
+	// ProvisionToken is the Teleport provision token used for the join request.
+	ProvisionToken *types.ProvisionTokenV2
+	// IDToken is the Azure Devops OIDC token presented by the joining client.
+	IDToken string
+	// Validator is a validator for Azure Devops OIDC tokens.
+	Validator Validator
+}
+
+func (p *CheckIDTokenParams) check() error {
+	switch {
+	case p.ProvisionToken == nil:
+		return trace.BadParameter("ProvisionToken is required")
+	case len(p.IDToken) == 0:
+		return trace.BadParameter("IDToken is required")
+	case p.Validator == nil:
+		return trace.BadParameter("Validator is required")
+	}
+	p.ProvisionToken.CheckAndSetDefaults()
+	return nil
+}
+
+// CheckIDToken validates an Azure Devops OIDC token, verifying both the validity of
+// the OIDC token itself, as well as ensuring claims match any configured allow
+// rules in the provided provision token.
+func CheckIDToken(ctx context.Context, params *CheckIDTokenParams) (*IDTokenClaims, error) {
+	if err := params.check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	claims, err := params.Validator.Validate(
+		ctx,
+		params.ProvisionToken.Spec.AzureDevops.OrganizationID,
+		params.IDToken,
+	)
+	if err != nil {
+		return claims, trace.Wrap(err)
+	}
+
+	return claims, trace.Wrap(checkAzureDevopsAllowRules(params.ProvisionToken, claims))
+}
+
+func checkAzureDevopsAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+	// If a single rule passes, accept the IDToken
+	for _, rule := range token.Spec.AzureDevops.Allow {
+		if rule.Sub != "" && rule.Sub != claims.Sub {
+			continue
+		}
+		if rule.ProjectName != "" && rule.ProjectName != claims.ProjectName {
+			continue
+		}
+		if rule.PipelineName != "" && rule.PipelineName != claims.PipelineName {
+			continue
+		}
+		if rule.ProjectID != "" && claims.ProjectID != rule.ProjectID {
+			continue
+		}
+		if rule.DefinitionID != "" && claims.DefinitionID != rule.DefinitionID {
+			continue
+		}
+		if rule.RepositoryURI != "" && claims.RepositoryURI != rule.RepositoryURI {
+			continue
+		}
+		if rule.RepositoryVersion != "" && claims.RepositoryVersion != rule.RepositoryVersion {
+			continue
+		}
+		if rule.RepositoryRef != "" && claims.RepositoryRef != rule.RepositoryRef {
+			continue
+		}
+		return nil
+	}
+
+	return trace.AccessDenied("id token claims failed to match any allow rules")
 }

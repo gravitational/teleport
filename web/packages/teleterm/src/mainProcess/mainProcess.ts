@@ -708,7 +708,7 @@ export default class MainProcess {
     );
 
     ipcMain.handle(MainProcessIpc.SyncCluster, (_, args) =>
-      this.clusterStore.sync(args.clusterUri)
+      this.clusterLifecycleManager.syncCluster(args.clusterUri)
     );
 
     ipcMain.handle(MainProcessIpc.Logout, async (_, args) => {
