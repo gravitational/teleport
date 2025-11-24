@@ -44,6 +44,7 @@ sets the correct role rules:
       resources:
       - configmaps
       verbs:
+      - create
       - watch
       - list
     - apiGroups:
@@ -54,7 +55,6 @@ sets the correct role rules:
       - configmaps
       verbs:
       - get
-      - create
       - update
     - apiGroups:
       - apps
