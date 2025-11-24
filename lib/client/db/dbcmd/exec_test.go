@@ -103,9 +103,11 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 			opts := append([]ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithExecer(fakeExec),
+				withErrorGetDatabaseFunc(),
 			}, tt.opts...)
 
-			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c, err := NewCmdBuilder(tc, profile, database, "root", opts...)
+			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 			got, err := c.GetExecCommand(context.Background(), "select 1")
 			if tt.wantErr {

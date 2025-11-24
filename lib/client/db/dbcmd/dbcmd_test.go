@@ -683,7 +683,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
+				withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -697,7 +697,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				WithPrintFormat(),
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
+				withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -711,7 +711,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				WithPrintFormat(),
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{}),
+				withErrorGetDatabaseFunc(), // When format is set the command can accept error when fetching the database.
 			},
 			execer:       &fakeExec{},
 			databaseName: "",
@@ -724,7 +724,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{InstanceID: "bar-instance"}),
+				withSpannerDatabase(types.GCPCloudSQL{InstanceID: "bar-instance"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -736,7 +736,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj"}),
+				withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -748,7 +748,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj"}),
+				withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -760,7 +760,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("", 0, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
+				withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -789,9 +789,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts := append([]ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithExecer(tt.execer),
+				withErrorGetDatabaseFunc(),
 			}, tt.opts...)
 
-			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c, err := NewCmdBuilder(tc, profile, database, "root", opts...)
+			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 			got, err := c.GetConnectCommand(context.Background())
 			if tt.wantErr {
@@ -951,9 +953,11 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			opts := append([]ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithExecer(tt.execer),
+				withErrorGetDatabaseFunc(),
 			}, tt.opts...)
 
-			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c, err := NewCmdBuilder(tc, profile, database, "root", opts...)
+			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 
 			commandOptions, err := c.GetConnectCommandAlternatives(context.Background())
@@ -1037,8 +1041,10 @@ func TestConvertCommandError(t *testing.T) {
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
 				WithExecer(tt.execer),
+				withErrorGetDatabaseFunc(),
 			}
-			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			c, err := NewCmdBuilder(tc, profile, database, "root", opts...)
+			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 
 			cmd, err := c.GetConnectCommand(context.Background())
@@ -1084,5 +1090,30 @@ func withDocumentDBDatabase() ConnectCommandFunc {
 			},
 		)
 		return db, trace.Wrap(err)
+	})
+}
+
+func withSpannerDatabase(gcp types.GCPCloudSQL) ConnectCommandFunc {
+	return WithGetDatabaseFunc(func(context.Context, *client.TeleportClient, string) (types.Database, error) {
+		db, err := types.NewDatabaseV3(
+			types.Metadata{
+				Name: "docdb",
+			},
+			types.DatabaseSpecV3{
+				Protocol: types.DatabaseTypeSpanner,
+				URI:      "spanner.googleapis.com:443",
+				GCP:      gcp,
+			},
+		)
+		return db, trace.Wrap(err)
+	})
+}
+
+// withErrorGetDatabaseFunc provides a non-nil function that returns error when
+// retrieving the database. This can be used in tests that don't retrieve
+// databases.
+func withErrorGetDatabaseFunc() ConnectCommandFunc {
+	return WithGetDatabaseFunc(func(ctx context.Context, tc *client.TeleportClient, s string) (types.Database, error) {
+		return nil, trace.NotImplemented("unexpected call to getDatabase function")
 	})
 }
