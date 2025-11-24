@@ -3534,7 +3534,10 @@ func TestRevocationService_CRL(t *testing.T) {
 			CertAuthorityGetter: caService,
 		})
 		require.NoError(t, err)
-		go service.RunCRLSigner(t.Context())
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		go service.RunCRLSigner(ctx)
 
 		// == Helper Methods ==
 		checkCRL := func(
@@ -3602,8 +3605,6 @@ func TestRevocationService_CRL(t *testing.T) {
 		}
 
 		// == Test Logic ==
-		ctx, cancel := context.WithCancel(t.Context())
-		t.Cleanup(cancel)
 		stream := grpctest.NewServerStream[workloadidentityv1pb.StreamSignedCRLResponse](ctx)
 
 		rpcErrCh := make(chan error, 1)
