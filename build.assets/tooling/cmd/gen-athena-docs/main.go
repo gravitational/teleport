@@ -17,12 +17,15 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"regexp"
 	"slices"
 	"strings"
 	"text/template"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gravitational/teleport/gen/go/eventschema"
 )
@@ -31,11 +34,14 @@ import (
 // view to include an example command. It only prints up to the first three
 // columns.
 func colNameList(cols []*eventschema.ColumnSchemaDetails) string {
-	var names []string
-	for i := 0; i < len(cols) && i < 3; i++ {
-		names = append(names, cols[i].NameSQL())
+	var sb strings.Builder
+	for i := range min(3, len(cols)) {
+		if i != 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(cols[i].NameSQL())
 	}
-	return strings.Join(names, ",")
+	return sb.String()
 }
 
 var descPredicate = regexp.MustCompile(`^(is|are) `)
@@ -43,14 +49,11 @@ var descPredicate = regexp.MustCompile(`^(is|are) `)
 // prepareDescription returns a description of the column data provided in col.
 func prepareDescription(col *eventschema.ColumnSchemaDetails) string {
 	// Remove the initial verb, since there is no subject in the sentence.
-	desc := descPredicate.ReplaceAllString(
-		col.Description,
-		"",
-	)
+	desc := descPredicate.ReplaceAllString(col.Description, "")
 
 	// Capitalize the first word in the description.
-	if len(desc) > 1 {
-		desc = strings.ToUpper(string(desc[0])) + desc[1:]
+	if r, size := utf8.DecodeRuneInString(desc); r != utf8.RuneError {
+		desc = string(unicode.ToUpper(r)) + desc[size:]
 	}
 
 	return desc
@@ -59,35 +62,9 @@ func prepareDescription(col *eventschema.ColumnSchemaDetails) string {
 // docTempl is the template that represents an Access Monitoring event reference
 // docs page. The assumption is that "@" characters are replaced with backticks
 // before rendering the template.
-const docTempl = `{/*generated file. DO NOT EDIT.*/}
-{/*To generate, run make access-monitoring-reference*/}
-{/*vale messaging.capitalization = NO*/}
-{/*vale messaging.consistent-terms = NO*/}
-
-{{ range . -}}
-## {{ .Name }}
-
-@{{ .Name }}@ {{ .Description }}.
-
-Example query:
-
-@@@code
-$ tctl audit query exec \
-  'select {{ ColNameList .Columns }} from {{ .SQLViewName }} limit 1'
-@@@
-
-Columns:
-
-|SQL Name|Type|Description|
-|---|---|---|
-{{- range .Columns }}
-|{{ .NameSQL }}|{{ .Type }}|{{ PrepareDescription . }}|
-{{- end }}
-
-{{ end }}
-{/*vale messaging.capitalization = YES*/}
-{/*vale messaging.consistent-terms = YES*/}
-`
+//
+//go:embed schema-reference.mdx.tmpl
+var docTempl string
 
 func main() {
 	data, err := eventschema.GetViewsDetails()
@@ -105,5 +82,5 @@ func main() {
 			"ColNameList":        colNameList,
 			"PrepareDescription": prepareDescription,
 		},
-	).Parse(strings.ReplaceAll(docTempl, "@", "`"))).Execute(os.Stdout, data)
+	).Parse(docTempl)).Execute(os.Stdout, data)
 }

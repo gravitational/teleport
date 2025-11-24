@@ -11,6 +11,7 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-github/v41 v41.0.0
+	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/trace v1.5.1
 	github.com/stretchr/testify v1.11.1
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
@@ -77,8 +78,6 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-require github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 
 require (
 	cloud.google.com/go v0.121.6 // indirect
