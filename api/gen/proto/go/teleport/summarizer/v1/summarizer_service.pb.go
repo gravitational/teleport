@@ -23,6 +23,7 @@ package summarizerv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -311,7 +312,7 @@ func (x *UpdateInferenceModelResponse) GetModel() *InferenceModel {
 	return nil
 }
 
-// UpsertInferenceModelRequest is a request for creating or updating a
+// UpsertInferenceModelRequest is a request for creating or updating an
 // InferenceModel.
 type UpsertInferenceModelRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2026,11 +2027,638 @@ func (x *TestInferenceModelResponse) GetMessage() string {
 	return ""
 }
 
+// CreateSearchModelRequest is a request for creating the SearchModel.
+// Only one SearchModel can exist per cluster.
+type CreateSearchModelRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model is the SearchModel resource to create.
+	Model         *SearchModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSearchModelRequest) Reset() {
+	*x = CreateSearchModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSearchModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSearchModelRequest) ProtoMessage() {}
+
+func (x *CreateSearchModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSearchModelRequest.ProtoReflect.Descriptor instead.
+func (*CreateSearchModelRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *CreateSearchModelRequest) GetModel() *SearchModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+// CreateSearchModelResponse is a response to creating the SearchModel.
+type CreateSearchModelResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model is the SearchModel resource that was created.
+	Model         *SearchModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateSearchModelResponse) Reset() {
+	*x = CreateSearchModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateSearchModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateSearchModelResponse) ProtoMessage() {}
+
+func (x *CreateSearchModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateSearchModelResponse.ProtoReflect.Descriptor instead.
+func (*CreateSearchModelResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *CreateSearchModelResponse) GetModel() *SearchModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+// GetSearchModelRequest is a request for retrieving the SearchModel.
+// Since only one SearchModel can exist per cluster, no name is required.
+type GetSearchModelRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSearchModelRequest) Reset() {
+	*x = GetSearchModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSearchModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSearchModelRequest) ProtoMessage() {}
+
+func (x *GetSearchModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSearchModelRequest.ProtoReflect.Descriptor instead.
+func (*GetSearchModelRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{44}
+}
+
+// GetSearchModelResponse is a response to retrieving the SearchModel.
+type GetSearchModelResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model is the SearchModel resource that was retrieved.
+	Model         *SearchModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetSearchModelResponse) Reset() {
+	*x = GetSearchModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetSearchModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSearchModelResponse) ProtoMessage() {}
+
+func (x *GetSearchModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSearchModelResponse.ProtoReflect.Descriptor instead.
+func (*GetSearchModelResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *GetSearchModelResponse) GetModel() *SearchModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+// UpdateSearchModelRequest is a request for updating the SearchModel.
+type UpdateSearchModelRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model is the SearchModel resource to update.
+	Model         *SearchModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateSearchModelRequest) Reset() {
+	*x = UpdateSearchModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateSearchModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateSearchModelRequest) ProtoMessage() {}
+
+func (x *UpdateSearchModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateSearchModelRequest.ProtoReflect.Descriptor instead.
+func (*UpdateSearchModelRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *UpdateSearchModelRequest) GetModel() *SearchModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+// UpdateSearchModelResponse is a response to updating the SearchModel.
+type UpdateSearchModelResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model is the SearchModel resource that was updated.
+	Model         *SearchModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateSearchModelResponse) Reset() {
+	*x = UpdateSearchModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateSearchModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateSearchModelResponse) ProtoMessage() {}
+
+func (x *UpdateSearchModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateSearchModelResponse.ProtoReflect.Descriptor instead.
+func (*UpdateSearchModelResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *UpdateSearchModelResponse) GetModel() *SearchModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+// UpsertSearchModelRequest is a request for creating or updating the
+// SearchModel.
+type UpsertSearchModelRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model is the SearchModel resource to create or update.
+	Model         *SearchModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertSearchModelRequest) Reset() {
+	*x = UpsertSearchModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertSearchModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertSearchModelRequest) ProtoMessage() {}
+
+func (x *UpsertSearchModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertSearchModelRequest.ProtoReflect.Descriptor instead.
+func (*UpsertSearchModelRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *UpsertSearchModelRequest) GetModel() *SearchModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+// UpsertSearchModelResponse is a response to creating or updating the
+// SearchModel.
+type UpsertSearchModelResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Model is the SearchModel resource that was created or updated.
+	Model         *SearchModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertSearchModelResponse) Reset() {
+	*x = UpsertSearchModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertSearchModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertSearchModelResponse) ProtoMessage() {}
+
+func (x *UpsertSearchModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertSearchModelResponse.ProtoReflect.Descriptor instead.
+func (*UpsertSearchModelResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *UpsertSearchModelResponse) GetModel() *SearchModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+// DeleteSearchModelRequest is a request for deleting the SearchModel.
+// Since only one SearchModel can exist per cluster, no name is required.
+type DeleteSearchModelRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteSearchModelRequest) Reset() {
+	*x = DeleteSearchModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteSearchModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSearchModelRequest) ProtoMessage() {}
+
+func (x *DeleteSearchModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSearchModelRequest.ProtoReflect.Descriptor instead.
+func (*DeleteSearchModelRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{50}
+}
+
+// DeleteSearchModelResponse is a response to deleting the SearchModel.
+type DeleteSearchModelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteSearchModelResponse) Reset() {
+	*x = DeleteSearchModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteSearchModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSearchModelResponse) ProtoMessage() {}
+
+func (x *DeleteSearchModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSearchModelResponse.ProtoReflect.Descriptor instead.
+func (*DeleteSearchModelResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{51}
+}
+
+// ParseSearchQueryRequest is a request for parsing a natural language query
+// into structured search parameters.
+type ParseSearchQueryRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Query is the natural language search query to parse.
+	// Example: "Show sessions for servers labeled env:prod with sudo commands"
+	Query         string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ParseSearchQueryRequest) Reset() {
+	*x = ParseSearchQueryRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParseSearchQueryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParseSearchQueryRequest) ProtoMessage() {}
+
+func (x *ParseSearchQueryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParseSearchQueryRequest.ProtoReflect.Descriptor instead.
+func (*ParseSearchQueryRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *ParseSearchQueryRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+// ParseSearchQueryResponse is a response containing the parsed search parameters
+// extracted from the natural language query.
+type ParseSearchQueryResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Username is the username to filter sessions by.
+	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	// ResourceType is the type of resource (ssh, database, kubernetes, application, desktop).
+	ResourceType string `protobuf:"bytes,2,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
+	// ResourceName is the specific resource name to filter by.
+	ResourceName string `protobuf:"bytes,3,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
+	// ResourceLabels are key-value pairs extracted from label/tag patterns in the query.
+	// Example: {"env": "prod", "team": "backend"}
+	ResourceLabels map[string]string `protobuf:"bytes,4,rep,name=resource_labels,json=resourceLabels,proto3" json:"resource_labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// SearchKeywords are activity descriptions, commands, or content-related phrases.
+	// Example: "sudo commands", "database queries", "security incident"
+	SearchKeywords string `protobuf:"bytes,5,opt,name=search_keywords,json=searchKeywords,proto3" json:"search_keywords,omitempty"`
+	// HostId is the specific host identifier to filter by.
+	HostId string `protobuf:"bytes,6,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	// Roles are the role names to filter sessions by.
+	Roles []string `protobuf:"bytes,7,rep,name=roles,proto3" json:"roles,omitempty"`
+	// AccessRequestIds are the access request IDs to filter sessions by.
+	AccessRequestIds []string `protobuf:"bytes,8,rep,name=access_request_ids,json=accessRequestIds,proto3" json:"access_request_ids,omitempty"`
+	// StartTime is the start of the time range in RFC3339 format.
+	// Example: "2024-01-15T00:00:00Z"
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	// EndTime is the end of the time range in RFC3339 format.
+	// Example: "2024-01-15T23:59:59Z"
+	EndTime *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	// embeddings are the vector embeddings representing the semantic content of the query.
+	Embeddings    []float32 `protobuf:"fixed32,11,rep,packed,name=embeddings,proto3" json:"embeddings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ParseSearchQueryResponse) Reset() {
+	*x = ParseSearchQueryResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ParseSearchQueryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ParseSearchQueryResponse) ProtoMessage() {}
+
+func (x *ParseSearchQueryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ParseSearchQueryResponse.ProtoReflect.Descriptor instead.
+func (*ParseSearchQueryResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ParseSearchQueryResponse) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *ParseSearchQueryResponse) GetResourceType() string {
+	if x != nil {
+		return x.ResourceType
+	}
+	return ""
+}
+
+func (x *ParseSearchQueryResponse) GetResourceName() string {
+	if x != nil {
+		return x.ResourceName
+	}
+	return ""
+}
+
+func (x *ParseSearchQueryResponse) GetResourceLabels() map[string]string {
+	if x != nil {
+		return x.ResourceLabels
+	}
+	return nil
+}
+
+func (x *ParseSearchQueryResponse) GetSearchKeywords() string {
+	if x != nil {
+		return x.SearchKeywords
+	}
+	return ""
+}
+
+func (x *ParseSearchQueryResponse) GetHostId() string {
+	if x != nil {
+		return x.HostId
+	}
+	return ""
+}
+
+func (x *ParseSearchQueryResponse) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *ParseSearchQueryResponse) GetAccessRequestIds() []string {
+	if x != nil {
+		return x.AccessRequestIds
+	}
+	return nil
+}
+
+func (x *ParseSearchQueryResponse) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *ParseSearchQueryResponse) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+func (x *ParseSearchQueryResponse) GetEmbeddings() []float32 {
+	if x != nil {
+		return x.Embeddings
+	}
+	return nil
+}
+
 var File_teleport_summarizer_v1_summarizer_service_proto protoreflect.FileDescriptor
 
 const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\n" +
-	"/teleport/summarizer/v1/summarizer_service.proto\x12\x16teleport.summarizer.v1\x1a'teleport/summarizer/v1/summarizer.proto\"[\n" +
+	"/teleport/summarizer/v1/summarizer_service.proto\x12\x16teleport.summarizer.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/summarizer/v1/summarizer.proto\"[\n" +
 	"\x1bCreateInferenceModelRequest\x12<\n" +
 	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.InferenceModelR\x05model\"\\\n" +
 	"\x1cCreateInferenceModelResponse\x12<\n" +
@@ -2122,7 +2750,45 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x06secret\x18\x02 \x01(\v2+.teleport.summarizer.v1.InferenceSecretSpecR\x06secret\"P\n" +
 	"\x1aTestInferenceModelResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\x9e\x15\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"U\n" +
+	"\x18CreateSearchModelRequest\x129\n" +
+	"\x05model\x18\x01 \x01(\v2#.teleport.summarizer.v1.SearchModelR\x05model\"V\n" +
+	"\x19CreateSearchModelResponse\x129\n" +
+	"\x05model\x18\x01 \x01(\v2#.teleport.summarizer.v1.SearchModelR\x05model\"\x17\n" +
+	"\x15GetSearchModelRequest\"S\n" +
+	"\x16GetSearchModelResponse\x129\n" +
+	"\x05model\x18\x01 \x01(\v2#.teleport.summarizer.v1.SearchModelR\x05model\"U\n" +
+	"\x18UpdateSearchModelRequest\x129\n" +
+	"\x05model\x18\x01 \x01(\v2#.teleport.summarizer.v1.SearchModelR\x05model\"V\n" +
+	"\x19UpdateSearchModelResponse\x129\n" +
+	"\x05model\x18\x01 \x01(\v2#.teleport.summarizer.v1.SearchModelR\x05model\"U\n" +
+	"\x18UpsertSearchModelRequest\x129\n" +
+	"\x05model\x18\x01 \x01(\v2#.teleport.summarizer.v1.SearchModelR\x05model\"V\n" +
+	"\x19UpsertSearchModelResponse\x129\n" +
+	"\x05model\x18\x01 \x01(\v2#.teleport.summarizer.v1.SearchModelR\x05model\"\x1a\n" +
+	"\x18DeleteSearchModelRequest\"\x1b\n" +
+	"\x19DeleteSearchModelResponse\"/\n" +
+	"\x17ParseSearchQueryRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\"\xca\x04\n" +
+	"\x18ParseSearchQueryResponse\x12\x1a\n" +
+	"\busername\x18\x01 \x01(\tR\busername\x12#\n" +
+	"\rresource_type\x18\x02 \x01(\tR\fresourceType\x12#\n" +
+	"\rresource_name\x18\x03 \x01(\tR\fresourceName\x12m\n" +
+	"\x0fresource_labels\x18\x04 \x03(\v2D.teleport.summarizer.v1.ParseSearchQueryResponse.ResourceLabelsEntryR\x0eresourceLabels\x12'\n" +
+	"\x0fsearch_keywords\x18\x05 \x01(\tR\x0esearchKeywords\x12\x17\n" +
+	"\ahost_id\x18\x06 \x01(\tR\x06hostId\x12\x14\n" +
+	"\x05roles\x18\a \x03(\tR\x05roles\x12,\n" +
+	"\x12access_request_ids\x18\b \x03(\tR\x10accessRequestIds\x129\n" +
+	"\n" +
+	"start_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
+	"\bend_time\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12\x1e\n" +
+	"\n" +
+	"embeddings\x18\v \x03(\x02R\n" +
+	"embeddings\x1aA\n" +
+	"\x13ResourceLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xee\x1a\n" +
 	"\x11SummarizerService\x12\x81\x01\n" +
 	"\x14CreateInferenceModel\x123.teleport.summarizer.v1.CreateInferenceModelRequest\x1a4.teleport.summarizer.v1.CreateInferenceModelResponse\x12x\n" +
 	"\x11GetInferenceModel\x120.teleport.summarizer.v1.GetInferenceModelRequest\x1a1.teleport.summarizer.v1.GetInferenceModelResponse\x12\x81\x01\n" +
@@ -2145,7 +2811,13 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\n" +
 	"GetSummary\x12).teleport.summarizer.v1.GetSummaryRequest\x1a*.teleport.summarizer.v1.GetSummaryResponse\x12`\n" +
 	"\tIsEnabled\x12(.teleport.summarizer.v1.IsEnabledRequest\x1a).teleport.summarizer.v1.IsEnabledResponse\x12{\n" +
-	"\x12TestInferenceModel\x121.teleport.summarizer.v1.TestInferenceModelRequest\x1a2.teleport.summarizer.v1.TestInferenceModelResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
+	"\x12TestInferenceModel\x121.teleport.summarizer.v1.TestInferenceModelRequest\x1a2.teleport.summarizer.v1.TestInferenceModelResponse\x12x\n" +
+	"\x11CreateSearchModel\x120.teleport.summarizer.v1.CreateSearchModelRequest\x1a1.teleport.summarizer.v1.CreateSearchModelResponse\x12o\n" +
+	"\x0eGetSearchModel\x12-.teleport.summarizer.v1.GetSearchModelRequest\x1a..teleport.summarizer.v1.GetSearchModelResponse\x12x\n" +
+	"\x11UpdateSearchModel\x120.teleport.summarizer.v1.UpdateSearchModelRequest\x1a1.teleport.summarizer.v1.UpdateSearchModelResponse\x12x\n" +
+	"\x11UpsertSearchModel\x120.teleport.summarizer.v1.UpsertSearchModelRequest\x1a1.teleport.summarizer.v1.UpsertSearchModelResponse\x12x\n" +
+	"\x11DeleteSearchModel\x120.teleport.summarizer.v1.DeleteSearchModelRequest\x1a1.teleport.summarizer.v1.DeleteSearchModelResponse\x12u\n" +
+	"\x10ParseSearchQuery\x12/.teleport.summarizer.v1.ParseSearchQueryRequest\x1a0.teleport.summarizer.v1.ParseSearchQueryResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
 var (
 	file_teleport_summarizer_v1_summarizer_service_proto_rawDescOnce sync.Once
@@ -2159,7 +2831,7 @@ func file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP() []byte {
 	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescData
 }
 
-var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
 	(*CreateInferenceModelRequest)(nil),   // 0: teleport.summarizer.v1.CreateInferenceModelRequest
 	(*CreateInferenceModelResponse)(nil),  // 1: teleport.summarizer.v1.CreateInferenceModelResponse
@@ -2203,88 +2875,125 @@ var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
 	(*IsEnabledResponse)(nil),             // 39: teleport.summarizer.v1.IsEnabledResponse
 	(*TestInferenceModelRequest)(nil),     // 40: teleport.summarizer.v1.TestInferenceModelRequest
 	(*TestInferenceModelResponse)(nil),    // 41: teleport.summarizer.v1.TestInferenceModelResponse
-	(*InferenceModel)(nil),                // 42: teleport.summarizer.v1.InferenceModel
-	(*InferenceSecret)(nil),               // 43: teleport.summarizer.v1.InferenceSecret
-	(*InferencePolicy)(nil),               // 44: teleport.summarizer.v1.InferencePolicy
-	(*Summary)(nil),                       // 45: teleport.summarizer.v1.Summary
-	(*InferenceModelSpec)(nil),            // 46: teleport.summarizer.v1.InferenceModelSpec
-	(*InferenceSecretSpec)(nil),           // 47: teleport.summarizer.v1.InferenceSecretSpec
+	(*CreateSearchModelRequest)(nil),      // 42: teleport.summarizer.v1.CreateSearchModelRequest
+	(*CreateSearchModelResponse)(nil),     // 43: teleport.summarizer.v1.CreateSearchModelResponse
+	(*GetSearchModelRequest)(nil),         // 44: teleport.summarizer.v1.GetSearchModelRequest
+	(*GetSearchModelResponse)(nil),        // 45: teleport.summarizer.v1.GetSearchModelResponse
+	(*UpdateSearchModelRequest)(nil),      // 46: teleport.summarizer.v1.UpdateSearchModelRequest
+	(*UpdateSearchModelResponse)(nil),     // 47: teleport.summarizer.v1.UpdateSearchModelResponse
+	(*UpsertSearchModelRequest)(nil),      // 48: teleport.summarizer.v1.UpsertSearchModelRequest
+	(*UpsertSearchModelResponse)(nil),     // 49: teleport.summarizer.v1.UpsertSearchModelResponse
+	(*DeleteSearchModelRequest)(nil),      // 50: teleport.summarizer.v1.DeleteSearchModelRequest
+	(*DeleteSearchModelResponse)(nil),     // 51: teleport.summarizer.v1.DeleteSearchModelResponse
+	(*ParseSearchQueryRequest)(nil),       // 52: teleport.summarizer.v1.ParseSearchQueryRequest
+	(*ParseSearchQueryResponse)(nil),      // 53: teleport.summarizer.v1.ParseSearchQueryResponse
+	nil,                                   // 54: teleport.summarizer.v1.ParseSearchQueryResponse.ResourceLabelsEntry
+	(*InferenceModel)(nil),                // 55: teleport.summarizer.v1.InferenceModel
+	(*InferenceSecret)(nil),               // 56: teleport.summarizer.v1.InferenceSecret
+	(*InferencePolicy)(nil),               // 57: teleport.summarizer.v1.InferencePolicy
+	(*Summary)(nil),                       // 58: teleport.summarizer.v1.Summary
+	(*InferenceModelSpec)(nil),            // 59: teleport.summarizer.v1.InferenceModelSpec
+	(*InferenceSecretSpec)(nil),           // 60: teleport.summarizer.v1.InferenceSecretSpec
+	(*SearchModel)(nil),                   // 61: teleport.summarizer.v1.SearchModel
+	(*timestamppb.Timestamp)(nil),         // 62: google.protobuf.Timestamp
 }
 var file_teleport_summarizer_v1_summarizer_service_proto_depIdxs = []int32{
-	42, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
-	43, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
-	44, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
-	45, // 24: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
-	46, // 25: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	47, // 26: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	0,  // 27: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
-	2,  // 28: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
-	4,  // 29: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
-	6,  // 30: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
-	8,  // 31: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
-	10, // 32: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
-	12, // 33: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
-	14, // 34: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
-	16, // 35: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
-	18, // 36: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
-	20, // 37: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
-	22, // 38: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
-	24, // 39: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
-	26, // 40: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
-	28, // 41: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
-	30, // 42: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
-	32, // 43: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
-	34, // 44: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
-	36, // 45: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
-	38, // 46: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
-	40, // 47: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
-	1,  // 48: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
-	3,  // 49: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
-	5,  // 50: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
-	7,  // 51: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
-	9,  // 52: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
-	11, // 53: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
-	13, // 54: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
-	15, // 55: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
-	17, // 56: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
-	19, // 57: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
-	21, // 58: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
-	23, // 59: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
-	25, // 60: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
-	27, // 61: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
-	29, // 62: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
-	31, // 63: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
-	33, // 64: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
-	35, // 65: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
-	37, // 66: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
-	39, // 67: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
-	41, // 68: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
-	48, // [48:69] is the sub-list for method output_type
-	27, // [27:48] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	55, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	55, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	55, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	55, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	55, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	55, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	55, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	55, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
+	56, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	56, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	56, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	56, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	56, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	56, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	56, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	56, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
+	57, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	57, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	57, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	57, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	57, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	57, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	57, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	57, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
+	58, // 24: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
+	59, // 25: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	60, // 26: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	61, // 27: teleport.summarizer.v1.CreateSearchModelRequest.model:type_name -> teleport.summarizer.v1.SearchModel
+	61, // 28: teleport.summarizer.v1.CreateSearchModelResponse.model:type_name -> teleport.summarizer.v1.SearchModel
+	61, // 29: teleport.summarizer.v1.GetSearchModelResponse.model:type_name -> teleport.summarizer.v1.SearchModel
+	61, // 30: teleport.summarizer.v1.UpdateSearchModelRequest.model:type_name -> teleport.summarizer.v1.SearchModel
+	61, // 31: teleport.summarizer.v1.UpdateSearchModelResponse.model:type_name -> teleport.summarizer.v1.SearchModel
+	61, // 32: teleport.summarizer.v1.UpsertSearchModelRequest.model:type_name -> teleport.summarizer.v1.SearchModel
+	61, // 33: teleport.summarizer.v1.UpsertSearchModelResponse.model:type_name -> teleport.summarizer.v1.SearchModel
+	54, // 34: teleport.summarizer.v1.ParseSearchQueryResponse.resource_labels:type_name -> teleport.summarizer.v1.ParseSearchQueryResponse.ResourceLabelsEntry
+	62, // 35: teleport.summarizer.v1.ParseSearchQueryResponse.start_time:type_name -> google.protobuf.Timestamp
+	62, // 36: teleport.summarizer.v1.ParseSearchQueryResponse.end_time:type_name -> google.protobuf.Timestamp
+	0,  // 37: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
+	2,  // 38: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
+	4,  // 39: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
+	6,  // 40: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
+	8,  // 41: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
+	10, // 42: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
+	12, // 43: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
+	14, // 44: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
+	16, // 45: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
+	18, // 46: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
+	20, // 47: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
+	22, // 48: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
+	24, // 49: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
+	26, // 50: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
+	28, // 51: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
+	30, // 52: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
+	32, // 53: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
+	34, // 54: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
+	36, // 55: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
+	38, // 56: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
+	40, // 57: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
+	42, // 58: teleport.summarizer.v1.SummarizerService.CreateSearchModel:input_type -> teleport.summarizer.v1.CreateSearchModelRequest
+	44, // 59: teleport.summarizer.v1.SummarizerService.GetSearchModel:input_type -> teleport.summarizer.v1.GetSearchModelRequest
+	46, // 60: teleport.summarizer.v1.SummarizerService.UpdateSearchModel:input_type -> teleport.summarizer.v1.UpdateSearchModelRequest
+	48, // 61: teleport.summarizer.v1.SummarizerService.UpsertSearchModel:input_type -> teleport.summarizer.v1.UpsertSearchModelRequest
+	50, // 62: teleport.summarizer.v1.SummarizerService.DeleteSearchModel:input_type -> teleport.summarizer.v1.DeleteSearchModelRequest
+	52, // 63: teleport.summarizer.v1.SummarizerService.ParseSearchQuery:input_type -> teleport.summarizer.v1.ParseSearchQueryRequest
+	1,  // 64: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
+	3,  // 65: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
+	5,  // 66: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
+	7,  // 67: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
+	9,  // 68: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
+	11, // 69: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
+	13, // 70: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
+	15, // 71: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
+	17, // 72: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
+	19, // 73: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
+	21, // 74: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
+	23, // 75: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
+	25, // 76: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
+	27, // 77: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
+	29, // 78: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
+	31, // 79: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
+	33, // 80: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
+	35, // 81: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
+	37, // 82: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
+	39, // 83: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
+	41, // 84: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
+	43, // 85: teleport.summarizer.v1.SummarizerService.CreateSearchModel:output_type -> teleport.summarizer.v1.CreateSearchModelResponse
+	45, // 86: teleport.summarizer.v1.SummarizerService.GetSearchModel:output_type -> teleport.summarizer.v1.GetSearchModelResponse
+	47, // 87: teleport.summarizer.v1.SummarizerService.UpdateSearchModel:output_type -> teleport.summarizer.v1.UpdateSearchModelResponse
+	49, // 88: teleport.summarizer.v1.SummarizerService.UpsertSearchModel:output_type -> teleport.summarizer.v1.UpsertSearchModelResponse
+	51, // 89: teleport.summarizer.v1.SummarizerService.DeleteSearchModel:output_type -> teleport.summarizer.v1.DeleteSearchModelResponse
+	53, // 90: teleport.summarizer.v1.SummarizerService.ParseSearchQuery:output_type -> teleport.summarizer.v1.ParseSearchQueryResponse
+	64, // [64:91] is the sub-list for method output_type
+	37, // [37:64] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_service_proto_init() }
@@ -2299,7 +3008,7 @@ func file_teleport_summarizer_v1_summarizer_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   42,
+			NumMessages:   55,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

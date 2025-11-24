@@ -94,3 +94,7 @@ func (n NoopSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *
 func (NoopSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	return nil
 }
+
+func (NoopSummarizer) GenerateEmbeddings(ctx context.Context, text string) ([]float32, error) {
+	return nil, nil
+}

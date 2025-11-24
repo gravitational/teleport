@@ -101,6 +101,21 @@ type Summarizer interface {
 	// AllInferencePolicies returns an iterator that retrieves all session
 	// summary inference policies from the backend, without pagination.
 	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
+
+	// CreateSearchModel creates the search model in the backend.
+	// Only one SearchModel can exist per cluster.
+	CreateSearchModel(ctx context.Context, model *summarizerv1.SearchModel) (*summarizerv1.SearchModel, error)
+	// GetSearchModel retrieves the search model from the backend.
+	// Since only one SearchModel can exist per cluster, no name is required.
+	GetSearchModel(ctx context.Context) (*summarizerv1.SearchModel, error)
+	// UpdateSearchModel updates the existing search model in the backend.
+	UpdateSearchModel(ctx context.Context, model *summarizerv1.SearchModel) (*summarizerv1.SearchModel, error)
+	// UpsertSearchModel creates or updates the search model in the backend.
+	// If the model already exists, it will be updated.
+	UpsertSearchModel(ctx context.Context, model *summarizerv1.SearchModel) (*summarizerv1.SearchModel, error)
+	// DeleteSearchModel deletes the search model from the backend.
+	// Since only one SearchModel can exist per cluster, no name is required.
+	DeleteSearchModel(ctx context.Context) error
 }
 
 // InferencePolicyMatchingContext is a special kind of [RuleContext] that is

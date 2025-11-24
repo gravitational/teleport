@@ -842,3 +842,231 @@ func TestSummarizerService_AllInferencePolicies(t *testing.T) {
 		}))
 	}
 }
+
+func newSearchModel() *summarizerv1.SearchModel {
+	return summarizer.NewSearchModel(&summarizerv1.SearchModelSpec{
+		EmbeddingsProvider: &summarizerv1.SearchModelSpec_Openai{
+			Openai: &summarizerv1.OpenAIProvider{
+				OpenaiModelId: "text-embedding-3-small",
+			},
+		},
+		SearchInferenceModel: "gpt-4o",
+	})
+}
+
+func TestSummarizerService_CreateSearchModel(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		ctx, service := setupSummarizerTest(t)
+		want := newSearchModel()
+		got, err := service.CreateSearchModel(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(want).(*summarizerv1.SearchModel),
+		)
+		require.NoError(t, err)
+		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.Empty(t, cmp.Diff(
+			want,
+			got,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+	})
+	t.Run("invalid", func(t *testing.T) {
+		ctx, service := setupSummarizerTest(t)
+		m := newSearchModel()
+		m.Spec.GetOpenai().OpenaiModelId = ""
+		_, err := service.CreateSearchModel(
+			ctx,
+			proto.Clone(m).(*summarizerv1.SearchModel),
+		)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, trace.BadParameter("spec.openai.openai_model_id is required"))
+	})
+	t.Run("no upsert", func(t *testing.T) {
+		ctx, service := setupSummarizerTest(t)
+		res := newSearchModel()
+		_, err := service.CreateSearchModel(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(res).(*summarizerv1.SearchModel),
+		)
+		require.NoError(t, err)
+		_, err = service.CreateSearchModel(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(res).(*summarizerv1.SearchModel),
+		)
+		require.Error(t, err)
+		assert.True(t, trace.IsAlreadyExists(err))
+	})
+}
+
+func TestSummarizerService_CreateSearchModel_BedrockAllowed(t *testing.T) {
+	// Perform a similar setup procedure, but enable Bedrock.
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service, err := NewSummarizerService(SummarizerServiceConfig{
+		Backend:                          backend.NewSanitizer(mem),
+		EnableBedrockWithoutRestrictions: true,
+	})
+	require.NoError(t, err)
+
+	want := summarizer.NewSearchModel(&summarizerv1.SearchModelSpec{
+		EmbeddingsProvider: &summarizerv1.SearchModelSpec_Bedrock{
+			Bedrock: &summarizerv1.BedrockProvider{
+				Region:         "us-east-1",
+				BedrockModelId: "amazon.titan-embed-text-v2:0",
+			},
+		},
+		SearchInferenceModel: "gpt-4o",
+	})
+
+	got, err := service.CreateSearchModel(
+		ctx,
+		// Clone to avoid Marshaling modifying want
+		proto.Clone(want).(*summarizerv1.SearchModel),
+	)
+	require.NoError(t, err)
+	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.Empty(t, cmp.Diff(
+		want,
+		got,
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+	))
+}
+
+func TestSummarizerService_UpsertSearchModel(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+
+	want := newSearchModel()
+	got, err := service.UpsertSearchModel(
+		ctx,
+		// Clone to avoid Marshaling modifying want
+		proto.Clone(want).(*summarizerv1.SearchModel),
+	)
+	require.NoError(t, err)
+	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.Empty(t, cmp.Diff(
+		want,
+		got,
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+	))
+
+	// Ensure we can upsert over an existing resource
+	_, err = service.UpsertSearchModel(
+		ctx,
+		// Clone to avoid Marshaling modifying want
+		proto.Clone(want).(*summarizerv1.SearchModel),
+	)
+	require.NoError(t, err)
+}
+
+func TestSummarizerService_GetSearchModel(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		ctx, service := setupSummarizerTest(t)
+		want := newSearchModel()
+		_, err := service.CreateSearchModel(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(want).(*summarizerv1.SearchModel),
+		)
+		require.NoError(t, err)
+		got, err := service.GetSearchModel(ctx)
+		require.NoError(t, err)
+		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.Empty(t, cmp.Diff(
+			want,
+			got,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+	})
+	t.Run("not found", func(t *testing.T) {
+		ctx, service := setupSummarizerTest(t)
+		_, err := service.GetSearchModel(ctx)
+		require.Error(t, err)
+		assert.True(t, trace.IsNotFound(err))
+	})
+}
+
+func TestSummarizerService_DeleteSearchModel(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+
+	t.Run("ok", func(t *testing.T) {
+		_, err := service.CreateSearchModel(
+			ctx,
+			newSearchModel(),
+		)
+		require.NoError(t, err)
+
+		_, err = service.GetSearchModel(ctx)
+		require.NoError(t, err)
+
+		err = service.DeleteSearchModel(ctx)
+		require.NoError(t, err)
+
+		_, err = service.GetSearchModel(ctx)
+		require.Error(t, err)
+		assert.True(t, trace.IsNotFound(err))
+	})
+	t.Run("not found", func(t *testing.T) {
+		err := service.DeleteSearchModel(ctx)
+		require.Error(t, err)
+		assert.True(t, trace.IsNotFound(err))
+	})
+}
+
+func TestSummarizerService_UpdateSearchModel(t *testing.T) {
+	ctx, service := setupSummarizerTest(t)
+
+	t.Run("ok", func(t *testing.T) {
+		// Create resource for us to Update since we can't update a non-existent resource.
+		created, err := service.CreateSearchModel(
+			ctx,
+			newSearchModel(),
+		)
+		require.NoError(t, err)
+		want := proto.Clone(created).(*summarizerv1.SearchModel)
+		want.Spec.GetOpenai().BaseUrl = "https://localhost:4000"
+
+		updated, err := service.UpdateSearchModel(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(want).(*summarizerv1.SearchModel),
+		)
+		require.NoError(t, err)
+		assert.NotEqual(t, created.Metadata.Revision, updated.Metadata.Revision)
+		assert.Empty(t, cmp.Diff(
+			want,
+			updated,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+
+		got, err := service.GetSearchModel(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(
+			want,
+			got,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+		assert.Equal(t, updated.Metadata.Revision, got.Metadata.Revision)
+	})
+	t.Run("no create", func(t *testing.T) {
+		_, err := service.UpdateSearchModel(
+			ctx,
+			newSearchModel(),
+		)
+		require.Error(t, err)
+	})
+}

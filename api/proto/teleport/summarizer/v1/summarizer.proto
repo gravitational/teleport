@@ -363,3 +363,34 @@ message EnhancedSummary {
   // NeedsFurtherReview indicates the reason why the session needs further review.
   optional NeedsReviewReason needs_further_review = 8;
 }
+
+// SearchModel resource specifies the model configuration used to
+// generate embeddings for the session and perform search inference.
+// It tells Teleport how to generate embeddings for a specific session summary
+// and how to convert natural language queries into API requests.
+message SearchModel {
+  // Kind is the resource kind. Should always be set to "search_model".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  SearchModelSpec spec = 5;
+}
+
+// SearchModelSpec specifies the embeddings provider and search inference model.
+message SearchModelSpec {
+  oneof embeddings_provider {
+    // Openai indicates that this model uses OpenAI as the embeddings provider
+    // and specifies OpenAI-specific parameters.
+    OpenAIProvider openai = 1;
+    // Bedrock indicates that this model uses Amazon Bedrock as the embeddings
+    // provider and specifies Bedrock-specific parameters.
+    BedrockProvider bedrock = 3;
+  }
+  // SearchInferenceModel is the name of the model used to convert natural
+  // language search queries into API requests. This model extracts search
+  // parameters from user queries to enable semantic search functionality.
+  string search_inference_model = 2;
+}

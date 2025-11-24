@@ -29,6 +29,9 @@ const (
 	// CloudDefaultInferenceModelName is the name of the built-in Bedrock inference
 	// model used by Teleport Cloud.
 	CloudDefaultInferenceModelName = "teleport-cloud-default"
+	// CloudDefaultSearchModelName is the name of the built-in Bedrock search
+	// model used by Teleport Cloud.
+	CloudDefaultSearchModelName = CloudDefaultInferenceModelName
 	// BedrockModelExpansionPlaceholder is a placeholder value for Bedrock model IDs
 	// that indicates the model ID should be expanded based on the TELEPORT_BEDROCK_MODEL
 	// environment variable.
@@ -217,6 +220,68 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 				kind, strings.Join(supportedKinds, ", "),
 			)
 		}
+	}
+
+	return nil
+}
+
+// NewSearchModel creates a new SearchModel resource with the given spec.
+// Since only one SearchModel can exist per cluster, a fixed name is used.
+func NewSearchModel(spec *summarizerv1.SearchModelSpec) *summarizerv1.SearchModel {
+	return &summarizerv1.SearchModel{
+		Kind:    types.KindSearchModel,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameSearchModel,
+		},
+		Spec: spec,
+	}
+}
+
+// ValidateSearchModel validates a SearchModel.
+func ValidateSearchModel(m *summarizerv1.SearchModel) error {
+	switch {
+	case m == nil:
+		return trace.BadParameter("search model is nil")
+	case m.GetKind() != types.KindSearchModel:
+		return trace.BadParameter("kind must be %s, got %s", types.KindSearchModel, m.GetKind())
+	case m.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case m.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case m.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", m.GetVersion(), types.V1)
+
+	case m.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case m.GetMetadata().GetName() != types.MetaNameSearchModel:
+		return trace.BadParameter("metadata.name must be %q, got %q", types.MetaNameSearchModel, m.GetMetadata().GetName())
+
+	case m.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	}
+
+	provider := m.GetSpec().GetEmbeddingsProvider()
+	switch p := provider.(type) {
+	case nil:
+		return trace.BadParameter(
+			"missing or unsupported embeddings provider in spec, supported providers: openai, bedrock",
+		)
+	case *summarizerv1.SearchModelSpec_Openai:
+		if p.Openai.GetOpenaiModelId() == "" {
+			return trace.BadParameter("spec.openai.openai_model_id is required")
+		}
+	case *summarizerv1.SearchModelSpec_Bedrock:
+		if p.Bedrock.GetBedrockModelId() == "" {
+			return trace.BadParameter("spec.bedrock.bedrock_model_id is required")
+		}
+		if p.Bedrock.GetRegion() == "" {
+			return trace.BadParameter("spec.bedrock.region is required")
+		}
+	}
+
+	if m.GetSpec().GetSearchInferenceModel() == "" {
+		return trace.BadParameter("spec.search_inference_model is required")
 	}
 
 	return nil

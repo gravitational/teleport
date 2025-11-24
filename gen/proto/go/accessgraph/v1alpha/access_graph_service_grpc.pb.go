@@ -36,24 +36,25 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccessGraphService_Query_FullMethodName                = "/accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_EventsStream_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
-	AccessGraphService_EventsStreamV2_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
-	AccessGraphService_AuditLogStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/AuditLogStream"
-	AccessGraphService_AWSCloudTrailStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/AWSCloudTrailStream"
-	AccessGraphService_KubeAuditLogStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/KubeAuditLogStream"
-	AccessGraphService_Register_FullMethodName             = "/accessgraph.v1alpha.AccessGraphService/Register"
-	AccessGraphService_ReplaceCAs_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
-	AccessGraphService_AWSEventsStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
-	AccessGraphService_GitlabEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
-	AccessGraphService_EntraEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
-	AccessGraphService_AzureEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
-	AccessGraphService_NetIQEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
-	AccessGraphService_GitHubAuditLogStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitHubAuditLogStream"
-	AccessGraphService_GitHubEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/GitHubEventsStream"
-	AccessGraphService_OktaAuditLogStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/OktaAuditLogStream"
-	AccessGraphService_OktaEventsStream_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/OktaEventsStream"
+	AccessGraphService_Query_FullMethodName                   = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName                 = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_EventsStream_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
+	AccessGraphService_EventsStreamV2_FullMethodName          = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
+	AccessGraphService_AuditLogStream_FullMethodName          = "/accessgraph.v1alpha.AccessGraphService/AuditLogStream"
+	AccessGraphService_AWSCloudTrailStream_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/AWSCloudTrailStream"
+	AccessGraphService_KubeAuditLogStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/KubeAuditLogStream"
+	AccessGraphService_Register_FullMethodName                = "/accessgraph.v1alpha.AccessGraphService/Register"
+	AccessGraphService_ReplaceCAs_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
+	AccessGraphService_AWSEventsStream_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
+	AccessGraphService_GitlabEventsStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
+	AccessGraphService_EntraEventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
+	AccessGraphService_AzureEventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
+	AccessGraphService_NetIQEventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
+	AccessGraphService_GitHubAuditLogStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/GitHubAuditLogStream"
+	AccessGraphService_GitHubEventsStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/GitHubEventsStream"
+	AccessGraphService_OktaAuditLogStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/OktaAuditLogStream"
+	AccessGraphService_OktaEventsStream_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/OktaEventsStream"
+	AccessGraphService_SessionSummariesStorage_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/SessionSummariesStorage"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -213,6 +214,8 @@ type AccessGraphServiceClient interface {
 	// The server sends a stream of (empty) `OktaEventsStreamResponse` messages,
 	// typically to acknowledge received operations and maintain stream health.
 	OktaEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse], error)
+	// SessionSummariesStorage establishes a stream for storing session summaries.
+	SessionSummariesStorage(ctx context.Context, in *SessionSummariesStorageRequest, opts ...grpc.CallOption) (*SessionSummariesStorageResponse, error)
 }
 
 type accessGraphServiceClient struct {
@@ -445,6 +448,16 @@ func (c *accessGraphServiceClient) OktaEventsStream(ctx context.Context, opts ..
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_OktaEventsStreamClient = grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse]
 
+func (c *accessGraphServiceClient) SessionSummariesStorage(ctx context.Context, in *SessionSummariesStorageRequest, opts ...grpc.CallOption) (*SessionSummariesStorageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SessionSummariesStorageResponse)
+	err := c.cc.Invoke(ctx, AccessGraphService_SessionSummariesStorage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility.
@@ -602,6 +615,8 @@ type AccessGraphServiceServer interface {
 	// The server sends a stream of (empty) `OktaEventsStreamResponse` messages,
 	// typically to acknowledge received operations and maintain stream health.
 	OktaEventsStream(grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]) error
+	// SessionSummariesStorage establishes a stream for storing session summaries.
+	SessionSummariesStorage(context.Context, *SessionSummariesStorageRequest) (*SessionSummariesStorageResponse, error)
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -665,6 +680,9 @@ func (UnimplementedAccessGraphServiceServer) OktaAuditLogStream(grpc.BidiStreami
 }
 func (UnimplementedAccessGraphServiceServer) OktaEventsStream(grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method OktaEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) SessionSummariesStorage(context.Context, *SessionSummariesStorageRequest) (*SessionSummariesStorageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SessionSummariesStorage not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 func (UnimplementedAccessGraphServiceServer) testEmbeddedByValue()                            {}
@@ -857,6 +875,24 @@ func _AccessGraphService_OktaEventsStream_Handler(srv interface{}, stream grpc.S
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_OktaEventsStreamServer = grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]
 
+func _AccessGraphService_SessionSummariesStorage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SessionSummariesStorageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessGraphServiceServer).SessionSummariesStorage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessGraphService_SessionSummariesStorage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessGraphServiceServer).SessionSummariesStorage(ctx, req.(*SessionSummariesStorageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -879,6 +915,10 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReplaceCAs",
 			Handler:    _AccessGraphService_ReplaceCAs_Handler,
+		},
+		{
+			MethodName: "SessionSummariesStorage",
+			Handler:    _AccessGraphService_SessionSummariesStorage_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

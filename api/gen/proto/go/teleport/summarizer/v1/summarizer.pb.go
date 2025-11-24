@@ -1555,6 +1555,187 @@ func (x *EnhancedSummary) GetNeedsFurtherReview() NeedsReviewReason {
 	return NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED
 }
 
+// SearchModel resource specifies the model configuration used to
+// generate embeddings for the session and perform search inference.
+// It tells Teleport how to generate embeddings for a specific session summary
+// and how to convert natural language queries into API requests.
+type SearchModel struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Kind is the resource kind. Should always be set to "search_model".
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// Version is the resource version. Should be set to "v1".
+	Version       string           `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Metadata      *v1.Metadata     `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Spec          *SearchModelSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchModel) Reset() {
+	*x = SearchModel{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchModel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchModel) ProtoMessage() {}
+
+func (x *SearchModel) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchModel.ProtoReflect.Descriptor instead.
+func (*SearchModel) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *SearchModel) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *SearchModel) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *SearchModel) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *SearchModel) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *SearchModel) GetSpec() *SearchModelSpec {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+// SearchModelSpec specifies the embeddings provider and search inference model.
+type SearchModelSpec struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to EmbeddingsProvider:
+	//
+	//	*SearchModelSpec_Openai
+	//	*SearchModelSpec_Bedrock
+	EmbeddingsProvider isSearchModelSpec_EmbeddingsProvider `protobuf_oneof:"embeddings_provider"`
+	// SearchInferenceModel is the name of the model used to convert natural
+	// language search queries into API requests. This model extracts search
+	// parameters from user queries to enable semantic search functionality.
+	SearchInferenceModel string `protobuf:"bytes,2,opt,name=search_inference_model,json=searchInferenceModel,proto3" json:"search_inference_model,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *SearchModelSpec) Reset() {
+	*x = SearchModelSpec{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchModelSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchModelSpec) ProtoMessage() {}
+
+func (x *SearchModelSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchModelSpec.ProtoReflect.Descriptor instead.
+func (*SearchModelSpec) Descriptor() ([]byte, []int) {
+	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *SearchModelSpec) GetEmbeddingsProvider() isSearchModelSpec_EmbeddingsProvider {
+	if x != nil {
+		return x.EmbeddingsProvider
+	}
+	return nil
+}
+
+func (x *SearchModelSpec) GetOpenai() *OpenAIProvider {
+	if x != nil {
+		if x, ok := x.EmbeddingsProvider.(*SearchModelSpec_Openai); ok {
+			return x.Openai
+		}
+	}
+	return nil
+}
+
+func (x *SearchModelSpec) GetBedrock() *BedrockProvider {
+	if x != nil {
+		if x, ok := x.EmbeddingsProvider.(*SearchModelSpec_Bedrock); ok {
+			return x.Bedrock
+		}
+	}
+	return nil
+}
+
+func (x *SearchModelSpec) GetSearchInferenceModel() string {
+	if x != nil {
+		return x.SearchInferenceModel
+	}
+	return ""
+}
+
+type isSearchModelSpec_EmbeddingsProvider interface {
+	isSearchModelSpec_EmbeddingsProvider()
+}
+
+type SearchModelSpec_Openai struct {
+	// Openai indicates that this model uses OpenAI as the embeddings provider
+	// and specifies OpenAI-specific parameters.
+	Openai *OpenAIProvider `protobuf:"bytes,1,opt,name=openai,proto3,oneof"`
+}
+
+type SearchModelSpec_Bedrock struct {
+	// Bedrock indicates that this model uses Amazon Bedrock as the embeddings
+	// provider and specifies Bedrock-specific parameters.
+	Bedrock *BedrockProvider `protobuf:"bytes,3,opt,name=bedrock,proto3,oneof"`
+}
+
+func (*SearchModelSpec_Openai) isSearchModelSpec_EmbeddingsProvider() {}
+
+func (*SearchModelSpec_Bedrock) isSearchModelSpec_EmbeddingsProvider() {}
+
 var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
 
 const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
@@ -1653,7 +1834,18 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x17notable_command_indexes\x18\x06 \x03(\x05R\x15notableCommandIndexes\x12C\n" +
 	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands\x12`\n" +
 	"\x14needs_further_review\x18\b \x01(\x0e2).teleport.summarizer.v1.NeedsReviewReasonH\x00R\x12needsFurtherReview\x88\x01\x01B\x17\n" +
-	"\x15_needs_further_review*|\n" +
+	"\x15_needs_further_review\"\xcd\x01\n" +
+	"\vSearchModel\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12;\n" +
+	"\x04spec\x18\x05 \x01(\v2'.teleport.summarizer.v1.SearchModelSpecR\x04spec\"\xe5\x01\n" +
+	"\x0fSearchModelSpec\x12@\n" +
+	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openai\x12C\n" +
+	"\abedrock\x18\x03 \x01(\v2'.teleport.summarizer.v1.BedrockProviderH\x00R\abedrock\x124\n" +
+	"\x16search_inference_model\x18\x02 \x01(\tR\x14searchInferenceModelB\x15\n" +
+	"\x13embeddings_provider*|\n" +
 	"\fSummaryState\x12\x1d\n" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
@@ -1706,7 +1898,7 @@ func file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(SummaryState)(0),              // 0: teleport.summarizer.v1.SummaryState
 	(CommandCategory)(0),           // 1: teleport.summarizer.v1.CommandCategory
@@ -1725,39 +1917,45 @@ var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(*CommandAnalysis)(nil),        // 14: teleport.summarizer.v1.CommandAnalysis
 	(*SecurityRecommendation)(nil), // 15: teleport.summarizer.v1.SecurityRecommendation
 	(*EnhancedSummary)(nil),        // 16: teleport.summarizer.v1.EnhancedSummary
-	(*v1.Metadata)(nil),            // 17: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 18: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),        // 19: google.protobuf.Struct
-	(*durationpb.Duration)(nil),    // 20: google.protobuf.Duration
+	(*SearchModel)(nil),            // 17: teleport.summarizer.v1.SearchModel
+	(*SearchModelSpec)(nil),        // 18: teleport.summarizer.v1.SearchModelSpec
+	(*v1.Metadata)(nil),            // 19: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),  // 20: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),        // 21: google.protobuf.Struct
+	(*durationpb.Duration)(nil),    // 22: google.protobuf.Duration
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	17, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	19, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
 	6,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
 	7,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
 	8,  // 3: teleport.summarizer.v1.InferenceModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	17, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	19, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
 	10, // 5: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	17, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	19, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
 	12, // 7: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
 	0,  // 8: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
-	18, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
-	18, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
-	19, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
+	20, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
+	20, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
+	21, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
 	16, // 12: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
 	1,  // 13: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
 	2,  // 14: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
 	3,  // 15: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	20, // 16: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
-	20, // 17: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
+	22, // 16: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
+	22, // 17: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
 	2,  // 18: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	2,  // 19: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
 	14, // 20: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
 	4,  // 21: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	19, // 22: teleport.summarizer.v1.SearchModel.metadata:type_name -> teleport.header.v1.Metadata
+	18, // 23: teleport.summarizer.v1.SearchModel.spec:type_name -> teleport.summarizer.v1.SearchModelSpec
+	7,  // 24: teleport.summarizer.v1.SearchModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	8,  // 25: teleport.summarizer.v1.SearchModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	26, // [26:26] is the sub-list for method output_type
+	26, // [26:26] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }
@@ -1770,13 +1968,17 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		(*InferenceModelSpec_Bedrock)(nil),
 	}
 	file_teleport_summarizer_v1_summarizer_proto_msgTypes[11].OneofWrappers = []any{}
+	file_teleport_summarizer_v1_summarizer_proto_msgTypes[13].OneofWrappers = []any{
+		(*SearchModelSpec_Openai)(nil),
+		(*SearchModelSpec_Bedrock)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
