@@ -1582,25 +1582,31 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	sessionA := make(chan error)
 	openSession := func() {
+		defer close(sessionA)
+
 		cl, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   username,
 			Cluster: helpers.Site,
 			Host:    Host,
+			Stdout:  personA,
+			Stdin:   personA,
 		})
 		if err != nil {
-			sessionA <- trace.Wrap(err)
+			sessionA <- err
 			return
 		}
-		cl.Stdout = personA
-		cl.Stdin = personA
-		// Person A types something into the terminal (including "exit")
-		personA.Type("\aecho hi\n\r\aexit\n\r\a")
-		sessionA <- cl.SSH(context.TODO(), []string{})
+
+		if err := cl.SSH(t.Context(), nil); err != nil {
+			sessionA <- err
+			return
+		}
 	}
 
 	// PersonB: wait for a session to become available, then join:
 	sessionB := make(chan error)
 	joinSession := func() {
+		defer close(sessionB)
+
 		tracker := waitForSessionToBeEstablished(t, site, 1)
 
 		sessionID := tracker.GetSessionID()
@@ -1610,33 +1616,25 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 			Host:    Host,
 		})
 		if err != nil {
-			sessionB <- trace.Wrap(err)
+			sessionB <- err
 			return
 		}
 
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-timeoutCtx.Done():
-				sessionB <- timeoutCtx.Err()
-				return
-
-			case <-ticker.C:
-				err := cl.Join(context.TODO(), types.SessionPeerMode, session.ID(sessionID), personB)
-				if err == nil {
-					sessionB <- nil
-					return
-				}
-			}
+		if err := cl.Join(t.Context(), types.SessionPeerMode, session.ID(sessionID), personB); err != nil {
+			sessionB <- err
+			return
 		}
 	}
 
 	go openSession()
 	go joinSession()
+
+	// Wait for both parties to have joined the session and
+	// then enter input and exit the session.
+	waitForSessionToBeEstablished(t, site, 2)
+
+	// Person A types something into the terminal (including "exit")
+	personA.Type("echo hi\n\rexit\n\r")
 
 	// wait for the sessions to end
 	err := waitForError(sessionA, time.Second*10)
