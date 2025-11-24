@@ -4554,7 +4554,7 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 	})
 
 	testCreateICAccount(t, ctx, a.IdentityCenter)
-	testCreateICAccountAssignment(t, ctx, a.IdentityCenter)
+	testCreateICAccountAssignment(t, ctx, a.IdentityCenter, true /*saml app label*/)
 	testCreateSAMLSP(t, ctx, a, "aws-identity-center")
 	testCreateSAMLSP(t, ctx, a, "another-service-provider")
 
@@ -4730,6 +4730,54 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 	}
 }
 
+func TestAccessRequest_ImplicitAWSICSAMLApp_NoSAMLLabel(t *testing.T) {
+	ctx := t.Context()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	// Setup test auth server
+	s := newTestTLSServer(t)
+	a := s.Auth()
+	awsicRole := services.NewSystemIdentityCenterAccessRole()
+	_, err := a.UpsertRole(ctx, awsicRole)
+	require.NoError(t, err)
+	samlRole := testCreateRole(t, s, "saml-role", func(spec *types.RoleSpecV6) {
+		spec.Allow.AppLabels = types.Labels{
+			types.OriginLabel: []string{common.OriginAWSIdentityCenter},
+		}
+	})
+	awsicRequesterWithSAML := testCreateRole(t, s, "awsic-requester-withsaml", func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.SearchAsRoles = []string{awsicRole.GetName(), samlRole.GetName()}
+	})
+
+	testCreateICAccount(t, ctx, a.IdentityCenter)
+	testCreateICAccountAssignment(t, ctx, a.IdentityCenter, false /*saml app label*/)
+	testCreateSAMLSP(t, ctx, a, "aws-identity-center")
+
+	user, userClient := testCreateUserWithRoles(t, s, "user", []string{awsicRequesterWithSAML.GetName()}...)
+	req := []types.ResourceID{{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"}}
+	r, err := types.NewAccessRequestWithResources(uuid.NewString(), user.GetUsername(), []string{}, req)
+	require.NoError(t, err, "types.NewAccessRequest")
+	resp, err := userClient.CreateAccessRequestV2(ctx, r)
+	require.NoError(t, err)
+
+	expected := []types.ResourceID{
+		{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+		{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+	}
+	gotIds, err := types.ResourceIDsToString(resp.GetRequestedResourceIDs())
+	require.NoError(t, err)
+	wantIds, err := types.ResourceIDsToString(expected)
+	require.NoError(t, err)
+	require.Equal(t, wantIds, gotIds)
+}
+
 func testCreateICAccount(t *testing.T, ctx context.Context, icService services.IdentityCenter) {
 	t.Helper()
 	for i := range 3 {
@@ -4751,19 +4799,24 @@ func testCreateICAccount(t *testing.T, ctx context.Context, icService services.I
 	}
 }
 
-func testCreateICAccountAssignment(t *testing.T, ctx context.Context, icService services.IdentityCenter) {
+func testCreateICAccountAssignment(t *testing.T, ctx context.Context, icService services.IdentityCenter, withSamlAppLabel bool) {
 	t.Helper()
+	labels := map[string]string{
+		types.OriginLabel: common.OriginAWSIdentityCenter,
+	}
+	if withSamlAppLabel {
+		labels[types.KindSAMLIdPServiceProvider] = "aws-identity-center"
+	}
 	for i := range 3 {
 		name := "assignment-" + strconv.Itoa(i)
 		aName := "account-" + strconv.Itoa(i)
 		_, err := icService.CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
 			Kind:    types.KindIdentityCenterAccountAssignment,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{Name: name,
-				Labels: map[string]string{
-					types.OriginLabel:                common.OriginAWSIdentityCenter,
-					types.KindSAMLIdPServiceProvider: "aws-identity-center",
-				}},
+			Metadata: &headerv1.Metadata{
+				Name:   name,
+				Labels: labels,
+			},
 			Spec: &identitycenterv1.AccountAssignmentSpec{
 				Display:     "Some-Permission-set on Some-AWS-account",
 				AccountName: aName,
