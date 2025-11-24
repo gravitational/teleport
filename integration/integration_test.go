@@ -3260,14 +3260,16 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// after removing the remote cluster and trusted cluster, the connection will start failing
 	require.NoError(t, main.Process.GetAuthServer().DeleteRemoteCluster(ctx, clusterAux))
 	require.NoError(t, aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName()))
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd)
-		if err != nil {
-			break
-		}
-	}
-	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
+
+	// wait for the leaf cluster to disappear
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := main.Tunnel.Cluster(ctx, clusterAux)
+		require.True(t, trace.IsNotFound(err))
+	}, 20*time.Second, 500*time.Millisecond)
+
+	// validate connections fail
+	err = tc.SSH(ctx, cmd)
+	require.True(t, trace.IsNotFound(err))
 
 	// recreating the trusted cluster should re-establish connection
 	_, err = aux.Process.GetAuthServer().UpsertTrustedClusterV2(ctx, trustedCluster)
@@ -3290,14 +3292,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// connection and client should recover and work again
 	output = &bytes.Buffer{}
 	tc.Stdout = output
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.NoError(t, tc.SSH(ctx, cmd))
 	require.Equal(t, "hello world\n", output.String())
 
 	// stop clusters and remaining nodes
