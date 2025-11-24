@@ -33,7 +33,7 @@ import (
 type LegacyProtoMessage interface{ ProtoMessage() }
 
 // ReflectLegacy uses Go's reflect package to walk the given message and
-// discover its attributes.
+// discover its attributes. This is suitable for legacy/gogo-proto resources.
 func ReflectLegacy(message LegacyProtoMessage) (*Message, error) {
 	msg := reflect.ValueOf(message)
 	if msg.Kind() == reflect.Pointer {
