@@ -216,6 +216,8 @@ service AccessGraphService {
   // The server sends a stream of (empty) `OktaEventsStreamResponse` messages,
   // typically to acknowledge received operations and maintain stream health.
   rpc OktaEventsStream(stream OktaEventsStreamRequest) returns (stream OktaEventsStreamResponse);
+  // SessionSummariesStorage establishes a stream for storing session summaries.
+  rpc SessionSummariesStorage(SessionSummariesStorageRequest) returns (SessionSummariesStorageResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -818,3 +820,22 @@ message OktaEventsStreamRequest {
 // OktaEventsStreamResponse is an empty server message in the GitHubEventsStream,
 // serving as an acknowledgment and allowing for future addition of response data.
 message OktaEventsStreamResponse {}
+
+// SessionSummariesStorageRequest is a request to store session summaries along with their metadata.
+message SessionSummariesStorageRequest {
+  string username = 1;
+  string resource_type = 2;
+  string resource_name = 3;
+  string host_id = 4;
+  repeated string roles = 5;
+  repeated string access_request_ids = 6;
+  repeated double embeddings = 7;
+  string summary = 8;
+  map<string, string> resource_labels = 9;
+  google.protobuf.Timestamp session_start = 10;
+  google.protobuf.Timestamp session_end = 11;
+  string session_id = 12;
+}
+
+// SessionSummariesStorageResponse is an empty response for session summaries storage.
+message SessionSummariesStorageResponse {}
