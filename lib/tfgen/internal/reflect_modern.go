@@ -29,7 +29,7 @@ import (
 )
 
 // ReflectModern uses the modern protoreflect package to walk the given message
-// and discover its attributes.
+// and discover its attributes. This is suitable for RFD 153-style resources.
 func ReflectModern(message proto.Message) (*Message, error) {
 	return reflectMessageModern(message.ProtoReflect())
 }
