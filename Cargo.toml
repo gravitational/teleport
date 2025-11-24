@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["lib/srv/desktop/rdp/rdpclient", "web/packages/shared/libs/ironrdp"]
+members = ["lib/srv/desktop/rdp/rdpclient", "lib/srv/desktop/rdp/decoder","web/packages/shared/libs/ironrdp"]
 
 [workspace.package]
 edition = "2021"
@@ -36,4 +36,3 @@ ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "a0a3e750c
     "rustls",
 ] }
 ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "a0a3e750c9e4ee9c73b957fbcb26dbc59e57d07d" }
-

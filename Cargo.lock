@@ -2343,6 +2343,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rdp-decoder"
+version = "0.1.0"
+dependencies = [
+ "ironrdp-core",
+ "ironrdp-graphics",
+ "ironrdp-session",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
