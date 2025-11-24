@@ -39,6 +39,7 @@ import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -83,8 +84,15 @@ export interface IAppContext {
    * process (renderer).
    */
   unexpectedVnetShutdownListener: UnexpectedVnetShutdownListener | undefined;
+
+  /** Sets the listener and returns a cleanup function which removes the listener. */
+  addResourceRefreshListener: (listener: ResourceRefreshListener) => () => void;
+  /** Gets called when `ClusterLifecycleManager` requests resource refresh. */
+  resourceRefreshListener: ResourceRefreshListener | undefined;
 }
 
 export type UnexpectedVnetShutdownListener = (
   request: tshdEventsApi.ReportUnexpectedVnetShutdownRequest
 ) => void;
+
+export type ResourceRefreshListener = (uri: RootClusterUri) => void;
