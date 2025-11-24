@@ -4,7 +4,7 @@ updates:
     directory: '/'
     schedule:
       interval: cron
-      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     ignore:
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
@@ -33,7 +33,7 @@ updates:
     directory: '/api'
     schedule:
       interval: cron
-      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
@@ -49,7 +49,7 @@ updates:
     directory: '/assets/aws'
     schedule:
       interval: cron
-      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -68,7 +68,7 @@ updates:
     directory: '/assets/backport'
     schedule:
       interval: cron
-      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
@@ -84,7 +84,7 @@ updates:
     directory: '/build.assets/tooling'
     schedule:
       interval: cron
-      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     ignore:
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
@@ -103,7 +103,7 @@ updates:
     directory: '/integrations/terraform'
     schedule:
       interval: cron
-      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     ignore:
       # breaks compatibility
       - dependency-name: github.com/hashicorp/terraform-plugin-framework
@@ -124,7 +124,7 @@ updates:
     directory: '/integrations/terraform-mwi'
     schedule:
       interval: cron
-      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
@@ -140,7 +140,7 @@ updates:
     directory: '/integrations/event-handler'
     schedule:
       interval: cron
-      cronjob: '0 9 1 6 *' # Yearly on June 1 at 9am UTC
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     open-pull-requests-limit: 20
     groups:
       go:
