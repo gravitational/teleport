@@ -414,7 +414,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				tconf.Auth.AuditConfig = auditConfig
 				tconf.Auth.SessionRecordingConfig = recConfig
 				tconf.Proxy.Enabled = true
-				tconf.SSH.Enabled = true
+				tconf.SSH.Enabled = false
 				return t, nil, nil, tconf
 			}
 			teleport := suite.NewTeleportWithConfig(makeConfig())
@@ -438,9 +438,9 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			ctx := t.Context()
 
-			// wait for both nodes to show up, otherwise
-			// we'll have trouble connecting to the node below.
-			err = teleport.WaitForNodeCount(ctx, helpers.Site, 2)
+			// wait for the node to show up, otherwise
+			// we'll have trouble connecting below.
+			err = teleport.WaitForNodeCount(ctx, helpers.Site, 1)
 			require.NoError(t, err)
 
 			// should have no sessions:
@@ -466,32 +466,15 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				cl.Stdout = myTerm
 				cl.Stdin = myTerm
 
-				err = cl.SSH(context.TODO(), []string{})
+				err = cl.SSH(ctx, nil)
 				endC <- err
 			}()
 
-			// wait until we've found the session in the audit log
-			getSession := func(site authclient.ClientI) (types.SessionTracker, error) {
-				timeout, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-				defer cancel()
-				sessions, err := waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				return sessions[0], nil
-			}
-			tracker, err := getSession(site)
-			require.NoError(t, err)
-			sessionID := tracker.GetSessionID()
-
-			// wait for the user to join this session:
-			for len(tracker.GetParticipants()) == 0 {
-				time.Sleep(time.Millisecond * 5)
-				tracker, err = site.GetSessionTracker(ctx, tracker.GetSessionID())
-				require.NoError(t, err)
-			}
+			// wait until the session tracker exists.
+			tracker := waitForSessionToBeEstablished(t, site, 1)
 			// make sure it's us who joined! :)
 			require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
+			sessionID := tracker.GetSessionID()
 
 			// let's type "echo hi" followed by "enter" and then "exit" + "enter":
 			myTerm.Type("echo hi\n\rexit\n\r")
@@ -510,15 +493,15 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			for {
 				select {
 				case event := <-teleport.UploadEventsC:
-					if event.SessionID != tracker.GetSessionID() {
-						t.Logf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, tracker.GetSessionID())
+					if event.SessionID != sessionID {
+						t.Logf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, sessionID)
 						continue
 					}
 					break loop
 				case <-timeoutC:
 					dumpGoroutineProfile()
 					t.Fatalf("%s: Timeout waiting for upload of session %v to complete to %v",
-						tt.comment, tracker.GetSessionID(), tt.auditSessionsURI)
+						tt.comment, sessionID, tt.auditSessionsURI)
 				}
 			}
 
@@ -1610,15 +1593,9 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 	// PersonB: wait for a session to become available, then join:
 	sessionB := make(chan error)
 	joinSession := func() {
-		sessionTimeoutCtx, sessionTimeoutCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer sessionTimeoutCancel()
-		sessions, err := waitForSessionToBeEstablished(sessionTimeoutCtx, defaults.Namespace, site)
-		if err != nil {
-			sessionB <- trace.Wrap(err)
-			return
-		}
+		tracker := waitForSessionToBeEstablished(t, site, 1)
 
-		sessionID := sessions[0].GetSessionID()
+		sessionID := tracker.GetSessionID()
 		cl, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   username,
 			Cluster: helpers.Site,
@@ -2032,12 +2009,9 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 
 				}, 2*time.Second, 100*time.Millisecond)
 
-				timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				defer cancel()
-
-				ss, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
-				require.NoError(t, err)
-				require.Len(t, ss, 1)
+				tracker := waitForSessionToBeEstablished(t, site, 1)
+				// make sure it's us who joined! :)
+				require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 				require.NoError(t, teleport.StopAuth(false))
 			},
 		},
@@ -4980,19 +4954,8 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 		endCh <- err
 	}()
 
-	// wait until there's a session in there:
-	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	sessions, err = waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
-	require.NoError(t, err)
-	tracker := sessions[0]
-
 	// wait for the user to join this session
-	for len(tracker.GetParticipants()) == 0 {
-		time.Sleep(time.Millisecond * 5)
-		tracker, err = site.GetSessionTracker(ctx, sessions[0].GetSessionID())
-		require.NoError(t, err)
-	}
+	tracker := waitForSessionToBeEstablished(t, site, 1)
 	// make sure it's us who joined! :)
 	require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
@@ -5855,11 +5818,8 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 	// joinSession will join the existing session on a server.
 	joinSession := func() {
 		// Find the existing session in the backend.
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		sessions, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
-		require.NoError(t, err)
-		sessionID := sessions[0].GetSessionID()
+		tracker := waitForSessionToBeEstablished(t, site, 1)
+		sessionID := tracker.GetSessionID()
 
 		cl, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   suite.Me.Username,
@@ -9142,15 +9102,10 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 
 	// PersonB: wait for a session to become available, then join:
 	joinSession := func() {
-		sessionTimeoutCtx, sessionTimeoutCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer sessionTimeoutCancel()
-		sessions, err := waitForSessionToBeEstablished(sessionTimeoutCtx, defaults.Namespace, site)
-		if err != nil {
-			cancel(trace.Wrap(err, "failed waiting for peer session to be established"))
-			return
-		}
+		// Wait for the session initiator to have created and join the session.
+		tracker := waitForSessionToBeEstablished(t, site, 1)
 
-		sessionID := sessions[0].GetSessionID()
+		sessionID := tracker.GetSessionID()
 		cl, err := instance.NewClient(helpers.ClientConfig{
 			TeleportUser: "moderator",
 			Login:        suite.Me.Username,
@@ -9173,18 +9128,8 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 	go openSession()
 	go joinSession()
 
-	require.Eventually(t, func() bool {
-		ss, err := site.GetActiveSessionTrackers(ctx)
-		if err != nil {
-			return false
-		}
-
-		if len(ss) != 1 {
-			return false
-		}
-
-		return len(ss[0].GetParticipants()) == 2
-	}, 5*time.Second, 100*time.Millisecond)
+	// Wait for both parties to have joined the session before proceeding.
+	waitForSessionToBeEstablished(t, site, 2)
 
 	peerTerminal.Type("echo llamas\n\r")
 
