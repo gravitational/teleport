@@ -146,9 +146,9 @@ func protoMessageVariables[TMessage proto.Message, TEnv messageEnv[TMessage]](ze
 					}
 				})
 			case protoreflect.Uint32Kind, protoreflect.Uint64Kind:
-				vars[name] = typical.DynamicVariable(func(env TEnv) (uint64, error) {
+				vars[name] = typical.DynamicVariable(func(env TEnv) (uint, error) {
 					if v, err := get(env); err == nil {
-						return v.Uint(), nil
+						return uint(v.Uint()), nil
 					} else {
 						return 0, err
 					}
