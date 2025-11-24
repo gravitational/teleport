@@ -20,7 +20,6 @@ package client
 
 import (
 	"context"
-	"crypto/x509"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -31,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
@@ -351,9 +349,7 @@ type profileOptions struct {
 // profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
 func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileStatus, error) {
 	sshCert, err := keyRing.SSHCert()
-	if err != nil && trace.IsNotFound(err) {
-		sshCert = &ssh.Certificate{}
-	} else if err != nil {
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -402,11 +398,6 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	sort.Strings(extensions)
 
 	tlsCert, err := keyRing.TeleportTLSCertificate()
-	if err != nil && trace.IsNotFound(err) {
-		tlsCert = &x509.Certificate{}
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

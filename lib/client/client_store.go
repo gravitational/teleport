@@ -262,8 +262,8 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		return nil, trace.Wrap(err)
 	}
 
-	// If we can't construct KeyRingIndex, find a keyRing to match the profile,
-	// or can't connect to the keyRing (hardware key), return a partial status.
+	// If we can't construct KeyRingIndex, find a keyRing to match the profile.
+	// If we can't connect to the keyRing (hardware key), return a partial status.
 	// This is used for some superficial functions `tsh logout` and `tsh status`.
 	partialStatus := &ProfileStatus{
 		Name: profileName,
@@ -277,7 +277,6 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		KubeEnabled: profile.KubeProxyAddr != "",
 		// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
 		ValidUntil:              time.Now(),
-		GetKeyRingError:         err,
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 		SSOHost:                 profile.SSOHost,
 	}
@@ -294,6 +293,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
+			partialStatus.GetKeyRingError = err
 			return partialStatus, nil
 		}
 		return nil, trace.Wrap(err)
@@ -301,7 +301,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
-	return profileStatusFromKeyRing(keyRing, profileOptions{
+	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
 		ProfileName:             profileName,
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
@@ -315,6 +315,12 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		IsVirtual:               !onDisk,
 		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
 	})
+	if trace.IsNotFound(err) {
+		return partialStatus, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profileStatus, nil
 }
 
 // FullProfileStatus returns the status of the active profile along with the
