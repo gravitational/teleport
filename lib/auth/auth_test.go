@@ -4792,6 +4792,7 @@ func testCreateSAMLSP(t *testing.T, ctx context.Context, a *auth.Server, name st
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: ed,
 		})
+	require.NoError(t, err)
 	err = a.CreateSAMLIdPServiceProvider(ctx, sp)
 	require.NoError(t, err)
 }
