@@ -1344,16 +1344,15 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	// deadlocking because stdin/stdout/stderr which it uses to relay details from
 	// PAM auth modules are not properly copied until _after_ the shell request is
 	// replied to.
-	var err error
+	var waitErr error
 	if bpfService.Enabled() && pam.Enabled {
-		if err = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); err != nil {
-			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
-			return trace.Wrap(err)
+		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
+			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
 		}
 	}
 
 	closeErr := c.readyr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	c.readyr = nil
-	return trace.NewAggregate(err, closeErr)
+	return trace.NewAggregate(waitErr, closeErr)
 }
