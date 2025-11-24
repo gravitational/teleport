@@ -139,6 +139,11 @@ func Test_handleStreamableHTTP(t *testing.T) {
 				libevents.MCPSessionRequestCode, // "tools/call"
 			}, sliceutils.Map(emitter.Events(), getEventCode))
 		}, 2*time.Second, time.Millisecond*100, "waiting for events")
+		checkSessionStartAndInitializeEvents(t, emitter.Events(),
+			checkSessionStartWithServerInfo("test-server", "1.0.0"),
+			checkSessionStartHasExternalSessionID(),
+			checkSessionStartWithEgressAuthType("app-jwt"),
+		)
 
 		// First event must be the start event.
 		startEvent, ok := emitter.Events()[0].(*apievents.MCPSessionStart)

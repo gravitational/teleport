@@ -32,6 +32,7 @@ import (
 	docker "github.com/docker/docker/client"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -350,4 +351,40 @@ type mockAuthClient struct {
 
 func (m mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	return "app-token-for-" + req.Username, nil
+}
+
+func checkSessionStartAndInitializeEvents(t *testing.T, events []apievents.AuditEvent, extraChecks ...func(*testing.T, *apievents.MCPSessionStart)) {
+	t.Helper()
+	// "notifications/initialized" may or may not slip in so just check the
+	// first two.
+	require.GreaterOrEqual(t, len(events), 2)
+	sessionStart, ok := events[0].(*apievents.MCPSessionStart)
+	require.True(t, ok)
+	assert.Equal(t, "test-client/1.0.0", sessionStart.ClientInfo)
+	request, ok := events[1].(*apievents.MCPSessionRequest)
+	require.True(t, ok)
+	assert.Equal(t, string(mcp.MethodInitialize), request.Message.Method)
+
+	for _, check := range extraChecks {
+		check(t, sessionStart)
+	}
+}
+
+func checkSessionStartWithServerInfo(wantName, wantVersion string) func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.Equal(t, wantName+"/"+wantVersion, sessionStart.ServerInfo)
+	}
+}
+func checkSessionStartWithEgressAuthType(wantEgress string) func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.Equal(t, wantEgress, sessionStart.EgressAuthType)
+	}
+}
+func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.NotEmpty(t, sessionStart.SessionID)
+	}
 }
