@@ -4769,6 +4769,16 @@ func (g *GRPCServer) CreatePrivilegeToken(ctx context.Context, req *authpb.Creat
 	return token, trace.Wrap(err)
 }
 
+func (g *GRPCServer) CreateMobileDeviceEnrollmentUserToken(ctx context.Context, req *authpb.CreateMobileDeviceEnrollmentUserTokenRequest) (*types.UserTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.CreateMobileDeviceEnrollmentUserToken(ctx, req)
+	return token, trace.Wrap(err)
+}
+
 // CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
 func (g *GRPCServer) CreateRegisterChallenge(ctx context.Context, req *authpb.CreateRegisterChallengeRequest) (*authpb.MFARegisterChallenge, error) {
 	actx, err := g.authenticate(ctx)

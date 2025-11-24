@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -122,6 +123,7 @@ import (
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
+	devicetrustproxy "github.com/gravitational/teleport/lib/devicetrust/proxy"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/events/azsessions"
@@ -6256,6 +6258,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		// We have to duplicate the behavior of `m.TLSConfig()` here because
 		// http/1.1 needs to take precedence over h2 due to
 		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017#c5 in Chrome.
+		// NOTE: http/1.1 is preferred here.
 		tlsConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
 			NextProtos: []string{
@@ -7227,8 +7230,17 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
+
+	deviceTrustProxySvc, err := devicetrustproxy.New(
+		devicetrustproxy.ServiceConfig{
+			DevicesClient: conn.Client.DevicesClient(),
+			Log:           process.logger.With(teleport.ComponentKey, teleport.Component("dt", "proxy")),
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	devicepb.RegisterDeviceTrustServiceServer(server, deviceTrustProxySvc)
 
 	process.RegisterCriticalFunc("proxy.grpc.public", func() error {
 		process.logger.InfoContext(process.ExitContext(), "Starting proxy gRPC server.", "listen_address", listener.Addr())

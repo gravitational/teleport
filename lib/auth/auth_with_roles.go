@@ -7405,6 +7405,11 @@ func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.C
 	return a.authServer.CreatePrivilegeToken(ctx, req)
 }
 
+// TODO: Comment.
+func (a *ServerWithRoles) CreateMobileDeviceEnrollmentUserToken(ctx context.Context, req *proto.CreateMobileDeviceEnrollmentUserTokenRequest) (*types.UserTokenV3, error) {
+	return a.authServer.CreateMobileDeviceEnrollmentUserToken(ctx, req)
+}
+
 // CreateRegisterChallenge is implemented by AuthService.CreateRegisterChallenge.
 func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
 	if req.TokenID == "" {

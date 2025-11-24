@@ -1,3 +1,4 @@
+//go:build darwin && !ios
 #ifndef DEVICE_DARWIN_H_
 #define DEVICE_DARWIN_H_
 

@@ -1,0 +1,4 @@
+--max-width 100
+--swift-version 6
+--indent 2
+--exclude Foobar/Foobar/gen

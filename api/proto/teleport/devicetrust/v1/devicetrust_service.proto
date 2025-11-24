@@ -55,6 +55,8 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // Device Trust is a Teleport Enterprise feature. Open Source Teleport clusters
 // treat all Device RPCs as unimplemented (which, in fact, they are for OSS.)
 service DeviceTrustService {
+  // Ping foo bar.
+  rpc Ping(PingRequest) returns (PingResponse);
   // CreateDevice creates a device, effectively registering it on Teleport.
   // Devices need to be registered before they can be enrolled.
   //
@@ -565,6 +567,12 @@ message AuthenticateDeviceInit {
   //
   // See ConfirmDeviceWebAuthentication.
   DeviceWebToken device_web_token = 4;
+
+  // IP of the client submitting the init request. It is used during the mobile device auth where
+  // the proxy service forwards the requests to the auth server and uses its own auth service
+  // client, so we cannot read the client address from the context as usual.
+  // Used internally by the Device Trust system.
+  string client_ip = 5;
 }
 
 // Request for ConfirmDeviceWebAuthentication.
@@ -681,3 +689,9 @@ message SyncInventoryMissingDevices {
 
 // Superseded by ResourceUsageService.GetUsage.
 message GetDevicesUsageRequest {}
+
+// PingRequest foo bar.
+message PingRequest {}
+
+// PingResponse foo bar.
+message PingResponse {}

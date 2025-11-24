@@ -34,6 +34,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"regexp"
@@ -44,6 +45,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/digitorus/pkcs7"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
@@ -65,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1/devicetrustv1connect"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -838,6 +841,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
+	h.POST("/webapi/users/enroll-mobile-device/token", h.WithAuth(h.createMobileDeviceEnrollmentToken))
 
 	h.POST("/webapi/headless/login", h.WithUnauthenticatedLimiter(h.headlessLogin))
 
@@ -1217,6 +1221,110 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
+
+	dtPrefix := "/webapi/devicetrust"
+	h.auth.proxyClient.DevicesClient()
+	_, dtHandler := devicetrustv1connect.NewDeviceTrustServiceHandler(&deviceTrustServer{
+		logger:        h.logger.With(teleport.ComponentKey, "dtenroll"),
+		devicesClient: h.auth.proxyClient.DevicesClient(),
+	})
+	dtPrefixHandler := http.StripPrefix(dtPrefix, dtHandler)
+
+	h.Handle("GET", dtPrefix+"/*wildcard", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		h.logger.InfoContext(r.Context(), "Got request", "method", r.Method, "url", r.URL)
+		dtPrefixHandler.ServeHTTP(w, r)
+	})
+	h.Handle("POST", dtPrefix+"/*wildcard", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		h.logger.InfoContext(r.Context(), "Got request", "method", r.Method, "url", r.URL)
+		dtPrefixHandler.ServeHTTP(w, r)
+	})
+
+	h.Handle("GET", "/webapi/profile.mobileconfig", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		// https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/profile-service/profile-service.html
+		// 1. The mobile app opens this endpoint with the credential ID and the public key DER as query
+		//    params.
+		// 2. The auth server creates a temporary resource with three fields: a random token, a
+		//    credential ID and a public key DER (the last two from the query params of this request).
+		//    The resource expires in 8 minutes (https://support.apple.com/en-us/102400).
+		// 3. The random token is included as the challenge in the plist returned from this endpoint.
+		// 4. The device makes a request to the URL from the plist, including the challenge.
+		// 5. The auth server verifies that the request is signed with iPhone Device CA and that the
+		//    challenge is present.
+		// 6. The auth server uses the challenge to find the temporary resource. It finds the device by
+		//    the serial number and then it updates the credential ID and the public key DER of the
+		//    device.
+		// 7. During the enrollment, the device uses its credential ID to identify the device, as it
+		//    doesn't have direct access to its serial number.
+		dumpedReq, err := httputil.DumpRequest(r, true /* body */)
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Could not dump mobileconfig request", "error", err)
+		} else {
+			h.logger.InfoContext(r.Context(), "Got mobileconfig request", "req", dumpedReq)
+		}
+		plist := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>PayloadContent</key>
+<dict>
+<key>URL</key>
+<string>https://teleport-mbp.ocelot-paradise.ts.net:3030/webapi/profile</string>
+<key>DeviceAttributes</key>
+<array>
+<string>SERIAL</string>
+</array>
+<key>Challenge</key>
+<string>super-secret-challenge</string>
+</dict>
+<key>PayloadOrganization</key>
+<string>Gravitational</string>
+<key>PayloadDisplayName</key>
+<string>Device Trust profile for teleport-mbp.ocelot-paradise.ts.net</string>
+<key>PayloadVersion</key>
+<integer>1</integer>
+<key>PayloadUUID</key>
+<string>A271EDC7-FA19-4B2D-9A25-D82E9EEDAE0A</string>
+<key>PayloadIdentifier</key>
+<string>com.gravitational.devicetrust</string>
+<key>PayloadDescription</key>
+<string>Profile enabling Device Trust</string>
+<key>PayloadType</key>
+<string>Profile Service</string>
+</dict>
+</plist>`
+		w.WriteHeader(200)
+		w.Header().Set("Content-Type", "application/x-apple-aspen-config")
+		w.Write([]byte(plist))
+	})
+
+	h.Handle("POST", "/webapi/profile", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		body, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Could not read body", "error", err)
+			w.WriteHeader(500)
+			return
+		}
+		p7, err := pkcs7.Parse(body)
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Could not parse body", "error", err)
+			w.WriteHeader(500)
+			return
+		}
+		h.logger.InfoContext(r.Context(), "Got profile request", "content", p7.Content)
+		// NOTE: In theory, the device first sends its identifiers to this endpoint, then it gets back
+		// encryption_cert_payload and scep_cert_payload which tells it how to complete the enrollment.
+		// Based on the scep cert payload, it sends some encrypted data back to this endpoint again.
+		// However, we don't need to go through the whole SCEP ceremony and can redirect the user back
+		// to the app after just the first step – once we got the serial number there's nothing else we
+		// need from the SCEP ceremony for the rest of Device Trust to work.
+		// The cert installation will fail but the user will not even see that because they'll be
+		// immediately brought back to the app.
+		//
+		// Some SO threads which gave me the idea about the redirect.
+		// https://stackoverflow.com/questions/2338035/installing-a-configuration-profile-on-iphone-programmatically
+		// https://stackoverflow.com/questions/18598452/profile-mobileconfig-install-from-safari-then-return-back-to-app
+		http.Redirect(w, r, "teleport://teleport-mbp.ocelot-paradise.ts.net:3030/profile_done", http.StatusMovedPermanently)
+	})
 }
 
 // GetProxyClient returns authenticated auth server client

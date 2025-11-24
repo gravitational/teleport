@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChangedUserAuthn, RecoveryCodes } from './types';
+import {
+  ChangedUserAuthn,
+  MobileDeviceEnrollmentToken,
+  RecoveryCodes,
+} from './types';
 
 // makeChangedUserAuthn makes the response from a successful user reset or invite.
 // Only teleport cloud and users with valid emails as username will receive
@@ -35,5 +39,18 @@ export function makeRecoveryCodes(json: any): RecoveryCodes {
   return {
     codes: json.codes || [],
     createdDate: json.created ? new Date(json.created) : null,
+  };
+}
+
+export function makeMobileDeviceEnrollmentToken(
+  json: any
+): MobileDeviceEnrollmentToken {
+  json = json || {};
+
+  return {
+    tokenId: json.tokenId,
+    expires: json.expiry ? new Date(json.expiry) : null,
+    qrCode: json.qrCode,
+    user: json.user,
   };
 }

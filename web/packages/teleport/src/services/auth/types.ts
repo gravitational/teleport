@@ -51,6 +51,13 @@ export type ResetToken = {
   user: string;
 };
 
+export type MobileDeviceEnrollmentToken = {
+  tokenId: string;
+  qrCode: string;
+  expires: Date;
+  user: string;
+};
+
 export type ResetPasswordReqWithEvent = {
   req: NewCredentialRequest;
   eventMeta?: EventMeta;

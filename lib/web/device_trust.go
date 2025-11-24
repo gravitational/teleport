@@ -17,15 +17,24 @@
 package web
 
 import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	grpc "google.golang.org/grpc"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1/devicetrustv1connect"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -148,4 +157,129 @@ func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error)
 		return path.Join(basePath, cleanPath), nil
 	}
 	return cleanPath, nil
+}
+
+type deviceTrustServer struct {
+	devicetrustv1connect.UnimplementedDeviceTrustServiceHandler
+	logger *slog.Logger
+	// devicesClient is a client to auth's Device Trust service authenticated as the proxy.
+	devicesClient devicepb.DeviceTrustServiceClient
+}
+
+func (s *deviceTrustServer) CreateDeviceEnrollToken(ctx context.Context, req *connect.Request[devicepb.CreateDeviceEnrollTokenRequest]) (*connect.Response[devicepb.DeviceEnrollToken], error) {
+	token, err := s.devicesClient.CreateDeviceEnrollToken(ctx, req.Msg)
+	return connect.NewResponse(token), trace.Wrap(err)
+}
+
+func (s *deviceTrustServer) EnrollDevice(ctx context.Context, clientStream *connect.BidiStream[devicepb.EnrollDeviceRequest, devicepb.EnrollDeviceResponse]) error {
+	s.logger.DebugContext(ctx, "EnrollDevice has started")
+	defer s.logger.DebugContext(ctx, "EnrollDevice has ended")
+	serverStream, err := s.devicesClient.EnrollDevice(ctx)
+	if err != nil {
+		return trace.Wrap(err, "starting server stream")
+	}
+
+	return trace.Wrap(proxyBidiStream(ctx, s.logger, clientStream, serverStream, nil))
+}
+
+func (s *deviceTrustServer) AuthenticateDevice(ctx context.Context, clientStream *connect.BidiStream[devicepb.AuthenticateDeviceRequest, devicepb.AuthenticateDeviceResponse]) error {
+	s.logger.DebugContext(ctx, "AuthenticateDevice has started")
+	defer s.logger.DebugContext(ctx, "AuthenticateDevice has ended")
+	serverStream, err := s.devicesClient.AuthenticateDevice(ctx)
+	if err != nil {
+		return trace.Wrap(err, "starting server stream")
+	}
+
+	return trace.Wrap(proxyBidiStream(ctx, s.logger, clientStream, serverStream, func(clientMsg *devicepb.AuthenticateDeviceRequest) error {
+		switch clientMsg.Payload.(type) {
+		case *devicepb.AuthenticateDeviceRequest_Init:
+			clientAddr, err := authz.ClientSrcAddrFromContext(ctx)
+			if err != nil {
+				return trace.Wrap(err, "reading client source address from context")
+			}
+			clientIP, _, err := net.SplitHostPort(clientAddr.String())
+			if err != nil {
+				return trace.Wrap(err, "extracting IP from client address")
+			}
+			clientMsg.GetInit().ClientIp = clientIP
+		}
+		return nil
+	}))
+}
+
+// TODO: Transform modifyReqFn into an opt.
+func proxyBidiStream[Req any, Res any](ctx context.Context, logger *slog.Logger, clientStream *connect.BidiStream[Req, Res], serverStream grpc.BidiStreamingClient[Req, Res], modifyReqFn func(*Req) error) error {
+	errChan := make(chan error, 2)
+
+	// Forward messages from client to server.
+	go func() {
+		defer logger.DebugContext(ctx, "Finished forwarding from client to server")
+		defer func() {
+			// CloseSend always returns nil error.
+			_ = serverStream.CloseSend()
+		}()
+
+		for {
+			logger.DebugContext(ctx, "Waiting for client message")
+			clientMsg, err := clientStream.Receive()
+			logger.DebugContext(ctx, "Got client message", "message", clientMsg, "error", err)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					// Client is done sending messages.
+					errChan <- nil
+					return
+				}
+				errChan <- trace.Wrap(err, "receiving message from client")
+				return
+			}
+
+			if modifyReqFn != nil {
+				if err := modifyReqFn(clientMsg); err != nil {
+					errChan <- trace.Wrap(err, "modifying client message")
+					return
+				}
+			}
+
+			if err := serverStream.Send(clientMsg); err != nil {
+				errChan <- trace.Wrap(err, "sending message from client to server")
+				return
+			}
+		}
+	}()
+
+	// Forward messages from server to client.
+	go func() {
+		defer logger.DebugContext(ctx, "Finished forwarding from server to client")
+		for {
+			logger.DebugContext(ctx, "Waiting for server message")
+			serverMsg, err := serverStream.Recv()
+			logger.DebugContext(ctx, "Got server message", "message", serverMsg, "error", err)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					// Server stream has terminated with an OK status.
+					errChan <- nil
+					return
+				}
+				// Do not add a message to trace.Wrap here. If the server returns an error in response to a
+				// message from the client, the error needs to be proxied with no changes to its structure.
+				// Any message added to trace.Wrap here would be appended to the error delivered to the
+				// client.
+				errChan <- trace.Wrap(err)
+				return
+			}
+
+			if err := clientStream.Send(serverMsg); err != nil {
+				errChan <- trace.Wrap(err, "sending message from server to client")
+				return
+			}
+		}
+	}()
+
+	// Return immediately on the first value. Since we're within a handler for a bidi stream,
+	// returning an error from the handler is the only way of passing the error back to the client.
+	return trace.Wrap(<-errChan)
+}
+
+func (s *deviceTrustServer) Ping(ctx context.Context, req *connect.Request[devicepb.PingRequest]) (*connect.Response[devicepb.PingResponse], error) {
+	return connect.NewResponse(&devicepb.PingResponse{}), nil
 }

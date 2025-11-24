@@ -1,0 +1,12 @@
+disabled_rules:
+  - todo
+  # Used by generated protos to disable checking the files.
+  - blanket_disable_command
+  - identifier_name
+  - file_length
+  # Let the formatter deal with these.
+  - opening_brace
+  - trailing_comma
+  - line_length
+  - function_body_length
+  - type_body_length

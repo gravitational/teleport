@@ -423,6 +423,8 @@ const (
 	// second factor re-authentication which in other cases would be required eg:
 	// allowing user to add a mfa device if they don't have any registered.
 	UserTokenTypePrivilegeException = "privilege_exception"
+	// TODO: Comment
+	UserTokenTypeEnrollMobileDevice = "enroll_mobile_device"
 
 	// userTokenTypePrivilegeOTP is used to hold OTP data during (otherwise)
 	// token-less registrations.
@@ -486,6 +488,9 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 
 	case UserTokenTypePrivilege, UserTokenTypePrivilegeException, userTokenTypePrivilegeOTP:
 		r.TTL = defaults.PrivilegeTokenTTL
+
+	case UserTokenTypeEnrollMobileDevice:
+		r.TTL = defaults.EnrollMobileDeviceTokenTTL
 
 	default:
 		return trace.BadParameter("unknown user token request type(%v)", r.Type)
@@ -1183,6 +1188,8 @@ type IdentityService interface {
 	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
 	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
 	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
+	// TODO: Comment.
+	CreateMobileDeviceEnrollmentUserToken(ctx context.Context, req *proto.CreateMobileDeviceEnrollmentUserTokenRequest) (*types.UserTokenV3, error)
 
 	// UpdateHeadlessAuthenticationState updates a headless authentication state.
 	UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error

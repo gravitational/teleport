@@ -28,6 +28,7 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -46,6 +47,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/ghodss/yaml"
@@ -63,6 +65,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicetrustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1/devicetrustv1connect"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -1029,6 +1033,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
 	gsutil.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 
+	connectRPC := app.Command("connect-rpc", "Test Connect RPC")
+
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
 	apps.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1947,6 +1953,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.config.run()
 	case updateCommand.update.FullCommand():
 		err = updateCommand.update.run(&cf)
+	case connectRPC.FullCommand():
+		err = onConnectRPC(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -6250,6 +6258,44 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	overrideContextName := ""
 	err = updateKubeConfig(cf, tc, kubeConfigPath, overrideContextName, kubeStatus)
 	return trace.Wrap(err)
+}
+
+func onConnectRPC(cf *CLIConf) error {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.Protocols = new(http.Protocols)
+	t.Protocols.SetHTTP1(true)
+	t.Protocols.SetHTTP2(true)
+	httpClient := &http.Client{Transport: t}
+	client := devicetrustv1connect.NewDeviceTrustServiceClient(httpClient, "https://teleport-mbp.ocelot-paradise.ts.net:3030/webapi/devicetrust/")
+	ctx, cancel := context.WithTimeout(cf.Context, 5*time.Second)
+	defer cancel()
+
+	fmt.Println("Sending ping")
+	_, err := client.Ping(ctx, connect.NewRequest(&devicetrustv1.PingRequest{}))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("Got ping")
+
+	stream := client.EnrollDevice(ctx)
+	defer stream.CloseRequest()
+	fmt.Println("Sending message")
+	if err := stream.Send(&devicetrustv1.EnrollDeviceRequest{
+		Payload: &devicetrustv1.EnrollDeviceRequest_Init{
+			Init: &devicetrustv1.EnrollDeviceInit{},
+		},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("Message sent")
+
+	fmt.Println("Receiving message")
+	res, err := stream.Receive()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Got response %v\n", res)
+	return nil
 }
 
 // onHeadlessApprove executes 'tsh headless approve' command
