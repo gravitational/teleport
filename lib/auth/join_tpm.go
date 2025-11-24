@@ -20,8 +20,6 @@ package auth
 
 import (
 	"context"
-	"crypto/x509"
-	"log/slog"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -31,7 +29,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	"github.com/gravitational/teleport/lib/tpm"
 )
 
@@ -71,48 +69,26 @@ func (a *Server) RegisterUsingTPMMethod(
 		return nil, trace.BadParameter("specified join token is not for `tpm` method")
 	}
 
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, trace.Wrap(
-			ErrRequiresEnterprise,
-			"tpm joining",
-		)
-	}
-
-	// Convert configured CAs to a CAPool
-	var certPool *x509.CertPool
-	if len(ptv2.Spec.TPM.EKCertAllowedCAs) > 0 {
-		certPool = x509.NewCertPool()
-		for i, ca := range ptv2.Spec.TPM.EKCertAllowedCAs {
-			if ok := certPool.AppendCertsFromPEM([]byte(ca)); !ok {
-				return nil, trace.BadParameter(
-					"ekcert_allowed_cas[%d] has an invalid or malformed PEM", i,
-				)
-			}
+	solve := func(ec *attest.EncryptedCredential) ([]byte, error) {
+		solution, err := solveChallenge(tpm.EncryptedCredentialToProto(ec))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		return solution.Solution, nil
 	}
 
-	// TODO(noah): Use logger from TeleportProcess.
-	validatedEK, err := a.tpmValidator(ctx, slog.Default(), tpm.ValidateParams{
+	validatedEK, err := tpmjoin.CheckTPMRequest(ctx, tpmjoin.CheckTPMRequestParams{
+		Token:        ptv2,
+		TPMValidator: a.GetTPMValidator(),
 		EKCert:       initReq.GetEkCert(),
 		EKKey:        initReq.GetEkKey(),
 		AttestParams: tpm.AttestationParametersFromProto(initReq.AttestationParams),
-		AllowedCAs:   certPool,
-		Solve: func(ec *attest.EncryptedCredential) ([]byte, error) {
-			solution, err := solveChallenge(tpm.EncryptedCredentialToProto(ec))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return solution.Solution, nil
-		},
+		Solve:        solve,
 	})
 	if validatedEK != nil {
 		joinFailureMetadata = validatedEK
 	}
 	if err != nil {
-		return nil, trace.Wrap(err, "validating TPM EK")
-	}
-
-	if err := checkTPMAllowRules(validatedEK, ptv2.Spec.TPM.Allow); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -128,18 +104,12 @@ func (a *Server) RegisterUsingTPMMethod(
 	return certs, trace.Wrap(err, "generating certs for host")
 }
 
-func checkTPMAllowRules(tpm *tpm.ValidatedTPM, rules []*types.ProvisionTokenSpecV2TPM_Rule) error {
-	// If a single rule passes, accept the TPM
-	for _, rule := range rules {
-		if rule.EKPublicHash != "" && tpm.EKPubHash != rule.EKPublicHash {
-			continue
-		}
-		if rule.EKCertificateSerial != "" && tpm.EKCertSerial != rule.EKCertificateSerial {
-			continue
-		}
+// GetTPMValidator returns the server's TPM validator.
+func (a *Server) GetTPMValidator() tpmjoin.TPMValidator {
+	return a.tpmValidator
+}
 
-		// All rules met.
-		return nil
-	}
-	return trace.AccessDenied("validated tpm attributes did not match any allow rules")
+// SetTPMValidator sets the server's TPM validator.
+func (a *Server) SetTPMValidator(v tpmjoin.TPMValidator) {
+	a.tpmValidator = v
 }
