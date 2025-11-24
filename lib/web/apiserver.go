@@ -5643,3 +5643,9 @@ func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
 		return fn(w, r, p, sctx)
 	})
 }
+
+func (h *Handler) WithNopLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		return fn(w, r, p)
+	})
+}
