@@ -245,7 +245,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		if mcpRequest.Method == mcputils.MethodInitialize && respErrForAudit == nil {
 			t.appendStartEvent(r.Context(), eventWithHeader(r.Header))
 		}
-		t.emitOrAppendRequestEvent(r.Context(), mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
+		t.emitRequestEvent(r.Context(), mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	case baseMessage.IsNotification():
 		t.emitNotificationEvent(r.Context(), baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	}
@@ -253,7 +253,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 }
 
 func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
-	t.emitOrAppendRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r.Header))
+	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r.Header))
 
 	errRespAsBody, err := json.Marshal(errResp)
 	if err != nil {

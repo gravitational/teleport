@@ -19,6 +19,7 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"net"
@@ -200,6 +201,7 @@ func makeTestAuthContext(t *testing.T, roleSet services.RoleSet, app types.Appli
 			Username:   user.GetName(),
 			Groups:     user.GetRoles(),
 			Principals: user.GetLogins(),
+			Expires:    time.Now().Add(time.Hour),
 		},
 	}
 	if app != nil {
@@ -357,6 +359,9 @@ func checkSessionStartAndInitializeEvents(t *testing.T, events []apievents.Audit
 	t.Helper()
 	// "notifications/initialized" may or may not slip in so just check the
 	// first two.
+	slices.SortFunc(events, func(a, b apievents.AuditEvent) int {
+		return cmp.Compare(a.GetIndex(), b.GetIndex())
+	})
 	require.GreaterOrEqual(t, len(events), 2)
 	sessionStart, ok := events[0].(*apievents.MCPSessionStart)
 	require.True(t, ok)

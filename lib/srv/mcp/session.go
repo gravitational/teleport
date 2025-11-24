@@ -229,7 +229,7 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
 		msg, authErr := s.processClientRequest(ctx, request)
-		s.emitOrAppendRequestEvent(ctx, request, eventWithError(authErr))
+		s.emitRequestEvent(ctx, request, eventWithError(authErr))
 		if authErr != nil {
 			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msg))
 		}

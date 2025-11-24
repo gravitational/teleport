@@ -74,10 +74,10 @@ func (c *sessionAuditorConfig) checkAndSetDefaults() error {
 type sessionAuditor struct {
 	sessionAuditorConfig
 
-	// pendingEvents is used to delay sending the session start event and the
-	// initialize request event until more metadata are captured.
-	pendingEvents []apievents.AuditEvent
-	mu            sync.Mutex
+	// pendingSessionStartEvent is used to delay sending the session start event
+	// until more metadata is received.
+	pendingSessionStartEvent *apievents.MCPSessionStart
+	mu                       sync.Mutex
 }
 
 func newSessionAuditor(cfg sessionAuditorConfig) (*sessionAuditor, error) {
@@ -137,7 +137,9 @@ func (a *sessionAuditor) shouldEmitEvent(method string) bool {
 
 func (a *sessionAuditor) appendStartEvent(ctx context.Context, options ...eventOptionFunc) {
 	opts := newEventOptions(options...)
-	a.appendEvent(ctx, &apievents.MCPSessionStart{
+
+	// Prepare it to have the correct index.
+	preparedEvent, err := a.preparer.PrepareSessionEvent(&apievents.MCPSessionStart{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionStartEvent,
 			events.MCPSessionStartCode,
@@ -149,6 +151,18 @@ func (a *sessionAuditor) appendStartEvent(ctx context.Context, options ...eventO
 		AppMetadata:        a.makeAppMetadata(),
 		EgressAuthType:     guessEgressAuthType(opts.header, a.sessionCtx.App.GetRewrite()),
 	})
+	if err != nil {
+		a.logger.ErrorContext(ctx, "failed to prepare session start event", "error", err)
+		return
+	}
+	event, ok := preparedEvent.GetAuditEvent().(*apievents.MCPSessionStart)
+	if !ok {
+		a.logger.ErrorContext(ctx, "failed to get session start event from prepared event")
+		return
+	}
+	a.mu.Lock()
+	a.pendingSessionStartEvent = event
+	a.mu.Unlock()
 }
 
 func (a *sessionAuditor) emitEndEvent(ctx context.Context, options ...eventOptionFunc) {
@@ -209,7 +223,7 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 	a.flushAndEmitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitOrAppendRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, options ...eventOptionFunc) {
+func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, options ...eventOptionFunc) {
 	opts := newEventOptions(options...)
 	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
@@ -240,16 +254,15 @@ func (a *sessionAuditor) emitOrAppendRequestEvent(ctx context.Context, msg *mcpu
 		event.Status.Error = opts.err.Error()
 	}
 
-	// Wait for server information from initialize result before emitting session
-	// start and initialize request events.
+	// Initialize should be the first request. Let's not flush session start
+	// event yet but wait for the initialize result. Flush if request is
+	// anything else to avoid delaying.
 	if msg.Method == mcputils.MethodInitialize {
 		a.updatePendingSessionStartEventWithInitializeRequest(msg)
-		if opts.err == nil {
-			a.appendEvent(ctx, event)
-			return
-		}
+		a.emitEvent(ctx, event)
+	} else {
+		a.flushAndEmitEvent(ctx, event)
 	}
-	a.flushAndEmitEvent(ctx, event)
 }
 
 func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, options ...eventOptionFunc) {
@@ -294,40 +307,23 @@ func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Req
 	a.flushAndEmitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) appendEvent(ctx context.Context, event apievents.AuditEvent) {
-	preparedEvent, err := a.preparer.PrepareSessionEvent(event)
-	if err != nil {
-		a.logger.ErrorContext(ctx, "Failed to prepare event",
-			"error", err,
-			"event_type", event.GetType(),
-			"event_id", event.GetID(),
-		)
-		return
-	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.pendingEvents = append(a.pendingEvents, preparedEvent.GetAuditEvent())
-}
-
 func (a *sessionAuditor) flush(ctx context.Context) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for _, event := range a.pendingEvents {
-		if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
-			a.logger.ErrorContext(ctx, "Failed to emit audit event",
-				"error", err,
-				"event_type", event.GetType(),
-				"event_id", event.GetID(),
-			)
+	if a.pendingSessionStartEvent != nil {
+		if err := a.emitter.EmitAuditEvent(ctx, a.pendingSessionStartEvent); err != nil {
+			a.logger.ErrorContext(ctx, "failed to emit session start event", "error", err)
 		}
+		a.pendingSessionStartEvent = nil
 	}
-	a.pendingEvents = nil
 }
 
 func (a *sessionAuditor) flushAndEmitEvent(ctx context.Context, event apievents.AuditEvent) {
 	a.flush(ctx)
+	a.emitEvent(ctx, event)
+}
 
+func (a *sessionAuditor) emitEvent(ctx context.Context, event apievents.AuditEvent) {
 	preparedEvent, err := a.preparer.PrepareSessionEvent(event)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Failed to prepare event",
@@ -390,10 +386,8 @@ func (a *sessionAuditor) makeUserMetadata() apievents.UserMetadata {
 func (a *sessionAuditor) updatePendingSessionStartEvent(fn func(*apievents.MCPSessionStart)) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for _, event := range a.pendingEvents {
-		if sessionStartEvent, ok := event.(*apievents.MCPSessionStart); ok {
-			fn(sessionStartEvent)
-		}
+	if a.pendingSessionStartEvent != nil {
+		fn(a.pendingSessionStartEvent)
 	}
 }
 
