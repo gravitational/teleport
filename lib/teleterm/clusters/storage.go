@@ -303,13 +303,15 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	// Load SSH key for the cluster indicated in the profile.
 	// Skip if the profile is empty, the key cannot be found, or the key isn't supported as an agent key.
 	err = clusterClient.LoadKeyForCluster(context.Background(), status.Cluster)
-	if err != nil && !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
-		return nil, trace.Wrap(err)
+	if err != nil {
+		if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
+			return nil, trace.Wrap(err)
+		}
+		s.Logger.InfoContext(context.Background(), "Could not load key for cluster into the local agent",
+			"cluster", status.Cluster,
+			"error", err,
+		)
 	}
-	s.Logger.InfoContext(context.Background(), "Could not load key for cluster into the local agent",
-		"cluster", status.Cluster,
-		"error", err,
-	)
 
 	return status, nil
 }
