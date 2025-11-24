@@ -352,23 +352,45 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		Headless:     cf.Headless,
 		Logger:       logger,
 		CloseContext: cf.Context,
+		Relay:        tc.RelayAddr != "",
 	})
 
-	localProxy, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf.Context, tc, lpListener, cf.InsecureSkipVerify),
-		alpnproxy.WithHTTPMiddleware(kubeMiddleware),
-		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
-		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if tc.RelayAddr != "" {
+		localProxy, err := alpnproxy.NewLocalProxy(
+			alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr: tc.RelayAddr,
+				// connectivity to a relay is secured by internal CAs, the
+				// insecure option makes no sense
+				InsecureSkipVerify: false,
+				Listener:           lpListener,
+				ParentContext:      cf.Context,
+				// the relay does not support TLS terminators
+				ALPNConnUpgradeRequired: false,
+			},
+			alpnproxy.WithHTTPMiddleware(kubeMiddleware),
+			alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		kubeProxy.localProxy = localProxy
+	} else {
+		localProxy, err := alpnproxy.NewLocalProxy(
+			makeBasicLocalProxyConfig(cf.Context, tc, lpListener, cf.InsecureSkipVerify),
+			alpnproxy.WithHTTPMiddleware(kubeMiddleware),
+			alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
+			alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		kubeProxy.localProxy = localProxy
 	}
-	kubeProxy.localProxy = localProxy
 
 	kubeProxy.forwardProxy, err = alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
 		CloseContext: cf.Context,
 		ListenPort:   port,
-		ForwardAddr:  localProxy.GetAddr(),
+		ForwardAddr:  lpListener.Addr().String(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

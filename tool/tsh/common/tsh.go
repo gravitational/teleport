@@ -6224,7 +6224,8 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	const ignoreRelayFalse = false
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc, ignoreRelayFalse)
 	if err != nil {
 		return trace.Wrap(err)
 	}
