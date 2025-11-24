@@ -28,12 +28,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// LegacyProtoMessage is the interface satisfied by protobuf v1 and gogo-proto
+// structs.
+type LegacyProtoMessage interface{ ProtoMessage() }
+
 // ReflectLegacy uses Go's reflect package to walk the given message and
 // discover its attributes.
-func ReflectLegacy(message any) (*Message, error) {
-	if _, ok := message.(interface{ ProtoMessage() }); !ok {
-		return nil, trace.BadParameter("must be a protobuf message")
-	}
+func ReflectLegacy(message LegacyProtoMessage) (*Message, error) {
 	msg := reflect.ValueOf(message)
 	if msg.Kind() == reflect.Pointer {
 		msg = msg.Elem()

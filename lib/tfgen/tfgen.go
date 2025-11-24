@@ -135,10 +135,14 @@ func generateResource(
 }
 
 func reflectMessage(msg any) (*internal.Message, error) {
-	if pm, ok := msg.(proto.Message); ok {
-		return internal.ReflectModern(pm)
+	switch m := msg.(type) {
+	case proto.Message:
+		return internal.ReflectModern(m)
+	case internal.LegacyProtoMessage:
+		return internal.ReflectLegacy(m)
+	default:
+		return nil, trace.BadParameter("resource must be a protobuf message, was a %T", msg)
 	}
-	return internal.ReflectLegacy(msg)
 }
 
 // messageToTokens converts a message/struct to a collection of HCL tokens.
