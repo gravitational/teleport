@@ -108,7 +108,7 @@ func TestReflectLegacy(t *testing.T) {
 		},
 	}
 
-	output, err := internal.ReflectLegacy(token)
+	output, err := internal.ReflectLegacy(token.(internal.LegacyProtoMessage))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(expected, output))
 }
