@@ -699,3 +699,8 @@ func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID
 	args := m.Called(ctx, sessionID)
 	return args.Error(0)
 }
+
+func (f *MockSummarizer) GenerateEmbeddings(ctx context.Context, text string) ([]float32, error) {
+	args := f.Called(ctx, text)
+	return args.Get(0).([]float32), args.Error(1)
+}

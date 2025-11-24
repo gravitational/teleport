@@ -665,6 +665,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindSearchModel is the kind of teleport.summarizer.v1.SearchModel.
+	KindSearchModel = "search_model"
+
 	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
 	KindInferenceModel = "inference_model"
 
@@ -680,6 +683,10 @@ const (
 
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
+
+	// MetaNameSearchModel is the name of the singleton resource holding
+	// the default search model configuration.
+	MetaNameSearchModel = "search-model"
 
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"

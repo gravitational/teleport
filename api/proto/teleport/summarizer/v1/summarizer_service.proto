@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.summarizer.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/summarizer/v1/summarizer.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
@@ -78,6 +79,23 @@ service SummarizerService {
   // TestInferenceModel tests an InferenceModel configuration by making a test
   // request to the configured provider (AWS Bedrock or OpenAI).
   rpc TestInferenceModel(TestInferenceModelRequest) returns (TestInferenceModelResponse);
+
+  // CreateSearchModel creates the SearchModel.
+  rpc CreateSearchModel(CreateSearchModelRequest) returns (CreateSearchModelResponse);
+  // GetSearchModel retrieves an existing SearchModel by name.
+  rpc GetSearchModel(GetSearchModelRequest) returns (GetSearchModelResponse);
+  // UpdateSearchModel updates an existing SearchModel.
+  rpc UpdateSearchModel(UpdateSearchModelRequest) returns (UpdateSearchModelResponse);
+  // UpsertSearchModel creates a new SearchModel or updates an existing
+  // one.
+  rpc UpsertSearchModel(UpsertSearchModelRequest) returns (UpsertSearchModelResponse);
+  // DeleteSearchModel deletes an existing SearchModel by name.
+  rpc DeleteSearchModel(DeleteSearchModelRequest) returns (DeleteSearchModelResponse);
+
+  // ParseSearchQuery parses a natural language query into structured search
+  // parameters for session summaries. It uses an LLM to extract filters such
+  // as resource labels, keywords, time ranges, and other search criteria.
+  rpc ParseSearchQuery(ParseSearchQueryRequest) returns (ParseSearchQueryResponse);
 }
 
 // Summarization inference models
@@ -118,7 +136,7 @@ message UpdateInferenceModelResponse {
   InferenceModel model = 1;
 }
 
-// UpsertInferenceModelRequest is a request for creating or updating a
+// UpsertInferenceModelRequest is a request for creating or updating an
 // InferenceModel.
 message UpsertInferenceModelRequest {
   // Model is the InferenceModel resource to create or update.
@@ -363,4 +381,109 @@ message TestInferenceModelResponse {
   // Message provides additional information about the test result.
   // If success is false, this contains the error message.
   string message = 2;
+}
+
+// CreateSearchModelRequest is a request for creating the SearchModel.
+// Only one SearchModel can exist per cluster.
+message CreateSearchModelRequest {
+  // Model is the SearchModel resource to create.
+  SearchModel model = 1;
+}
+
+// CreateSearchModelResponse is a response to creating the SearchModel.
+message CreateSearchModelResponse {
+  // Model is the SearchModel resource that was created.
+  SearchModel model = 1;
+}
+
+// GetSearchModelRequest is a request for retrieving the SearchModel.
+// Since only one SearchModel can exist per cluster, no name is required.
+message GetSearchModelRequest {}
+
+// GetSearchModelResponse is a response to retrieving the SearchModel.
+message GetSearchModelResponse {
+  // Model is the SearchModel resource that was retrieved.
+  SearchModel model = 1;
+}
+
+// UpdateSearchModelRequest is a request for updating the SearchModel.
+message UpdateSearchModelRequest {
+  // Model is the SearchModel resource to update.
+  SearchModel model = 1;
+}
+
+// UpdateSearchModelResponse is a response to updating the SearchModel.
+message UpdateSearchModelResponse {
+  // Model is the SearchModel resource that was updated.
+  SearchModel model = 1;
+}
+
+// UpsertSearchModelRequest is a request for creating or updating the
+// SearchModel.
+message UpsertSearchModelRequest {
+  // Model is the SearchModel resource to create or update.
+  SearchModel model = 1;
+}
+
+// UpsertSearchModelResponse is a response to creating or updating the
+// SearchModel.
+message UpsertSearchModelResponse {
+  // Model is the SearchModel resource that was created or updated.
+  SearchModel model = 1;
+}
+
+// DeleteSearchModelRequest is a request for deleting the SearchModel.
+// Since only one SearchModel can exist per cluster, no name is required.
+message DeleteSearchModelRequest {}
+
+// DeleteSearchModelResponse is a response to deleting the SearchModel.
+message DeleteSearchModelResponse {}
+
+// ParseSearchQueryRequest is a request for parsing a natural language query
+// into structured search parameters.
+message ParseSearchQueryRequest {
+  // Query is the natural language search query to parse.
+  // Example: "Show sessions for servers labeled env:prod with sudo commands"
+  string query = 1;
+}
+
+// ParseSearchQueryResponse is a response containing the parsed search parameters
+// extracted from the natural language query.
+message ParseSearchQueryResponse {
+  // Username is the username to filter sessions by.
+  string username = 1;
+
+  // ResourceType is the type of resource (ssh, database, kubernetes, application, desktop).
+  string resource_type = 2;
+
+  // ResourceName is the specific resource name to filter by.
+  string resource_name = 3;
+
+  // ResourceLabels are key-value pairs extracted from label/tag patterns in the query.
+  // Example: {"env": "prod", "team": "backend"}
+  map<string, string> resource_labels = 4;
+
+  // SearchKeywords are activity descriptions, commands, or content-related phrases.
+  // Example: "sudo commands", "database queries", "security incident"
+  string search_keywords = 5;
+
+  // HostId is the specific host identifier to filter by.
+  string host_id = 6;
+
+  // Roles are the role names to filter sessions by.
+  repeated string roles = 7;
+
+  // AccessRequestIds are the access request IDs to filter sessions by.
+  repeated string access_request_ids = 8;
+
+  // StartTime is the start of the time range in RFC3339 format.
+  // Example: "2024-01-15T00:00:00Z"
+  google.protobuf.Timestamp start_time = 9;
+
+  // EndTime is the end of the time range in RFC3339 format.
+  // Example: "2024-01-15T23:59:59Z"
+  google.protobuf.Timestamp end_time = 10;
+
+  // embeddings are the vector embeddings representing the semantic content of the query.
+  repeated float embeddings = 11;
 }

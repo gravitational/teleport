@@ -57,3 +57,7 @@ func (m dummySummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 func (m dummySummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	return nil
 }
+
+func (m dummySummarizer) GenerateEmbeddings(ctx context.Context, text string) ([]float32, error) {
+	return []float32{}, nil
+}

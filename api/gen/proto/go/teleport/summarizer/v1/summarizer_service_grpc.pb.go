@@ -54,6 +54,12 @@ const (
 	SummarizerService_GetSummary_FullMethodName            = "/teleport.summarizer.v1.SummarizerService/GetSummary"
 	SummarizerService_IsEnabled_FullMethodName             = "/teleport.summarizer.v1.SummarizerService/IsEnabled"
 	SummarizerService_TestInferenceModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/TestInferenceModel"
+	SummarizerService_CreateSearchModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/CreateSearchModel"
+	SummarizerService_GetSearchModel_FullMethodName        = "/teleport.summarizer.v1.SummarizerService/GetSearchModel"
+	SummarizerService_UpdateSearchModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/UpdateSearchModel"
+	SummarizerService_UpsertSearchModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/UpsertSearchModel"
+	SummarizerService_DeleteSearchModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/DeleteSearchModel"
+	SummarizerService_ParseSearchQuery_FullMethodName      = "/teleport.summarizer.v1.SummarizerService/ParseSearchQuery"
 )
 
 // SummarizerServiceClient is the client API for SummarizerService service.
@@ -113,6 +119,21 @@ type SummarizerServiceClient interface {
 	// TestInferenceModel tests an InferenceModel configuration by making a test
 	// request to the configured provider (AWS Bedrock or OpenAI).
 	TestInferenceModel(ctx context.Context, in *TestInferenceModelRequest, opts ...grpc.CallOption) (*TestInferenceModelResponse, error)
+	// CreateSearchModel creates the SearchModel.
+	CreateSearchModel(ctx context.Context, in *CreateSearchModelRequest, opts ...grpc.CallOption) (*CreateSearchModelResponse, error)
+	// GetSearchModel retrieves an existing SearchModel by name.
+	GetSearchModel(ctx context.Context, in *GetSearchModelRequest, opts ...grpc.CallOption) (*GetSearchModelResponse, error)
+	// UpdateSearchModel updates an existing SearchModel.
+	UpdateSearchModel(ctx context.Context, in *UpdateSearchModelRequest, opts ...grpc.CallOption) (*UpdateSearchModelResponse, error)
+	// UpsertSearchModel creates a new SearchModel or updates an existing
+	// one.
+	UpsertSearchModel(ctx context.Context, in *UpsertSearchModelRequest, opts ...grpc.CallOption) (*UpsertSearchModelResponse, error)
+	// DeleteSearchModel deletes an existing SearchModel by name.
+	DeleteSearchModel(ctx context.Context, in *DeleteSearchModelRequest, opts ...grpc.CallOption) (*DeleteSearchModelResponse, error)
+	// ParseSearchQuery parses a natural language query into structured search
+	// parameters for session summaries. It uses an LLM to extract filters such
+	// as resource labels, keywords, time ranges, and other search criteria.
+	ParseSearchQuery(ctx context.Context, in *ParseSearchQueryRequest, opts ...grpc.CallOption) (*ParseSearchQueryResponse, error)
 }
 
 type summarizerServiceClient struct {
@@ -333,6 +354,66 @@ func (c *summarizerServiceClient) TestInferenceModel(ctx context.Context, in *Te
 	return out, nil
 }
 
+func (c *summarizerServiceClient) CreateSearchModel(ctx context.Context, in *CreateSearchModelRequest, opts ...grpc.CallOption) (*CreateSearchModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateSearchModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_CreateSearchModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) GetSearchModel(ctx context.Context, in *GetSearchModelRequest, opts ...grpc.CallOption) (*GetSearchModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetSearchModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_GetSearchModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) UpdateSearchModel(ctx context.Context, in *UpdateSearchModelRequest, opts ...grpc.CallOption) (*UpdateSearchModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateSearchModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_UpdateSearchModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) UpsertSearchModel(ctx context.Context, in *UpsertSearchModelRequest, opts ...grpc.CallOption) (*UpsertSearchModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertSearchModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_UpsertSearchModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) DeleteSearchModel(ctx context.Context, in *DeleteSearchModelRequest, opts ...grpc.CallOption) (*DeleteSearchModelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteSearchModelResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_DeleteSearchModel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) ParseSearchQuery(ctx context.Context, in *ParseSearchQueryRequest, opts ...grpc.CallOption) (*ParseSearchQueryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ParseSearchQueryResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_ParseSearchQuery_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SummarizerServiceServer is the server API for SummarizerService service.
 // All implementations must embed UnimplementedSummarizerServiceServer
 // for forward compatibility.
@@ -390,6 +471,21 @@ type SummarizerServiceServer interface {
 	// TestInferenceModel tests an InferenceModel configuration by making a test
 	// request to the configured provider (AWS Bedrock or OpenAI).
 	TestInferenceModel(context.Context, *TestInferenceModelRequest) (*TestInferenceModelResponse, error)
+	// CreateSearchModel creates the SearchModel.
+	CreateSearchModel(context.Context, *CreateSearchModelRequest) (*CreateSearchModelResponse, error)
+	// GetSearchModel retrieves an existing SearchModel by name.
+	GetSearchModel(context.Context, *GetSearchModelRequest) (*GetSearchModelResponse, error)
+	// UpdateSearchModel updates an existing SearchModel.
+	UpdateSearchModel(context.Context, *UpdateSearchModelRequest) (*UpdateSearchModelResponse, error)
+	// UpsertSearchModel creates a new SearchModel or updates an existing
+	// one.
+	UpsertSearchModel(context.Context, *UpsertSearchModelRequest) (*UpsertSearchModelResponse, error)
+	// DeleteSearchModel deletes an existing SearchModel by name.
+	DeleteSearchModel(context.Context, *DeleteSearchModelRequest) (*DeleteSearchModelResponse, error)
+	// ParseSearchQuery parses a natural language query into structured search
+	// parameters for session summaries. It uses an LLM to extract filters such
+	// as resource labels, keywords, time ranges, and other search criteria.
+	ParseSearchQuery(context.Context, *ParseSearchQueryRequest) (*ParseSearchQueryResponse, error)
 	mustEmbedUnimplementedSummarizerServiceServer()
 }
 
@@ -462,6 +558,24 @@ func (UnimplementedSummarizerServiceServer) IsEnabled(context.Context, *IsEnable
 }
 func (UnimplementedSummarizerServiceServer) TestInferenceModel(context.Context, *TestInferenceModelRequest) (*TestInferenceModelResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TestInferenceModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) CreateSearchModel(context.Context, *CreateSearchModelRequest) (*CreateSearchModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateSearchModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) GetSearchModel(context.Context, *GetSearchModelRequest) (*GetSearchModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSearchModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) UpdateSearchModel(context.Context, *UpdateSearchModelRequest) (*UpdateSearchModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateSearchModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) UpsertSearchModel(context.Context, *UpsertSearchModelRequest) (*UpsertSearchModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertSearchModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) DeleteSearchModel(context.Context, *DeleteSearchModelRequest) (*DeleteSearchModelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteSearchModel not implemented")
+}
+func (UnimplementedSummarizerServiceServer) ParseSearchQuery(context.Context, *ParseSearchQueryRequest) (*ParseSearchQueryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ParseSearchQuery not implemented")
 }
 func (UnimplementedSummarizerServiceServer) mustEmbedUnimplementedSummarizerServiceServer() {}
 func (UnimplementedSummarizerServiceServer) testEmbeddedByValue()                           {}
@@ -862,6 +976,114 @@ func _SummarizerService_TestInferenceModel_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SummarizerService_CreateSearchModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateSearchModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).CreateSearchModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_CreateSearchModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).CreateSearchModel(ctx, req.(*CreateSearchModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_GetSearchModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSearchModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).GetSearchModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_GetSearchModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).GetSearchModel(ctx, req.(*GetSearchModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_UpdateSearchModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateSearchModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).UpdateSearchModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_UpdateSearchModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).UpdateSearchModel(ctx, req.(*UpdateSearchModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_UpsertSearchModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertSearchModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).UpsertSearchModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_UpsertSearchModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).UpsertSearchModel(ctx, req.(*UpsertSearchModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_DeleteSearchModel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteSearchModelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).DeleteSearchModel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_DeleteSearchModel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).DeleteSearchModel(ctx, req.(*DeleteSearchModelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_ParseSearchQuery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ParseSearchQueryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).ParseSearchQuery(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_ParseSearchQuery_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).ParseSearchQuery(ctx, req.(*ParseSearchQueryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SummarizerService_ServiceDesc is the grpc.ServiceDesc for SummarizerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -952,6 +1174,30 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TestInferenceModel",
 			Handler:    _SummarizerService_TestInferenceModel_Handler,
+		},
+		{
+			MethodName: "CreateSearchModel",
+			Handler:    _SummarizerService_CreateSearchModel_Handler,
+		},
+		{
+			MethodName: "GetSearchModel",
+			Handler:    _SummarizerService_GetSearchModel_Handler,
+		},
+		{
+			MethodName: "UpdateSearchModel",
+			Handler:    _SummarizerService_UpdateSearchModel_Handler,
+		},
+		{
+			MethodName: "UpsertSearchModel",
+			Handler:    _SummarizerService_UpsertSearchModel_Handler,
+		},
+		{
+			MethodName: "DeleteSearchModel",
+			Handler:    _SummarizerService_DeleteSearchModel_Handler,
+		},
+		{
+			MethodName: "ParseSearchQuery",
+			Handler:    _SummarizerService_ParseSearchQuery_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

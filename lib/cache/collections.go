@@ -36,6 +36,7 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -146,6 +147,10 @@ type collections struct {
 	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
 	appAuthConfig                      *collection[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]
+	inferenceModels                    *collection[*summarizerv1.InferenceModel, inferenceModelIndex]
+	inferenceSecrets                   *collection[*summarizerv1.InferenceSecret, inferenceSecretIndex]
+	inferencePolicies                  *collection[*summarizerv1.InferencePolicy, inferencePolicyIndex]
+	searchModels                       *collection[*summarizerv1.SearchModel, searchModelIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -777,6 +782,38 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.appAuthConfig = collect
 			out.byKind[resourceKind] = out.appAuthConfig
+		case types.KindInferenceModel:
+			collect, err := newInferenceModelCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.inferenceModels = collect
+			out.byKind[resourceKind] = out.inferenceModels
+		case types.KindInferenceSecret:
+			collect, err := newInferenceSecretCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.inferenceSecrets = collect
+			out.byKind[resourceKind] = out.inferenceSecrets
+		case types.KindInferencePolicy:
+			collect, err := newInferencePolicyCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.inferencePolicies = collect
+			out.byKind[resourceKind] = out.inferencePolicies
+		case types.KindSearchModel:
+			collect, err := newSearchModelCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.searchModels = collect
+			out.byKind[resourceKind] = out.searchModels
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

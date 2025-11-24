@@ -33,9 +33,10 @@ import (
 // SummarizerService implements the [services.Summarizer]
 // interface and manages summarization configuration resources in the backend.
 type SummarizerService struct {
-	modelService  *generic.ServiceWrapper[*summarizerv1.InferenceModel]
-	secretService *generic.ServiceWrapper[*summarizerv1.InferenceSecret]
-	policyService *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
+	modelService       *generic.ServiceWrapper[*summarizerv1.InferenceModel]
+	secretService      *generic.ServiceWrapper[*summarizerv1.InferenceSecret]
+	policyService      *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
+	searchModelService *generic.ServiceWrapper[*summarizerv1.SearchModel]
 }
 
 var _ services.Summarizer = (*SummarizerService)(nil)
@@ -75,6 +76,12 @@ func (s *SummarizerService) ListInferenceModels(
 	return res, nextToken, trace.Wrap(err)
 }
 
+// DeleteAllInferenceModels deletes all session summary inference models from
+// the backend. This should only be used by the cache.
+func (s *SummarizerService) DeleteAllInferenceModels(ctx context.Context) error {
+	return trace.Wrap(s.modelService.DeleteAllResources(ctx))
+}
+
 // UpdateInferenceModel updates an existing session summary inference model in
 // the backend.
 func (s *SummarizerService) UpdateInferenceModel(
@@ -106,7 +113,8 @@ func (s *SummarizerService) CreateInferenceSecret(
 // DeleteInferenceSecret deletes a session summary inference secret from the
 // backend by name.
 func (s *SummarizerService) DeleteInferenceSecret(
-	ctx context.Context, name string) error {
+	ctx context.Context, name string,
+) error {
 	return trace.Wrap(s.secretService.DeleteResource(ctx, name))
 }
 
@@ -129,6 +137,12 @@ func (s *SummarizerService) ListInferenceSecrets(
 ) ([]*summarizerv1.InferenceSecret, string, error) {
 	res, nextToken, err := s.secretService.ListResources(ctx, size, pageToken)
 	return res, nextToken, trace.Wrap(err)
+}
+
+// DeleteAllInferenceSecrets deletes all session summary inference secrets from
+// the backend. This should only be used by the cache.
+func (s *SummarizerService) DeleteAllInferenceSecrets(ctx context.Context) error {
+	return trace.Wrap(s.secretService.DeleteAllResources(ctx))
 }
 
 // UpdateInferenceSecret updates an existing session summary inference secret
@@ -187,6 +201,12 @@ func (s *SummarizerService) ListInferencePolicies(
 	return res, nextToken, trace.Wrap(err)
 }
 
+// DeleteAllInferencePolicies deletes all session summary inference policies
+// from the backend. This should only be used by the cache.
+func (s *SummarizerService) DeleteAllInferencePolicies(ctx context.Context) error {
+	return trace.Wrap(s.policyService.DeleteAllResources(ctx))
+}
+
 // UpdateInferencePolicy updates an existing session summary inference policy
 // in the backend.
 func (s *SummarizerService) UpdateInferencePolicy(
@@ -213,10 +233,52 @@ func (s *SummarizerService) AllInferencePolicies(
 	return s.policyService.Resources(ctx, "", "")
 }
 
+// CreateSearchModel creates the search model in the backend.
+// Only one SearchModel can exist per cluster.
+func (s *SummarizerService) CreateSearchModel(
+	ctx context.Context, model *summarizerv1.SearchModel,
+) (*summarizerv1.SearchModel, error) {
+	res, err := s.searchModelService.CreateResource(ctx, model)
+	return res, trace.Wrap(err)
+}
+
+// GetSearchModel retrieves the search model from the backend.
+// Since only one SearchModel can exist per cluster, no name is required.
+func (s *SummarizerService) GetSearchModel(
+	ctx context.Context,
+) (*summarizerv1.SearchModel, error) {
+	res, err := s.searchModelService.GetResource(ctx, types.MetaNameSearchModel)
+	return res, trace.Wrap(err)
+}
+
+// UpdateSearchModel updates the existing search model in the backend.
+func (s *SummarizerService) UpdateSearchModel(
+	ctx context.Context, model *summarizerv1.SearchModel,
+) (*summarizerv1.SearchModel, error) {
+	res, err := s.searchModelService.ConditionalUpdateResource(ctx, model)
+	return res, trace.Wrap(err)
+}
+
+// UpsertSearchModel creates or updates the search model in the backend.
+// If the model already exists, it will be updated.
+func (s *SummarizerService) UpsertSearchModel(
+	ctx context.Context, model *summarizerv1.SearchModel,
+) (*summarizerv1.SearchModel, error) {
+	res, err := s.searchModelService.UpsertResource(ctx, model)
+	return res, trace.Wrap(err)
+}
+
+// DeleteSearchModel deletes the search model from the backend.
+// Since only one SearchModel can exist per cluster, no name is required.
+func (s *SummarizerService) DeleteSearchModel(ctx context.Context) error {
+	return trace.Wrap(s.searchModelService.DeleteResource(ctx, types.MetaNameSearchModel))
+}
+
 const (
 	inferenceModelPrefix  = "inference_models"
 	inferenceSecretPrefix = "inference_secrets"
 	inferencePolicyPrefix = "inference_policies"
+	searchModelPrefix     = "search_model"
 )
 
 // SummarizerServiceConfig provides data necessary to initialize a
@@ -291,9 +353,189 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 		return nil, trace.Wrap(err)
 	}
 
+	validateSearchModel := func(m *summarizerv1.SearchModel) error {
+		err := summarizer.ValidateSearchModel(m)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
+	searchModelService, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*summarizerv1.SearchModel]{
+			Backend:       cfg.Backend,
+			ResourceKind:  types.KindSearchModel,
+			BackendPrefix: backend.NewKey(searchModelPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.SearchModel],
+			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.SearchModel],
+			ValidateFunc:  validateSearchModel,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &SummarizerService{
-		modelService:  modelService,
-		secretService: secretService,
-		policyService: policyService,
+		modelService:       modelService,
+		secretService:      secretService,
+		policyService:      policyService,
+		searchModelService: searchModelService,
 	}, nil
+}
+
+// Parser implementations for event watching
+
+func newInferenceModelParser() *inferenceModelParser {
+	return &inferenceModelParser{
+		baseParser: newBaseParser(backend.NewKey(inferenceModelPrefix)),
+	}
+}
+
+type inferenceModelParser struct {
+	baseParser
+}
+
+func (p *inferenceModelParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(inferenceModelPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindInferenceModel,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		model, err := services.UnmarshalProtoResource[*summarizerv1.InferenceModel](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(model), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newInferencePolicyParser() *inferencePolicyParser {
+	return &inferencePolicyParser{
+		baseParser: newBaseParser(backend.NewKey(inferencePolicyPrefix)),
+	}
+}
+
+type inferencePolicyParser struct {
+	baseParser
+}
+
+func (p *inferencePolicyParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(inferencePolicyPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindInferencePolicy,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		policy, err := services.UnmarshalProtoResource[*summarizerv1.InferencePolicy](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(policy), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newInferenceSecretParser() *inferenceSecretParser {
+	return &inferenceSecretParser{
+		baseParser: newBaseParser(backend.NewKey(inferenceSecretPrefix)),
+	}
+}
+
+type inferenceSecretParser struct {
+	baseParser
+}
+
+func (p *inferenceSecretParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(inferenceSecretPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindInferenceSecret,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		secret, err := services.UnmarshalProtoResource[*summarizerv1.InferenceSecret](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(secret), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSearchModelParser() *searchModelParser {
+	return &searchModelParser{
+		baseParser: newBaseParser(backend.NewKey(searchModelPrefix)),
+	}
+}
+
+type searchModelParser struct {
+	baseParser
+}
+
+func (p *searchModelParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(searchModelPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindSearchModel,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		model, err := services.UnmarshalProtoResource[*summarizerv1.SearchModel](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(model), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }

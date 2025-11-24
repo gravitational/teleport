@@ -1,0 +1,275 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.sessionsearch.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1;sessionsearchv1";
+
+// SessionSearchService provides session summary search to Teleport clients.
+// The Auth server implements this service: it queries the access graph, applies
+// access-control filtering, and streams the visible results back to the caller.
+// All internal pagination against the access graph is handled server-side;
+// clients receive a single stream that is closed when the search is complete.
+service SessionSearchService {
+  // SearchSessionSummaries searches session summaries and streams the results
+  // the calling user is permitted to see.
+  //
+  // The server queries the access graph with the provided filters, evaluates
+  // each result against the caller's permissions, and forwards matching
+  // sessions to the stream. Multiple SearchSessionSummariesResponse messages
+  // may be sent per call to stay within gRPC message size limits. The server
+  // closes the stream when all matching visible sessions have been sent.
+  //
+  // Receive loop (pseudo-Go):
+  //   var sessions []SessionSummary
+  //   for {
+  //     resp, err := stream.Recv()
+  //     if err == io.EOF { break }
+  //     if err != nil   { return err }
+  //     sessions = append(sessions, resp.Summaries...)
+  //   }
+  rpc SearchSessionSummaries(SearchSessionSummariesRequest) returns (stream SearchSessionSummariesResponse);
+
+  // NaturalLanguageSearchSessionSummaries accepts a natural-language query
+  // and a time range, parses the query into structured filter criteria using
+  // the configured inference model, and then streams the visible matching
+  // sessions to the caller.
+  //
+  // All access-control filtering and pagination are performed identically to
+  // SearchSessionSummaries. The only difference is that the filter parameters
+  // are derived from natural-language query parsing rather than supplied
+  // explicitly by the caller.
+  rpc NaturalLanguageSearchSessionSummaries(NaturalLanguageSearchSessionSummariesRequest) returns (stream NaturalLanguageSearchSessionSummariesResponse);
+}
+
+// SearchSessionSummariesRequest specifies the filter criteria for a session
+// summary search. All filter fields are optional; omitting a field disables
+// that filter. The server converts search_keywords to embeddings internally.
+message SearchSessionSummariesRequest {
+  // from_time restricts results to sessions whose session_time is at or after
+  // this timestamp. Unset means no lower bound.
+  google.protobuf.Timestamp from_time = 1;
+
+  // to_time restricts results to sessions whose session_time is at or before
+  // this timestamp. Unset means no upper bound.
+  google.protobuf.Timestamp to_time = 2;
+
+  // kinds filters results by session kind (e.g. "ssh", "k8s", "db").
+  // An empty list returns sessions of all kinds.
+  repeated string kinds = 3;
+
+  // user filters results to sessions initiated by this Teleport user.
+  optional string user = 4;
+
+  // user_roles filters results to sessions where the user held any of the
+  // given roles. An empty list disables this filter.
+  repeated string user_roles = 5;
+
+  // access_request_ids filters results to sessions associated with any of
+  // the given access request IDs. An empty list disables this filter.
+  repeated string access_request_ids = 6;
+
+  // resource_kind filters results by the kind of resource accessed
+  // (e.g. "node", "kube_cluster", "db"). Unset disables this filter.
+  optional string resource_kind = 7;
+
+  // resource_name filters results to sessions on the resource with this name.
+  // Unset disables this filter.
+  optional string resource_name = 8;
+
+  // resource_labels filters results to sessions on resources that carry all
+  // of the given labels. An empty map disables this filter.
+  map<string, string> resource_labels = 9;
+
+  // resource_properties narrows results using resource-specific properties
+  // such as hostname, pod name, or database name.
+  // The oneof variant should match the session kind being searched.
+  ResourcePropertiesFilter resource_properties = 10;
+
+  // severity filters results by severity level (e.g. "low", "medium", "high").
+  // Unset disables this filter.
+  optional string severity = 11;
+
+  // search_keywords are free-text search terms matched against session content.
+  // The server generates vector embeddings from these keywords internally.
+  // Unset disables full-text search.
+  optional string search_keywords = 12;
+
+  // page_size controls how many SessionSummary objects the server requests per
+  // page from the access graph. The auth server handles all pagination
+  // internally; callers receive a single continuous stream regardless of how
+  // many pages are fetched. A value of 0 lets the server choose a default.
+  int32 page_size = 13;
+
+  // page_token resumes a previous search from a known cursor position.
+  // Set this to the next_page_token returned in a prior
+  // SearchSessionSummariesResponse to continue from where an earlier stream
+  // left off. An empty value starts the search from the beginning.
+  string page_token = 14;
+}
+
+// NaturalLanguageSearchSessionSummariesRequest specifies a time range and a
+// free-form natural-language query for a session summary search. The server
+// parses the query into structured filter criteria using the configured
+// inference model and then searches as if SearchSessionSummaries had been
+// called with those criteria.
+message NaturalLanguageSearchSessionSummariesRequest {
+  // from_time is the inclusive start of the time window to search. Required.
+  google.protobuf.Timestamp from_time = 1;
+
+  // to_time is the inclusive end of the time window to search. Required.
+  google.protobuf.Timestamp to_time = 2;
+
+  // query is the natural-language description of the sessions to find.
+  // For example: "sudo commands by alice on production servers last week".
+  // Required.
+  string query = 3;
+
+  // page_size controls how many SessionSummary objects the server requests per
+  // page from the access graph. A value of 0 lets the server choose a default.
+  int32 page_size = 4;
+
+  // page_token resumes a previous search from a known cursor position.
+  // Set this to the next_page_token from a prior SearchSessionSummariesResponse.
+  string page_token = 5;
+}
+
+// NaturalLanguageSearchSessionSummariesResponse carries a batch of session summaries
+// returned in response to a NaturalLanguageSearchSessionSummariesRequest. The
+// server sends one or more of these messages before closing the stream. The
+// structure is identical to SearchSessionSummariesResponse; the only difference
+// is that this stream corresponds to a natural-language query rather than an
+// explicit filter.
+message NaturalLanguageSearchSessionSummariesResponse {
+  // summaries contains the session summaries in this batch.
+  repeated SessionSummary summaries = 1;
+
+  // next_page_token is an opaque cursor that can be passed as page_token in a
+  // new SearchSessionSummariesRequest to resume the search from where this
+  // stream stopped. It is only set on the last message of a stream that was
+  // stopped before the result set was fully exhausted (e.g. when page_size was
+  // reached). An empty value means all matching sessions have been returned.
+  string next_page_token = 2;
+}
+
+// ResourcePropertiesFilter narrows a search using properties that are specific
+// to a session kind. Set the variant that matches the kind being searched.
+message ResourcePropertiesFilter {
+  oneof filter {
+    // ssh matches SSH session properties.
+    SSHProperties ssh = 1;
+    // kubernetes matches Kubernetes session properties.
+    KubernetesProperties kubernetes = 2;
+    // database matches database session properties.
+    DatabaseProperties database = 3;
+  }
+
+  // SSHProperties are the filterable properties for SSH sessions.
+  message SSHProperties {
+    // server_hostname filters by the hostname of the SSH server.
+    optional string server_hostname = 1;
+    // server_addr filters by the address (host:port) of the SSH server.
+    optional string server_addr = 2;
+  }
+
+  // KubernetesProperties are the filterable properties for Kubernetes sessions.
+  message KubernetesProperties {
+    // pod_namespace filters by the Kubernetes namespace of the pod.
+    optional string pod_namespace = 1;
+    // pod_name filters by the name of the pod.
+    optional string pod_name = 2;
+  }
+
+  // DatabaseProperties are the filterable properties for database sessions.
+  message DatabaseProperties {
+    // database_name filters by the name of the database accessed.
+    optional string database_name = 1;
+    // database_table filters by the table accessed within the database.
+    optional string database_table = 2;
+  }
+}
+
+// SearchSessionSummariesResponse carries a batch of session summaries.
+// The server sends one or more of these messages before closing the stream.
+message SearchSessionSummariesResponse {
+  // summaries contains the session summaries in this batch.
+  repeated SessionSummary summaries = 1;
+
+  // next_page_token is an opaque cursor that can be passed as page_token in a
+  // new SearchSessionSummariesRequest to resume the search from where this
+  // stream stopped. It is only set on the last message of a stream that was
+  // stopped before the result set was fully exhausted (e.g. when page_size was
+  // reached). An empty value means all matching sessions have been returned.
+  string next_page_token = 2;
+}
+
+// SessionSummary describes a single recorded session returned by the Auth
+// server. Only sessions the calling user is permitted to see are included.
+message SessionSummary {
+  // id is the UUID of the session.
+  string id = 1;
+
+  // kind is the session type (e.g. "ssh", "k8s", "db", "desktop").
+  string kind = 2;
+
+  // session_time is the timestamp of the session (typically the start time).
+  google.protobuf.Timestamp session_time = 3;
+
+  // user is the Teleport username that initiated the session.
+  string user = 4;
+
+  // user_traits contains the traits associated with the user at the time of
+  // the session (e.g. LDAP attributes, SAML assertions).
+  google.protobuf.Struct user_traits = 5;
+
+  // user_roles contains the Teleport roles the user held during the session.
+  repeated string user_roles = 6;
+
+  // access_request_ids lists any access request IDs that were used to
+  // obtain elevated privileges for this session.
+  repeated string access_request_ids = 7;
+
+  // participants contains the users who joined the session.
+  repeated string participants = 8;
+
+  // resource_kind is the kind of resource that was accessed
+  // (e.g. "node", "kube_cluster", "db").
+  string resource_kind = 9;
+
+  // resource_labels contains the labels of the resource at the time of the
+  // session.
+  map<string, string> resource_labels = 10;
+
+  // resource_id is the unique identifier of the resource accessed.
+  string resource_id = 11;
+
+  // resource_name is the human-readable name of the resource accessed.
+  // May be empty if not available.
+  string resource_name = 12;
+
+  // resource_properties contains additional resource-specific properties:
+  //   SSH sessions:        {server_addr, server_hostname}
+  //   Kubernetes sessions: {kubernetes_cluster, pod_namespace, pod_name}
+  //   Database sessions:   {database_name, database_table}
+  google.protobuf.Struct resource_properties = 13;
+
+  // severity is the computed severity level of the session
+  // (e.g. "low", "medium", "high").
+  string severity = 14;
+}
