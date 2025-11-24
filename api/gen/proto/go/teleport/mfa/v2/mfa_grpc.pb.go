@@ -13,7 +13,11 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: teleport/mfa/v2/mfa_service.proto
+// source: teleport/mfa/v2/mfa.proto
+
+// This package contains MFA service definitions and messages. Although some messages are similar to those in the legacy
+// packages, they are not identical and are not interchangeable because they rely on protojson serialization instead of
+// gogoproto.
 
 package mfav2
 
@@ -270,5 +274,5 @@ var MFAService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleport/mfa/v2/mfa_service.proto",
+	Metadata: "teleport/mfa/v2/mfa.proto",
 }
