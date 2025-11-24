@@ -130,7 +130,7 @@ type CLICommandBuilder struct {
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	db tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
-) *CLICommandBuilder {
+) (*CLICommandBuilder, error) {
 	var options connectionCommandOpts
 	for _, opt := range opts {
 		opt(&options)
@@ -151,6 +151,10 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		options.exe = &SystemExecer{}
 	}
 
+	if options.getDatabase == nil {
+		return nil, trace.BadParameter("WithGetDatabaseFunc option is required")
+	}
+
 	return &CLICommandBuilder{
 		tc:          tc,
 		profile:     profile,
@@ -160,7 +164,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		options:     options,
 		rootCluster: rootClusterName,
 		uid:         utils.NewRealUID(),
-	}
+	}, nil
 }
 
 // GetConnectCommand returns a command that can connect the user directly to the given database
@@ -219,7 +223,7 @@ func (c *CLICommandBuilder) GetConnectCommand(ctx context.Context) (*exec.Cmd, e
 		return c.getClickhouseNativeCommand()
 
 	case defaults.ProtocolSpanner:
-		return c.getSpannerCommand()
+		return c.getSpannerCommand(ctx)
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -549,11 +553,6 @@ func (c *CLICommandBuilder) getMongoCommand(ctx context.Context) (*exec.Cmd, err
 }
 
 func (c *CLICommandBuilder) getDatabase(ctx context.Context) (types.Database, error) {
-	// Technically, we can just use tc to get the database. But caller may have
-	// extra logic so rely on the callback for now.
-	if c.options.getDatabase == nil {
-		return nil, trace.NotFound("missing GetDatabaseFunc")
-	}
 	db, err := c.options.getDatabase(ctx, c.tc, c.db.ServiceName)
 	return db, trace.Wrap(err)
 }
@@ -755,25 +754,35 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 	return exec.Command(awsBin, args...), nil
 }
 
-func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
+func (c *CLICommandBuilder) getSpannerCommand(ctx context.Context) (*exec.Cmd, error) {
 	if err := c.checkLocalProxyTunnelOnly(false); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	var (
+		gcp types.GCPCloudSQL
 		project,
 		instance,
 		database string
 	)
-	if c.options.printFormat {
+
+	db, err := c.getDatabase(ctx)
+	if err != nil {
 		// default placeholders for a print command if not all info is available
-		project, instance, database = "<project>", "<instance>", "<database>"
+		if c.options.printFormat {
+			project, instance, database = "<project>", "<instance>", "<database>"
+		} else {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		gcp = db.GetGCP()
 	}
 
-	if c.options.gcp.ProjectID != "" {
-		project = c.options.gcp.ProjectID
+	if gcp.ProjectID != "" {
+		project = gcp.ProjectID
 	}
-	if c.options.gcp.InstanceID != "" {
-		instance = c.options.gcp.InstanceID
+	if gcp.InstanceID != "" {
+		instance = gcp.InstanceID
 	}
 	if c.db.Database != "" {
 		database = c.db.Database
@@ -955,7 +964,6 @@ type connectionCommandOpts struct {
 	logger                   *slog.Logger
 	exe                      Execer
 	password                 string
-	gcp                      types.GCPCloudSQL
 	oracle                   oracleOpts
 	getDatabase              GetDatabaseFunc
 }
@@ -1057,14 +1065,6 @@ func WithOracleOpts(canUseTCP bool, hasTCPServers bool) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.oracle.canUseTCP = canUseTCP
 		opts.oracle.hasTCPServers = hasTCPServers
-	}
-}
-
-// WithGCP adds GCP metadata for the database command to access.
-// TODO(greedy52) use GetDatabaseFunc instead.
-func WithGCP(gcp types.GCPCloudSQL) ConnectCommandFunc {
-	return func(opts *connectionCommandOpts) {
-		opts.gcp = gcp
 	}
 }
 

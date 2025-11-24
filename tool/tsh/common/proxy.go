@@ -240,9 +240,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
-			opts...,
-		).GetConnectCommandAlternatives(cf.Context)
+		cb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster, opts...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		commands, err := cb.GetConnectCommandAlternatives(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -320,22 +322,7 @@ func makeDatabaseCommandOptions(ctx context.Context, tc *libclient.TeleportClien
 	if opts, err = maybeAddDBUserPassword(ctx, tc, dbInfo, opts); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if opts, err = maybeAddGCPMetadata(ctx, tc, dbInfo, opts); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return maybeAddOracleOptions(ctx, tc, dbInfo, opts), nil
-}
-
-func maybeAddGCPMetadata(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
-	if !requiresGCPMetadata(dbInfo.Protocol) {
-		return opts, nil
-	}
-	db, err := dbInfo.GetDatabase(ctx, tc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	gcp := db.GetGCP()
-	return append(opts, dbcmd.WithGCP(gcp)), nil
 }
 
 func maybeAddGCPMetadataTplArgs(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, templateArgs map[string]any) {

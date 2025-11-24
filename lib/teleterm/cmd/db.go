@@ -91,12 +91,20 @@ func newDBCLICommandWithExecer(ctx context.Context, cluster *clusters.Cluster, g
 
 	previewOpts := append(opts, dbcmd.WithPrintFormat())
 
-	execCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, opts...).GetConnectCommand(ctx)
+	execCmdBuilder, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, opts...)
+	if err != nil {
+		return Cmds{}, trace.Wrap(err)
+	}
+	execCmd, err := execCmdBuilder.GetConnectCommand(ctx)
 	if err != nil {
 		return Cmds{}, trace.Wrap(err)
 	}
 
-	previewCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, previewOpts...).GetConnectCommand(ctx)
+	previewCmdBuilder, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, previewOpts...)
+	if err != nil {
+		return Cmds{}, trace.Wrap(err)
+	}
+	previewCmd, err := previewCmdBuilder.GetConnectCommand(ctx)
 	if err != nil {
 		return Cmds{}, trace.Wrap(err)
 	}
