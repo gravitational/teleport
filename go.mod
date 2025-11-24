@@ -45,7 +45,7 @@ require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go-v2 v1.39.2
+	github.com/aws/aws-sdk-go-v2 v1.39.6
 	github.com/aws/aws-sdk-go-v2/config v1.31.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.4
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.19.0
@@ -56,6 +56,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/athena v1.50.4
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.41.0
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.58.9
 	github.com/aws/aws-sdk-go-v2/service/dax v1.24.2
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.25.3
@@ -85,7 +86,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.30.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.37.0
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
-	github.com/aws/smithy-go v1.23.0
+	github.com/aws/smithy-go v1.23.2
 	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.4
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.9.1
 	github.com/beevik/etree v1.5.1
@@ -307,9 +308,9 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.9 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.9 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.3 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.13 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.40.3 // indirect
