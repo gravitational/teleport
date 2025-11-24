@@ -135,10 +135,11 @@ CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
 CARGO_WASM_TARGET := wasm32-unknown-unknown
 
-# If set to 1, Windows RDP client is not built.
+# If set to 1, then we don't build the desktop access RDP client
+# or the RDP decoder for tsh.
 RDPCLIENT_SKIP_BUILD ?= 0
 
-# Enable Windows RDP client build?
+# Enable Rust RDP support?
 with_rdpclient := no
 RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
@@ -160,6 +161,7 @@ ifneq ("$(is_fips_on_arm64)","yes")
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
+TSH_RDP_DECODER_TAG := rust_rdp_decoder
 endif
 endif
 endif
@@ -392,11 +394,11 @@ $(BUILDDIR)/teleport: ensure-webassets rdpclient
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh:
+$(BUILDDIR)/tsh: rdpdecoder
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(TSH_RDP_DECODER_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
@@ -497,6 +499,13 @@ rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+endif
+
+.PHONY: rdpdecoder
+rdpdecoder: rustup-toolchain-warning
+ifeq ("$(with_rdpclient)", "yes")
+	$(RDPCLIENT_ENV) \
+		cargo build -p rdp-decoder --release --locked $(CARGO_TARGET)
 endif
 
 define ironrdp_package_json
@@ -1363,6 +1372,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
