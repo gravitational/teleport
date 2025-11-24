@@ -175,7 +175,7 @@ func main() {
 	// all version getter implementations to accept an ID dynamically in GetVersion.
 	var updateID uuid.UUID
 	var updateYAML v1.ConfigMap
-	err = mgr.GetClient().Get(ctx, kclient.ObjectKey{
+	err = mgr.GetAPIReader().Get(ctx, kclient.ObjectKey{
 		Namespace: agentNamespace,
 		Name:      agentName + "-updater",
 	}, &updateYAML)
