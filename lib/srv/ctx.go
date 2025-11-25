@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -414,10 +415,7 @@ type ServerContext struct {
 	cmdr *os.File
 	cmdw *os.File
 
-	// log{r,w} are used to send logs from the child process to the parent process.
-	// logr will be nil if the log output writer is an [*os.File] and copying
-	// logs from logr to the log writer is not needed.
-	logr *os.File
+	// logw is used to send logs from the child process to the parent process.
 	logw *os.File
 
 	// cont{r,w} is used to send the continue signal from the parent process
@@ -613,13 +611,25 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
 		child.logw = fileWriter
 	} else {
-		child.logr, child.logw, err = os.Pipe()
+		// Create a pipe so we can pass the writing side as an *os.File to the child process.
+		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+		r, w, err := os.Pipe()
 		if err != nil {
 			childErr := child.Close()
 			return nil, trace.NewAggregate(err, childErr)
 		}
-		child.AddCloser(child.logr)
-		child.AddCloser(child.logw)
+
+		child.logw = w
+		child.AddCloser(r)
+		child.AddCloser(w)
+
+		// Copy logs from the child process to the parent process over
+		// the pipe until it is closed by the child context.
+		go func() {
+			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+				slog.ErrorContext(child.CancelContext(), "Failed to copy logs over pipe", "error", err)
+			}
+		}()
 	}
 
 	return child, nil

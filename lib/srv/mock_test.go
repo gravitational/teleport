@@ -107,7 +107,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
 
-	scx.logr, scx.logw, err = os.Pipe()
+	_, scx.logw, err = os.Pipe()
 	require.NoError(t, err)
 
 	scx.contr, scx.contw, err = os.Pipe()

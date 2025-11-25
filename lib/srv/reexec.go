@@ -1279,11 +1279,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	env := &envutils.SafeEnv{}
 	env.AddExecEnvironment()
 
-	// If the log reader is set, we need to copy the logs to the log writer.
-	if ctx.logr != nil {
-		go copyLogs(ctx)
-	}
-
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
 		Path: executable,
@@ -1326,18 +1321,6 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
 		slog.ErrorContext(ctx.CancelContext(), "Failed to copy command over pipe", "error", err)
 		return
-	}
-}
-
-// copyLogs copies logs from the child process to the parent process
-// over the pipe attached to the context. It will exit when the pipe
-// is closed.
-func copyLogs(ctx *ServerContext) {
-	logWriter := ctx.srv.ChildLogConfig().Writer
-
-	_, err := io.Copy(logWriter, ctx.logr)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
-		slog.ErrorContext(ctx.CancelContext(), "Failed to copy logs over pipe", "error", err)
 	}
 }
 
