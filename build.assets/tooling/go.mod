@@ -18,9 +18,9 @@ require (
 	golang.org/x/mod v0.30.0
 	golang.org/x/oauth2 v0.33.0
 	google.golang.org/protobuf v1.36.10
-	helm.sh/helm/v3 v3.19.1
+	helm.sh/helm/v3 v3.19.2
 	howett.net/plist v1.0.1
-	k8s.io/apiextensions-apiserver v0.34.1
+	k8s.io/apiextensions-apiserver v0.34.2
 )
 
 require (
@@ -70,7 +70,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.34.1 // indirect
+	k8s.io/apimachinery v0.34.2 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 // indirect
 	pluginrpc.com/pluginrpc v0.5.0 // indirect
@@ -332,8 +332,8 @@ require (
 	google.golang.org/grpc v1.76.0 // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/api v0.34.1 // indirect
-	k8s.io/client-go v0.34.1 // indirect
+	k8s.io/api v0.34.2 // indirect
+	k8s.io/client-go v0.34.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	sigs.k8s.io/controller-runtime v0.22.4 // indirect
