@@ -39,6 +39,10 @@ func decodeError(resp *http.Response) error {
 	switch resp.StatusCode {
 	case http.StatusPreconditionFailed:
 		return trace.CompareFailed("Resource version mismatch")
+	case http.StatusTooManyRequests:
+		return trace.LimitExceeded("Rate limit exceeded")
+	case http.StatusUnauthorized:
+		return trace.AccessDenied("Unauthorized")
 	}
 
 	var errResp ErrorResponse

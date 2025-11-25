@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -17,6 +18,7 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/defaults"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -194,6 +196,23 @@ func TestSCIMGeneric(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+
+	t.Run("test scim rate limiting", func(t *testing.T) {
+		requestCount := defaults.LimiterBurst + defaults.LimiterAverage
+		var errGroup errgroup.Group
+
+		errGroup.SetLimit(10)
+
+		// SCIM Client with proper token should not be rate limited.
+		for i := 0; i < requestCount+1; i++ {
+			errGroup.Go(func() error {
+				_, err := scimClient.ListUsers(t.Context())
+				return err
+			})
+		}
+		require.NoError(t, errGroup.Wait())
+	})
+
 }
 
 func TestOIDCConnector(t *testing.T) {

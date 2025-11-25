@@ -38,42 +38,42 @@ func (p *Plugin) registerSCIMHandlers() {
 	p.Logger.InfoContext(context.Background(), "Registering SCIM endpoints")
 
 	p.h.GET("/webapi/scim/:integration/:resourceType",
-		p.h.WithUnauthenticatedHighLimiter(
+		p.h.WithAccessDeniedLimiter(
 			p.wrapSCIMRequest(p.scimGetResourceList)))
 
 	for _, m := range []string{http.MethodPut, http.MethodPatch, http.MethodDelete} {
 		p.h.Handle(m, "/webapi/scim/:integration/:resourceType",
-			p.h.WithUnauthenticatedHighLimiter(
+			p.h.WithAccessDeniedLimiter(
 				p.wrapSCIMRequest(p.scimLogRequest)))
 	}
 
 	p.h.GET("/webapi/scim/:integration/:resourceType/:resourceID",
-		p.h.WithUnauthenticatedHighLimiter(
+		p.h.WithAccessDeniedLimiter(
 			p.wrapSCIMRequest(p.scimGetResource)))
 
 	p.h.POST("/webapi/scim/:integration/:resourceType",
-		p.h.WithUnauthenticatedHighLimiter(
+		p.h.WithAccessDeniedLimiter(
 			p.wrapSCIMRequest(p.scimCreateResource)))
 
 	p.h.PUT("/webapi/scim/:integration/:resourceType/:resourceID",
-		p.h.WithUnauthenticatedHighLimiter(
+		p.h.WithAccessDeniedLimiter(
 			p.wrapSCIMRequest(p.scimUpdateResource)))
 
 	p.h.DELETE("/webapi/scim/:integration/:resourceType/:resourceID",
-		p.h.WithUnauthenticatedHighLimiter(
+		p.h.WithAccessDeniedLimiter(
 			p.wrapSCIMRequest(p.scimDeleteResource)))
 
 	p.h.PATCH("/webapi/scim/:integration/:resourceType/:resourceID",
-		p.h.WithUnauthenticatedHighLimiter(
+		p.h.WithAccessDeniedLimiter(
 			p.wrapSCIMRequest(p.scimPatchResource)))
 
 	for _, m := range []string{http.MethodGet, http.MethodPut, http.MethodPatch, http.MethodDelete} {
 		p.h.Handle(m, "/webapi/scim",
-			p.h.WithUnauthenticatedHighLimiter(
+			p.h.WithAccessDeniedLimiter(
 				p.wrapSCIMRequest(p.scimLogRequest)))
 
 		p.h.Handle(m, "/webapi/scim/:integration",
-			p.h.WithUnauthenticatedHighLimiter(
+			p.h.WithAccessDeniedLimiter(
 				p.wrapSCIMRequest(p.scimLogRequest)))
 	}
 
