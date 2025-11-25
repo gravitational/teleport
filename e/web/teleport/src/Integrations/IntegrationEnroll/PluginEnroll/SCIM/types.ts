@@ -1,4 +1,5 @@
 export enum FormDataField {
-  SamlConnectorName = 'samlConnectorName',
+  ConnectorName = 'connectorName',
+  ConnectorKind = 'connectorKind',
   BearerToken = 'bearerToken',
 }

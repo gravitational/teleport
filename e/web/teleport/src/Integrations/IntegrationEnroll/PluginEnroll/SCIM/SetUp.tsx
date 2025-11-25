@@ -38,6 +38,7 @@ import { addIndexToViews } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 import { getXCSRFToken } from 'teleport/services/api';
 import type { Plugin } from 'teleport/services/integrations';
+import { KindAuthConnectors, Resource } from 'teleport/services/resources';
 
 enum ScimIntegrationStepType {
   AuthConnector = 'auth-connector',
@@ -58,6 +59,9 @@ const scimIntegrationSteps = addIndexToViews([
   },
 ]);
 
+// TODO(kiosion): Break 'kind' union into separate constants & types ('KindSAML', 'KindOIDC', etc.)
+type SamlOrOidcConnector = Resource<Exclude<KindAuthConnectors, 'github'>>;
+
 export const SCIMIntegrationSetUp = () => {
   const ctx = useTeleportE();
   const queryClient = useQueryClient();
@@ -69,22 +73,38 @@ export const SCIMIntegrationSetUp = () => {
     queryKey: ['authConnectors'],
     queryFn: async ({ signal }) => {
       const res = await ctx.resourceService.fetchAuthConnectors(signal);
-      return (res?.connectors || [])
-        .filter(conn => conn.kind === 'saml')
-        .map(conn => ({
-          label: conn.name,
-          value: conn.name,
-        }));
+      let hasSaml = false,
+        hasOidc = false;
+      const samlOrOidcConnectors: SamlOrOidcConnector[] = (
+        res?.connectors || []
+      ).reduce((acc, c) => {
+        if (c.kind === 'saml') {
+          hasSaml = true;
+          acc.push(c);
+        } else if (c.kind === 'oidc') {
+          hasOidc = true;
+          acc.push(c);
+        }
+        return acc;
+      }, []);
+      return samlOrOidcConnectors.map(conn => ({
+        label:
+          hasSaml && hasOidc
+            ? `${conn.name} (${conn.kind.toUpperCase()})`
+            : conn.name,
+        value: conn,
+      })) satisfies Option<SamlOrOidcConnector>[];
     },
     gcTime: 0,
   });
 
   const createIntegration = useMutation({
-    mutationFn: (samlConnectorName: string) => {
+    mutationFn: (conn: SamlOrOidcConnector) => {
       const formData = new FormData();
       formData.set('csrf_token', getXCSRFToken());
       formData.set('type', 'scim');
-      formData.set(FormDataField.SamlConnectorName, samlConnectorName);
+      formData.set(FormDataField.ConnectorName, conn.name);
+      formData.set(FormDataField.ConnectorKind, conn.kind);
       return pluginsService.createStaticAuthPlugin<'scim'>(formData);
     },
     onSuccess: data => {
@@ -94,7 +114,7 @@ export const SCIMIntegrationSetUp = () => {
   });
 
   const [selectedConnector, setSelectedConnector] = useState<
-    { label: string; value: string } | undefined
+    Option<SamlOrOidcConnector> | undefined
   >();
 
   const onContinue = useCallback(() => {
@@ -191,9 +211,9 @@ const AuthConnectorStep = ({
   selected,
   onChange,
 }: {
-  query: UseQueryResult<Option[]>;
-  selected?: Option;
-  onChange: (value: Option) => void;
+  query: UseQueryResult<Option<SamlOrOidcConnector>[]>;
+  selected?: Option<SamlOrOidcConnector>;
+  onChange: (value: Option<SamlOrOidcConnector>) => void;
 }) => (
   <Flex flexDirection="column" gap={4} width="100%">
     <StyledBox header="Auth Connector">
