@@ -33,6 +33,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -2267,8 +2268,8 @@ func TestMongoDBSeparatePortCommandError(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
+		assert.NoError(t, process.Close())
+		assert.NoError(t, process.Wait())
 	})
 
 	tshHome, _ := mustLogin(t, process, alice, connector.GetName())
