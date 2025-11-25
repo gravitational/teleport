@@ -51,6 +51,7 @@ class DeviceAuthCeremony: NSObject, AuthnNativeCeremonyProtocol {
 
 protocol DeviceTrustP {
   func getSerialNumber() -> String
+  func getManagedConf() -> ManagedConf?
   func deleteDeviceKey() async -> Result<Bool, SecOSStatusError>
   func enrollDevice(hostname: String, port: Int?, user: String, userToken: String) async throws
   func authenticateWebDevice(hostname: String, port: Int?, user _: String,
@@ -58,9 +59,34 @@ protocol DeviceTrustP {
     -> Teleport_Devicetrust_V1_DeviceConfirmationToken
 }
 
+struct ManagedConf {
+  private(set) var serialNumber: String
+  private(set) var foobar: String
+  private(set) var byBundleIdentifier: String
+}
+
 final class DeviceTrust: DeviceTrustP {
   func getSerialNumber() -> String {
-    UserDefaults.standard.string(forKey: "serialNumber") ?? "Unknown"
+    guard let managedConf = UserDefaults.standard.dictionary(forKey: "com.apple.configuration.managed") else {
+      logger.debug("No managed configuration found")
+      return ""
+    }
+    guard let serialNumber =  managedConf["serialNumber"] as? String else {
+      logger.debug("No serial number")
+      return ""
+    }
+    return serialNumber
+  }
+
+  func getManagedConf() -> ManagedConf? {
+    guard let managedConf = UserDefaults.standard.dictionary(forKey: "com.apple.configuration.managed") else {
+      logger.debug("No managed configuration found")
+      return nil
+    }
+    let serialNumber = managedConf["serialNumber"] as? String ?? ""
+    let foobar = managedConf["foobar"] as? String ?? ""
+    let byBundleIdentifier = managedConf["byBundleIdentifier"] as? String ?? ""
+    return ManagedConf(serialNumber: serialNumber, foobar: foobar, byBundleIdentifier: byBundleIdentifier)
   }
 
   func deleteDeviceKey() async -> Result<Bool, SecOSStatusError> {
@@ -474,6 +500,10 @@ class FakeDeviceTrust: DeviceTrustP {
 
   func getSerialNumber() -> String {
     serialNumber
+  }
+
+  func getManagedConf() -> ManagedConf? {
+    nil
   }
 
   func deleteDeviceKey() async -> Result<Bool, SecOSStatusError> {

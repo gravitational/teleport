@@ -9,6 +9,7 @@ import Authn
 import os
 import SafariServices
 import SwiftUI
+import ManagedApp
 
 private let logger = Logger(
   subsystem: Bundle.main.bundleIdentifier ?? "Foobar",
@@ -19,18 +20,17 @@ struct ContentView: View {
   @State private var openedURL: DeepLinkParseResult?
   @State private var isConfirmingEnrollment: Bool = false
   @State private var enrollAttempt: Attempt<Never?, EnrollError> = .idle
-  @State private var serialNumber: String?
   private var deviceTrust: DeviceTrustP
 
   init(deviceTrust: DeviceTrust) {
     self.deviceTrust = deviceTrust
+    logger.debug("Serial number from configuration during startup: \(FoobarConfigurationProvider.shared.configuration.serialNumber ?? "nil", privacy: .public)")
   }
 
   var body: some View {
     ScannedURLView(
       openedURL: $openedURL,
       enrollAttempt: $enrollAttempt,
-      serialNumber: $serialNumber,
       deviceTrust: deviceTrust
     )
     .onOpenURL { url in
@@ -178,7 +178,7 @@ struct ScannedURLView: View {
   @Binding var openedURL: Result<ParsedDeepLink, DeepLinkParseError>?
   // TODO: EnrollAttempt should be a @State not a @Binding, see authAttempt.
   @Binding var enrollAttempt: Attempt<Never?, EnrollError>
-  @Binding var serialNumber: String?
+  @State var isShowingManagedConfig: Bool = false
   @State var deleteDeviceKeyAttempt: Attempt<Bool, SecOSStatusError> = .idle
   @State var showDeleteDeviceKeyAlert: Bool = false
   let deviceTrust: DeviceTrustP
@@ -257,13 +257,14 @@ struct ScannedURLView: View {
         }
       }.glassProminentButton()
 
-      Button("Show Serial Number") {
-        serialNumber = deviceTrust.getSerialNumber()
-      }.alert(isPresented: .constant(serialNumber != nil)) {
-        if let serialNumber {
-          Alert(title: Text("Serial Number"), message: Text(serialNumber), dismissButton: nil)
+      Button("Show Managed Config") {
+        isShowingManagedConfig = true
+      }.alert(isPresented: $isShowingManagedConfig) {
+        let managedConf = deviceTrust.getManagedConf()
+        if let managedConf {
+          return Alert(title: Text("Managed config"), message: Text("Serial number: \(managedConf.serialNumber)\nfoobar: \(managedConf.foobar)\nbyBundleIdentifier: \(managedConf.byBundleIdentifier)"), dismissButton: nil)
         } else {
-          Alert(title: Text("Expected serial number to not be nil"))
+          return Alert(title: Text("No managed config found"), message: nil, dismissButton: nil)
         }
       }.glassProminentButton()
 
@@ -299,7 +300,7 @@ struct ScannedURLView: View {
         default:
           EmptyView()
         }
-      }
+      }.hidden()
       Spacer()
     }.sheet(
       isPresented: .constant(isConfirmingEnrollment),
@@ -510,7 +511,6 @@ struct ScannedURLView: View {
   ScannedURLView(
     openedURL: .constant(nil),
     enrollAttempt: .constant(.idle),
-    serialNumber: .constant(nil),
     deviceTrust: DeviceTrust()
   )
 }
@@ -519,7 +519,6 @@ struct ScannedURLView: View {
   ScannedURLView(
     openedURL: .constant(nil),
     enrollAttempt: .constant(.idle),
-    serialNumber: .constant("CF123458"),
     deviceTrust: DeviceTrust()
   )
 }
@@ -536,7 +535,6 @@ struct ScannedURLView: View {
       ))
     ),
     enrollAttempt: .constant(.idle),
-    serialNumber: .constant(nil),
     deviceTrust: DeviceTrust()
   )
 }
@@ -553,7 +551,6 @@ struct ScannedURLView: View {
       ))
     ),
     enrollAttempt: .constant(.idle),
-    serialNumber: .constant(nil),
     deviceTrust: DeviceTrust()
   )
 }
@@ -569,7 +566,6 @@ struct ScannedURLView: View {
       ))
     ),
     enrollAttempt: .constant(.loading),
-    serialNumber: .constant(nil),
     deviceTrust: DeviceTrust()
   )
 }
@@ -578,7 +574,6 @@ struct ScannedURLView: View {
   ScannedURLView(
     openedURL: .constant(.failure(.unsupportedPath)),
     enrollAttempt: .constant(.idle),
-    serialNumber: .constant(nil),
     deviceTrust: DeviceTrust()
   )
 }
@@ -594,7 +589,6 @@ struct ScannedURLView: View {
   ScannedURLView(
     openedURL: $openedURL,
     enrollAttempt: .constant(.idle),
-    serialNumber: .constant(nil),
     deviceTrust: FakeDeviceTrust()
   )
 }
@@ -652,5 +646,46 @@ struct SafariView: UIViewControllerRepresentable {
 extension URL: @retroactive Identifiable {
   public var id: String {
     absoluteString
+  }
+}
+
+struct FoobarConfiguration: Decodable {
+  private(set) var serialNumber: String?
+
+  private enum CodingKeys: String, CodingKey {
+    case serialNumber
+  }
+
+  init() {}
+
+  init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    serialNumber = try values.decode(String.self, forKey: .serialNumber)
+  }
+}
+
+class FoobarConfigurationProvider {
+  private(set) var configuration: FoobarConfiguration
+  private var configurationProvider: ManagedAppConfigurationProvider
+
+  static let shared: FoobarConfigurationProvider = {
+    let instance = FoobarConfigurationProvider()
+    return instance
+  }()
+
+  private init() {
+    configurationProvider = ManagedAppConfigurationProvider()
+    self.configuration = FoobarConfiguration()
+
+    Task {
+      for await configuration in await configurationProvider.configurations(FoobarConfiguration.self) {
+        if let configuration {
+          logger.debug("Received some configuration")
+          self.configuration = configuration
+        } else {
+          logger.debug("Received nil configuration")
+        }
+      }
+    }
   }
 }
