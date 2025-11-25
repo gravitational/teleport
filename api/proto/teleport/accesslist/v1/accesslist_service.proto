@@ -528,4 +528,6 @@ message ListUserAccessListsResponse {
   repeated AccessList access_lists = 1;
   // next_page_token is the next page token.
   string next_page_token = 2;
+  // total_count is the total number of access lists in all pages.
+  int32 total_count = 3;
 }
