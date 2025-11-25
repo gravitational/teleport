@@ -814,7 +814,10 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfigName
 	return result, nil
 }
 
-// getAzureClients TODO
+// getAzureClients returns an instance of AzureClients made to work with particular integration.
+// If integration argument is empty, ambient credentials will be used instead. This is the default mode.
+//
+// The returned instance is cached for a period of time, so subsequent calls may return the same object.
 func (s *Server) getAzureClients(ctx context.Context, integration string) (cloud.AzureClients, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
