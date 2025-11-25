@@ -1,0 +1,35 @@
+Once the MCP server is running, add the following resource to the Teleport
+Application Service:
+<Tabs>
+<TabItem label="YAML configuration">
+Replace <Var name="MCP_HOST"/> with the host running the Notion MCP server:
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "{{service}}-mcp"
+    uri: "mcp+http://<Var name="MCP_HOST"/>:{{port}}/mcp"
+    labels:
+      env: dev
+      service: {{service}}
+```
+
+Restart the Application Service. Wait until the application appears in `tsh mcp ls`.
+</TabItem>
+
+<TabItem label="Dynamic Registration">
+Replace `localhost` with the host running the Notion MCP server:
+```yaml
+kind: app
+version: v3
+metadata:
+  name: {{service}}-mcp
+  labels:
+    env: dev
+    service: {{service}}
+spec:
+  uri: "mcp+http://<Var name="MCP_HOST" />:{{port}}/mcp"
+```
+Wait until the application appears in `tsh mcp ls`.
+</TabItem>
+</Tabs>

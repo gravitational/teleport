@@ -75,14 +75,48 @@ Connect an MCP server with the Teleport Application Service, configure and assig
       href: "./dynamic-registration/",
     },
     {
-      title: "Access databases over MCP",
-      description: "Configure fine-grained access to a Teleport-protected database for MCP clients such as Claude Desktop or Cursor.",
-      href: "../../connect-your-client/model-context-protocol/database-access/",
-    },  
-    {
       title: "Configure MCP clients",
       description: "Configure MCP clients such as Claude Desktop or Cursor to access MCP servers.",
       href: "../../connect-your-client/model-context-protocol/mcp-access/",
+    },
+  ]}
+/>
+
+<UseCasesList
+  title="MCP server integration guides"
+  description="Connect to popular services over MCP"
+  desktopColumnsCount={2}
+  variant="doc"
+  useCases={[
+    {
+      title: "Access databases over MCP",
+      description: "Configure fine-grained access to a Teleport-protected database for MCP clients such as Claude Desktop or Cursor.",
+      href: "../../connect-your-client/model-context-protocol/database-access/",
+    },
+    {
+      title: "Access Kubernetes Clusters over MCP",
+      description: "Configure fine-grained access to a Teleport-protected Kubernetes clusters for MCP clients such as Claude Desktop or Cursor.",
+      href: "../../connect-your-client/model-context-protocol/kube-access/",
+    },
+    {
+      title: "Access GitHub over MCP",
+      description: "Connect GitHub over MCP via Teleport.",
+      href: "./integration-guides/github/",
+    },
+    {
+      title: "Access Grafana over MCP",
+      description: "Connect Grafana over MCP via Teleport.",
+      href: "./integration-guides/grafana/",
+    },
+    {
+      title: "Access HashiCorp Vault over MCP",
+      description: "Connect HashiCorp Vault over MCP via Teleport.",
+      href: "./integration-guides/vault/",
+    },
+    {
+      title: "Access Notion over MCP",
+      description: "Connect Notion over MCP via Teleport.",
+      href: "./integration-guides/notion/",
     },
   ]}
 />
