@@ -2,14 +2,17 @@ package generic
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/patch"
+	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	libaccesslist "github.com/gravitational/teleport/lib/accesslists"
 )
 
@@ -59,6 +62,75 @@ func (g groupHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 		return nil, trace.Wrap(err)
 	}
 	return conv.AccessListToResource(newACL, newMembers)
+}
+
+// PatchResource patches an existing SCIM user resource using SCIM PATCH operations as per RFC 7644 Section 3.5.2.
+func (h *userHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
+	userID := req.GetTarget().GetResourceId()
+
+	existingUser, err := h.UsersService.GetUser(ctx, userID, false /* with secrets*/)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !hasSCIMOrigin(existingUser) {
+		return nil, trace.NotFound("user %q not found", userID)
+	}
+
+	currentResource, err := conv.UserToResource(existingUser, conv.WithExternalIDFunc(userExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := applyPatchOperations(currentResource, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// The SCIM PATCH operation should not try to change the userName attribute
+	// From Teleport side the userName is the unique identifier of the user
+	// and the SCIM flow should not try to change it.
+	// The scim client should respect the SCIM User schema where the userName is marked as immutable.
+	// Refer to https://learn.microsoft.com/en-us/answers/questions/5560718/scim-validator-fails-on-username-update-test-is-us
+	// for more details about this behavior.
+	if err := h.checkForUserNameChange(ctx, existingUser, updated); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updatedSCIMUser, err := conv.UserFromResource(updated,
+		conv.WithUserOptionClock(h.Clock),
+		conv.WithLabels(existingUser.GetAllLabels()),
+		conv.WithConnectorRef(existingUser.GetCreatedBy().Connector),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if updatedSCIMUser.GetRevision() == "" {
+		updatedSCIMUser.SetRevision(existingUser.GetRevision())
+	}
+	// Use CAS operation to avoid lost updates due to concurrent modifications.
+	updatedUser, err := h.UsersService.UpdateUser(ctx, updatedSCIMUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conv.UserToResource(updatedUser, conv.WithExternalIDFunc(userExternalID))
+}
+
+func (h *userHandler) checkForUserNameChange(ctx context.Context, existingUser types.User, updatedResource *scimpb.Resource) error {
+	userNameAttr, ok := updatedResource.Attributes.GetFields()[common.UsernameAttribute]
+	if !ok {
+		return nil
+	}
+	if existingUser.GetName() == userNameAttr.GetStringValue() {
+		return nil
+	}
+
+	h.Logger.With(
+		slog.String("user_id", existingUser.GetName()),
+		slog.String("existing_username", existingUser.GetName()),
+		slog.String("updated_username", userNameAttr.GetStringValue()),
+	).InfoContext(ctx, "SCIM PATCH request userName attribute change was rejected.")
+
+	return trace.BadParameter("updating userName is not allowed. Teleport SCIM Schema defines userName as immutable.")
 }
 
 // applyPatchOperations applies SCIM PATCH operations to a resource.

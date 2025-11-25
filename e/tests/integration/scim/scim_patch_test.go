@@ -45,6 +45,7 @@ func TestSCIMPatch(t *testing.T) {
 	}
 	authClient := sut.Teleport.Process.GetAuthServer()
 	aclClient := authClient.AccessListsInternal
+	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
 
 	t.Run("PATCH Unauthorized", func(t *testing.T) {
 		patchOps := map[string]any{
@@ -197,6 +198,37 @@ func TestSCIMPatch(t *testing.T) {
 		want := []string{"new-member-1", "new-member-2"}
 		require.ElementsMatch(t, want, got)
 	})
+
+	t.Run("PATCH userName attribute should fail", func(t *testing.T) {
+		scimUser := &scimsdk.User{
+			ExternalID: "patch-user-004",
+			UserName:   "patch-user-004@example.com",
+			Active:     true,
+		}
+		createdUser, err := scimClient.CreateUser(t.Context(), scimUser)
+		require.NoError(t, err)
+
+		// Attempt to change userName (should fail)
+		patchUserExpectError(t, httpClient, baseURL.String(), createdUser.ID, []map[string]any{
+			{
+				"op":    "replace",
+				"path":  "userName",
+				"value": "new-username@example.com",
+			},
+		}, http.StatusBadRequest)
+	})
+}
+
+func patchUserExpectError(t *testing.T, httpClient *http.Client, baseURL, userID string, ops []map[string]interface{}, expectedStatus int) {
+	t.Helper()
+	patchOps := map[string]interface{}{
+		"schemas":    []string{scimsdk.PatchOpSchema},
+		"Operations": ops,
+	}
+
+	resp := mustPatchSCIMResource(t, httpClient, baseURL, "Users", userID, patchOps)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, expectedStatus, resp.StatusCode)
 }
 
 func mustPatchGroup(t *testing.T, httpClient *http.Client, baseURL, groupID string, ops []map[string]interface{}) *scimsdk.Group {
