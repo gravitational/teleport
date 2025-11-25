@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -832,6 +833,13 @@ func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
 func WithAccessGraphConfig(config auth.AccessGraphConfig) TestTLSServerOption {
 	return func(cfg *TLSServerConfig) {
 		cfg.APIConfig.AccessGraph = config
+	}
+}
+
+// WithPluginRegistry sets the plugin registry (useful for enterprise auth APIs).
+func WithPluginRegistry(registry plugin.Registry) TestTLSServerOption {
+	return func(cfg *TLSServerConfig) {
+		cfg.APIConfig.PluginRegistry = registry
 	}
 }
 
