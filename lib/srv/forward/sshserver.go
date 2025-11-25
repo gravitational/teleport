@@ -561,10 +561,10 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
 }
 
-// LogConfig returns the log configuration for handling logs from
-// child processes.
-func (s *Server) LogConfig() srv.LogConfig {
-	return srv.LogConfig{
+// ChildLogConfig returns a noop log configuration since the forwarding server
+// does not spawn child processes.
+func (s *Server) ChildLogConfig() srv.ChildLogConfig {
+	return srv.ChildLogConfig{
 		ExecLogConfig: srv.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},

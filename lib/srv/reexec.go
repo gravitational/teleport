@@ -241,11 +241,13 @@ func RunCommand() (code int, err error) {
 	var tty *os.File
 	defer func() {
 		if err != nil && code == teleport.RemoteCommandFailure {
-			s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
-			io.Copy(os.Stdout, bytes.NewBufferString(s))
+			var w io.Writer = os.Stdout
 			if tty != nil {
-				io.Copy(tty, bytes.NewBufferString(s))
+				w = io.MultiWriter(os.Stdout, tty)
 			}
+
+			s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
+			io.Copy(w, bytes.NewBufferString(s))
 		}
 	}()
 
@@ -1331,7 +1333,7 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 // over the pipe attached to the context. It will exit when the pipe
 // is closed.
 func copyLogs(ctx *ServerContext) {
-	logWriter := ctx.srv.LogConfig().Writer
+	logWriter := ctx.srv.ChildLogConfig().Writer
 
 	_, err := io.Copy(logWriter, ctx.logr)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {

@@ -199,13 +199,13 @@ type Server interface {
 	// EventMetadata returns [events.ServerMetadata] for this server.
 	EventMetadata() apievents.ServerMetadata
 
-	// LogConfig returns the log configuration for handling logs from
+	// ChildLogConfig returns the log configuration for handling logs from
 	// child processes.
-	LogConfig() LogConfig
+	ChildLogConfig() ChildLogConfig
 }
 
-// LogConfig is the log configuration for handling logs from child processes.
-type LogConfig struct {
+// ChildLogConfig is the log configuration for handling logs from child processes.
+type ChildLogConfig struct {
 	ExecLogConfig
 
 	// Writer is the output writer to use for the logger. May be nil.
@@ -609,9 +609,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	// If the log writer is a file, we can pass it directly to the child
 	// process to write to. Otherwise, we need to create a pipe to the child
 	// process and stream the logs to the log writer.
-	logCfg := child.srv.LogConfig()
-	fileWriter, ok := logCfg.Writer.(*os.File)
-	if ok {
+	logCfg := child.srv.ChildLogConfig()
+	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
 		child.logw = fileWriter
 	} else {
 		child.logr, child.logw, err = os.Pipe()
@@ -1146,7 +1145,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
-		LogConfig:             c.srv.LogConfig().ExecLogConfig,
+		LogConfig:             c.srv.ChildLogConfig().ExecLogConfig,
 		Command:               command,
 		DestinationAddress:    c.DstAddr,
 		Username:              c.Identity.TeleportUser,

@@ -757,8 +757,10 @@ func (s *ForwardServer) GetSELinuxEnabled() bool {
 	return false
 }
 
-func (s *ForwardServer) LogConfig() srv.LogConfig {
-	return srv.LogConfig{
+// ChildLogConfig returns a noop log configuration since the git forwarding server
+// does not spawn child processes.
+func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
+	return srv.ChildLogConfig{
 		ExecLogConfig: srv.ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},

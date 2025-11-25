@@ -333,9 +333,9 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 	return false
 }
 
-// LogConfig
-func (m *mockServer) LogConfig() LogConfig {
-	return LogConfig{
+// ChildLogConfig returns a noop log configuration.
+func (m *mockServer) ChildLogConfig() ChildLogConfig {
+	return ChildLogConfig{
 		ExecLogConfig: ExecLogConfig{
 			Level: &slog.LevelVar{},
 		},

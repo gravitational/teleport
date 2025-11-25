@@ -258,7 +258,7 @@ type Server struct {
 	scope string
 
 	// childLogConfig is the log config for child processes.
-	childLogConfig *srv.LogConfig
+	childLogConfig *srv.ChildLogConfig
 }
 
 // EventMetadata returns metadata about the server.
@@ -352,8 +352,8 @@ func (s *Server) GetSELinuxEnabled() bool {
 	return s.enableSELinux
 }
 
-// LogConfig returns the child log config.
-func (s *Server) LogConfig() srv.LogConfig {
+// ChildLogConfig returns the child log config.
+func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	if s.childLogConfig != nil {
 		return *s.childLogConfig
 	}
@@ -361,7 +361,7 @@ func (s *Server) LogConfig() srv.LogConfig {
 	// Default to stderr debug logs (tests)
 	level := new(slog.LevelVar)
 	level.Set(slog.LevelDebug)
-	return srv.LogConfig{
+	return srv.ChildLogConfig{
 		ExecLogConfig: srv.ExecLogConfig{
 			Level: level,
 		},
@@ -807,7 +807,7 @@ func SetChildLogConfig(level *slog.LevelVar, cfg servicecfg.LogConfig) ServerOpt
 			cfg.Writer = io.Discard
 		}
 
-		s.childLogConfig = &srv.LogConfig{
+		s.childLogConfig = &srv.ChildLogConfig{
 			ExecLogConfig: srv.ExecLogConfig{
 				Level:        level,
 				Format:       strings.ToLower(cfg.Format),
