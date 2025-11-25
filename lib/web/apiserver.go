@@ -1217,6 +1217,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
+
+	// MWI IaC Wizards
+	h.POST("/webapi/machine-id/wizards/ci-cd", h.WithAuth(h.machineIDWizard))
 }
 
 // GetProxyClient returns authenticated auth server client
