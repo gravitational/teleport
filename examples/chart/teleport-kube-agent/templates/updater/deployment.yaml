@@ -71,7 +71,7 @@ spec:
     would be a breaking change when the teleport proxy starts override the explicitly set RFD-109 version server */ -}}
   {{- if and $updater.proxyAddr (not $versionServerOverride)}}
           - "--proxy-address={{ $updater.proxyAddr }}"
-          - "--update-group={{ default $updater.releaseChannel $updater.group }}"
+          - "--update-group={{ default "default" $updater.group }}"
   {{- end }}
 {{- if $updater.pullCredentials }}
           - "--pull-credentials={{ $updater.pullCredentials }}"
