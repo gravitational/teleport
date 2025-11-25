@@ -223,15 +223,19 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
+	// LogConfig is the config used to initialize the logger and associated fields below.
+	// We keep the original config for child processes to initialize the same logger.
+	LogConfig logutils.Config
+
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
 
+	// LogWriter is the underlying log writer used by the Logger above.
+	LogWriter io.Writer
+
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
-
-	// LogConfig is the log configuration for handling logs from child processes.
-	LogConfig LogConfig
 
 	// PluginRegistry allows adding enterprise logic to Teleport services
 	PluginRegistry plugin.Registry
@@ -289,14 +293,6 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
-}
-
-// LogConfig is the log configuration for handling logs from child processes.
-type LogConfig struct {
-	logutils.Config
-
-	// Writer is the output writer to use for the logger.
-	Writer io.Writer
 }
 
 type ConfigTesting struct {
@@ -574,6 +570,10 @@ func ApplyDefaults(cfg *Config) {
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+
+	if cfg.LogWriter == nil {
+		cfg.LogWriter = io.Discard
 	}
 
 	if cfg.LoggerLevel == nil {

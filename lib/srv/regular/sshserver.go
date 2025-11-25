@@ -801,21 +801,17 @@ func SetScope(scope string) ServerOption {
 
 // SetChildLogConfig sets the config that will be used to handle logs
 // from child processes.
-func SetChildLogConfig(level *slog.LevelVar, cfg servicecfg.LogConfig) ServerOption {
+func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	return func(s *Server) error {
-		if cfg.Writer == nil {
-			cfg.Writer = io.Discard
-		}
-
 		s.childLogConfig = &srv.ChildLogConfig{
 			ExecLogConfig: srv.ExecLogConfig{
-				Level:        level,
-				Format:       strings.ToLower(cfg.Format),
-				ExtraFields:  cfg.ExtraFields,
-				EnableColors: cfg.EnableColors,
-				Padding:      cfg.Padding,
+				Level:        cfg.LoggerLevel,
+				Format:       strings.ToLower(cfg.LogConfig.Format),
+				ExtraFields:  cfg.LogConfig.ExtraFields,
+				EnableColors: cfg.LogConfig.EnableColors,
+				Padding:      cfg.LogConfig.Padding,
 			},
-			Writer: cfg.Writer,
+			Writer: cfg.LogWriter,
 		}
 		return nil
 	}

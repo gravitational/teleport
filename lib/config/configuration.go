@@ -856,25 +856,17 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
-	logCfg := logutils.Config{
+	cfg.LogConfig = logutils.Config{
 		Output:       loggerConfig.Output,
 		Severity:     loggerConfig.Severity,
 		Format:       loggerConfig.Format.Output,
 		ExtraFields:  loggerConfig.Format.ExtraFields,
 		EnableColors: utils.IsTerminal(os.Stderr),
 	}
-	logger, level, writer, err := logutils.Initialize(logCfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	cfg.Logger = logger
-	cfg.LoggerLevel = level
-	cfg.LogConfig = servicecfg.LogConfig{
-		Config: logCfg,
-		Writer: writer,
-	}
-	return nil
+	var err error
+	cfg.Logger, cfg.LoggerLevel, cfg.LogWriter, err = logutils.Initialize(cfg.LogConfig)
+	return trace.Wrap(err)
 }
 
 // applyAuthConfig applies file configuration for the "auth_service" section.
