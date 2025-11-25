@@ -236,6 +236,19 @@ func RunCommand() (code int, err error) {
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
+	// If we the command fails to launch, write the error to stdout for the parent process
+	// to digest. If we have a terminal, write it there for the user to see as well.
+	var tty *os.File
+	defer func() {
+		if err != nil && code == teleport.RemoteCommandFailure {
+			s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
+			io.Copy(os.Stdout, bytes.NewBufferString(s))
+			if tty != nil {
+				io.Copy(tty, bytes.NewBufferString(s))
+			}
+		}
+	}()
+
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
@@ -300,8 +313,6 @@ func RunCommand() (code int, err error) {
 		}
 	}()
 
-	var tty *os.File
-
 	// If a terminal was requested, file descriptor 7 always points to the
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
@@ -310,14 +321,6 @@ func RunCommand() (code int, err error) {
 		if tty == nil {
 			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
 		}
-
-		// If we have a terminal and failed to launch the command, write the error the client.
-		defer func() {
-			if err != nil && code == teleport.RemoteCommandFailure {
-				s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
-				io.Copy(tty, bytes.NewBufferString(s))
-			}
-		}()
 	}
 
 	// If PAM is enabled, open a PAM context. This has to be done before anything
