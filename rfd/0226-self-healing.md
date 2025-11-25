@@ -131,6 +131,16 @@ We will implement a gRPC endpoint which will allow for discovering
 new load balancing policies via the connected auth server. This endpoint will be
 called immediately after connecting and the initial health checking is complete.
 
+Configuration changes are processed by the gRPC library by passing configuration
+updates from a [resolver.Resolver][^15] via a [resolver.State][^16] to the
+[resolver.ClientConn][^17].
+
+If a new balancer is configured in the update this will trigger a creation of the
+new balancer and shutdown of the existing balancer. If the same balancer is used
+then the update configuration will be sent to the `balancer.UpdateClientConnState`.
+This allows a balancer to update is behavior based on the configuration in place
+without shutting down.
+
 The json representation of the configuration will be:
 
 ```json
@@ -456,3 +466,6 @@ libraries.
 [^12]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Connection#close
 [^13]: https://pkg.go.dev/net/http#Server:~:text=format.%0A%09Addr%20string-,Handler,-Handler%20//%20handler%20to
 [^14]: https://pkg.go.dev/google.golang.org/grpc/balancer#Picker
+[^15]: https://pkg.go.dev/google.golang.org/grpc/resolver#Resolver
+[^16]: https://pkg.go.dev/google.golang.org/grpc/resolver#State
+[^17]: https://pkg.go.dev/google.golang.org/grpc/resolver#ClientConn
