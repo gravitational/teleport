@@ -909,6 +909,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 						ResourceGroups:      matcher.ResourceGroups,
 						Logger:              s.Log,
 						DiscoveryConfigName: discoveryConfigName,
+						Integration:         matcher.Integration,
 					})
 					if err != nil {
 						return trace.Wrap(err)

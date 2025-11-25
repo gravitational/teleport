@@ -223,6 +223,7 @@ func MakeAzureFetchers(ctx context.Context, getAzureClients func(ctx context.Con
 							Labels:              matcher.ResourceTags,
 							Regions:             matcher.Regions,
 							DiscoveryConfigName: discoveryConfigName,
+							Integration:         matcher.Integration,
 						})
 						if err != nil {
 							return nil, trace.Wrap(err)
