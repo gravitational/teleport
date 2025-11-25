@@ -19,6 +19,7 @@ package teleport.mfa.v2;
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/header/v1/metadata.proto";
+import "teleport/webauthn/v1/webauthn.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2";
 
@@ -99,7 +100,7 @@ message ReplicateValidatedMFAChallengeRequest {
   // CreateChallengeRequest.
   SessionIdentifyingPayload payload = 2;
   // device contains information about the user's MFA device used to authenticate.
-  MFADevice device = 3;
+  Device device = 3;
   // source_cluster is the name of the cluster where the validated challenge originated.
   string source_cluster = 4;
   // target_cluster is the name of the destination cluster where the validated challenge should be replicated to.
@@ -128,7 +129,7 @@ message VerifyValidatedMFAChallengeRequest {
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
 message VerifyValidatedMFAChallengeResponse {
   // device contains information about the user's MFA device used to authenticate.
-  MFADevice device = 1;
+  Device device = 1;
 }
 
 // AuthenticateChallenge is a challenge for all MFA devices registered for a user.
@@ -136,7 +137,7 @@ message AuthenticateChallenge {
   // webauthn_challenge contains a Webauthn credential assertion used for login/authentication ceremonies. Credential
   // assertions hold, among other information, a list of allowed credentials for the ceremony (one for each U2F or
   // Webauthn device registered by the user).
-  CredentialAssertion webauthn_challenge = 1;
+  teleport.webauthn.v1.CredentialAssertion webauthn_challenge = 1;
   // sso_challenge is an SSO MFA challenge. If set, the client can go to the IdP redirect URL to perform an MFA check in
   // the IdP and obtain an MFA token. This token paired with the request id can then be used as MFA verification.
   SSOChallenge sso_challenge = 2;
@@ -146,7 +147,7 @@ message AuthenticateChallenge {
 message AuthenticateResponse {
   oneof response {
     // webauthn is a response to a Webauthn challenge.
-    CredentialAssertionResponse webauthn = 1;
+    teleport.webauthn.v1.CredentialAssertionResponse webauthn = 1;
     // sso is a response to an SSO challenge.
     SSOChallengeResponse sso = 2;
   }
@@ -159,7 +160,7 @@ message SSOChallenge {
   // redirect_url is an IdP redirect URL to initiate the SSO MFA flow.
   string redirect_url = 2;
   // device is the SSO device corresponding to the challenge.
-  SSOMFADevice device = 3;
+  SSODevice device = 3;
 }
 
 // SSOChallengeResponse is a response to SSOChallenge.
@@ -190,7 +191,7 @@ message ValidatedMFAChallengeSpec {
   // CreateChallengeRequest.
   SessionIdentifyingPayload payload = 1;
   // device contains information about the user's MFA device used to authenticate.
-  MFADevice device = 2;
+  Device device = 2;
   // source_cluster is the name of the cluster where the validated challenge originated.
   string source_cluster = 3;
   // target_cluster is the name of the cluster where the SSH session is being established and this resource is intended
@@ -198,8 +199,8 @@ message ValidatedMFAChallengeSpec {
   string target_cluster = 4;
 }
 
-// MFADevice is a multi-factor authentication device, such as a security key or an OTP app.
-message MFADevice {
+// Device is a multi-factor authentication device, such as a security key or SSO method.
+message Device {
   // Boilerplate for implementing the Resource interface.
   string kind = 1;
   string sub_kind = 2;
@@ -213,10 +214,8 @@ message MFADevice {
   google.protobuf.Timestamp last_used = 7;
 
   oneof device {
-    TOTPDevice totp = 8;
-    U2FDevice u2f = 9;
-    WebauthnDevice webauthn = 10;
-    SSOMFADevice sso = 11;
+    WebauthnDevice webauthn = 8;
+    SSODevice sso = 9;
   }
 }
 
@@ -240,22 +239,7 @@ message Metadata {
   string revision = 8;
 }
 
-// TOTPDevice holds the TOTP-specific fields of MFADevice.
-message TOTPDevice {
-  string key = 1;
-}
-
-// U2FDevice holds the U2F-specific fields of MFADevice.
-message U2FDevice {
-  // key_handle uniquely identifies a key on a device
-  bytes key_handle = 1;
-  // pub_key is a DER encoded ecdsa public key
-  bytes pub_key = 2;
-  // counter is the latest seen value of the U2F usage counter.
-  uint32 counter = 3;
-}
-
-// WebauthnDevice holds Webauthn-specific fields of MFADevice.
+// WebauthnDevice holds Webauthn-specific fields of Device.
 message WebauthnDevice {
   // credential_id for the authenticator.
   bytes credential_id = 1;
@@ -288,103 +272,12 @@ message WebauthnDevice {
   google.protobuf.BoolValue credential_backed_up = 10;
 }
 
-// SSOMFADevice contains details of an SSO MFA method.
-message SSOMFADevice {
+// SSODevice contains details of an SSO MFA method.
+message SSODevice {
   // connector_id is the id of the SSO connector.
   string connector_id = 1;
   // connector_type is the type of the SSO connector.
   string connector_type = 2;
   // display_name is the display name of the SSO connector
   string display_name = 3;
-}
-
-// Credential assertion used for login ceremonies.
-message CredentialAssertion {
-  PublicKeyCredentialRequestOptions public_key = 1;
-}
-
-// Request options necessary for credential assertions, aka login ceremonies. See
-// https://www.w3.org/TR/webauthn-2/#dictionary-assertion-options or refer to navigator.credentials.get in your browser.
-message PublicKeyCredentialRequestOptions {
-  // Raw challenge used for assertion.
-  bytes challenge = 1;
-  // Timeout in milliseconds.
-  int64 timeout_ms = 2;
-  // Relying Party ID.
-  string rp_id = 3;
-  // Allowed credentials for assertion.
-  repeated CredentialDescriptor allow_credentials = 4;
-  // Extensions supplied by the Relying Party.
-  AuthenticationExtensionsClientInputs extensions = 5;
-  // User verification requirement.
-  string user_verification = 6;
-}
-
-// Assertion response returned by the authenticator. Refer to navigator.credentials.get in your browser.
-message CredentialAssertionResponse {
-  // Note: assertion responses return both "rawId" and "id" (RawURLEncoding of "id"), but it seemed pointless to have
-  // both here.
-
-  // Type of the credential, usually "public-key".
-  string type = 1;
-  // Raw Credential ID.
-  bytes raw_id = 2;
-  // Assertion response from the authenticator.
-  AuthenticatorAssertionResponse response = 3;
-  // Extensions supplied by the authenticator.
-  AuthenticationExtensionsClientOutputs extensions = 4;
-}
-
-// Authenticator assertion response. https://www.w3.org/TR/webauthn-2/#authenticatorassertionresponse
-message AuthenticatorAssertionResponse {
-  // Raw client data JSON, exactly as signed by the authenticator.
-  // https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata.
-  bytes client_data_json = 1;
-  // Raw authenticator data, exactly as signed by the authenticator.
-  // https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data.
-  bytes authenticator_data = 2;
-  // Raw assertion signature performed authenticatorData|clientDataJSON.
-  // https://www.w3.org/TR/webauthn-2/#assertion-signature.
-  bytes signature = 3;
-  // Raw user handle returned by the authenticator, if any.
-  bytes user_handle = 4;
-}
-
-// Public key credential descriptor. https://www.w3.org/TR/webauthn-2/#dictdef-publickeycredentialdescriptor.
-message CredentialDescriptor {
-  // Type of the credential, usually "public-key".
-  string type = 1;
-  // Raw Credential ID.
-  bytes id = 2;
-
-  // Notes:
-  // * Transport hints omitted (assume no restrictions).
-}
-
-// Extensions supplied by the Relying Party during credential assertion or creation.
-// https://www.w3.org/TR/webauthn-2/#client-extension-input
-message AuthenticationExtensionsClientInputs {
-  // U2F application ID to be used by the authenticator, if any. Only available if using U2F compatibility mode.
-  // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
-  string app_id = 1;
-  // Enables the credProps extension. https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension
-  bool cred_props = 2;
-}
-
-// Extensions supplied by the authenticator to the Relying Party, during credential assertion or creation.
-// https://www.w3.org/TR/webauthn-2/#client-extension-output.
-message AuthenticationExtensionsClientOutputs {
-  // If true, the AppID extension was used by the authenticator, which changes the rpIdHash accordingly.
-  // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
-  bool app_id = 1;
-  // Credential properties per credProps extension.
-  // https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension.
-  CredentialPropertiesOutput cred_props = 2;
-}
-
-// CredentialPropertiesOutput is the output of the credProps extension.
-message CredentialPropertiesOutput {
-  // If true, the created credential is a resident key (regardless of the AuthenticatorSelection.require_resident_key
-  // value). OPTIONAL by specification.
-  bool rk = 1;
 }

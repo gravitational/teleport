@@ -22,7 +22,8 @@
 package mfav2
 
 import (
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/webauthn/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -346,7 +347,7 @@ type ReplicateValidatedMFAChallengeRequest struct {
 	// CreateChallengeRequest.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	// device contains information about the user's MFA device used to authenticate.
-	Device *MFADevice `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
+	Device *Device `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
 	// source_cluster is the name of the cluster where the validated challenge originated.
 	SourceCluster string `protobuf:"bytes,4,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
 	// target_cluster is the name of the destination cluster where the validated challenge should be replicated to.
@@ -399,7 +400,7 @@ func (x *ReplicateValidatedMFAChallengeRequest) GetPayload() *SessionIdentifying
 	return nil
 }
 
-func (x *ReplicateValidatedMFAChallengeRequest) GetDevice() *MFADevice {
+func (x *ReplicateValidatedMFAChallengeRequest) GetDevice() *Device {
 	if x != nil {
 		return x.Device
 	}
@@ -537,7 +538,7 @@ func (x *VerifyValidatedMFAChallengeRequest) GetSourceCluster() string {
 type VerifyValidatedMFAChallengeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// device contains information about the user's MFA device used to authenticate.
-	Device        *MFADevice `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
+	Device        *Device `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -572,7 +573,7 @@ func (*VerifyValidatedMFAChallengeResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *VerifyValidatedMFAChallengeResponse) GetDevice() *MFADevice {
+func (x *VerifyValidatedMFAChallengeResponse) GetDevice() *Device {
 	if x != nil {
 		return x.Device
 	}
@@ -585,7 +586,7 @@ type AuthenticateChallenge struct {
 	// webauthn_challenge contains a Webauthn credential assertion used for login/authentication ceremonies. Credential
 	// assertions hold, among other information, a list of allowed credentials for the ceremony (one for each U2F or
 	// Webauthn device registered by the user).
-	WebauthnChallenge *CredentialAssertion `protobuf:"bytes,1,opt,name=webauthn_challenge,json=webauthnChallenge,proto3" json:"webauthn_challenge,omitempty"`
+	WebauthnChallenge *v1.CredentialAssertion `protobuf:"bytes,1,opt,name=webauthn_challenge,json=webauthnChallenge,proto3" json:"webauthn_challenge,omitempty"`
 	// sso_challenge is an SSO MFA challenge. If set, the client can go to the IdP redirect URL to perform an MFA check in
 	// the IdP and obtain an MFA token. This token paired with the request id can then be used as MFA verification.
 	SsoChallenge  *SSOChallenge `protobuf:"bytes,2,opt,name=sso_challenge,json=ssoChallenge,proto3" json:"sso_challenge,omitempty"`
@@ -623,7 +624,7 @@ func (*AuthenticateChallenge) Descriptor() ([]byte, []int) {
 	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *AuthenticateChallenge) GetWebauthnChallenge() *CredentialAssertion {
+func (x *AuthenticateChallenge) GetWebauthnChallenge() *v1.CredentialAssertion {
 	if x != nil {
 		return x.WebauthnChallenge
 	}
@@ -686,7 +687,7 @@ func (x *AuthenticateResponse) GetResponse() isAuthenticateResponse_Response {
 	return nil
 }
 
-func (x *AuthenticateResponse) GetWebauthn() *CredentialAssertionResponse {
+func (x *AuthenticateResponse) GetWebauthn() *v1.CredentialAssertionResponse {
 	if x != nil {
 		if x, ok := x.Response.(*AuthenticateResponse_Webauthn); ok {
 			return x.Webauthn
@@ -710,7 +711,7 @@ type isAuthenticateResponse_Response interface {
 
 type AuthenticateResponse_Webauthn struct {
 	// webauthn is a response to a Webauthn challenge.
-	Webauthn *CredentialAssertionResponse `protobuf:"bytes,1,opt,name=webauthn,proto3,oneof"`
+	Webauthn *v1.CredentialAssertionResponse `protobuf:"bytes,1,opt,name=webauthn,proto3,oneof"`
 }
 
 type AuthenticateResponse_Sso struct {
@@ -730,7 +731,7 @@ type SSOChallenge struct {
 	// redirect_url is an IdP redirect URL to initiate the SSO MFA flow.
 	RedirectUrl string `protobuf:"bytes,2,opt,name=redirect_url,json=redirectUrl,proto3" json:"redirect_url,omitempty"`
 	// device is the SSO device corresponding to the challenge.
-	Device        *SSOMFADevice `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
+	Device        *SSODevice `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -779,7 +780,7 @@ func (x *SSOChallenge) GetRedirectUrl() string {
 	return ""
 }
 
-func (x *SSOChallenge) GetDevice() *SSOMFADevice {
+func (x *SSOChallenge) GetDevice() *SSODevice {
 	if x != nil {
 		return x.Device
 	}
@@ -851,7 +852,7 @@ type ValidatedMFAChallenge struct {
 	// The version of the resource being represented.
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	// Common metadata that all resources share.
-	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Metadata *v11.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// The validated challenge specification.
 	Spec          *ValidatedMFAChallengeSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -909,7 +910,7 @@ func (x *ValidatedMFAChallenge) GetVersion() string {
 	return ""
 }
 
-func (x *ValidatedMFAChallenge) GetMetadata() *v1.Metadata {
+func (x *ValidatedMFAChallenge) GetMetadata() *v11.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
@@ -930,7 +931,7 @@ type ValidatedMFAChallengeSpec struct {
 	// CreateChallengeRequest.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
 	// device contains information about the user's MFA device used to authenticate.
-	Device *MFADevice `protobuf:"bytes,2,opt,name=device,proto3" json:"device,omitempty"`
+	Device *Device `protobuf:"bytes,2,opt,name=device,proto3" json:"device,omitempty"`
 	// source_cluster is the name of the cluster where the validated challenge originated.
 	SourceCluster string `protobuf:"bytes,3,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
 	// target_cluster is the name of the cluster where the SSH session is being established and this resource is intended
@@ -977,7 +978,7 @@ func (x *ValidatedMFAChallengeSpec) GetPayload() *SessionIdentifyingPayload {
 	return nil
 }
 
-func (x *ValidatedMFAChallengeSpec) GetDevice() *MFADevice {
+func (x *ValidatedMFAChallengeSpec) GetDevice() *Device {
 	if x != nil {
 		return x.Device
 	}
@@ -998,8 +999,8 @@ func (x *ValidatedMFAChallengeSpec) GetTargetCluster() string {
 	return ""
 }
 
-// MFADevice is a multi-factor authentication device, such as a security key or an OTP app.
-type MFADevice struct {
+// Device is a multi-factor authentication device, such as a security key or SSO method.
+type Device struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Boilerplate for implementing the Resource interface.
 	Kind     string    `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -1012,29 +1013,27 @@ type MFADevice struct {
 	LastUsed *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_used,json=lastUsed,proto3" json:"last_used,omitempty"`
 	// Types that are valid to be assigned to Device:
 	//
-	//	*MFADevice_Totp
-	//	*MFADevice_U2F
-	//	*MFADevice_Webauthn
-	//	*MFADevice_Sso
-	Device        isMFADevice_Device `protobuf_oneof:"device"`
+	//	*Device_Webauthn
+	//	*Device_Sso
+	Device        isDevice_Device `protobuf_oneof:"device"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *MFADevice) Reset() {
-	*x = MFADevice{}
+func (x *Device) Reset() {
+	*x = Device{}
 	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MFADevice) String() string {
+func (x *Device) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MFADevice) ProtoMessage() {}
+func (*Device) ProtoMessage() {}
 
-func (x *MFADevice) ProtoReflect() protoreflect.Message {
+func (x *Device) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1046,130 +1045,100 @@ func (x *MFADevice) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MFADevice.ProtoReflect.Descriptor instead.
-func (*MFADevice) Descriptor() ([]byte, []int) {
+// Deprecated: Use Device.ProtoReflect.Descriptor instead.
+func (*Device) Descriptor() ([]byte, []int) {
 	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *MFADevice) GetKind() string {
+func (x *Device) GetKind() string {
 	if x != nil {
 		return x.Kind
 	}
 	return ""
 }
 
-func (x *MFADevice) GetSubKind() string {
+func (x *Device) GetSubKind() string {
 	if x != nil {
 		return x.SubKind
 	}
 	return ""
 }
 
-func (x *MFADevice) GetVersion() string {
+func (x *Device) GetVersion() string {
 	if x != nil {
 		return x.Version
 	}
 	return ""
 }
 
-func (x *MFADevice) GetMetadata() *Metadata {
+func (x *Device) GetMetadata() *Metadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
 }
 
-func (x *MFADevice) GetId() string {
+func (x *Device) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *MFADevice) GetAddedAt() *timestamppb.Timestamp {
+func (x *Device) GetAddedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.AddedAt
 	}
 	return nil
 }
 
-func (x *MFADevice) GetLastUsed() *timestamppb.Timestamp {
+func (x *Device) GetLastUsed() *timestamppb.Timestamp {
 	if x != nil {
 		return x.LastUsed
 	}
 	return nil
 }
 
-func (x *MFADevice) GetDevice() isMFADevice_Device {
+func (x *Device) GetDevice() isDevice_Device {
 	if x != nil {
 		return x.Device
 	}
 	return nil
 }
 
-func (x *MFADevice) GetTotp() *TOTPDevice {
+func (x *Device) GetWebauthn() *WebauthnDevice {
 	if x != nil {
-		if x, ok := x.Device.(*MFADevice_Totp); ok {
-			return x.Totp
-		}
-	}
-	return nil
-}
-
-func (x *MFADevice) GetU2F() *U2FDevice {
-	if x != nil {
-		if x, ok := x.Device.(*MFADevice_U2F); ok {
-			return x.U2F
-		}
-	}
-	return nil
-}
-
-func (x *MFADevice) GetWebauthn() *WebauthnDevice {
-	if x != nil {
-		if x, ok := x.Device.(*MFADevice_Webauthn); ok {
+		if x, ok := x.Device.(*Device_Webauthn); ok {
 			return x.Webauthn
 		}
 	}
 	return nil
 }
 
-func (x *MFADevice) GetSso() *SSOMFADevice {
+func (x *Device) GetSso() *SSODevice {
 	if x != nil {
-		if x, ok := x.Device.(*MFADevice_Sso); ok {
+		if x, ok := x.Device.(*Device_Sso); ok {
 			return x.Sso
 		}
 	}
 	return nil
 }
 
-type isMFADevice_Device interface {
-	isMFADevice_Device()
+type isDevice_Device interface {
+	isDevice_Device()
 }
 
-type MFADevice_Totp struct {
-	Totp *TOTPDevice `protobuf:"bytes,8,opt,name=totp,proto3,oneof"`
+type Device_Webauthn struct {
+	Webauthn *WebauthnDevice `protobuf:"bytes,8,opt,name=webauthn,proto3,oneof"`
 }
 
-type MFADevice_U2F struct {
-	U2F *U2FDevice `protobuf:"bytes,9,opt,name=u2f,proto3,oneof"`
+type Device_Sso struct {
+	Sso *SSODevice `protobuf:"bytes,9,opt,name=sso,proto3,oneof"`
 }
 
-type MFADevice_Webauthn struct {
-	Webauthn *WebauthnDevice `protobuf:"bytes,10,opt,name=webauthn,proto3,oneof"`
-}
+func (*Device_Webauthn) isDevice_Device() {}
 
-type MFADevice_Sso struct {
-	Sso *SSOMFADevice `protobuf:"bytes,11,opt,name=sso,proto3,oneof"`
-}
-
-func (*MFADevice_Totp) isMFADevice_Device() {}
-
-func (*MFADevice_U2F) isMFADevice_Device() {}
-
-func (*MFADevice_Webauthn) isMFADevice_Device() {}
-
-func (*MFADevice_Sso) isMFADevice_Device() {}
+func (*Device_Sso) isDevice_Device() {}
 
 // Metadata is resource metadata
 type Metadata struct {
@@ -1263,116 +1232,7 @@ func (x *Metadata) GetRevision() string {
 	return ""
 }
 
-// TOTPDevice holds the TOTP-specific fields of MFADevice.
-type TOTPDevice struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *TOTPDevice) Reset() {
-	*x = TOTPDevice{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[17]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TOTPDevice) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TOTPDevice) ProtoMessage() {}
-
-func (x *TOTPDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[17]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TOTPDevice.ProtoReflect.Descriptor instead.
-func (*TOTPDevice) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *TOTPDevice) GetKey() string {
-	if x != nil {
-		return x.Key
-	}
-	return ""
-}
-
-// U2FDevice holds the U2F-specific fields of MFADevice.
-type U2FDevice struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// key_handle uniquely identifies a key on a device
-	KeyHandle []byte `protobuf:"bytes,1,opt,name=key_handle,json=keyHandle,proto3" json:"key_handle,omitempty"`
-	// pub_key is a DER encoded ecdsa public key
-	PubKey []byte `protobuf:"bytes,2,opt,name=pub_key,json=pubKey,proto3" json:"pub_key,omitempty"`
-	// counter is the latest seen value of the U2F usage counter.
-	Counter       uint32 `protobuf:"varint,3,opt,name=counter,proto3" json:"counter,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *U2FDevice) Reset() {
-	*x = U2FDevice{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[18]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *U2FDevice) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*U2FDevice) ProtoMessage() {}
-
-func (x *U2FDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[18]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use U2FDevice.ProtoReflect.Descriptor instead.
-func (*U2FDevice) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{18}
-}
-
-func (x *U2FDevice) GetKeyHandle() []byte {
-	if x != nil {
-		return x.KeyHandle
-	}
-	return nil
-}
-
-func (x *U2FDevice) GetPubKey() []byte {
-	if x != nil {
-		return x.PubKey
-	}
-	return nil
-}
-
-func (x *U2FDevice) GetCounter() uint32 {
-	if x != nil {
-		return x.Counter
-	}
-	return 0
-}
-
-// WebauthnDevice holds Webauthn-specific fields of MFADevice.
+// WebauthnDevice holds Webauthn-specific fields of Device.
 type WebauthnDevice struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// credential_id for the authenticator.
@@ -1410,7 +1270,7 @@ type WebauthnDevice struct {
 
 func (x *WebauthnDevice) Reset() {
 	*x = WebauthnDevice{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[19]
+	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1422,7 +1282,7 @@ func (x *WebauthnDevice) String() string {
 func (*WebauthnDevice) ProtoMessage() {}
 
 func (x *WebauthnDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[19]
+	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1435,7 +1295,7 @@ func (x *WebauthnDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WebauthnDevice.ProtoReflect.Descriptor instead.
 func (*WebauthnDevice) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{19}
+	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *WebauthnDevice) GetCredentialId() []byte {
@@ -1508,8 +1368,8 @@ func (x *WebauthnDevice) GetCredentialBackedUp() *wrapperspb.BoolValue {
 	return nil
 }
 
-// SSOMFADevice contains details of an SSO MFA method.
-type SSOMFADevice struct {
+// SSODevice contains details of an SSO MFA method.
+type SSODevice struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// connector_id is the id of the SSO connector.
 	ConnectorId string `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
@@ -1521,21 +1381,21 @@ type SSOMFADevice struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SSOMFADevice) Reset() {
-	*x = SSOMFADevice{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[20]
+func (x *SSODevice) Reset() {
+	*x = SSODevice{}
+	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SSOMFADevice) String() string {
+func (x *SSODevice) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SSOMFADevice) ProtoMessage() {}
+func (*SSODevice) ProtoMessage() {}
 
-func (x *SSOMFADevice) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[20]
+func (x *SSODevice) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1546,540 +1406,37 @@ func (x *SSOMFADevice) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSOMFADevice.ProtoReflect.Descriptor instead.
-func (*SSOMFADevice) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{20}
+// Deprecated: Use SSODevice.ProtoReflect.Descriptor instead.
+func (*SSODevice) Descriptor() ([]byte, []int) {
+	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{18}
 }
 
-func (x *SSOMFADevice) GetConnectorId() string {
+func (x *SSODevice) GetConnectorId() string {
 	if x != nil {
 		return x.ConnectorId
 	}
 	return ""
 }
 
-func (x *SSOMFADevice) GetConnectorType() string {
+func (x *SSODevice) GetConnectorType() string {
 	if x != nil {
 		return x.ConnectorType
 	}
 	return ""
 }
 
-func (x *SSOMFADevice) GetDisplayName() string {
+func (x *SSODevice) GetDisplayName() string {
 	if x != nil {
 		return x.DisplayName
 	}
 	return ""
 }
 
-// Credential assertion used for login ceremonies.
-type CredentialAssertion struct {
-	state         protoimpl.MessageState             `protogen:"open.v1"`
-	PublicKey     *PublicKeyCredentialRequestOptions `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CredentialAssertion) Reset() {
-	*x = CredentialAssertion{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[21]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CredentialAssertion) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CredentialAssertion) ProtoMessage() {}
-
-func (x *CredentialAssertion) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[21]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CredentialAssertion.ProtoReflect.Descriptor instead.
-func (*CredentialAssertion) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{21}
-}
-
-func (x *CredentialAssertion) GetPublicKey() *PublicKeyCredentialRequestOptions {
-	if x != nil {
-		return x.PublicKey
-	}
-	return nil
-}
-
-// Request options necessary for credential assertions, aka login ceremonies. See
-// https://www.w3.org/TR/webauthn-2/#dictionary-assertion-options or refer to navigator.credentials.get in your browser.
-type PublicKeyCredentialRequestOptions struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Raw challenge used for assertion.
-	Challenge []byte `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
-	// Timeout in milliseconds.
-	TimeoutMs int64 `protobuf:"varint,2,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
-	// Relying Party ID.
-	RpId string `protobuf:"bytes,3,opt,name=rp_id,json=rpId,proto3" json:"rp_id,omitempty"`
-	// Allowed credentials for assertion.
-	AllowCredentials []*CredentialDescriptor `protobuf:"bytes,4,rep,name=allow_credentials,json=allowCredentials,proto3" json:"allow_credentials,omitempty"`
-	// Extensions supplied by the Relying Party.
-	Extensions *AuthenticationExtensionsClientInputs `protobuf:"bytes,5,opt,name=extensions,proto3" json:"extensions,omitempty"`
-	// User verification requirement.
-	UserVerification string `protobuf:"bytes,6,opt,name=user_verification,json=userVerification,proto3" json:"user_verification,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *PublicKeyCredentialRequestOptions) Reset() {
-	*x = PublicKeyCredentialRequestOptions{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[22]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PublicKeyCredentialRequestOptions) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PublicKeyCredentialRequestOptions) ProtoMessage() {}
-
-func (x *PublicKeyCredentialRequestOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[22]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PublicKeyCredentialRequestOptions.ProtoReflect.Descriptor instead.
-func (*PublicKeyCredentialRequestOptions) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{22}
-}
-
-func (x *PublicKeyCredentialRequestOptions) GetChallenge() []byte {
-	if x != nil {
-		return x.Challenge
-	}
-	return nil
-}
-
-func (x *PublicKeyCredentialRequestOptions) GetTimeoutMs() int64 {
-	if x != nil {
-		return x.TimeoutMs
-	}
-	return 0
-}
-
-func (x *PublicKeyCredentialRequestOptions) GetRpId() string {
-	if x != nil {
-		return x.RpId
-	}
-	return ""
-}
-
-func (x *PublicKeyCredentialRequestOptions) GetAllowCredentials() []*CredentialDescriptor {
-	if x != nil {
-		return x.AllowCredentials
-	}
-	return nil
-}
-
-func (x *PublicKeyCredentialRequestOptions) GetExtensions() *AuthenticationExtensionsClientInputs {
-	if x != nil {
-		return x.Extensions
-	}
-	return nil
-}
-
-func (x *PublicKeyCredentialRequestOptions) GetUserVerification() string {
-	if x != nil {
-		return x.UserVerification
-	}
-	return ""
-}
-
-// Assertion response returned by the authenticator. Refer to navigator.credentials.get in your browser.
-type CredentialAssertionResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Type of the credential, usually "public-key".
-	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	// Raw Credential ID.
-	RawId []byte `protobuf:"bytes,2,opt,name=raw_id,json=rawId,proto3" json:"raw_id,omitempty"`
-	// Assertion response from the authenticator.
-	Response *AuthenticatorAssertionResponse `protobuf:"bytes,3,opt,name=response,proto3" json:"response,omitempty"`
-	// Extensions supplied by the authenticator.
-	Extensions    *AuthenticationExtensionsClientOutputs `protobuf:"bytes,4,opt,name=extensions,proto3" json:"extensions,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CredentialAssertionResponse) Reset() {
-	*x = CredentialAssertionResponse{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[23]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CredentialAssertionResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CredentialAssertionResponse) ProtoMessage() {}
-
-func (x *CredentialAssertionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[23]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CredentialAssertionResponse.ProtoReflect.Descriptor instead.
-func (*CredentialAssertionResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{23}
-}
-
-func (x *CredentialAssertionResponse) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *CredentialAssertionResponse) GetRawId() []byte {
-	if x != nil {
-		return x.RawId
-	}
-	return nil
-}
-
-func (x *CredentialAssertionResponse) GetResponse() *AuthenticatorAssertionResponse {
-	if x != nil {
-		return x.Response
-	}
-	return nil
-}
-
-func (x *CredentialAssertionResponse) GetExtensions() *AuthenticationExtensionsClientOutputs {
-	if x != nil {
-		return x.Extensions
-	}
-	return nil
-}
-
-// Authenticator assertion response. https://www.w3.org/TR/webauthn-2/#authenticatorassertionresponse
-type AuthenticatorAssertionResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Raw client data JSON, exactly as signed by the authenticator.
-	// https://www.w3.org/TR/webauthn-2/#dictdef-collectedclientdata.
-	ClientDataJson []byte `protobuf:"bytes,1,opt,name=client_data_json,json=clientDataJson,proto3" json:"client_data_json,omitempty"`
-	// Raw authenticator data, exactly as signed by the authenticator.
-	// https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data.
-	AuthenticatorData []byte `protobuf:"bytes,2,opt,name=authenticator_data,json=authenticatorData,proto3" json:"authenticator_data,omitempty"`
-	// Raw assertion signature performed authenticatorData|clientDataJSON.
-	// https://www.w3.org/TR/webauthn-2/#assertion-signature.
-	Signature []byte `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"`
-	// Raw user handle returned by the authenticator, if any.
-	UserHandle    []byte `protobuf:"bytes,4,opt,name=user_handle,json=userHandle,proto3" json:"user_handle,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AuthenticatorAssertionResponse) Reset() {
-	*x = AuthenticatorAssertionResponse{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[24]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AuthenticatorAssertionResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AuthenticatorAssertionResponse) ProtoMessage() {}
-
-func (x *AuthenticatorAssertionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[24]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthenticatorAssertionResponse.ProtoReflect.Descriptor instead.
-func (*AuthenticatorAssertionResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{24}
-}
-
-func (x *AuthenticatorAssertionResponse) GetClientDataJson() []byte {
-	if x != nil {
-		return x.ClientDataJson
-	}
-	return nil
-}
-
-func (x *AuthenticatorAssertionResponse) GetAuthenticatorData() []byte {
-	if x != nil {
-		return x.AuthenticatorData
-	}
-	return nil
-}
-
-func (x *AuthenticatorAssertionResponse) GetSignature() []byte {
-	if x != nil {
-		return x.Signature
-	}
-	return nil
-}
-
-func (x *AuthenticatorAssertionResponse) GetUserHandle() []byte {
-	if x != nil {
-		return x.UserHandle
-	}
-	return nil
-}
-
-// Public key credential descriptor. https://www.w3.org/TR/webauthn-2/#dictdef-publickeycredentialdescriptor.
-type CredentialDescriptor struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Type of the credential, usually "public-key".
-	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	// Raw Credential ID.
-	Id            []byte `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CredentialDescriptor) Reset() {
-	*x = CredentialDescriptor{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[25]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CredentialDescriptor) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CredentialDescriptor) ProtoMessage() {}
-
-func (x *CredentialDescriptor) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[25]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CredentialDescriptor.ProtoReflect.Descriptor instead.
-func (*CredentialDescriptor) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{25}
-}
-
-func (x *CredentialDescriptor) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *CredentialDescriptor) GetId() []byte {
-	if x != nil {
-		return x.Id
-	}
-	return nil
-}
-
-// Extensions supplied by the Relying Party during credential assertion or creation.
-// https://www.w3.org/TR/webauthn-2/#client-extension-input
-type AuthenticationExtensionsClientInputs struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// U2F application ID to be used by the authenticator, if any. Only available if using U2F compatibility mode.
-	// https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
-	AppId string `protobuf:"bytes,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	// Enables the credProps extension. https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension
-	CredProps     bool `protobuf:"varint,2,opt,name=cred_props,json=credProps,proto3" json:"cred_props,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AuthenticationExtensionsClientInputs) Reset() {
-	*x = AuthenticationExtensionsClientInputs{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[26]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AuthenticationExtensionsClientInputs) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AuthenticationExtensionsClientInputs) ProtoMessage() {}
-
-func (x *AuthenticationExtensionsClientInputs) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[26]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthenticationExtensionsClientInputs.ProtoReflect.Descriptor instead.
-func (*AuthenticationExtensionsClientInputs) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{26}
-}
-
-func (x *AuthenticationExtensionsClientInputs) GetAppId() string {
-	if x != nil {
-		return x.AppId
-	}
-	return ""
-}
-
-func (x *AuthenticationExtensionsClientInputs) GetCredProps() bool {
-	if x != nil {
-		return x.CredProps
-	}
-	return false
-}
-
-// Extensions supplied by the authenticator to the Relying Party, during credential assertion or creation.
-// https://www.w3.org/TR/webauthn-2/#client-extension-output.
-type AuthenticationExtensionsClientOutputs struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// If true, the AppID extension was used by the authenticator, which changes the rpIdHash accordingly.
-	// https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
-	AppId bool `protobuf:"varint,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	// Credential properties per credProps extension.
-	// https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension.
-	CredProps     *CredentialPropertiesOutput `protobuf:"bytes,2,opt,name=cred_props,json=credProps,proto3" json:"cred_props,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AuthenticationExtensionsClientOutputs) Reset() {
-	*x = AuthenticationExtensionsClientOutputs{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[27]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AuthenticationExtensionsClientOutputs) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AuthenticationExtensionsClientOutputs) ProtoMessage() {}
-
-func (x *AuthenticationExtensionsClientOutputs) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[27]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthenticationExtensionsClientOutputs.ProtoReflect.Descriptor instead.
-func (*AuthenticationExtensionsClientOutputs) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{27}
-}
-
-func (x *AuthenticationExtensionsClientOutputs) GetAppId() bool {
-	if x != nil {
-		return x.AppId
-	}
-	return false
-}
-
-func (x *AuthenticationExtensionsClientOutputs) GetCredProps() *CredentialPropertiesOutput {
-	if x != nil {
-		return x.CredProps
-	}
-	return nil
-}
-
-// CredentialPropertiesOutput is the output of the credProps extension.
-type CredentialPropertiesOutput struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// If true, the created credential is a resident key (regardless of the AuthenticatorSelection.require_resident_key
-	// value). OPTIONAL by specification.
-	Rk            bool `protobuf:"varint,1,opt,name=rk,proto3" json:"rk,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *CredentialPropertiesOutput) Reset() {
-	*x = CredentialPropertiesOutput{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[28]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CredentialPropertiesOutput) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CredentialPropertiesOutput) ProtoMessage() {}
-
-func (x *CredentialPropertiesOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[28]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CredentialPropertiesOutput.ProtoReflect.Descriptor instead.
-func (*CredentialPropertiesOutput) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{28}
-}
-
-func (x *CredentialPropertiesOutput) GetRk() bool {
-	if x != nil {
-		return x.Rk
-	}
-	return false
-}
-
 var File_teleport_mfa_v2_mfa_proto protoreflect.FileDescriptor
 
 const file_teleport_mfa_v2_mfa_proto_rawDesc = "" +
 	"\n" +
-	"\x19teleport/mfa/v2/mfa.proto\x12\x0fteleport.mfa.v2\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a!teleport/header/v1/metadata.proto\"N\n" +
+	"\x19teleport/mfa/v2/mfa.proto\x12\x0fteleport.mfa.v2\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a!teleport/header/v1/metadata.proto\x1a#teleport/webauthn/v1/webauthn.proto\"N\n" +
 	"\x19SessionIdentifyingPayload\x12&\n" +
 	"\x0essh_session_id\x18\x01 \x01(\fH\x00R\fsshSessionIdB\t\n" +
 	"\apayload\"\xef\x01\n" +
@@ -2094,11 +1451,11 @@ const file_teleport_mfa_v2_mfa_proto_rawDesc = "" +
 	"\x18ValidateChallengeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12H\n" +
 	"\fmfa_response\x18\x02 \x01(\v2%.teleport.mfa.v2.AuthenticateResponseR\vmfaResponse\"\x1b\n" +
-	"\x19ValidateChallengeResponse\"\x83\x02\n" +
+	"\x19ValidateChallengeResponse\"\x80\x02\n" +
 	"%ReplicateValidatedMFAChallengeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
-	"\apayload\x18\x02 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x122\n" +
-	"\x06device\x18\x03 \x01(\v2\x1a.teleport.mfa.v2.MFADeviceR\x06device\x12%\n" +
+	"\apayload\x18\x02 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12/\n" +
+	"\x06device\x18\x03 \x01(\v2\x17.teleport.mfa.v2.DeviceR\x06device\x12%\n" +
 	"\x0esource_cluster\x18\x04 \x01(\tR\rsourceCluster\x12%\n" +
 	"\x0etarget_cluster\x18\x05 \x01(\tR\rtargetCluster\"\x83\x01\n" +
 	"&ReplicateValidatedMFAChallengeResponse\x12Y\n" +
@@ -2106,22 +1463,22 @@ const file_teleport_mfa_v2_mfa_proto_rawDesc = "" +
 	"\"VerifyValidatedMFAChallengeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
 	"\apayload\x18\x02 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
-	"\x0esource_cluster\x18\x03 \x01(\tR\rsourceCluster\"Y\n" +
-	"#VerifyValidatedMFAChallengeResponse\x122\n" +
-	"\x06device\x18\x01 \x01(\v2\x1a.teleport.mfa.v2.MFADeviceR\x06device\"\xb0\x01\n" +
-	"\x15AuthenticateChallenge\x12S\n" +
-	"\x12webauthn_challenge\x18\x01 \x01(\v2$.teleport.mfa.v2.CredentialAssertionR\x11webauthnChallenge\x12B\n" +
-	"\rsso_challenge\x18\x02 \x01(\v2\x1d.teleport.mfa.v2.SSOChallengeR\fssoChallenge\"\xa9\x01\n" +
-	"\x14AuthenticateResponse\x12J\n" +
-	"\bwebauthn\x18\x01 \x01(\v2,.teleport.mfa.v2.CredentialAssertionResponseH\x00R\bwebauthn\x129\n" +
+	"\x0esource_cluster\x18\x03 \x01(\tR\rsourceCluster\"V\n" +
+	"#VerifyValidatedMFAChallengeResponse\x12/\n" +
+	"\x06device\x18\x01 \x01(\v2\x17.teleport.mfa.v2.DeviceR\x06device\"\xb5\x01\n" +
+	"\x15AuthenticateChallenge\x12X\n" +
+	"\x12webauthn_challenge\x18\x01 \x01(\v2).teleport.webauthn.v1.CredentialAssertionR\x11webauthnChallenge\x12B\n" +
+	"\rsso_challenge\x18\x02 \x01(\v2\x1d.teleport.mfa.v2.SSOChallengeR\fssoChallenge\"\xae\x01\n" +
+	"\x14AuthenticateResponse\x12O\n" +
+	"\bwebauthn\x18\x01 \x01(\v21.teleport.webauthn.v1.CredentialAssertionResponseH\x00R\bwebauthn\x129\n" +
 	"\x03sso\x18\x02 \x01(\v2%.teleport.mfa.v2.SSOChallengeResponseH\x00R\x03ssoB\n" +
 	"\n" +
-	"\bresponse\"\x87\x01\n" +
+	"\bresponse\"\x84\x01\n" +
 	"\fSSOChallenge\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12!\n" +
-	"\fredirect_url\x18\x02 \x01(\tR\vredirectUrl\x125\n" +
-	"\x06device\x18\x03 \x01(\v2\x1d.teleport.mfa.v2.SSOMFADeviceR\x06device\"K\n" +
+	"\fredirect_url\x18\x02 \x01(\tR\vredirectUrl\x122\n" +
+	"\x06device\x18\x03 \x01(\v2\x1a.teleport.mfa.v2.SSODeviceR\x06device\"K\n" +
 	"\x14SSOChallengeResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x14\n" +
@@ -2131,25 +1488,22 @@ const file_teleport_mfa_v2_mfa_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
-	"\x04spec\x18\x05 \x01(\v2*.teleport.mfa.v2.ValidatedMFAChallengeSpecR\x04spec\"\xe3\x01\n" +
+	"\x04spec\x18\x05 \x01(\v2*.teleport.mfa.v2.ValidatedMFAChallengeSpecR\x04spec\"\xe0\x01\n" +
 	"\x19ValidatedMFAChallengeSpec\x12D\n" +
-	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x122\n" +
-	"\x06device\x18\x02 \x01(\v2\x1a.teleport.mfa.v2.MFADeviceR\x06device\x12%\n" +
+	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12/\n" +
+	"\x06device\x18\x02 \x01(\v2\x17.teleport.mfa.v2.DeviceR\x06device\x12%\n" +
 	"\x0esource_cluster\x18\x03 \x01(\tR\rsourceCluster\x12%\n" +
-	"\x0etarget_cluster\x18\x04 \x01(\tR\rtargetCluster\"\xea\x03\n" +
-	"\tMFADevice\x12\x12\n" +
+	"\x0etarget_cluster\x18\x04 \x01(\tR\rtargetCluster\"\x81\x03\n" +
+	"\x06Device\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x125\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x19.teleport.mfa.v2.MetadataR\bmetadata\x12\x0e\n" +
 	"\x02id\x18\x05 \x01(\tR\x02id\x125\n" +
 	"\badded_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aaddedAt\x127\n" +
-	"\tlast_used\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\blastUsed\x121\n" +
-	"\x04totp\x18\b \x01(\v2\x1b.teleport.mfa.v2.TOTPDeviceH\x00R\x04totp\x12.\n" +
-	"\x03u2f\x18\t \x01(\v2\x1a.teleport.mfa.v2.U2FDeviceH\x00R\x03u2f\x12=\n" +
-	"\bwebauthn\x18\n" +
-	" \x01(\v2\x1f.teleport.mfa.v2.WebauthnDeviceH\x00R\bwebauthn\x121\n" +
-	"\x03sso\x18\v \x01(\v2\x1d.teleport.mfa.v2.SSOMFADeviceH\x00R\x03ssoB\b\n" +
+	"\tlast_used\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\blastUsed\x12=\n" +
+	"\bwebauthn\x18\b \x01(\v2\x1f.teleport.mfa.v2.WebauthnDeviceH\x00R\bwebauthn\x12.\n" +
+	"\x03sso\x18\t \x01(\v2\x1a.teleport.mfa.v2.SSODeviceH\x00R\x03ssoB\b\n" +
 	"\x06device\"\xb4\x02\n" +
 	"\bMetadata\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
@@ -2160,15 +1514,7 @@ const file_teleport_mfa_v2_mfa_proto_rawDesc = "" +
 	"\brevision\x18\b \x01(\tR\brevision\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\a\x10\bR\x02ID\"\x1e\n" +
-	"\n" +
-	"TOTPDevice\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\"]\n" +
-	"\tU2FDevice\x12\x1d\n" +
-	"\n" +
-	"key_handle\x18\x01 \x01(\fR\tkeyHandle\x12\x17\n" +
-	"\apub_key\x18\x02 \x01(\fR\x06pubKey\x12\x18\n" +
-	"\acounter\x18\x03 \x01(\rR\acounter\"\xf1\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\a\x10\bR\x02ID\"\xf1\x03\n" +
 	"\x0eWebauthnDevice\x12#\n" +
 	"\rcredential_id\x18\x01 \x01(\fR\fcredentialId\x12&\n" +
 	"\x0fpublic_key_cbor\x18\x02 \x01(\fR\rpublicKeyCbor\x12)\n" +
@@ -2180,50 +1526,11 @@ const file_teleport_mfa_v2_mfa_proto_rawDesc = "" +
 	"\x10credential_rp_id\x18\b \x01(\tR\x0ecredentialRpId\x12X\n" +
 	"\x1acredential_backup_eligible\x18\t \x01(\v2\x1a.google.protobuf.BoolValueR\x18credentialBackupEligible\x12L\n" +
 	"\x14credential_backed_up\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.BoolValueR\x12credentialBackedUp\"{\n" +
-	"\fSSOMFADevice\x12!\n" +
+	" \x01(\v2\x1a.google.protobuf.BoolValueR\x12credentialBackedUp\"x\n" +
+	"\tSSODevice\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12%\n" +
 	"\x0econnector_type\x18\x02 \x01(\tR\rconnectorType\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\"h\n" +
-	"\x13CredentialAssertion\x12Q\n" +
-	"\n" +
-	"public_key\x18\x01 \x01(\v22.teleport.mfa.v2.PublicKeyCredentialRequestOptionsR\tpublicKey\"\xcd\x02\n" +
-	"!PublicKeyCredentialRequestOptions\x12\x1c\n" +
-	"\tchallenge\x18\x01 \x01(\fR\tchallenge\x12\x1d\n" +
-	"\n" +
-	"timeout_ms\x18\x02 \x01(\x03R\ttimeoutMs\x12\x13\n" +
-	"\x05rp_id\x18\x03 \x01(\tR\x04rpId\x12R\n" +
-	"\x11allow_credentials\x18\x04 \x03(\v2%.teleport.mfa.v2.CredentialDescriptorR\x10allowCredentials\x12U\n" +
-	"\n" +
-	"extensions\x18\x05 \x01(\v25.teleport.mfa.v2.AuthenticationExtensionsClientInputsR\n" +
-	"extensions\x12+\n" +
-	"\x11user_verification\x18\x06 \x01(\tR\x10userVerification\"\xed\x01\n" +
-	"\x1bCredentialAssertionResponse\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12\x15\n" +
-	"\x06raw_id\x18\x02 \x01(\fR\x05rawId\x12K\n" +
-	"\bresponse\x18\x03 \x01(\v2/.teleport.mfa.v2.AuthenticatorAssertionResponseR\bresponse\x12V\n" +
-	"\n" +
-	"extensions\x18\x04 \x01(\v26.teleport.mfa.v2.AuthenticationExtensionsClientOutputsR\n" +
-	"extensions\"\xb8\x01\n" +
-	"\x1eAuthenticatorAssertionResponse\x12(\n" +
-	"\x10client_data_json\x18\x01 \x01(\fR\x0eclientDataJson\x12-\n" +
-	"\x12authenticator_data\x18\x02 \x01(\fR\x11authenticatorData\x12\x1c\n" +
-	"\tsignature\x18\x03 \x01(\fR\tsignature\x12\x1f\n" +
-	"\vuser_handle\x18\x04 \x01(\fR\n" +
-	"userHandle\":\n" +
-	"\x14CredentialDescriptor\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\fR\x02id\"\\\n" +
-	"$AuthenticationExtensionsClientInputs\x12\x15\n" +
-	"\x06app_id\x18\x01 \x01(\tR\x05appId\x12\x1d\n" +
-	"\n" +
-	"cred_props\x18\x02 \x01(\bR\tcredProps\"\x8a\x01\n" +
-	"%AuthenticationExtensionsClientOutputs\x12\x15\n" +
-	"\x06app_id\x18\x01 \x01(\bR\x05appId\x12J\n" +
-	"\n" +
-	"cred_props\x18\x02 \x01(\v2+.teleport.mfa.v2.CredentialPropertiesOutputR\tcredProps\",\n" +
-	"\x1aCredentialPropertiesOutput\x12\x0e\n" +
-	"\x02rk\x18\x01 \x01(\bR\x02rk2\xfd\x03\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName2\xfd\x03\n" +
 	"\n" +
 	"MFAService\x12d\n" +
 	"\x0fCreateChallenge\x12'.teleport.mfa.v2.CreateChallengeRequest\x1a(.teleport.mfa.v2.CreateChallengeResponse\x12j\n" +
@@ -2243,7 +1550,7 @@ func file_teleport_mfa_v2_mfa_proto_rawDescGZIP() []byte {
 	return file_teleport_mfa_v2_mfa_proto_rawDescData
 }
 
-var file_teleport_mfa_v2_mfa_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_teleport_mfa_v2_mfa_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_mfa_v2_mfa_proto_goTypes = []any{
 	(*SessionIdentifyingPayload)(nil),              // 0: teleport.mfa.v2.SessionIdentifyingPayload
 	(*CreateChallengeRequest)(nil),                 // 1: teleport.mfa.v2.CreateChallengeRequest
@@ -2260,73 +1567,57 @@ var file_teleport_mfa_v2_mfa_proto_goTypes = []any{
 	(*SSOChallengeResponse)(nil),                   // 12: teleport.mfa.v2.SSOChallengeResponse
 	(*ValidatedMFAChallenge)(nil),                  // 13: teleport.mfa.v2.ValidatedMFAChallenge
 	(*ValidatedMFAChallengeSpec)(nil),              // 14: teleport.mfa.v2.ValidatedMFAChallengeSpec
-	(*MFADevice)(nil),                              // 15: teleport.mfa.v2.MFADevice
+	(*Device)(nil),                                 // 15: teleport.mfa.v2.Device
 	(*Metadata)(nil),                               // 16: teleport.mfa.v2.Metadata
-	(*TOTPDevice)(nil),                             // 17: teleport.mfa.v2.TOTPDevice
-	(*U2FDevice)(nil),                              // 18: teleport.mfa.v2.U2FDevice
-	(*WebauthnDevice)(nil),                         // 19: teleport.mfa.v2.WebauthnDevice
-	(*SSOMFADevice)(nil),                           // 20: teleport.mfa.v2.SSOMFADevice
-	(*CredentialAssertion)(nil),                    // 21: teleport.mfa.v2.CredentialAssertion
-	(*PublicKeyCredentialRequestOptions)(nil),      // 22: teleport.mfa.v2.PublicKeyCredentialRequestOptions
-	(*CredentialAssertionResponse)(nil),            // 23: teleport.mfa.v2.CredentialAssertionResponse
-	(*AuthenticatorAssertionResponse)(nil),         // 24: teleport.mfa.v2.AuthenticatorAssertionResponse
-	(*CredentialDescriptor)(nil),                   // 25: teleport.mfa.v2.CredentialDescriptor
-	(*AuthenticationExtensionsClientInputs)(nil),   // 26: teleport.mfa.v2.AuthenticationExtensionsClientInputs
-	(*AuthenticationExtensionsClientOutputs)(nil),  // 27: teleport.mfa.v2.AuthenticationExtensionsClientOutputs
-	(*CredentialPropertiesOutput)(nil),             // 28: teleport.mfa.v2.CredentialPropertiesOutput
-	nil,                                            // 29: teleport.mfa.v2.Metadata.LabelsEntry
-	(*v1.Metadata)(nil),                            // 30: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),                  // 31: google.protobuf.Timestamp
-	(*wrapperspb.BoolValue)(nil),                   // 32: google.protobuf.BoolValue
+	(*WebauthnDevice)(nil),                         // 17: teleport.mfa.v2.WebauthnDevice
+	(*SSODevice)(nil),                              // 18: teleport.mfa.v2.SSODevice
+	nil,                                            // 19: teleport.mfa.v2.Metadata.LabelsEntry
+	(*v1.CredentialAssertion)(nil),                 // 20: teleport.webauthn.v1.CredentialAssertion
+	(*v1.CredentialAssertionResponse)(nil),         // 21: teleport.webauthn.v1.CredentialAssertionResponse
+	(*v11.Metadata)(nil),                           // 22: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),                  // 23: google.protobuf.Timestamp
+	(*wrapperspb.BoolValue)(nil),                   // 24: google.protobuf.BoolValue
 }
 var file_teleport_mfa_v2_mfa_proto_depIdxs = []int32{
 	0,  // 0: teleport.mfa.v2.CreateChallengeRequest.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
 	9,  // 1: teleport.mfa.v2.CreateChallengeResponse.mfa_challenge:type_name -> teleport.mfa.v2.AuthenticateChallenge
 	10, // 2: teleport.mfa.v2.ValidateChallengeRequest.mfa_response:type_name -> teleport.mfa.v2.AuthenticateResponse
 	0,  // 3: teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
-	15, // 4: teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest.device:type_name -> teleport.mfa.v2.MFADevice
+	15, // 4: teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest.device:type_name -> teleport.mfa.v2.Device
 	13, // 5: teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse.replicated_challenge:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
 	0,  // 6: teleport.mfa.v2.VerifyValidatedMFAChallengeRequest.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
-	15, // 7: teleport.mfa.v2.VerifyValidatedMFAChallengeResponse.device:type_name -> teleport.mfa.v2.MFADevice
-	21, // 8: teleport.mfa.v2.AuthenticateChallenge.webauthn_challenge:type_name -> teleport.mfa.v2.CredentialAssertion
+	15, // 7: teleport.mfa.v2.VerifyValidatedMFAChallengeResponse.device:type_name -> teleport.mfa.v2.Device
+	20, // 8: teleport.mfa.v2.AuthenticateChallenge.webauthn_challenge:type_name -> teleport.webauthn.v1.CredentialAssertion
 	11, // 9: teleport.mfa.v2.AuthenticateChallenge.sso_challenge:type_name -> teleport.mfa.v2.SSOChallenge
-	23, // 10: teleport.mfa.v2.AuthenticateResponse.webauthn:type_name -> teleport.mfa.v2.CredentialAssertionResponse
+	21, // 10: teleport.mfa.v2.AuthenticateResponse.webauthn:type_name -> teleport.webauthn.v1.CredentialAssertionResponse
 	12, // 11: teleport.mfa.v2.AuthenticateResponse.sso:type_name -> teleport.mfa.v2.SSOChallengeResponse
-	20, // 12: teleport.mfa.v2.SSOChallenge.device:type_name -> teleport.mfa.v2.SSOMFADevice
-	30, // 13: teleport.mfa.v2.ValidatedMFAChallenge.metadata:type_name -> teleport.header.v1.Metadata
+	18, // 12: teleport.mfa.v2.SSOChallenge.device:type_name -> teleport.mfa.v2.SSODevice
+	22, // 13: teleport.mfa.v2.ValidatedMFAChallenge.metadata:type_name -> teleport.header.v1.Metadata
 	14, // 14: teleport.mfa.v2.ValidatedMFAChallenge.spec:type_name -> teleport.mfa.v2.ValidatedMFAChallengeSpec
 	0,  // 15: teleport.mfa.v2.ValidatedMFAChallengeSpec.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
-	15, // 16: teleport.mfa.v2.ValidatedMFAChallengeSpec.device:type_name -> teleport.mfa.v2.MFADevice
-	16, // 17: teleport.mfa.v2.MFADevice.metadata:type_name -> teleport.mfa.v2.Metadata
-	31, // 18: teleport.mfa.v2.MFADevice.added_at:type_name -> google.protobuf.Timestamp
-	31, // 19: teleport.mfa.v2.MFADevice.last_used:type_name -> google.protobuf.Timestamp
-	17, // 20: teleport.mfa.v2.MFADevice.totp:type_name -> teleport.mfa.v2.TOTPDevice
-	18, // 21: teleport.mfa.v2.MFADevice.u2f:type_name -> teleport.mfa.v2.U2FDevice
-	19, // 22: teleport.mfa.v2.MFADevice.webauthn:type_name -> teleport.mfa.v2.WebauthnDevice
-	20, // 23: teleport.mfa.v2.MFADevice.sso:type_name -> teleport.mfa.v2.SSOMFADevice
-	29, // 24: teleport.mfa.v2.Metadata.labels:type_name -> teleport.mfa.v2.Metadata.LabelsEntry
-	31, // 25: teleport.mfa.v2.Metadata.expires:type_name -> google.protobuf.Timestamp
-	32, // 26: teleport.mfa.v2.WebauthnDevice.credential_backup_eligible:type_name -> google.protobuf.BoolValue
-	32, // 27: teleport.mfa.v2.WebauthnDevice.credential_backed_up:type_name -> google.protobuf.BoolValue
-	22, // 28: teleport.mfa.v2.CredentialAssertion.public_key:type_name -> teleport.mfa.v2.PublicKeyCredentialRequestOptions
-	25, // 29: teleport.mfa.v2.PublicKeyCredentialRequestOptions.allow_credentials:type_name -> teleport.mfa.v2.CredentialDescriptor
-	26, // 30: teleport.mfa.v2.PublicKeyCredentialRequestOptions.extensions:type_name -> teleport.mfa.v2.AuthenticationExtensionsClientInputs
-	24, // 31: teleport.mfa.v2.CredentialAssertionResponse.response:type_name -> teleport.mfa.v2.AuthenticatorAssertionResponse
-	27, // 32: teleport.mfa.v2.CredentialAssertionResponse.extensions:type_name -> teleport.mfa.v2.AuthenticationExtensionsClientOutputs
-	28, // 33: teleport.mfa.v2.AuthenticationExtensionsClientOutputs.cred_props:type_name -> teleport.mfa.v2.CredentialPropertiesOutput
-	1,  // 34: teleport.mfa.v2.MFAService.CreateChallenge:input_type -> teleport.mfa.v2.CreateChallengeRequest
-	3,  // 35: teleport.mfa.v2.MFAService.ValidateChallenge:input_type -> teleport.mfa.v2.ValidateChallengeRequest
-	5,  // 36: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:input_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest
-	7,  // 37: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:input_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeRequest
-	2,  // 38: teleport.mfa.v2.MFAService.CreateChallenge:output_type -> teleport.mfa.v2.CreateChallengeResponse
-	4,  // 39: teleport.mfa.v2.MFAService.ValidateChallenge:output_type -> teleport.mfa.v2.ValidateChallengeResponse
-	6,  // 40: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:output_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse
-	8,  // 41: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:output_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeResponse
-	38, // [38:42] is the sub-list for method output_type
-	34, // [34:38] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	15, // 16: teleport.mfa.v2.ValidatedMFAChallengeSpec.device:type_name -> teleport.mfa.v2.Device
+	16, // 17: teleport.mfa.v2.Device.metadata:type_name -> teleport.mfa.v2.Metadata
+	23, // 18: teleport.mfa.v2.Device.added_at:type_name -> google.protobuf.Timestamp
+	23, // 19: teleport.mfa.v2.Device.last_used:type_name -> google.protobuf.Timestamp
+	17, // 20: teleport.mfa.v2.Device.webauthn:type_name -> teleport.mfa.v2.WebauthnDevice
+	18, // 21: teleport.mfa.v2.Device.sso:type_name -> teleport.mfa.v2.SSODevice
+	19, // 22: teleport.mfa.v2.Metadata.labels:type_name -> teleport.mfa.v2.Metadata.LabelsEntry
+	23, // 23: teleport.mfa.v2.Metadata.expires:type_name -> google.protobuf.Timestamp
+	24, // 24: teleport.mfa.v2.WebauthnDevice.credential_backup_eligible:type_name -> google.protobuf.BoolValue
+	24, // 25: teleport.mfa.v2.WebauthnDevice.credential_backed_up:type_name -> google.protobuf.BoolValue
+	1,  // 26: teleport.mfa.v2.MFAService.CreateChallenge:input_type -> teleport.mfa.v2.CreateChallengeRequest
+	3,  // 27: teleport.mfa.v2.MFAService.ValidateChallenge:input_type -> teleport.mfa.v2.ValidateChallengeRequest
+	5,  // 28: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:input_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest
+	7,  // 29: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:input_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeRequest
+	2,  // 30: teleport.mfa.v2.MFAService.CreateChallenge:output_type -> teleport.mfa.v2.CreateChallengeResponse
+	4,  // 31: teleport.mfa.v2.MFAService.ValidateChallenge:output_type -> teleport.mfa.v2.ValidateChallengeResponse
+	6,  // 32: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:output_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse
+	8,  // 33: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:output_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeResponse
+	30, // [30:34] is the sub-list for method output_type
+	26, // [26:30] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_teleport_mfa_v2_mfa_proto_init() }
@@ -2342,10 +1633,8 @@ func file_teleport_mfa_v2_mfa_proto_init() {
 		(*AuthenticateResponse_Sso)(nil),
 	}
 	file_teleport_mfa_v2_mfa_proto_msgTypes[15].OneofWrappers = []any{
-		(*MFADevice_Totp)(nil),
-		(*MFADevice_U2F)(nil),
-		(*MFADevice_Webauthn)(nil),
-		(*MFADevice_Sso)(nil),
+		(*Device_Webauthn)(nil),
+		(*Device_Sso)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2353,7 +1642,7 @@ func file_teleport_mfa_v2_mfa_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_mfa_v2_mfa_proto_rawDesc), len(file_teleport_mfa_v2_mfa_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   30,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
