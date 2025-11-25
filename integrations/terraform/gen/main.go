@@ -687,6 +687,23 @@ var (
 		ForceSetKind:          "apitypes.KindDiscoveryConfig",
 		ConvertPackagePath:    "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1",
 	}
+
+	integration = payload{
+		Name:                   "Integration",
+		VarName:                "integration",
+		TypeName:               "IntegrationV1",
+		IfaceName:              "Integration",
+		GetMethod:              "GetIntegration",
+		CreateMethod:           "CreateIntegration",
+		UpdateMethod:           "UpdateIntegration",
+		UpsertMethodArity:      2,
+		DeleteMethod:           "DeleteIntegration",
+		ID:                     "integration.Metadata.Name",
+		Kind:                   "integration",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_integration",
+		HasCheckAndSetDefaults: true,
+	}
 )
 
 func main() {
@@ -750,6 +767,8 @@ func genTFSchema() {
 	generateDataSource(healthCheckConfig, pluralDataSource)
 	generateResource(discoveryConfig, pluralResource)
 	generateDataSource(discoveryConfig, pluralDataSource)
+	generateResource(integration, pluralResource)
+	generateDataSource(integration, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
