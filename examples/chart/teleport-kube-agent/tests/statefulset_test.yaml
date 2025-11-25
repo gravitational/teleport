@@ -859,8 +859,6 @@ tests:
     template: statefulset.yaml
     values:
       - ../.lint/updater.yaml
-    set:
-      teleportVersionOverride: 13.4.5
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
