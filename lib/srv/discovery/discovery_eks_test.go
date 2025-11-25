@@ -412,22 +412,6 @@ func (m *mockAuthServer) RangeDatabases(ctx context.Context, start, end string) 
 	return stream.Empty[types.Database]()
 }
 
-func (m *mockAuthServer) CreateApp(ctx context.Context, _ types.Application) error {
-	return nil
-}
-
-func (m *mockAuthServer) GetApps(ctx context.Context) ([]types.Application, error) {
-	return nil, nil
-}
-
-func (m *mockAuthServer) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
-	return nil, "", nil
-}
-
-func (m *mockAuthServer) RangeApps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	return func(yield func(types.Application, error) bool) {}
-}
-
 func (m *mockAuthServer) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	return nil, nil
 }
