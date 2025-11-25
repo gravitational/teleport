@@ -18,7 +18,7 @@ Issues short-lived cryptographic identities to workloads, compatible with the SP
 
 ## Secure service-to-service authentication
 
-Establish a root certificate authority within your Teleport cluster that issues short-lived JWTs and X509 certificates to workloads. These identities ([SPIFFE](../machine-workload-identity/workload-identity/spiffe.mdx) Verifiable Identity Documents or SVIDs) contain the workload's identity encoded as a URI (SPIFFE ID).
+Establish a root certificate authority within your Teleport cluster that issues short-lived JWTs and X509 certificates to workloads. These identities ([SPIFFE](../machine-workload-identity/introduction-workload-id/spiffe.mdx) Verifiable Identity Documents or SVIDs) contain the workload's identity encoded as a URI (SPIFFE ID).
 
 Key benefits:
 
@@ -56,7 +56,7 @@ A Kubernetes-based application needs access to both internal services and extern
 
 ### Zero Trust security implementation
 
-A [Zero Trust strategy](../machine-workload-identity/workload-identity/getting-started.mdx) is applied across workloads and automation:
+A [Zero Trust strategy](../machine-workload-identity/getting-started.mdx) is applied across workloads and automation:
 
 - Automation scripts authenticate through the proxy to perform infrastructure tasks
 - Workloads authenticate using short-lived, cryptographically verifiable identities

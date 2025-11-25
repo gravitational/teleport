@@ -2476,6 +2476,66 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/workload-identity/aws-oidc-federation/",
+      "destination": "/machine-workload-identity/aws-oidc-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/aws-roles-anywhere/",
+      "destination": "/machine-workload-identity/aws-roles-anywhere/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/azure-federated-credentials/",
+      "destination": "/machine-workload-identity/azure-federated-credentials/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt/",
+      "destination": "/machine-workload-identity/gcp-workload-identity-federation-jwt/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/federation/",
+      "destination": "/machine-workload-identity/federation/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/best-practices/",
+      "destination": "/machine-workload-identity/best-practices/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/introduction/",
+      "destination": "/machine-workload-identity/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/spiffe/",
+      "destination": "/machine-workload-identity/spiffe/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/jwt-svids/",
+      "destination": "/machine-workload-identity/jwt-svids/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/tsh/",
+      "destination": "/machine-workload-identity/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/",
+      "destination": "/machine-workload-identity/",
+      "permanent": true
+    },
+    {
       "source": "/reference/workload-identity/attributes/",
       "destination": "/reference/machine-workload-identity/workload-identity/attributes/",
       "permanent": true
