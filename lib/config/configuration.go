@@ -307,6 +307,8 @@ type IntegrationConfAccessGraphAWSSync struct {
 	CloudTrailBucketARN string
 	// KMSKeyARNs is the ARN of the KMS key to use for decrypting the Identity Security Activity Center data.
 	KMSKeyARNs []string
+	// EnableEKSAuditLogs enables collection of EKS audit logs from CloudWatch logs.
+	EnableEKSAuditLogs bool
 }
 
 // IntegrationConfAccessGraphAzureSync contains the arguments of
@@ -1718,11 +1720,18 @@ kubernetes matchers are present`)
 					Region:   awsMatcher.CloudTrailLogs.QueueRegion,
 				}
 			}
+			var eksAuditLogs *types.AccessGraphAWSSyncEKSAuditLogs
+			if awsMatcher.EKSAuditLogs != nil {
+				eksAuditLogs = &types.AccessGraphAWSSyncEKSAuditLogs{
+					Tags: awsMatcher.EKSAuditLogs.Tags,
+				}
+			}
 
 			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
 				Regions:        regions,
 				AssumeRole:     assumeRole,
 				CloudTrailLogs: cloudTrailLogs,
+				EksAuditLogs:   eksAuditLogs,
 			})
 		}
 		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {

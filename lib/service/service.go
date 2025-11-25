@@ -143,6 +143,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/pam"
@@ -318,6 +319,13 @@ const (
 
 	// TeleportReadyEvent is generated to signal that all teleport
 	// internal components have started successfully.
+	// This event is used as a sync point to wait for all services to be started
+	// before kicking off new operations.
+	// This must not be confused as a Kube readiness check, checking the process
+	// ability to handle requests. The event can be emitted even while one or
+	// many services are not ready to process requests.
+	// If one need to measure readiness, they should rely on [process.state]
+	// and heartbeats.
 	TeleportReadyEvent = "TeleportReady"
 
 	// ServiceExitedWithErrorEvent is emitted whenever a service
@@ -330,6 +338,12 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
+
+	// TeleportStartingEvent is emitted when a service starts but is not ready yet.
+	// This helps with tracking that a service is expected to report ready.
+	// Without this Teleport will report ready as soon as the first service
+	// is registered and ready, even when other services are still starting up.
+	TeleportStartingEvent = "TeleportStarting"
 )
 
 func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, error) {
@@ -706,8 +720,14 @@ type TeleportProcess struct {
 	// conflicts.
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
-	// Telepeort's metric service.
+	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
+
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	// optionally other systems can add their gatherers, this can be used if they
+	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
+	*metrics.SyncGatherers
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
@@ -759,6 +779,17 @@ func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
 		}
 	}
+}
+
+// ExpectService is used to advertise a service that should be running in the process.
+// Calling ExpectService while starting a service prevents the process from
+// turning ready while the service is not done starting.
+// After calling ExpectService for a component, one must call the OnHeartbeat callback
+// for the same component at least once to mark the service as running.
+// ExpectService should be called just before starting the service with
+// process.RegisterFunc or process.RegisterCriticalFunc.
+func (process *TeleportProcess) ExpectService(component string) {
+	process.BroadcastEvent(Event{Name: TeleportStartingEvent, Payload: component})
 }
 
 func (process *TeleportProcess) findStaticIdentity(role types.SystemRole) (*state.Identity, error) {
@@ -969,6 +1000,12 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	return i, nil
 }
 
+// MetricsRegistry returns the process-scoped metrics registry.
+// New metrics must register against this and not the global prometheus registry.
+func (process *TeleportProcess) MetricsRegistry() prometheus.Registerer {
+	return process.metricsRegistry
+}
+
 // Process is a interface for processes
 type Process interface {
 	// Closer closes all resources used by the process
@@ -1060,14 +1097,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}()
 
-	// Use the custom metrics registry if specified, else create a new one.
-	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
-	// config.
-	metricsRegistry := cfg.MetricsRegistry
-	if metricsRegistry == nil {
-		metricsRegistry = prometheus.NewRegistry()
-	}
+	// config and reusing the same registry causes them to fail.
+	metricsRegistry := prometheus.NewRegistry()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1270,6 +1303,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
+		SyncGatherers: metrics.NewSyncGatherers(
+			metricsRegistry,
+			prometheus.DefaultGatherer,
+		),
 	}
 
 	process.registerExpectedServices(cfg)
@@ -2582,6 +2619,72 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
+	// We mark the process state as starting until the auth backend is ready.
+	// If cache is enabled, this will wait for the cache to be populated.
+	// We don't want auth to say its ready until its cache is populated,
+	// else a rollout might progress too quickly and cause backend pressure
+	// and outages.
+	{
+		component := teleport.Component(teleport.ComponentAuth, "backend")
+		process.ExpectService(component)
+		process.RegisterFunc("auth.wait-for-event-stream", func() error {
+			start := process.Clock.Now()
+
+			retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+				First:  0,
+				Driver: retryutils.NewLinearDriver(5 * time.Second),
+				Max:    time.Minute,
+				Jitter: retryutils.DefaultJitter,
+				Clock:  process.Clock,
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating the backend watch retry (this is a bug)")
+			}
+			log := process.logger.With(teleport.ComponentLabel, component)
+			var attempt int
+
+			// The wait logic is retried until it is successful or a termination is triggered.
+			for {
+				attempt++
+				select {
+				case <-process.GracefulExitContext().Done():
+					return trace.Wrap(err, "context canceled while backing off (attempt %d)", attempt)
+				case <-retry.After():
+					retry.Inc()
+				}
+
+				w, err := authServer.NewWatcher(process.ExitContext(), types.Watch{
+					Name: "auth.wait-for-backend",
+					Kinds: []types.WatchKind{
+						{Kind: types.KindClusterName},
+					},
+				})
+				if err != nil {
+					log.ErrorContext(process.ExitContext(), "Failed to create watcher", "kind", types.KindClusterName, "attempt", attempt, "error", err)
+					continue
+				}
+
+				select {
+				case evt := <-w.Events():
+					w.Close()
+					if evt.Type != types.OpInit {
+						log.ErrorContext(process.ExitContext(), "expected init event, got something else (this is a bug)", "kind", types.KindClusterName, "attempt", attempt, "error", err, "event_type", evt.Type)
+						continue
+					}
+					process.logger.With(teleport.ComponentLabel, component).InfoContext(process.ExitContext(), "auth backend initialized", "duration", process.Clock.Since(start).String())
+					process.OnHeartbeat(component)(nil)
+					return nil
+				case <-w.Done():
+					log.ErrorContext(process.ExitContext(), "watcher closed while waiting for backend init", "kind", types.KindClusterName, "attempt", attempt, "error", w.Error())
+					continue
+				case <-process.GracefulExitContext().Done():
+					w.Close()
+					return trace.Wrap(err, "context canceled while waiting for backendf init event")
+				}
+			}
+		})
+	}
+
 	// Register TLS endpoint of the auth service
 	tlsConfig, err := connector.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
@@ -2645,6 +2748,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		logger.InfoContext(process.ExitContext(), "Auth service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", authAddr)
 
@@ -3933,6 +4037,7 @@ func (process *TeleportProcess) newProcessStateMachine() (*processState, error) 
 		eventCh := make(chan Event, 1024)
 		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
 		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportStartingEvent, eventCh)
 
 		for {
 			select {
@@ -5294,6 +5399,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxySSHAddr:              proxySSHAddr,
 			ProxyWebAddr:              utils.FromAddr(listeners.web.Addr()),
 			ProxyPublicAddrs:          cfg.Proxy.PublicAddrs,
+			ProxyGroupID:              cfg.Proxy.ProxyGroupID,
 			CipherSuites:              cfg.CipherSuites,
 			FIPS:                      cfg.FIPS,
 			AccessPoint:               accessPoint,
@@ -5693,6 +5799,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// Register TLS endpoint of the Kube proxy service
 		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
+
 		kubeServiceType := kubeproxy.ProxyService
 		if cfg.Proxy.Kube.LegacyKubeProxy {
 			kubeServiceType = kubeproxy.LegacyProxyService

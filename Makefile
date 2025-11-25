@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.4.0
+VERSION=18.4.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -2004,6 +2004,17 @@ audit-event-reference:
 audit-event-reference-up-to-date: must-start-clean/host audit-event-reference
 	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "audit event reference docs" "make audit-event-reference"; \
+		exit 1; \
+	fi
+
+.PHONY: access-monitoring-reference
+access-monitoring-reference:
+	cd ./build.assets/tooling/cmd/gen-athena-docs && go run main.go > ../../../../docs/pages/includes/access-monitoring-events.mdx
+
+.PHONY: access-monitoring-reference-up-to-date
+access-monitoring-reference-up-to-date: access-monitoring-reference
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "Access Monitoring event reference docs" "make access-monitoring-reference"; \
 		exit 1; \
 	fi
 

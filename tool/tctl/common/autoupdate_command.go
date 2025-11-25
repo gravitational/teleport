@@ -485,9 +485,9 @@ func (c *AutoUpdateCommand) agentsMarkDoneCommand(ctx context.Context, client au
 	}
 
 	if len(c.groups) == 0 {
-		fmt.Fprintln(c.stdout, "Successfully rolledback every started agent group.")
+		fmt.Fprintln(c.stdout, "Successfully marked every started agent group as completed.")
 	} else {
-		fmt.Fprintf(c.stdout, "Successfully rolledback agents groups: %v.\n", groups)
+		fmt.Fprintf(c.stdout, "Successfully marked agent groups as completed: %v.\n", groups)
 	}
 
 	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")

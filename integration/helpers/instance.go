@@ -660,7 +660,7 @@ func (i *TeleInstance) createTeleportProcess(tconf *servicecfg.Config) (*service
 }
 
 // CreateWithConf creates a new instance of Teleport using the supplied config
-func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) error {
+func (i *TeleInstance) CreateWithConf(t *testing.T, tconf *servicecfg.Config) error {
 	i.Config = tconf
 	var err error
 	i.Process, err = i.createTeleportProcess(tconf)
@@ -677,7 +677,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 	// create users and roles if they don't exist, or sign their keys if they're
 	// already present
 	auth := i.Process.GetAuthServer()
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	for _, user := range i.Secrets.Users {
 		teleUser, err := types.NewUser(user.Username)
@@ -1326,7 +1326,12 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
-
+	if i.Config.WindowsDesktop.Enabled {
+		expectedEvents = append(expectedEvents, service.WindowsDesktopReady)
+	}
+	if i.Config.Relay.Enabled {
+		expectedEvents = append(expectedEvents, service.RelayReady)
+	}
 	if i.Config.Discovery.Enabled {
 		expectedEvents = append(expectedEvents, service.DiscoveryReady)
 	}
@@ -1361,6 +1366,18 @@ func (i *TeleInstance) Start() error {
 		"expected_events_count", len(expectedEvents),
 		"received_events_count", len(receivedEvents),
 	)
+
+	// Wait for any SSH instances to be visible in the inventory before returning
+	// to prevent any immediate connection attempts from failing because the host
+	// has not yet been propagated to the caches.
+	expectedNodes := len(i.Nodes)
+	if i.Config.SSH.Enabled {
+		expectedNodes++
+	}
+
+	if err := i.WaitForNodeCount(context.Background(), i.Secrets.SiteName, expectedNodes); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -1939,6 +1956,10 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 		deadline     = time.Second * 30
 		iterWaitTime = time.Second
 	)
+
+	if count <= 0 || i.Config == nil || !i.Config.Auth.Enabled || !i.Config.Proxy.Enabled {
+		return nil
+	}
 
 	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
 		cluster, err := i.Tunnel.Cluster(ctx, clusterName)

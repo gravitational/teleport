@@ -19,6 +19,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"sort"
@@ -34,8 +35,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -406,6 +409,69 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 }
 
 func onRequestSearch(cf *CLIConf) error {
+	if cf.RequestableRoles && cf.ResourceKind != "" {
+		return trace.BadParameter("only one of --kind and --roles may be specified")
+	}
+	if !cf.RequestableRoles && cf.ResourceKind == "" {
+		return trace.BadParameter("one of --kind and --roles is required")
+	}
+
+	if cf.RequestableRoles {
+		return searchRequestableRoles(cf)
+	} else {
+		return searchRequestableResources(cf)
+	}
+}
+
+func searchRequestableRoles(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var allRoles []*proto.ListRequestableRolesResponse_RequestableRole
+	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
+		pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*proto.ListRequestableRolesResponse_RequestableRole, string, error) {
+			req := &proto.ListRequestableRolesRequest{
+				PageSize:  int32(pageSize),
+				PageToken: pageToken,
+			}
+
+			resp, err := clt.ListRequestableRoles(ctx, req)
+			return resp.GetRoles(), resp.GetNextPageToken(), trace.Wrap(err)
+		}
+
+		var err error
+		allRoles, err = stream.Collect(clientutils.Resources(cf.Context, pageFunc))
+		return err
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(allRoles) == 0 {
+		fmt.Fprintln(cf.Stdout(), "No requestable roles found.")
+		return nil
+	}
+
+	columns := []string{"Role", "Description"}
+	var rows [][]string
+	for _, r := range allRoles {
+		rows = append(rows, []string{r.Name, r.Description})
+	}
+
+	var table asciitable.Table
+	if cf.Verbose {
+		table = asciitable.MakeTable(columns, rows...)
+	} else {
+		table = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Description")
+	}
+
+	_, err = table.AsBuffer().WriteTo(cf.Stdout())
+	return trace.Wrap(err)
+}
+
+func searchRequestableResources(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)

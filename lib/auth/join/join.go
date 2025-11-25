@@ -199,6 +199,8 @@ type RegisterParams struct {
 	// OracleIMDSClient overrides the HTTP client used to make requests to the
 	// OCI Instance Metadata Service.
 	OracleIMDSClient utils.HTTPDoClient
+	// AttestTPM overrides the function used to attest the host TPM for the TPM join method.
+	AttestTPM func(context.Context, *slog.Logger) (*tpm.Attestation, func() error, error)
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
@@ -228,6 +230,10 @@ func (r *RegisterParams) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if r.AttestTPM == nil {
+		r.AttestTPM = tpm.Attest
 	}
 
 	return nil
@@ -892,7 +898,7 @@ func registerUsingTPMMethod(
 		JoinRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
 	}
 
-	attestation, close, err := tpm.Attest(ctx, log)
+	attestation, close, err := params.AttestTPM(ctx, log)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

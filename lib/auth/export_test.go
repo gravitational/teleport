@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -223,10 +222,6 @@ func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidato
 
 func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
 	a.terraformIDTokenValidator = validator
-}
-
-func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
-	a.tpmValidator = validator
 }
 
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {

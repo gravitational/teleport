@@ -83,6 +83,12 @@ func TestRequestToMessage(t *testing.T) {
 			},
 		},
 		{
+			desc: "empty TpmInit",
+			req: &joinv1.JoinRequest{
+				Payload: &joinv1.JoinRequest_TpmInit{},
+			},
+		},
+		{
 			desc: "empty HostParams",
 			req: &joinv1.JoinRequest{
 				Payload: &joinv1.JoinRequest_TokenInit{
@@ -148,6 +154,16 @@ func TestRequestToMessage(t *testing.T) {
 				Payload: &joinv1.JoinRequest_Solution{
 					Solution: &joinv1.ChallengeSolution{
 						Payload: &joinv1.ChallengeSolution_OracleChallengeSolution{},
+					},
+				},
+			},
+		},
+		{
+			desc: "empty TpmSolution",
+			req: &joinv1.JoinRequest{
+				Payload: &joinv1.JoinRequest_Solution{
+					Solution: &joinv1.ChallengeSolution{
+						Payload: &joinv1.ChallengeSolution_TpmSolution{},
 					},
 				},
 			},

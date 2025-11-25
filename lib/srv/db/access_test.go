@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/cloudtest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2453,8 +2454,10 @@ type agentParams struct {
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
 	CADownloader CADownloader
-	// CloudClients is the cloud API clients for database service.
-	CloudClients clients.Clients
+	// AzureClients provides Azure SDK clients.
+	AzureClients clients.AzureClients
+	// GCPClients provides GCP SDK clients.
+	GCPClients clients.GCPClients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
@@ -2495,11 +2498,16 @@ func (p *agentParams) setDefaults(c *testContext) {
 		}
 	}
 
-	if p.CloudClients == nil {
-		p.CloudClients = &clients.TestCloudClients{
+	if p.GCPClients == nil {
+		p.GCPClients = &cloudtest.GCPClients{
 			GCPSQL: p.GCPSQL,
 		}
 	}
+
+	if p.AzureClients == nil {
+		p.AzureClients = &cloudtest.AzureClients{}
+	}
+
 	if p.AWSConfigProvider == nil {
 		p.AWSConfigProvider = &mocks.AWSConfigProvider{Err: trace.AccessDenied("AWS SDK clients are disabled for tests by default")}
 	}
@@ -2544,7 +2552,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient:        c.authClient,
 		AccessPoint:       c.authClient,
-		Clients:           &clients.TestCloudClients{},
+		AzureClients:      &cloudtest.AzureClients{},
+		GCPClients:        &cloudtest.GCPClients{},
 		Clock:             c.clock,
 		AWSConfigProvider: p.AWSConfigProvider,
 	})
@@ -2620,7 +2629,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		OnReconcile:               p.OnReconcile,
 		DatabaseObjects:           p.DatabaseObjects,
 		ConnectionMonitor:         connMonitor,
-		CloudClients:              p.CloudClients,
+		AzureClients:              p.AzureClients,
+		GCPClients:                p.GCPClients,
 		AWSConfigProvider:         p.AWSConfigProvider,
 		AWSDatabaseFetcherFactory: p.AWSDatabaseFetcherFactory,
 		AWSMatchers:               p.AWSMatchers,

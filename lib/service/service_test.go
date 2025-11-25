@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1617,32 +1618,34 @@ func TestDebugService(t *testing.T) {
 	fakeClock := clockwork.NewFakeClock()
 
 	dataDir := makeTempDir(t)
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.DebugService.Enabled = true
+	cfg := &servicecfg.Config{
+		Clock:   fakeClock,
+		DataDir: dataDir,
+	}
 	cfg.Clock = fakeClock
 	cfg.DataDir = dataDir
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-	cfg.Auth.Enabled = true
-	cfg.Proxy.Enabled = false
-	cfg.Auth.StorageConfig.Params["path"] = dataDir
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.SSH.Enabled = false
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-	process, err := NewTeleport(cfg)
+	log := logtest.NewLogger()
+
+	localRegistry := prometheus.NewRegistry()
+	additionalRegistry := prometheus.NewRegistry()
+
+	// In this test we don't want to spin a whole process and have to wait for
+	// every service to report ready (there's an integration test for this).
+	// So we craft a minimal process with only the debug service in it.
+	process := &TeleportProcess{
+		Config:          cfg,
+		Clock:           fakeClock,
+		logger:          log,
+		metricsRegistry: localRegistry,
+		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
+		Supervisor:      NewSupervisor("supervisor-test", log),
+	}
+
+	fakeState, err := newProcessState(process)
 	require.NoError(t, err)
-
-	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	t.Cleanup(cancel)
-	_, err = process.WaitForEvent(ctx, TeleportOKEvent)
-	require.NoError(t, err)
+	fakeState.update(Event{TeleportOKEvent, "dummy"})
+	process.state = fakeState
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -1652,6 +1655,9 @@ func TestDebugService(t *testing.T) {
 			},
 		},
 	}
+
+	require.NoError(t, process.initDebugService(true))
+	require.NoError(t, process.Start())
 
 	// Testing the debug listener.
 	// Fetch a random path, it should return 404 error.
@@ -1684,8 +1690,13 @@ func TestDebugService(t *testing.T) {
 		Namespace: "test",
 		Name:      "global_metric_" + nonce,
 	})
+	additionalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "additional_metric_" + nonce,
+	})
 	require.NoError(t, process.metricsRegistry.Register(localMetric))
 	require.NoError(t, prometheus.Register(globalMetric))
+	require.NoError(t, additionalRegistry.Register(additionalMetric))
 
 	// Test execution: hit the metrics endpoint.
 	resp, err := httpClient.Get("http://debug/metrics")
@@ -1699,6 +1710,26 @@ func TestDebugService(t *testing.T) {
 	// Test validation: check that the metrics server served both the local and global registry.
 	require.Contains(t, string(body), "local_metric_"+nonce)
 	require.Contains(t, string(body), "global_metric_"+nonce)
+	// the additional registry is not yet added
+	require.NotContains(t, string(body), "additional_metric_"+nonce)
+
+	// Test execution: add the additional registry and lookup again
+	process.AddGatherer(additionalRegistry)
+
+	// Test execution: hit the metrics endpoint.
+	resp, err = httpClient.Get("http://debug/metrics")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Test validation: check that the metrics server served both the local and global registry.
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
+	// Metric has been added
+	require.Contains(t, string(body), "additional_metric_"+nonce)
 }
 
 type mockInstanceMetadata struct {
@@ -2082,27 +2113,38 @@ func TestMetricsService(t *testing.T) {
 // health routes.
 func TestDiagnosticsService(t *testing.T) {
 	t.Parallel()
-	// Test setup: create a new teleport process
-	dataDir := makeTempDir(t)
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.DataDir = dataDir
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-	cfg.Auth.Enabled = true
-	cfg.Proxy.Enabled = false
-	cfg.SSH.Enabled = false
-	cfg.DebugService.Enabled = false
-	cfg.Auth.StorageConfig.Params["path"] = dataDir
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
-	// Test setup: Create and start the Teleport service.
-	process, err := NewTeleport(cfg)
+	fakeClock := clockwork.NewFakeClock()
+	dataDir := makeTempDir(t)
+	cfg := &servicecfg.Config{
+		Clock:          fakeClock,
+		DataDir:        dataDir,
+		DiagnosticAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+	}
+
+	log := logtest.NewLogger()
+	localRegistry := prometheus.NewRegistry()
+	additionalRegistry := prometheus.NewRegistry()
+
+	// In this test we don't want to spin a whole process and have to wait for
+	// every service to report ready (there's an integration test for this).
+	// So we craft a minimal process with only the debug service in it.
+	process := &TeleportProcess{
+		Config:          cfg,
+		Clock:           fakeClock,
+		logger:          log,
+		metricsRegistry: localRegistry,
+		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
+		Supervisor:      NewSupervisor("supervisor-test", log),
+	}
+
+	fakeState, err := newProcessState(process)
 	require.NoError(t, err)
+	fakeState.update(Event{TeleportOKEvent, "dummy"})
+	process.state = fakeState
+
+	require.NoError(t, process.initDiagnosticService())
 	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		assert.NoError(t, process.Close())
-		assert.NoError(t, process.Wait())
-	})
 
 	// Test setup: create our test metrics.
 	nonce := strings.ReplaceAll(uuid.NewString(), "-", "")
@@ -2114,13 +2156,13 @@ func TestDiagnosticsService(t *testing.T) {
 		Namespace: "test",
 		Name:      "global_metric_" + nonce,
 	})
+	additionalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "additional_metric_" + nonce,
+	})
 	require.NoError(t, process.metricsRegistry.Register(localMetric))
 	require.NoError(t, prometheus.Register(globalMetric))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	t.Cleanup(cancel)
-	_, err = process.WaitForEvent(ctx, TeleportOKEvent)
-	require.NoError(t, err)
+	require.NoError(t, additionalRegistry.Register(additionalMetric))
 
 	// Test execution: query the metrics endpoint and check the tests metrics are here.
 	diagAddr, err := process.DiagnosticAddr()
@@ -2139,7 +2181,24 @@ func TestDiagnosticsService(t *testing.T) {
 	// Test validation: check that the metrics server served both the local and global registry.
 	require.Contains(t, string(body), "local_metric_"+nonce)
 	require.Contains(t, string(body), "global_metric_"+nonce)
+	// the additional registry is not yet added
+	require.NotContains(t, string(body), "additional_metric_"+nonce)
 
+	// Test execution: add the additional registry and lookup again
+	process.AddGatherer(additionalRegistry)
+
+	resp, err = http.Get(metricsURL.String())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
+	// the additional registry is not yet added
+	require.Contains(t, string(body), "additional_metric_"+nonce)
 	// Fetch the liveness endpoint
 	healthURL, err := url.Parse("http://" + diagAddr.String())
 	require.NoError(t, err)
