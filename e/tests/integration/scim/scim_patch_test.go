@@ -1,8 +1,10 @@
 package scim
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -10,12 +12,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/services"
 )
 
-func TestSCIMPatchScaffolding(t *testing.T) {
+func TestSCIMPatch(t *testing.T) {
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
@@ -23,7 +29,6 @@ func TestSCIMPatchScaffolding(t *testing.T) {
 	)
 
 	scimToken := createGenericSCIMPlugin(t, sut)
-
 	baseURL := url.URL{
 		Scheme: "https",
 		Host:   sut.ProxyAddr,
@@ -38,34 +43,196 @@ func TestSCIMPatchScaffolding(t *testing.T) {
 			},
 		},
 	}
+	authClient := sut.Teleport.Process.GetAuthServer()
+	aclClient := authClient.AccessListsInternal
+
+	t.Run("PATCH Unauthorized", func(t *testing.T) {
+		patchOps := map[string]any{
+			"schemas":    []string{scimsdk.PatchOpSchema},
+			"Operations": "{}",
+		}
+
+		httpClientWithWrongToken := &http.Client{
+			Transport: &bearerAuthTransport{
+				Token: "wrong-token",
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				},
+			},
+		}
+
+		resp, err := doPatchResource(httpClientWithWrongToken, baseURL.String(), "Group", "group-id-123", patchOps)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
+	t.Run("PATCH group with replace displayName", func(t *testing.T) {
+		groupName := "patch-group-001"
+		acl := common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithTitle("Original Group Name"),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+
+		patchedGroup := mustPatchGroup(t, httpClient, baseURL.String(), acl.GetName(), []map[string]any{
+			{
+				"op":    "replace",
+				"path":  "displayName",
+				"value": "Updated Group Name",
+			},
+		})
+
+		require.Equal(t, "Updated Group Name", patchedGroup.DisplayName)
+		acl, err := aclClient.GetAccessList(t.Context(), groupName)
+		require.NoError(t, err)
+		require.Equal(t, "Updated Group Name", acl.Spec.Title)
+	})
+
+	t.Run("PATCH group add members", func(t *testing.T) {
+		groupName := "patch-group-002"
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+
+		patchedGroup := mustPatchGroup(t, httpClient, baseURL.String(), groupName, []map[string]interface{}{
+			{
+				"op":   "add",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": "user1"},
+					{"value": "user2"},
+				},
+			},
+		})
+
+		require.Len(t, patchedGroup.Members, 2)
+
+		members := getAllMembers(t, aclClient, groupName)
+		require.Len(t, members, 2)
+
+		got := []string{members[0].GetName(), members[1].GetName()}
+		want := []string{"user1", "user2"}
+		require.ElementsMatch(t, want, got)
+	})
+
+	t.Run("PATCH group remove members", func(t *testing.T) {
+		groupName := "patch-group-003"
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+
+		mustPatchGroup(t, httpClient, baseURL.String(), groupName, []map[string]any{
+			{
+				"op":   "add",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": "user-to-remove"},
+					{"value": "user-to-keep"},
+				},
+			},
+		})
+
+		// Use PATCH to remove one member
+		patchedGroup := mustPatchGroup(t, httpClient, baseURL.String(), groupName, []map[string]any{
+			{
+				"op":   "remove",
+				"path": `members[value eq "user-to-remove"]`,
+			},
+		})
+		require.Len(t, patchedGroup.Members, 1)
+
+		members := getAllMembers(t, aclClient, groupName)
+		require.Len(t, members, 1)
+		require.Equal(t, "user-to-keep", members[0].GetName())
+	})
+
+	t.Run("PATCH group replace all members", func(t *testing.T) {
+		groupName := "patch-group-004"
+		// Create access list
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+
+		mustPatchGroup(t, httpClient, baseURL.String(), groupName, []map[string]any{
+			{
+				"op":   "add",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": "original-member-1"},
+					{"value": "original-member-2"},
+				},
+			},
+		})
+
+		// Use PATCH to replace all members
+		patchedGroup := mustPatchGroup(t, httpClient, baseURL.String(), groupName, []map[string]any{
+			{
+				"op":   "replace",
+				"path": "members",
+				"value": []map[string]any{
+					{"value": "new-member-1"},
+					{"value": "new-member-2"},
+				},
+			},
+		})
+
+		require.Len(t, patchedGroup.Members, 2)
+
+		members := getAllMembers(t, aclClient, groupName)
+		require.Len(t, members, 2)
+
+		got := []string{members[0].GetName(), members[1].GetName()}
+		want := []string{"new-member-1", "new-member-2"}
+		require.ElementsMatch(t, want, got)
+	})
+}
+
+func mustPatchGroup(t *testing.T, httpClient *http.Client, baseURL, groupID string, ops []map[string]interface{}) *scimsdk.Group {
+	t.Helper()
 	patchOps := map[string]any{
 		"schemas":    []string{scimsdk.PatchOpSchema},
-		"Operations": "{}",
+		"Operations": ops,
 	}
 
-	resp, err := doPatchResource(httpClient, baseURL.String(), "Users", "user-id-123", patchOps)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-	require.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	resp := mustPatchSCIMResource(t, httpClient, baseURL, "Groups", groupID, patchOps)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	resp, err = doPatchResource(httpClient, baseURL.String(), "Groups", "group-id-123", patchOps)
+	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-	require.Equal(t, http.StatusNotImplemented, resp.StatusCode)
+	var patchedGroup scimsdk.Group
+	err = json.Unmarshal(body, &patchedGroup)
+	require.NoError(t, err)
+	return &patchedGroup
+}
 
-	httpClientWithWrongToken := &http.Client{
-		Transport: &bearerAuthTransport{
-			Token: "wrong-token",
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		},
+func getAllMembers(t *testing.T, aclClient services.AccessListsInternal, groupName string) []*accesslist.AccessListMember {
+	t.Helper()
+	fn := func(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
+		return aclClient.ListAccessListMembers(ctx, groupName, pageSize, nextToken)
 	}
-
-	resp, err = doPatchResource(httpClientWithWrongToken, baseURL.String(), "Group", "group-id-123", patchOps)
+	out, err := stream.Collect(clientutils.Resources(t.Context(), fn))
 	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	return out
+}
+
+func mustPatchSCIMResource(t *testing.T, httpClient *http.Client, baseURL, resourceType, resourceID string, operations any) *http.Response {
+	t.Helper()
+	resp, err := doPatchResource(httpClient, baseURL, resourceType, resourceID, operations)
+	require.NoError(t, err)
+	return resp
 }
 
 func doPatchResource(httpClient *http.Client, baseURL, resourceType, resourceID string, ops any) (*http.Response, error) {
