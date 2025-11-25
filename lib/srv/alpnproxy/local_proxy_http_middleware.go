@@ -21,8 +21,6 @@ package alpnproxy
 import (
 	"crypto/tls"
 	"net/http"
-
-	"github.com/gravitational/trace"
 )
 
 // LocalProxyHTTPMiddleware provides callback functions for LocalProxy in HTTP proxy mode.
@@ -36,28 +34,51 @@ type LocalProxyHTTPMiddleware interface {
 	// HandleResponse processes the server response before sending it to the client.
 	HandleResponse(resp *http.Response) error
 
-	// OverwriteClientCerts overwrites the client certs used for upstream connection.
-	OverwriteClientCerts(req *http.Request) ([]tls.Certificate, error)
+	// GetClientCerts optionally returns client certs that should be used for
+	// the connection to the upstream server for the given request. The method
+	// can return a false bool to signal that the [LocalProxy] should use the
+	// client cert from its own config.
+	GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error)
+
+	// OverwriteServerName optionally returns a SNI that should be used for the
+	// connection to the upstream server for the given request, or a false bool
+	// to use the SNI from the [LocalProxy]'s own config.
+	GetServerName(req *http.Request) (string, bool, error)
 
 	// ClearCerts clears the middleware certs.
 	// It will try to reissue them when a new request comes in.
 	ClearCerts()
 }
 
-// DefaultLocalProxyHTTPMiddleware provides default implementations for LocalProxyHTTPMiddleware.
+// DefaultLocalProxyHTTPMiddleware provides default no-op implementations for
+// [LocalProxyHTTPMiddleware].
 type DefaultLocalProxyHTTPMiddleware struct {
 }
 
-func (m *DefaultLocalProxyHTTPMiddleware) CheckAndSetDefaults() error {
+// CheckAndSetDefaults implements [LocalProxyHTTPMiddleware].
+func (DefaultLocalProxyHTTPMiddleware) CheckAndSetDefaults() error {
 	return nil
 }
-func (m *DefaultLocalProxyHTTPMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
+
+// HandleRequest implements [LocalProxyHTTPMiddleware].
+func (DefaultLocalProxyHTTPMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
 	return false
 }
-func (m *DefaultLocalProxyHTTPMiddleware) HandleResponse(resp *http.Response) error {
+
+// HandleResponse implements [LocalProxyHTTPMiddleware].
+func (DefaultLocalProxyHTTPMiddleware) HandleResponse(resp *http.Response) error {
 	return nil
 }
-func (m *DefaultLocalProxyHTTPMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certificate, error) {
-	return nil, trace.NotImplemented("not implemented")
+
+// GetClientCerts implements [LocalProxyHTTPMiddleware].
+func (DefaultLocalProxyHTTPMiddleware) GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error) {
+	return nil, false, nil
 }
-func (m *DefaultLocalProxyHTTPMiddleware) ClearCerts() {}
+
+// GetServerName implements [LocalProxyHTTPMiddleware].
+func (DefaultLocalProxyHTTPMiddleware) GetServerName(req *http.Request) (string, bool, error) {
+	return "", false, nil
+}
+
+// ClearCerts implements [LocalProxyHTTPMiddleware].
+func (DefaultLocalProxyHTTPMiddleware) ClearCerts() {}

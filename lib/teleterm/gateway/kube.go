@@ -142,25 +142,46 @@ func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 	}
 	k.middleware = middleware
 
-	webProxyHost, err := utils.Host(k.cfg.WebProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	if k.cfg.RelayAddr != "" {
+		k.localProxy, err = alpnproxy.NewLocalProxy(
+			alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr: k.cfg.RelayAddr,
+				// connectivity to a relay is secured by internal CAs, the
+				// insecure option makes no sense
+				InsecureSkipVerify: false,
+				Listener:           listener,
+				ParentContext:      k.closeContext,
+				Clock:              k.cfg.Clock,
+				// the relay does not support TLS terminators
+				ALPNConnUpgradeRequired: false,
+			},
+			alpnproxy.WithHTTPMiddleware(middleware),
+			alpnproxy.WithClusterCAs(k.closeContext, k.cfg.RootClusterCACertPoolFunc),
+		)
+		if err != nil {
+			return trace.NewAggregate(err, listener.Close())
+		}
+	} else {
+		webProxyHost, err := utils.Host(k.cfg.WebProxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	k.localProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      k.cfg.Insecure,
-		RemoteProxyAddr:         k.cfg.WebProxyAddr,
-		Listener:                listener,
-		ParentContext:           k.closeContext,
-		Clock:                   k.cfg.Clock,
-		ALPNConnUpgradeRequired: k.cfg.TLSRoutingConnUpgradeRequired,
-	},
-		alpnproxy.WithHTTPMiddleware(middleware),
-		alpnproxy.WithSNI(client.GetKubeTLSServerName(webProxyHost)),
-		alpnproxy.WithClusterCAs(k.closeContext, k.cfg.RootClusterCACertPoolFunc),
-	)
-	if err != nil {
-		return trace.NewAggregate(err, listener.Close())
+		k.localProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+			InsecureSkipVerify:      k.cfg.Insecure,
+			RemoteProxyAddr:         k.cfg.WebProxyAddr,
+			Listener:                listener,
+			ParentContext:           k.closeContext,
+			Clock:                   k.cfg.Clock,
+			ALPNConnUpgradeRequired: k.cfg.TLSRoutingConnUpgradeRequired,
+		},
+			alpnproxy.WithHTTPMiddleware(middleware),
+			alpnproxy.WithSNI(client.GetKubeTLSServerName(webProxyHost)),
+			alpnproxy.WithClusterCAs(k.closeContext, k.cfg.RootClusterCACertPoolFunc),
+		)
+		if err != nil {
+			return trace.NewAggregate(err, listener.Close())
+		}
 	}
 	return nil
 }
@@ -177,6 +198,7 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 		Clock:        k.cfg.Clock,
 		Logger:       k.cfg.Logger,
 		CloseContext: k.closeContext,
+		Relay:        k.cfg.RelayAddr != "",
 	})
 
 	return middleware, nil
