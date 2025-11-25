@@ -32,7 +32,9 @@ export function serializeError(error: Error): SerializedError {
     message,
     cause,
     stack,
-    toStringResult: toString(),
+    // Calling the destructured function directly could result in the following error:
+    // Method Error.prototype.toString called on incompatible receiver undefined
+    toStringResult: error.toString?.(),
     ...enumerableFields,
   };
 }
