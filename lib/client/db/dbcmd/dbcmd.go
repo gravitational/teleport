@@ -120,16 +120,22 @@ type CLICommandBuilder struct {
 	// --cluster flag. Therefore profile.Cluster is not suitable for
 	// determining the target cluster or the root cluster. Use tc.SiteName for
 	// the target cluster and rootCluster for root cluster.
-	profile *client.ProfileStatus
-	db      *tlsca.RouteToDatabase
-	host    string
-	port    int
-	options connectionCommandOpts
-	uid     utils.UID
+	profile         *client.ProfileStatus
+	db              *tlsca.RouteToDatabase
+	host            string
+	port            int
+	options         connectionCommandOpts
+	uid             utils.UID
+	getDatabaseFunc GetDatabaseFunc
 }
 
-func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
-	db tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
+func NewCmdBuilder(
+	tc *client.TeleportClient,
+	profile *client.ProfileStatus,
+	db tlsca.RouteToDatabase,
+	rootClusterName string,
+	getDatabaseFunc GetDatabaseFunc,
+	opts ...ConnectCommandFunc,
 ) (*CLICommandBuilder, error) {
 	var options connectionCommandOpts
 	for _, opt := range opts {
@@ -151,19 +157,20 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		options.exe = &SystemExecer{}
 	}
 
-	if options.getDatabase == nil {
-		return nil, trace.BadParameter("WithGetDatabaseFunc option is required")
+	if getDatabaseFunc == nil {
+		return nil, trace.BadParameter("GetDatabaseFunc is required and cannot be nil")
 	}
 
 	return &CLICommandBuilder{
-		tc:          tc,
-		profile:     profile,
-		db:          &db,
-		host:        host,
-		port:        port,
-		options:     options,
-		rootCluster: rootClusterName,
-		uid:         utils.NewRealUID(),
+		tc:              tc,
+		profile:         profile,
+		db:              &db,
+		host:            host,
+		port:            port,
+		options:         options,
+		rootCluster:     rootClusterName,
+		getDatabaseFunc: getDatabaseFunc,
+		uid:             utils.NewRealUID(),
 	}, nil
 }
 
@@ -553,7 +560,7 @@ func (c *CLICommandBuilder) getMongoCommand(ctx context.Context) (*exec.Cmd, err
 }
 
 func (c *CLICommandBuilder) getDatabase(ctx context.Context) (types.Database, error) {
-	db, err := c.options.getDatabase(ctx, c.tc, c.db.ServiceName)
+	db, err := c.getDatabaseFunc(ctx, c.tc, c.db.ServiceName)
 	return db, trace.Wrap(err)
 }
 
@@ -964,7 +971,6 @@ type connectionCommandOpts struct {
 	exe                      Execer
 	password                 string
 	oracle                   oracleOpts
-	getDatabase              GetDatabaseFunc
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -1069,13 +1075,6 @@ func WithOracleOpts(canUseTCP bool, hasTCPServers bool) ConnectCommandFunc {
 
 // GetDatabaseFunc is a callback to retrieve types.Database.
 type GetDatabaseFunc func(context.Context, *client.TeleportClient, string) (types.Database, error)
-
-// WithGetDatabaseFunc provides a callback to retrieve types.Database.
-func WithGetDatabaseFunc(f GetDatabaseFunc) ConnectCommandFunc {
-	return func(opts *connectionCommandOpts) {
-		opts.getDatabase = f
-	}
-}
 
 const (
 	// envVarMongoServerSelectionTimeoutMS is the environment variable that
