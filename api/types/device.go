@@ -381,6 +381,10 @@ func ResourceOSTypeToString(osType devicepb.OSType) string {
 		return "macos"
 	case devicepb.OSType_OS_TYPE_WINDOWS:
 		return "windows"
+	case devicepb.OSType_OS_TYPE_IOS:
+		return "ios"
+	case devicepb.OSType_OS_TYPE_IPADOS:
+		return "ipados"
 	default:
 		return osType.String()
 	}
@@ -398,6 +402,10 @@ func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
 		return devicepb.OSType_OS_TYPE_MACOS, nil
 	case "windows":
 		return devicepb.OSType_OS_TYPE_WINDOWS, nil
+	case "ios":
+		return devicepb.OSType_OS_TYPE_IOS, nil
+	case "ipados":
+		return devicepb.OSType_OS_TYPE_IPADOS, nil
 	default:
 		return devicepb.OSType_OS_TYPE_UNSPECIFIED, trace.BadParameter("unknown os type %q", osType)
 	}
