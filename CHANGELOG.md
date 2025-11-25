@@ -2543,8 +2543,8 @@ Database Service when running on AWS.
 
 CLI commands reference:
 - [`teleport db configure
-  create`](docs/pages/reference/agent-services/database-access-reference/cli.mdx)
-- [`teleport db configure bootstrap`](docs/pages/reference/agent-services/database-access-reference/cli.mdx)
+  create`](docs/pages/enroll-resources/database-access/reference/cli.mdx)
+- [`teleport db configure bootstrap`](docs/pages/enroll-resources/database-access/reference/cli.mdx)
 
 ### Moderated Sessions
 
@@ -2978,7 +2978,7 @@ To learn more about configuring role-based access control for database access, c
 
 [Architecture](./docs/pages/enroll-resources/database-access/database-access.mdx) provides a more in-depth look at database access internals such as networking and security.
 
-See [Reference](docs/pages/reference/agent-services/database-access-reference/database-access-reference.mdx) for an overview of database access related configuration and CLI commands.
+See [Reference](docs/pages/enroll-resources/database-access/reference/reference.mdx) for an overview of database access related configuration and CLI commands.
 
 Finally, check out [Frequently Asked Questions](docs/pages/enroll-resources/database-access/faq.mdx).
 
