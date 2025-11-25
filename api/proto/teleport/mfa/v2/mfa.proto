@@ -205,7 +205,7 @@ message Device {
   string kind = 1;
   string sub_kind = 2;
   string version = 3;
-  Metadata metadata = 4;
+  teleport.header.v1.Metadata metadata = 4;
 
   // id is a UUID of this device.
   string id = 5;
@@ -217,26 +217,6 @@ message Device {
     WebauthnDevice webauthn = 8;
     SSODevice sso = 9;
   }
-}
-
-// Metadata is resource metadata
-message Metadata {
-  reserved 7; // id
-  reserved "ID";
-
-  // name is an object name
-  string name = 1;
-  // namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.
-  string namespace = 2;
-  // description is object description
-  string description = 3;
-  // labels is a set of labels
-  map<string, string> labels = 5;
-  // expires is a global expiry time header can be set on any resource in the system.
-  google.protobuf.Timestamp expires = 6;
-  // revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not
-  // alter its value but must return the revision in any updates of a resource.
-  string revision = 8;
 }
 
 // WebauthnDevice holds Webauthn-specific fields of Device.

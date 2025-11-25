@@ -1003,10 +1003,10 @@ func (x *ValidatedMFAChallengeSpec) GetTargetCluster() string {
 type Device struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Boilerplate for implementing the Resource interface.
-	Kind     string    `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	SubKind  string    `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	Version  string    `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	Metadata *Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Kind     string        `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	SubKind  string        `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	Version  string        `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Metadata *v11.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// id is a UUID of this device.
 	Id       string                 `protobuf:"bytes,5,opt,name=id,proto3" json:"id,omitempty"`
 	AddedAt  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=added_at,json=addedAt,proto3" json:"added_at,omitempty"`
@@ -1071,7 +1071,7 @@ func (x *Device) GetVersion() string {
 	return ""
 }
 
-func (x *Device) GetMetadata() *Metadata {
+func (x *Device) GetMetadata() *v11.Metadata {
 	if x != nil {
 		return x.Metadata
 	}
@@ -1140,98 +1140,6 @@ func (*Device_Webauthn) isDevice_Device() {}
 
 func (*Device_Sso) isDevice_Device() {}
 
-// Metadata is resource metadata
-type Metadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// name is an object name
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.
-	Namespace string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	// description is object description
-	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	// labels is a set of labels
-	Labels map[string]string `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// expires is a global expiry time header can be set on any resource in the system.
-	Expires *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expires,proto3" json:"expires,omitempty"`
-	// revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not
-	// alter its value but must return the revision in any updates of a resource.
-	Revision      string `protobuf:"bytes,8,opt,name=revision,proto3" json:"revision,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Metadata) Reset() {
-	*x = Metadata{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[16]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Metadata) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Metadata) ProtoMessage() {}
-
-func (x *Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[16]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
-func (*Metadata) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *Metadata) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *Metadata) GetNamespace() string {
-	if x != nil {
-		return x.Namespace
-	}
-	return ""
-}
-
-func (x *Metadata) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
-func (x *Metadata) GetLabels() map[string]string {
-	if x != nil {
-		return x.Labels
-	}
-	return nil
-}
-
-func (x *Metadata) GetExpires() *timestamppb.Timestamp {
-	if x != nil {
-		return x.Expires
-	}
-	return nil
-}
-
-func (x *Metadata) GetRevision() string {
-	if x != nil {
-		return x.Revision
-	}
-	return ""
-}
-
 // WebauthnDevice holds Webauthn-specific fields of Device.
 type WebauthnDevice struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1270,7 +1178,7 @@ type WebauthnDevice struct {
 
 func (x *WebauthnDevice) Reset() {
 	*x = WebauthnDevice{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[17]
+	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1282,7 +1190,7 @@ func (x *WebauthnDevice) String() string {
 func (*WebauthnDevice) ProtoMessage() {}
 
 func (x *WebauthnDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[17]
+	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1295,7 +1203,7 @@ func (x *WebauthnDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WebauthnDevice.ProtoReflect.Descriptor instead.
 func (*WebauthnDevice) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{17}
+	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *WebauthnDevice) GetCredentialId() []byte {
@@ -1383,7 +1291,7 @@ type SSODevice struct {
 
 func (x *SSODevice) Reset() {
 	*x = SSODevice{}
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[18]
+	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1395,7 +1303,7 @@ func (x *SSODevice) String() string {
 func (*SSODevice) ProtoMessage() {}
 
 func (x *SSODevice) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[18]
+	mi := &file_teleport_mfa_v2_mfa_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1408,7 +1316,7 @@ func (x *SSODevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSODevice.ProtoReflect.Descriptor instead.
 func (*SSODevice) Descriptor() ([]byte, []int) {
-	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{18}
+	return file_teleport_mfa_v2_mfa_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SSODevice) GetConnectorId() string {
@@ -1493,28 +1401,18 @@ const file_teleport_mfa_v2_mfa_proto_rawDesc = "" +
 	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12/\n" +
 	"\x06device\x18\x02 \x01(\v2\x17.teleport.mfa.v2.DeviceR\x06device\x12%\n" +
 	"\x0esource_cluster\x18\x03 \x01(\tR\rsourceCluster\x12%\n" +
-	"\x0etarget_cluster\x18\x04 \x01(\tR\rtargetCluster\"\x81\x03\n" +
+	"\x0etarget_cluster\x18\x04 \x01(\tR\rtargetCluster\"\x84\x03\n" +
 	"\x06Device\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\tR\aversion\x125\n" +
-	"\bmetadata\x18\x04 \x01(\v2\x19.teleport.mfa.v2.MetadataR\bmetadata\x12\x0e\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x0e\n" +
 	"\x02id\x18\x05 \x01(\tR\x02id\x125\n" +
 	"\badded_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aaddedAt\x127\n" +
 	"\tlast_used\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\blastUsed\x12=\n" +
 	"\bwebauthn\x18\b \x01(\v2\x1f.teleport.mfa.v2.WebauthnDeviceH\x00R\bwebauthn\x12.\n" +
 	"\x03sso\x18\t \x01(\v2\x1a.teleport.mfa.v2.SSODeviceH\x00R\x03ssoB\b\n" +
-	"\x06device\"\xb4\x02\n" +
-	"\bMetadata\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
-	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\x12=\n" +
-	"\x06labels\x18\x05 \x03(\v2%.teleport.mfa.v2.Metadata.LabelsEntryR\x06labels\x124\n" +
-	"\aexpires\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\x12\x1a\n" +
-	"\brevision\x18\b \x01(\tR\brevision\x1a9\n" +
-	"\vLabelsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\a\x10\bR\x02ID\"\xf1\x03\n" +
+	"\x06device\"\xf1\x03\n" +
 	"\x0eWebauthnDevice\x12#\n" +
 	"\rcredential_id\x18\x01 \x01(\fR\fcredentialId\x12&\n" +
 	"\x0fpublic_key_cbor\x18\x02 \x01(\fR\rpublicKeyCbor\x12)\n" +
@@ -1550,7 +1448,7 @@ func file_teleport_mfa_v2_mfa_proto_rawDescGZIP() []byte {
 	return file_teleport_mfa_v2_mfa_proto_rawDescData
 }
 
-var file_teleport_mfa_v2_mfa_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_mfa_v2_mfa_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_teleport_mfa_v2_mfa_proto_goTypes = []any{
 	(*SessionIdentifyingPayload)(nil),              // 0: teleport.mfa.v2.SessionIdentifyingPayload
 	(*CreateChallengeRequest)(nil),                 // 1: teleport.mfa.v2.CreateChallengeRequest
@@ -1568,15 +1466,13 @@ var file_teleport_mfa_v2_mfa_proto_goTypes = []any{
 	(*ValidatedMFAChallenge)(nil),                  // 13: teleport.mfa.v2.ValidatedMFAChallenge
 	(*ValidatedMFAChallengeSpec)(nil),              // 14: teleport.mfa.v2.ValidatedMFAChallengeSpec
 	(*Device)(nil),                                 // 15: teleport.mfa.v2.Device
-	(*Metadata)(nil),                               // 16: teleport.mfa.v2.Metadata
-	(*WebauthnDevice)(nil),                         // 17: teleport.mfa.v2.WebauthnDevice
-	(*SSODevice)(nil),                              // 18: teleport.mfa.v2.SSODevice
-	nil,                                            // 19: teleport.mfa.v2.Metadata.LabelsEntry
-	(*v1.CredentialAssertion)(nil),                 // 20: teleport.webauthn.v1.CredentialAssertion
-	(*v1.CredentialAssertionResponse)(nil),         // 21: teleport.webauthn.v1.CredentialAssertionResponse
-	(*v11.Metadata)(nil),                           // 22: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),                  // 23: google.protobuf.Timestamp
-	(*wrapperspb.BoolValue)(nil),                   // 24: google.protobuf.BoolValue
+	(*WebauthnDevice)(nil),                         // 16: teleport.mfa.v2.WebauthnDevice
+	(*SSODevice)(nil),                              // 17: teleport.mfa.v2.SSODevice
+	(*v1.CredentialAssertion)(nil),                 // 18: teleport.webauthn.v1.CredentialAssertion
+	(*v1.CredentialAssertionResponse)(nil),         // 19: teleport.webauthn.v1.CredentialAssertionResponse
+	(*v11.Metadata)(nil),                           // 20: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),                  // 21: google.protobuf.Timestamp
+	(*wrapperspb.BoolValue)(nil),                   // 22: google.protobuf.BoolValue
 }
 var file_teleport_mfa_v2_mfa_proto_depIdxs = []int32{
 	0,  // 0: teleport.mfa.v2.CreateChallengeRequest.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
@@ -1587,37 +1483,35 @@ var file_teleport_mfa_v2_mfa_proto_depIdxs = []int32{
 	13, // 5: teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse.replicated_challenge:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
 	0,  // 6: teleport.mfa.v2.VerifyValidatedMFAChallengeRequest.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
 	15, // 7: teleport.mfa.v2.VerifyValidatedMFAChallengeResponse.device:type_name -> teleport.mfa.v2.Device
-	20, // 8: teleport.mfa.v2.AuthenticateChallenge.webauthn_challenge:type_name -> teleport.webauthn.v1.CredentialAssertion
+	18, // 8: teleport.mfa.v2.AuthenticateChallenge.webauthn_challenge:type_name -> teleport.webauthn.v1.CredentialAssertion
 	11, // 9: teleport.mfa.v2.AuthenticateChallenge.sso_challenge:type_name -> teleport.mfa.v2.SSOChallenge
-	21, // 10: teleport.mfa.v2.AuthenticateResponse.webauthn:type_name -> teleport.webauthn.v1.CredentialAssertionResponse
+	19, // 10: teleport.mfa.v2.AuthenticateResponse.webauthn:type_name -> teleport.webauthn.v1.CredentialAssertionResponse
 	12, // 11: teleport.mfa.v2.AuthenticateResponse.sso:type_name -> teleport.mfa.v2.SSOChallengeResponse
-	18, // 12: teleport.mfa.v2.SSOChallenge.device:type_name -> teleport.mfa.v2.SSODevice
-	22, // 13: teleport.mfa.v2.ValidatedMFAChallenge.metadata:type_name -> teleport.header.v1.Metadata
+	17, // 12: teleport.mfa.v2.SSOChallenge.device:type_name -> teleport.mfa.v2.SSODevice
+	20, // 13: teleport.mfa.v2.ValidatedMFAChallenge.metadata:type_name -> teleport.header.v1.Metadata
 	14, // 14: teleport.mfa.v2.ValidatedMFAChallenge.spec:type_name -> teleport.mfa.v2.ValidatedMFAChallengeSpec
 	0,  // 15: teleport.mfa.v2.ValidatedMFAChallengeSpec.payload:type_name -> teleport.mfa.v2.SessionIdentifyingPayload
 	15, // 16: teleport.mfa.v2.ValidatedMFAChallengeSpec.device:type_name -> teleport.mfa.v2.Device
-	16, // 17: teleport.mfa.v2.Device.metadata:type_name -> teleport.mfa.v2.Metadata
-	23, // 18: teleport.mfa.v2.Device.added_at:type_name -> google.protobuf.Timestamp
-	23, // 19: teleport.mfa.v2.Device.last_used:type_name -> google.protobuf.Timestamp
-	17, // 20: teleport.mfa.v2.Device.webauthn:type_name -> teleport.mfa.v2.WebauthnDevice
-	18, // 21: teleport.mfa.v2.Device.sso:type_name -> teleport.mfa.v2.SSODevice
-	19, // 22: teleport.mfa.v2.Metadata.labels:type_name -> teleport.mfa.v2.Metadata.LabelsEntry
-	23, // 23: teleport.mfa.v2.Metadata.expires:type_name -> google.protobuf.Timestamp
-	24, // 24: teleport.mfa.v2.WebauthnDevice.credential_backup_eligible:type_name -> google.protobuf.BoolValue
-	24, // 25: teleport.mfa.v2.WebauthnDevice.credential_backed_up:type_name -> google.protobuf.BoolValue
-	1,  // 26: teleport.mfa.v2.MFAService.CreateChallenge:input_type -> teleport.mfa.v2.CreateChallengeRequest
-	3,  // 27: teleport.mfa.v2.MFAService.ValidateChallenge:input_type -> teleport.mfa.v2.ValidateChallengeRequest
-	5,  // 28: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:input_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest
-	7,  // 29: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:input_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeRequest
-	2,  // 30: teleport.mfa.v2.MFAService.CreateChallenge:output_type -> teleport.mfa.v2.CreateChallengeResponse
-	4,  // 31: teleport.mfa.v2.MFAService.ValidateChallenge:output_type -> teleport.mfa.v2.ValidateChallengeResponse
-	6,  // 32: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:output_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse
-	8,  // 33: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:output_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeResponse
-	30, // [30:34] is the sub-list for method output_type
-	26, // [26:30] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	20, // 17: teleport.mfa.v2.Device.metadata:type_name -> teleport.header.v1.Metadata
+	21, // 18: teleport.mfa.v2.Device.added_at:type_name -> google.protobuf.Timestamp
+	21, // 19: teleport.mfa.v2.Device.last_used:type_name -> google.protobuf.Timestamp
+	16, // 20: teleport.mfa.v2.Device.webauthn:type_name -> teleport.mfa.v2.WebauthnDevice
+	17, // 21: teleport.mfa.v2.Device.sso:type_name -> teleport.mfa.v2.SSODevice
+	22, // 22: teleport.mfa.v2.WebauthnDevice.credential_backup_eligible:type_name -> google.protobuf.BoolValue
+	22, // 23: teleport.mfa.v2.WebauthnDevice.credential_backed_up:type_name -> google.protobuf.BoolValue
+	1,  // 24: teleport.mfa.v2.MFAService.CreateChallenge:input_type -> teleport.mfa.v2.CreateChallengeRequest
+	3,  // 25: teleport.mfa.v2.MFAService.ValidateChallenge:input_type -> teleport.mfa.v2.ValidateChallengeRequest
+	5,  // 26: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:input_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest
+	7,  // 27: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:input_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeRequest
+	2,  // 28: teleport.mfa.v2.MFAService.CreateChallenge:output_type -> teleport.mfa.v2.CreateChallengeResponse
+	4,  // 29: teleport.mfa.v2.MFAService.ValidateChallenge:output_type -> teleport.mfa.v2.ValidateChallengeResponse
+	6,  // 30: teleport.mfa.v2.MFAService.ReplicateValidatedMFAChallenge:output_type -> teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse
+	8,  // 31: teleport.mfa.v2.MFAService.VerifyValidatedMFAChallenge:output_type -> teleport.mfa.v2.VerifyValidatedMFAChallengeResponse
+	28, // [28:32] is the sub-list for method output_type
+	24, // [24:28] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_teleport_mfa_v2_mfa_proto_init() }
@@ -1642,7 +1536,7 @@ func file_teleport_mfa_v2_mfa_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_mfa_v2_mfa_proto_rawDesc), len(file_teleport_mfa_v2_mfa_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
