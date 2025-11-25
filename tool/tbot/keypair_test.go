@@ -27,10 +27,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/cli"
-	"github.com/stretchr/testify/require"
 )
 
 func dummyGetSuite(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
