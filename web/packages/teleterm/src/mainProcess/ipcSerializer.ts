@@ -26,7 +26,16 @@ export type SerializedError = {
 
 /** Serializes an Error into a plain object for transport through Electron IPC. */
 export function serializeError(error: Error): SerializedError {
-  const { name, cause, stack, message, toString, ...enumerableFields } = error;
+  const {
+    name,
+    cause,
+    stack,
+    message,
+    // functions must be skipped, otherwise structuredClone will fail to clone the object
+    // eslint-disable-next-line unused-imports/no-unused-vars
+    toString,
+    ...enumerableFields
+  } = error;
   return {
     name,
     message,
