@@ -536,10 +536,9 @@ func onDatabaseConfig(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case dbFormatCommand:
-		cb, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster,
+		cb, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster, getDatabase,
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithLogger(logger),
-			dbcmd.WithGetDatabaseFunc(getDatabase),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -794,7 +793,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	bb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
+	bb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, dbInfo.getDatabaseForDBCmd, opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -240,7 +240,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		cb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster, opts...)
+		cb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster, dbInfo.getDatabaseForDBCmd, opts...)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -316,7 +316,6 @@ func makeDatabaseCommandOptions(ctx context.Context, tc *libclient.TeleportClien
 	var err error
 	opts := append([]dbcmd.ConnectCommandFunc{
 		dbcmd.WithLogger(logger),
-		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 	}, extraOpts...)
 
 	if opts, err = maybeAddDBUserPassword(ctx, tc, dbInfo, opts); err != nil {

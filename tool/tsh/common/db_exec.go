@@ -516,7 +516,7 @@ func (m *databaseExecCommandMaker) makeCommand(ctx context.Context, dbInfo *data
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cb, err := dbcmd.NewCmdBuilder(m.tc, m.profile, dbInfo.RouteToDatabase, m.rootCluster, opts...)
+	cb, err := dbcmd.NewCmdBuilder(m.tc, m.profile, dbInfo.RouteToDatabase, m.rootCluster, dbInfo.getDatabaseForDBCmd, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
