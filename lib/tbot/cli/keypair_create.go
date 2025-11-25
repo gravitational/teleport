@@ -18,7 +18,12 @@
 
 package cli
 
-import "github.com/gravitational/teleport"
+import (
+	"io"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+)
 
 // KeypairCreateCommand handles `tbot keypair create`
 type KeypairCreateCommand struct {
@@ -30,6 +35,14 @@ type KeypairCreateCommand struct {
 	Format        string
 	Static        bool
 	StaticKeyPath string
+
+	// GetSuite is an optional function to fetch crypto suites. Used to override
+	// in tests, may be nil.
+	GetSuite cryptosuites.GetSuiteFunc
+
+	// Writer is an optional writer to which output from this command should be
+	// written. If nil, stdout is used. Used in tests.
+	Writer io.Writer
 }
 
 // NewKeypairCreateCommand initializes the `keypair create` command and returns
