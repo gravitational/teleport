@@ -20,6 +20,7 @@ package tfgen_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -28,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/tfgen"
 	"github.com/gravitational/teleport/lib/tfgen/transform"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -47,6 +49,11 @@ func TestGenerate_Role(t *testing.T) {
 				KubernetesLabels: types.Labels{
 					"env":    []string{"staging", "dev"},
 					"region": []string{"eu-west-1"},
+				},
+				NodeLabels: types.Labels{
+					"foo":  []string{},
+					"bar":  []string{"baz"},
+					"team": []string{"a", "b", "c"},
 				},
 				KubeGroups: []string{"{{internal.kubernetes_groups}}"},
 				KubeUsers:  []string{"{{internal.kubernetes_users}}"},
@@ -152,6 +159,36 @@ func TestGenerate_AccessMonitoringRule(t *testing.T) {
 			},
 		},
 	)
+}
+
+func TestGenerate_User(t *testing.T) {
+	t.Parallel()
+
+	user, err := types.NewUser("bob")
+	require.NoError(t, err)
+
+	user.SetTraits(map[string][]string{
+		"kubernetes_groups": []string{"viewers"},
+	})
+
+	goldenTest(t, user)
+}
+
+func TestGenerate_OIDCConnector(t *testing.T) {
+	t.Parallel()
+
+	connector, err := types.NewOIDCConnector("connector", types.OIDCConnectorSpecV3{
+		ClientID:     "some-client",
+		ClientSecret: "some-secret",
+		ClaimsToRoles: []types.ClaimMapping{
+			{Claim: "foo", Value: "bar", Roles: []string{"baz"}},
+		},
+		RedirectURLs: wrappers.Strings{"https://some-url"},
+		MaxAge:       &types.MaxAge{Value: types.NewDuration(1 * time.Second)},
+	})
+	require.NoError(t, err)
+
+	goldenTest(t, connector)
 }
 
 func goldenTest(t *testing.T, resource tfgen.Resource, opts ...tfgen.GenerateOpt) {
