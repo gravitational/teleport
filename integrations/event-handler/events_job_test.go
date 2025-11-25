@@ -1,0 +1,103 @@
+package main
+
+import (
+	"bytes"
+	"log/slog"
+	"regexp"
+	"testing"
+
+	"github.com/peterbourgon/diskv/v3"
+	"github.com/stretchr/testify/require"
+
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
+)
+
+func TestEventHandlerFilters(t *testing.T) {
+	tests := []struct {
+		name         string
+		ingestConfig IngestConfig
+		events       []apievents.AuditEvent
+		skipEvent    func(*testing.T, string) bool
+		checkEvent   func(*testing.T, string) bool
+	}{
+		{
+			name: "types filter out role.created",
+			ingestConfig: IngestConfig{
+				Types:            []string{"join_token.create"},
+				SkipSessionTypes: map[string]struct{}{"print": {}, "desktop.recording": {}},
+				DryRun:           true,
+			},
+			events: []apievents.AuditEvent{
+				&apievents.RoleCreate{
+					Metadata: apievents.Metadata{
+						Type: events.RoleCreatedEvent,
+						Code: events.RoleCreatedCode,
+					},
+				},
+				&apievents.ProvisionTokenCreate{
+					Metadata: apievents.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+				},
+			},
+		},
+		{
+			name: "skip-event-types filter out role.created",
+			ingestConfig: IngestConfig{
+				SkipEventTypes:   map[string]struct{}{"role.created": {}},
+				SkipSessionTypes: map[string]struct{}{"print": {}, "desktop.recording": {}},
+				DryRun:           true,
+			},
+			events: []apievents.AuditEvent{
+				&apievents.RoleCreate{
+					Metadata: apievents.Metadata{
+						Type: events.RoleCreatedEvent,
+						Code: events.RoleCreatedCode,
+					},
+				},
+				&apievents.ProvisionTokenCreate{
+					Metadata: apievents.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := &bytes.Buffer{}
+			log := slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+			job := NewEventsJob(&App{
+				Config: &StartCmdConfig{
+					IngestConfig: tt.ingestConfig},
+				State: &State{
+					dv: diskv.New(diskv.Options{
+						BasePath: t.TempDir(),
+					}),
+				},
+				client: &mockClient{},
+				log:    log,
+			})
+
+			generateEvents, err := eventsToProto(tt.events)
+			require.NoError(t, err)
+
+			for _, event := range generateEvents {
+				exportEvent := &auditlogpb.ExportEventUnstructured{Event: event}
+
+				err := job.handleEventV2(t.Context(), exportEvent)
+				require.NoError(t, err)
+
+			}
+
+			require.NotRegexp(t, regexp.MustCompile("\"Event sent\".*type=role.created"), out.String())
+			require.Regexp(t, regexp.MustCompile("\"Event sent\".*type=join_token.create"), out.String())
+		})
+	}
+}

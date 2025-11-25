@@ -28,7 +28,7 @@ You may specify configuration options via command line arguments, environment va
 | teleport-refresh-interval | How often to load the identity file from disk when teleport-refresh-enabled is specified. Default: 1m | FDFWD_TELEPORT_REFRESH_INTERVAL |
 | fluentd-url               | Fluentd URL                                                                                           | FDFWD_FLUENTD_URL               |
 | fluentd-session-url       | Fluentd session URL                                                                                   | FDFWD_FLUENTD_SESSION_URL       |
-| fluentd-ca                | fluentd TLS CA file                                                                                   | FDFWD_FLUENTD_CA                |
+| fluentd-ca                | Fluentd TLS CA file                                                                                   | FDFWD_FLUENTD_CA                |
 | fluentd-cert              | Fluentd TLS certificate file                                                                          | FDFWD_FLUENTD_CERT              |
 | fluentd-key               | Fluentd TLS key file                                                                                  | FDFWD_FLUENTD_KEY               |
 | storage                   | Storage directory                                                                                     | FDFWD_STORAGE                   |
@@ -38,7 +38,6 @@ You may specify configuration options via command line arguments, environment va
 | skip-session-types        | Comma-separated list of session event types to skip                                                   | FDFWD_SKIP_SESSION_TYPES        |
 | start-time                | Minimum event time (RFC3339 format)                                                                   | FDFWD_START_TIME                |
 | timeout                   | Polling timeout                                                                                       | FDFWD_TIMEOUT                   |
-| cursor                    | Start cursor value                                                                                    | FDFWD_CURSOR                    |
 | debug                     | Debug logging                                                                                         | FDFWD_DEBUG                     |
 
 TOML configuration keys are the same as CLI args. Teleport and Fluentd variables can be grouped into sections. See [example TOML](example/config.toml). You can specify TOML file location using `--config` CLI flag.
