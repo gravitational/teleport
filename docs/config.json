@@ -986,7 +986,7 @@
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
-      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "destination": "/identity-governance/access-lists/terraform/",
       "permanent": true
     },
     {
@@ -3491,7 +3491,12 @@
     },
     {
       "source": "/identity-governance/access-lists/terraform/",
-      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "destination": "/identity-governance/access-lists/terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/",
       "permanent": true
     }
   ]
