@@ -20,7 +20,7 @@ package synctest
 
 import (
 	"testing"
-	"testing/synctest"
+	"testing/synctest" //nolint:depguard // this package wraps synctest
 )
 
 // Test runs the provided function in a synctest bubble if synctest is
