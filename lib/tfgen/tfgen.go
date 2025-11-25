@@ -317,18 +317,22 @@ func valueToCty(
 		listVal := val.List()
 		if len(listVal.Elems) == 0 {
 			if emitZeroVal {
-				return cty.MapValEmpty(cty.NilType)
+				return cty.ListValEmpty(cty.NilType)
 			}
 			return cty.NilVal
 		}
-		elems := make([]cty.Value, len(listVal.Elems))
+		elems := make([]cty.Value, 0, len(listVal.Elems))
 		for idx, elem := range listVal.Elems {
-			elems[idx] = valueToCty(
+			value := valueToCty(
 				append(path, fmt.Sprintf("[%d]", idx)),
 				elem,
 				opts,
 				false, /* emitZeroVal */
 			)
+			if value == cty.NilVal {
+				continue
+			}
+			elems = append(elems, value)
 		}
 		return cty.ListVal(elems)
 
@@ -343,12 +347,16 @@ func valueToCty(
 		elems := make(map[string]cty.Value, len(mapVal.Elems))
 		for k, v := range mapVal.Elems {
 			key := fmt.Sprintf("%v", k)
-			elems[fmt.Sprintf("%v", k)] = valueToCty(
+			value := valueToCty(
 				append(path, fmt.Sprintf("[%q]", key)),
 				v,
 				opts,
-				false,
+				false, /* emitZeroVal */
 			)
+			if value == cty.NilVal {
+				continue
+			}
+			elems[key] = value
 		}
 		return cty.MapVal(elems)
 

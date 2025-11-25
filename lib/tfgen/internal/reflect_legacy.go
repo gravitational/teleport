@@ -72,10 +72,15 @@ func reflectMessageLegacy(value reflect.Value) (*Message, error) {
 			continue
 		}
 
-		msg.Attributes = append(msg.Attributes, Attribute{
-			Name:  fieldName,
-			Value: fieldValue,
-		})
+		if fieldType.Anonymous {
+			// Handle embedded struct fields.
+			msg.Attributes = append(msg.Attributes, fieldValue.Message().Attributes...)
+		} else {
+			msg.Attributes = append(msg.Attributes, Attribute{
+				Name:  fieldName,
+				Value: fieldValue,
+			})
+		}
 	}
 
 	return &msg, nil

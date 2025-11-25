@@ -9,6 +9,10 @@ resource "teleport_role" "gravitational-teleport-kube-access" {
 
   spec = {
     allow = {
+      node_labels = {
+        bar  = ["baz"]
+        team = ["a", "b", "c"]
+      }
       kubernetes_groups = ["{{internal.kubernetes_groups}}"]
       kubernetes_users  = ["{{internal.kubernetes_users}}"]
       kubernetes_labels = {

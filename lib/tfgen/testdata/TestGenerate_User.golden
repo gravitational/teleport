@@ -1,0 +1,13 @@
+resource "teleport_user" "bob" {
+  version = "v2"
+
+  metadata = {
+    name = "bob"
+  }
+
+  spec = {
+    traits = {
+      kubernetes_groups = ["viewers"]
+    }
+  }
+}
