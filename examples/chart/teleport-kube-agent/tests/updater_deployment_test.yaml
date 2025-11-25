@@ -103,7 +103,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--update-group=stable/cloud"
+          content: "--update-group=default"
   - it: uses the update group when set
     set:
       proxyAddr: proxy.teleport.example.com:443
