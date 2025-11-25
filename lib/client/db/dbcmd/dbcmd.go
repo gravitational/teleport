@@ -767,14 +767,13 @@ func (c *CLICommandBuilder) getSpannerCommand(ctx context.Context) (*exec.Cmd, e
 	)
 
 	db, err := c.getDatabase(ctx)
-	if err != nil {
-		// default placeholders for a print command if not all info is available
-		if c.options.printFormat {
-			project, instance, database = "<project>", "<instance>", "<database>"
-		} else {
-			return nil, trace.Wrap(err)
-		}
-	} else {
+	switch {
+	case err != nil && c.options.printFormat:
+		// OK to continue in this case, we'll print the placeholders instead.
+		project, instance, database = "<project>", "<instance>", "<database>"
+	case err != nil:
+		return nil, trace.Wrap(err)
+	default:
 		gcp = db.GetGCP()
 	}
 
