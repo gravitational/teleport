@@ -5112,6 +5112,39 @@ func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, rateFunc fu
 	})
 }
 
+// WithAccessDeniedLimiter adds conditional IP-based rate limiting that only applies
+// when the request handler returns an access denied error.
+//
+// This is different from WithUnauthenticatedLimiter in an important way:
+//   - WithUnauthenticatedLimiter: Checks authentication BEFORE executing the handler using local
+//     authentication mechanisms (user auth session cookie). If authentication fails locally, it
+//     applies rate limiting BEFORE executing the handler.
+//   - WithAccessDeniedLimiter: Executes the handler first, delegates authentication
+//     to the handler, then applies rate limiting ONLY if the handler returns an access denied error.
+//
+// Use this limiter for endpoints where authentication happens downstream (e.g., SCIM
+// endpoints where auth is handled by the auth server, not in the proxy).
+func (h *Handler) WithAccessDeniedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return h.conditionalLimiterFunc(fn, h.limiter, trace.IsAccessDenied)
+}
+
+func (h *Handler) conditionalLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter, shouldLimit func(error) bool) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		// TODO(smallinsky) Currently, the WithUnauthenticatedLimiter and the WithUnauthenticatedAccessDeniedLimiter perform
+		// rate limit change after the authentication check.
+		// Ideally if a client is rate limited it should be rate limited before any authentication check is preformed.
+		result, err := fn(w, r, p)
+		if err != nil {
+			if shouldLimit(err) {
+				if err := rateLimitRequest(r, limiter); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+		return result, err
+	})
+}
+
 // WithLimiter adds IP-based rate limiting to fn.
 // Limits are applied to all requests, authenticated or not.
 func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
