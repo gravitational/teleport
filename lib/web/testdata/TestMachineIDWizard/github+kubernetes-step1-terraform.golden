@@ -1,0 +1,67 @@
+# This file contains definitions for resources required to allow a GitHub
+# Actions workflow to enroll with Teleport and connect to allowed Kubernetes
+# clusters protected by Teleport.
+
+# See the Teleport Terraform Provider docs for more information about using
+# Terraform to manage Teleport resources:
+# https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/
+
+# A role defines which Kubernetes clusters can be accessed, and the level of
+# access granted. Fine tune the access using the `kubernetes_*` attributes.
+# All available options can be found in the Teleport Terraform Provider
+# reference:
+# https://goteleport.com/docs/reference/infrastructure-as-code/terraform-provider/
+resource "teleport_role" "gha-gravitational-teleport-kube-access" {
+  version = "v7"
+
+  metadata = {
+    name = "gha-gravitational-teleport-kube-access"
+  }
+
+  spec = {
+    allow = {
+      kubernetes_groups = ["{{internal.kubernetes_groups}}"]
+      kubernetes_users  = ["{{internal.kubernetes_users}}"]
+      # kubernetes_labels will be added in the next steps.
+      kubernetes_labels = {}
+    }
+  }
+}
+
+# A bot is a Machine & Workload ID user which is granted access to enrolled
+# Kubernetes clusters using the role above.
+resource "teleport_bot" "gha-gravitational-teleport" {
+  version = "v1"
+
+  metadata = {
+    name = "gha-gravitational-teleport"
+  }
+
+  spec = {
+    # kubernetes_groups and kubernetes_users will be added in the next step.
+    traits = {}
+  }
+}
+
+# A provision token allows a GitHub Actions workflow to enroll with Teleport and
+# assume the identity of the bot defined above and its access.
+resource "teleport_provision_token" "gha-gravitational-teleport" {
+  version = "v2"
+
+  metadata = {
+    name = "gha-gravitational-teleport"
+  }
+
+  spec = {
+    roles       = ["Bot"]
+    join_method = "github"
+    bot_name    = "gha-gravitational-teleport"
+    github = {
+      allow = [{
+        repository       = "gravitational/teleport"
+        repository_owner = "gravitational"
+      }]
+    }
+  }
+}
+

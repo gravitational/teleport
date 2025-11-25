@@ -1,0 +1,84 @@
+# This file contains definitions for resources required to allow a GitHub
+# Actions workflow to enroll with Teleport and connect to allowed Kubernetes
+# clusters protected by Teleport.
+
+# See the Teleport Terraform Provider docs for more information about using
+# Terraform to manage Teleport resources:
+# https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/
+
+# A role defines which Kubernetes clusters can be accessed, and the level of
+# access granted. Fine tune the access using the `kubernetes_*` attributes.
+# All available options can be found in the Teleport Terraform Provider
+# reference:
+# https://goteleport.com/docs/reference/infrastructure-as-code/terraform-provider/
+resource "teleport_role" "gha-gravitational-teleport-kube-access" {
+  version = "v7"
+
+  metadata = {
+    name = "gha-gravitational-teleport-kube-access"
+  }
+
+  spec = {
+    allow = {
+      kubernetes_groups = ["{{internal.kubernetes_groups}}"]
+      kubernetes_users  = ["{{internal.kubernetes_users}}"]
+      kubernetes_labels = {
+        department = ["engineering"]
+      }
+      kubernetes_resources = [{
+        api_group = "apps"
+        kind      = "deployment"
+        name      = "billing-service"
+        namespace = "default"
+      }]
+    }
+  }
+}
+
+# A bot is a Machine & Workload ID user which is granted access to enrolled
+# Kubernetes clusters using the role above.
+resource "teleport_bot" "gha-gravitational-teleport" {
+  version = "v1"
+
+  metadata = {
+    name = "gha-gravitational-teleport"
+  }
+
+  spec = {
+    traits = {
+      kubernetes_groups = ["viewers"]
+      kubernetes_users  = ["serviceAccount:deployment-sa"]
+    }
+  }
+}
+
+# A provision token allows a GitHub Actions workflow to enroll with Teleport and
+# assume the identity of the bot defined above and its access.
+resource "teleport_provision_token" "gha-gravitational-teleport" {
+  version = "v2"
+
+  metadata = {
+    name = "gha-gravitational-teleport"
+  }
+
+  spec = {
+    roles       = ["Bot"]
+    join_method = "github"
+    bot_name    = "gha-gravitational-teleport"
+    github = {
+      allow = [{
+        actor            = "deployinator"
+        environment      = "production"
+        ref              = "main"
+        ref_type         = "branch"
+        repository       = "gravitational/teleport"
+        repository_owner = "gravitational"
+        workflow         = "deploy"
+      }]
+      enterprise_server_host = "github.corp.internal"
+      enterprise_slug        = "sluggy"
+      static_jwks            = "{\n  \"keys\": [\n    {\n      \"kty\": \"RSA\",\n      \"use\": \"sig\",\n      \"kid\": \"P9Zd\",\n      \"alg\": \"RS256\",\n      \"n\": \"kWp2zRA23Z3vTL4uoe8kTFptxBVFunIoP4t_8TDYJrOb7D1iZNDXVeEsYKp6ppmrTZDAgd-cNOTKLd4M39WJc5FN0maTAVKJc7NxklDeKc4dMe1BGvTZNG4MpWBo-taKULlYUu0ltYJuLzOjIrTHfarucrGoRWqM0sl3z2-fv9k\",\n      \"e\": \"AQAB\"\n    }\n  ]\n}"
+    }
+  }
+}
+
