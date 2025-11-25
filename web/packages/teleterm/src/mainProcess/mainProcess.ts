@@ -1014,6 +1014,7 @@ function makeAppUpdaterStorage(fs: FileStorage): AppUpdaterStorage {
 
 /**
  * Handles requests sent via `ipcInvoke`.
+ * The renderer must send requests using `ipcInvoke` (not `ipcRenderer.invoke`).
  *
  * Use this instead of `ipcMain.handle`. It ensures full error serialization
  * and prevents Electron from adding the generic message "Error invoking remote method".
