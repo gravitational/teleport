@@ -2019,8 +2019,18 @@ access-monitoring-reference-up-to-date: access-monitoring-reference
 	fi
 
 .PHONY: gen-docs
-gen-docs:
+gen-docs: gen-resource-docs audit-event-reference
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
-	$(MAKE) audit-event-reference
+
+.PHONY: gen-resource-docs
+gen-resource-docs:
+	cd build.assets/tooling/cmd/resource-ref-generator && go run . -config config.yaml
+
+.PHONY: resource-docs-up-to-date
+resource-docs-up-to-date: must-start-clean/host gen-resource-docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "tctl resource reference docs" "make gen-resource-docs"; \
+		exit 1; \
+	fi
