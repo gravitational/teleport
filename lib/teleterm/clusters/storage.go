@@ -171,8 +171,9 @@ func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Clus
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// There's an incorrect default in [profile.profileFromFile] - an empty SiteName is replaced  with the profile name.
-	// Unfortunately, a profile name is not the same thing as a site name, and they only match in certain setups (e.g., Cloud).
+	// There's an incorrect default in api/profile.profileFromFile - an empty SiteName is replaced with the profile name.
+	// A profile name is not the same thing as a site name, and they differ when the proxy hostname is different
+	// from the cluster name.
 	// Using this incorrect site name causes login failures in `tsh`, so we proactively set SiteName to the root cluster
 	// name instead.
 	clusterClient.SiteName = pingResponse.ClusterName

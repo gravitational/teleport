@@ -393,7 +393,8 @@ func profileFromFile(filePath string) (*Profile, error) {
 	// profile. If no cluster name is found, fallback to the name of the profile
 	// for backward compatibility.
 	//
-	// TODO: A profile name is not the same thing as a site name - they only match in certain setups (e.g., Cloud)
+	// TODO: A profile name is not the same thing as a site name, and they differ when the proxy hostname is different
+	// from the cluster name.
 	// Instead, tsh should be able to handle an empty site name, or this default should be changed.
 	if p.SiteName == "" {
 		p.SiteName = p.Name()
