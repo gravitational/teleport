@@ -2791,11 +2791,9 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	return res, trace.Wrap(err)
 }
 
-const headerMaxTouchPoints = "Max-Touch-Points"
-
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
 	var maxTouchPoints int
-	rawMaxTouchPoints := r.Header.Get(headerMaxTouchPoints)
+	rawMaxTouchPoints := r.Header.Get("Max-Touch-Points")
 	if rawMaxTouchPoints != "" {
 		if value, err := strconv.Atoi(rawMaxTouchPoints); err == nil {
 			maxTouchPoints = value
