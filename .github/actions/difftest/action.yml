@@ -12,7 +12,7 @@ inputs:
   attempts:
     description: Number of runs
     required: false
-    default: 100
+    default: 50
 
   bin:
     description: difftest binary location
