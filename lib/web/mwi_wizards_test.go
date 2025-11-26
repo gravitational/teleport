@@ -31,7 +31,7 @@ func TestMachineIDWizard(t *testing.T) {
 
 	env := newWebPack(t, 1)
 	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
-	endpoint := pack.clt.Endpoint("webapi", "machine-id", "wizards", "ci-cd")
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "machine-id", "wizards", "ci-cd")
 
 	testCases := map[string]machineIDWizardGenerateIaCRequest{
 		"github+kubernetes-empty-terraform": {
