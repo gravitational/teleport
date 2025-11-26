@@ -196,15 +196,39 @@ Optional:
 
 Optional:
 
+- `accounts` (Attributes) Accounts contains filter rules for matching AWS accounts under the Organization. All accounts are matched if no rule is specified. (see [below for nested schema](#nested-schema-for-specawsaccounts))
 - `assume_role` (Attributes) AssumeRoleARN is the AWS role to assume for database discovery. (see [below for nested schema](#nested-schema-for-specawsassume_role))
 - `install` (Attributes) Params sets the join method when installing on discovered EC2 nodes (see [below for nested schema](#nested-schema-for-specawsinstall))
 - `integration` (String) Integration is the integration name used to generate credentials to interact with AWS APIs. Environment credentials will not be used when this value is set.
 - `kube_app_discovery` (Boolean) KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on discovered clusters, currently only affects AWS EKS discovery in integration mode.
+- `organization_id` (String) OrganizationID is the AWS Organization ID to match when discovering accounts. Required when defining account matchers.
 - `regions` (List of String) Regions are AWS regions to query for databases.
 - `setup_access_for_arn` (String) SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for. This value should match the IAM identity that Teleport Kubernetes Service uses. If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
 - `ssm` (Attributes) SSM provides options to use when sending a document command to an EC2 node (see [below for nested schema](#nested-schema-for-specawsssm))
 - `tags` (Map of List of String) Tags are AWS resource Tags to match.
 - `types` (List of String) Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache", or "memorydb".
+
+### Nested Schema for `spec.aws.accounts`
+
+Optional:
+
+- `exclude` (Attributes) Exclude contains rules for excluding AWS accounts. (see [below for nested schema](#nested-schema-for-specawsaccountsexclude))
+- `include` (Attributes) Include contains rules for including AWS accounts. (see [below for nested schema](#nested-schema-for-specawsaccountsinclude))
+
+### Nested Schema for `spec.aws.accounts.exclude`
+
+Optional:
+
+- `ou` (List of String) OU is a list of AWS Organizational Unit IDs to match (includes the Root OU) Only exact matches or wildcard (*) are supported.
+
+
+### Nested Schema for `spec.aws.accounts.include`
+
+Optional:
+
+- `ou` (List of String) OU is a list of AWS Organizational Unit IDs to match (includes the Root OU) Only exact matches or wildcard (*) are supported.
+
+
 
 ### Nested Schema for `spec.aws.assume_role`
 

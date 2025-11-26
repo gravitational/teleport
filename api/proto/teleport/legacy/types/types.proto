@@ -9046,6 +9046,30 @@ message AWSMatcher {
   // This value should match the IAM identity that Teleport Kubernetes Service uses.
   // If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
   string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
+  // OrganizationID is the AWS Organization ID to match when discovering accounts.
+  // Required when defining account matchers.
+  string OrganizationID = 10 [(gogoproto.jsontag) = "organization_id,omitempty"];
+  // Accounts contains filter rules for matching AWS accounts under the Organization.
+  // All accounts are matched if no rule is specified.
+  AWSAccountsMatcher Accounts = 11 [(gogoproto.jsontag) = "accounts,omitempty"];
+}
+
+// AWSAccountsMatcher contains include/exclude rules for AWS Organizational Units.
+// Accounts which belong to an Excluded Organizational Unit, and its children, will be excluded
+// from discovery, even if they match an Include rule.
+message AWSAccountsMatcher {
+  // Include contains rules for including AWS accounts.
+  AWSAccountsRule Include = 1 [(gogoproto.jsontag) = "include,omitempty"];
+
+  // Exclude contains rules for excluding AWS accounts.
+  AWSAccountsRule Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
+}
+
+// AWSAccountsRule is a rule for AWS accounts under specific Organizational Units.
+message AWSAccountsRule {
+  // OU is a list of AWS Organizational Unit IDs to match (includes the Root OU)
+  // Only exact matches or wildcard (*) are supported.
+  repeated string OU = 1 [(gogoproto.jsontag) = "ou,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
