@@ -170,7 +170,7 @@ type machineIDWizardGenerateIaCRequest struct {
 	SourceType      string                            `json:"source_type"`
 	DestinationType string                            `json:"destination_type"`
 	GitHub          *machineIDWizardRequestGitHub     `json:"github"`
-	Kubernetes      *machineIDWizardRequestKubernetes `json:"kubernetes`
+	Kubernetes      *machineIDWizardRequestKubernetes `json:"kubernetes"`
 }
 
 type machineIDWizardRequestGitHub struct {
