@@ -282,24 +282,17 @@ type Proxy struct {
 }
 ```
 
-The `TTL` used in discovery requests will be set based on the a value stored in
-the backend `Server`. This field `Server.Spec.TTL` will be added to store this value.
-This new field is a duration set based on the `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL`
-or the default `ServerAnnounceTTL`.
+The `TTL` used in discovery requests will be set based on the announce TTL configured
+on the proxy sending the discovery request.
 
-The purpose of this is to allow for dynamically configuring each agent's proxy
-tracker expiry based off of each proxy instances configured `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL`.
+Increasing the TTL across a fleet of proxy servers leaves a window where agents
+may view newer proxies as expired between their heartbeat intervals.
 
-Using the local proxy's `TELEPORT_UNSTABLE_PROXY_ANNOUNCE_TTL` for every locally
-served discovery request was considered but this leads to issues when multiple different
-values are configured in a cluster. Specially a proxy with a longer `TTL` could
-appear to expire from the point of an agent receiving discovery requests from a proxy
-with a shorter `TTL`.
+The behavior results in a suboptimal rollout where an agent may not connect to a
+newer proxy generation before the older generation is terminated.
 
-Using `Server.Metadata.Expiry` over adding a new field was considered but this has
-potential issues with clock drift and delays in cache event propagation. 
-An agent with a fast clock or receiving a delayed event could evaluate a proxy as
-expiring sooner than it actually is. 
+We are accepting this behavior as preventing it adds complexity, the chances of it
+occuring are low, and the impact is minimal.
 
 #### Reducing Discovery Request Traffic
 
