@@ -708,7 +708,6 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		userAgent = cm.UserAgent
 		proxyGroupID = cm.ProxyGroupID
 		maxTouchPoints = cm.MaxTouchPoints
-		a.logger.DebugContext(ctx, "Got client metadata", "max_touch_points", maxTouchPoints)
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
