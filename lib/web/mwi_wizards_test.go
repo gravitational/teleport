@@ -33,7 +33,7 @@ func TestMachineIDWizard(t *testing.T) {
 	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
 	endpoint := pack.clt.Endpoint("webapi", "machine-id", "wizards", "ci-cd")
 
-	testCases := map[string]machineIDWizardRequest{
+	testCases := map[string]machineIDWizardGenerateIaCRequest{
 		"github+kubernetes-empty-terraform": {
 			SourceType:      "github",
 			DestinationType: "kubernetes",
@@ -93,7 +93,7 @@ func TestMachineIDWizard(t *testing.T) {
 			rsp, err := pack.clt.PostJSON(t.Context(), endpoint, req)
 			require.NoError(t, err)
 
-			var body machineIDGHAK8sWizardResponse
+			var body machineIDGHAK8sWizardGenerateIaCResponse
 			require.NoError(t, json.Unmarshal(rsp.Bytes(), &body))
 
 			// Cut the provider configuration out of the golden file, as this
