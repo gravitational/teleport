@@ -39,6 +39,7 @@ resource "teleport_bot" "gha-gravitational-teleport" {
   }
 
   spec = {
+    roles = ["gha-gravitational-teleport-kube-access"]
     traits = {
       kubernetes_groups = ["system:masters"]
     }
