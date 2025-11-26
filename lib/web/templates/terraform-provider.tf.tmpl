@@ -1,0 +1,12 @@
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> %[1]d.0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = %[2]q
+}
