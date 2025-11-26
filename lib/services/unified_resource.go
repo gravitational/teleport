@@ -1061,7 +1061,7 @@ var _ types.AppServer = (*aggregatedAppServer)(nil)
 func (a *aggregatedAppServer) Copy() types.AppServer {
 	out := a.AppServer.Copy()
 	if a.features != nil {
-		out.SetComponentFeatures(a.features)
+		out.SetComponentFeatures(componentfeatures.Join(a.features))
 	}
 	return out
 }
@@ -1072,16 +1072,9 @@ func (a *aggregatedAppServer) CloneResource() types.ResourceWithLabels {
 
 func intersectComponentFeaturesForAppServers(servers map[string]types.AppServer) *componentfeaturesv1.ComponentFeatures {
 	allFeatures := make([]*componentfeaturesv1.ComponentFeatures, 0, len(servers))
-
 	for _, s := range servers {
-		cf := s.GetComponentFeatures()
-		if cf != nil {
-			allFeatures = append(allFeatures, cf)
-		} else {
-			allFeatures = append(allFeatures, nil)
-		}
+		allFeatures = append(allFeatures, s.GetComponentFeatures())
 	}
-
 	return componentfeatures.Intersect(allFeatures...)
 }
 

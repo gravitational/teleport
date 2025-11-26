@@ -20,17 +20,52 @@ package componentfeatures
 
 import componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 
-// FeatureInAllSets reports whether a given [componentfeaturesv1.ComponentFeatureID] is
+// New creates a new [componentfeaturesv1.ComponentFeatures] struct containing the provided FeatureIDs.
+func New(features ...FeatureID) *componentfeaturesv1.ComponentFeatures {
+	out := &componentfeaturesv1.ComponentFeatures{}
+	seen := make(map[FeatureID]struct{})
+	for _, f := range features {
+		if _, exists := seen[f]; exists {
+			continue
+		}
+		seen[f] = struct{}{}
+		out.Features = append(out.Features, f.ToProto())
+	}
+	return out
+}
+
+// Join combines [componentfeaturesv1.ComponentFeatures] sets into a single set containing all unique features.
+func Join(sets ...*componentfeaturesv1.ComponentFeatures) *componentfeaturesv1.ComponentFeatures {
+	out := &componentfeaturesv1.ComponentFeatures{}
+	seen := make(map[componentfeaturesv1.ComponentFeatureID]struct{})
+
+	for _, fs := range sets {
+		if fs == nil || len(fs.Features) == 0 {
+			continue
+		}
+		for _, f := range fs.Features {
+			if _, exists := seen[f]; !exists {
+				seen[f] = struct{}{}
+				out.Features = append(out.Features, f)
+			}
+		}
+	}
+
+	return out
+}
+
+// InAllSets reports whether a given [componentfeaturesv1.ComponentFeatureID] is
 // present in *every* [componentfeaturesv1.ComponentFeatures] set.
 //
 // If no sets are provided, or any set is nil, it returns false.
-func FeatureInAllSets(
-	feature componentfeaturesv1.ComponentFeatureID,
+func InAllSets(
+	feature FeatureID,
 	sets ...*componentfeaturesv1.ComponentFeatures,
 ) bool {
 	if len(sets) == 0 {
 		return false
 	}
+	proto := feature.ToProto()
 
 	for _, fs := range sets {
 		if fs == nil || len(fs.Features) == 0 {
@@ -39,7 +74,7 @@ func FeatureInAllSets(
 
 		found := false
 		for _, f := range fs.Features {
-			if f == feature {
+			if f == proto {
 				found = true
 				break
 			}

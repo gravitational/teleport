@@ -50,6 +50,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -71,7 +72,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
-	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -2786,14 +2786,10 @@ func (process *TeleportProcess) initAuthService() error {
 					Name:      connector.HostUUID(),
 				},
 				Spec: types.ServerSpecV2{
-					Addr:     authAddr,
-					Hostname: process.Config.Hostname,
-					Version:  teleport.Version,
-					ComponentFeatures: &componentfeaturesv1.ComponentFeatures{
-						Features: []componentfeaturesv1.ComponentFeatureID{
-							componentfeaturesv1.ComponentFeatureID_COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_V1,
-						},
-					},
+					Addr:              authAddr,
+					Hostname:          process.Config.Hostname,
+					Version:           teleport.Version,
+					ComponentFeatures: componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1),
 				},
 			}
 			state, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin)

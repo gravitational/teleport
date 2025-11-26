@@ -31,6 +31,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -844,6 +846,121 @@ func TestUnifiedResourceWatcher_PreventDuplicates(t *testing.T) {
 		return len(res) == 1
 	}, 5*time.Second, 10*time.Millisecond, "Timed out waiting for unified resources to be added")
 
+}
+
+func TestUnifiedResourceCache_AppServerComponentFeaturesIntersection(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	const appName = "aws-console-app"
+
+	makeAppServer := func(
+		t *testing.T,
+		hostID string,
+		features *componentfeaturesv1.ComponentFeatures,
+	) *types.AppServerV3 {
+		t.Helper()
+		srv, err := types.NewAppServerV3(
+			types.Metadata{Name: appName},
+			types.AppServerSpecV3{
+				HostID: hostID,
+				App:    newApp(t, appName),
+			},
+		)
+		require.NoError(t, err)
+		srv.SetComponentFeatures(features)
+		return srv
+	}
+
+	findAppServer := func(
+		t *testing.T,
+		w *services.UnifiedResourceCache,
+		appName string,
+	) types.AppServer {
+		t.Helper()
+		var (
+			aggregatedServer types.AppServer
+			count            int
+		)
+		for srv, err := range w.AppServers(ctx, services.UnifiedResourcesIterateParams{}) {
+			require.NoError(t, err)
+			if srv.GetApp() == nil || srv.GetApp().GetName() != appName {
+				continue
+			}
+			aggregatedServer = srv
+			count++
+		}
+		require.Equal(t, 1, count, "expected exactly one AppServer for app %q", appName)
+		require.NotNil(t, aggregatedServer, "expected non-nil AppServer for app %q", appName)
+		return aggregatedServer
+	}
+
+	createUnifiedResourceCache := func(t *testing.T, clt *client) *services.UnifiedResourceCache {
+		t.Helper()
+		w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentUnifiedResource,
+				Client:    clt,
+			},
+			ResourceGetter: clt,
+		})
+		require.NoError(t, err)
+		assert.Eventually(t, func() bool {
+			return w.IsInitialized()
+		}, 5*time.Second, 10*time.Millisecond, "unified resource watcher never initialized")
+		return w
+	}
+
+	t.Run("intersection of non-empty feature sets", func(t *testing.T) {
+		t.Parallel()
+
+		clt := newClient(t)
+
+		shared := componentfeatures.FeatureResourceConstraintsV1
+		extra := componentfeatures.FeatureID(9999)
+
+		appSrv1 := makeAppServer(t, "host-1", componentfeatures.New(shared, extra))
+		_, err := clt.UpsertApplicationServer(ctx, appSrv1)
+		require.NoError(t, err)
+		appSrv2 := makeAppServer(t, "host-2", componentfeatures.New(shared))
+		_, err = clt.UpsertApplicationServer(ctx, appSrv2)
+		require.NoError(t, err)
+
+		w := createUnifiedResourceCache(t, clt)
+
+		// There should be a single AppServer for this app, with features = intersection(shared, extra) = shared
+		aggregatedServer := findAppServer(t, w, appName)
+		cf := aggregatedServer.GetComponentFeatures()
+
+		require.NotNil(t, cf, "aggregated AppServer should have non-nil ComponentFeatures")
+		require.Len(t, cf.Features, 1, "expected exactly one intersected feature")
+		require.Equal(t, shared.ToProto(), cf.Features[0], fmt.Sprintf("expected intersection to contain only '%s'", shared.String()))
+	})
+
+	t.Run("any empty or nil feature set yields empty intersection", func(t *testing.T) {
+		t.Parallel()
+
+		clt := newClient(t)
+
+		shared := componentfeatures.FeatureResourceConstraintsV1
+
+		appSrv1 := makeAppServer(t, "host-1", componentfeatures.New(shared))
+		_, err := clt.UpsertApplicationServer(ctx, appSrv1)
+		require.NoError(t, err)
+		appSrv2 := makeAppServer(t, "host-2", componentfeatures.New())
+		_, err = clt.UpsertApplicationServer(ctx, appSrv2)
+		require.NoError(t, err)
+
+		w := createUnifiedResourceCache(t, clt)
+
+		// There should be a single AppServer for this app, with features = intersection(shared, empty) = empty
+		aggregatedServer := findAppServer(t, w, appName)
+		cf := aggregatedServer.GetComponentFeatures()
+
+		require.NotNil(t, cf, "aggregated AppServer should have non-nil ComponentFeatures")
+		require.Empty(t, cf.Features, "expected empty intersection when one of the feature sets is nil or empty")
+	})
 }
 
 func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {

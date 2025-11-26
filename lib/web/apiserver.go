@@ -3469,8 +3469,8 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				UserGroupLookup:       getUserGroupLookup(),
 				Logger:                h.logger,
 				RequiresRequest:       enriched.RequiresRequest,
-				SupportsResourceConstraints: componentfeatures.FeatureInAllSets(
-					componentfeaturesv1.ComponentFeatureID_COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_V1,
+				SupportsResourceConstraints: componentfeatures.InAllSets(
+					componentfeatures.FeatureResourceConstraintsV1,
 					appComponentFeatures...,
 				),
 			})
