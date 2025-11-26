@@ -530,6 +530,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				slog.WarnContext(c.closeContext, "Unexpected upstream hello on control stream of server", "server_id", handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
+			case *proto.UpstreamInventoryUpdaterInfo:
+				c.handleUpdaterInfo(handle, m)
 			case *proto.UpstreamInventoryAgentMetadata:
 				c.handleAgentMetadata(handle, m)
 			case *proto.InventoryHeartbeat:
@@ -1234,6 +1236,13 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 		srv.resource = kubernetesServer
 	}
 	return nil
+}
+
+func (c *Controller) handleUpdaterInfo(handle *upstreamHandle, info *proto.UpstreamInventoryUpdaterInfo) {
+	handle.stateTracker.mu.Lock()
+	defer handle.stateTracker.mu.Unlock()
+
+	handle.hello.UpdaterInfo = info.UpdaterInfo
 }
 
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m *proto.UpstreamInventoryAgentMetadata) {

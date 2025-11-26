@@ -72,7 +72,7 @@ type DownstreamHandle interface {
 	CloseContext() context.Context
 	// Close closes the downstream handle.
 	Close() error
-	// SendGoodbye indicates the downstream half of the connection is starting the
+	// SetAndSendGoodbye indicates the downstream half of the connection is starting the
 	// termination process. This has no impact on the health of the inventory control
 	// stream, nor does it perform any clean up of the connection.
 	// In case of soft-reloads, the termination process can take up to 30 hours.
@@ -81,6 +81,8 @@ type DownstreamHandle interface {
 	SetAndSendGoodbye(context.Context, bool, bool) error
 	// GetUpstreamLabels gets the labels received from upstream.
 	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
+	// UpdateUpdaterInfo sends updated information to the upstream with latest updated information.
+	UpdateUpdaterInfo() error
 }
 
 // DownstreamSender is a send-only reference to the downstream half of an inventory control stream. Components that
@@ -192,7 +194,7 @@ func (h *downstreamHandle) closing() bool {
 	return h.closeContext.Err() != nil
 }
 
-// autoEmitMetadata sends the agent goodbye once per stream (i.e. connection
+// autoEmitGoodbye sends the agent goodbye once per stream (i.e. connection
 // with the auth server) if the agent has already goodbye-ed once. Else it
 // does nothing.
 func (h *downstreamHandle) autoEmitGoodbye() {
@@ -305,6 +307,36 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc) {
 // Its output is cached for a minute by the downstreamHandle to mitigate load
 // issues when if the stream is crash-looping.
 type HelloGetter func(ctx context.Context) (*proto.UpstreamInventoryHello, error)
+
+// UpdateUpdaterInfo sends updated information to the upstream with latest updated information.
+func (h *downstreamHandle) UpdateUpdaterInfo() error {
+	// Wait for stream to be opened.
+	var sender DownstreamSender
+	select {
+	case sender = <-h.Sender():
+	case <-h.CloseContext().Done():
+		return nil
+	}
+
+	upstreamHello, err := h.helloGetter(h.CloseContext())
+	if err != nil {
+		return trace.Wrap(err, "getting upstream hello")
+	}
+
+	msg := &proto.UpstreamInventoryUpdaterInfo{
+		UpdaterInfo: upstreamHello.UpdaterInfo,
+	}
+
+	// send upstream hello
+	if err := sender.Send(h.closeContext, msg); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return trace.Errorf("failed to send upstream hello: %v", err)
+	}
+
+	return nil
+}
 
 func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControlStream) error {
 	defer stream.Close()
@@ -434,7 +466,7 @@ func (h *downstreamHandle) Close() error {
 	return nil
 }
 
-// SendGoodbye crafts a goodbye message, save it, waits for a working stream and sends it to the auth.
+// SetAndSendGoodbye crafts a goodbye message, save it, waits for a working stream and sends it to the auth.
 // If the downstreamHandle were to reconnect later, the h.autoEmitGoodbye routine would re-emit it.
 func (h *downstreamHandle) SetAndSendGoodbye(ctx context.Context, deleteResources bool, softReload bool) error {
 	goodbye := &proto.UpstreamInventoryGoodbye{DeleteResources: deleteResources, SoftReload: softReload}

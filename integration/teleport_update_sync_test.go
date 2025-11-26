@@ -104,6 +104,71 @@ func TestTeleportUpdateErrorCode(t *testing.T) {
 	}, 20*time.Second, time.Second)
 }
 
+// TestTeleportUpdateSync verifies the teleport-update status direct updated by demand.
+func TestTeleportUpdateSync(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+	helpers.SetTestTimeouts(2 * time.Second)
+
+	configPath := filepath.Join(t.TempDir(), "update.yaml")
+
+	t.Setenv(automaticupgrades.EnvUpgrader, types.UpgraderKindTeleportUpdate)
+	t.Setenv(automaticupgrades.EnvUpgraderVersion, "1.2.3")
+	t.Setenv("TELEPORT_UPDATE_CONFIG_FILE", configPath)
+
+	// Create fake teleport-update configuration file with default values.
+	updateConfig := &agent.UpdateConfig{
+		Version: "v1",
+		Kind:    "update_config",
+		Spec: agent.UpdateSpec{
+			Enabled: true,
+		},
+	}
+	writeTeleportUpdateConfig(t, configPath, updateConfig)
+
+	// Start Teleport Auth service.
+	authClock := clockwork.NewFakeClock()
+	authProcess, provisionToken := makeTestServer(t, authClock)
+	authServer := authProcess.GetAuthServer()
+	authAddr, err := authProcess.AuthAddr()
+	require.NoError(t, err)
+
+	cfg := servicecfg.MakeDefaultConfig()
+
+	// Start Teleport SSH agent service.
+	node := helpers.MakeAgentServer(t, cfg, *authAddr, provisionToken)
+	require.NotNil(t, node)
+
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		debugClt := debug.NewClient(authProcess.Config.DataDir)
+		rdy, err := debugClt.GetReadiness(ctx)
+		require.NoError(t, err)
+		require.True(t, rdy.Ready, "Not yet ready: %q", rdy.Status)
+
+		updateConfig.Spec.Group = "test"
+		updateConfig.Spec.Pinned = true
+		updateConfig.Status.LastUpdate = &agent.LastUpdate{
+			ErrorCode: agent.ErrorCodeNoSpaceLeft,
+		}
+		writeTeleportUpdateConfig(t, configPath, updateConfig)
+		authClock.Advance(2 * time.Minute)
+
+		err = debugClt.UpdateMetadata(ctx)
+		require.NoError(t, err)
+
+		hello, err := authServer.LookupAgentInInventory(ctx, authServer.ServerID)
+		require.NoError(t, err)
+
+		require.NotEmpty(t, hello)
+		require.NotNil(t, hello[0].UpdaterInfo)
+		require.Equal(t, "test", hello[0].UpdaterInfo.UpdateGroup)
+		require.Equal(t, types.UpdaterStatus_UPDATER_STATUS_PINNED, hello[0].UpdaterInfo.UpdaterStatus)
+		require.Equal(t, uint32(agent.ErrorCodeNoSpaceLeft), hello[0].UpdaterInfo.ErrorCode)
+
+	}, 20*time.Second, time.Second)
+}
+
 func writeTeleportUpdateConfig(t require.TestingT, path string, cfg *agent.UpdateConfig) {
 	cfgData, err := yaml.Marshal(cfg)
 	require.NoError(t, err)

@@ -156,6 +156,7 @@ type UpstreamInventoryOneOf struct {
 	//	*UpstreamInventoryOneOf_AgentMetadata
 	//	*UpstreamInventoryOneOf_Goodbye
 	//	*UpstreamInventoryOneOf_StopHeartbeat
+	//	*UpstreamInventoryOneOf_UpdaterInfo
 	Msg           isUpstreamInventoryOneOf_Msg `protobuf_oneof:"Msg"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -252,6 +253,15 @@ func (x *UpstreamInventoryOneOf) GetStopHeartbeat() *UpstreamInventoryStopHeartb
 	return nil
 }
 
+func (x *UpstreamInventoryOneOf) GetUpdaterInfo() *UpstreamInventoryUpdaterInfo {
+	if x != nil {
+		if x, ok := x.Msg.(*UpstreamInventoryOneOf_UpdaterInfo); ok {
+			return x.UpdaterInfo
+		}
+	}
+	return nil
+}
+
 type isUpstreamInventoryOneOf_Msg interface {
 	isUpstreamInventoryOneOf_Msg()
 }
@@ -287,6 +297,11 @@ type UpstreamInventoryOneOf_StopHeartbeat struct {
 	StopHeartbeat *UpstreamInventoryStopHeartbeat `protobuf:"bytes,6,opt,name=stop_heartbeat,json=stopHeartbeat,proto3,oneof"`
 }
 
+type UpstreamInventoryOneOf_UpdaterInfo struct {
+	// UpstreamInventoryUpdaterInfo
+	UpdaterInfo *UpstreamInventoryUpdaterInfo `protobuf:"bytes,7,opt,name=UpdaterInfo,proto3,oneof"`
+}
+
 func (*UpstreamInventoryOneOf_Hello) isUpstreamInventoryOneOf_Msg() {}
 
 func (*UpstreamInventoryOneOf_Heartbeat) isUpstreamInventoryOneOf_Msg() {}
@@ -298,6 +313,8 @@ func (*UpstreamInventoryOneOf_AgentMetadata) isUpstreamInventoryOneOf_Msg() {}
 func (*UpstreamInventoryOneOf_Goodbye) isUpstreamInventoryOneOf_Msg() {}
 
 func (*UpstreamInventoryOneOf_StopHeartbeat) isUpstreamInventoryOneOf_Msg() {}
+
+func (*UpstreamInventoryOneOf_UpdaterInfo) isUpstreamInventoryOneOf_Msg() {}
 
 // DownstreamInventoryOneOf is the downstream message for the inventory control stream,
 // sent from auth servers to teleport instances.
@@ -504,6 +521,51 @@ func (x *UpstreamInventoryPong) GetSystemClock() *timestamppb.Timestamp {
 	return nil
 }
 
+// UpstreamInventoryUpdaterInfo is sent by request to update inventory stream state.
+type UpstreamInventoryUpdaterInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UpdaterInfo   *types.UpdaterV2Info   `protobuf:"bytes,1,opt,name=UpdaterInfo,proto3" json:"UpdaterInfo,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpstreamInventoryUpdaterInfo) Reset() {
+	*x = UpstreamInventoryUpdaterInfo{}
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpstreamInventoryUpdaterInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpstreamInventoryUpdaterInfo) ProtoMessage() {}
+
+func (x *UpstreamInventoryUpdaterInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpstreamInventoryUpdaterInfo.ProtoReflect.Descriptor instead.
+func (*UpstreamInventoryUpdaterInfo) Descriptor() ([]byte, []int) {
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *UpstreamInventoryUpdaterInfo) GetUpdaterInfo() *types.UpdaterV2Info {
+	if x != nil {
+		return x.UpdaterInfo
+	}
+	return nil
+}
+
 // UpstreamInventoryHello is the hello message sent up the inventory control stream.
 type UpstreamInventoryHello struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -538,7 +600,7 @@ type UpstreamInventoryHello struct {
 
 func (x *UpstreamInventoryHello) Reset() {
 	*x = UpstreamInventoryHello{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[4]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -550,7 +612,7 @@ func (x *UpstreamInventoryHello) String() string {
 func (*UpstreamInventoryHello) ProtoMessage() {}
 
 func (x *UpstreamInventoryHello) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[4]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -563,7 +625,7 @@ func (x *UpstreamInventoryHello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamInventoryHello.ProtoReflect.Descriptor instead.
 func (*UpstreamInventoryHello) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{4}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UpstreamInventoryHello) GetVersion() string {
@@ -649,7 +711,7 @@ type UpstreamInventoryAgentMetadata struct {
 
 func (x *UpstreamInventoryAgentMetadata) Reset() {
 	*x = UpstreamInventoryAgentMetadata{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[5]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -661,7 +723,7 @@ func (x *UpstreamInventoryAgentMetadata) String() string {
 func (*UpstreamInventoryAgentMetadata) ProtoMessage() {}
 
 func (x *UpstreamInventoryAgentMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[5]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -674,7 +736,7 @@ func (x *UpstreamInventoryAgentMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamInventoryAgentMetadata.ProtoReflect.Descriptor instead.
 func (*UpstreamInventoryAgentMetadata) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{5}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UpstreamInventoryAgentMetadata) GetOS() string {
@@ -748,7 +810,7 @@ type DownstreamInventoryHello struct {
 
 func (x *DownstreamInventoryHello) Reset() {
 	*x = DownstreamInventoryHello{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[6]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -760,7 +822,7 @@ func (x *DownstreamInventoryHello) String() string {
 func (*DownstreamInventoryHello) ProtoMessage() {}
 
 func (x *DownstreamInventoryHello) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[6]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -773,7 +835,7 @@ func (x *DownstreamInventoryHello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownstreamInventoryHello.ProtoReflect.Descriptor instead.
 func (*DownstreamInventoryHello) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{6}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *DownstreamInventoryHello) GetVersion() string {
@@ -813,7 +875,7 @@ type InventoryUpdateLabelsRequest struct {
 
 func (x *InventoryUpdateLabelsRequest) Reset() {
 	*x = InventoryUpdateLabelsRequest{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[7]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -825,7 +887,7 @@ func (x *InventoryUpdateLabelsRequest) String() string {
 func (*InventoryUpdateLabelsRequest) ProtoMessage() {}
 
 func (x *InventoryUpdateLabelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[7]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -838,7 +900,7 @@ func (x *InventoryUpdateLabelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryUpdateLabelsRequest.ProtoReflect.Descriptor instead.
 func (*InventoryUpdateLabelsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{7}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *InventoryUpdateLabelsRequest) GetServerID() string {
@@ -876,7 +938,7 @@ type DownstreamInventoryUpdateLabels struct {
 
 func (x *DownstreamInventoryUpdateLabels) Reset() {
 	*x = DownstreamInventoryUpdateLabels{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[8]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -888,7 +950,7 @@ func (x *DownstreamInventoryUpdateLabels) String() string {
 func (*DownstreamInventoryUpdateLabels) ProtoMessage() {}
 
 func (x *DownstreamInventoryUpdateLabels) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[8]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -901,7 +963,7 @@ func (x *DownstreamInventoryUpdateLabels) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownstreamInventoryUpdateLabels.ProtoReflect.Descriptor instead.
 func (*DownstreamInventoryUpdateLabels) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{8}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DownstreamInventoryUpdateLabels) GetKind() LabelUpdateKind {
@@ -940,7 +1002,7 @@ type InventoryHeartbeat struct {
 
 func (x *InventoryHeartbeat) Reset() {
 	*x = InventoryHeartbeat{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[9]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -952,7 +1014,7 @@ func (x *InventoryHeartbeat) String() string {
 func (*InventoryHeartbeat) ProtoMessage() {}
 
 func (x *InventoryHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[9]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -965,7 +1027,7 @@ func (x *InventoryHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryHeartbeat.ProtoReflect.Descriptor instead.
 func (*InventoryHeartbeat) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{9}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *InventoryHeartbeat) GetSSHServer() *types.ServerV2 {
@@ -1019,7 +1081,7 @@ type UpstreamInventoryGoodbye struct {
 
 func (x *UpstreamInventoryGoodbye) Reset() {
 	*x = UpstreamInventoryGoodbye{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[10]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1031,7 +1093,7 @@ func (x *UpstreamInventoryGoodbye) String() string {
 func (*UpstreamInventoryGoodbye) ProtoMessage() {}
 
 func (x *UpstreamInventoryGoodbye) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[10]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1044,7 +1106,7 @@ func (x *UpstreamInventoryGoodbye) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamInventoryGoodbye.ProtoReflect.Descriptor instead.
 func (*UpstreamInventoryGoodbye) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{10}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpstreamInventoryGoodbye) GetDeleteResources() bool {
@@ -1073,7 +1135,7 @@ type InventoryStatusRequest struct {
 
 func (x *InventoryStatusRequest) Reset() {
 	*x = InventoryStatusRequest{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[11]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1085,7 +1147,7 @@ func (x *InventoryStatusRequest) String() string {
 func (*InventoryStatusRequest) ProtoMessage() {}
 
 func (x *InventoryStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[11]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1098,7 +1160,7 @@ func (x *InventoryStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryStatusRequest.ProtoReflect.Descriptor instead.
 func (*InventoryStatusRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{11}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *InventoryStatusRequest) GetConnected() bool {
@@ -1128,7 +1190,7 @@ type InventoryStatusSummary struct {
 
 func (x *InventoryStatusSummary) Reset() {
 	*x = InventoryStatusSummary{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[12]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1140,7 +1202,7 @@ func (x *InventoryStatusSummary) String() string {
 func (*InventoryStatusSummary) ProtoMessage() {}
 
 func (x *InventoryStatusSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[12]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1153,7 +1215,7 @@ func (x *InventoryStatusSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryStatusSummary.ProtoReflect.Descriptor instead.
 func (*InventoryStatusSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{12}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *InventoryStatusSummary) GetConnected() []*UpstreamInventoryHello {
@@ -1205,7 +1267,7 @@ type UpstreamInventoryStopHeartbeat struct {
 
 func (x *UpstreamInventoryStopHeartbeat) Reset() {
 	*x = UpstreamInventoryStopHeartbeat{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[13]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1217,7 +1279,7 @@ func (x *UpstreamInventoryStopHeartbeat) String() string {
 func (*UpstreamInventoryStopHeartbeat) ProtoMessage() {}
 
 func (x *UpstreamInventoryStopHeartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[13]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1230,7 +1292,7 @@ func (x *UpstreamInventoryStopHeartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamInventoryStopHeartbeat.ProtoReflect.Descriptor instead.
 func (*UpstreamInventoryStopHeartbeat) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{13}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UpstreamInventoryStopHeartbeat) GetKind() StopHeartbeatKind {
@@ -1298,7 +1360,7 @@ type DownstreamInventoryHello_SupportedCapabilities struct {
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) Reset() {
 	*x = DownstreamInventoryHello_SupportedCapabilities{}
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1310,7 +1372,7 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) String() string {
 func (*DownstreamInventoryHello_SupportedCapabilities) ProtoMessage() {}
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[14]
+	mi := &file_teleport_legacy_client_proto_inventory_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1323,7 +1385,7 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) ProtoReflect() protoref
 
 // Deprecated: Use DownstreamInventoryHello_SupportedCapabilities.ProtoReflect.Descriptor instead.
 func (*DownstreamInventoryHello_SupportedCapabilities) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{6, 0}
+	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{7, 0}
 }
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) GetProxyHeartbeats() bool {
@@ -1470,14 +1532,15 @@ var File_teleport_legacy_client_proto_inventory_proto protoreflect.FileDescripto
 
 const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\n" +
-	",teleport/legacy/client/proto/inventory.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\x1a'teleport/presence/v1/relay_server.proto\"\xa1\x03\n" +
+	",teleport/legacy/client/proto/inventory.proto\x12\x05proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\x1a'teleport/presence/v1/relay_server.proto\"\xea\x03\n" +
 	"\x16UpstreamInventoryOneOf\x125\n" +
 	"\x05Hello\x18\x01 \x01(\v2\x1d.proto.UpstreamInventoryHelloH\x00R\x05Hello\x129\n" +
 	"\tHeartbeat\x18\x02 \x01(\v2\x19.proto.InventoryHeartbeatH\x00R\tHeartbeat\x122\n" +
 	"\x04Pong\x18\x03 \x01(\v2\x1c.proto.UpstreamInventoryPongH\x00R\x04Pong\x12M\n" +
 	"\rAgentMetadata\x18\x04 \x01(\v2%.proto.UpstreamInventoryAgentMetadataH\x00R\rAgentMetadata\x12;\n" +
 	"\aGoodbye\x18\x05 \x01(\v2\x1f.proto.UpstreamInventoryGoodbyeH\x00R\aGoodbye\x12N\n" +
-	"\x0estop_heartbeat\x18\x06 \x01(\v2%.proto.UpstreamInventoryStopHeartbeatH\x00R\rstopHeartbeatB\x05\n" +
+	"\x0estop_heartbeat\x18\x06 \x01(\v2%.proto.UpstreamInventoryStopHeartbeatH\x00R\rstopHeartbeat\x12G\n" +
+	"\vUpdaterInfo\x18\a \x01(\v2#.proto.UpstreamInventoryUpdaterInfoH\x00R\vUpdaterInfoB\x05\n" +
 	"\x03Msg\"\xde\x01\n" +
 	"\x18DownstreamInventoryOneOf\x127\n" +
 	"\x05Hello\x18\x01 \x01(\v2\x1f.proto.DownstreamInventoryHelloH\x00R\x05Hello\x124\n" +
@@ -1488,7 +1551,9 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x02ID\x18\x01 \x01(\x04R\x02ID\"e\n" +
 	"\x15UpstreamInventoryPong\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\x04R\x02ID\x12<\n" +
-	"\vSystemClock\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vSystemClock\"\xcf\x02\n" +
+	"\vSystemClock\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vSystemClock\"V\n" +
+	"\x1cUpstreamInventoryUpdaterInfo\x126\n" +
+	"\vUpdaterInfo\x18\x01 \x01(\v2\x14.types.UpdaterV2InfoR\vUpdaterInfo\"\xcf\x02\n" +
 	"\x16UpstreamInventoryHello\x12\x18\n" +
 	"\aVersion\x18\x01 \x01(\tR\aVersion\x12\x1a\n" +
 	"\bServerID\x18\x02 \x01(\tR\bServerID\x12\x1a\n" +
@@ -1599,7 +1664,7 @@ func file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_legacy_client_proto_inventory_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_legacy_client_proto_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_legacy_client_proto_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	(LabelUpdateKind)(0),                                   // 0: proto.LabelUpdateKind
 	(StopHeartbeatKind)(0),                                 // 1: proto.StopHeartbeatKind
@@ -1607,62 +1672,65 @@ var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	(*DownstreamInventoryOneOf)(nil),                       // 3: proto.DownstreamInventoryOneOf
 	(*DownstreamInventoryPing)(nil),                        // 4: proto.DownstreamInventoryPing
 	(*UpstreamInventoryPong)(nil),                          // 5: proto.UpstreamInventoryPong
-	(*UpstreamInventoryHello)(nil),                         // 6: proto.UpstreamInventoryHello
-	(*UpstreamInventoryAgentMetadata)(nil),                 // 7: proto.UpstreamInventoryAgentMetadata
-	(*DownstreamInventoryHello)(nil),                       // 8: proto.DownstreamInventoryHello
-	(*InventoryUpdateLabelsRequest)(nil),                   // 9: proto.InventoryUpdateLabelsRequest
-	(*DownstreamInventoryUpdateLabels)(nil),                // 10: proto.DownstreamInventoryUpdateLabels
-	(*InventoryHeartbeat)(nil),                             // 11: proto.InventoryHeartbeat
-	(*UpstreamInventoryGoodbye)(nil),                       // 12: proto.UpstreamInventoryGoodbye
-	(*InventoryStatusRequest)(nil),                         // 13: proto.InventoryStatusRequest
-	(*InventoryStatusSummary)(nil),                         // 14: proto.InventoryStatusSummary
-	(*UpstreamInventoryStopHeartbeat)(nil),                 // 15: proto.UpstreamInventoryStopHeartbeat
-	(*DownstreamInventoryHello_SupportedCapabilities)(nil), // 16: proto.DownstreamInventoryHello.SupportedCapabilities
-	nil,                              // 17: proto.InventoryUpdateLabelsRequest.LabelsEntry
-	nil,                              // 18: proto.DownstreamInventoryUpdateLabels.LabelsEntry
-	nil,                              // 19: proto.InventoryStatusSummary.VersionCountsEntry
-	nil,                              // 20: proto.InventoryStatusSummary.UpgraderCountsEntry
-	nil,                              // 21: proto.InventoryStatusSummary.ServiceCountsEntry
-	(*timestamppb.Timestamp)(nil),    // 22: google.protobuf.Timestamp
-	(*types.UpdaterV2Info)(nil),      // 23: types.UpdaterV2Info
-	(*types.ServerV2)(nil),           // 24: types.ServerV2
-	(*types.AppServerV3)(nil),        // 25: types.AppServerV3
-	(*types.DatabaseServerV3)(nil),   // 26: types.DatabaseServerV3
-	(*types.KubernetesServerV3)(nil), // 27: types.KubernetesServerV3
-	(*v1.RelayServer)(nil),           // 28: teleport.presence.v1.RelayServer
+	(*UpstreamInventoryUpdaterInfo)(nil),                   // 6: proto.UpstreamInventoryUpdaterInfo
+	(*UpstreamInventoryHello)(nil),                         // 7: proto.UpstreamInventoryHello
+	(*UpstreamInventoryAgentMetadata)(nil),                 // 8: proto.UpstreamInventoryAgentMetadata
+	(*DownstreamInventoryHello)(nil),                       // 9: proto.DownstreamInventoryHello
+	(*InventoryUpdateLabelsRequest)(nil),                   // 10: proto.InventoryUpdateLabelsRequest
+	(*DownstreamInventoryUpdateLabels)(nil),                // 11: proto.DownstreamInventoryUpdateLabels
+	(*InventoryHeartbeat)(nil),                             // 12: proto.InventoryHeartbeat
+	(*UpstreamInventoryGoodbye)(nil),                       // 13: proto.UpstreamInventoryGoodbye
+	(*InventoryStatusRequest)(nil),                         // 14: proto.InventoryStatusRequest
+	(*InventoryStatusSummary)(nil),                         // 15: proto.InventoryStatusSummary
+	(*UpstreamInventoryStopHeartbeat)(nil),                 // 16: proto.UpstreamInventoryStopHeartbeat
+	(*DownstreamInventoryHello_SupportedCapabilities)(nil), // 17: proto.DownstreamInventoryHello.SupportedCapabilities
+	nil,                              // 18: proto.InventoryUpdateLabelsRequest.LabelsEntry
+	nil,                              // 19: proto.DownstreamInventoryUpdateLabels.LabelsEntry
+	nil,                              // 20: proto.InventoryStatusSummary.VersionCountsEntry
+	nil,                              // 21: proto.InventoryStatusSummary.UpgraderCountsEntry
+	nil,                              // 22: proto.InventoryStatusSummary.ServiceCountsEntry
+	(*timestamppb.Timestamp)(nil),    // 23: google.protobuf.Timestamp
+	(*types.UpdaterV2Info)(nil),      // 24: types.UpdaterV2Info
+	(*types.ServerV2)(nil),           // 25: types.ServerV2
+	(*types.AppServerV3)(nil),        // 26: types.AppServerV3
+	(*types.DatabaseServerV3)(nil),   // 27: types.DatabaseServerV3
+	(*types.KubernetesServerV3)(nil), // 28: types.KubernetesServerV3
+	(*v1.RelayServer)(nil),           // 29: teleport.presence.v1.RelayServer
 }
 var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
-	6,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
-	11, // 1: proto.UpstreamInventoryOneOf.Heartbeat:type_name -> proto.InventoryHeartbeat
+	7,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
+	12, // 1: proto.UpstreamInventoryOneOf.Heartbeat:type_name -> proto.InventoryHeartbeat
 	5,  // 2: proto.UpstreamInventoryOneOf.Pong:type_name -> proto.UpstreamInventoryPong
-	7,  // 3: proto.UpstreamInventoryOneOf.AgentMetadata:type_name -> proto.UpstreamInventoryAgentMetadata
-	12, // 4: proto.UpstreamInventoryOneOf.Goodbye:type_name -> proto.UpstreamInventoryGoodbye
-	15, // 5: proto.UpstreamInventoryOneOf.stop_heartbeat:type_name -> proto.UpstreamInventoryStopHeartbeat
-	8,  // 6: proto.DownstreamInventoryOneOf.Hello:type_name -> proto.DownstreamInventoryHello
-	4,  // 7: proto.DownstreamInventoryOneOf.Ping:type_name -> proto.DownstreamInventoryPing
-	10, // 8: proto.DownstreamInventoryOneOf.UpdateLabels:type_name -> proto.DownstreamInventoryUpdateLabels
-	22, // 9: proto.UpstreamInventoryPong.SystemClock:type_name -> google.protobuf.Timestamp
-	23, // 10: proto.UpstreamInventoryHello.UpdaterInfo:type_name -> types.UpdaterV2Info
-	16, // 11: proto.DownstreamInventoryHello.Capabilities:type_name -> proto.DownstreamInventoryHello.SupportedCapabilities
-	0,  // 12: proto.InventoryUpdateLabelsRequest.Kind:type_name -> proto.LabelUpdateKind
-	17, // 13: proto.InventoryUpdateLabelsRequest.Labels:type_name -> proto.InventoryUpdateLabelsRequest.LabelsEntry
-	0,  // 14: proto.DownstreamInventoryUpdateLabels.Kind:type_name -> proto.LabelUpdateKind
-	18, // 15: proto.DownstreamInventoryUpdateLabels.Labels:type_name -> proto.DownstreamInventoryUpdateLabels.LabelsEntry
-	24, // 16: proto.InventoryHeartbeat.SSHServer:type_name -> types.ServerV2
-	25, // 17: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
-	26, // 18: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
-	27, // 19: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
-	28, // 20: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
-	6,  // 21: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
-	19, // 22: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
-	20, // 23: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
-	21, // 24: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
-	1,  // 25: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	8,  // 3: proto.UpstreamInventoryOneOf.AgentMetadata:type_name -> proto.UpstreamInventoryAgentMetadata
+	13, // 4: proto.UpstreamInventoryOneOf.Goodbye:type_name -> proto.UpstreamInventoryGoodbye
+	16, // 5: proto.UpstreamInventoryOneOf.stop_heartbeat:type_name -> proto.UpstreamInventoryStopHeartbeat
+	6,  // 6: proto.UpstreamInventoryOneOf.UpdaterInfo:type_name -> proto.UpstreamInventoryUpdaterInfo
+	9,  // 7: proto.DownstreamInventoryOneOf.Hello:type_name -> proto.DownstreamInventoryHello
+	4,  // 8: proto.DownstreamInventoryOneOf.Ping:type_name -> proto.DownstreamInventoryPing
+	11, // 9: proto.DownstreamInventoryOneOf.UpdateLabels:type_name -> proto.DownstreamInventoryUpdateLabels
+	23, // 10: proto.UpstreamInventoryPong.SystemClock:type_name -> google.protobuf.Timestamp
+	24, // 11: proto.UpstreamInventoryUpdaterInfo.UpdaterInfo:type_name -> types.UpdaterV2Info
+	24, // 12: proto.UpstreamInventoryHello.UpdaterInfo:type_name -> types.UpdaterV2Info
+	17, // 13: proto.DownstreamInventoryHello.Capabilities:type_name -> proto.DownstreamInventoryHello.SupportedCapabilities
+	0,  // 14: proto.InventoryUpdateLabelsRequest.Kind:type_name -> proto.LabelUpdateKind
+	18, // 15: proto.InventoryUpdateLabelsRequest.Labels:type_name -> proto.InventoryUpdateLabelsRequest.LabelsEntry
+	0,  // 16: proto.DownstreamInventoryUpdateLabels.Kind:type_name -> proto.LabelUpdateKind
+	19, // 17: proto.DownstreamInventoryUpdateLabels.Labels:type_name -> proto.DownstreamInventoryUpdateLabels.LabelsEntry
+	25, // 18: proto.InventoryHeartbeat.SSHServer:type_name -> types.ServerV2
+	26, // 19: proto.InventoryHeartbeat.AppServer:type_name -> types.AppServerV3
+	27, // 20: proto.InventoryHeartbeat.DatabaseServer:type_name -> types.DatabaseServerV3
+	28, // 21: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
+	29, // 22: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
+	7,  // 23: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
+	20, // 24: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
+	21, // 25: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
+	22, // 26: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
+	1,  // 27: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_inventory_proto_init() }
@@ -1677,6 +1745,7 @@ func file_teleport_legacy_client_proto_inventory_proto_init() {
 		(*UpstreamInventoryOneOf_AgentMetadata)(nil),
 		(*UpstreamInventoryOneOf_Goodbye)(nil),
 		(*UpstreamInventoryOneOf_StopHeartbeat)(nil),
+		(*UpstreamInventoryOneOf_UpdaterInfo)(nil),
 	}
 	file_teleport_legacy_client_proto_inventory_proto_msgTypes[1].OneofWrappers = []any{
 		(*DownstreamInventoryOneOf_Hello)(nil),
@@ -1689,7 +1758,7 @@ func file_teleport_legacy_client_proto_inventory_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_legacy_client_proto_inventory_proto_rawDesc), len(file_teleport_legacy_client_proto_inventory_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -42,6 +42,9 @@ message UpstreamInventoryOneOf {
     // UpstreamInventoryStopHeartbeat informs the upstream service that a
     // heartbeat is stopping.
     UpstreamInventoryStopHeartbeat stop_heartbeat = 6;
+    // UpstreamInventoryUpdaterInfo informs the upstream service that the updater
+    // status has been changed.
+    UpstreamInventoryUpdaterInfo UpdaterInfo = 7;
   }
 }
 
@@ -70,6 +73,11 @@ message UpstreamInventoryPong {
   uint64 ID = 1;
   // SystemClock advertises the system clock of the upstream.
   google.protobuf.Timestamp SystemClock = 2;
+}
+
+// UpstreamInventoryUpdaterInfo is sent by request to update inventory stream state.
+message UpstreamInventoryUpdaterInfo {
+  types.UpdaterV2Info UpdaterInfo = 1;
 }
 
 // UpstreamInventoryHello is the hello message sent up the inventory control stream.
