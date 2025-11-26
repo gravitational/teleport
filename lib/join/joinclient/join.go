@@ -34,6 +34,7 @@ import (
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/env0"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/spacelift"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
@@ -201,6 +203,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
 	case types.JoinMethodToken,
+		types.JoinMethodAzureDevops,
 		types.JoinMethodBitbucket,
 		types.JoinMethodBoundKeypair,
 		types.JoinMethodCircleCI,
@@ -212,7 +215,8 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		types.JoinMethodIAM,
 		types.JoinMethodOracle,
 		types.JoinMethodSpacelift,
-		types.JoinMethodTPM:
+		types.JoinMethodTPM,
+		types.JoinMethodTerraformCloud:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -300,6 +304,14 @@ func joinWithMethod(
 	switch types.JoinMethod(method) {
 	case types.JoinMethodToken:
 		return tokenJoin(stream, clientParams)
+	case types.JoinMethodAzureDevops:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodBitbucket:
 		// Tests may specify their own IDToken, so only overwrite it when empty.
 		if joinParams.IDToken == "" {
@@ -373,6 +385,15 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodTPM:
 		return tpmJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodTerraformCloud:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = terraformcloud.NewIDTokenSource(joinParams.TerraformCloudAudienceTag, os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{

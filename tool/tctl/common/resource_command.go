@@ -131,7 +131,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindDevice:                      rc.createDevice,
 		types.KindOktaImportRule:              rc.createOktaImportRule,
 		types.KindIntegration:                 rc.createIntegration,
-		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindAccessMonitoringRule:        rc.createAccessMonitoringRule,
@@ -152,7 +151,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindVnetConfig:                  rc.updateVnetConfig,
 		types.KindPlugin:                      rc.updatePlugin,
 		types.KindUserTask:                    rc.updateUserTask,
-		types.KindDynamicWindowsDesktop:       rc.updateDynamicWindowsDesktop,
 		types.KindHealthCheckConfig:           rc.updateHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment: rc.updateScopedRoleAssignment,
@@ -519,45 +517,6 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Printf("network restrictions have been updated\n")
-	return nil
-}
-
-func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	dynamicDesktopClient := client.DynamicDesktopClient()
-	if _, err := dynamicDesktopClient.CreateDynamicWindowsDesktop(ctx, wd); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("application %q already exists", wd.GetName())
-			}
-			if _, err := dynamicDesktopClient.UpsertDynamicWindowsDesktop(ctx, wd); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	dynamicDesktopClient := client.DynamicDesktopClient()
-	if _, err := dynamicDesktopClient.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
 	return nil
 }
 
@@ -1000,11 +959,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindDynamicWindowsDesktop:
-		if err = client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
 	case types.KindCertAuthority:
 		if rc.ref.SubKind == "" || rc.ref.Name == "" {
 			return trace.BadParameter(
@@ -1377,24 +1331,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &crownJewelCollection{items: jewels}, nil
-	case types.KindDynamicWindowsDesktop:
-		dynamicDesktopClient := client.DynamicDesktopClient()
-		if rc.ref.Name != "" {
-			desktop, err := dynamicDesktopClient.GetDynamicWindowsDesktop(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &dynamicWindowsDesktopCollection{
-				desktops: []types.DynamicWindowsDesktop{desktop},
-			}, nil
-		}
-
-		desktops, err := stream.Collect(clientutils.Resources(ctx, dynamicDesktopClient.ListDynamicWindowsDesktops))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name

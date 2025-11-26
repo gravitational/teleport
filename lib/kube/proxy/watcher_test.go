@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"sort"
 	"strings"
@@ -33,9 +34,31 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+type mockAuthClient struct {
+	authclient.ClientI
+	deleteCh chan string
+}
+
+func newMockAuthClient(client authclient.ClientI) *mockAuthClient {
+	return &mockAuthClient{
+		ClientI:  client,
+		deleteCh: make(chan string, 1),
+	}
+}
+
+func (m *mockAuthClient) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
+	select {
+	case m.deleteCh <- name:
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("failed to signal kube server deletion")
+	}
+	return m.ClientI.DeleteKubernetesServer(ctx, hostID, name)
+}
 
 // TestWatcher verifies that kubernetes agent properly detects and applies
 // changes to kube_cluster resources.
@@ -64,6 +87,8 @@ func TestWatcher(t *testing.T) {
 			}
 		},
 	})
+	authClient := newMockAuthClient(testCtx.KubeServer.AuthClient)
+	testCtx.KubeServer.AuthClient = authClient
 
 	require.Len(t, testCtx.KubeServer.fwd.kubeClusters(), 1)
 	kube0 := testCtx.KubeServer.fwd.kubeClusters()[0]
@@ -180,6 +205,12 @@ func TestWatcher(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
+	select {
+	case deleted := <-authClient.deleteCh:
+		require.Equal(t, kube1.GetName(), deleted)
+	case <-time.After(time.Second):
+		t.Fatal("Kube server wasn't deleted after 1s.")
+	}
 
 	// Remove kube2.
 	err = testCtx.AuthServer.DeleteKubernetesCluster(ctx, kube2.GetName())
@@ -193,6 +224,12 @@ func TestWatcher(t *testing.T) {
 		))
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
+	}
+	select {
+	case deleted := <-authClient.deleteCh:
+		require.Equal(t, kube2.GetName(), deleted)
+	case <-time.After(time.Second):
+		t.Fatal("Kube server wasn't deleted after 1s.")
 	}
 }
 

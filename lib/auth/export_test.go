@@ -195,16 +195,8 @@ func (a *Server) SetJWKSValidator(clt JWKSValidator) {
 	a.k8sJWKSValidator = clt
 }
 
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
-	a.azureDevopsIDTokenValidator = validator
-}
-
 func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
 	a.k8sTokenReviewValidator = validator
-}
-
-func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
-	a.terraformIDTokenValidator = validator
 }
 
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {

@@ -20,7 +20,6 @@ package azuredevops
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"strings"
 
@@ -49,9 +48,8 @@ func issuerURL(
 	issuerURL := url.URL{
 		Scheme: scheme,
 		Host:   host,
-		Path:   fmt.Sprintf("/%s", organizationID),
 	}
-	return issuerURL.String()
+	return issuerURL.JoinPath(organizationID).String()
 }
 
 // IDTokenValidator validates an Azure Devops issued ID Token.

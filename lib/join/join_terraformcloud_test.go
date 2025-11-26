@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
@@ -26,15 +26,17 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/terraformcloud"
 )
 
 // TODO: This will probably cause a merge conflict and will be removed before
@@ -66,7 +68,7 @@ func (m *mockTerraformTokenValidator) Validate(
 	return &claims, nil
 }
 
-func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
+func TestJoinTerraformCloud(t *testing.T) {
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockTerraformTokenValidator{
 		tokens: map[string]terraformcloud.IDTokenClaims{
@@ -82,17 +84,20 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetTerraformIDTokenValidator(idTokenValidator)
-		return nil
-	}
+
 	ctx := t.Context()
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir:    t.TempDir(),
-		MutateAuth: withTokenValidator,
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			ClusterName: "test.localhost",
+			Dir:         t.TempDir(),
+		},
 	})
 	require.NoError(t, err)
-	auth := p.a
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+	auth := authServer.Auth()
+
+	auth.SetTerraformIDTokenValidator(idTokenValidator)
 
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -139,7 +144,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 		assertError   require.ErrorAssertionFunc
 	}{
 		{
-			name:          "success with all attributes",
+			name:          "success-with-all-attributes",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -154,7 +159,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:          "missing enterprise",
+			name:          "missing-enterprise",
 			setEnterprise: false,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -175,7 +180,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			},
 		},
 		{
-			name:          "multiple allow rules",
+			name:          "multiple-allow-rules",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -201,7 +206,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:          "incorrect organization id",
+			name:          "incorrect-organization-id",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -218,7 +223,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect organization name",
+			name:          "incorrect-organization-name",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -235,7 +240,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect project name",
+			name:          "incorrect-project-name",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -252,7 +257,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect project id",
+			name:          "incorrect-project-id",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -269,7 +274,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect workspace name",
+			name:          "incorrect-workspace-name",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -286,7 +291,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect workspace id",
+			name:          "incorrect-workspace-id",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -303,7 +308,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect run_phase",
+			name:          "incorrect-run_phase",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -322,7 +327,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "invalid token",
+			name:          "invalid-token",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -338,11 +343,11 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			},
 			request: newRequest("some other token"),
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, errMockInvalidToken)
+				require.ErrorContains(t, err, "invalid token")
 			},
 		},
 		{
-			name:          "correct explicit audience",
+			name:          "correct-explicit-audience",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -361,7 +366,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:          "incorrect audience",
+			name:          "incorrect-audience",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -382,7 +387,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			},
 		},
 		{
-			name:          "overridden hostname is honored",
+			name:          "overridden-hostname-is-honored",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodTerraformCloud,
@@ -420,8 +425,43 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.request.Token = tt.name
 
-			_, err = auth.RegisterUsingToken(ctx, tt.request)
-			tt.assertError(t, err)
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			t.Run("legacy", func(t *testing.T) {
+				_, err = auth.RegisterUsingToken(ctx, tt.request)
+				tt.assertError(t, err)
+			})
+
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodTerraformCloud,
+					ID: state.IdentityID{
+						Role:     tt.request.Role,
+						NodeName: "testnode",
+						HostUUID: tt.request.HostID,
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
+
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodTerraformCloud,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
+
 		})
 	}
 }
