@@ -141,7 +141,7 @@ type GetDatabasesResponse struct {
 
 // NewDBCLICmdBuilder creates a dbcmd.CLICommandBuilder with provided cluster,
 // db route, and options.
-func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
+func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, getDatabaseFunc dbcmd.GetDatabaseFunc, options ...dbcmd.ConnectCommandFunc) (*dbcmd.CLICommandBuilder, error) {
 	return dbcmd.NewCmdBuilder(
 		cluster.clusterClient,
 		&cluster.status,
@@ -153,6 +153,7 @@ func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, optio
 		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
 		// included in the returned CLI command.
 		cluster.Name,
+		getDatabaseFunc,
 		options...,
 	)
 }

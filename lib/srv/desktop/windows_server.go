@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"strconv"
 	"strings"
@@ -1255,10 +1256,10 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 ) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := host.Address.String()
+
 		labels := getHostLabels(addr)
-		for k, v := range host.Labels {
-			labels[k] = v
-		}
+		maps.Copy(labels, host.Labels)
+
 		name := host.Name
 		if name == "" {
 			var err error
@@ -1267,14 +1268,21 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 				return nil, trace.Wrap(err)
 			}
 		}
+
 		labels[types.OriginLabel] = types.OriginConfigFile
 		labels[types.ADLabel] = strconv.FormatBool(host.AD)
+
+		var domain string
+		if host.AD {
+			domain = s.cfg.Domain
+		}
+
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
 			labels,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
-				Domain: s.cfg.Domain,
+				Domain: domain,
 				HostID: s.cfg.Heartbeat.HostUUID,
 				NonAD:  !host.AD,
 			})

@@ -802,12 +802,12 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// attempting to run a command by hostname should generate NodeIsAmbiguous error.
-	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, helpers.ClientConfig{Login: suite.Me.Username, Cluster: helpers.Site, Host: Host}, 1)
+	_, err = runCommand(t.Context(), teleportSvr, []string{"echo", "Hello there!"}, helpers.ClientConfig{Login: suite.Me.Username, Cluster: helpers.Site, Host: Host}, 1)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "ambiguous")
 
 	// attempting to run a command by uuid should succeed.
-	_, err = runCommand(t, teleportSvr, []string{"echo", "Hello there!"}, helpers.ClientConfig{Login: suite.Me.Username, Cluster: helpers.Site, Host: uuid1}, 1)
+	_, err = runCommand(t.Context(), teleportSvr, []string{"echo", "Hello there!"}, helpers.ClientConfig{Login: suite.Me.Username, Cluster: helpers.Site, Host: uuid1}, 1)
 	require.NoError(t, err)
 }
 
@@ -3962,7 +3962,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 			Port:    helpers.Port(t, remote.SSH),
 			Proxy:   conf,
 		}
-		output, err := runCommand(t, main, []string{"echo", "hello world"}, clientConf, 10)
+		output, err := runCommand(t.Context(), main, []string{"echo", "hello world"}, clientConf, 10)
 		if shouldFail {
 			require.Error(t, err)
 		} else {
@@ -4078,7 +4078,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 		Host:    Loopback,
 		Port:    helpers.Port(t, remote.SSH),
 	}
-	output, err := runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	output, err := runCommand(t.Context(), main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4093,7 +4093,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 		Port:    helpers.Port(t, remote.SSH),
 		Proxy:   &proxyConfig,
 	}
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 10)
+	output, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfgProxy, 10)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4102,11 +4102,11 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
 	// Requests going via main proxy should fail.
-	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	_, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfg, 1)
 	require.Error(t, err)
 
 	// Requests going via second proxy should succeed.
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 1)
+	output, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfgProxy, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4124,7 +4124,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// Requests going via main proxy should succeed.
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	output, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4241,7 +4241,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		Cluster: helpers.Site,
 		Host:    "cluster-main-node",
 	}
-	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	_, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfg, 1)
 	require.Error(t, err)
 
 	cfgProxy := helpers.ClientConfig{
@@ -4251,7 +4251,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		Proxy:   &proxyConfig,
 	}
 
-	output, err := runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 10)
+	output, err := runCommand(t.Context(), main, []string{"echo", "hello world"}, cfgProxy, 10)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4261,14 +4261,14 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 0)
 
 	// Requests going via both proxy will fail.
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer invoke(cancel)
-	_, err = runCommandWithContext(timeoutCtx, t, main, []string{"echo", "hello world"}, cfg, 1)
+	_, err = runCommand(timeoutCtx, main, []string{"echo", "hello world"}, cfg, 1)
 	require.Error(t, err)
 
-	timeoutCtx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	timeoutCtx, cancel = context.WithTimeout(t.Context(), 1*time.Second)
 	defer invoke(cancel)
-	_, err = runCommandWithContext(timeoutCtx, t, main, []string{"echo", "hello world"}, cfgProxy, 1)
+	_, err = runCommand(timeoutCtx, main, []string{"echo", "hello world"}, cfgProxy, 1)
 	require.Error(t, err)
 
 	// wait for the node to reach a degraded state
@@ -4283,9 +4283,9 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
 	// Requests going to the connected proxy should succeed.
-	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	_, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfg, 1)
 	require.Error(t, err)
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 40)
+	output, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfgProxy, 40)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4388,7 +4388,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		Host:    "cluster-main-node",
 	}
 
-	output, err := runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	output, err := runCommand(t.Context(), main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4403,7 +4403,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		Proxy:   &proxyConfig,
 	}
 
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 10)
+	output, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfgProxy, 10)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4413,10 +4413,10 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 
 	// Requests going via main proxy will succeed. Requests going via second
 	// proxy will fail.
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	output, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
-	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 1)
+	_, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfgProxy, 1)
 	require.Error(t, err)
 
 	// Add second proxy to LB, both should have a connection.
@@ -4425,10 +4425,10 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
 	// Requests going via both proxies will succeed.
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	output, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfg, 1)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
-	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 40)
+	output, err = runCommand(t.Context(), main, []string{"echo", "hello world"}, cfgProxy, 40)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", output)
 
@@ -4902,7 +4902,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			err = instance.WaitForNodeCount(context.Background(), helpers.Site, 2)
 			require.NoError(t, err)
 
-			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
+			_, err = runCommand(t.Context(), instance, []string{"echo hello"}, clientConfig, 1)
 
 			// check if we were able to exec the command or not
 			if tt.outError {
@@ -6163,7 +6163,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 				Labels:  tt.labels,
 			}
 
-			output, err := runCommand(t, teleport, tt.command, cfg, 3)
+			output, err := runCommand(t.Context(), teleport, tt.command, cfg, 3)
 			require.NoError(t, err)
 			outputLines := strings.Split(strings.TrimSpace(output), "\n")
 			require.Len(t, outputLines, len(tt.expectLines), "raw output:\n%v", output)
@@ -6197,7 +6197,7 @@ func testDataTransfer(t *testing.T, suite *integrationTestSuite) {
 
 	// Write 1 MB to stdout.
 	command := []string{"dd", "if=/dev/zero", "bs=1024", "count=1024"}
-	output, err := runCommand(t, main, command, clientConfig, 1)
+	output, err := runCommand(t.Context(), main, command, clientConfig, 1)
 	require.NoError(t, err)
 
 	// Make sure exactly 1 MB was written to output.
@@ -6428,7 +6428,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			// Run exec command.
-			_, err = runCommand(t, main, []string{lsPath}, clientConfig, 1)
+			_, err = runCommand(t.Context(), main, []string{lsPath}, clientConfig, 1)
 			require.NoError(t, err)
 
 			// Enhanced events should show up for session recorded at the node but not
@@ -6752,7 +6752,7 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 				Port:        helpers.Port(t, main.SSH),
 				Interactive: tt.isInteractive,
 			}
-			_, err := runCommand(t, main, []string{tt.command}, clientConfig, 1)
+			_, err := runCommand(t.Context(), main, []string{tt.command}, clientConfig, 1)
 			require.NoError(t, err)
 
 			expectedCommandPrefix := tt.command
@@ -6792,7 +6792,7 @@ func testExecEvents(t *testing.T, suite *integrationTestSuite) {
 
 		errC := make(chan error)
 		go func() {
-			_, err := runCommandWithContext(ctx, t, main, []string{cmd}, clientConfig, 1)
+			_, err := runCommand(ctx, main, []string{cmd}, clientConfig, 1)
 			errC <- err
 		}()
 
@@ -7065,15 +7065,13 @@ func runCommandWithCertReissue(t *testing.T, instance *helpers.TeleInstance, cmd
 	return nil
 }
 
-func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg helpers.ClientConfig, attempts int) (string, error) {
-	tc, err := instance.NewClient(cfg)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+func runCommandOnClient(ctx context.Context, tc *client.TeleportClient, cmd []string) (string, error) {
 	// since this helper is sometimes used for running commands on
 	// multiple nodes concurrently, we use io.Pipe to protect our
 	// output buffer from concurrent writes.
 	read, write := io.Pipe()
+	defer read.Close()
+	defer write.Close()
 	output := &bytes.Buffer{}
 	doneC := make(chan struct{})
 	go func() {
@@ -7081,33 +7079,53 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 		close(doneC)
 	}()
 	tc.Stdout = write
-	for i := 0; i < attempts; i++ {
-		err = tc.SSH(ctx, cmd)
-		if err == nil {
-			break
-		}
-		time.Sleep(1 * time.Second)
+	if err := tc.SSH(ctx, cmd); err != nil {
+		return "", trace.Wrap(err)
 	}
 	write.Close()
+	select {
+	case <-doneC:
+	case <-ctx.Done():
+		return "", trace.Wrap(ctx.Err())
+	}
+	return output.String(), nil
+}
+
+// runCommand is a shortcut for running SSH command, it creates a client
+// connected to proxy of the passed in instance, runs the command, and returns
+// the result. If multiple attempts are requested, a one second delay is
+// added between them before giving up.
+func runCommand(
+	ctx context.Context,
+	instance *helpers.TeleInstance,
+	cmd []string,
+	cfg helpers.ClientConfig,
+	attempts int,
+) (string, error) {
+	tc, err := instance.NewClient(cfg)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	<-doneC
-	return output.String(), nil
+	var cmdErr error
+	for range attempts {
+		var out string
+		out, cmdErr = runCommandOnClient(ctx, tc, cmd)
+		if cmdErr == nil {
+			return out, nil
+		}
+		select {
+		case <-time.After(time.Second):
+		case <-ctx.Done():
+			return "", trace.Wrap(ctx.Err())
+		}
+	}
+	return "", trace.Wrap(cmdErr)
 }
 
 // invoke makes it easier to defer multiple cancelFuncs held by the same variable
 // without them stomping on one another.
 func invoke(cancel context.CancelFunc) { //nolint:unused // unused as TestReverseTunnelCollapse is skipped
 	cancel()
-}
-
-// runCommand is a shortcut for running SSH command, it creates a client
-// connected to proxy of the passed in instance, runs the command, and returns
-// the result. If multiple attempts are requested, a 250 millisecond delay is
-// added between them before giving up.
-func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg helpers.ClientConfig, attempts int) (string, error) {
-	return runCommandWithContext(context.TODO(), t, instance, cmd, cfg, attempts)
 }
 
 type InstanceConfigOption func(t *testing.T, config *helpers.InstanceConfig)
@@ -7362,7 +7380,7 @@ func TestTraitsPropagation(t *testing.T) {
 
 	// Run command in root.
 	require.Eventually(t, func() bool {
-		outputRoot, err := runCommand(t, rc, []string{"echo", "hello root"}, helpers.ClientConfig{
+		outputRoot, err := runCommand(t.Context(), rc, []string{"echo", "hello root"}, helpers.ClientConfig{
 			Login:   me.Username,
 			Cluster: "root.example.com",
 			Host:    Loopback,
@@ -7373,7 +7391,7 @@ func TestTraitsPropagation(t *testing.T) {
 
 	// Run command in leaf.
 	require.Eventually(t, func() bool {
-		outputLeaf, err := runCommand(t, rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
+		outputLeaf, err := runCommand(t.Context(), rc, []string{"echo", "hello leaf"}, helpers.ClientConfig{
 			Login:   me.Username,
 			Cluster: "leaf.example.com",
 			Host:    Loopback,
