@@ -4146,10 +4146,11 @@ func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
 	// Users can disable the debug service for compliance reasons but not the health
 	// routes because the updater relies on them.
 	config := diagnosticHandlerConfig{
-		enableMetrics:    exposeDebugRoutes,
-		enableProfiling:  exposeDebugRoutes,
-		enableHealth:     true,
-		enableLogLeveler: exposeDebugRoutes,
+		enableMetrics:       exposeDebugRoutes,
+		enableProfiling:     exposeDebugRoutes,
+		enableHealth:        true,
+		enableLogLeveler:    exposeDebugRoutes,
+		enableUpdaterStatus: true,
 	}
 	mux, err := process.newDiagnosticHandler(config, logger)
 	if err != nil {

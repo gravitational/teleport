@@ -25,14 +25,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/srv/debug"
 )
 
 type diagnosticHandlerConfig struct {
-	enableMetrics    bool
-	enableProfiling  bool
-	enableHealth     bool
-	enableLogLeveler bool
+	enableMetrics       bool
+	enableProfiling     bool
+	enableHealth        bool
+	enableLogLeveler    bool
+	enableUpdaterStatus bool
 }
 
 func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerConfig, logger *slog.Logger) (http.Handler, error) {
@@ -59,6 +61,10 @@ func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerCon
 
 	if config.enableLogLeveler {
 		debug.RegisterLogLevelHandlers(mux, logger, process.Config)
+	}
+
+	if config.enableUpdaterStatus {
+		agent.RegisterUpdaterHandlers(mux, logger, process.inventoryHandle.UpdateUpdaterInfo)
 	}
 
 	return mux, nil

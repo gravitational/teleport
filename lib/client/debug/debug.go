@@ -167,6 +167,19 @@ type Readiness struct {
 	PID int `json:"pid"`
 }
 
+func (c *Client) UpdateMetadata(ctx context.Context) error {
+	resp, err := c.do(ctx, http.MethodPost, url.URL{Path: "/update-status"}, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return trace.NotFound("status endpoint not found")
+	}
+
+	return nil
+}
+
 // GetReadiness returns true if the Teleport service is ready.
 func (c *Client) GetReadiness(ctx context.Context) (Readiness, error) {
 	var ready Readiness

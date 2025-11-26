@@ -33,14 +33,20 @@ const (
 
 // RegisterUpdaterHandlers registers updater handlers to a given multiplexer.
 // This allows to dynamically update the binary updater status after update schedule.
-func RegisterUpdaterHandlers(mux *http.ServeMux, logger *slog.Logger) {
-	mux.Handle("POST /updater-status", handleUpdateStatus(logger))
+func RegisterUpdaterHandlers(mux *http.ServeMux, logger *slog.Logger, update func() error) {
+	mux.Handle("POST /update-status", handleUpdateStatus(update, logger))
 }
 
 // handleUpdateStatus returns the http update status handler.
-func handleUpdateStatus(logger *slog.Logger) http.HandlerFunc {
+func handleUpdateStatus(update func() error, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Downstream initiate state update from teleport-update config file.
-		w.Write([]byte("Status is updated"))
+		if err := update(); err != nil {
+			logger.ErrorContext(r.Context(), "error updating updater status: %v", err)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			w.Write([]byte("Unable to send update status message."))
+			return
+		}
+		w.Write([]byte("Update status message is sent"))
 	}
 }
