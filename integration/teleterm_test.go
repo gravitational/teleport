@@ -681,7 +681,11 @@ func testLogout(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserC
 func testSettingSiteName(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
 	ctx := context.Background()
 
-	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
+	tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
+		TeleportUser: pack.Root.User.GetName(),
+		Cluster:      "root.example.com",
+	})
+	require.NoError(t, err)
 
 	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
 
@@ -710,8 +714,9 @@ func testSettingSiteName(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	// The URI should always resolve to the target cluster, even if the profile's site name points to a different cluster.
 	cluster, clusterClient, err = storage.ResolveCluster(cluster.URI)
 	require.NoError(t, err)
-	require.Equal(t, "root.example.com", clusterClient.SiteName)
-	require.Equal(t, "root.example.com", cluster.Name)
+	// These are empty because the user is not logged in, so there's no cert to retrieve the root cluster name.
+	require.Equal(t, "", clusterClient.SiteName)
+	require.Equal(t, "", cluster.Name)
 	// SiteName in the profile should still point to the leaf.
 	profile, err = clusterClient.GetProfile(tc.WebProxyAddr)
 	require.NoError(t, err)
