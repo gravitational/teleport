@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tfgen"
 	"github.com/gravitational/teleport/lib/tfgen/transform"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // machineIDWizardGenerateIaC generates IaC code for the Machine Identity CI/CD wizards.
@@ -24,24 +25,36 @@ func (h *Handler) machineIDWizardGenerateIaC(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	// Note: we currently only support deploying from GitHub Actions to Kubernetes
-	// but this endpoint will support other sources and destinations in the future.
 	switch {
+	// We currently only support deploying from GitHub Actions to Kubernetes but
+	// this endpoint will support other sources and destinations in the future.
 	case req.SourceType != "github":
 		return nil, trace.BadParameter("source_type must be one of: [github]")
 	case req.DestinationType != "kubernetes":
 		return nil, trace.BadParameter("destination_type must be one of: [kubernetes]")
+	// We also currently only support a single repository, but we may support
+	// multiple in the future, so the allow field is a slice.
+	case req.GitHub != nil && len(req.GitHub.Allow) != 1:
+		return nil, trace.BadParameter("github.allow: must contain exactly one item")
 	}
 
 	if req.GitHub == nil {
 		// Default to *something* so the generated code isn't completely broken.
 		req.GitHub = &machineIDWizardRequestGitHub{
-			Repository: "repository",
-			Owner:      "organization",
+			Allow: []machineIDWizardRequestGitHubAllow{
+				{
+					Repository: "repository",
+					Owner:      "organization",
+				},
+			},
 		}
 	}
 
-	namePrefix := fmt.Sprintf("gha-%s-%s", req.GitHub.Owner, req.GitHub.Repository)
+	namePrefix := fmt.Sprintf(
+		"gha-%s-%s",
+		req.GitHub.Allow[0].Owner,
+		req.GitHub.Allow[0].Repository,
+	)
 
 	// Role resource.
 	role := &types.RoleV6{
@@ -92,17 +105,17 @@ func (h *Handler) machineIDWizardGenerateIaC(w http.ResponseWriter, r *http.Requ
 			JoinMethod: types.JoinMethodGitHub,
 			BotName:    namePrefix,
 			GitHub: &types.ProvisionTokenSpecV2GitHub{
-				Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
-					{
-						Repository:      fmt.Sprintf("%s/%s", req.GitHub.Owner, req.GitHub.Repository),
-						RepositoryOwner: req.GitHub.Owner,
-						Workflow:        req.GitHub.Workflow,
-						Environment:     req.GitHub.Environment,
-						Actor:           req.GitHub.Actor,
-						Ref:             req.GitHub.Ref,
-						RefType:         req.GitHub.RefType,
-					},
-				},
+				Allow: slices.Map(req.GitHub.Allow, func(allow machineIDWizardRequestGitHubAllow) *types.ProvisionTokenSpecV2GitHub_Rule {
+					return &types.ProvisionTokenSpecV2GitHub_Rule{
+						Repository:      fmt.Sprintf("%s/%s", allow.Owner, allow.Repository),
+						RepositoryOwner: allow.Owner,
+						Workflow:        allow.Workflow,
+						Environment:     allow.Environment,
+						Actor:           allow.Actor,
+						Ref:             allow.Ref,
+						RefType:         allow.RefType,
+					}
+				}),
 				EnterpriseServerHost: req.GitHub.EnterpriseServerHost,
 				EnterpriseSlug:       req.GitHub.EnterpriseSlug,
 				StaticJWKS:           req.GitHub.StaticJWKS,
@@ -160,16 +173,20 @@ type machineIDWizardGenerateIaCRequest struct {
 }
 
 type machineIDWizardRequestGitHub struct {
-	Repository           string `json:"repository"`
-	Owner                string `json:"owner"`
-	Workflow             string `json:"workflow"`
-	Environment          string `json:"environment"`
-	Actor                string `json:"actor"`
-	Ref                  string `json:"ref"`
-	RefType              string `json:"ref_type"`
-	EnterpriseServerHost string `json:"enterprise_server_host"`
-	EnterpriseSlug       string `json:"enterprise_slug"`
-	StaticJWKS           string `json:"static_jwks"`
+	Allow                []machineIDWizardRequestGitHubAllow `json:"allow"`
+	EnterpriseServerHost string                              `json:"enterprise_server_host"`
+	EnterpriseSlug       string                              `json:"enterprise_slug"`
+	StaticJWKS           string                              `json:"static_jwks"`
+}
+
+type machineIDWizardRequestGitHubAllow struct {
+	Repository  string `json:"repository"`
+	Owner       string `json:"owner"`
+	Workflow    string `json:"workflow"`
+	Environment string `json:"environment"`
+	Actor       string `json:"actor"`
+	Ref         string `json:"ref"`
+	RefType     string `json:"ref_type"`
 }
 
 type machineIDWizardRequestKubernetes struct {
