@@ -358,14 +358,12 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 		return *s.childLogConfig
 	}
 
-	// Default to stderr debug logs (tests)
-	level := new(slog.LevelVar)
-	level.Set(slog.LevelDebug)
+	// return a noop log configuration
 	return srv.ChildLogConfig{
 		ExecLogConfig: srv.ExecLogConfig{
-			Level: level,
+			Level: &slog.LevelVar{},
 		},
-		Writer: os.Stderr,
+		Writer: io.Discard,
 	}
 }
 

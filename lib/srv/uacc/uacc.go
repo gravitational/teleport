@@ -77,7 +77,6 @@ func NewUserAccountHandler(cfg UaccConfig) *UserAccountHandler {
 		uacc.utmp = utmp
 		slog.DebugContext(ctx, "utmp user accounting is active")
 	}
-
 	wtmpdb, wtmpdbErr := NewWtmpdbBackend(cfg.WtmpdbFile)
 	if wtmpdbErr == nil {
 		uacc.wtmpdb = wtmpdb

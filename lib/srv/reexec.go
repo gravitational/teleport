@@ -19,7 +19,6 @@
 package srv
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -246,8 +245,7 @@ func RunCommand() (code int, err error) {
 				w = io.MultiWriter(os.Stdout, tty)
 			}
 
-			s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
-			io.Copy(w, bytes.NewBufferString(s))
+			fmt.Fprintf(w, "Failed to launch: %v.\r\n", err)
 		}
 	}()
 
@@ -1506,12 +1504,9 @@ func initLogger(name string, cfg ExecLogConfig) {
 		return
 	}
 
-	var logger *slog.Logger
 	switch cfg.Format {
-	case "":
-		fallthrough // not set. defaults to 'text'
-	case "text":
-		logger = slog.New(logutils.NewSlogTextHandler(logWriter, logutils.SlogTextHandlerConfig{
+	case "text", "":
+		logger := slog.New(logutils.NewSlogTextHandler(logWriter, logutils.SlogTextHandlerConfig{
 			Level:            cfg.Level,
 			EnableColors:     cfg.EnableColors,
 			ConfiguredFields: fields,
@@ -1519,7 +1514,7 @@ func initLogger(name string, cfg ExecLogConfig) {
 		}))
 		slog.SetDefault(logger.With(teleport.ComponentKey, name))
 	case "json":
-		logger = slog.New(logutils.NewSlogJSONHandler(logWriter, logutils.SlogJSONHandlerConfig{
+		logger := slog.New(logutils.NewSlogJSONHandler(logWriter, logutils.SlogJSONHandlerConfig{
 			Level:            cfg.Level,
 			ConfiguredFields: fields,
 		}))
