@@ -1729,7 +1729,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 						break loop
 					}
 				}
-				require.Equal(c, 0, len(clustersNotUpdated))
+				require.Empty(c, clustersNotUpdated)
 				require.True(c, clustersFoundInAuth)
 			}, 5*time.Second, 200*time.Millisecond)
 
