@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	convert "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
@@ -558,4 +559,95 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 		IdentityService:        userSvc,
 		DiscoveryConfigService: localResourceService,
 	}, resourceSvc
+}
+
+func TestDowngrade(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		clientVersion string
+		input         *discoveryconfig.DiscoveryConfig
+		expected      *discoveryconfig.DiscoveryConfig
+	}{
+		{
+			name:          "no downgrade for recent client",
+			clientVersion: "18.4.2",
+			input: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "dc1"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "group1",
+						AWS: []types.AWSMatcher{
+							{
+								Regions: []string{types.Wildcard},
+								Types:   []string{"ec2"},
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+			expected: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "dc1"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "group1",
+						AWS: []types.AWSMatcher{
+							{
+								Regions: []string{types.Wildcard},
+								Types:   []string{"ec2"},
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+		},
+		{
+			name:          "downgrade for old client",
+			clientVersion: "18.4.1",
+			input: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "dc1"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "group1",
+						AWS: []types.AWSMatcher{
+							{
+								Regions: []string{types.Wildcard},
+								Types:   []string{"ec2"},
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+			expected: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "dc1"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "group1",
+						AWS: []types.AWSMatcher{
+							{
+								Regions: []string{types.Wildcard},
+								Types:   []string{"ec2"},
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := metadata.AddMetadataToContext(t.Context(), map[string]string{
+				metadata.VersionKey: tc.clientVersion,
+			})
+			downgraded, err := MaybeDowngradeDiscoveryConfig(ctx, tc.input)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, downgraded)
+		})
+	}
 }

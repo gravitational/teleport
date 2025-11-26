@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -580,6 +581,13 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 		}
 		if role, ok := event.Resource.(*types.RoleV6); ok {
 			downgraded, err := maybeDowngradeRole(stream.Context(), role)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			event.Resource = downgraded
+		}
+		if dc, ok := event.Resource.(*discoveryconfig.DiscoveryConfig); ok {
+			downgraded, err := discoveryconfigv1.MaybeDowngradeDiscoveryConfig(stream.Context(), dc)
 			if err != nil {
 				return trace.Wrap(err)
 			}

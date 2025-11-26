@@ -20,21 +20,26 @@ package discoveryconfigv1
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServiceConfig holds configuration options for the DiscoveryConfig gRPC service.
@@ -124,7 +129,11 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 
 	dcs := make([]*discoveryconfigv1.DiscoveryConfig, len(results))
 	for i, r := range results {
-		dcs[i] = conv.ToProto(r)
+		downgraded, err := MaybeDowngradeDiscoveryConfig(ctx, r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dcs[i] = conv.ToProto(downgraded)
 	}
 
 	return &discoveryconfigv1.ListDiscoveryConfigsResponse{
@@ -149,7 +158,12 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 		return nil, trace.Wrap(err)
 	}
 
-	return conv.ToProto(dc), nil
+	downgraded, err := MaybeDowngradeDiscoveryConfig(ctx, dc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conv.ToProto(downgraded), nil
 }
 
 // CreateDiscoveryConfig creates a new DiscoveryConfig resource.
@@ -376,4 +390,68 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 
 		return conv.ToProto(resp), nil
 	}
+}
+
+// MaybeDowngradeDiscoveryConfig tests the client version passed through the gRPC metadata,
+// and if necessary downgrades the Discovery Config resource for compatibility with the older client.
+// The following rules are applied:
+//   - if version is lower than 18.4.2, the AWS wildcard region is replaced with "aws-global" sentinel region
+//     this ensures the client can still discover other resources without erroring out.
+func MaybeDowngradeDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		// This client is not reporting its version via gRPC metadata, which means it's a client really old or a third-party client.
+		// For those, downgrading the resource will do more harm than good, so the resource is returned as is.
+		return dc, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+	}
+
+	dc = maybeDowngradeDiscoveryConfigAWSWildcardRegion(dc, clientVersion)
+	return dc, nil
+}
+
+var minSupportedDiscoveryConfigAWSWildcardRegionVersion = semver.Version{Major: 18, Minor: 4, Patch: 2}
+
+// For Auth Server v20.0.0, the expected minimum supported client version is v19.0.0, which supports the AWS wildcard region.
+// This function should be deleted at that time.
+//
+// TODO(@marco): DELETE IN v20.0.0.
+func maybeDowngradeDiscoveryConfigAWSWildcardRegion(dc *discoveryconfig.DiscoveryConfig, clientVersion *semver.Version) *discoveryconfig.DiscoveryConfig {
+	if supported, err := utils.MinVerWithoutPreRelease(
+		clientVersion.String(),
+		minSupportedDiscoveryConfigAWSWildcardRegionVersion.String()); supported || err != nil {
+		return dc
+	}
+
+	var changed bool
+
+	originalDiscoveryConfig := dc
+
+	dc = dc.Clone()
+	awsMatchers := dc.Spec.AWS
+	awsMatchersWithoutRegionWildcard := make([]types.AWSMatcher, 0, len(awsMatchers))
+	for _, awsMatcher := range awsMatchers {
+		if len(awsMatcher.Regions) == 1 && awsMatcher.Regions[0] == types.Wildcard {
+			awsMatcher.Regions = []string{aws.AWSGlobalRegion}
+			changed = true
+		}
+		awsMatchersWithoutRegionWildcard = append(awsMatchersWithoutRegionWildcard, awsMatcher)
+	}
+
+	if !changed {
+		return originalDiscoveryConfig
+	}
+
+	dc.Spec.AWS = awsMatchersWithoutRegionWildcard
+	reason := fmt.Sprintf(`Client version %q does not support discovering all regions. Either update the Discovery Service agent to at least %s or enumerate all the regions in %q discovery config.`,
+		clientVersion, minSupportedDiscoveryConfigAWSWildcardRegionVersion, dc.GetName())
+	if dc.Metadata.Labels == nil {
+		dc.Metadata.Labels = make(map[string]string, 1)
+	}
+	dc.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+	return dc
 }
