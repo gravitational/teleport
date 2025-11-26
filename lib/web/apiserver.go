@@ -1219,7 +1219,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
 
 	// MWI IaC Wizards
-	h.POST("/webapi/machine-id/wizards/ci-cd", h.WithAuth(h.machineIDWizardGenerateIaC))
+	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
 }
 
 // GetProxyClient returns authenticated auth server client

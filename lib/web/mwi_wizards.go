@@ -13,13 +13,14 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tfgen"
 	"github.com/gravitational/teleport/lib/tfgen/transform"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // machineIDWizardGenerateIaC generates IaC code for the Machine Identity CI/CD wizards.
-func (h *Handler) machineIDWizardGenerateIaC(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) machineIDWizardGenerateIaC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext, _ reversetunnelclient.Cluster) (any, error) {
 	var req machineIDWizardGenerateIaCRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, trace.Wrap(err)
