@@ -35,6 +35,7 @@ export function SlideTabs({
   disabled = false,
   fitContent = false,
   hideStatusIconOnActiveTab,
+  intent = 'primary',
 }: SlideTabsProps) {
   const theme = useTheme();
   const activeTab = useRef<HTMLButtonElement>(null);
@@ -118,6 +119,7 @@ export function SlideTabs({
                 disabled={resolvedDisabled}
                 aria-selected={selected}
                 size={size}
+                intent={intent}
                 aria-label={ariaLabel}
               >
                 {/* We need a separate tab content component, since the status
@@ -152,7 +154,7 @@ export function SlideTabs({
           activeIndex={activeIndex}
           size={size}
         >
-          <TabSliderInner appearance={appearance} />
+          <TabSliderInner appearance={appearance} intent={intent} />
         </TabSlider>
       </TabList>
     </Wrapper>
@@ -160,6 +162,11 @@ export function SlideTabs({
 }
 
 export type SlideTabsProps = {
+  /**
+   * Specifies the selected tab button purpose class
+   * and affects its color palette.
+   */
+  intent?: Intent;
   /**
    * The style to render the selector in.
    */
@@ -216,7 +223,7 @@ export type SlideTabsProps = {
  */
 export type TabSpec = string | FullTabSpec;
 
-type FullTabSpec = TabContentSpec & {
+export type FullTabSpec = TabContentSpec & {
   /** Iteration key for the tab. */
   key: React.Key;
   /**
@@ -311,9 +318,12 @@ function StatusIconOrSpinner({
   );
 }
 
-const TabSliderInner = styled.div<{ appearance: Appearance }>`
+const TabSliderInner = styled.div<{ appearance: Appearance; intent: Intent }>`
   height: 100%;
-  background-color: ${({ theme }) => theme.colors.brand};
+  background-color: ${p =>
+    p.intent === 'primary'
+      ? p.theme.colors.brand
+      : p.theme.colors.interactive.tonal.neutral[2]};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
 `;
 
@@ -420,6 +430,7 @@ const TabButton = styled.button<{
   disabled?: boolean;
   selected?: boolean;
   size: Size;
+  intent: Intent;
 }>`
   /* Reset the button styles. */
   font-family: inherit;
@@ -444,7 +455,7 @@ const TabButton = styled.button<{
    */
   ${buttonMargin}
   color: ${props =>
-    props.selected
+    props.selected && props.intent === 'primary'
       ? props.theme.colors.text.primaryInverse
       : props.theme.colors.text.main};
 
@@ -453,6 +464,7 @@ const TabButton = styled.button<{
 
 type Appearance = 'square' | 'round';
 type Size = 'large' | 'medium' | 'small';
+type Intent = 'primary' | 'neutral';
 
 const TabSlider = styled.div<{
   itemCount: number;

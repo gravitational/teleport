@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
@@ -57,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
@@ -85,6 +87,7 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetAzureDevopsIDTokenValidator() azuredevops.Validator
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
 	GetCircleCITokenValidator() circleci.Validator
@@ -94,6 +97,7 @@ type AuthService interface {
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
+	GetTerraformIDTokenValidator() terraformcloud.Validator
 	services.Presence
 }
 
@@ -288,6 +292,8 @@ func (s *Server) handleJoinMethod(
 	switch joinMethod {
 	case types.JoinMethodToken:
 		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodAzureDevops:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateAzureDevopsToken)
 	case types.JoinMethodBitbucket:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateBitbucketToken)
 	case types.JoinMethodBoundKeypair:
@@ -310,6 +316,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGitlabToken)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodTerraformCloud:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)

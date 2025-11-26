@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
@@ -84,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -95,6 +97,7 @@ import (
 	libstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
@@ -875,7 +878,7 @@ func TestDiscoveryServer(t *testing.T) {
 					AWSConfigProvider: fakeConfigProvider,
 				},
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
-				KubernetesClient: fake.NewSimpleClientset(),
+				KubernetesClient: fake.NewClientset(),
 				AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
 				Matchers:         tc.staticMatchers,
 				Emitter:          tc.emitter,
@@ -1054,7 +1057,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 		GetEC2Client:     getEC2Client,
 		ClusterFeatures:  func() proto.Features { return proto.Features{} },
-		KubernetesClient: fake.NewSimpleClientset(),
+		KubernetesClient: fake.NewClientset(),
 		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers:         staticMatcher,
 		Emitter:          emitter,
@@ -1067,7 +1070,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 		GetEC2Client:     getEC2Client,
 		ClusterFeatures:  func() proto.Features { return proto.Features{} },
-		KubernetesClient: fake.NewSimpleClientset(),
+		KubernetesClient: fake.NewClientset(),
 		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers:         staticMatcher,
 		Emitter:          emitter,
@@ -1268,7 +1271,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				ctx,
 				&Config{
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(objects...),
+					KubernetesClient: fake.NewClientset(objects...),
 					AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						Kubernetes: tt.kubernetesMatchers,
@@ -1280,9 +1283,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 			require.NoError(t, err)
 
-			t.Cleanup(func() {
-				discServer.Stop()
-			})
+			t.Cleanup(discServer.Stop)
 			go discServer.Start()
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -1297,6 +1298,75 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
+}
+
+// TestDiscoveryKubeServicesInterval tests that the poll interval is honored for Kube App Discovery.
+func TestDiscoveryKubeServicesInterval(t *testing.T) {
+	const mainDiscoveryGroup = "main"
+
+	mockKubeServices := []*corev1.Service{
+		newMockKubeService("service1", "ns1", "",
+			map[string]string{"test-label": "testval"},
+			nil,
+			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
+		newMockKubeService("service2", "ns2", "",
+			map[string]string{"test-label": "testval"},
+			nil,
+			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
+	}
+
+	// Kubernetes app discovery matcher
+	kubernetesMatchers := []types.KubernetesMatcher{
+		{
+			Types:      []string{"app"},
+			Namespaces: []string{types.Wildcard},
+			Labels:     map[string]utils.Strings{"test-label": {"testval"}},
+		},
+	}
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		fakeKubeClient := fake.NewClientset(mockKubeServices[0])
+
+		bk, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		mockAccessPoint := &mockAuthServer{
+			events: local.NewEventsService(bk),
+		}
+
+		const pollInterval = 1 * time.Minute
+		discServer, err := New(ctx,
+			&Config{
+				ClusterFeatures:  func() proto.Features { return proto.Features{} },
+				KubernetesClient: fakeKubeClient,
+				AccessPoint:      mockAccessPoint,
+				Matchers: Matchers{
+					Kubernetes: kubernetesMatchers,
+				},
+				Emitter:        &mockEmitter{},
+				DiscoveryGroup: mainDiscoveryGroup,
+				PollInterval:   pollInterval,
+			})
+		require.NoError(t, err)
+
+		t.Cleanup(discServer.Stop)
+		go discServer.Start()
+
+		// Wait for discovery server to complete one iteration of discovering resources
+		synctest.Wait()
+
+		// Mock access point implementation does not actually create the app resource, but usage event is still logged
+		require.Len(t, mockAccessPoint.usageEvents, 1)
+
+		// Create new Kube service to be discovered by discServer
+		fakeKubeClient.CoreV1().Services("ns2").Create(ctx, mockKubeServices[1], v1.CreateOptions{})
+
+		time.Sleep(pollInterval)
+		synctest.Wait()
+
+		require.Len(t, mockAccessPoint.usageEvents, 2)
+	})
 }
 
 func TestDiscoveryInCloudKube(t *testing.T) {
@@ -1616,7 +1686,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					gcpClients:         gcpClients,
 					AWSFetchersClients: mockedClients,
 					ClusterFeatures:    func() proto.Features { return proto.Features{} },
-					KubernetesClient:   fake.NewSimpleClientset(),
+					KubernetesClient:   fake.NewClientset(),
 					AccessPoint:        getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
@@ -2586,7 +2656,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						return azureClients, nil
 					},
 					ClusterFeatures:           func() proto.Features { return proto.Features{} },
-					KubernetesClient:          fake.NewSimpleClientset(),
+					KubernetesClient:          fake.NewClientset(),
 					AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					AWSDatabaseFetcherFactory: dbFetcherFactory,
 					AWSConfigProvider:         fakeConfigProvider,
@@ -2729,7 +2799,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			AWSConfigProvider:         fakeConfigProvider,
 			AWSDatabaseFetcherFactory: dbFetcherFactory,
 			ClusterFeatures:           func() proto.Features { return proto.Features{} },
-			KubernetesClient:          fake.NewSimpleClientset(),
+			KubernetesClient:          fake.NewClientset(),
 			AccessPoint:               getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 			Matchers:                  Matchers{},
 			Emitter:                   authClient,
@@ -3142,7 +3212,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				initAzureClients: initAzureClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
-				KubernetesClient: fake.NewSimpleClientset(),
+				KubernetesClient: fake.NewClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
@@ -3455,7 +3525,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				gcpClients:       gcpClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
-				KubernetesClient: fake.NewSimpleClientset(),
+				KubernetesClient: fake.NewClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,

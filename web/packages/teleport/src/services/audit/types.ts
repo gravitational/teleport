@@ -359,6 +359,11 @@ export const eventCodes = {
   SCIM_RESOURCE_LIST: 'TSCIM005I',
   SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
   CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
+  APPAUTHCONFIG_CREATE: 'TAAC001I',
+  APPAUTHCONFIG_UPDATE: 'TAAC002I',
+  APPAUTHCONFIG_DELETE: 'TAAC003I',
+  APPAUTHCONFIG_VERIFY_SUCCESS: 'TAAC004I',
+  APPAUTHCONFIG_VERIFY_FAILURE: 'TAAC004E',
 } as const;
 
 /**
@@ -2107,6 +2112,32 @@ export type RawEvents = {
     {
       client_ip_restrictions: string[];
       success: boolean;
+    }
+  >;
+  [eventCodes.APPAUTHCONFIG_CREATE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_DELETE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS,
+    {
+      app_auth_config: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_VERIFY_FAILURE,
+    {
+      app_auth_config: string;
+      error: string;
     }
   >;
 };

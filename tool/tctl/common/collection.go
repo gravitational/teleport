@@ -340,35 +340,6 @@ func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
 }
 
-type dynamicWindowsDesktopCollection struct {
-	desktops []types.DynamicWindowsDesktop
-}
-
-func (c *dynamicWindowsDesktopCollection) Resources() (r []types.Resource) {
-	r = make([]types.Resource, 0, len(c.desktops))
-	for _, resource := range c.desktops {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, d := range c.desktops {
-		labels := common.FormatLabels(d.GetAllLabels(), verbose)
-		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
-	}
-	headers := []string{"Name", "Address", "AD Domain", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type kubeServerCollection struct {
 	servers []types.KubeServer
 }
@@ -828,6 +799,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsEmailAccessPlugin         = "email_access_plugin"
 		settingsAWSIdentityCenter         = "aws_ic"
 		settingsNetIQ                     = "net_iq"
+		settingsMsteams                   = "msteams"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -912,6 +884,8 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsNetIQ:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
 			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
+		case settingsMsteams:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Msteams{}
 
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)

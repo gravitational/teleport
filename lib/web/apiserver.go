@@ -224,6 +224,9 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string
 	// GetProxyClientCertificate returns the proxy client certificate.
 	GetProxyClientCertificate func() (*tls.Certificate, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
@@ -342,6 +345,8 @@ func (c *Config) SetDefaults() {
 	if c.AutomaticUpgradesChannels == nil {
 		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
+
+	c.ProxyGroupID = cmp.Or(c.ProxyGroupID, os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"))
 
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
@@ -989,7 +994,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
+	// TODO(kimlisa): DELETE IN 20.0 along with the api path defined in `config.ts`
+	// Replaced by its v2 endpoint
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
+	// v2 introduces a query param for optionally including system roles
+	// in the list and optionally include returning the object version
+	// of resource (only supported for roles).
+	h.GET("/v2/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
 	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
@@ -2742,6 +2753,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	var webSession types.WebSession
 	switch {
@@ -3127,6 +3139,8 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3151,6 +3165,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	switch {
 	// Since checking for private key policy meant that they passed authn,
@@ -4683,13 +4699,15 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
+	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:                 req.User,
 			SSHPublicKey:             req.SSHPubKey,
 			TLSPublicKey:             req.TLSPubKey,
-			ClientMetadata:           clientMetaFromReq(r),
+			ClientMetadata:           clientMeta,
 			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 		},
 		CompatibilityMode:       req.Compatibility,
@@ -5146,6 +5164,39 @@ func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, rateFunc fu
 		}
 		// auth passed, call directly
 		return fn(w, r, p)
+	})
+}
+
+// WithAccessDeniedLimiter adds conditional IP-based rate limiting that only applies
+// when the request handler returns an access denied error.
+//
+// This is different from WithUnauthenticatedLimiter in an important way:
+//   - WithUnauthenticatedLimiter: Checks authentication BEFORE executing the handler using local
+//     authentication mechanisms (user auth session cookie). If authentication fails locally, it
+//     applies rate limiting BEFORE executing the handler.
+//   - WithAccessDeniedLimiter: Executes the handler first, delegates authentication
+//     to the handler, then applies rate limiting ONLY if the handler returns an access denied error.
+//
+// Use this limiter for endpoints where authentication happens downstream (e.g., SCIM
+// endpoints where auth is handled by the auth server, not in the proxy).
+func (h *Handler) WithAccessDeniedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return h.conditionalLimiterFunc(fn, h.limiter, trace.IsAccessDenied)
+}
+
+func (h *Handler) conditionalLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter, shouldLimit func(error) bool) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		// TODO(smallinsky) Currently, the WithUnauthenticatedLimiter and the WithUnauthenticatedAccessDeniedLimiter perform
+		// rate limit change after the authentication check.
+		// Ideally if a client is rate limited it should be rate limited before any authentication check is preformed.
+		result, err := fn(w, r, p)
+		if err != nil {
+			if shouldLimit(err) {
+				if err := rateLimitRequest(r, limiter); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+		return result, err
 	})
 }
 

@@ -292,3 +292,124 @@ func TestShowRequestTable(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestSearchRequestableRoles(t *testing.T) {
+	ctx := t.Context()
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	accessRole, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+	accessRole.SetMetadata(types.Metadata{
+		Name:        "access",
+		Description: "base access role",
+	})
+
+	dbAdminRole, err := types.NewRole("db-admin", types.RoleSpecV6{})
+	require.NoError(t, err)
+	dbAdminRole.SetMetadata(types.Metadata{
+		Name:        "db-admin",
+		Description: "database administrator role",
+	})
+
+	unrequestableRole, err := types.NewRole("unrequestable", types.RoleSpecV6{})
+	require.NoError(t, err)
+	unrequestableRole.SetMetadata(types.Metadata{
+		Name:        "unrequestable",
+		Description: "role that exists but is not requestable for this user",
+	})
+
+	requesterRole, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"access", "db-admin"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	user.SetRoles([]string{"requester"})
+
+	auth, proxy := makeTestServers(t,
+		withBootstrap(
+			connector,
+			accessRole,
+			dbAdminRole,
+			unrequestableRole,
+			requesterRole,
+			user,
+		),
+	)
+	authServer := auth.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--debug",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	wantRolesTable := func() string {
+		table := asciitable.MakeTable([]string{"Role", "Description"})
+		table.AddRow([]string{"access", "base access role"})
+		table.AddRow([]string{"db-admin", "database administrator role"})
+		return table.AsBuffer().String()
+	}
+
+	tests := []struct {
+		name string
+		args []string
+		// If empty, we expect the command to succeed.
+		errMessage string
+		want       func() string
+	}{
+		{
+			name:       "list requestable roles",
+			args:       []string{"request", "search", "--roles"},
+			errMessage: "",
+			want:       wantRolesTable,
+		},
+		{
+			name:       "both kind and roles set",
+			args:       []string{"request", "search", "--kind=node", "--roles"},
+			errMessage: "only one of --kind and --roles may be specified",
+			want:       nil,
+		},
+		{
+			name:       "neither kind nor roles set",
+			args:       []string{"request", "search"},
+			errMessage: "one of --kind and --roles is required",
+			want:       nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout bytes.Buffer
+
+			err := Run(ctx,
+				append([]string{"--insecure"}, tc.args...),
+				setHomePath(tmpHomePath),
+				setCopyStdout(&stdout),
+			)
+
+			if tc.errMessage != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errMessage)
+				return
+			}
+
+			require.NoError(t, err)
+			if tc.want != nil {
+				require.Equal(t, tc.want(), stdout.String())
+			}
+		})
+	}
+}

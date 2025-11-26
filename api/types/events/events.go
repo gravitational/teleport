@@ -2733,3 +2733,23 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *ClientIPRestrictionsUpdate) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+func (m *AppAuthConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *AppAuthConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *AppAuthConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *AppAuthConfigVerify) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppAuthConfigVerify) fieldTrimmer {
+		return fieldTrimmers{
+			newGenericTrimmer(&m.Status, &out.Status),
+		}
+	})
+}
