@@ -36,6 +36,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -54,7 +55,9 @@ func proxyHandler() Handler {
 }
 
 func getProxy(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	servers, err := client.GetProxies()
+	servers, err := clientutils.CollectWithFallback(ctx, client.ListProxies, func(context.Context) ([]types.Server, error) {
+		return client.GetProxies()
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

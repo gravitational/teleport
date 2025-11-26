@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -99,7 +100,11 @@ type SyncerCache interface {
 	// GetClusterName returns the current cluster name.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+	// ListProxies returns a paginated list of registered proxy servers.
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	// ListIntegrations returns a paginated list of all integration resources.
 	ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error)
 }
@@ -301,7 +306,9 @@ func truncateErrorMessage(err error) string {
 }
 
 func fetchProxyPublicAddr(cache SyncerCache) (string, error) {
-	proxies, err := cache.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(context.TODO(), cache.ListProxies, func(context.Context) ([]types.Server, error) {
+		return cache.GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

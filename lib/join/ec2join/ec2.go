@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/digitorus/pkcs7"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel"
@@ -183,8 +184,10 @@ func nodeExists(ctx context.Context, presence services.Presence, hostID string) 
 	}
 }
 
-func proxyExists(_ context.Context, presence services.Presence, hostID string) (bool, error) {
-	proxies, err := presence.GetProxies()
+func proxyExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	proxies, err := clientutils.CollectWithFallback(ctx, presence.ListProxies, func(context.Context) ([]types.Server, error) {
+		return presence.GetProxies()
+	})
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

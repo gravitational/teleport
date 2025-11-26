@@ -181,6 +181,14 @@ func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {
 	return m.presence.GetProxies()
 }
 
+func (m *mockAccessPoint) ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return m.presence.ListProxies(ctx, pageSize, pageToken)
+}
+
 func (m *mockAccessPoint) GetAuthServers() ([]types.Server, error) {
 	return m.presence.GetAuthServers()
+}
+
+func (m *mockAccessPoint) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return m.presence.ListAuthServers(ctx, pageSize, pageToken)
 }

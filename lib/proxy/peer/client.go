@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/quic-go/quic-go"
@@ -676,7 +677,9 @@ func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool,
 	c.metrics.reportTunnelError(errorProxyPeerTunnelNotFound)
 
 	// try to establish new connections otherwise.
-	proxies, err := c.config.AuthClient.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(c.ctx, c.config.AuthClient.ListProxies, func(context.Context) ([]types.Server, error) {
+		return c.config.AuthClient.GetProxies()
+	})
 	if err != nil {
 		c.metrics.reportTunnelError(errorProxyPeerFetchProxies)
 		return nil, false, trace.Wrap(err)

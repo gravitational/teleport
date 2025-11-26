@@ -73,7 +73,9 @@ type WorkloadIdentityServiceConfig struct {
 type WorkloadIdentityCacher interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // KeyStorer is an interface that provides methods to retrieve keys and

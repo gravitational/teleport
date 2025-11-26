@@ -2397,6 +2397,7 @@ func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) 
 	return a.authServer.UpsertAuthServer(ctx, s)
 }
 
+// Deprecated: Prefer paginated variant [ListAuthServers].
 func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 	if a.scopedContext != nil {
 		ruleCtx := a.scopedContext.RuleContext()
@@ -2459,6 +2460,7 @@ func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error
 	return a.authServer.UpsertProxy(ctx, s)
 }
 
+// Deprecated: Prefer paginated variant [ListProxies].
 func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
 	if a.scopedContext != nil {
 		ruleCtx := a.scopedContext.RuleContext()

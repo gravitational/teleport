@@ -306,6 +306,8 @@ func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 }
 
 // getProxies returns registered proxies
+//
+// Deprecated: Prefer paginated gRPC variant [ListProxies].
 func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	servers, err := auth.GetProxies()
 	if err != nil {
@@ -342,6 +344,8 @@ func (s *APIServer) upsertAuthServer(auth *ServerWithRoles, w http.ResponseWrite
 }
 
 // getAuthServers returns registered auth servers
+//
+// Deprecated: Prefer paginated gRPC variant [ListAuthServers].
 func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	servers, err := auth.GetAuthServers()
 	if err != nil {

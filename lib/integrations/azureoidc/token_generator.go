@@ -52,7 +52,12 @@ type Cache interface {
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+
+	// ListProxies returns a paginated list of registered proxies.
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // GenerateEntraOIDCToken returns a JWT suitable for OIDC authentication to MS Graph API.

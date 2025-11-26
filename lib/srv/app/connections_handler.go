@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -459,7 +460,9 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 
 // getProxyPort tries to figure out the address the proxy is running at.
 func (c *ConnectionsHandler) getProxyPort() string {
-	servers, err := c.cfg.AccessPoint.GetProxies()
+	servers, err := clientutils.CollectWithFallback(context.TODO(), c.cfg.AccessPoint.ListProxies, func(context.Context) ([]types.Server, error) {
+		return c.cfg.AccessPoint.GetProxies()
+	})
 	if err != nil {
 		return strconv.Itoa(defaults.HTTPListenPort)
 	}

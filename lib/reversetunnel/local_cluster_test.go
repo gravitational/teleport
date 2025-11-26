@@ -355,6 +355,10 @@ func (m *mockLocalClusterClient) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockLocalClusterClient) ListProxies(context.Context, int, string) ([]types.Server, string, error) {
+	return m.proxies, "", nil
+}
+
 type mockWatcher struct {
 	events chan types.Event
 }

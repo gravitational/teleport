@@ -138,6 +138,14 @@ func (m *mockCache) GetProxies() ([]types.Server, error) {
 	}}, nil
 }
 
+func (m *mockCache) ListProxies(context.Context, int, string) ([]types.Server, string, error) {
+	return []types.Server{&types.ServerV2{
+		Spec: types.ServerSpecV2{
+			PublicAddrs: []string{"proxy.example.com"},
+		},
+	}}, "", nil
+}
+
 func (m *mockCache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
 	if m.integrations == nil {
 		m.integrations = map[string]types.Integration{}

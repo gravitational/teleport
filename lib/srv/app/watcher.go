@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -128,7 +129,12 @@ func (s *Server) guessPublicAddr(app types.Application) types.Application {
 // FindPublicAddrClient is a client used for finding public addresses.
 type FindPublicAddrClient interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+
+	// ListProxies returns a paginated list of registered proxy servers.
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
@@ -142,7 +148,9 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 	}
 
 	// Fetch list of proxies, if first has public address set, use it.
-	servers, err := client.GetProxies()
+	servers, err := clientutils.CollectWithFallback(context.TODO(), client.ListProxies, func(context.Context) ([]types.Server, error) {
+		return client.GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

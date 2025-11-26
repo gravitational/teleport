@@ -377,6 +377,8 @@ func serverToPaginationKey(s types.Server) string {
 }
 
 // GetAuthServers returns a list of registered servers
+//
+// Deprecated: Prefer paginated variant [ListAuthServers].
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
 }
@@ -411,6 +413,8 @@ func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) 
 }
 
 // GetProxies returns a list of registered proxies
+//
+// Deprecated: Prefer paginated variant [ListProxies].
 func (s *PresenceService) GetProxies() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindProxy, proxiesPrefix)
 }

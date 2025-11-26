@@ -36,6 +36,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-jose/go-jose/v4"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -915,7 +916,11 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 	}
 
 	// Get list of auth servers. Used to print friendly signup message.
-	authServers, err := in.client.GetAuthServers()
+	authServers, err := clientutils.CollectWithFallback(
+		ctx,
+		in.client.ListAuthServers,
+		func(context.Context) ([]types.Server, error) { return in.client.GetAuthServers() },
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -926,7 +931,9 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 	// Print signup message.
 	switch {
 	case in.roles.Include(types.RoleKube):
-		proxies, err := in.client.GetProxies()
+		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxies, func(context.Context) ([]types.Server, error) {
+			return in.client.GetProxies()
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -943,7 +950,9 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 				"version":     proxies[0].GetTeleportVersion(),
 			})
 	case in.roles.Include(types.RoleApp):
-		proxies, err := in.client.GetProxies()
+		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxies, func(context.Context) ([]types.Server, error) {
+			return in.client.GetProxies()
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -963,7 +972,9 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 				"app_public_addr": appPublicAddr,
 			})
 	case in.roles.Include(types.RoleDatabase):
-		proxies, err := in.client.GetProxies()
+		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxies, func(context.Context) ([]types.Server, error) {
+			return in.client.GetProxies()
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1005,7 +1016,9 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		}
 
 		if err == nil && pingResponse.GetServerFeatures().Cloud {
-			proxies, err := in.client.GetProxies()
+			proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxies, func(context.Context) ([]types.Server, error) {
+				return in.client.GetProxies()
+			})
 			if err != nil {
 				return trace.Wrap(err)
 			}

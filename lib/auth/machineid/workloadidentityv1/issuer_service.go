@@ -82,7 +82,9 @@ func (OSSSigstorePolicyEvaluator) Evaluate(_ context.Context, policyNames []stri
 
 type issuerCache interface {
 	workloadIdentityReader
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+	ListProxies(context.Context, int, string) ([]types.Server, string, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 

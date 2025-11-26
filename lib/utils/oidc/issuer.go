@@ -23,22 +23,29 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-// ProxyGetter is a service that gets proxies.
+// ProxiesGetter is a service that gets proxies.
 type ProxiesGetter interface {
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+	// ListProxies returns a paginated list of registered proxies.
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // IssuerForCluster returns the issuer URL using the Cluster state.
 // Path is an optional element to append to the issuer to distinguish a
 // separate CA within the same cluster.
 func IssuerForCluster(ctx context.Context, clt ProxiesGetter, path string) (string, error) {
-	proxies, err := clt.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, clt.ListProxies, func(context.Context) ([]types.Server, error) {
+		return clt.GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

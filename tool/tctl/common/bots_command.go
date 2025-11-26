@@ -195,7 +195,9 @@ type botsCommandClient interface {
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 	GetRole(context.Context, string) (types.Role, error)
 	UpsertLock(ctx context.Context, lock types.Lock) error
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	PerformMFACeremony(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
 }
 
@@ -886,7 +888,9 @@ func outputToken(wr io.Writer, format string, client botsCommandClient, bot *mac
 		return nil
 	}
 
-	proxies, err := client.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(context.TODO(), client.ListProxies, func(context.Context) ([]types.Server, error) {
+		return client.GetProxies()
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -1074,6 +1074,13 @@ func (m *mockCache) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockCache) ListProxies(context.Context, int, string) ([]types.Server, string, error) {
+	if m.returnErr != nil {
+		return nil, "", m.returnErr
+	}
+	return m.proxies, "", nil
+}
+
 func (m *mockCache) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
 	return nil, nil
 }

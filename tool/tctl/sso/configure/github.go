@@ -25,6 +25,7 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -119,7 +120,9 @@ func ResolveCallbackURL(ctx context.Context, logger *slog.Logger, clt *authclien
 	var callbackURL string
 
 	logger.InfoContext(ctx, "resolving callback url automatically", "field_name", fieldName)
-	proxies, err := clt.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, clt.ListProxies, func(context.Context) ([]types.Server, error) {
+		return clt.GetProxies()
+	})
 	if err != nil {
 		logger.ErrorContext(ctx, "unable to get proxy list", "error", err)
 	}

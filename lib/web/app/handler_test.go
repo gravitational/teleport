@@ -576,6 +576,10 @@ func (c *mockAuthClient) GetProxies() ([]types.Server, error) {
 	return []types.Server{}, nil
 }
 
+func (c *mockAuthClient) ListProxies(context.Context, int, string) ([]types.Server, string, error) {
+	return []types.Server{}, "", nil
+}
+
 // fakeClusterListener Implements a `net.Listener` that return `net.Conn` from
 // the `FakeCluster`.
 type fakeClusterListener struct {

@@ -460,6 +460,13 @@ func (s *debugAuth) GetProxies() ([]types.Server, error) {
 	return s.proxies, nil
 }
 
+func (s *debugAuth) ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	if s.proxiesError {
+		return nil, "", trace.BadParameter("failed to fetch proxies")
+	}
+	return s.proxies, "", nil
+}
+
 func (s *debugAuth) GetDomainName() (string, error) {
 	if s.clusterName == "" {
 		return "", trace.NotFound("no cluster name set")
