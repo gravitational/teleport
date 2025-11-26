@@ -72,7 +72,9 @@ func (h *Handler) machineIDWizardGenerateIaC(w http.ResponseWriter, r *http.Requ
 		Metadata: &headerv1.Metadata{
 			Name: namePrefix,
 		},
-		Spec: &machineidv1.BotSpec{},
+		Spec: &machineidv1.BotSpec{
+			Roles: []string{role.GetName()},
+		},
 	}
 	botOpts := []tfgen.GenerateOpt{
 		tfgen.WithFieldTransform("spec.traits", transform.BotTraits),
