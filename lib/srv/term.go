@@ -613,7 +613,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *remoteTerminal) WaitForChild(_ context.Context) error {
+func (t *remoteTerminal) WaitForChild(context.Context) error {
 	return nil
 }
 

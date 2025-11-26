@@ -385,7 +385,7 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 }
 
-func (e *remoteExec) WaitForChild(_ context.Context) error { return nil }
+func (e *remoteExec) WaitForChild(context.Context) error { return nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}
