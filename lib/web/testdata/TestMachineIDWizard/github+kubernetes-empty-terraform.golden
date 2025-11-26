@@ -20,9 +20,9 @@ resource "teleport_role" "gha-organization-repository-kube-access" {
 
   spec = {
     allow = {
-      kubernetes_groups = ["{{internal.kubernetes_groups}}"]
-      kubernetes_users  = ["{{internal.kubernetes_users}}"]
-      # kubernetes_labels will be added in the next steps.
+      # kubernetes_groups will be added in the next step.
+      kubernetes_groups = []
+      # kubernetes_labels will be added in the next step.
       kubernetes_labels = {}
     }
   }
@@ -39,8 +39,6 @@ resource "teleport_bot" "gha-organization-repository" {
 
   spec = {
     roles = ["gha-organization-repository-kube-access"]
-    # kubernetes_groups and kubernetes_users will be added in the next step.
-    traits = {}
   }
 }
 

@@ -20,8 +20,8 @@ resource "teleport_role" "gha-gravitational-teleport-kube-access" {
 
   spec = {
     allow = {
-      kubernetes_groups = ["{{internal.kubernetes_groups}}"]
-      kubernetes_users  = ["{{internal.kubernetes_users}}"]
+      kubernetes_groups = ["viewers"]
+      kubernetes_users  = ["serviceAccount:deployment-sa"]
       kubernetes_labels = {
         department = ["engineering"]
       }
@@ -46,10 +46,6 @@ resource "teleport_bot" "gha-gravitational-teleport" {
 
   spec = {
     roles = ["gha-gravitational-teleport-kube-access"]
-    traits = {
-      kubernetes_groups = ["viewers"]
-      kubernetes_users  = ["serviceAccount:deployment-sa"]
-    }
   }
 }
 
