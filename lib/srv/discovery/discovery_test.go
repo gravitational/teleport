@@ -754,7 +754,7 @@ func TestDiscoveryServer(t *testing.T) {
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
-				KubernetesClient: fake.NewSimpleClientset(),
+				KubernetesClient: fake.NewClientset(),
 				AccessPoint:      getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, authClient.IntegrationAWSOIDCClient()),
 				Matchers:         tc.staticMatchers,
 				Emitter:          tc.emitter,
@@ -916,7 +916,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 		CloudClients:     testCloudClients,
 		ClusterFeatures:  func() proto.Features { return proto.Features{} },
-		KubernetesClient: fake.NewSimpleClientset(),
+		KubernetesClient: fake.NewClientset(),
 		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers:         staticMatcher,
 		Emitter:          emitter,
@@ -929,7 +929,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 	server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 		CloudClients:     testCloudClients,
 		ClusterFeatures:  func() proto.Features { return proto.Features{} },
-		KubernetesClient: fake.NewSimpleClientset(),
+		KubernetesClient: fake.NewClientset(),
 		AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers:         staticMatcher,
 		Emitter:          emitter,
@@ -1133,7 +1133,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				&Config{
 					CloudClients:     &cloud.TestCloudClients{},
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(objects...),
+					KubernetesClient: fake.NewClientset(objects...),
 					AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						Kubernetes: tt.kubernetesMatchers,
@@ -1545,7 +1545,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				&Config{
 					CloudClients:     testCloudClients,
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(),
+					KubernetesClient: fake.NewClientset(),
 					AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
@@ -2447,7 +2447,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					IntegrationOnlyCredentials: integrationOnlyCredential,
 					CloudClients:               testCloudClients,
 					ClusterFeatures:            func() proto.Features { return proto.Features{} },
-					KubernetesClient:           fake.NewSimpleClientset(),
+					KubernetesClient:           fake.NewClientset(),
 					AccessPoint:                getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
@@ -2571,7 +2571,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		&Config{
 			CloudClients:     testCloudClients,
 			ClusterFeatures:  func() proto.Features { return proto.Features{} },
-			KubernetesClient: fake.NewSimpleClientset(),
+			KubernetesClient: fake.NewClientset(),
 			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 			Matchers:         Matchers{},
 			Emitter:          authClient,
@@ -3011,7 +3011,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
-				KubernetesClient: fake.NewSimpleClientset(),
+				KubernetesClient: fake.NewClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
@@ -3319,7 +3319,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
-				KubernetesClient: fake.NewSimpleClientset(),
+				KubernetesClient: fake.NewClientset(),
 				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
