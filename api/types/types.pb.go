@@ -24052,9 +24052,9 @@ type AWSMatcher struct {
 	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
 	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
 	KubeAppDiscovery bool `protobuf:"varint,8,opt,name=KubeAppDiscovery,proto3" json:"kube_app_discovery,omitempty"`
-	// SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+	// SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for.
 	// This value should match the IAM identity that Teleport Kubernetes Service uses.
-	// If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+	// If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
 	SetupAccessForARN string `protobuf:"bytes,9,opt,name=SetupAccessForARN,proto3" json:"setup_access_for_arn,omitempty"`
 	// Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization.
 	Organization         *AWSOrganizationMatcher `protobuf:"bytes,10,opt,name=Organization,proto3" json:"organization,omitempty"`
