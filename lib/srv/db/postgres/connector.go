@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
-	libcloud "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -45,7 +45,7 @@ import (
 
 type connector struct {
 	auth       common.Auth
-	gcpClients libcloud.GCPClients
+	gcpClients gcp.Clients
 	log        *slog.Logger
 
 	certExpiry    time.Time

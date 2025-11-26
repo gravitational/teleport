@@ -19,6 +19,7 @@
 package azure
 
 import (
+	"context"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -44,7 +45,7 @@ func TestClientMap(t *testing.T) {
 	// Note that some test cases (e.g. "get from cache") depend on previous
 	// test cases. Thus running in sequence.
 	t.Run("get credentials failed", func(t *testing.T) {
-		client, err := clientMap.Get("some-sub", func() (azcore.TokenCredential, error) {
+		client, err := clientMap.Get(t.Context(), "some-sub", func(ctx context.Context) (azcore.TokenCredential, error) {
 			return nil, trace.AccessDenied("failed to get credentials")
 		})
 		require.ErrorIs(t, err, trace.AccessDenied("failed to get credentials"))
@@ -52,7 +53,7 @@ func TestClientMap(t *testing.T) {
 	})
 
 	t.Run("create client failed", func(t *testing.T) {
-		client, err := clientMap.Get("bad-sub", func() (azcore.TokenCredential, error) {
+		client, err := clientMap.Get(t.Context(), "bad-sub", func(ctx context.Context) (azcore.TokenCredential, error) {
 			return nil, nil
 		})
 		require.ErrorIs(t, err, trace.BadParameter("failed to create"))
@@ -60,7 +61,7 @@ func TestClientMap(t *testing.T) {
 	})
 
 	t.Run("create client succeed", func(t *testing.T) {
-		client, err := clientMap.Get("good-sub", func() (azcore.TokenCredential, error) {
+		client, err := clientMap.Get(t.Context(), "good-sub", func(ctx context.Context) (azcore.TokenCredential, error) {
 			return nil, nil
 		})
 		require.NoError(t, err)
@@ -71,7 +72,7 @@ func TestClientMap(t *testing.T) {
 	t.Run("get from cache", func(t *testing.T) {
 		// Return an error for getCredentials but it shouldn't even be called
 		// as the client is returned from existing cache.
-		client, err := clientMap.Get("good-sub", func() (azcore.TokenCredential, error) {
+		client, err := clientMap.Get(t.Context(), "good-sub", func(ctx context.Context) (azcore.TokenCredential, error) {
 			return nil, trace.AccessDenied("failed to get credentials")
 		})
 		require.NoError(t, err)
@@ -80,14 +81,14 @@ func TestClientMap(t *testing.T) {
 	})
 
 	t.Run("expire from cache", func(t *testing.T) {
-		oldClient, err := clientMap.Get("good-sub", func() (azcore.TokenCredential, error) {
+		oldClient, err := clientMap.Get(t.Context(), "good-sub", func(ctx context.Context) (azcore.TokenCredential, error) {
 			return nil, nil
 		})
 		require.NoError(t, err)
 		require.NotNil(t, oldClient)
 
 		clock.Advance(2 * clientExpireTime)
-		newClient, err := clientMap.Get("good-sub", func() (azcore.TokenCredential, error) {
+		newClient, err := clientMap.Get(t.Context(), "good-sub", func(ctx context.Context) (azcore.TokenCredential, error) {
 			return nil, nil
 		})
 		require.NoError(t, err)

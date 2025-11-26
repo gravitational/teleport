@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -112,5 +112,5 @@ type fakeAuth struct {
 }
 
 type fakeGCPClients struct {
-	cloud.GCPClients
+	gcp.Clients
 }

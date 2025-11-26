@@ -40,8 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/cloud/cloudtest"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/fixtures"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -189,7 +190,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 
 	// Mock clients.
 
-	gcpClients := &cloudtest.GCPClients{
+	gcpClients := &gcptest.Clients{
 		GCPGKE: &mocks.GKEMock{
 			Notify: notify,
 			Clock:  fakeClock,
@@ -212,7 +213,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 		},
 	}
 
-	azureClients := &cloudtest.AzureClients{
+	azureClients := &azuretest.Clients{
 		AzureAKSClientPerSub: map[string]azure.AKSClient{
 			"12345": &mocks.AKSMock{
 				Notify: notify,

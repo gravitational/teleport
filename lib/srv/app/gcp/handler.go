@@ -34,7 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib/cloud"
+	libgcp "github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -93,7 +93,7 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 	}
 	if s.cloudClientGCP == nil {
 		// TODO (Tener): clients should be closed when no longer in use.
-		clients := cloud.NewGCPClients()
+		clients := libgcp.NewClients()
 		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
 	return nil
