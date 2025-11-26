@@ -23,6 +23,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -79,7 +80,12 @@ func mustMakeAWSFetchers(t *testing.T, cfg AWSFetcherFactoryConfig, matchers []t
 func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []types.AzureMatcher) []common.Fetcher {
 	t.Helper()
 
-	fetchers, err := MakeAzureFetchers(clients, matchers, "" /* discovery config */)
+	fetchers, err := MakeAzureFetchers(t.Context(), func(ctx context.Context, integration string) (cloud.AzureClients, error) {
+		if integration != "" {
+			return nil, trace.NotImplemented("expected empty integration, got %q", integration)
+		}
+		return clients, nil
+	}, matchers, "" /* discovery config */)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 

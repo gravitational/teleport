@@ -197,8 +197,13 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 }
 
 // MakeAzureFetchers creates new Azure database fetchers.
-func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
+func MakeAzureFetchers(ctx context.Context, getAzureClients func(ctx context.Context, integration string) (cloud.AzureClients, error), matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
 	for _, matcher := range services.SimplifyAzureMatchers(matchers) {
+		azureClients, err := getAzureClients(ctx, matcher.Integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
 			if !found {
@@ -211,13 +216,14 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 				for _, sub := range matcher.Subscriptions {
 					for _, group := range matcher.ResourceGroups {
 						fetcher, err := makeFetcher(azureFetcherConfig{
-							AzureClients:        clients,
+							AzureClients:        azureClients,
 							Type:                matcherType,
 							Subscription:        sub,
 							ResourceGroup:       group,
 							Labels:              matcher.ResourceTags,
 							Regions:             matcher.Regions,
 							DiscoveryConfigName: discoveryConfigName,
+							Integration:         matcher.Integration,
 						})
 						if err != nil {
 							return nil, trace.Wrap(err)
