@@ -34,4 +34,6 @@ type DialParams struct {
 	To       *utils.NetAddr
 	ServerID string
 	ConnType types.TunnelType
+	// TargetScope is the expected scope for the dialed node.
+	TargetScope string
 }

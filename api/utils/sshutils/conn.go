@@ -87,6 +87,9 @@ type DialReq struct {
 	// Address is the target host to make a connection to.
 	Address string `json:"address,omitempty"`
 
+	// TargetScope optionally carries the agent scope expected for the target.
+	TargetScope string `json:"target_scope,omitempty"`
+
 	// ServerID is the hostUUID.clusterName of the node. ServerID is used when
 	// dialing through a tunnel to SSH and application nodes.
 	ServerID string `json:"server_id,omitempty"`

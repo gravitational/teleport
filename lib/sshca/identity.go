@@ -418,6 +418,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	}
 
 	ident.AgentScope = takeValue(teleport.CertExtensionAgentScope)
+	fmt.Printf("--> GOT ident.AgentScope: %v\n", ident.AgentScope)
 	ident.PermitX11Forwarding = takeBool(teleport.CertExtensionPermitX11Forwarding)
 	ident.PermitAgentForwarding = takeBool(teleport.CertExtensionPermitAgentForwarding)
 	ident.PermitPortForwarding = takeBool(teleport.CertExtensionPermitPortForwarding)

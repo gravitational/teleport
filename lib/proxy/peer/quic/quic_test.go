@@ -289,6 +289,7 @@ func TestBasicFunctionality(t *testing.T) {
 				Addr:        "7.8.9.0:12",
 			},
 			types.NodeTunnel,
+			"targetScope",
 		)
 	}
 
@@ -344,6 +345,7 @@ func TestBasicFunctionality(t *testing.T) {
 				Addr:        "7.8.9.0:12",
 			},
 			"echo",
+			"targetScope",
 		)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = conn.Close() })

@@ -499,6 +499,10 @@ func (s *localCluster) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 		return nil, trace.NotFound("no tunnel connection found: %v", err)
 	}
 
+	if err := validateScope(rconn, dreq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s.logger.DebugContext(s.srv.ctx, "Tunnel dialing to host",
 		"target_host_id", dreq.ServerID,
 		"src_addr", dreq.ClientSrcAddr,
@@ -643,6 +647,11 @@ func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.
 	if params.To != nil {
 		dreq.Address = params.To.String()
 	}
+	targetScope := params.TargetScope
+	if targetScope == "" && params.TargetServer != nil {
+		targetScope = params.TargetServer.GetScope()
+	}
+	dreq.TargetScope = targetScope
 
 	var (
 		tunnelErr error
@@ -666,7 +675,7 @@ func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.
 	if peeringEnabled {
 		s.logger.InfoContext(s.srv.ctx, "Dialing over peer proxy")
 		conn, peerErr = s.peerClient.DialNode(
-			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
+			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType, targetScope,
 		)
 		if peerErr == nil {
 			return newMetricConn(conn, dialTypePeer, dialStart, s.srv.Clock), true, nil
@@ -948,6 +957,25 @@ func (s *localCluster) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialR
 	}
 
 	return newSessionTrackingConn(rconn, conn), nil
+}
+
+func validateScope(rconn *remoteConn, dreq *sshutils.DialReq) error {
+	serverConn, ok := rconn.sconn.(*ssh.ServerConn)
+	if !ok {
+		return trace.BadParameter("unable to extract server connection")
+	}
+
+	targetScope, ok := serverConn.Permissions.Extensions["extAgentScope"]
+	if !ok {
+		// TODO(russjones): Better error message.
+		return trace.BadParameter("server does not have scope, re-register?")
+	}
+
+	if targetScope != dreq.TargetScope {
+		return trace.AccessDenied("server returned scope: %v, expected: %v", targetScope, dreq.TargetScope)
+	}
+
+	return nil
 }
 
 // sessionTrackingConn wraps a net.Conn in order

@@ -85,6 +85,10 @@ type DialParams struct {
 	// or an agentless server.
 	TargetServer types.Server
 
+	// TargetScope is the expected scope for the target server. When empty, the
+	// scope will be derived from TargetServer if available.
+	TargetScope string
+
 	// FromPeerProxy indicates that the dial request is being tunneled from
 	// a peer proxy.
 	FromPeerProxy bool

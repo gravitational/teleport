@@ -49,6 +49,8 @@ message DialRequest {
   NetAddr Source = 3;
   // Destination is the destination address to connect to over the reverse tunnel.
   NetAddr Destination = 4;
+  // TargetScope is the scope expected for the node that will receive the connection.
+  string TargetScope = 5;
 }
 
 // Addr is a network address.

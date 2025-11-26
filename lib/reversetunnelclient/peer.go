@@ -46,6 +46,7 @@ func NewPeerDialer(clusterGetter ClusterGetter) PeerDialerFunc {
 			ConnType:      request.ConnType,
 			From:          request.From,
 			To:            request.To,
+			TargetScope:   request.TargetScope,
 			FromPeerProxy: true,
 		}
 

@@ -91,6 +91,7 @@ func TestSendReceive(t *testing.T) {
 		TunnelType:  types.NodeTunnel,
 		Source:      &proto.NetAddr{},
 		Destination: &proto.NetAddr{},
+		TargetScope: "scopeA",
 	}
 
 	local, remote := net.Pipe()
@@ -99,6 +100,7 @@ func TestSendReceive(t *testing.T) {
 			require.Equal(t, "test-cluster", clusterName)
 			require.Equal(t, dialRequest.TunnelType, request.ConnType)
 			require.Equal(t, dialRequest.NodeID, request.ServerID)
+			require.Equal(t, dialRequest.TargetScope, request.TargetScope)
 
 			return remote, nil
 		},

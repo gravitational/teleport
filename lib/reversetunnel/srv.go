@@ -914,6 +914,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 
 	var clusterName, certRole, certType string
 	var caType types.CertAuthType
+	var agentScope string
 	switch ident.CertType {
 	case ssh.HostCert:
 		if ident.ClusterName == "" {
@@ -927,6 +928,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		certRole = string(ident.SystemRole)
 		certType = utils.ExtIntCertTypeHost
 		caType = types.HostCA
+		agentScope = ident.AgentScope
 	case ssh.UserCert:
 		if ident.RouteToCluster != "" && ident.RouteToCluster != s.ClusterName {
 			return nil, trace.BadParameter("this endpoint does not support cross-cluster routing (cannot route from %q to %q)", s.ClusterName, ident.RouteToCluster)
@@ -959,6 +961,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			utils.ExtIntCertType: certType,
 			extCertRole:          certRole,
 			extAuthority:         clusterName,
+			"extAgentScope":      agentScope,
 		},
 	}, nil
 }

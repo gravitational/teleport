@@ -262,6 +262,7 @@ func (c *grpcClientConn) Dial(
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
+	targetScope string,
 ) (net.Conn, error) {
 	release := c.maybeAcquire()
 	if release == nil {
@@ -282,8 +283,9 @@ func (c *grpcClientConn) Dial(
 	err = stream.Send(&clientapi.Frame{
 		Message: &clientapi.Frame_DialRequest{
 			DialRequest: &clientapi.DialRequest{
-				NodeID:     nodeID,
-				TunnelType: tunnelType,
+				NodeID:      nodeID,
+				TunnelType:  tunnelType,
+				TargetScope: targetScope,
 				Source: &clientapi.NetAddr{
 					Addr:    src.String(),
 					Network: src.Network(),
@@ -596,6 +598,7 @@ func (c *Client) DialNode(
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
+	targetScope string,
 ) (net.Conn, error) {
 	conn, _, err := c.dial(
 		proxyIDs,
@@ -603,6 +606,7 @@ func (c *Client) DialNode(
 		src,
 		dst,
 		tunnelType,
+		targetScope,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -622,6 +626,7 @@ func (c *Client) dial(
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
+	targetScope string,
 ) (net.Conn, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
@@ -630,7 +635,7 @@ func (c *Client) dial(
 
 	var errs []error
 	for _, clientConn := range conns {
-		conn, err := clientConn.Dial(nodeID, src, dst, tunnelType)
+		conn, err := clientConn.Dial(nodeID, src, dst, tunnelType, targetScope)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
