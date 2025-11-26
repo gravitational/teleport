@@ -131,8 +131,8 @@ names will be prefixed with. Defaults to "teleport.argocd-cluster".
 | `object` | `{}` |
 
 `argocd.secretLabels` provides a set of labels that will be applied
-to cluster secrets. Label values can be Go template strings with the following
-variables:
+to cluster secrets. Label values can be Go template strings (rendered by tbot,
+not Helm) with the following variables:
 
   - \{\{.ClusterName\}\} - Name of the Teleport cluster
   - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
@@ -185,7 +185,8 @@ is non-empty).
 | `string` | `""` |
 
 `argocd.clusterNameTemplate` determines the format of cluster names
-in Argo CD. It is a Go template string that supports the following variables:
+in Argo CD. It is a Go template string (rendered by tbot, not Helm) that
+supports the following variables:
 
   - \{\{.ClusterName\}\} - Name of the Teleport cluster
   - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
