@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -26,7 +24,6 @@ import (
 	"maps"
 	"slices"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -51,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func discoveryConfigWithAWSMatchers(t *testing.T, discoveryGroup string, m ...types.AWSMatcher) *discoveryconfig.DiscoveryConfig {
@@ -248,9 +246,8 @@ func TestDiscoveryServerEKS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithCancel(t.Context())
-
-			synctest.Run(func() {
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
 				fakeConfigProvider := mocks.AWSConfigProvider{
 					OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
 						Integration: awsOIDCIntegration,
@@ -296,7 +293,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				cancel()
 
 				// Discovery usage events are reported.
-				require.Greater(t, len(mockAccessPoint.usageEvents), 0)
+				require.NotEmpty(t, mockAccessPoint.usageEvents)
 
 				// Check the UserTasks created by the discovery server.
 				existingTasks := slices.Collect(maps.Values(mockAccessPoint.storeUserTasks))

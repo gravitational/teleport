@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build enablesynctest
-
 package oraclejoin
 
 import (
@@ -25,18 +23,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestRootCACache(t *testing.T) {
 	t.Parallel()
-	synctest.Run(func() {
-		testRootCACache(t)
-	})
+	synctest.Test(t, testRootCACache)
 }
 
 func testRootCACache(t *testing.T) {
