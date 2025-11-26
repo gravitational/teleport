@@ -1556,8 +1556,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			expectedClustersToExistInAuth: []types.KubeCluster{
 				mustConvertEKSToKubeCluster(t, eksMockClusters[0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
 				mustConvertEKSToKubeCluster(t, eksMockClusters[1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: "dummy-azure-integration"}),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: "dummy-azure-integration"}),
 			},
 			clustersNotUpdated: []string{mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup}).GetName()},
 			wantEvents:         2,
@@ -1704,24 +1704,24 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 
 			clustersNotUpdatedMap := set.New(tc.clustersNotUpdated...)
 			clustersFoundInAuth := false
-			require.Eventually(t, func() bool {
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
 			loop:
 				for {
 					select {
 					case cluster := <-clustersNotUpdated:
 						if !clustersNotUpdatedMap.Contains(cluster) {
-							require.Failf(t, "expected Action for cluster %s but got no action from reconciler", cluster)
+							require.Failf(c, "expected Action for cluster %s but got no action from reconciler", cluster)
 						}
 						clustersNotUpdatedMap.Remove(cluster)
 					default:
 						kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
-						require.NoError(t, err)
+						require.NoError(c, err)
 						if len(kubeClusters) == len(tc.expectedClustersToExistInAuth) {
-							c1 := types.KubeClusters(kubeClusters).ToMap()
-							c2 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
+							c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
+							c2 := types.KubeClusters(kubeClusters).ToMap()
 							for k := range c1 {
 								if services.CompareResources(c1[k], c2[k]) != services.Equal {
-									return false
+									require.Equal(c, c1[k], c2[k], "expected no differences")
 								}
 							}
 							clustersFoundInAuth = true
@@ -1729,7 +1729,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 						break loop
 					}
 				}
-				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
+				require.Equal(c, 0, len(clustersNotUpdated))
+				require.True(c, clustersFoundInAuth)
 			}, 5*time.Second, 200*time.Millisecond)
 
 			require.ElementsMatch(t, tc.expectedAssumedRoles, mockedClients.STSClient.GetAssumedRoleARNs(), "roles incorrectly assumed")
