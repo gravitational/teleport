@@ -31,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -255,9 +254,6 @@ func TestDiscoveryServerEKS(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				ctx, cancel := context.WithCancel(t.Context())
 
-				legacyLogger := logrus.New()
-				logger := libutils.NewSlogLoggerForTests()
-
 				bk, err := memory.New(memory.Config{})
 				require.NoError(t, err)
 
@@ -277,8 +273,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 					Matchers:        Matchers{},
 					Emitter:         tt.emitter,
 					DiscoveryGroup:  defaultDiscoveryGroup,
-					Log:             logger,
-					LegacyLogger:    legacyLogger,
+					Log:             libutils.NewSlogLoggerForTests(),
 				})
 				require.NoError(t, err)
 
