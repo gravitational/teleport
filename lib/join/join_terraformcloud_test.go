@@ -20,7 +20,6 @@ package join_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -38,10 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
-
-// TODO: This will probably cause a merge conflict and will be removed before
-// merging, assuming the TF Cloud port merges first.
-var errMockInvalidToken = errors.New("invalid token")
 
 type mockTerraformTokenValidator struct {
 	tokens map[string]terraformcloud.IDTokenClaims
