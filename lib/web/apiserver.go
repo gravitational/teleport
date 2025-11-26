@@ -2793,6 +2793,8 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
 	var maxTouchPoints int
+	// The frontend client sends Max-Touch-Points only to endpoints that lead to the Device Trust
+	// prompt in the Web UI.
 	rawMaxTouchPoints := r.Header.Get("Max-Touch-Points")
 	if rawMaxTouchPoints != "" {
 		if value, err := strconv.Atoi(rawMaxTouchPoints); err == nil {

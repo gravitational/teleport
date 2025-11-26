@@ -1434,6 +1434,8 @@ type ForwardedClientMetadata struct {
 	// differentiates iPadOS from macOS since they both use the same user agent otherwise. This
 	// information is needed to decide whether to show the Device Trust prompt in the Web UI after a
 	// successful login.
+	//
+	// Available only in select endpoints which lead to the Device Trust prompt in the Web UI.
 	MaxTouchPoints int `json:"max_touch_points,omitempty"`
 }
 
