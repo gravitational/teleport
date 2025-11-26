@@ -42,16 +42,24 @@ func TestMachineIDWizard(t *testing.T) {
 			SourceType:      "github",
 			DestinationType: "kubernetes",
 			GitHub: &machineIDWizardRequestGitHub{
-				Repository: "teleport",
-				Owner:      "gravitational",
+				Allow: []machineIDWizardRequestGitHubAllow{
+					{
+						Repository: "teleport",
+						Owner:      "gravitational",
+					},
+				},
 			},
 		},
 		"github+kubernetes-step2-terraform": {
 			SourceType:      "github",
 			DestinationType: "kubernetes",
 			GitHub: &machineIDWizardRequestGitHub{
-				Repository: "teleport",
-				Owner:      "gravitational",
+				Allow: []machineIDWizardRequestGitHubAllow{
+					{
+						Repository: "teleport",
+						Owner:      "gravitational",
+					},
+				},
 			},
 			Kubernetes: &machineIDWizardRequestKubernetes{
 				Labels: types.Labels{"department": []string{"engineering"}},
@@ -62,13 +70,17 @@ func TestMachineIDWizard(t *testing.T) {
 			SourceType:      "github",
 			DestinationType: "kubernetes",
 			GitHub: &machineIDWizardRequestGitHub{
-				Repository:           "teleport",
-				Owner:                "gravitational",
-				Workflow:             "deploy",
-				Environment:          "production",
-				Actor:                "deployinator",
-				Ref:                  "main",
-				RefType:              "branch",
+				Allow: []machineIDWizardRequestGitHubAllow{
+					{
+						Repository:  "teleport",
+						Owner:       "gravitational",
+						Workflow:    "deploy",
+						Environment: "production",
+						Actor:       "deployinator",
+						Ref:         "main",
+						RefType:     "branch",
+					},
+				},
 				EnterpriseServerHost: "github.corp.internal",
 				EnterpriseSlug:       "sluggy",
 				StaticJWKS:           testJWKS,
