@@ -2201,6 +2201,10 @@ func TestDiscoveryDatabase(t *testing.T) {
 	_, awsRedshiftDBWithDiscoveryConfig := makeRedshiftCluster(t, "aws-redshift", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfigName: discoveryConfigName})
 	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
 	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
+
+	azRedisDBWithIntegration := azRedisDB.Copy()
+	rewriteCloudResource(t, azRedisDBWithIntegration, rewriteDiscoveryLabelsParams{integration: integrationName})
+
 	_, azRedisDBWithDiscoveryConfig := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfigName: discoveryConfigName})
 
 	role := types.AssumeRole{RoleARN: "arn:aws:iam::123456789012:role/test-role", ExternalID: "test123"}
@@ -2295,7 +2299,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 				Subscriptions:  []string{"sub1"},
 				Integration:    integrationName,
 			}},
-			expectDatabases:             []types.Database{azRedisDB},
+			expectDatabases:             []types.Database{azRedisDBWithIntegration},
 			wantEvents:                  1,
 			integrationsOnlyCredentials: true,
 		},
