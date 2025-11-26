@@ -59,7 +59,7 @@ argocd:
   # clusterSelectors:
   #   - name: my-cluster-1
   #   - labels:
-  #     environment: production
+  #       environment: production
   # ```
   clusterSelectors: []
   # argocd.secretNamespace(string) -- determines to which Kubernetes namespace
@@ -70,7 +70,15 @@ argocd:
   # names will be prefixed with. Defaults to "teleport.argocd-cluster".
   secretNamePrefix: ""
   # argocd.secretLabels(object) -- provides a set of labels that will be applied
-  # to cluster secrets.
+  # to cluster secrets. Label values can be Go template strings with the following
+  # variables:
+  #
+  #   - \{\{.ClusterName\}\} - Name of the Teleport cluster
+  #   - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
+  #   - \{\{.Labels\}\} - Map of labels applied to the Kubernetes cluster
+  #     resource that can be indexed using `\{\{index .Labels "key"\}\}`
+  #
+  # If the label value is empty, the label will not be added to the secret.
   secretLabels: {}
   # argocd.secretAnnotations(object) -- provides a set of annotations that will
   # be applied to cluster secrets.
@@ -90,6 +98,8 @@ argocd:
   #
   #   - \{\{.ClusterName\}\} - Name of the Teleport cluster
   #   - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
+  #   - \{\{.Labels\}\} - Map of labels applied to the Kubernetes cluster
+  #     resource that can be indexed using `\{\{index .Labels "key"\}\}`
   #
   # By default, the following template will be used: "\{\{.ClusterName\}\}-\{\{.KubeName\}\}".
   clusterNameTemplate: ""
