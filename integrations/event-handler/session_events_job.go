@@ -357,8 +357,6 @@ Loop:
 
 			_, ok = j.app.Config.SkipSessionTypes[e.Type]
 			if !ok {
-				j.app.log.DebugContext(ctx, "Not skipping session event", "type", e.Type)
-
 				err := j.app.SendEvent(ctx, url, e)
 
 				if err != nil && trace.IsConnectionProblem(err) {
@@ -367,8 +365,6 @@ Loop:
 				if err != nil {
 					return false, trace.Wrap(err)
 				}
-			} else {
-				j.app.log.DebugContext(ctx, "Skipping session event", "type", e.Type)
 			}
 
 			if cursorSyncLimiter.Allow() {

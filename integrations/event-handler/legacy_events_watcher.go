@@ -278,7 +278,7 @@ func (t *LegacyEventsWatcher) getEventsInWindow(ctx context.Context, from, to ti
 		from,
 		to,
 		"default",
-		t.config.Types,
+		t.config.TypesRaw,
 		t.config.BatchSize,
 		types.EventOrderAscending,
 		t.cursor,

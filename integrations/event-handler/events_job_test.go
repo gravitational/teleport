@@ -35,13 +35,11 @@ func TestEventHandlerFilters(t *testing.T) {
 		name         string
 		ingestConfig IngestConfig
 		events       []apievents.AuditEvent
-		skipEvent    func(*testing.T, string) bool
-		checkEvent   func(*testing.T, string) bool
 	}{
 		{
 			name: "types filter out role.created",
 			ingestConfig: IngestConfig{
-				Types:            []string{"join_token.create"},
+				Types:            map[string]struct{}{"join_token.create": {}},
 				SkipSessionTypes: map[string]struct{}{"print": {}, "desktop.recording": {}},
 				DryRun:           true,
 			},
@@ -84,6 +82,9 @@ func TestEventHandlerFilters(t *testing.T) {
 		},
 	}
 
+	skipEvent := regexp.MustCompile("\"Event sent\".*type=role.created")
+	checkEvent := regexp.MustCompile("\"Event sent\".*type=join_token.create")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := &bytes.Buffer{}
@@ -112,8 +113,8 @@ func TestEventHandlerFilters(t *testing.T) {
 
 			}
 
-			require.NotRegexp(t, regexp.MustCompile("\"Event sent\".*type=role.created"), out.String())
-			require.Regexp(t, regexp.MustCompile("\"Event sent\".*type=join_token.create"), out.String())
+			require.NotRegexp(t, skipEvent, out.String())
+			require.Regexp(t, checkEvent, out.String())
 		})
 	}
 }

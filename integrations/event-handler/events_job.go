@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"slices"
 	"sync/atomic"
 	"time"
 
@@ -269,17 +268,13 @@ func (j *EventsJob) handleEventV2(ctx context.Context, evt *auditlogpb.ExportEve
 	// filter out unwanted event types (in the v1 event export logic this was an internal behavior
 	// of the event processing helper since it would perform conversion prior to storing the event
 	// in its internal buffer).
-	if len(j.app.Config.Types) > 0 && !slices.Contains(j.app.Config.Types, evt.Event.Type) {
-		j.app.log.DebugContext(ctx, "Skipping event from types filter", "type", evt.Event.Type)
+	if _, ok := j.app.Config.Types[evt.Event.Type]; len(j.app.Config.Types) > 0 && !ok {
 		return nil
 	}
 
 	if _, ok := j.app.Config.SkipEventTypes[evt.Event.Type]; ok {
-		j.app.log.DebugContext(ctx, "Skipping event from skip-event-types filter", "type", evt.Event.Type)
 		return nil
 	}
-
-	j.app.log.DebugContext(ctx, "Not skipping event", "type", evt.Event.Type)
 
 	// convert the event to teleport-event-exporter's internal representation
 	event, err := NewTeleportEvent(evt.Event)
