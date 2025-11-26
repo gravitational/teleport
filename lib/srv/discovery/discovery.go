@@ -64,6 +64,7 @@ import (
 	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azuresync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -187,8 +188,8 @@ type Config struct {
 	// It is used to add Expiration times to Resources that don't support Heartbeats (eg EICE Nodes).
 	jitter retryutils.Jitter
 
-	// azureClients is a reference to Azure clients.
-	azureClients cloud.AzureClients
+	// initAzureClients initializes an instance of Azure clients with particular options.
+	initAzureClients func(opts ...cloud.AzureClientsOption) (cloud.AzureClients, error)
 	// gcpClients is a reference to GCP clients.
 	gcpClients cloud.GCPClients
 }
@@ -241,12 +242,8 @@ func (c *Config) CheckAndSetDefaults() error {
 kubernetes matchers are present.`)
 	}
 
-	if c.azureClients == nil {
-		azureClients, err := cloud.NewAzureClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.azureClients = azureClients
+	if c.initAzureClients == nil {
+		c.initAzureClients = cloud.NewAzureClients
 	}
 
 	if c.gcpClients == nil {
@@ -460,6 +457,9 @@ type Server struct {
 	// usageEventCache keeps track of which instances the server has emitted
 	// usage events for.
 	usageEventCache map[string]struct{}
+
+	// azureClientCache caches instances of integration-specific Azure clients.
+	azureClientCache *utils.FnCache
 }
 
 // New initializes a discovery Server
@@ -738,7 +738,7 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 		return matcherType == types.AzureMatcherVM
 	})
 
-	return server.MatchersToAzureInstanceFetchers(s.Log, serverMatchers, s.azureClients, discoveryConfigName)
+	return server.MatchersToAzureInstanceFetchers(s.Log, serverMatchers, s.getAzureClients, discoveryConfigName)
 }
 
 // gcpServerFetchersFromMatchers converts Matchers into a set of GCP Servers Fetchers.
@@ -782,7 +782,7 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers, discoveryConfig
 	// Azure
 	azureDatabaseMatchers, _ := splitMatchers(matchers.Azure, db.IsAzureMatcherType)
 	if len(azureDatabaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAzureFetchers(s.azureClients, azureDatabaseMatchers, discoveryConfigName)
+		databaseFetchers, err := db.MakeAzureFetchers(s.ctx, s.getAzureClients, azureDatabaseMatchers, discoveryConfigName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -815,13 +815,54 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfigName
 	return result, nil
 }
 
+// getAzureClients returns an instance of AzureClients made to work with particular integration.
+// If integration argument is empty, ambient credentials will be used instead. This is the default mode.
+//
+// The returned instance is cached for a period of time, so subsequent calls may return the same object.
+func (s *Server) getAzureClients(ctx context.Context, integration string) (cloud.AzureClients, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.azureClientCache == nil {
+		azureClientCache, err := utils.NewFnCache(utils.FnCacheConfig{
+			TTL:   time.Minute * 15,
+			Clock: s.clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s.azureClientCache = azureClientCache
+	}
+
+	// sanity check: this shouldn't happen as matchers are pre-filtered when running in integration-credentials-only mode.
+	if integration == "" && s.IntegrationOnlyCredentials {
+		return nil, trace.BadParameter("cannot create Azure clients with ambient credentials due configuration (this is a bug)")
+	}
+
+	out, err := utils.FnCacheGet(ctx, s.azureClientCache, integration, func(ctx context.Context) (cloud.AzureClients, error) {
+		var opts []cloud.AzureClientsOption
+		if integration != "" {
+			opts = append(opts, cloud.WithAzureIntegrationCredentials(integration, s.AccessPoint))
+		}
+		azureClients, err := s.initAzureClients(opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return azureClients, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
+}
+
 // initAzureWatchers starts Azure resource watchers based on types provided.
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher, discoveryConfigName string) error {
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AzureMatcherVM
 	})
 
-	s.staticServerAzureFetchers = server.MatchersToAzureInstanceFetchers(s.Log, vmMatchers, s.azureClients, discoveryConfigName)
+	s.staticServerAzureFetchers = server.MatchersToAzureInstanceFetchers(s.Log, vmMatchers, s.getAzureClients, discoveryConfigName)
 
 	// VM watcher.
 	var err error
@@ -845,7 +886,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 
 	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
-		subscriptions, err := s.getAzureSubscriptions(ctx, matcher.Subscriptions)
+		subscriptions, err := s.getAzureSubscriptions(ctx, matcher.Integration, matcher.Subscriptions)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -853,10 +894,15 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 			for _, t := range matcher.Types {
 				switch t {
 				case types.AzureMatcherKubernetes:
-					kubeClient, err := s.azureClients.GetAzureKubernetesClient(subscription)
+					azureClients, err := s.getAzureClients(ctx, matcher.Integration)
 					if err != nil {
 						return trace.Wrap(err)
 					}
+					kubeClient, err := azureClients.GetAzureKubernetesClient(subscription)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+
 					fetcher, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
 						Client:              kubeClient,
 						Regions:             matcher.Regions,
@@ -864,6 +910,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 						ResourceGroups:      matcher.ResourceGroups,
 						Logger:              s.Log,
 						DiscoveryConfigName: discoveryConfigName,
+						Integration:         matcher.Integration,
 					})
 					if err != nil {
 						return trace.Wrap(err)
@@ -1358,7 +1405,12 @@ outer:
 }
 
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
-	runClient, err := s.azureClients.GetAzureRunCommandClient(instances.SubscriptionID)
+	azureClients, err := s.getAzureClients(s.ctx, instances.Integration)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	runClient, err := azureClients.GetAzureRunCommandClient(instances.SubscriptionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1877,19 +1929,19 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	return nil
 }
 
-// discardUnsupportedMatchers drops any matcher that is not supported in the current DiscoveryService.
-// Discarded Matchers:
-// - when running in IntegrationOnlyCredentials mode, any Matcher that doesn't have an Integration is discarded.
 func (s *Server) discardUnsupportedMatchers(m *Matchers) {
-	if !s.IntegrationOnlyCredentials {
-		return
+	if s.IntegrationOnlyCredentials {
+		discardAmbientCredentialMatchers(s.ctx, s.Log, m)
 	}
+}
 
+// discardAmbientCredentialMatchers drops any matcher that depends on ambient credentials (and not integration).
+func discardAmbientCredentialMatchers(ctx context.Context, log *slog.Logger, m *Matchers) {
 	// Discard all matchers that don't have an Integration
 	validAWSMatchers := make([]types.AWSMatcher, 0, len(m.AWS))
 	for i, m := range m.AWS {
 		if m.Integration == "" {
-			s.Log.WarnContext(s.ctx, "Discarding AWS matcher - missing integration", "matcher_pos", i)
+			log.WarnContext(ctx, "Discarding AWS matcher - missing integration", "matcher_pos", i)
 			continue
 		}
 		validAWSMatchers = append(validAWSMatchers, m)
@@ -1897,17 +1949,21 @@ func (s *Server) discardUnsupportedMatchers(m *Matchers) {
 	m.AWS = validAWSMatchers
 
 	if len(m.GCP) > 0 {
-		s.Log.WarnContext(s.ctx, "Discarding GCP matchers - missing integration")
+		log.WarnContext(ctx, "Discarding GCP matchers - missing integration")
 		m.GCP = []types.GCPMatcher{}
 	}
 
-	if len(m.Azure) > 0 {
-		s.Log.WarnContext(s.ctx, "Discarding Azure matchers - missing integration")
-		m.Azure = []types.AzureMatcher{}
+	filtered := slices.DeleteFunc(m.Azure, func(matcher types.AzureMatcher) bool {
+		return matcher.Integration == ""
+	})
+	discarded := len(m.Azure) - len(filtered)
+	if discarded > 0 {
+		m.Azure = filtered
+		log.WarnContext(ctx, "Discarded Azure matchers without integration", "count", discarded)
 	}
 
 	if len(m.Kubernetes) > 0 {
-		s.Log.WarnContext(s.ctx, "Discarding Kubernetes matchers - missing integration")
+		log.WarnContext(ctx, "Discarding Kubernetes matchers - missing integration")
 		m.Kubernetes = []types.KubernetesMatcher{}
 	}
 }
@@ -1943,10 +1999,14 @@ func (s *Server) Wait() error {
 	return nil
 }
 
-func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]string, error) {
+func (s *Server) getAzureSubscriptions(ctx context.Context, integration string, subs []string) ([]string, error) {
 	subscriptionIds := subs
 	if slices.Contains(subs, types.Wildcard) {
-		subsClient, err := s.azureClients.GetAzureSubscriptionClient()
+		azureClients, err := s.getAzureClients(ctx, integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		subsClient, err := azureClients.GetAzureSubscriptionClient()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
