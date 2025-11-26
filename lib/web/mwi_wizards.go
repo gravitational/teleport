@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -142,11 +143,30 @@ func (h *Handler) machineIDWizard(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return machineIDGHAK8sWizardResponse{
-		Terraform: fmt.Sprintf(machineIDGHAK8sWizardTerraformTemplate, roleTF, botTF, tokenTF),
+		Terraform: fmt.Sprintf(
+			machineIDGHAK8sWizardTerraformTemplate,
+			roleTF,
+			botTF,
+			tokenTF,
+			h.terraformProviderConfig(),
+		),
 	}, nil
 }
 
-//go:embed templates/machine-id-gha-k8s-wizard-terraform.tmpl
+//go:embed templates/terraform-provider.tf.tmpl
+var terraformProviderTemplate string
+
+// terraformProviderConfig returns base configuration for the Teleport terraform
+// provider.
+func (h *Handler) terraformProviderConfig() string {
+	return fmt.Sprintf(
+		terraformProviderTemplate,
+		teleport.SemVer().Major,
+		h.PublicProxyAddr(),
+	)
+}
+
+//go:embed templates/machine-id-gha-k8s-wizard.tf.tmpl
 var machineIDGHAK8sWizardTerraformTemplate string
 
 type machineIDWizardRequest struct {

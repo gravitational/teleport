@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -95,15 +96,27 @@ func TestMachineIDWizard(t *testing.T) {
 			var body machineIDGHAK8sWizardResponse
 			require.NoError(t, json.Unmarshal(rsp.Bytes(), &body))
 
+			// Cut the provider configuration out of the golden file, as this
+			// contains values that will change between test runs (e.g. major
+			// version number and proxy address).
+			providerConfigIdx := strings.Index(body.Terraform, "terraform {")
+			beforeProviderConfig := body.Terraform[:providerConfigIdx]
+			providerConfig := body.Terraform[providerConfigIdx:]
+
 			if golden.ShouldSet() {
-				golden.Set(t, []byte(body.Terraform))
+				golden.Set(t, []byte(beforeProviderConfig))
 			}
 
 			require.Empty(t,
 				cmp.Diff(
 					string(golden.Get(t)),
-					body.Terraform,
+					beforeProviderConfig,
 				),
+			)
+
+			require.Contains(t,
+				providerConfig,
+				env.proxies[0].handler.handler.PublicProxyAddr(),
 			)
 		})
 	}
