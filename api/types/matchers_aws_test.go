@@ -187,10 +187,10 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "no region is valid for ec2 type",
+			name: "wildcard region is valid for ec2 type",
 			in: &AWSMatcher{
 				Types:   []string{"ec2"},
-				Regions: []string{},
+				Regions: []string{"*"},
 			},
 			errCheck: require.NoError,
 		},

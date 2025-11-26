@@ -150,7 +150,7 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 	}
 
 	if len(m.Regions) == 0 {
-		m.Regions = []string{Wildcard}
+		return trace.BadParameter("discovery service requires at least one region, for EC2 you can also set the region to %q to iterate over all regions (requires account:ListRegions IAM permission)", Wildcard)
 	}
 
 	for _, region := range m.Regions {
