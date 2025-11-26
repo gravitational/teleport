@@ -18,12 +18,14 @@ var pluginHandlers = map[types.PluginType]pluginHandlerFunc{
 	types.PluginTypeSCIM: generic.New,
 }
 
-// CreateHandlerForPlugin creates a resource handler for the given plugin.
+// CreateHandlerForPlugin creates a resource handler for the given plugin and wraps it
+// with distributed locking middleware to handle concurrent PATCH operations safely.
 func CreateHandlerForPlugin(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error) {
 	pluginV1, ok := plugin.(*types.PluginV1)
 	if !ok {
 		return nil, trace.BadParameter("expected plugin to be of type PluginV1, got %T", plugin)
 	}
+
 	createFn, ok := pluginHandlers[plugin.GetType()]
 	if !ok {
 		return nil, trace.BadParameter("unsupported plugin type: %v", plugin.GetType())
@@ -31,7 +33,25 @@ func CreateHandlerForPlugin(plugin types.Plugin, config common.Config, resourceT
 
 	h, err := createFn(config, pluginV1, resourceType)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating resource handler for plugin %q", plugin.GetName())
 	}
-	return h, nil
+
+	// Create a semaphore-based locker for distributed locking across auth servers
+	semLock, err := common.NewSemaphoreLocker(config.Semaphore, common.WithClock(config.Clock))
+	if err != nil {
+		return nil, trace.Wrap(err, "creating semaphore locker")
+	}
+
+	// Wrap the handler with lock middleware to serialize PATCH operations per resource
+	lh, err := common.NewLockMiddleware(common.LockMiddlewareConfig{
+		Locker:          semLock,
+		ResourceHandler: h,
+		Log:             config.Logger,
+		PluginName:      plugin.GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating lock middleware")
+	}
+
+	return lh, nil
 }

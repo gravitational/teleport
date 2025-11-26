@@ -13,6 +13,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/scim/service/provider/resourcehandler"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
@@ -79,6 +81,9 @@ func (tf *testFixture) CheckAndSetDefaults(t *testing.T) {
 func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *testFixture) {
 	fix.CheckAndSetDefaults(t)
 
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
 	scimSvc, err := service.NewService(&common.Config{
 		Authorizer:          builtinRoleAuthorizer{},
 		UsersService:        &fix.users,
@@ -93,6 +98,7 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *test
 		IdentityService:     &fix.identityService,
 		AssignmentService:   &fix.assignments,
 		ClusterName:         "test-cluster",
+		Semaphore:           local.NewPresenceService(bk),
 	})
 	require.NoError(t, err, "creating test harness")
 

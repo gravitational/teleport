@@ -19,9 +19,11 @@ import (
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -274,6 +276,9 @@ func (c *credMock) GetPluginStaticCredentialsByLabels(ctx context.Context, label
 func TestListSCIMResourcesUserPredicate(t *testing.T) {
 	enableOktaSCIMEntitlement(t)
 	plugin := &types.PluginV1{
+		Metadata: types.Metadata{
+			Name: testPluginName,
+		},
 		Spec: types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Okta{
 				Okta: &types.PluginOktaSettings{
@@ -348,6 +353,9 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
 	sut, err := service.NewService(&scimcommon.Config{
 		Authorizer:          &authMock{},
 		Logger:              logtest.NewLogger(),
@@ -363,6 +371,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 		Clock:               clock,
 		AssignmentService:   &mockAssignmentsService{},
 		ClusterName:         "test-cluster",
+		Semaphore:           local.NewPresenceService(bk),
 	})
 	require.NoError(t, err)
 

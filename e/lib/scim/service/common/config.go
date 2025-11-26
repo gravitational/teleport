@@ -56,6 +56,8 @@ type Config struct {
 	AssignmentService common.OktaAssignmentService
 	// ClusterName is the name of the cluster this service is running in.
 	ClusterName string
+	// Semaphore is the semaphore service used to manage concurrency.
+	Semaphore types.Semaphores
 }
 type accessListGetter interface {
 	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
@@ -114,6 +116,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.AssignmentService == nil {
 		return trace.BadParameter("missing assignment service")
+	}
+
+	if cfg.Semaphore == nil {
+		return trace.BadParameter("missing semaphore")
 	}
 
 	if cfg.ClusterName == "" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -217,6 +219,58 @@ func TestSCIMPatch(t *testing.T) {
 			},
 		}, http.StatusBadRequest)
 	})
+
+	t.Run("PATCH group concurrent add and remove members", func(t *testing.T) {
+		groupName := "patch-group-005"
+		common.CreateAccessList(t, sut,
+			common.WithName(groupName),
+			common.WithAccessListType(accesslist.SCIM),
+			common.WithOwners("alice-admin"),
+			common.WithGrants(accesslist.Grants{Roles: []string{"access"}}),
+		)
+
+		numberOfMembers := 20
+
+		membersSet := make(map[string]struct{})
+		for i := 1; i <= numberOfMembers; i++ {
+			membersSet[fmt.Sprintf("member-%d", i)] = struct{}{}
+		}
+
+		var wg errgroup.Group
+		wg.SetLimit(5)
+
+		for memberName := range membersSet {
+			wg.Go(func() error {
+				_, err := patchGroup(httpClient, baseURL.String(), groupName, []map[string]any{{
+					"op":    "add",
+					"path":  "members",
+					"value": []map[string]any{{"value": "member-" + memberName}},
+				}})
+				return err
+			})
+		}
+
+		require.NoError(t, wg.Wait())
+
+		allMembers := getAllMembers(t, aclClient, groupName)
+		require.Len(t, allMembers, numberOfMembers)
+
+		var wg2 errgroup.Group
+		wg.SetLimit(5)
+		for k := range membersSet {
+			wg2.Go(func() error {
+				_, err := patchGroup(httpClient, baseURL.String(), groupName, []map[string]any{{
+					"op":   "remove",
+					"path": fmt.Sprintf(`members[value eq "member-%s"]`, k),
+				}})
+				return err
+			})
+		}
+		require.NoError(t, wg2.Wait())
+
+		allMembers = getAllMembers(t, aclClient, groupName)
+		require.Empty(t, allMembers)
+	})
 }
 
 func patchUserExpectError(t *testing.T, httpClient *http.Client, baseURL, userID string, ops []map[string]interface{}, expectedStatus int) {
@@ -283,4 +337,30 @@ func doPatchResource(httpClient *http.Client, baseURL, resourceType, resourceID 
 		return nil, err
 	}
 	return resp, nil
+}
+
+func patchGroup(httpClient *http.Client, baseURL string, groupID string, ops []map[string]interface{}) (*scimsdk.Group, error) {
+	patchOps := map[string]any{
+		"schemas":    []string{scimsdk.PatchOpSchema},
+		"Operations": ops,
+	}
+
+	resp, err := doPatchResource(httpClient, baseURL, "Groups", groupID, patchOps)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var patchedGroup scimsdk.Group
+	if err = json.Unmarshal(body, &patchedGroup); err != nil {
+		return nil, err
+	}
+	return &patchedGroup, nil
 }
