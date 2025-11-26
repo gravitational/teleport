@@ -140,8 +140,8 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 
 	// Arbitrary, real-looking values.
 	const loginIP = "40.89.244.232"
-	const loginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
-	const loginMaxTouchPoints = 5
+	const loginUserAgent = "Mozilla/5.0 (Windows NT 6.3; ARM; Trident/7.0; Touch; rv:11.0) like Gecko"
+	const loginMaxTouchPoints = 10
 
 	t.Run("ok", func(t *testing.T) {
 		session, err := authServer.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
