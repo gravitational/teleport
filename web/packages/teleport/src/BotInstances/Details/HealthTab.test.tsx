@@ -19,9 +19,8 @@
 import userEvent from '@testing-library/user-event';
 import { ComponentProps, PropsWithChildren } from 'react';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import { render, screen, within } from 'design/utils/testing';
+import { render, screen, theme, within } from 'design/utils/testing';
 
 import { mockGetBotInstanceResponse } from 'teleport/test/helpers/botInstances';
 
@@ -118,7 +117,7 @@ function renderComponent(props?: Partial<ComponentProps<typeof HealthTab>>) {
 
 function makeWrapper() {
   return (props: PropsWithChildren) => (
-    <ConfiguredThemeProvider theme={darkTheme}>
+    <ConfiguredThemeProvider theme={theme}>
       {props.children}
     </ConfiguredThemeProvider>
   );

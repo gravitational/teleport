@@ -34,7 +34,14 @@ describe('Alert', () => {
     ${'success'} | ${theme.colors.interactive.tonal.success[0]}
   `('renders appropriate background for kind $kind', ({ kind, background }) => {
     const { container } = render(<Alert kind={kind} />);
-    expect(container.firstChild?.firstChild).toHaveStyle({ background });
+
+    expect(container.firstChild?.firstChild).toBeDefined();
+
+    const styles = window.getComputedStyle(
+      container.firstChild?.firstChild as Element
+    );
+
+    expect(styles.background).toBe(background);
   });
 
   test('action buttons', async () => {
@@ -86,7 +93,12 @@ describe('Banner', () => {
     ${'success'} | ${theme.colors.interactive.tonal.success[2]}
   `('renders appropriate background for kind $kind', ({ kind, background }) => {
     const { container } = render(<Banner kind={kind} />);
-    expect(container.firstChild).toHaveStyle({ background });
+
+    expect(container.firstChild).toBeDefined();
+
+    const styles = window.getComputedStyle(container.firstChild as Element);
+
+    expect(styles.background).toBe(background);
   });
 
   test('action buttons', async () => {

@@ -19,8 +19,7 @@
 import { screen } from '@testing-library/react';
 import selectEvent from 'react-select-event';
 
-import { darkTheme } from 'design/theme';
-import { fireEvent, render } from 'design/utils/testing';
+import { fireEvent, render, theme } from 'design/utils/testing';
 
 import useRule from '../Validation/useRule';
 import { FieldSelect, FieldSelectAsync } from './FieldSelect';
@@ -59,7 +58,7 @@ test('valid values and onChange prop', () => {
 
 test('select element validation error state', () => {
   const rule = jest.fn();
-  const errorColor = darkTheme.colors.error.main;
+  const errorColor = theme.colors.interactive.solid.danger.default;
 
   mockedUseRule.mockReturnValue({ valid: false, message: 'errorMsg' });
 

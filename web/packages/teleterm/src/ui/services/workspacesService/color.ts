@@ -18,8 +18,6 @@
 
 import { z } from 'zod';
 
-import { dataVisualisationColors } from 'design/theme/themes/darkTheme';
-
 import Logger from 'teleterm/logger';
 
 export type WorkspaceColor = z.infer<typeof workspaceColors>;
@@ -77,11 +75,11 @@ function getNextWorkspaceColor(
  * and we avoid confusing users with different shades of the same color.
  */
 export const workspaceColorMapping: Record<WorkspaceColor, string> = {
-  purple: dataVisualisationColors.primary.purple,
-  red: dataVisualisationColors.primary.abbey,
-  green: dataVisualisationColors.primary.caribbean,
-  yellow: dataVisualisationColors.primary.sunflower,
-  blue: dataVisualisationColors.primary.picton,
-  cyan: dataVisualisationColors.primary.cyan,
-  pink: dataVisualisationColors.primary.wednesdays,
+  purple: 'var(--teleport-colors-data-visualisation-primary-purple)',
+  red: 'var(--teleport-colors-data-visualisation-primary-abbey)',
+  green: 'var(--teleport-colors-data-visualisation-primary-caribbean)',
+  yellow: 'var(--teleport-colors-data-visualisation-primary-sunflower)',
+  blue: 'var(--teleport-colors-data-visualisation-primary-picton)',
+  cyan: 'var(--teleport-colors-data-visualisation-primary-cyan)',
+  pink: 'var(--teleport-colors-data-visualisation-primary-wednesdays)',
 };

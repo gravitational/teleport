@@ -18,6 +18,7 @@ const esModules = [
   '@nivo/bar',
   'react-error-boundary',
   'until-async',
+  '@gravitational/design-system',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */

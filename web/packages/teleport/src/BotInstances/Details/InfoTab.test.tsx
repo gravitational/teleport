@@ -24,9 +24,8 @@ import { createMemoryHistory } from 'history';
 import { ComponentProps, PropsWithChildren } from 'react';
 import { Router } from 'react-router';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import { render, screen, within } from 'design/utils/testing';
+import { render, screen, theme, within } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { mockGetBotInstanceResponse } from 'teleport/test/helpers/botInstances';
@@ -177,7 +176,7 @@ function makeWrapper(options: {
   history: ReturnType<typeof createMemoryHistory>;
 }) {
   return (props: PropsWithChildren) => (
-    <ConfiguredThemeProvider theme={darkTheme}>
+    <ConfiguredThemeProvider theme={theme}>
       {/* A Router with history is required to render <Link/> */}
       <Router history={options.history}>{props.children}</Router>
     </ConfiguredThemeProvider>

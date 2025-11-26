@@ -16,9 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 
-import { bblpTheme, darkTheme, lightTheme, Theme } from 'design/theme';
+import {
+  createThemeSystem,
+  LEGACY_THEME_COLORS,
+  ThemeProvider as NewThemeProvider,
+  TELEPORT_THEME,
+  THEMES,
+  UiThemeMode,
+} from '@gravitational/design-system';
+import {
+  bblpTheme,
+  darkTheme,
+  lightTheme,
+  Theme,
+  type ThemeDefinition,
+} from 'design/theme';
+import { sharedColors } from 'design/theme/themes/sharedStyles';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import { Theme as ThemePreference } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
@@ -31,7 +46,63 @@ const customThemes = {
   mc: { ...lightTheme, isCustomTheme: true },
 };
 
-export const ThemeProvider = (props: { children?: ReactNode }) => {
+export function ThemeProvider({ children }: PropsWithChildren) {
+  const themePreference = useThemePreference();
+
+  const selectedTheme = useMemo(() => {
+    const theme =
+      THEMES.find(t => t.name === cfg.customTheme) ??
+      THEMES.find(t => t.name === TELEPORT_THEME.name);
+
+    return {
+      ...theme,
+      system: createThemeSystem(theme.config),
+    };
+  }, []);
+
+  const colorMode = useMemo(() => {
+    switch (selectedTheme.mode) {
+      case UiThemeMode.SingleColor:
+        return;
+
+      case UiThemeMode.ForcedColor:
+        return selectedTheme.forcedColorMode;
+
+      case UiThemeMode.LightAndDark:
+        if (themePreference === ThemePreference.UNSPECIFIED) {
+          return getPrefersDark() ? 'light' : 'dark';
+        }
+
+        return themePreference === ThemePreference.LIGHT ? 'light' : 'dark';
+    }
+  }, [themePreference, selectedTheme]);
+
+  const legacyTheme: Theme = useMemo(() => {
+    let theme = themePreferenceToTheme(themePreference);
+
+    if (customThemes[cfg.customTheme]) {
+      theme = customThemes[cfg.customTheme];
+    }
+
+    return {
+      ...theme,
+      colors: {
+        ...sharedColors,
+        ...LEGACY_THEME_COLORS,
+      },
+    };
+  }, [themePreference]);
+
+  return (
+    <NewThemeProvider forcedTheme={colorMode} system={selectedTheme.system}>
+      <ConfiguredThemeProvider theme={legacyTheme}>
+        {children}
+      </ConfiguredThemeProvider>
+    </NewThemeProvider>
+  );
+}
+
+function useThemePreference() {
   const [themePreference, setThemePreference] = useState<ThemePreference>(
     storageService.getThemePreference()
   );
@@ -61,19 +132,12 @@ export const ThemeProvider = (props: { children?: ReactNode }) => {
     };
   }, [themePreference]);
 
-  let theme = themePreferenceToTheme(themePreference);
-  if (customThemes[cfg.customTheme]) {
-    theme = customThemes[cfg.customTheme];
-  }
+  return themePreference;
+}
 
-  return (
-    <ConfiguredThemeProvider theme={theme}>
-      {props.children}
-    </ConfiguredThemeProvider>
-  );
-};
-
-function themePreferenceToTheme(themePreference: ThemePreference): Theme {
+function themePreferenceToTheme(
+  themePreference: ThemePreference
+): ThemeDefinition {
   if (themePreference === ThemePreference.UNSPECIFIED) {
     return getPrefersDark() ? lightTheme : darkTheme;
   }
