@@ -268,10 +268,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
-								"join_method": GenSchemaJoinMethod(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"join_method": {
 									Description: "JoinMethod is the method to use when joining the cluster",
 									Optional:    true,
-								}),
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
 								"join_token": {
 									Description: "JoinToken is the token to use when joining the cluster",
 									Optional:    true,
@@ -392,10 +393,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
-								"join_method": GenSchemaJoinMethod(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"join_method": {
 									Description: "JoinMethod is the method to use when joining the cluster",
 									Optional:    true,
-								}),
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
 								"join_token": {
 									Description: "JoinToken is the token to use when joining the cluster",
 									Optional:    true,
@@ -512,10 +514,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
-								"join_method": GenSchemaJoinMethod(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"join_method": {
 									Description: "JoinMethod is the method to use when joining the cluster",
 									Optional:    true,
-								}),
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
 								"join_token": {
 									Description: "JoinToken is the token to use when joining the cluster",
 									Optional:    true,
@@ -984,8 +987,18 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																	a, ok := tf.Attrs["join_method"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Params.JoinMethod"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t github_com_gravitational_teleport_api_types.JoinMethod
+																			if !v.Null && !v.Unknown {
+																				t = github_com_gravitational_teleport_api_types.JoinMethod(v.Value)
+																			}
+																			obj.JoinMethod = t
+																		}
 																	}
-																	CopyFromJoinMethod(diags, a, &obj.JoinMethod)
 																}
 																{
 																	a, ok := tf.Attrs["join_token"]
@@ -1479,8 +1492,18 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																	a, ok := tf.Attrs["join_method"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.azure.Params.JoinMethod"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t github_com_gravitational_teleport_api_types.JoinMethod
+																			if !v.Null && !v.Unknown {
+																				t = github_com_gravitational_teleport_api_types.JoinMethod(v.Value)
+																			}
+																			obj.JoinMethod = t
+																		}
 																	}
-																	CopyFromJoinMethod(diags, a, &obj.JoinMethod)
 																}
 																{
 																	a, ok := tf.Attrs["join_token"]
@@ -1905,8 +1928,18 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																	a, ok := tf.Attrs["join_method"]
 																	if !ok {
 																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.gcp.Params.JoinMethod"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t github_com_gravitational_teleport_api_types.JoinMethod
+																			if !v.Null && !v.Unknown {
+																				t = github_com_gravitational_teleport_api_types.JoinMethod(v.Value)
+																			}
+																			obj.JoinMethod = t
+																		}
 																	}
-																	CopyFromJoinMethod(diags, a, &obj.JoinMethod)
 																}
 																{
 																	a, ok := tf.Attrs["join_token"]
@@ -3164,7 +3197,20 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Params.JoinMethod"})
 																} else {
-																	v := CopyToJoinMethod(diags, obj.JoinMethod, t, tf.Attrs["join_method"])
+																	v, ok := tf.Attrs["join_method"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Params.JoinMethod", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.JoinMethod) == ""
+																	}
+																	v.Value = string(obj.JoinMethod)
+																	v.Unknown = false
 																	tf.Attrs["join_method"] = v
 																}
 															}
@@ -3932,7 +3978,20 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.azure.Params.JoinMethod"})
 																} else {
-																	v := CopyToJoinMethod(diags, obj.JoinMethod, t, tf.Attrs["join_method"])
+																	v, ok := tf.Attrs["join_method"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.azure.Params.JoinMethod", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.azure.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.JoinMethod) == ""
+																	}
+																	v.Value = string(obj.JoinMethod)
+																	v.Unknown = false
 																	tf.Attrs["join_method"] = v
 																}
 															}
@@ -4602,7 +4661,20 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																if !ok {
 																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.gcp.Params.JoinMethod"})
 																} else {
-																	v := CopyToJoinMethod(diags, obj.JoinMethod, t, tf.Attrs["join_method"])
+																	v, ok := tf.Attrs["join_method"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.gcp.Params.JoinMethod", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.gcp.Params.JoinMethod", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.JoinMethod) == ""
+																	}
+																	v.Value = string(obj.JoinMethod)
+																	v.Unknown = false
 																	tf.Attrs["join_method"] = v
 																}
 															}

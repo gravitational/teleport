@@ -116,15 +116,3 @@ func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
 func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Value) attr.Value {
 	return tfschema.CopyToLabels(diags, o, t, v)
 }
-
-func GenSchemaJoinMethod(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfschema.GenSchemaJoinMethod(ctx, attr)
-}
-
-func CopyFromJoinMethod(diags diag.Diagnostics, v attr.Value, o *apitypes.JoinMethod) {
-	tfschema.CopyFromJoinMethod(diags, v, o)
-}
-
-func CopyToJoinMethod(diags diag.Diagnostics, o apitypes.JoinMethod, t attr.Type, v attr.Value) attr.Value {
-	return tfschema.CopyToJoinMethod(diags, o, t, v)
-}

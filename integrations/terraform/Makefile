@@ -63,7 +63,7 @@ $(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSIO
 
 CUSTOM_IMPORTS_TMP_DIR ?= /tmp/protoc-gen-terraform/custom-imports
 # This version must match the version installed by .github/workflows/lint.yaml
-PROTOC_GEN_TERRAFORM_VERSION ?= v3.0.2
+PROTOC_GEN_TERRAFORM_VERSION ?= v3.0.3
 PROTOC_GEN_TERRAFORM_EXISTS := $(shell $(PROTOC_GEN_TERRAFORM) version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
 
 .PHONY: gen-tfschema

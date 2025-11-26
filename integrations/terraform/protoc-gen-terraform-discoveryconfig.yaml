@@ -76,6 +76,20 @@ validators:
 
 custom_types:
   'DiscoveryConfig.header.metadata.expires': Timestamp
-  'DiscoveryConfig.spec.aws.Params.JoinMethod': JoinMethod
-  'DiscoveryConfig.spec.azure.Params.JoinMethod': JoinMethod
-  'DiscoveryConfig.spec.gcp.Params.JoinMethod': JoinMethod
+
+schema_types:
+  'DiscoveryConfig.spec.aws.Params.JoinMethod':
+    type: "github.com/hashicorp/terraform-plugin-framework/types.StringType"
+    value_type: "github.com/hashicorp/terraform-plugin-framework/types.String"
+    cast_to_type: "string"
+    cast_from_type: "github.com/gravitational/teleport/api/types.JoinMethod"
+  'DiscoveryConfig.spec.azure.Params.JoinMethod':
+    type: "github.com/hashicorp/terraform-plugin-framework/types.StringType"
+    value_type: "github.com/hashicorp/terraform-plugin-framework/types.String"
+    cast_to_type: "string"
+    cast_from_type: "github.com/gravitational/teleport/api/types.JoinMethod"
+  'DiscoveryConfig.spec.gcp.Params.JoinMethod':
+    type: "github.com/hashicorp/terraform-plugin-framework/types.StringType"
+    value_type: "github.com/hashicorp/terraform-plugin-framework/types.String"
+    cast_to_type: "string"
+    cast_from_type: "github.com/gravitational/teleport/api/types.JoinMethod"

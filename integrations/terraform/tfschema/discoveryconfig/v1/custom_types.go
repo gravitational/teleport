@@ -26,10 +26,6 @@ type DurationType = tfschema.DurationType
 type DurationValue = tfschema.DurationValue
 
 var (
-	GenSchemaDuration = resource153.GenSchemaDuration
-	CopyToDuration    = resource153.CopyToDuration
-	CopyFromDuration  = resource153.CopyFromDuration
-
 	GenSchemaTimestamp = resource153.GenSchemaTimestamp
 	CopyToTimestamp    = resource153.CopyToTimestamp
 	CopyFromTimestamp  = resource153.CopyFromTimestamp
@@ -37,8 +33,4 @@ var (
 	GenSchemaLabels = resource153.GenSchemaLabels
 	CopyFromLabels  = resource153.CopyFromLabels
 	CopyToLabels    = resource153.CopyToLabels
-
-	GenSchemaJoinMethod = resource153.GenSchemaJoinMethod
-	CopyFromJoinMethod  = resource153.CopyFromJoinMethod
-	CopyToJoinMethod    = resource153.CopyToJoinMethod
 )
