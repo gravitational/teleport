@@ -51,18 +51,18 @@ func (h *Handler) machineIDWizardGenerateIaC(w http.ResponseWriter, r *http.Requ
 			Name: fmt.Sprintf("%s-kube-access", namePrefix),
 		},
 		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				KubeGroups: []string{"{{internal.kubernetes_groups}}"},
-				KubeUsers:  []string{"{{internal.kubernetes_users}}"},
-			},
+			Allow: types.RoleConditions{},
 		},
 	}
 	var roleOpts []tfgen.GenerateOpt
 	if req.Kubernetes != nil {
 		role.Spec.Allow.KubernetesLabels = req.Kubernetes.Labels
 		role.Spec.Allow.KubernetesResources = req.Kubernetes.Resources
+		role.Spec.Allow.KubeGroups = req.Kubernetes.Groups
+		role.Spec.Allow.KubeUsers = req.Kubernetes.Users
 	} else {
-		roleOpts = append(roleOpts, tfgen.WithFieldComment("spec.allow.kubernetes_labels", "kubernetes_labels will be added in the next steps."))
+		roleOpts = append(roleOpts, tfgen.WithFieldComment("spec.allow.kubernetes_labels", "kubernetes_labels will be added in the next step."))
+		roleOpts = append(roleOpts, tfgen.WithFieldComment("spec.allow.kubernetes_groups", "kubernetes_groups will be added in the next step."))
 	}
 
 	// Bot resource.
@@ -78,25 +78,6 @@ func (h *Handler) machineIDWizardGenerateIaC(w http.ResponseWriter, r *http.Requ
 	}
 	botOpts := []tfgen.GenerateOpt{
 		tfgen.WithFieldTransform("spec.traits", transform.BotTraits),
-	}
-
-	if req.Kubernetes == nil {
-		botOpts = append(botOpts,
-			tfgen.WithFieldComment("spec.traits", "kubernetes_groups and kubernetes_users will be added in the next step."),
-		)
-	} else {
-		if len(req.Kubernetes.Groups) != 0 {
-			bot.Spec.Traits = append(bot.Spec.Traits, &machineidv1.Trait{
-				Name:   "kubernetes_groups",
-				Values: req.Kubernetes.Groups,
-			})
-		}
-		if len(req.Kubernetes.Users) != 0 {
-			bot.Spec.Traits = append(bot.Spec.Traits, &machineidv1.Trait{
-				Name:   "kubernetes_users",
-				Values: req.Kubernetes.Users,
-			})
-		}
 	}
 
 	// Join token resource.
