@@ -17,9 +17,9 @@ import (
 	"github.com/gravitational/teleport/lib/tfgen/transform"
 )
 
-// machineIDWizard generates IaC code for the Machine Identity CI/CD wizards.
-func (h *Handler) machineIDWizard(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error) {
-	var req machineIDWizardRequest
+// machineIDWizardGenerateIaC generates IaC code for the Machine Identity CI/CD wizards.
+func (h *Handler) machineIDWizardGenerateIaC(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error) {
+	var req machineIDWizardGenerateIaCRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -142,7 +142,7 @@ func (h *Handler) machineIDWizard(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	return machineIDGHAK8sWizardResponse{
+	return machineIDGHAK8sWizardGenerateIaCResponse{
 		Terraform: fmt.Sprintf(
 			machineIDGHAK8sWizardTerraformTemplate,
 			roleTF,
@@ -169,7 +169,7 @@ func (h *Handler) terraformProviderConfig() string {
 //go:embed templates/machine-id-gha-k8s-wizard.tf.tmpl
 var machineIDGHAK8sWizardTerraformTemplate string
 
-type machineIDWizardRequest struct {
+type machineIDWizardGenerateIaCRequest struct {
 	SourceType      string                            `json:"source_type"`
 	DestinationType string                            `json:"destination_type"`
 	GitHub          *machineIDWizardRequestGitHub     `json:"github"`
@@ -196,6 +196,6 @@ type machineIDWizardRequestKubernetes struct {
 	Resources []types.KubernetesResource `json:"resources"`
 }
 
-type machineIDGHAK8sWizardResponse struct {
+type machineIDGHAK8sWizardGenerateIaCResponse struct {
 	Terraform string `json:"terraform"`
 }
