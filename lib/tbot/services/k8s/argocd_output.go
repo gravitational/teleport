@@ -25,11 +25,11 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"maps"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/trace"
