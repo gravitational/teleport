@@ -430,7 +430,7 @@ func TestInterruptsDelay(t *testing.T) {
 
 		// the user seeked to 10.001 seconds, it should take 4.999
 		// seconds to get the third event that arrives at second 15.
-		require.Equal(t, time.Since(start), 4999*time.Millisecond)
+		require.Equal(t, 4999*time.Millisecond, time.Since(start))
 	})
 }
 
@@ -456,6 +456,6 @@ func TestSeekForward(t *testing.T) {
 		// It should take 300ms for the event to be emitted.
 		// Two 100ms sleeps (200ms), then a seek to 5.900 seconds which
 		// requires another 100ms to wait for the event at 6s.
-		require.Equal(t, time.Since(start), 300*time.Millisecond)
+		require.Equal(t, 300*time.Millisecond, time.Since(start))
 	})
 }

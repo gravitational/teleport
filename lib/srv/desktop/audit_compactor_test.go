@@ -209,7 +209,7 @@ func TestAuditCompactor(t *testing.T) {
 			// a single consolidated event
 			eventsLock.Lock()
 			require.Len(t, auditEvents, 1)
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 200, uint32(length*uint32(count))))
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 200, length*uint32(count)))
 			eventsLock.Unlock()
 
 		})
@@ -289,7 +289,7 @@ func TestAuditCompactor(t *testing.T) {
 				newReadEvent("baz", 1, 0, 100),
 				newReadEvent("caz", 1, 0, 100),
 			}
-			for _ = range len(expectedEvents) {
+			for range len(expectedEvents) {
 				assert.False(t, flushDone)
 				assert.Contains(t, expectedEvents, <-auditEvents)
 				synctest.Wait()

@@ -293,7 +293,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				cancel()
 
 				// Discovery usage events are reported.
-				require.Greater(t, len(mockAccessPoint.usageEvents), 0)
+				require.NotEmpty(t, mockAccessPoint.usageEvents)
 
 				// Check the UserTasks created by the discovery server.
 				existingTasks := slices.Collect(maps.Values(mockAccessPoint.storeUserTasks))
