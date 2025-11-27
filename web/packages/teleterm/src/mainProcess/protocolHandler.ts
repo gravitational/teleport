@@ -17,10 +17,10 @@
  */
 
 import fs from 'fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as path from 'path';
 
-import { app, protocol } from 'electron';
+import { app, net, protocol } from 'electron';
 
 import Logger from 'teleterm/logger';
 
@@ -36,7 +36,21 @@ const disabledSchemes = [
   'gopher',
   'javascript',
   'mailto',
+  'file',
 ];
+const APP_FILE_SCHEMA = 'app-file';
+const CONNECT_AUTHORITY = 'connect-app';
+
+/**
+ * Builds a URI for the custom 'app-file://' scheme.
+ * The path will be resolved against `app.getAppPath()`.
+ */
+export function buildAppFileUri(relativePath: string) {
+  const baseUrl = `${APP_FILE_SCHEMA}://${CONNECT_AUTHORITY}`;
+
+  const uri = new URL(relativePath, baseUrl);
+  return uri.toString();
+}
 
 // these protocols are not used within the app
 function disableUnusedProtocols() {
@@ -74,7 +88,55 @@ function interceptFileProtocol() {
   });
 }
 
+/**
+ * Registers the 'app-file://' protocol handler.
+ * Serves application files from the build directory and adds
+ * cross-origin headers to responses, enabling features that
+ * require cross-origin isolation.
+ */
+function handleAppFileProtocol(): void {
+  const appPath = app.getAppPath();
+
+  protocol.handle(APP_FILE_SCHEMA, async request => {
+    const filePath = decodeURIComponent(new URL(request.url).pathname).replace(
+      // Remove the leading slash.
+      /^\/+/,
+      ''
+    );
+    const target = path.join(appPath, filePath);
+
+    // Use net.fetch to serve local files.
+    // It automatically determines and sets the correct Content-Type (MIME) header,
+    // unlike fs.readFile.
+    const response = await net.fetch(pathToFileURL(target).toString());
+    // To use features like SharedArrayBuffer, the document must be in a secure context
+    // and cross-origin isolated.
+    response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+    response.headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+    return response;
+  });
+}
+
+/**
+ * Registers the 'app-file://' protocol schema.
+ * It's used to serve application files.
+ */
+export function registerAppFileProtocol(): void {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: APP_FILE_SCHEMA,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        codeCache: true,
+      },
+    },
+  ]);
+}
+
 export function enableWebHandlersProtection() {
   interceptFileProtocol();
   disableUnusedProtocols();
+  handleAppFileProtocol();
 }

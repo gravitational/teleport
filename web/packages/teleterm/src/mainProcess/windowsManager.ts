@@ -17,7 +17,6 @@
  */
 
 import path from 'node:path';
-import * as url from 'node:url';
 
 import {
   app,
@@ -35,6 +34,7 @@ import { ensureError } from 'shared/utils/error';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
+import { buildAppFileUri } from 'teleterm/mainProcess/protocolHandler';
 import {
   RendererIpc,
   RuntimeSettings,
@@ -567,12 +567,5 @@ function getWindowUrl(isDev: boolean): string {
     return 'http://localhost:8080/';
   }
 
-  // The returned URL is percent-encoded.
-  // It is important because `details.requestingUrl` (in `setPermissionRequestHandler`)
-  // to which we match the URL is also percent-encoded.
-  return url
-    .pathToFileURL(
-      path.resolve(app.getAppPath(), __dirname, '../renderer/index.html')
-    )
-    .toString();
+  return buildAppFileUri('build/app/renderer/index.html');
 }
