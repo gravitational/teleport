@@ -5712,7 +5712,18 @@ func TestShowSessions(t *testing.T) {
 		"session_start": "0001-01-01T00:00:00Z",
 		"session_stop": "0001-01-01T00:00:00Z",
 		"participants": ["someParticipant"]
-    } ]`
+    },
+	{
+		"app_name": "someApp",
+		"ei": 0,
+		"event": "",
+		"server_id": "",
+		"session_chunk_id": "someChunkID",
+		"sid": "",
+		"time": "0001-01-01T00:00:00Z",
+		"uid": "someID5",
+		"user": "someUser"
+	} ]`
 	sessions := []events.AuditEvent{
 		&events.SessionEnd{
 			Metadata: events.Metadata{
@@ -5751,6 +5762,18 @@ func TestShowSessions(t *testing.T) {
 			StartTime:    time.Time{},
 			EndTime:      time.Time{},
 			Participants: []string{"someParticipant"},
+		},
+		&events.AppSessionChunk{
+			Metadata: events.Metadata{
+				ID: "someID5",
+			},
+			UserMetadata: events.UserMetadata{
+				User: "someUser",
+			},
+			AppMetadata: events.AppMetadata{
+				AppName: "someApp",
+			},
+			SessionChunkID: "someChunkID",
 		},
 	}
 	var buf bytes.Buffer

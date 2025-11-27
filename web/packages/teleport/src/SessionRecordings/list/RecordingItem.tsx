@@ -31,6 +31,7 @@ import styled, { css } from 'styled-components';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import {
+  Application,
   ArrowRight,
   Database,
   Desktop,
@@ -363,6 +364,12 @@ export function getRecordingTypeInfo(type: RecordingType): {
       return {
         icon: Desktop,
         label: 'Desktop Session',
+      };
+
+    case 'app':
+      return {
+        icon: Application,
+        label: 'Application Session Chunk',
       };
   }
 }
