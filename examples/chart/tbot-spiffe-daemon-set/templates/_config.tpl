@@ -7,9 +7,6 @@
 {{ if not .Values.token }}
   {{- $_ := required "`token` must be provided" "" }}
 {{ end }}
-{{ if (and .Values.teleportAuthAddress .Values.teleportProxyAddress) }}
-  {{- $_ := required "`teleportAuthAddress` and `teleportProxyAddress` are mutually exclusive" "" }}
-{{ end }}
 {{- define "tbot-spiffe-daemon-set.config" -}}
 version: v2
 {{- if .Values.teleportProxyAddress }}
@@ -18,17 +15,16 @@ proxy_server: {{ .Values.teleportProxyAddress }}
 onboarding:
   join_method: {{ .Values.joinMethod }}
   token: {{ .Values.token }}
-{{- if eq .Values.persistence "disabled" }}
 storage:
   type: memory
-{{- else if eq .Values.persistence "secret" }}
-storage:
-  type: kubernetes_secret
-  name: {{ include "tbot-spiffe-daemon-set.fullname" . }}
-{{- else }}
-  {{- required "'persistence' must be 'secret' or 'disabled'" "" }}
-{{- end }}
-{{- if .Values.services }}
-services: {{- toYaml .Values.services | nindent 2}}
-{{- end }}
+services:
+- type: workload-identity-api
+  listen: unix:///run/tbot/sockets/workload.sock
+  selector:
+    name: k8s-ds-example
+  attestor:
+    kubernetes:
+      enabled: true
+      kubelet:
+        skip_verify: true
 {{- end -}}
