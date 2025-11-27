@@ -387,6 +387,7 @@ func TestConfigReading(t *testing.T) {
 					},
 					ResourceGroups: []string{"group1"},
 					Subscriptions:  []string{"sub1"},
+					Integration:    "integration1",
 				},
 			},
 			GCPMatchers: []GCPMatcher{
@@ -520,6 +521,7 @@ func TestConfigReading(t *testing.T) {
 					ResourceGroups: []string{"rg1", "rg2"},
 					Types:          []string{"mysql"},
 					Regions:        []string{"eastus", "westus"},
+					Integration:    "integration1",
 					ResourceTags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
@@ -878,6 +880,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				ResourceGroups: []string{"group1", "group2"},
 				Types:          []string{"postgres", "mysql"},
 				Regions:        []string{"eastus", "centralus"},
+				Integration:    "integration123",
 				ResourceTags: map[string]apiutils.Strings{
 					"a": {"b"},
 				},
@@ -1602,6 +1605,7 @@ func makeConfigFixture() string {
 			},
 			ResourceGroups: []string{"group1"},
 			Subscriptions:  []string{"sub1"},
+			Integration:    "integration1",
 		},
 	}
 
@@ -1721,6 +1725,7 @@ func makeConfigFixture() string {
 			ResourceTags: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
+			Integration: "integration1",
 		},
 		{
 			Subscriptions:  []string{"sub3", "sub4"},
@@ -3900,6 +3905,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							},
 							Suffix: "blue",
 						},
+						Integration: "integration123",
 					},
 				},
 			},
@@ -3921,6 +3927,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 						},
 						Regions:        []string{"*"},
 						ResourceTags:   types.Labels{"*": []string{"*"}},
+						Integration:    "integration123",
 						ResourceGroups: []string{"*"},
 					},
 				},
@@ -4368,7 +4375,6 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name              string
-		installParams     *InstallParams
 		fc                *FileConfig
 		expectedProxyAddr string
 	}{
@@ -4376,18 +4382,6 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 			name:              "empty",
 			fc:                &FileConfig{},
 			expectedProxyAddr: "",
-		},
-		{
-			name: "explicit proxy addr",
-			installParams: &InstallParams{
-				PublicProxyAddr: "explicit.example.com",
-			},
-			fc: &FileConfig{
-				Global: Global{
-					ProxyServer: "proxy.example.com",
-				},
-			},
-			expectedProxyAddr: "explicit.example.com",
 		},
 		{
 			name: "proxy server",
@@ -4435,7 +4429,7 @@ func TestGetInstallerProxyAddr(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.installParams, tc.fc))
+			assert.Equal(t, tc.expectedProxyAddr, getInstallerProxyAddr(tc.fc))
 		})
 	}
 }
@@ -4641,8 +4635,9 @@ func TestDiscoveryConfig(t *testing.T) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
 					{
-						"types":   []string{"aks"},
-						"regions": []string{"eucentral1"},
+						"types":       []string{"aks"},
+						"regions":     []string{"eucentral1"},
+						"integration": "integration1",
 						"tags": cfgMap{
 							"discover_teleport": "yes",
 						},
@@ -4652,8 +4647,9 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedAzureMatchers: []types.AzureMatcher{{
-				Types:   []string{"aks"},
-				Regions: []string{"eucentral1"},
+				Types:       []string{"aks"},
+				Regions:     []string{"eucentral1"},
+				Integration: "integration1",
 				ResourceTags: map[string]apiutils.Strings{
 					"discover_teleport": []string{"yes"},
 				},
@@ -5006,6 +5002,51 @@ func TestDiscoveryConfig(t *testing.T) {
 					SSHDConfig:      "/etc/ssh/sshd_config",
 					InstallTeleport: true,
 					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+			}},
+		},
+		{
+			desc:          "AWS section is filled custom HTTP Proxy Settings",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-west-1"},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+							"http_proxy_settings": cfgMap{
+								"http_proxy":  "http://squid-local:8080",
+								"https_proxy": "http://squid-local:8081",
+								"no_proxy":    "intranet.local,localhost",
+							},
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types: []string{"ec2"},
+				SSM: &types.AWSSSM{
+					DocumentName: types.AWSInstallerDocument,
+				},
+				Regions: []string{"eu-west-1"},
+				Tags:    map[string]apiutils.Strings{"*": {"*"}},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       types.IAMInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					HTTPProxySettings: &types.HTTPProxySettings{
+						HTTPProxy:  "http://squid-local:8080",
+						HTTPSProxy: "http://squid-local:8081",
+						NoProxy:    "intranet.local,localhost",
+					},
 				},
 			}},
 		},

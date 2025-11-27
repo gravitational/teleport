@@ -22,15 +22,17 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
@@ -104,27 +106,29 @@ func eventWithHTTPResponseError(resp *http.Response, err error) eventOptionFunc 
 	return eventWithError(convertHTTPResponseErrorForAudit(resp, err))
 }
 
-func eventWithHeader(r *http.Request) eventOptionFunc {
+func eventWithHeader(header http.Header) eventOptionFunc {
 	return func(o *eventOptions) {
-		o.header = headersForAudit(r.Header)
+		o.header = headersForAudit(header)
 	}
 }
 
-func (a *sessionAuditor) shouldEmitEvent(method mcp.MCPMethod) bool {
+func (a *sessionAuditor) shouldEmitEvent(method string) bool {
 	// Do not record discovery, ping calls.
 	switch method {
-	case mcp.MethodPing,
-		mcp.MethodResourcesList,
-		mcp.MethodResourcesTemplatesList,
-		mcp.MethodPromptsList,
-		mcp.MethodToolsList:
+	case mcputils.MethodPing,
+		mcputils.MethodResourcesList,
+		mcputils.MethodResourcesTemplatesList,
+		mcputils.MethodPromptsList,
+		mcputils.MethodToolsList:
 		return false
 	default:
 		return true
 	}
 }
 
-func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
+func (a *sessionAuditor) emitStartEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+
 	a.emitEvent(ctx, &apievents.MCPSessionStart{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionStartEvent,
@@ -136,6 +140,7 @@ func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
 		McpSessionId:       a.sessionCtx.mcpSessionID.String(),
+		EgressAuthType:     guessEgressAuthType(opts.header, a.sessionCtx.App.GetRewrite()),
 	})
 }
 
@@ -181,7 +186,7 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 		AppMetadata:     a.makeAppMetadata(),
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
-			Method:  string(msg.Method),
+			Method:  msg.Method,
 			Params:  msg.Params.GetEventParams(),
 		},
 		Status: apievents.Status{
@@ -215,7 +220,7 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 		},
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
-			Method:  string(msg.Method),
+			Method:  msg.Method,
 			ID:      msg.ID.String(),
 			Params:  msg.Params.GetEventParams(),
 		},
@@ -351,4 +356,46 @@ func headersForAudit(h http.Header) http.Header {
 		}
 	}
 	return ret
+}
+
+// guessEgressAuthType makes an educated guess on what kind of auth is used to
+// for the remote MCP server.
+func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrite) string {
+	if rewrite != nil {
+		testJWTTraits := map[string][]string{
+			"jwt": {"test", "jwt"},
+		}
+
+		var rewriteAuth bool
+		for _, rewrite := range rewrite.Headers {
+			if strings.EqualFold(rewrite.Name, "Authorization") {
+				rewriteAuth = true
+			}
+
+			// Check if any header value includes "{{internal.jwt}}".
+			if strings.Contains(rewrite.Value, "internal.jwt") {
+				// Apply fake traits just to be sure. The fake traits will
+				// result two values if applied successfully.
+				if interpolated, _ := services.ApplyValueTraits(rewrite.Value, testJWTTraits); len(interpolated) > 1 {
+					return "app-jwt"
+				}
+			}
+		}
+
+		// Auth header has be defined in the app definition but not using
+		// "{{internal.jwt}}".
+		if rewriteAuth {
+			return "app-defined"
+		}
+	}
+
+	// Reach here when app.Rewrite not overwriting auth. Check if Auth header is
+	// defined by the user.
+	if headerWithoutRewrite.Get("Authorization") != "" {
+		return "user-defined"
+	}
+
+	// No auth required for the remote MCP server or something we don't
+	// understand yet.
+	return "unknown"
 }

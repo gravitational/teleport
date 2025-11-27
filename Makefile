@@ -49,14 +49,14 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 # When TELEPORT_DEBUG is true, set flags to produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
-BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
-BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l"
-BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
-BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 # teleport-update builds with disabled cgo, buildmode=pie is not required.
-BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -321,10 +321,10 @@ ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
-BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 # teleport-update builds with disabled cgo, buildmode=pie is not required.
-BUILDFLAGS_TELEPORT_UPDATE = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
+BUILDFLAGS_TELEPORT_UPDATE = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 endif
 
 ifeq ("$(OS)","darwin")
@@ -388,7 +388,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
+$(BUILDDIR)/teleport: ensure-webassets rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
@@ -453,37 +453,51 @@ tctl-app:
 	cp "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)/Contents/MacOS/."
 	$(NOTARIZE_TCTL_APP)
 
-#
+# BPF tests will not work in a docker container and so should not be
+# run in CI for now.
+.PHONEY: test-bpf
+test-bpf:
+	mkdir -p _test
+	go test -c -tags bpf -o _test/libbpf.test ./lib/bpf
+	go test -c -tags bpf -o _test/libsrv.test ./lib/srv
+
+	sudo TELEPORT_BPF_TEST=1 _test/libbpf.test
+	# ignore non bpf-related tests
+	sudo TELEPORT_BPF_TEST=1 _test/libsrv.test -test.run=TestBPF
+
 # BPF support (IF ENABLED)
-# Requires a recent version of clang and libbpf installed.
+# Requires clang 14+
 #
-ifeq ("$(with_bpf)","yes")
-$(ER_BPF_BUILDDIR):
-	mkdir -p $(ER_BPF_BUILDDIR)
-
-# Build BPF code
-$(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(BPF_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	$(LLVM_STRIP) -g $@ # strip useless DWARF info
-
-.PHONY: bpf-er-bytecode
-bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
-
+# Enable target only if /usr/include/linux/bpf.h exists and clang is installed.
+# This is a requirement for building BPF bytecode.
 .PHONY: bpf-bytecode
-bpf-bytecode: bpf-er-bytecode
+bpf-bytecode:
+	@if [ ! -f /usr/include/linux/bpf.h -o  ! -f /usr/include/bpf/bpf_helpers.h ]; then \
+		echo "libbpf-dev is required to build BPF bytecode"; \
+		exit 1; \
+	fi
+	@if ! command clang --version >/dev/null 2>&1; then \
+		echo "clang is required to build BPF bytecode"; \
+		exit 1; \
+	fi
+
+	go generate ./lib/bpf/
+
+# bpf-up-to-date checks if the generated BPF bytecode is up to date.
+.PHONY: bpf-up-to-date
+bpf-up-to-date: must-start-clean/host bpf-bytecode
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "bpf bytecode" "make -C build.assets bpf-bytecode"; \
+		exit 1; \
+	fi
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
 update-vmlinux-h:
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c >bpf/vmlinux.h
 
-else
-.PHONY: bpf-bytecode
-bpf-bytecode:
-endif
-
 .PHONY: rdpclient
-rdpclient:
+rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
@@ -504,7 +518,7 @@ export ironrdp_package_json
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 build-ironrdp-wasm: ensure-wasm-deps
-	cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
@@ -550,10 +564,6 @@ clean: clean-ui clean-build
 clean-build:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-# Check if the variable is set to prevent calling remove on the root directory.
-ifneq ($(ER_BPF_BUILDDIR),)
-	rm -f $(ER_BPF_BUILDDIR)/*.o
-endif
 	-cargo clean
 	-go clean -cache
 	rm -f *.gz
@@ -951,7 +961,7 @@ test-env-leakage:
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) $(VERSRC)
+test-go-prepare: ensure-webassets rdpclient $(TEST_LOG_DIR) $(VERSRC)
 
 # Runs base unit tests
 .PHONY: test-go-unit
@@ -960,16 +970,14 @@ test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/unit.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests.xml --jsonfile $(TEST_LOG_DIR)/unit-tests.json --raw-command -- cat
 
 # Runs tbot unit tests
 .PHONY: test-go-unit-tbot
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot:
 	$(CGOFLAG) go test -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
-		| tee $(TEST_LOG_DIR)/unit.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-tbot.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-tbot.json --raw-command -- cat
 
 # Make sure untagged touchid code build/tests.
 .PHONY: test-go-touch-id
@@ -978,8 +986,7 @@ test-go-touch-id: SUBJECT ?= ./lib/auth/touchid/...
 test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/unit.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-touchid.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-touchid.json --raw-command -- cat
 endif
 
 # Runs benchmarks once to make sure they pass.
@@ -1008,8 +1015,7 @@ test-go-vnet-daemon: SUBJECT ?= ./lib/vnet/daemon/...
 test-go-vnet-daemon:
 ifneq ("$(VNETDAEMON_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/unit.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-vnet.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-vnet.json --raw-command -- cat
 endif
 
 # Runs ci tsh tests
@@ -1018,29 +1024,26 @@ test-go-tsh: FLAGS ?= -race -shuffle on
 test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh/...
 test-go-tsh:
 	$(CGOFLAG_TSH) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/unit.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-tsh.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-tsh.json --raw-command -- cat
 
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 .PHONY: test-go-chaos
 test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go-chaos:
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
-		| tee $(TEST_LOG_DIR)/chaos.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-chaos.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-chaos.json --raw-command -- cat
 
 #
 # Runs all Go tests except integration, end-to-end, and chaos, called by CI/CD.
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR)
+test-go-root: ensure-webassets rdpclient $(TEST_LOG_DIR)
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e e2e -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/unit-root.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-root.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-root.json --raw-command -- cat
 
 #
 # Runs Go tests on the api module. These have to be run separately as the package name is different.
@@ -1051,8 +1054,7 @@ test-api: FLAGS ?= -race -shuffle on
 test-api: SUBJECT ?= $(shell cd api && go list ./...)
 test-api:
 	cd api && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/api.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-api.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-api.json --raw-command -- cat
 
 #
 # Runs Teleport Operator tests.
@@ -1082,8 +1084,7 @@ test-kube-agent-updater: FLAGS ?= -race -shuffle on
 test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater && go list ./...)
 test-kube-agent-updater:
 	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/kube-agent-updater.json \
-		| go tool gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-kube-agent-updater.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-kube-agent-updater.json --raw-command -- cat
 
 .PHONY: test-access-integrations
 test-access-integrations:
@@ -1106,8 +1107,7 @@ test-teleport-usage: FLAGS ?= -race -shuffle on
 test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
 test-teleport-usage:
 	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| tee $(TEST_LOG_DIR)/teleport-usage.json \
-		| go tool gotestsum --raw-command -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-teleport-usage.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-teleport-usage.json --raw-command -- cat
 
 #
 # Flaky test detection. Usually run from CI nightly, overriding these default parameters
@@ -1169,8 +1169,7 @@ integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' |
 integration:  $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) \
-		| tee $(TEST_LOG_DIR)/integration.json \
-		| go tool gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-integration.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
@@ -1183,8 +1182,7 @@ integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$
 integration-kube: $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
-		| tee $(TEST_LOG_DIR)/integration-kube.json \
-		| go tool gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-integration-kube.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration-kube.json --raw-command -- cat
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -1196,8 +1194,7 @@ integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
 integration-root: $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
-		| tee $(TEST_LOG_DIR)/integration-root.json \
-		| go tool gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-integration-root.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration-root.json --raw-command -- cat
 
 
 .PHONY: e2e-aws
@@ -1206,8 +1203,7 @@ e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
 e2e-aws: $(TEST_LOG_DIR)
 	@echo TEST_KUBE: $(TEST_KUBE) TEST_AWS_DB: $(TEST_AWS_DB)
 	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) $(ADDFLAGS)\
-		| tee $(TEST_LOG_DIR)/e2e-aws.json \
-		| go tool gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.json --raw-command -- cat
 
 #
 # Lint the source code.
@@ -1866,7 +1862,7 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
@@ -1922,6 +1918,26 @@ rustup-set-version: ; # obsoleted by toolchain file
 .PHONY: rustup-install-target-toolchain
 rustup-install-target-toolchain:
 	rustup target add $(RUST_TARGET_ARCH)
+
+
+define rust_toolchain_warning
+  The active Rust toolchain version does not match the toolchain required
+  to build Teleport. This is likely caused by a directory override. You
+  can inspect your current overrides with 'rustup show active-toolchain'
+  and clear directory overrides with 'rustup override unset'
+endef
+export rust_toolchain_warning
+
+# inspect the current active toolchain and display a warning if it doesn't
+# match the version defined in our toolchain file.
+.PHONY: rustup-toolchain-warning
+rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
+rustup-toolchain-warning:
+	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
+		echo -en "\033[31m";\
+		echo  "$$rust_toolchain_warning";\
+		echo  -en "\033[0m";\
+	fi
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
@@ -1997,9 +2013,30 @@ audit-event-reference-up-to-date: must-start-clean/host audit-event-reference
 		exit 1; \
 	fi
 
+.PHONY: access-monitoring-reference
+access-monitoring-reference:
+	cd ./build.assets/tooling/cmd/gen-athena-docs && go run main.go > ../../../../docs/pages/includes/access-monitoring-events.mdx
+
+.PHONY: access-monitoring-reference-up-to-date
+access-monitoring-reference-up-to-date: access-monitoring-reference
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "Access Monitoring event reference docs" "make access-monitoring-reference"; \
+		exit 1; \
+	fi
+
 .PHONY: gen-docs
-gen-docs:
+gen-docs: gen-resource-docs audit-event-reference
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
-	$(MAKE) audit-event-reference
+
+.PHONY: gen-resource-docs
+gen-resource-docs:
+	cd build.assets/tooling/cmd/resource-ref-generator && go run . -config config.yaml
+
+.PHONY: resource-docs-up-to-date
+resource-docs-up-to-date: must-start-clean/host gen-resource-docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "tctl resource reference docs" "make gen-resource-docs"; \
+		exit 1; \
+	fi

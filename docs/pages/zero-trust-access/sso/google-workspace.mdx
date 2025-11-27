@@ -1,5 +1,6 @@
 ---
 title: Teleport Authentication with Google Workspace (G Suite)
+sidebar_label: Google Workspace (G Suite)
 description: How to configure Teleport access with Google Workspace (formerly known as G Suite)
 videoBanner: WTLWc6nnPfk
 tags:
@@ -45,7 +46,7 @@ Before you get started, verify the following:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Configure Google Workspace
+## Step 1/3. Configure Google Workspace
 
 The following steps are required to configure Google Workspace to work with Teleport:
 
@@ -293,7 +294,17 @@ To configure delegation:
 
 1. Click **Authorize**.
 
-## Step 2/4. Create an OIDC connector
+## Step 2/3. Connect Google Workspace to Teleport
+
+In this section, you will create an authentication connector that provides
+Teleport with the information it needs to exchange OIDC messages with Google
+Workspace and issue certificates to users.
+
+### Assign a role mapping
+
+(!docs/pages/includes/sso/role-mapping.mdx fieldType="claim"!)
+
+### Configure an OIDC connector
 
 After you have prepared Google Workspace, you can create the OIDC connector by 
 running the `tctl sso configure oidc` command. Depending on how you have deployed
@@ -323,8 +334,8 @@ With this method, you don't have to provide the JSON file to all of the hosts ru
 ```code
 $ tctl sso configure oidc --preset google --id <CLIENT-ID> \
 --secret $( cat client-secret.txt) \
---claims-to-roles groups,auditor@example.com,auditor \
---claims-to-roles groups,teleport-developers@example.com,access \
+--claims-to-roles <Var name="mapping_1" /> \
+--claims-to-roles <Var name="mapping_2" /> \
 --google-admin=<GOOGLE-WORKSPACE-ADMIN-EMAIL> \
 --google-acc '
 {
@@ -397,8 +408,8 @@ make the JSON file available to all hosts running the Teleport Auth Service.
 $ tctl sso configure oidc --preset google --id <CLIENT-ID> \
 --secret $( cat client-secret.txt) \
 --google-acc-uri <PATH/TO/SERVICE-ACCOUNT-KEY>.json \
---claims-to-roles groups,auditor@example.com,auditor \
---claims-to-roles groups,teleport-developers@example.com,access \
+--claims-to-roles <Var name="mapping_1" /> \
+--claims-to-roles <Var name="mapping_2" /> \
 --google-admin=<GOOGLE-WORKSPACE-ADMIN-EMAIL> > gworkspace-connector.yaml
 ```
 
@@ -452,6 +463,10 @@ credentials for scopes [...]" in audit log messages, change the `client_id` sett
 resource configuration file. For more information about viewing audit logs, see 
 [Troubleshooting](#troubleshooting).
 
+(!docs/pages/includes/sso/username-claim.mdx!)
+
+### Test the connector
+
 To test the connector, run the following command:
 
 ```code
@@ -462,13 +477,13 @@ This command opens the browser and attempts to sign you in to your Teleport clus
 using Google. If it fails, review the command output for troubleshooting
 information.
 
+### Create the connector 
+
 To create the connector using the `tctl` tool, run the following command:
 
 ```code
 $ tctl create -f gworkspace-connector.yaml
 ```
-
-## Step 3/4. Test your Google Workspace OIDC connector
 
 After you create the connector, the Teleport Web UI displays a new sign-in option, **Login with Google**. 
 To sign in from the command-line:
@@ -480,9 +495,13 @@ $ tsh --proxy=proxy.example.com login --auth=google
 This command displays the single sign-on endpoint URL and tries to open it
 automatically in a browser.
 
-## Step 4/4. Enable default OIDC authentication
+## Step 3/3. Enable default OIDC authentication
 
-(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
+(!docs/pages/includes/sso/cap.mdx type="oidc"!)
+
+## Next steps
+
+(!docs/pages/includes/sso/next-step-traits.mdx!)
 
 ## Troubleshooting
 

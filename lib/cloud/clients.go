@@ -32,31 +32,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/gravitational/trace"
-	"google.golang.org/api/option"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
-	"github.com/gravitational/teleport/lib/cloud/imds"
-	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
-	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
-	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
-	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 )
-
-// Clients provides interface for obtaining cloud provider clients.
-type Clients interface {
-	// GetInstanceMetadataClient returns instance metadata client based on which
-	// cloud provider Teleport is running on, if any.
-	GetInstanceMetadataClient(ctx context.Context) (imds.Client, error)
-	// GCPClients is an interface for providing GCP API clients.
-	GCPClients
-	// AzureClients is an interface for Azure-specific API clients
-	AzureClients
-	// Closer closes all initialized clients.
-	io.Closer
-}
 
 // GCPClients is an interface for providing GCP API clients.
 type GCPClients interface {
@@ -72,6 +52,8 @@ type GCPClients interface {
 	GetGCPProjectsClient(context.Context) (gcp.ProjectsClient, error)
 	// GetGCPInstancesClient returns instances client.
 	GetGCPInstancesClient(context.Context) (gcp.InstancesClient, error)
+
+	io.Closer
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -108,31 +90,41 @@ type AzureClients interface {
 	GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error)
 }
 
-type clientConstructor[T any] func(context.Context) (T, error)
+// AzureClientsOption is an option to pass to NewAzureClients
+type AzureClientsOption func(clients *azureClients)
 
-// clientCache is a struct that holds a cloud client that will only be
-// initialized once.
-type clientCache[T any] struct {
-	makeClient clientConstructor[T]
-	client     T
-	err        error
-	once       sync.Once
+type azureOIDCCredentials interface {
+	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 }
 
-// newClientCache creates a new client cache.
-func newClientCache[T any](makeClient clientConstructor[T]) *clientCache[T] {
-	return &clientCache[T]{makeClient: makeClient}
+// WithAzureIntegrationCredentials configures Azure cloud clients to use integration credentials.
+func WithAzureIntegrationCredentials(integrationName string, auth azureOIDCCredentials) AzureClientsOption {
+	return func(clt *azureClients) {
+		clt.newAzureCredentialFunc = func() (azcore.TokenCredential, error) {
+			ctx := context.TODO()
+			integration, err := auth.GetIntegration(ctx, integrationName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			spec := integration.GetAzureOIDCIntegrationSpec()
+			if spec == nil {
+				return nil, trace.BadParameter("expected %q to be an %q integration, was %q instead", integration.GetName(), types.IntegrationSubKindAzureOIDC, integration.GetSubKind())
+			}
+			cred, err := azidentity.NewClientAssertionCredential(spec.TenantID, spec.ClientID, func(ctx context.Context) (string, error) {
+				return auth.GenerateAzureOIDCToken(ctx, integrationName)
+				// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+			}, nil)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cred, nil
+		}
+	}
 }
 
-// GetClient gets the client, initializing it if necessary.
-func (c *clientCache[T]) GetClient(ctx context.Context) (T, error) {
-	c.once.Do(func() {
-		c.client, c.err = c.makeClient(ctx)
-	})
-	return c.client, trace.Wrap(c.err)
-}
-
-func newAzureClients() (*azureClients, error) {
+// NewAzureClients returns a new instance of Azure SDK clients.
+func NewAzureClients(opts ...AzureClientsOption) (AzureClients, error) {
 	azClients := &azureClients{
 		azureMySQLClients:     make(map[string]azure.DBServersClient),
 		azurePostgresClients:  make(map[string]azure.DBServersClient),
@@ -172,52 +164,34 @@ func newAzureClients() (*azureClients, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return azClients, nil
-}
-
-// ClientsOption allows setting options as functional arguments to cloudClients.
-type ClientsOption func(cfg *cloudClients)
-
-// NewClients returns a new instance of cloud clients retriever.
-func NewClients(opts ...ClientsOption) (Clients, error) {
-	azClients, err := newAzureClients()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cloudClients := &cloudClients{
-		gcpClients: gcpClients{
-			gcpSQLAdmin:     newClientCache(gcp.NewSQLAdminClient),
-			gcpAlloyDBAdmin: newClientCache(gcp.NewAlloyDBAdminClient),
-			gcpGKE:          newClientCache(gcp.NewGKEClient),
-			gcpProjects:     newClientCache(gcp.NewProjectsClient),
-			gcpInstances:    newClientCache(gcp.NewInstancesClient),
-		},
-		azureClients: azClients,
+	azClients.newAzureCredentialFunc = func() (azcore.TokenCredential, error) {
+		// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+		return azidentity.NewDefaultAzureCredential(nil)
 	}
 
 	for _, opt := range opts {
-		opt(cloudClients)
+		opt(azClients)
 	}
 
-	return cloudClients, nil
+	return azClients, nil
 }
 
-// cloudClients implements Clients
-var _ Clients = (*cloudClients)(nil)
-
-type cloudClients struct {
-	// instanceMetadata is the cached instance metadata client.
-	instanceMetadata imds.Client
-	// gcpClients contains GCP-specific clients.
-	gcpClients
-	// azureClients contains Azure-specific clients.
-	*azureClients
-	// mtx is used for locking.
-	mtx sync.RWMutex
+// NewGCPClients returns a new instance of GCP SDK clients.
+func NewGCPClients() GCPClients {
+	return &gcpClients{
+		gcpSQLAdmin:     newClientCache(gcp.NewSQLAdminClient),
+		gcpAlloyDBAdmin: newClientCache(gcp.NewAlloyDBAdminClient),
+		gcpGKE:          newClientCache(gcp.NewGKEClient),
+		gcpProjects:     newClientCache(gcp.NewProjectsClient),
+		gcpInstances:    newClientCache(gcp.NewInstancesClient),
+	}
 }
 
 // gcpClients contains GCP-specific clients.
 type gcpClients struct {
+	// mtx is used for locking.
+	mtx sync.RWMutex
+
 	// gcpIAM is the cached GCP IAM client.
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
@@ -234,8 +208,14 @@ type gcpClients struct {
 
 // azureClients contains Azure-specific clients.
 type azureClients struct {
+	// mtx is used for locking.
+	mtx sync.RWMutex
+
+	// newAzureCredentialFunc creates new Azure credential.
+	newAzureCredentialFunc func() (azcore.TokenCredential, error)
 	// azureCredential is the cached Azure credential.
 	azureCredential azcore.TokenCredential
+
 	// azureMySQLClients is the cached Azure MySQL Server clients.
 	azureMySQLClients map[string]azure.DBServersClient
 	// azurePostgresClients is the cached Azure Postgres Server clients.
@@ -270,7 +250,7 @@ type azureClients struct {
 }
 
 // GetGCPIAMClient returns GCP IAM client.
-func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
+func (c *gcpClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.RLock()
 	if c.gcpIAM != nil {
 		defer c.mtx.RUnlock()
@@ -281,43 +261,32 @@ func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.Iam
 }
 
 // GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-func (c *cloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
+func (c *gcpClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
 	return c.gcpSQLAdmin.GetClient(ctx)
 }
 
 // GetGCPAlloyDBClient returns GCP AlloyDB Admin client.
-func (c *cloudClients) GetGCPAlloyDBClient(ctx context.Context) (gcp.AlloyDBAdminClient, error) {
+func (c *gcpClients) GetGCPAlloyDBClient(ctx context.Context) (gcp.AlloyDBAdminClient, error) {
 	return c.gcpAlloyDBAdmin.GetClient(ctx)
 }
 
-// GetInstanceMetadataClient returns the instance metadata.
-func (c *cloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.Client, error) {
-	c.mtx.RLock()
-	if c.instanceMetadata != nil {
-		defer c.mtx.RUnlock()
-		return c.instanceMetadata, nil
-	}
-	c.mtx.RUnlock()
-	return c.initInstanceMetadata(ctx)
-}
-
 // GetGCPGKEClient returns GKE client.
-func (c *cloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
+func (c *gcpClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.gcpGKE.GetClient(ctx)
 }
 
 // GetGCPProjectsClient returns Project client.
-func (c *cloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
+func (c *gcpClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
 	return c.gcpProjects.GetClient(ctx)
 }
 
 // GetGCPInstancesClient returns instances client.
-func (c *cloudClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
+func (c *gcpClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
 	return c.gcpInstances.GetClient(ctx)
 }
 
 // GetAzureCredential returns default Azure token credential chain.
-func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
+func (c *azureClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	c.mtx.RLock()
 	if c.azureCredential != nil {
 		defer c.mtx.RUnlock()
@@ -328,7 +297,7 @@ func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 }
 
 // GetAzureMySQLClient returns an AzureClient for MySQL for the given subscription.
-func (c *cloudClients) GetAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
+func (c *azureClients) GetAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
 	c.mtx.RLock()
 	if client, ok := c.azureMySQLClients[subscription]; ok {
 		c.mtx.RUnlock()
@@ -339,7 +308,7 @@ func (c *cloudClients) GetAzureMySQLClient(subscription string) (azure.DBServers
 }
 
 // GetAzurePostgresClient returns an AzureClient for Postgres for the given subscription.
-func (c *cloudClients) GetAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
+func (c *azureClients) GetAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
 	c.mtx.RLock()
 	if client, ok := c.azurePostgresClients[subscription]; ok {
 		c.mtx.RUnlock()
@@ -350,7 +319,7 @@ func (c *cloudClients) GetAzurePostgresClient(subscription string) (azure.DBServ
 }
 
 // GetAzureSubscriptionClient returns an Azure client for listing subscriptions.
-func (c *cloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, error) {
+func (c *azureClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, error) {
 	c.mtx.RLock()
 	if c.azureSubscriptionsClient != nil {
 		defer c.mtx.RUnlock()
@@ -361,17 +330,17 @@ func (c *cloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, 
 }
 
 // GetAzureRedisClient returns an Azure Redis client for the given subscription.
-func (c *cloudClients) GetAzureRedisClient(subscription string) (azure.RedisClient, error) {
+func (c *azureClients) GetAzureRedisClient(subscription string) (azure.RedisClient, error) {
 	return c.azureRedisClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
-func (c *cloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error) {
+func (c *azureClients) GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error) {
 	return c.azureRedisEnterpriseClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureKubernetesClient returns an Azure client for listing AKS clusters.
-func (c *cloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
+func (c *azureClients) GetAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
 	c.mtx.RLock()
 	if client, ok := c.azureKubernetesClient[subscription]; ok {
 		c.mtx.RUnlock()
@@ -383,49 +352,49 @@ func (c *cloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSC
 
 // GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for
 // the given subscription.
-func (c *cloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
+func (c *azureClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.azureVirtualMachinesClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureSQLServerClient returns an Azure client for listing SQL servers.
-func (c *cloudClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
+func (c *azureClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
 	return c.azureSQLServerClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureManagedSQLServerClient returns an Azure client for listing managed
 // SQL servers.
-func (c *cloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
+func (c *azureClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
 	return c.azureManagedSQLServerClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
-func (c *cloudClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
+func (c *azureClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
 	return c.azureMySQLFlexServersClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
-func (c *cloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
+func (c *azureClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
 	return c.azurePostgresFlexServersClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureRunCommandClient returns an Azure Run Command client for the given
 // subscription.
-func (c *cloudClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
+func (c *azureClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
 	return c.azureRunCommandClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureRoleDefinitionsClient returns an Azure Role Definitions client
-func (c *cloudClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
+func (c *azureClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
 	return c.azureRoleDefinitionsClients.Get(subscription, c.GetAzureCredential)
 }
 
 // GetAzureRoleAssignmentsClient returns an Azure Role Assignments client
-func (c *cloudClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
+func (c *azureClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
 	return c.azureRoleAssignmentsClients.Get(subscription, c.GetAzureCredential)
 }
 
 // Close closes all initialized clients.
-func (c *cloudClients) Close() (err error) {
+func (c *gcpClients) Close() (err error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.gcpIAM != nil {
@@ -435,7 +404,7 @@ func (c *cloudClients) Close() (err error) {
 	return trace.Wrap(err)
 }
 
-func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
+func (c *gcpClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.gcpIAM != nil { // If some other thread already got here first.
@@ -449,15 +418,14 @@ func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.Ia
 	return gcpIAM, nil
 }
 
-func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
+func (c *azureClients) initAzureCredential() (azcore.TokenCredential, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.azureCredential != nil { // If some other thread already got here first.
 		return c.azureCredential, nil
 	}
-	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
-	options := &azidentity.DefaultAzureCredentialOptions{}
-	cred, err := azidentity.NewDefaultAzureCredential(options)
+
+	cred, err := c.newAzureCredentialFunc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -465,7 +433,7 @@ func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 	return cred, nil
 }
 
-func (c *cloudClients) initAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
+func (c *azureClients) initAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
 	cred, err := c.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -488,7 +456,7 @@ func (c *cloudClients) initAzureMySQLClient(subscription string) (azure.DBServer
 	return client, nil
 }
 
-func (c *cloudClients) initAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
+func (c *azureClients) initAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
 	cred, err := c.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -510,7 +478,7 @@ func (c *cloudClients) initAzurePostgresClient(subscription string) (azure.DBSer
 	return client, nil
 }
 
-func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient, error) {
+func (c *azureClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient, error) {
 	cred, err := c.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -533,46 +501,7 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 	return client, nil
 }
 
-// initInstanceMetadata initializes the instance metadata client.
-func (c *cloudClients) initInstanceMetadata(ctx context.Context) (imds.Client, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	if c.instanceMetadata != nil { // If some other thread already got here first.
-		return c.instanceMetadata, nil
-	}
-
-	providers := []func(ctx context.Context) (imds.Client, error){
-		func(ctx context.Context) (imds.Client, error) {
-			clt, err := awsimds.NewInstanceMetadataClient(ctx)
-			return clt, trace.Wrap(err)
-		},
-		func(ctx context.Context) (imds.Client, error) {
-			return azureimds.NewInstanceMetadataClient(), nil
-		},
-		func(ctx context.Context) (imds.Client, error) {
-			instancesClient, err := gcp.NewInstancesClient(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
-			return clt, trace.Wrap(err)
-		},
-		func(ctx context.Context) (imds.Client, error) {
-			return oracleimds.NewInstanceMetadataClient(), nil
-		},
-	}
-
-	client, err := DiscoverInstanceMetadata(ctx, providers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.instanceMetadata = client
-	return client, nil
-}
-
-func (c *cloudClients) initAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
+func (c *azureClients) initAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
 	cred, err := c.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -596,161 +525,4 @@ func (c *cloudClients) initAzureKubernetesClient(subscription string) (azure.AKS
 		})
 	c.azureKubernetesClient[subscription] = client
 	return client, nil
-}
-
-// TestCloudClients implements Clients
-var _ Clients = (*TestCloudClients)(nil)
-
-// TestCloudClients are used in tests.
-type TestCloudClients struct {
-	GCPSQL                  gcp.SQLAdminClient
-	GCPAlloyDB              gcp.AlloyDBAdminClient
-	GCPGKE                  gcp.GKEClient
-	GCPProjects             gcp.ProjectsClient
-	GCPInstances            gcp.InstancesClient
-	InstanceMetadata        imds.Client
-	AzureMySQL              azure.DBServersClient
-	AzureMySQLPerSub        map[string]azure.DBServersClient
-	AzurePostgres           azure.DBServersClient
-	AzurePostgresPerSub     map[string]azure.DBServersClient
-	AzureSubscriptionClient *azure.SubscriptionClient
-	AzureRedis              azure.RedisClient
-	AzureRedisEnterprise    azure.RedisEnterpriseClient
-	AzureAKSClientPerSub    map[string]azure.AKSClient
-	AzureAKSClient          azure.AKSClient
-	AzureVirtualMachines    azure.VirtualMachinesClient
-	AzureSQLServer          azure.SQLServerClient
-	AzureManagedSQLServer   azure.ManagedSQLServerClient
-	AzureMySQLFlex          azure.MySQLFlexServersClient
-	AzurePostgresFlex       azure.PostgresFlexServersClient
-	AzureRunCommand         azure.RunCommandClient
-	AzureRoleDefinitions    azure.RoleDefinitionsClient
-	AzureRoleAssignments    azure.RoleAssignmentsClient
-}
-
-// GetGCPIAMClient returns GCP IAM client.
-func (c *TestCloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
-	return gcpcredentials.NewIamCredentialsClient(ctx,
-		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())), // Insecure must be set for unauth client.
-		option.WithoutAuthentication())
-}
-
-// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
-	return c.GCPSQL, nil
-}
-
-func (c *TestCloudClients) GetGCPAlloyDBClient(ctx context.Context) (gcp.AlloyDBAdminClient, error) {
-	return c.GCPAlloyDB, nil
-}
-
-// GetInstanceMetadataClient returns the instance metadata.
-func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.Client, error) {
-	return c.InstanceMetadata, nil
-}
-
-// GetGCPGKEClient returns GKE client.
-func (c *TestCloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
-	return c.GCPGKE, nil
-}
-
-// GetGCPProjectsClient returns GCP projects client.
-func (c *TestCloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
-	return c.GCPProjects, nil
-}
-
-// GetGCPInstancesClient returns instances client.
-func (c *TestCloudClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
-	return c.GCPInstances, nil
-}
-
-// GetAzureCredential returns default Azure token credential chain.
-func (c *TestCloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
-	return &azidentity.ChainedTokenCredential{}, nil
-}
-
-// GetAzureMySQLClient returns an AzureMySQLClient for the specified subscription
-func (c *TestCloudClients) GetAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
-	if len(c.AzureMySQLPerSub) != 0 {
-		return c.AzureMySQLPerSub[subscription], nil
-	}
-	return c.AzureMySQL, nil
-}
-
-// GetAzurePostgresClient returns an AzurePostgresClient for the specified subscription
-func (c *TestCloudClients) GetAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
-	if len(c.AzurePostgresPerSub) != 0 {
-		return c.AzurePostgresPerSub[subscription], nil
-	}
-	return c.AzurePostgres, nil
-}
-
-// GetAzureKubernetesClient returns an AKS client for the specified subscription
-func (c *TestCloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
-	if len(c.AzureAKSClientPerSub) != 0 {
-		return c.AzureAKSClientPerSub[subscription], nil
-	}
-	return c.AzureAKSClient, nil
-}
-
-// GetAzureSubscriptionClient returns an Azure SubscriptionClient
-func (c *TestCloudClients) GetAzureSubscriptionClient() (*azure.SubscriptionClient, error) {
-	return c.AzureSubscriptionClient, nil
-}
-
-// GetAzureRedisClient returns an Azure Redis client for the given subscription.
-func (c *TestCloudClients) GetAzureRedisClient(subscription string) (azure.RedisClient, error) {
-	return c.AzureRedis, nil
-}
-
-// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
-func (c *TestCloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure.RedisEnterpriseClient, error) {
-	return c.AzureRedisEnterprise, nil
-}
-
-// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for
-// the given subscription.
-func (c *TestCloudClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
-	return c.AzureVirtualMachines, nil
-}
-
-// GetAzureSQLServerClient returns an Azure client for listing SQL servers.
-func (c *TestCloudClients) GetAzureSQLServerClient(subscription string) (azure.SQLServerClient, error) {
-	return c.AzureSQLServer, nil
-}
-
-// GetAzureManagedSQLServerClient returns an Azure client for listing managed
-// SQL servers.
-func (c *TestCloudClients) GetAzureManagedSQLServerClient(subscription string) (azure.ManagedSQLServerClient, error) {
-	return c.AzureManagedSQLServer, nil
-}
-
-// GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
-func (c *TestCloudClients) GetAzureMySQLFlexServersClient(subscription string) (azure.MySQLFlexServersClient, error) {
-	return c.AzureMySQLFlex, nil
-}
-
-// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
-func (c *TestCloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
-	return c.AzurePostgresFlex, nil
-}
-
-// GetAzureRunCommandClient returns an Azure Run Command client for the given subscription.
-func (c *TestCloudClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
-	return c.AzureRunCommand, nil
-}
-
-// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client for the given subscription.
-func (c *TestCloudClients) GetAzureRoleDefinitionsClient(subscription string) (azure.RoleDefinitionsClient, error) {
-	return c.AzureRoleDefinitions, nil
-}
-
-// GetAzureRoleAssignmentsClient returns an Azure Role Assignments client for the given subscription.
-func (c *TestCloudClients) GetAzureRoleAssignmentsClient(subscription string) (azure.RoleAssignmentsClient, error) {
-	return c.AzureRoleAssignments, nil
-}
-
-// Close closes all initialized clients.
-func (c *TestCloudClients) Close() error {
-	return nil
 }

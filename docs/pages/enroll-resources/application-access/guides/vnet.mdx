@@ -9,7 +9,7 @@ tags:
 
 VNet automatically proxies connections made to TCP applications available under the public address
 of a Proxy Service. This guide explains how to configure VNet to support apps with [custom public
-addresses](connecting-apps.mdx#customize-public-address).
+addresses](../protect-apps/connecting-apps.mdx#customize-public-address).
 
 ## How it works
 
@@ -35,7 +35,7 @@ to first update the VNet config in the Auth Service to include a matching DNS zo
 - A domain name under your control.
 
 {/* vale messaging.protocol-products = NO */}
-In this guide, we'll use the example app from [TCP Application Access guide](tcp.mdx) and make it
+In this guide, we'll use the example app from [TCP Application Access guide](../protect-apps/tcp.mdx) and make it
 available through VNet at <Var name="public_addr" initial="tcp-app.company.test"/> with
 <Var name="suffix" initial="company.test" /> as the custom DNS zone.
 {/* vale messaging.protocol-products = YES */}
@@ -144,9 +144,9 @@ $ tsh login --proxy=leaf.example.com --user=email@example.com
 
 ### Accessing web apps through VNet
 
-VNet does not officially support [web apps](connecting-apps.mdx) yet.
+VNet does not officially support [web apps](../protect-apps/connecting-apps.mdx) yet.
 However, since all web apps are served over TCP, it's possible to convert a web
-app to [a TCP app](tcp.mdx) to make it available via VNet.
+app to [a TCP app](../protect-apps/tcp.mdx) to make it available via VNet.
 You'll need to change the `uri` of the application to use `tcp://` instead of `https://`.
 
 Exposing plain HTTP web apps or APIs via VNet is not recommended.
@@ -167,8 +167,8 @@ There are a few more caveats when converting a Teleport web app to a TCP app:
   above in this guide to an address that is not a subdomain of the proxy address.
 - HTTPS Applications must handle their own TLS connections and have
   a valid certificate for the app `public_addr`.
-- [JWT Tokens](../jwt/introduction.mdx), [redirects](connecting-apps.mdx#rewrite-redirect) and
-  [header rewrites](connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
+- [JWT Tokens](../jwt/introduction.mdx), [redirects](../protect-apps/connecting-apps.mdx#rewrite-redirect) and
+  [header rewrites](../protect-apps/connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session
   chunks](../../../reference/architecture/session-recording.mdx) are not captured.
 

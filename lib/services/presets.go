@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -223,6 +224,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
+					types.NewRule(scopedaccess.KindScopedRole, RW()),
+					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
+					types.NewRule(types.KindScopedToken, RW()),
 				},
 			},
 		},
@@ -621,6 +625,7 @@ func NewPresetAccessPluginRole() types.Role {
 					types.NewRule(types.KindAccessList, RO()),
 					types.NewRule(types.KindRole, RO()),
 					types.NewRule(types.KindUser, RO()),
+					types.NewRule(types.KindUserLoginState, RO()),
 				},
 				ReviewRequests: &types.AccessReviewConditions{
 					PreviewAsRoles: []string{
@@ -799,6 +804,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindClusterNetworkingConfig, RW()),
 					types.NewRule(types.KindDatabase, RW()),
 					types.NewRule(types.KindDevice, RW()),
+					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindGithub, RW()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindNode, RW()),

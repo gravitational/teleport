@@ -34,6 +34,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
@@ -246,7 +247,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Logger.DebugContext(p.ctx, "Starting watch.")
+		p.Logger.Log(p.ctx, logutils.TraceLevel, "Starting watch.")
 		err := p.watch()
 
 		select {
@@ -775,18 +776,30 @@ func (g *genericCollector[T, R]) refreshStaleResources(ctx context.Context) erro
 	}
 
 	_, err := utils.FnCacheGet(ctx, g.cache, g.GenericWatcherConfig.ResourceKind, func(ctx context.Context) (any, error) {
-		current, err := g.getResources(ctx)
+		newCurrent, err := g.getResources(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// There is a chance that the watcher reinitialized while
-		// getting resources happened above. Check if we are still stale
-		if g.stale.CompareAndSwap(true, false) {
-			g.rw.Lock()
-			g.current = current
-			g.rw.Unlock()
+		// as an optimization, we can check if the collector is still stale
+		// before grabbing the write lock
+		if !g.stale.Load() {
+			// the view is no longer stale, discard newCurrent and proceed with
+			// the data in g.current
+			return nil, nil
 		}
+
+		g.rw.Lock()
+		defer g.rw.Unlock()
+
+		// check the staleness again since it might've changed since we were not
+		// holding the lock
+		if !g.stale.Load() {
+			return nil, nil
+		}
+
+		g.current = newCurrent
+		g.stale.Store(false)
 
 		return nil, nil
 	})
@@ -1052,10 +1065,21 @@ func (p *lockCollector) initializationChan() <-chan struct{} {
 // getResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
 func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	locks, err := p.LockGetter.GetLocks(ctx, true)
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return p.LockGetter.ListLocks(ctx, limit, start, &types.LockFilter{InForceOnly: true})
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			const inForceOnlyTrue = true
+			return p.LockGetter.GetLocks(ctx, inForceOnlyTrue)
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	newCurrent := map[string]types.Lock{}
 	for _, lock := range locks {
 		newCurrent[lock.GetName()] = lock

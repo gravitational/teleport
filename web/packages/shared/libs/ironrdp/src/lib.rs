@@ -24,6 +24,7 @@ use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
 use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
+use ironrdp_pdu::rdp::client_info;
 use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::image::DecodedImage;
 use ironrdp_session::ActiveStageOutput;
@@ -122,7 +123,7 @@ impl FastPathProcessor {
                 user_channel_id,
                 // These should be set to the same values as they're set to in the
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
-                no_server_pointer: false,
+                enable_server_pointer: true,
                 pointer_software_rendering: false,
             }
             .build(),
@@ -269,10 +270,12 @@ impl FastPathProcessor {
                 self.remote_fx_check_required = false;
                 Ok(())
             }
-            Bitmap => Err(JsValue::from_str(concat!(
-                "Teleport requires the RemoteFX codec for Windows desktop sessions, ",
-                "but it is not currently enabled. For detailed instructions, see:\n",
-                "https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/#enable-remotefx"
+            Bitmap => Err(JsValue::from(format!(
+                "Teleport requires the RemoteFX codec for Windows desktop sessions, \
+                but the Windows host sent a bitmap update with {} compression instead.\n\
+                For detailed instructions, see:\n\
+                https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/#enable-remotefx",
+                compression_type(&update_pdu.compression_type)
             ))),
             _ => Ok(()),
         }
@@ -384,4 +387,14 @@ fn extract_whole_rows(
     };
 
     (wider_region, dst)
+}
+
+fn compression_type(ct: &Option<client_info::CompressionType>) -> &'static str {
+    match ct {
+        None => "unknown",
+        Some(client_info::CompressionType::K8) => "RDP 4.0",
+        Some(client_info::CompressionType::K64) => "RDP 5.0",
+        Some(client_info::CompressionType::Rdp6) => "RDP 6.0",
+        Some(client_info::CompressionType::Rdp61) => "RDP 6.1",
+    }
 }

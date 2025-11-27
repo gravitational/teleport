@@ -379,6 +379,13 @@ func (c *ErrorCountingSessionHandler) Upload(ctx context.Context, sessionID sess
 	return res, err
 }
 
+// UploadPendingSummary calls [c.wrapped.UploadPendingSummary] and counts the error or success.
+func (c *ErrorCountingSessionHandler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	res, err := c.wrapped.UploadPendingSummary(ctx, sessionID, reader)
+	c.uploads.observe(err)
+	return res, err
+}
+
 // UploadSummary calls [c.wrapped.UploadSummary] and counts the error or success.
 func (c *ErrorCountingSessionHandler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	res, err := c.wrapped.UploadSummary(ctx, sessionID, reader)

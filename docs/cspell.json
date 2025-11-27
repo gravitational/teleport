@@ -202,6 +202,7 @@
     "Relogging",
     "Relogin",
     "replayable",
+    "retryable",
     "SAMLIDP",
     "SCIM",
     "SECURITYADMIN",
@@ -435,6 +436,7 @@
     "crond",
     "cryptoprocessor",
     "csrs",
+    "ctldl",
     "customizability",
     "daemonset",
     "databaseresources",
@@ -589,6 +591,7 @@
     "iamserviceaccount",
     "iamshowcase",
     "ibmcloud",
+    "identityiq",
     "identitystore",
     "idfile",
     "idps",
@@ -1096,6 +1099,7 @@
     "winadj",
     "windowsaccountname",
     "windowsdesktop",
+    "windowsupdate",
     "winpty",
     "winscp",
     "winserver",
@@ -1124,8 +1128,10 @@
     "hte"
   ],
   "ignorePaths": [
-    "**/reference/infrastructure-as-code/terraform-provider/**",
+    "**/includes/access-monitoring-events.mdx",
+    "**/includes/reference/code-blocks-no-cspell/**",
     "**/reference/infrastructure-as-code/operator-resources/**",
-    "**/includes/reference/code-blocks-no-cspell/**"
+    "**/reference/infrastructure-as-code/teleport-resources/**",
+    "**/reference/infrastructure-as-code/terraform-provider/**"
   ]
 }

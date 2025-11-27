@@ -30,7 +30,7 @@ import { AbortError, isAbortError } from 'shared/utils/error';
 
 import type { State as ClustersState } from 'teleterm/mainProcess/clusterStore';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
-import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
+import { TshdClient } from 'teleterm/services/tshd';
 import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -70,10 +70,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   ) {
     super();
     this.subscribeToClusterStore();
-  }
-
-  async addRootCluster(proxyAddress: string) {
-    return this.mainProcessClient.addCluster(proxyAddress);
   }
 
   async authenticateWebDevice(
@@ -186,9 +182,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     try {
       await Promise.race([
         abortPromise,
-        await this.mainProcessClient.syncRootClusters({
-          abortSignal: abortSignal && cloneAbortSignal(abortSignal),
-        }),
+        await this.mainProcessClient.syncRootClusters(),
       ]);
     } catch (error) {
       if (isAbortError(error)) {
@@ -236,7 +230,11 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
   }
 
-  /** Assumes roles for the given requests. */
+  /**
+   * Assumes roles for the given requests.
+   * After it's done, resources refresh is requested in
+   * ClusterLifecycleManager.syncCluster.
+   */
   async assumeRoles(
     rootClusterUri: uri.RootClusterUri,
     requestIds: string[]
@@ -250,7 +248,11 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     await this.syncRootCluster(rootClusterUri);
   }
 
-  /** Drops roles for the given requests. */
+  /**
+   * Drops roles for the given requests.
+   * After it's done, resources refresh is requested in
+   * ClusterLifecycleManager.syncCluster.
+   */
   async dropRoles(
     rootClusterUri: uri.RootClusterUri,
     requestIds: string[]

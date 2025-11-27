@@ -49,7 +49,8 @@ func TestConfigCheckAndSetDefaults(t *testing.T) {
 			errAssertFunc: require.NoError,
 			cfgChange:     func(c *Config) {},
 			postCheckAndSetDefaultsFunc: func(t *testing.T, c *Config) {
-				require.NotNil(t, c.CloudClients)
+				require.NotNil(t, c.initAzureClients)
+				require.NotNil(t, c.gcpClients)
 				require.NotNil(t, c.AWSConfigProvider)
 				require.NotNil(t, c.AWSDatabaseFetcherFactory)
 				require.NotNil(t, c.Log)

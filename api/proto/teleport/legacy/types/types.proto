@@ -208,6 +208,8 @@ message DatabaseServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "status"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 7;
 }
 
 // DatabaseServerSpecV3 is the database server spec.
@@ -923,6 +925,8 @@ message ServerV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 6;
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -1030,6 +1034,8 @@ message AppServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 6;
 }
 
 // AppServerSpecV3 is the app access server spec.
@@ -2040,6 +2046,10 @@ message ProvisionTokenSpecV2Oracle {
     // full region names ("us-phoenix-1") and abbreviations ("phx") are allowed.
     // If empty, any region is allowed.
     repeated string Regions = 3 [(gogoproto.jsontag) = "regions,omitempty"];
+    // Instances is a list of the OCIDs of specific instances that are allowed
+    // to join. If empty, any instance matching the other fields in the rule is allowed.
+    // Limited to 100 instance OCIDs per rule.
+    repeated string Instances = 4 [(gogoproto.jsontag) = "instances,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
@@ -4250,6 +4260,9 @@ message AccessRequestConditionsReason {
     (gogoproto.jsontag) = "mode,omitempty",
     (gogoproto.casttype) = "RequestReasonMode"
   ];
+  // Prompt is a custom message prompted to the user for the requested roles or resources searchable
+  // as other roles. This is only applied to the requested roles and resources specifying the prompt.
+  string Prompt = 2 [(gogoproto.jsontag) = "prompt,omitempty"];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
@@ -5233,6 +5246,8 @@ message KubernetesServerV3 {
   ];
   // Status is the Kubernetes server status.
   KubernetesServerStatusV3 status = 6;
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 7;
 }
 
 // KubernetesServerSpecV3 is the Kubernetes server spec.
@@ -5627,6 +5642,9 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
   // pkce_verifier is used to verified a generated code challenge.
   string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
+  // LoginHint is an optional username/email provided by the client that will be passed
+  // to the IdP via the 'login_hint' query parameter.
+  string login_hint = 25 [(gogoproto.jsontag) = "login_hint,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -9024,9 +9042,9 @@ message AWSMatcher {
   // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
   // discovered clusters, currently only affects AWS EKS discovery in integration mode.
   bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
-  // SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+  // SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for.
   // This value should match the IAM identity that Teleport Kubernetes Service uses.
-  // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+  // If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
   string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
 }
 
@@ -9081,6 +9099,22 @@ message InstallerParams {
   // Note: only supported for Amazon EC2.
   // Group name can only contain alphanumeric characters and hyphens.
   string UpdateGroup = 10 [(gogoproto.jsontag) = "update_group,omitempty"];
+  // HTTPProxySettings defines HTTP proxy settings for making HTTP requests.
+  // When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.
+  HTTPProxySettings HTTPProxySettings = 11 [(gogoproto.jsontag) = "http_proxy_settings,omitempty"];
+}
+
+// HTTPProxySettings defines HTTP proxy settings for making HTTP and HTTPS requests.
+message HTTPProxySettings {
+  // HTTPProxy is the URL for the HTTP proxy to use when making requests.
+  // When applied, this will set the HTTP_PROXY environment variable.
+  string HTTPProxy = 1 [(gogoproto.jsontag) = "http_proxy,omitempty"];
+  // HTTPSProxy is the URL for the HTTPS Proxy to use when making requests.
+  // When applied, this will set the HTTPS_PROXY environment variable.
+  string HTTPSProxy = 2 [(gogoproto.jsontag) = "https_proxy,omitempty"];
+  // NoProxy is a comma separated list of URLs that will be excluded from proxying.
+  // When applied, this will set the NO_PROXY environment variable.
+  string NoProxy = 3 [(gogoproto.jsontag) = "no_proxy,omitempty"];
 }
 
 // InstallParamEnrollMode is the mode used to enroll the node into the cluster.
@@ -9130,6 +9164,9 @@ message AzureMatcher {
   // Params sets the join method when installing on
   // discovered Azure nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with Azure APIs.
+  // Environment credentials will not be used when this value is set.
+  string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // GCPMatcher matches GCP resources.

@@ -117,11 +117,16 @@ export default function useLogin() {
       });
   }
 
-  function onLoginWithSso(provider: AuthProvider) {
+  function onLoginWithSso(provider: AuthProvider, loginHint?: string) {
     attemptActions.start();
     storageService.clearLoginTime();
     const appStartRoute = getEntryRoute();
-    const ssoUri = cfg.getSsoUrl(provider.url, provider.name, appStartRoute);
+    const ssoUri = cfg.getSsoUrl(
+      provider.url,
+      provider.name,
+      appStartRoute,
+      loginHint
+    );
     history.push(ssoUri, true);
   }
 

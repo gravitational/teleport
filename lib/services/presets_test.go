@@ -755,6 +755,7 @@ func TestAddRoleDefaults(t *testing.T) {
 								Verbs: RW(),
 							},
 							// The missing resources got added as individual rules
+							types.NewRule(types.KindDiscoveryConfig, RW()),
 							types.NewRule(types.KindAccessMonitoringRule, RW()),
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
@@ -804,6 +805,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindAccessList, RO()),
 							types.NewRule(types.KindRole, RO()),
 							types.NewRule(types.KindUser, RO()),
+							types.NewRule(types.KindUserLoginState, RO()),
 						},
 					},
 				},

@@ -1,0 +1,72 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.appauthconfig.v1;
+
+import "teleport/header/v1/metadata.proto";
+import "teleport/label/v1/label.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1";
+
+// AppAuthConfig is the definition of apps authentication config.
+message AppAuthConfig {
+  // Kind is the resource kind. Must be "app_auth_config".
+  string kind = 1;
+  // SubKind is the app auth config subkind.
+  string sub_kind = 2;
+  // Version is the app auth config resource version.
+  string version = 3;
+  // Metadata is the app auth config resource's metadata.
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec is the app auth config specification.
+  AppAuthConfigSpec spec = 5;
+}
+
+// AppAuthConfigSpec contains spec for all supported app auth configs.
+message AppAuthConfigSpec {
+  // AppLabels is used to define the app_labels matcher, which selects
+  // applications that can use this authentication conifg. An empty value means
+  // no application will use it.
+  repeated teleport.label.v1.Label app_labels = 1;
+
+  oneof sub_kind_spec {
+    // Jwt is the JWT authentication config spec.
+    AppAuthConfigJWTSpec jwt = 2;
+  }
+}
+
+// AppAuthConfigJWTSpec contains the spec for JWT authentication config.
+message AppAuthConfigJWTSpec {
+  // Issuer is the JWT token issuer name. This value is used to verify the token.
+  string issuer = 1;
+  // Audience is the expected token audience. It will usually be a OAuth
+  // client_id issued for Teleport use.
+  string audience = 2;
+  // UsernameClaim specifies which token claim name's value will be used as the
+  // username. Defaults to `email`.
+  string username_claim = 3;
+  // AuthorizationHeader is the HTTP header name that will contain the token.
+  // Defaults to `Authorization`.
+  string authorization_header = 4;
+
+  oneof keys_source {
+    // JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.
+    string jwks_url = 5;
+    // StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the
+    // token issuer in JSON format.
+    string static_jwks = 6;
+  }
+}

@@ -98,6 +98,28 @@ func TestTemplate_Success(t *testing.T) {
 			attrs:  &workloadidentityv1.Attrs{},
 			output: "1234",
 		},
+		"int interpolation": {
+			tmpl: `{{ workload.unix.pid }}`,
+			attrs: &workloadidentityv1.Attrs{
+				Workload: &workloadidentityv1.WorkloadAttrs{
+					Unix: &workloadidentityv1.WorkloadAttrsUnix{
+						Pid: 1337,
+					},
+				},
+			},
+			output: "1337",
+		},
+		"uint interpolation": {
+			tmpl: `{{ workload.unix.uid }}`,
+			attrs: &workloadidentityv1.Attrs{
+				Workload: &workloadidentityv1.WorkloadAttrs{
+					Unix: &workloadidentityv1.WorkloadAttrsUnix{
+						Uid: 1337,
+					},
+				},
+			},
+			output: "1337",
+		},
 		"user traits": {
 			tmpl: `{{user.traits.skill}}`,
 			attrs: &workloadidentityv1.Attrs{

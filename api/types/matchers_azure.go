@@ -116,6 +116,10 @@ func (m *AzureMatcher) CheckAndSetDefaults() error {
 		if m.Params.ScriptName == "" {
 			m.Params.ScriptName = DefaultInstallerScriptName
 		}
+
+		if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if slices.Contains(m.Regions, Wildcard) || len(m.Regions) == 0 {

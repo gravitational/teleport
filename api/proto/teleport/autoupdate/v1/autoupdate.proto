@@ -117,9 +117,9 @@ message AutoUpdateVersionSpecTools {
 
 // AutoUpdateVersionSpecAgents is the spec for the autoupdate version.
 message AutoUpdateVersionSpecAgents {
-  // start_version is the version to update from.
+  // start_version is the version used for newly installed agents before their update window.
   string start_version = 1;
-  // target_version is the version to update to.
+  // target_version is the version that all agents will update to during their update window.
   string target_version = 2;
   // schedule to use for the rollout
   string schedule = 3;
@@ -143,9 +143,9 @@ message AutoUpdateAgentRollout {
 // This is built by merging the user-provided AutoUpdateConfigSpecAgents and the operator-provided
 // AutoUpdateVersionSpecAgents.
 message AutoUpdateAgentRolloutSpec {
-  // start_version is the version to update from.
+  // start_version is the version used for newly installed agents before their update window.
   string start_version = 1;
-  // target_version is the version to update to.
+  // target_version is the version that all agents will update to during their update window.
   string target_version = 2;
   // schedule to use for the rollout. Supported values are "regular" and "immediate".
   // - "regular" follows the regular group schedule

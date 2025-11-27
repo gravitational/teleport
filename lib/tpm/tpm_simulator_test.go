@@ -127,7 +127,6 @@ func TestWithSimulator(t *testing.T) {
 	const wantEKPubHash = "1b5bbe2e96054f7bc34ebe7ba9a4a9eac5611c6879285ceff6094fa556af485c"
 
 	attestTPM, err := attest.OpenTPM(&attest.OpenConfig{
-		TPMVersion:     attest.TPMVersion20,
 		CommandChannel: &fakeCmdChannel{ReadWriteCloser: sim},
 	})
 	require.NoError(t, err)
