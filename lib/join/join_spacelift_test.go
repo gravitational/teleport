@@ -16,28 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/spacelift"
 )
-
-var errMockInvalidToken = errors.New("invalid token")
 
 type mockSpaceliftTokenValidator struct {
 	tokens map[string]spacelift.IDTokenClaims
@@ -58,7 +57,7 @@ func (m *mockSpaceliftTokenValidator) Validate(
 	return &claims, nil
 }
 
-func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
+func TestJoinSpacelift(t *testing.T) {
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockSpaceliftTokenValidator{
 		tokens: map[string]spacelift.IDTokenClaims{
@@ -73,14 +72,19 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetSpaceliftIDTokenValidator(idTokenValidator)
-		return nil
-	}
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
+
+	ctx := t.Context()
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
 	require.NoError(t, err)
-	auth := p.a
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+	auth := authServer.Auth()
+
+	auth.SetSpaceliftIDTokenValidator(idTokenValidator)
 
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -138,7 +142,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:          "success with glob",
+			name:          "success-with-glob",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -158,7 +162,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:          "fail with glob",
+			name:          "fail-with-glob",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -177,7 +181,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "fail with disabled glob",
+			name:          "fail-with-disabled-glob",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -197,7 +201,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "missing enterprise",
+			name:          "missing-enterprise",
 			setEnterprise: false,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -215,7 +219,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			},
 		},
 		{
-			name:          "multiple allow rules",
+			name:          "multiple-allow-rules",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -234,7 +238,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:          "incorrect space_id",
+			name:          "incorrect-space_id",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -252,7 +256,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect caller_id",
+			name:          "incorrect-caller_id",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -270,7 +274,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect caller_type",
+			name:          "incorrect-caller_type",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -288,7 +292,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect scope",
+			name:          "incorrect-scope",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -306,7 +310,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "invalid token",
+			name:          "invalid-token",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodSpacelift,
@@ -319,8 +323,8 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				},
 			},
 			request: newRequest("some other token"),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, errMockInvalidToken)
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "invalid token")
 			},
 		},
 	}
@@ -340,8 +344,42 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.request.Token = tt.name
 
-			_, err = auth.RegisterUsingToken(ctx, tt.request)
-			tt.assertError(t, err)
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			t.Run("legacy", func(t *testing.T) {
+				_, err = auth.RegisterUsingToken(ctx, tt.request)
+				tt.assertError(t, err)
+			})
+
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodSpacelift,
+					ID: state.IdentityID{
+						Role:     tt.request.Role,
+						NodeName: "testnode",
+						HostUUID: tt.request.HostID,
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
+
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodSpacelift,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
 		})
 	}
 }

@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,41 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package join
 
 import (
 	"context"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/join/spacelift"
 )
 
-// GetSpaceliftIDTokenValidator returns the server's currently configured
-// Spacelift OIDC token validator.
-func (a *Server) GetSpaceliftIDTokenValidator() spacelift.Validator {
-	return a.spaceliftIDTokenValidator
-}
-
-// SetSpaceliftIDTokenValidator sets the current Spacelift OIDC token validator,
-// used in tests.
-func (a *Server) SetSpaceliftIDTokenValidator(validator spacelift.Validator) {
-	a.spaceliftIDTokenValidator = validator
-}
-
-func (a *Server) checkSpaceliftJoinRequest(
+func (a *Server) validateSpaceliftToken(
 	ctx context.Context,
-	req *types.RegisterUsingTokenRequest,
-	pt types.ProvisionToken,
-) (*spacelift.IDTokenClaims, error) {
+	pt provision.Token,
+	idToken []byte,
+) (any, *workloadidentityv1.JoinAttrs, error) {
 	claims, err := spacelift.CheckIDToken(ctx, &spacelift.CheckIDTokenParams{
 		ProvisionToken: pt,
-		IDToken:        []byte(req.IDToken),
-		Validator:      a.spaceliftIDTokenValidator,
+		IDToken:        idToken,
+		Validator:      a.cfg.AuthService.GetSpaceliftIDTokenValidator(),
 	})
 
-	// Attempt to return any claims along with the error, used to improve audit
-	// logging on failed join attempts.
-	return claims, trace.Wrap(err)
+	// If possible, attach claims and workload ID attrs regardless of the error
+	// return. If the token fails to validate, these claims will ensure audit
+	// events remain useful.
+	var workloadIDAttrs *workloadidentityv1.JoinAttrs
+	if claims != nil {
+		workloadIDAttrs = &workloadidentityv1.JoinAttrs{
+			Spacelift: claims.JoinAttrs(),
+		}
+	}
+
+	return claims, workloadIDAttrs, trace.Wrap(err)
 }
