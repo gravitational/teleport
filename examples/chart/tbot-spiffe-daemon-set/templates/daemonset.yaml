@@ -63,7 +63,7 @@ spec:
           {{- if .Values.extraEnv }}
             {{- toYaml .Values.extraEnv | nindent 12 }}
           {{- end }}
-      serviceAccountName: {{ template "tbot.serviceAccountName" . }}
+      serviceAccountName: {{ template "tbot-spiffe-daemon-set.serviceAccountName" . }}
       volumes:
         - name: tbot-sockets
           hostPath:
