@@ -1,5 +1,5 @@
 ---
-title: Configuring Break-Glass SSH Access for Disaster Recovery
+title: Configuring break-glass SSH Access for Disaster Recovery
 description: Guide to set up break-glass emergency SSH access for critical systems if Teleport becomes unavailable.
 ---
 
@@ -221,6 +221,11 @@ tctl create -f breakglass-role.yaml
 
 **This step is completed on the machine where you will make use of the certificates for break-glass access.**
 
+This step will config and start a [Teleport Machine ID bot](../../../machine-workload-identity/deployment/deployment.mdx) as a background daemon,
+which will continually generate and refresh a short-lived key and certificate for break-glass access on the machine where it runs. The configuration
+below generates a certificate which is valid for 24 hours from the time of issuance, refreshed every 2 hours. This means that depending on the exact
+time of usage, the certificate will be valid for break-glass access for between 22 and 24 hours.
+
 1. Create a `breakglass` bot which will run in the background to continually refresh a certificate which is valid for break-glass usage:
 
 Define the bot in a file named `breakglass-bot.yaml`:
@@ -364,8 +369,6 @@ total 60
 -rw------- 1 teleport teleport 1330 Nov 27 10:32 teleport-database-ca.crt
 -rw------- 1 teleport teleport 2051 Nov 27 10:32 teleport-host-ca.crt
 -rw------- 1 teleport teleport  794 Nov 27 10:32 teleport-user-ca.crt
--rw------- 1 teleport teleport  184 Nov 27 10:32 <Var name="teleport.example.com" />.known_hosts
--rw------- 1 teleport teleport  579 Nov 27 10:32 <Var name="teleport.example.com" />.ssh_config
 -rw------- 1 teleport teleport 1375 Nov 27 10:32 tlscert
 ```
 
