@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
@@ -213,6 +214,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		types.JoinMethodGitLab,
 		types.JoinMethodIAM,
 		types.JoinMethodOracle,
+		types.JoinMethodSpacelift,
 		types.JoinMethodTPM,
 		types.JoinMethodTerraformCloud:
 		joinMethod := string(params.JoinMethod)
@@ -366,6 +368,15 @@ func joinWithMethod(
 			joinParams.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{
 				EnvVarName: joinParams.GitlabParams.EnvVarName,
 			}).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodSpacelift:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

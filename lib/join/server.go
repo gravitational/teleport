@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	"github.com/gravitational/teleport/lib/scopes/joining"
@@ -97,6 +98,7 @@ type AuthService interface {
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
+	GetSpaceliftIDTokenValidator() spacelift.Validator
 	GetTerraformIDTokenValidator() terraformcloud.Validator
 	services.Presence
 }
@@ -314,6 +316,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGitlabToken)
+	case types.JoinMethodSpacelift:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTerraformCloud:
