@@ -116,6 +116,13 @@ teleport:
     connection_limits:
         max_connections: 1000
 
+    # Backoff configuration for instances when reconnecting to Auth before jitter is applied.
+    # These settings can be tweaked to control how aggresively the instance will retry to connect.
+    # reconnect_backoff:
+    #     max_period: "90s"
+    #     min_period: "9s"  # When unset max_period / 10
+    #     step: "18s"       # When unset max_period / 5
+
     # Logging configuration. Possible output values to disk via
     # '/var/lib/teleport/teleport.log',
     # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,

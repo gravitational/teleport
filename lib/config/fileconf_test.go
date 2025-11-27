@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
 
@@ -1247,6 +1248,81 @@ func TestX11Config(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.expectX11Config, serverCfg)
+		})
+	}
+}
+
+func TestBackoffConfig(t *testing.T) {
+	testCases := []struct {
+		desc                   string
+		mutate                 func(cfgMap)
+		expectSvcBackoffConfig *servicecfg.ReconnectBackoffConfig
+	}{
+		{
+			desc:   "default",
+			mutate: func(cfg cfgMap) {},
+			expectSvcBackoffConfig: &servicecfg.ReconnectBackoffConfig{
+				MaxRetryPeriod: 90 * time.Second,
+				MinRetryPeriod: 9 * time.Second,
+				RetryStep:      18 * time.Second,
+			},
+		},
+		{
+			desc: "negative values use defaults",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["reconnect_backoff"] = cfgMap{
+					"min_period": "-1m",
+					"max_period": "-5m",
+					"step":       "-3s",
+				}
+			},
+			expectSvcBackoffConfig: &servicecfg.ReconnectBackoffConfig{
+				MaxRetryPeriod: 90 * time.Second,
+				MinRetryPeriod: 9 * time.Second,
+				RetryStep:      18 * time.Second,
+			},
+		},
+		{
+			desc: "use default ratio when only max is given",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["reconnect_backoff"] = cfgMap{
+					"max_period": "3m",
+				}
+			},
+			expectSvcBackoffConfig: &servicecfg.ReconnectBackoffConfig{
+				MaxRetryPeriod: 180 * time.Second,
+				MinRetryPeriod: 18 * time.Second,
+				RetryStep:      36 * time.Second,
+			},
+		},
+		{
+			desc: "user specified",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["reconnect_backoff"] = cfgMap{
+					"min_period": "1m",
+					"max_period": "5m",
+					"step":       "3s",
+				}
+			},
+			expectSvcBackoffConfig: &servicecfg.ReconnectBackoffConfig{
+				MaxRetryPeriod: 5 * time.Minute,
+				MinRetryPeriod: time.Minute,
+				RetryStep:      3 * time.Second,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tc.mutate))
+
+			cfg, err := ReadConfig(text)
+			require.NoError(t, err)
+
+			svccfg, err := cfg.ReconnectBackoff.Parse()
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectSvcBackoffConfig, svccfg)
 		})
 	}
 }
