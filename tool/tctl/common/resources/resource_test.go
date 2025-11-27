@@ -19,14 +19,20 @@
 package resources
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
@@ -36,7 +42,17 @@ import (
 func TestHandlers(t *testing.T) {
 	t.Parallel()
 
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	registry := plugin.NewRegistry()
+	require.NoError(t, registry.Add(&mockServicesPlugin{
+		mockedServices: []func(grpc.ServiceRegistrar){
+			registerMockSummarizerServiceServer,
+		},
+	}))
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()), testenv.WithConfig(func(cfg *servicecfg.Config) {
+		cfg.PluginRegistry = registry
+	}))
+
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -49,13 +65,10 @@ func TestHandlers(t *testing.T) {
 	updateResourceWithLabels := func(t *testing.T, r types.Resource) types.Resource {
 		t.Helper()
 
-		type setStaticLabels interface {
-			SetStaticLabels(labels map[string]string)
-		}
-
-		rWithLabels, ok := r.(setStaticLabels)
-		require.True(t, ok)
+		r153 := types.LegacyToResource153(r)
+		rWithLabels := types.Resource153ToResourceWithLabels(r153)
 		rWithLabels.SetStaticLabels(map[string]string{"updated": "true"})
+
 		return r
 	}
 
@@ -156,6 +169,16 @@ func TestHandlers(t *testing.T) {
 			updateResource:   updateResourceWithLabels,
 			checkMFARequired: require.False,
 		},
+		{
+			kind: types.KindInferenceModel,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				model := makeInferenceModel(name, "")
+				return types.ProtoResource153ToLegacy(model)
+			},
+			updateResource:   updateResourceWithLabels,
+			checkMFARequired: require.False,
+		},
 	}
 
 	for _, tt := range tests {
@@ -239,4 +262,37 @@ func mustMakeUnknownResource(t *testing.T, r types.Resource) services.UnknownRes
 	var unknown services.UnknownResource
 	require.NoError(t, json.Unmarshal(resourceJSON, &unknown))
 	return unknown
+}
+
+type mockServicesPlugin struct {
+	mockedServices []func(grpc.ServiceRegistrar)
+}
+
+func (m *mockServicesPlugin) GetName() string {
+	return "auth.enterprise"
+}
+
+func (m *mockServicesPlugin) RegisterProxyWebHandlers(handler any) error {
+	return nil
+}
+
+func (m *mockServicesPlugin) RegisterAuthWebHandlers(service any) error {
+	return nil
+}
+
+func (m *mockServicesPlugin) RegisterAuthServices(ctx context.Context, server any, _ func() (*tls.Certificate, error)) error {
+	authServer, ok := server.(*auth.GRPCServer)
+	if !ok {
+		return trace.BadParameter("expected auth.GRPCServer, got %T", server)
+	}
+
+	grpcServer, err := authServer.GetServer()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, registerService := range m.mockedServices {
+		registerService(grpcServer)
+	}
+	return nil
 }

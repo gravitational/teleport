@@ -57,6 +57,7 @@ func Handlers() map[string]Handler {
 		types.KindDynamicWindowsDesktop:              dynamicWindowsDesktopHandler(),
 		types.KindGithubConnector:                    githubConnectorHandler(),
 		types.KindGitServer:                          gitServerHandler(),
+		types.KindInferenceModel:                     inferenceModelHandler(),
 		types.KindInstaller:                          installerHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindNode:                               serverHandler(),
