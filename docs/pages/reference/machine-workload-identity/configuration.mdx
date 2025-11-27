@@ -402,6 +402,16 @@ disable_exec_plugin: false
 # By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}"
 context_name_template: "{{.KubeName}}"
 
+# relay_server specifies the Relay service address that tbot should use to route
+# Kubernetes traffic to instead of the Teleport control plane. When set, all
+# Kubernetes API connections are sent via this Relay; only Kubernetes clusters
+# reachable through the specified Relay will be accessible and tbot will not fall
+# back to the control plane. Provide either a hostname or host:port (e.g.
+# relay.example.com or relay.example.com:443).
+#
+# Use of the relay_server option requires `tbot` 18.5.0 or later.
+relay_server: relay.example.com
+
 # name optionally overrides the name of the service used in logs and the `/readyz`
 # endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
 # symbols.
