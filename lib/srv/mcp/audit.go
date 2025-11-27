@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -171,11 +172,14 @@ func (a *sessionAuditor) emitEndEvent(ctx context.Context, options ...eventOptio
 	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, options ...eventOptionFunc) {
+func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *jsonrpc.Request, options ...eventOptionFunc) {
 	opts := newEventOptions(options...)
 	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
+	var params apievents.Struct
+	_ = params.UnmarshalJSON(msg.Params)
+
 	event := &apievents.MCPSessionNotification{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionNotificationEvent,
@@ -185,9 +189,11 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 		UserMetadata:    a.makeUserMetadata(),
 		AppMetadata:     a.makeAppMetadata(),
 		Message: apievents.MCPJSONRPCMessage{
-			JSONRPC: msg.JSONRPC,
+			// SDK does not expose the JSONRPC version anymore. But we know it
+			// is always 2.0 so let's just hard-code it.
+			JSONRPC: "2.0",
 			Method:  msg.Method,
-			Params:  msg.Params.GetEventParams(),
+			Params:  &params,
 		},
 		Status: apievents.Status{
 			Success: true,
@@ -202,11 +208,14 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, options ...eventOptionFunc) {
+func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *jsonrpc.Request, options ...eventOptionFunc) {
 	opts := newEventOptions(options...)
 	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
+	var params apievents.Struct
+	_ = params.UnmarshalJSON(msg.Params)
+
 	event := &apievents.MCPSessionRequest{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionRequestEvent,
@@ -219,10 +228,10 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 			Success: true,
 		},
 		Message: apievents.MCPJSONRPCMessage{
-			JSONRPC: msg.JSONRPC,
+			JSONRPC: "2.0",
 			Method:  msg.Method,
-			ID:      msg.ID.String(),
-			Params:  msg.Params.GetEventParams(),
+			ID:      mcputils.IDString(msg.ID),
+			Params:  &params,
 		},
 		Headers: wrappers.Traits(opts.header),
 	}

@@ -76,6 +76,8 @@ func testMCPDialStdio(t *testing.T, pack *Pack) {
 	serverConn, err := dialer.DialALPN(t.Context())
 	require.NoError(t, err)
 
+	// TODO(greedy52) replace all MCP client, server usage before backporting
+	// migration to a release.
 	ctx := t.Context()
 	stdioClient := mcptest.NewStdioClientFromConn(t, serverConn)
 

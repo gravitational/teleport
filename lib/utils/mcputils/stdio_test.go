@@ -28,8 +28,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -50,14 +50,16 @@ func newCountingMessageWriter(m MessageWriter) *countingMessageWriter {
 	}
 }
 
-func (c *countingMessageWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
-	switch msg.(type) {
-	case *JSONRPCRequest:
-		c.requests.Add(1)
-	case *JSONRPCResponse:
+func (c *countingMessageWriter) WriteMessage(ctx context.Context, msg jsonrpc.Message) error {
+	switch v := msg.(type) {
+	case *jsonrpc.Request:
+		if v.ID.IsValid() {
+			c.requests.Add(1)
+		} else {
+			c.notifications.Add(1)
+		}
+	case *jsonrpc.Response:
 		c.responses.Add(1)
-	case *JSONRPCNotification:
-		c.notifications.Add(1)
 	}
 	return trace.Wrap(c.m.WriteMessage(ctx, msg))
 }

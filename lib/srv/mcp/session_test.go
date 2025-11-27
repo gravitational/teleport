@@ -21,7 +21,7 @@ package mcp
 import (
 	"testing"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -82,9 +82,8 @@ func Test_sessionHandler(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Run("notification", func(t *testing.T) {
-				handler.processClientNotification(ctx, &mcputils.JSONRPCNotification{
-					JSONRPC: mcp.JSONRPC_VERSION,
-					Method:  "notifications/initialized",
+				handler.processClientNotification(ctx, &jsonrpc.Request{
+					Method: mcputils.MethodNotificationInitialized,
 				})
 				event := mockEmitter.LastEvent()
 				require.NotNil(t, event)
@@ -95,7 +94,7 @@ func Test_sessionHandler(t *testing.T) {
 
 			for _, allowedTool := range tt.allowedTools {
 				t.Run("allow tools call "+allowedTool, func(t *testing.T) {
-					clientReq := requestBuilder.makeToolsCallRequest(allowedTool)
+					clientReq := requestBuilder.makeToolsCallRequest(t, allowedTool)
 					msg, dir := handler.processClientRequest(ctx, clientReq)
 					require.Equal(t, replyToServer, dir)
 					require.Equal(t, clientReq, msg)
@@ -112,12 +111,13 @@ func Test_sessionHandler(t *testing.T) {
 
 			for _, deniedTool := range tt.deniedTools {
 				t.Run("deny tools call "+deniedTool, func(t *testing.T) {
-					clientReq := requestBuilder.makeToolsCallRequest(deniedTool)
+					clientReq := requestBuilder.makeToolsCallRequest(t, deniedTool)
 					msg, dir := handler.processClientRequest(ctx, clientReq)
 					require.Equal(t, replyToClient, dir)
-					errMsg, ok := msg.(mcp.JSONRPCError)
+					errMsg, ok := msg.(*jsonrpc.Response)
 					require.True(t, ok)
 					require.Equal(t, clientReq.ID, errMsg.ID)
+					require.NotEmpty(t, errMsg.Error)
 
 					event := mockEmitter.LastEvent()
 					require.NotNil(t, event)
@@ -133,7 +133,7 @@ func Test_sessionHandler(t *testing.T) {
 				mockEmitter.Reset()
 
 				// First make a request so the handler can track the method by ID.
-				clientReq := requestBuilder.makeToolsListRequest()
+				clientReq := requestBuilder.makeToolsListRequest(t)
 				_, dir := handler.processClientRequest(ctx, clientReq)
 				require.Equal(t, replyToServer, dir)
 

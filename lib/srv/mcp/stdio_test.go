@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func Test_handleAuthErrStdio(t *testing.T) {
@@ -109,16 +110,21 @@ func Test_handleStdio(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "teleport-demo", resp.ServerInfo.Name)
 
-	listToolsResult, err := stdioClient.ListTools(ctx, mcp.ListToolsRequest{})
+	listToolsResult, err := stdioClient.ListTools(ctx, mcpgo.ListToolsRequest{})
 	require.NoError(t, err)
-	checkToolsListResult(t, listToolsResult, []string{
-		"teleport_user_info",
-		"teleport_session_info",
-		"teleport_demo_info",
-	})
+	require.ElementsMatch(t,
+		[]string{
+			"teleport_user_info",
+			"teleport_session_info",
+			"teleport_demo_info",
+		},
+		sliceutils.Map(listToolsResult.Tools, func(t mcpgo.Tool) string {
+			return t.Name
+		}),
+	)
 
-	callToolResult, err := stdioClient.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
+	callToolResult, err := stdioClient.CallTool(ctx, mcpgo.CallToolRequest{
+		Params: mcpgo.CallToolParams{
 			Name: "teleport_user_info",
 		},
 	})

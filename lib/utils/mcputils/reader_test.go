@@ -20,8 +20,11 @@ package mcputils
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,7 +47,7 @@ func TestReadOneResponse(t *testing.T) {
 		name          string
 		rawMessage    string
 		checkError    require.ErrorAssertionFunc
-		checkResponse func(*testing.T, *JSONRPCResponse)
+		checkResponse func(*testing.T, *jsonrpc.Response)
 	}{
 		{
 			name:       "bad json",
@@ -65,10 +68,13 @@ func TestReadOneResponse(t *testing.T) {
 			name:       "response",
 			rawMessage: string(sampleResponseJSON),
 			checkError: require.NoError,
-			checkResponse: func(t *testing.T, response *JSONRPCResponse) {
+			checkResponse: func(t *testing.T, response *jsonrpc.Response) {
 				require.NotNil(t, response)
-				_, err := response.GetListToolResult()
-				require.NoError(t, err)
+				require.Empty(t, response.Error)
+				var result mcp.ListToolsResult
+				require.NoError(t, json.Unmarshal(response.Result, &result))
+				require.Len(t, result.Tools, 1)
+				require.Equal(t, "get_weather", result.Tools[0].Name)
 			},
 		},
 	}

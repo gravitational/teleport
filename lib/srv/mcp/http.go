@@ -21,7 +21,6 @@ package mcp
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -30,7 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
@@ -204,23 +203,26 @@ func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) 
 }
 
 func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
-	var baseMessage mcputils.BaseJSONRPCMessage
-	if reqBody, err := utils.GetAndReplaceRequestBody(r); err != nil {
+	reqBody, err := utils.GetAndReplaceRequestBody(r)
+	if err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
-	} else if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
+	}
+	baseMessage, err := jsonrpc.DecodeMessage(reqBody)
+	if err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
 	}
 
-	switch {
-	case baseMessage.IsRequest():
-		mcpRequest := baseMessage.MakeRequest()
-		if errResp, authErr := t.sessionHandler.processClientRequestNoAudit(r.Context(), mcpRequest); authErr != nil {
-			return t.handleRequestAuthError(r, mcpRequest, errResp, authErr)
+	switch v := baseMessage.(type) {
+	case *jsonrpc.Request:
+		if v.ID.IsValid() {
+			if errResp, authErr := t.sessionHandler.processClientRequestNoAudit(r.Context(), v); authErr != nil {
+				return t.handleRequestAuthError(r, v, errResp, authErr)
+			}
+		} else {
+			// Notification. Nothing to do, yet.
 		}
-	case baseMessage.IsNotification():
-		// nothing to do, yet.
 	default:
 		// Not sending it to the server if we don't understand it.
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
@@ -237,24 +239,25 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 
 	// Take care of audit events after round trip.
 	respErrForAudit := convertHTTPResponseErrorForAudit(resp, err)
-	switch {
-	case baseMessage.IsRequest():
-		mcpRequest := baseMessage.MakeRequest()
-		// Only emit session start if "initialize" succeeded.
-		if mcpRequest.Method == mcputils.MethodInitialize && respErrForAudit == nil {
-			t.emitStartEvent(t.parentCtx, eventWithHeader(r.Header))
+	switch v := baseMessage.(type) {
+	case *jsonrpc.Request:
+		if v.ID.IsValid() {
+			// Only emit session start if "initialize" succeeded.
+			if v.Method == mcputils.MethodInitialize && respErrForAudit == nil {
+				t.emitStartEvent(t.parentCtx, eventWithHeader(r.Header))
+			}
+			t.emitRequestEvent(t.parentCtx, v, eventWithError(respErrForAudit), eventWithHeader(r.Header))
+		} else {
+			t.emitNotificationEvent(t.parentCtx, v, eventWithError(respErrForAudit), eventWithHeader(r.Header))
 		}
-		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
-	case baseMessage.IsNotification():
-		t.emitNotificationEvent(t.parentCtx, baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	}
 	return resp, trace.Wrap(err)
 }
 
-func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
+func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *jsonrpc.Request, errResp jsonrpc.Message, authErr error) (*http.Response, error) {
 	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r.Header))
 
-	errRespAsBody, err := json.Marshal(errResp)
+	errRespAsBody, err := jsonrpc.EncodeMessage(errResp)
 	if err != nil {
 		// Should not happen. If it does, we are failing the request either way.
 		return nil, trace.Wrap(err)
@@ -299,10 +302,10 @@ func newHTTPResponseReplacer(sessionHandler *sessionHandler) *streamableHTTPResp
 	}
 }
 
-func (p *streamableHTTPResponseReplacer) ProcessResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+func (p *streamableHTTPResponseReplacer) ProcessResponse(ctx context.Context, resp *jsonrpc.Response) jsonrpc.Message {
 	return p.processServerResponse(ctx, resp)
 }
-func (p *streamableHTTPResponseReplacer) ProcessNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) mcp.JSONRPCMessage {
+func (p *streamableHTTPResponseReplacer) ProcessNotification(ctx context.Context, notification *jsonrpc.Request) jsonrpc.Message {
 	p.processServerNotification(ctx, notification)
 	return notification
 }

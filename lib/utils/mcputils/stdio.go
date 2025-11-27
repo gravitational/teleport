@@ -22,13 +22,12 @@ import (
 	"bufio"
 	"cmp"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -72,8 +71,8 @@ func NewStdioMessageWriter(w io.Writer) *StdioMessageWriter {
 }
 
 // WriteMessage writes a JSONRPC message in stdio transport.
-func (w *StdioMessageWriter) WriteMessage(_ context.Context, resp mcp.JSONRPCMessage) error {
-	bytes, err := json.Marshal(resp)
+func (w *StdioMessageWriter) WriteMessage(_ context.Context, resp jsonrpc.Message) error {
+	bytes, err := jsonrpc.EncodeMessage(resp)
 	if err != nil {
 		return trace.Wrap(err)
 	}

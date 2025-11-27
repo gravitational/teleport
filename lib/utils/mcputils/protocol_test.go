@@ -19,12 +19,10 @@
 package mcputils
 
 import (
-	"encoding/json"
 	"testing"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -80,77 +78,8 @@ var (
 }`)
 )
 
-func TestJSONRPCNotification(t *testing.T) {
-	var base BaseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(sampleNotificationJSON, &base))
-	assert.True(t, base.IsNotification())
-	assert.False(t, base.IsRequest())
-	assert.False(t, base.IsResponse())
-
-	m := base.MakeNotification()
-	require.NotNil(t, m)
-	assert.Equal(t, "notifications/message", m.Method)
-	assert.Len(t, base.Params, 3)
-
-	outputJSON, err := json.MarshalIndent(m, "", "  ")
-	require.NoError(t, err)
-	assert.JSONEq(t, string(sampleNotificationJSON), string(outputJSON))
-}
-
-func TestJSONRPCRequest(t *testing.T) {
-	var base BaseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(sampleRequestJSON, &base))
-	assert.False(t, base.IsNotification())
-	assert.True(t, base.IsRequest())
-	assert.False(t, base.IsResponse())
-
-	m := base.MakeRequest()
-	require.NotNil(t, m)
-	assert.Equal(t, MethodToolsCall, m.Method)
-	assert.Equal(t, "int64:2", m.ID.String())
-	name, ok := m.Params.GetName()
-	assert.True(t, ok)
-	assert.Equal(t, "get_weather", name)
-
-	outputJSON, err := json.MarshalIndent(m, "", "  ")
-	require.NoError(t, err)
-	assert.JSONEq(t, string(sampleRequestJSON), string(outputJSON))
-}
-
-func TestJSONRPCResponse(t *testing.T) {
-	var base BaseJSONRPCMessage
-	require.NoError(t, json.Unmarshal(sampleResponseJSON, &base))
-	assert.False(t, base.IsNotification())
-	assert.False(t, base.IsRequest())
-	assert.True(t, base.IsResponse())
-
-	m := base.MakeResponse()
-	require.NotNil(t, m)
-	assert.Equal(t, "int64:2", m.ID.String())
-
-	outputJSON, err := json.MarshalIndent(m, "", "  ")
-	require.NoError(t, err)
-	assert.JSONEq(t, string(sampleResponseJSON), string(outputJSON))
-
-	toolList, err := m.GetListToolResult()
-	require.NoError(t, err)
-	require.Equal(t, &mcp.ListToolsResult{
-		PaginatedResult: mcp.PaginatedResult{
-			NextCursor: "next-page-cursor",
-		},
-		Tools: []mcp.Tool{{
-			Name:        "get_weather",
-			Description: "Get current weather information for a location",
-			InputSchema: mcp.ToolInputSchema{
-				Type: "object",
-				Properties: map[string]any{
-					"location": map[string]any{
-						"type":        "string",
-						"description": "City name or zip code",
-					},
-				},
-				Required: []string{"location"},
-			},
-		}},
-	}, toolList)
+func TestIDString(t *testing.T) {
+	assert.Equal(t, "", IDString(jsonrpc.ID{}))
+	assert.Equal(t, "12345", IDString(mustMakeIntID(t, 12345)))
+	assert.Equal(t, "string-id", IDString(mustMakeID(t, "string-id")))
 }

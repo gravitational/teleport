@@ -19,6 +19,8 @@
 package mcputils
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
@@ -31,7 +33,8 @@ import (
 func IsOKCloseError(err error) bool {
 	return errors.Is(err, io.ErrClosedPipe) ||
 		isFileClosedError(err) ||
-		utils.IsOKNetworkError(err)
+		utils.IsOKNetworkError(err) ||
+		errors.Is(err, context.Canceled)
 }
 
 // isFileClosedError check if the error is a common error when exec.Command
@@ -66,3 +69,23 @@ func newReaderParseError(err error) error {
 		Err: err,
 	}
 }
+
+// WireError represents a structured error in a Response.
+// Copied from https://github.com/modelcontextprotocol/go-sdk/blob/main/internal/jsonrpc2/wire.go
+type WireError struct {
+	// Code is an error code indicating the type of failure.
+	Code int64 `json:"code"`
+	// Message is a short description of the error.
+	Message string `json:"message"`
+	// Data is optional structured data containing additional information about the error.
+	Data json.RawMessage `json:"data,omitempty"`
+}
+
+func (err *WireError) Error() string {
+	return err.Message
+}
+
+const (
+	ErrCodeParseError int64 = -32700
+	ErrCodeInternal   int64 = -32603
+)

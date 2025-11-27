@@ -22,7 +22,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -103,8 +102,8 @@ func (w *SSERequestWriter) GetEndpointURL() string {
 //
 // Note that the HTTP response does not contain the MCP response. MCP response
 // is sent through the SSE stream ¯\(ツ)/¯.
-func (w *SSERequestWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
-	data, err := json.Marshal(msg)
+func (w *SSERequestWriter) WriteMessage(ctx context.Context, msg jsonrpc.Message) error {
+	data, err := jsonrpc.EncodeMessage(msg)
 	if err != nil {
 		return trace.Wrap(err, "marshaling MCP request")
 	}
