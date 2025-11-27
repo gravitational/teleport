@@ -41,7 +41,7 @@ export function setTray(
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Open Teleport Connect',
+      label: `Open ${app.name}`,
       click: () => window.show(),
     },
     { type: 'separator' },
