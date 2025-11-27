@@ -39,6 +39,9 @@ spec:
             - /config/tbot.yaml
             - --log-format
             - json
+          {{- if .Values.debug }}
+            - --debug
+          {{- end }}
           {{- if .Values.extraArgs }}
             {{- toYaml .Values.extraArgs | nindent 12 }}
           {{- end }}

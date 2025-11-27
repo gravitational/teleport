@@ -21,8 +21,8 @@ services:
 - type: workload-identity-api
   listen: unix:///run/tbot/sockets/workload.sock
   selector:
-    name: k8s-ds-example
-  attestor:
+    name: local-docker-k8s-ds
+  attestors:
     kubernetes:
       enabled: true
       kubelet:
