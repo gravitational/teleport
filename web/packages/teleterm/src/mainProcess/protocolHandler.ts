@@ -69,6 +69,22 @@ function disableUnusedProtocols() {
 }
 
 /**
+ * Registers the 'http://' protocol handler.
+ * Adds cross-origin headers to handled responses to enable features requiring
+ * cross-origin isolation.
+ */
+function handleHttpProtocol(): void {
+  protocol.handle('http', async request => {
+    const response = await net.fetch(request, {
+      // Must be true to prevent the handler from calling itself and entering an infinite loop.
+      bypassCustomProtocolHandlers: true,
+    });
+    setCrossOriginIsolationHeaders(response.headers);
+    return response;
+  });
+}
+
+/**
  * Registers the 'app-file://' protocol handler.
  * Serves application files from the build directory and adds
  * cross-origin headers to responses, enabling features that
@@ -111,12 +127,18 @@ function handleAppFileProtocol(): void {
       // We can bypass it because we performed the path traversal checks.
       bypassCustomProtocolHandlers: true,
     });
-    // To use features like SharedArrayBuffer, the document must be in a secure context
-    // and cross-origin isolated.
-    response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-    response.headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+    setCrossOriginIsolationHeaders(response.headers);
     return response;
   });
+}
+
+/**
+ * To use features like SharedArrayBuffer, the document must be in a secure context
+ * and cross-origin isolated.
+ */
+function setCrossOriginIsolationHeaders(headers: Headers): void {
+  headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
 }
 
 /**
@@ -137,7 +159,14 @@ export function registerAppFileProtocol(): void {
   ]);
 }
 
-export function enableWebHandlersProtection() {
+/**
+ * Configures protocol handling:
+ * - Disables unused web protocols.
+ * - Registers handlers for `app-file://` and `http://` (for Vite dev server)
+ * to enforce cross-origin isolation, enabling features like `SharedArrayBuffer`.
+ */
+export function setUpProtocolHandlers(): void {
   disableUnusedProtocols();
   handleAppFileProtocol();
+  handleHttpProtocol();
 }

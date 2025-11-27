@@ -30,8 +30,8 @@ import Logger from 'teleterm/logger';
 import MainProcess from 'teleterm/mainProcess';
 import { registerNavigationHandlers } from 'teleterm/mainProcess/navigationHandler';
 import {
-  enableWebHandlersProtection,
   registerAppFileProtocol,
+  setUpProtocolHandlers,
 } from 'teleterm/mainProcess/protocolHandler';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
@@ -183,7 +183,7 @@ async function initializeApp(): Promise<void> {
   app
     .whenReady()
     .then(() => {
-      enableWebHandlersProtection();
+      setUpProtocolHandlers();
 
       windowsManager.createWindow();
 
