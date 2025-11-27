@@ -35,8 +35,7 @@ func makeInferenceModel(name, modelSuffix string) *summarizerv1.InferenceModel {
 }
 
 func TestInferenceModelCollection_writeText(t *testing.T) {
-	var models []*summarizerv1.InferenceModel
-	models = []*summarizerv1.InferenceModel{
+	models := []*summarizerv1.InferenceModel{
 		makeInferenceModel("model_1", "-1"),
 		makeInferenceModel("model_2", "-2"),
 		makeInferenceModel("model_3", "-3"),

@@ -18,11 +18,14 @@ package resources
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"github.com/google/uuid"
-	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 )
 
 type mockSummarizerServiceServer struct {
@@ -38,12 +41,8 @@ func registerMockSummarizerServiceServer(svc grpc.ServiceRegistrar) {
 }
 
 func (m *mockSummarizerServiceServer) ListInferenceModels(context.Context, *summarizerv1.ListInferenceModelsRequest) (*summarizerv1.ListInferenceModelsResponse, error) {
-	models := make([]*summarizerv1.InferenceModel, 0, len(m.models))
-	for _, model := range m.models {
-		models = append(models, model)
-	}
 	return &summarizerv1.ListInferenceModelsResponse{
-		Models:        models,
+		Models:        slices.Concat(slices.Collect(maps.Values(m.models))),
 		NextPageToken: "",
 	}, nil
 }
