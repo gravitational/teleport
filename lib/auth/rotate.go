@@ -593,9 +593,11 @@ func (a *Server) syncUsableKeysAlert(ctx context.Context, usableKeysResults map[
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		// This is called by a.runPeriodicOperations via
 		// a.AutoRotateCertAuthorities on a random period between 1-2x
-		// defaults.HighResPollingPeriod, the alert will be renewed before it
-		// expires if it's still relevant.
-		types.WithAlertExpires(a.clock.Now().Add(defaults.HighResPollingPeriod * 3)),
+		// defaults.HighResPollingPeriod, the alert should be renewed or
+		// deleted before this expiry.
+		// Use an expiry of at least a few minutes in case auth init takes that
+		// long before runPeriodicOperations starts (e.g. in tests in CI).
+		types.WithAlertExpires(a.clock.Now().Add(5 * time.Minute)),
 	}
 	msg := fmt.Sprintf(
 		"Auth Service %s is configured to use %s, but the following CAs do not contain any keys of that type: %v. ",
