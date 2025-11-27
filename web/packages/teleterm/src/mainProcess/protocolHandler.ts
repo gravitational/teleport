@@ -17,10 +17,12 @@
  */
 
 import fs from 'fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import * as path from 'path';
 
 import { app, net, protocol } from 'electron';
+
+import { getErrorMessage } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
 
@@ -52,38 +54,16 @@ export function buildAppFileUri(relativePath: string) {
   return uri.toString();
 }
 
-// these protocols are not used within the app
+/** Disables protocols not used by the app. */
 function disableUnusedProtocols() {
   disabledSchemes.forEach(scheme => {
-    protocol.interceptFileProtocol(scheme, (_request, callback) => {
+    protocol.handle(scheme, () => {
+      const message = `Denying request: Invalid scheme (${scheme})`;
       logger.error(`Denying request: Invalid scheme (${scheme})`);
-      callback({ error: -3 });
-    });
-  });
-}
-
-// intercept, clean, and validate the requested file path.
-function interceptFileProtocol() {
-  const installPath = app.getAppPath();
-
-  protocol.interceptFileProtocol('file', (request, callback) => {
-    const target = path.normalize(fileURLToPath(request.url));
-    const realPath = fs.existsSync(target) ? fs.realpathSync(target) : target;
-
-    if (!path.isAbsolute(realPath)) {
-      logger.error(`Denying request to non-absolute path '${realPath}'`);
-      return callback({ error: -3 });
-    }
-
-    if (!realPath.startsWith(installPath)) {
-      logger.error(
-        `Denying request to path '${realPath}' (not in installPath: '${installPath})'`
-      );
-      return callback({ error: -3 });
-    }
-
-    return callback({
-      path: realPath,
+      return new Response(message, {
+        status: 403,
+        statusText: 'Forbidden Protocol',
+      });
     });
   });
 }
@@ -104,11 +84,33 @@ function handleAppFileProtocol(): void {
       ''
     );
     const target = path.join(appPath, filePath);
+    let realPath: string;
+    try {
+      realPath = await fs.promises.realpath(target);
+    } catch (error) {
+      logger.error(`Failed to resolve path ${target}'`, error);
+      return new Response(`Failed to resolve path: ${getErrorMessage(error)}`, {
+        status: 400,
+      });
+    }
+
+    const relative = path.relative(appPath, realPath);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      const message = `Denying request to path '${realPath}' (not in installPath: '${appPath})'`;
+      logger.error(message);
+      return new Response(message, {
+        status: 400,
+      });
+    }
 
     // Use net.fetch to serve local files.
     // It automatically determines and sets the correct Content-Type (MIME) header,
     // unlike fs.readFile.
-    const response = await net.fetch(pathToFileURL(target).toString());
+    const response = await net.fetch(pathToFileURL(realPath).toString(), {
+      // 'file' protocol was disabled in disableUnusedProtocols.
+      // We can bypass it because we performed the path traversal checks.
+      bypassCustomProtocolHandlers: true,
+    });
     // To use features like SharedArrayBuffer, the document must be in a secure context
     // and cross-origin isolated.
     response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
@@ -136,7 +138,6 @@ export function registerAppFileProtocol(): void {
 }
 
 export function enableWebHandlersProtection() {
-  interceptFileProtocol();
   disableUnusedProtocols();
   handleAppFileProtocol();
 }
