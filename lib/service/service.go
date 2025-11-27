@@ -74,6 +74,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	pingv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ping/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -151,6 +152,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/ping"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -5242,6 +5244,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// Register web proxy server
 	alpnHandlerForWeb := &alpnproxy.ConnectionHandlerWrapper{}
 
+	var proxySettings *web.ProxySettings
+
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
@@ -5251,7 +5255,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
-		proxySettings := &web.ProxySettings{
+		proxySettings = &web.ProxySettings{
 			ServiceConfig: cfg,
 			ProxySSHAddr:  proxySSHAddr.String(),
 			AccessPoint:   accessPoint,
@@ -6012,7 +6016,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	if alpnRouter != nil {
-		grpcServerPublic, err = process.initPublicGRPCServer(proxyLimiter, conn, listeners.grpcPublic)
+		grpcServerPublic, err = process.initPublicGRPCServer(proxyLimiter, conn, listeners.grpcPublic, proxySettings)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -7166,6 +7170,7 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	limiter *limiter.Limiter,
 	conn *Connector,
 	listener net.Listener,
+	proxySettings web.ProxySettingsGetter,
 ) (*grpc.Server, error) {
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -7219,6 +7224,17 @@ func (process *TeleportProcess) initPublicGRPCServer(
 		return nil, trace.Wrap(err)
 	}
 	devicepb.RegisterDeviceTrustServiceServer(server, deviceTrustProxySvc)
+
+	if proxySettings != nil {
+		pingSvc, err := ping.NewService(ping.Config{
+			ProxySettings: proxySettings,
+			ProxyClient:   conn.Client,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		pingv1pb.RegisterPingServiceServer(server, pingSvc)
+	}
 
 	process.RegisterCriticalFunc("proxy.grpc.public", func() error {
 		process.logger.InfoContext(process.ExitContext(), "Starting proxy gRPC server.", "listen_address", listener.Addr())

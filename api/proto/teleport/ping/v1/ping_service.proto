@@ -1,0 +1,55 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.ping.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/ping/v1;pingv1";
+
+// PingService exposes ping information.
+service PingService {
+  // Find is like ping, but is faster because it is optimized for servers and does not fetch the
+  // data that servers don't need, e.g. OIDC connectors and auth preferences
+  rpc Find(FindRequest) returns (FindResponse);
+}
+
+// FindRequest for Find RPC.
+message FindRequest {}
+
+// FindResponse contains data about the Teleport cluster like version, cluster name, edition, etc.
+message FindResponse {
+  ProxySettings proxy = 1;
+  string server_version = 2;
+  string min_client_version = 3;
+  string cluster_name = 4;
+  string edition = 5;
+  bool fips = 6;
+}
+
+// ProxySettings holds details specific to the proxy service.
+message ProxySettings {
+  SSHProxySettings ssh_proxy_settings = 1;
+  bool tls_routing_enabled = 2;
+}
+
+// SSHProxySettings holds details relevant for SSH connections going through the proxy service.
+message SSHProxySettings {
+  string listen_addr = 1;
+  string tunnel_listen_addr = 2;
+  string web_listen_addr = 3;
+  string public_addr = 4;
+  string ssh_public_addr = 5;
+  string tunnel_public_addr = 6;
+}
