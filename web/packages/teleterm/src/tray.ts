@@ -48,6 +48,7 @@ export function setTray(
     { label: 'Quit', role: 'quit' },
   ]);
   tray.setContextMenu(contextMenu);
+  tray.setToolTip('Teleport Connect');
 }
 
 function getIcon(runtimeSettings: RuntimeSettings): string | NativeImage {
