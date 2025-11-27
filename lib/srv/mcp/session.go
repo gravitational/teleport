@@ -257,6 +257,8 @@ func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageW
 func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
 	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
 
+	// TODO(greedy52) add checks to ensure that the initialize request is the
+	// first request coming in (with the exception of the ping).
 	s.idTracker.PushRequest(req)
 	switch req.Method {
 	case mcputils.MethodToolsCall:
