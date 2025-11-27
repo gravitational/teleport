@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 type testPack struct {
@@ -4722,22 +4723,29 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	// Run CreateAccessListReminderNotifications()
 	authServer.CreateAccessListReminderNotifications(ctx)
 
-	// Check notifications
-	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
-		PageSize: 50,
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 6)
+	reminderNotificationSubKind := func(n *notificationsv1.Notification) string { return n.GetSubKind() }
+	expectedSubKinds := []string{
+		"access-list-review-overdue-7d",
+		"access-list-review-overdue-3d",
+		"access-list-review-due-0d",
+		"access-list-review-due-3d",
+		"access-list-review-due-7d",
+		"access-list-review-due-14d",
+	}
 
-	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created if it's run again.
+	// Check notifications
+	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
+
+	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
 	authServer.CreateAccessListReminderNotifications(ctx)
 
 	// Check notifications again, counts should remain the same.
-	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
-		PageSize: 50,
-	})
+	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 6)
+	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
+		"notifications should not have changed after second reconciliation")
 }
 
 type createAccessListOptions struct {
