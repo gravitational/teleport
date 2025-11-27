@@ -1,78 +1,101 @@
 ---
-title: Configuring Break Glass Access for Disaster Recovery
-description: Guide to set up break glass emergency access for critical systems if Teleport becomes unavailable.
+title: Configuring Break-Glass SSH Access for Disaster Recovery
+description: Guide to set up break-glass emergency SSH access for critical systems if Teleport becomes unavailable.
 ---
 
-This guide will walk you through the steps required to configure emergency "break glass" access for critical agents and servers via OpenSSH using Teleport-issued certificates, in the following scenarios:
+This guide will walk you through the steps required to configure emergency "break-glass" access for critical agents and servers via OpenSSH
+using Teleport-issued certificates, in the following scenarios:
 
 1. The Teleport Agent on a server has crashed, gone offline, or become unusable.
 2. The Teleport control plane is down and cannot be used to access systems, and out-of-band access is necessary to fix it.
 
 ## How it works
 
-Teleport's CA can issue short-lived, signed certificates that can be used to grant access to OpenSSH servers in emergency disaster recovery scenarios. By configuring the OpenSSH server on the Teleport Agent to trust Teleport’s CA, users with valid Teleport-issued certificates can authenticate to the server without requiring static SSH keys or passwords even if Teleport itself is down.
+Teleport's `user` CA can issue short-lived, signed certificates that can be used to grant access to OpenSSH servers in emergency disaster recovery scenarios.
 
-Below, we’ll detail the steps to accomplish the following objectives:
+By configuring the OpenSSH server alongside a Teleport Agent to trust Teleport's `user` CA, users with valid Teleport-issued certificates
+can authenticate to the server without requiring static SSH keys or passwords - even if Teleport itself is down.
 
-1. Configure the Teleport Agent's OpenSSH server to trust Teleport's CA
-2. Create a `breakglass` system user on the remote host
-3. Restrict cert-based SSH access to this `breakglass` user only
-4. Create a `breakglass` Role and User in Teleport
-5. Generate `breakglass` SSH Key and Cert using Teleport's CA
-6. Access the remote server using a Teleport issued cert even if Teleport is down or unresponsive
+Below, we'll detail the steps to accomplish the following objectives:
+
+1. Configure the Teleport Agent's OpenSSH server to trust Teleport's `user` CA
+1. Create a `breakglass` system user on the remote host
+1. Restrict cert-based SSH access to this `breakglass` user only
+1. Create a `breakglass` Role in Teleport
+1. Create a Teleport Machine ID bot (`tbot`) to issue a `breakglass` SSH Key and Certificate using Teleport's CA on an ongoing basis
+1. Access the remote server using a Teleport issued cert, even if Teleport is down or unresponsive
 
 ## Prerequisites
 
 - OpenSSH client version 7.4 or above on your local machine.
 - A Linux host with OpenSSH server (`sshd`) version 7.4 or above.
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
-- A Teleport user with ability to add new `impersonate` role permissions.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 ## Step 1/6. Configure sshd to trust the Teleport CA
 
-For break glass access, the OpenSSH server must be configured to trust client certificates issued by the Teleport Certificate Authority (CA).
+For break-glass access, the OpenSSH server must be configured to trust client certificates issued by the Teleport `user` Certificate Authority (CA).
 
-1. **Export the Teleport CA public key:**
+1. Export the public key of the Teleport `user` CA:
 
-On the OpenSSH server, run the following command. Replace `proxy.example.com` with the address of your Teleport Proxy Service:
+**This step is completed on the Teleport Agent machine.**
+
+On the Teleport Agent machine, run the following command. Replace `teleport.example.com` with the address of your Teleport Proxy Service:
 
 ```bash
-export KEY=$(curl 'https://proxy.example.com/webapi/auth/export?type=openssh' | sed "s/cert-authority\ //")
+export KEY=$(curl 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=user' | sed "s/cert-authority\ //")
 ```
 
-2. Make the public key accessible to sshd:
+2. Make the public key accessible to `sshd`:
 
 ```bash
-sudo bash -c "echo \"$KEY\" > /etc/ssh/teleport_openssh_ca.pub"
-sudo bash -c "echo 'TrustedUserCAKeys /etc/ssh/teleport_openssh_ca.pub' >> /etc/ssh/sshd_config"
+echo "$KEY" | sudo tee /etc/ssh/teleport_user_ca.pub
+echo "TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub" | sudo tee -a /etc/ssh/sshd_config
 ```
 
-3. Restart the sshd service:
+3. Check the syntax of the sshd config file (you should see no errors printed):
 
 ```bash
+sudo sshd -t
+```
+
+4. Restart the sshd service:
+
+```bash
+# This unit may also be called ssh.service depending on your distribution
+# Check with 'systemctl list-unit-files | grep ssh | grep service'
 sudo systemctl restart sshd
 ```
 
 Now, `sshd` will trust users who present a Teleport-issued SSH certificate.
 
 <Admonition type="important">
-Complete Steps 4 and 5 below to ensure only the `breakglass` user is allowed to log in with a valid Teleport certificate and is configured with proper access restrictions, in order to prevent user switching once logged in. 
+You must complete Steps 4 and 5 below to ensure only the `breakglass` user is allowed to log in with a valid Teleport certificate
+and is configured with proper access restrictions, in order to prevent user switching once logged in.
 </Admonition>
 
 ## Step 2/6. Create a `breakglass` user on the Teleport Agent server
+
+**This step is completed on the Teleport Agent machine.**
 
 Log into the Teleport Agent server and run the following commands.
 
 1. Create the `breakglass` user:
 
 ```bash
-sudo adduser breakglass
+sudo adduser --disabled-password breakglass
 ```
 
-Set a password for `breakglass` when prompted. We recommend the use of a long, random string as this password will never be used for access.
+Set a password for `breakglass` when prompted. We recommend the use of a long, random string (e.g. the output of `pwgen -s 64 1`)
+as this password will never be used for access.
 
-**Note:** As a general security principle, it is highly recommended to limit `root` permissions through `sudo`. Because `breakglass` will need ability to gain elevated access to the system to troubleshoot and recover access, however, any use of break glass access should always be audited via sshd access logs. 
+<Admonition type="note">
+As a general security principle, it is highly recommended to limit `root` permissions through `sudo`. Because `breakglass` will need
+ability to gain elevated access to the system to troubleshoot and recover access, however, any use of break-glass access should always be audited
+via `sshd` access logs.
+</Admonition>
+
+2: Edit the sudoers file using `visudo`:
 
 ```bash
 sudo visudo
@@ -80,38 +103,52 @@ sudo visudo
 
 3. Grant limited sudo permissions:
 
-Add the following lines to restrict user switching and allow the `breakglass` user only to specific priviledged commands (e.g.,`cat`, `ls`, `journalctl`, `systemctl`, and `vim`):
+Here is an example of how to restrict user switching and allow the `breakglass` user only to specific privileged commands
+(e.g. `cat`, `ls`, `journalctl`, `systemctl`, and `vim`):
 
 ```bash
 breakglass ALL=(ALL) NOPASSWD: !ALL
-breakglass ALL=(ALL) NOPASSWD: /usr/bin/cat, /usr/bin/ls, /usr/bin/journalctl, /usr/bin/systemctl, /usr/bin/systemcl
+breakglass ALL=(ALL) NOPASSWD: /usr/bin/cat, /usr/bin/ls, /usr/bin/journalctl, /usr/bin/systemctl
+breakglass ALL=(ALL) NOPASSWD: NOEXEC: /usr/bin/vim
 breakglass ALL=(ALL) NOPASSWD: !/usr/bin/su, !/usr/bin/sudo
 ```
 
-`ALL`: Allows the rule to apply on all hosts (for local systems, this will be fine).
-`(ALL)`: Allows the user to run the commands as any user.
-`NOPASSWD: !ALL`: Prevents the user from running any command as root without a password prompt.
-`NOPASSWD: /usr/bin/cat, /usr/bin/ls, /usr/bin/journalctl, /usr/bin/systemctl, /usr/bin/vim`: Allows the user to run only the specified commands without a password prompt.
-`NOPASSWD: !/usr/bin/su, !/usr/bin/sudo`: Prevents the user from using `su` or `sudo` to switch users or run other commands with elevated privileges.
+- `ALL`: Allows the rule to apply on all hosts (for local systems, this will be fine).
+- `(ALL)`: Allows the user to run the commands as any user.
+- `NOPASSWD: !ALL`: Prevents the user from running any command as root without a password prompt.
+- `NOPASSWD: /usr/bin/cat, /usr/bin/ls, /usr/bin/journalctl, /usr/bin/systemctl`: Allows the user to run only the specified commands without a password prompt.
+- `NOPASSWD: /usr/bin/vim`: Allows the user to run vim, but does not allow it to spawn additional processes.
+- `NOPASSWD: !/usr/bin/su, !/usr/bin/sudo`: Prevents the user from using `su` or `sudo` to switch users or run other commands with elevated privileges.
 
-**Note:** Depending on the system you're working with, the path for each utility may be different. Confirm the path for each command you wish to grant priviledged access to before adding it to the sudoers file.
 
-4. Save and Exit visudo:
+<Admonition type="note">
+Depending on the system you're working with, the path for each utility may be different. Confirm the path for each command you wish to grant
+privileged access to before adding it to the sudoers file.
+</Admonition>
+
+4. Save and exit visudo:
 
 If you're using `nano` (default) as your sudo editor, press `Ctrl+X`, then `Y`, and press `Enter`.
 
 5. Restrict ability to switch users for all users not part of the `sudo` (or equivalent) group:
 
-`su` uses [PAM](../../../../pages/enroll-resources/server-access/guides/ssh-pam.mdx#background) for authentication. In order to prevent the `breakglass` user from using `su` and backdooring access to other users, we can run the following to ensure that only users who are members of the `sudo` group can run `su`.
+`su` uses [PAM](../../../enroll-resources/server-access/guides/ssh-pam.mdx#background) for authentication. In order to prevent the `breakglass`
+user from using `su` and backdooring access to other users, we can run the following to ensure that only users who are members of the `sudo` group can
+run `su`.
 
 ```bash
-echo "auth required pam_sudo.so use_uid" > /etc/pam.d/su
+echo "auth required pam_sudo.so use_uid" | sudo tee -a /etc/pam.d/su
 ```
 
 ## Step 3/6. Restrict cert-based SSH access to the `breakglass` user only
 
-The `/etc/ssh/authorized_principals` directory is used in conjunction with OpenSSH's certificate-based authentication mechanism to configure fine-grained control over which users or roles are allowed to authenticate using SSH certificates.
-We will use this mechanism to restrict cert-based SSH access only to the `breakglass` user to prevent other Teleport users from being able to generate client certificates and gain access to the server outside of Teleport.
+**This step is completed on the Teleport Agent machine.**
+
+The `/etc/ssh/authorized_principals` directory is used in conjunction with OpenSSH's certificate-based authentication mechanism to configure fine-grained
+control over which users or roles are allowed to authenticate using SSH certificates.
+
+We will use this mechanism to restrict cert-based SSH access only to the `breakglass` user, to prevent other Teleport users from being able to generate
+client certificates and gain access to the server outside of Teleport.
 
 1. Ensure the following line is added and/or uncommented in your `/etc/ssh/sshd_config` file:
 
@@ -119,28 +156,45 @@ We will use this mechanism to restrict cert-based SSH access only to the `breakg
 AuthorizedPrincipalsFile /etc/ssh/authorized_principals/%u
 ```
 
-2. Create an authorized_principals file for the `breakglass` user
+2. Create a directory and authorized_principals file for the `breakglass` user:
 
 ```bash
+sudo mkdir -p /etc/ssh/authorized_principals
 echo "breakglass" | sudo tee /etc/ssh/authorized_principals/breakglass
 ```
 
-3. Restart the sshd service:
+3. Check the syntax of the sshd config file (you should see no errors printed):
 
 ```bash
+sudo sshd -t
+```
+
+4. Restart the sshd service:
+
+```bash
+# This unit may also be called ssh.service depending on your distribution
+# Check with 'systemctl list-unit-files | grep ssh | grep service'
 sudo systemctl restart sshd
 ```
 
-## Step 4/6. Create `breakglass` Role and User in Teleport for impersonation
+## Step 4/6. Create `breakglass` Role in Teleport
 
-1. Create `breakglass` Teleport role:
+**This step is completed on your local machine.**
 
-Define the role in a file named breakglass-role.yaml
+1. Log into your Teleport cluster with a user that has permission to create roles:
+
+```bash
+tsh login --proxy=<Var name="teleport.example.com" />
+```
+
+2. Create a `breakglass` Teleport role:
+
+Define the role in a file named `breakglass-role.yaml`:
 
 ```yaml
 kind: role
 metadata:
-  name: breakglass
+  name: breakglass-role
 spec:
   allow:
     logins:
@@ -163,69 +217,214 @@ Create the role by applying with:
 tctl create -f breakglass-role.yaml
 ```
 
-2. Create the `breakglass` Teleport user:
+## Step 5/6. Create a Teleport Machine ID bot to issue an SSH Key and Certificate for the `breakglass` user using Teleport's CA
 
-```bash
-tctl users add --roles=breakglass breakglass
-```
+**This step is completed on the machine where you will make use of the certificates for break-glass access.**
 
-We don't need to worry about setting a password for this user as it'll only ever be used in the context of OpenSSH break glass authentication via impersonation.
+1. Create a `breakglass` bot which will run in the background to continually refresh a certificate which is valid for break-glass usage:
 
-3. Grant `impersonate` permissions for `breakglass` User and Role:
-
-To avoid having to directly log into Teleport as `breakglass`, grant `impersonation` permissions to an admin or automation user by adding the following to the impersonating user's matching role:
+Define the bot in a file named `breakglass-bot.yaml`:
 
 ```yaml
-impersonate:
-    roles:
-    - breakglass
-    users:
-    - breakglass
+kind: bot
+version: v1
+metadata:
+  # name is a unique identifier for the Bot in the cluster.
+  name: breakglass-bot
+spec:
+  # roles is a list of roles to grant to the Bot
+  roles: ['breakglass-role']
 ```
 
-## Step 5/6. Generate a `breakglass` ssh key and cert
-
-Run the following after logging into Teleport via `tsh login` as the impersonating user:
+2. Create the bot using `tctl`:
 
 ```bash
-tctl auth sign --ttl 24h --user=breakglass --out=/safe/path/breakglass --format openssh
+tctl create -f breakglass-bot.yaml
 ```
 
-This command will create an ssh private key and a Teleport CA-signed certificate to be used by your OpenSSH client when authenticating with the OpenSSH server.
+3. Create a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/concepts.mdx) to use as a join method for running instances of the bot:
 
-Store the private key securely in a vault or other secure location, and only access if needed to implement break glass procedures. 
+Define the join method in a file named `breakglass-token.yaml`:
 
-<Admonition type="tip">
-If you've followed this guide, the resulting `breakglass` Teleport CA-signed cert will be valid only for 24 hours. To ensure that you have a valid and up-to-date certificate in case of an outage, regularly rotate both the key and certificate before they expire. Use [Machine ID](../../../../pages/enroll-resources/machine-id/machine-id.mdx) or automate renewal with a cron job or systemd timer.
+```yaml
+kind: token
+version: v2
+metadata:
+  # This name will be used in tbot's `onboarding.token` field.
+  name: breakglass-bot-join-token
+spec:
+  roles: [Bot]
+  # bot_name must match the name of the bot created earlier.
+  bot_name: breakglass-bot
+  join_method: bound_keypair
+  bound_keypair:
+    recovery:
+      mode: standard
+      limit: 1
+```
 
-**Example:** Create a cron job to rotate certs every 20 hours and push them to a secure vault: 
+4. Create the token using `tctl`:
 
 ```bash
-0 */20 * * * tctl auth sign --ttl 24h --user=breakglass --format openssh | vault kv put secret/breakglass breakglass=- >> /var/log/vault-cron.log 2>&1
+tctl create -f breakglass-token.yaml
 ```
+
+5. Get the `registration_secret` for the bot using `tctl` - this is needed to create the bot's config file in the next step.
+
+```bash
+sudo tctl get token/breakglass-bot-join-token --format=json | jq -r '.[0].status.bound_keypair.registration_secret'
+```
+
+This assumes `jq` is installed. If not, run `tctl get token/breakglass-bot-join-token` and inspect the `.status.bound_keypair.registration_secret` field.
+
+6. Write a config file for the bot.
+
+Define the config in a file named `/etc/tbot-breakglass.yaml`:
+
+```yaml
+version: v2
+# replace teleport.example.com with the FQDN of your Teleport proxy server
+proxy_server: <Var name="teleport.example.com" />:443
+certificate_ttl: "24h"
+renewal_interval: "2h"
+onboarding:
+  join_method: bound_keypair
+  token: breakglass-bot-join-token
+  bound_keypair:
+    # replace this with the value of `registration_secret` from the previous step
+    registration_secret: REGISTRATION-SECRET-VALUE-FROM-PREVIOUS-STEP
+storage:
+  type: directory
+  # change to a directory to use to store the bot's own identity for communicating with the Teleport cluster
+  path: /var/lib/teleport/breakglass-bot
+outputs:
+- type: identity
+  destination:
+    type: directory
+    # change to the output directory you'd like to use to store the bot's outputted OpenSSH private key and certificate
+    path: /opt/teleport-breakglass-output
+```
+
+7. To configure the bot to run in the background, write out a systemd unit file for the bot:
+
+```bash
+sudo tbot install systemd \
+  --write \
+  --name tbot-teleport-breakglass \
+  --config /etc/tbot-breakglass.yaml \
+  --user teleport \
+  --group teleport
+```
+
+The user and group you specify here must already exist on the server running the `tbot` service. If you do not already have a `teleport` user and group,
+create one:
+
+```bash
+sudo useradd -s /sbin/nologin teleport
+```
+
+8. Reload the systemd configuration:
+
+```bash
+sudo systemctl daemon-reload
+```
+
+9. Configure the bot to start when the machine boots, and start it immediately:
+
+```bash
+sudo systemctl enable --now tbot-teleport-breakglass
+```
+
+10. Check that the bot has started successfully:
+
+```bash
+$ sudo systemctl status tbot-teleport-breakglass
+● tbot-teleport-breakglass.service - tbot-teleport-breakglass - Teleport Machine & Workload Identity Service
+     Loaded: loaded (/etc/systemd/system/tbot-teleport-breakglass.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2025-11-27 10:32:24 AST; 7s ago
+   Main PID: 2437534 (tbot)
+      Tasks: 9 (limit: 9065)
+     Memory: 22.8M (peak: 23.4M)
+        CPU: 239ms
+     CGroup: /system.slice/tbot-teleport-breakglass.service
+             └─2437534 /usr/local/bin/tbot start -c /etc/tbot-breakglass.yaml
+```
+
+11. Check that the bot has correctly outputted a certificate:
+
+```bash
+$ ls -l /opt/teleport-breakglass-output/
+total 60
+-rw------- 1 teleport teleport 5513 Nov 27 10:32 identity
+-rw------- 1 teleport teleport  241 Nov 27 10:32 key
+-rw------- 1 teleport teleport 1274 Nov 27 10:32 key-cert.pub
+-rw------- 1 teleport teleport  161 Nov 27 10:32 key.pub
+-rw------- 1 teleport teleport  612 Nov 27 10:32 known_hosts
+-rw------- 1 teleport teleport 1379 Nov 27 10:32 ssh_config
+-rw------- 1 teleport teleport 1330 Nov 27 10:32 teleport-database-ca.crt
+-rw------- 1 teleport teleport 2051 Nov 27 10:32 teleport-host-ca.crt
+-rw------- 1 teleport teleport  794 Nov 27 10:32 teleport-user-ca.crt
+-rw------- 1 teleport teleport  184 Nov 27 10:32 <Var name="teleport.example.com" />.known_hosts
+-rw------- 1 teleport teleport  579 Nov 27 10:32 <Var name="teleport.example.com" />.ssh_config
+-rw------- 1 teleport teleport 1375 Nov 27 10:32 tlscert
+```
+
+12. Check the validity of the certificate to see that it is valid for ~24 hours from now:
+
+```bash
+$ date
+Thu Nov 27 10:39:41 AST 2025
+$ sudo ssh-keygen -Lf /opt/teleport-breakglass-output/key-cert.pub | grep Valid
+        Valid: from 2025-11-27T10:31:24 to 2025-11-28T10:32:24
+```
+
+## Step 6/6. Access the Teleport Agent machine using OpenSSH
+
+**This step is completed on the machine where you will make use of the certificates for break-glass access.**
+
+1. Create a local SSH config which uses the Teleport-issued break-glass certificate to connect:
+
+Define the config in a file called `breakglass_ssh_config`:
+
+```bash
+Host *
+    User breakglass
+    UserKnownHostsFile /opt/teleport-breakglass-output/known_hosts
+    IdentityFile /opt/teleport-breakglass-output/key
+    CertificateFile /opt/teleport-breakglass-output/key-cert.pub
+    StrictHostKeyChecking no
+```
+
+2. Now, use the break-glass SSH config to securely access the Teleport Agent using the `breakglass` user and Teleport-issued certificate:
+
+```bash
+sudo ssh -F ./breakglass_ssh_config sshd-server
+```
+
+<Admonition type="note">
+We use `sudo ssh` here because the outputted certificates and files in the `/opt/teleport-breakglass-output` directory are only
+readable by the `teleport` user and `root`, to improve security.
 </Admonition>
 
-
-## Step 6/6. Access the Teleport Agent using OpenSSH
-
-1. Add the following to your `~/.ssh/config` (or equivalent), making sure to update with your `HostName` and cert paths:
+If you do not have DNS resolution available for the hostname you need to connect to, you can use the IP address:
 
 ```bash
-Host sshd-server
-    HostName sshd-server.example.com
-    User breakglass
-    IdentityFile /secure/path/breakglass
-    CertificateFile /secure/path/breakglass-cert.pub
+sudo ssh -F ./breakglass_ssh_config 10.11.12.134
 ```
 
-2. Access the server
-
-Now, securely access the Teleport Agent using the `breakglass` user and Teleport-issued certificate:
+Alternatively, you can provide the IP to use with the `HostName` option to `ssh`:
 
 ```bash
-ssh sshd-server
+sudo ssh -F ./breakglass_ssh_config -o "HostName=10.11.12.134" sshd-server
 ```
+
+<Admonition type="important">
+If the connection from `tbot` to the Teleport control plane remains offline, the outputted certificate will only be valid for the following
+22 hours, then it will expire and break-glass access will no longer be available. If you cannot restore access to your Teleport control plane
+within this timeframe, you should use your break-glass access to set up alternative strategies for access while the certificate is still valid.
+</Admonition>
 
 ---
 
-The method described above ensures you can securely access your servers and Teleport Agents in emergency scenarios using Teleport CA signed certificates, even if Teleport's agents or control plane are down. This process can be used for any Teleport Agent running on server which supports OpenSSH regardless of Teleport protocol. 
+The method described above ensures you can securely access your servers and Teleport Agents in emergency scenarios using Teleport CA signed certificates,
+even if Teleport's agents or control plane are down. This process can be used for any Teleport Agent running on a server which supports OpenSSH.
