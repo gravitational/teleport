@@ -26,7 +26,7 @@ import (
 )
 
 // NewAppAuthConfigJWT creates a new app auth configuration resource for JWT.
-func NewAppAuthConfigJWT(name string, labels []*labelv1.Label, spec *appauthconfigv1.AppAuthConfigJWTSpec) (*appauthconfigv1.AppAuthConfig, error) {
+func NewAppAuthConfigJWT(name string, labels []*labelv1.Label, spec *appauthconfigv1.AppAuthConfigJWTSpec) *appauthconfigv1.AppAuthConfig {
 	return &appauthconfigv1.AppAuthConfig{
 		Kind:    types.KindAppAuthConfig,
 		SubKind: types.SubKindJWTAppAuthConfig,
@@ -40,5 +40,5 @@ func NewAppAuthConfigJWT(name string, labels []*labelv1.Label, spec *appauthconf
 				Jwt: spec,
 			},
 		},
-	}, nil
+	}
 }

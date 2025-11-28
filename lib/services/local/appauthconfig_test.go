@@ -45,29 +45,28 @@ func TestAppAuthConfigService(t *testing.T) {
 
 	t.Run("create configs", func(t *testing.T) {
 		svc := setupAppAuthService(t, nil)
-		_, err := svc.CreateAppAuthConfig(t.Context(), makeAppAuthJWTConfig(t, "jwt1"))
+		_, err := svc.CreateAppAuthConfig(t.Context(), makeAppAuthJWTConfig("jwt1"))
 		require.NoError(t, err)
-		_, err = svc.CreateAppAuthConfig(t.Context(), makeAppAuthJWTConfig(t, "jwt2"))
+		_, err = svc.CreateAppAuthConfig(t.Context(), makeAppAuthJWTConfig("jwt2"))
 		require.NoError(t, err)
 	})
 
 	t.Run("create invalid", func(t *testing.T) {
-		cfg, err := appauthconfig.NewAppAuthConfigJWT(
+		cfg := appauthconfig.NewAppAuthConfigJWT(
 			"jwt-invalid",
 			[]*labelv1.Label{{Name: "*", Values: []string{"*"}}},
 			&appauthconfigv1.AppAuthConfigJWTSpec{},
 		)
-		require.NoError(t, err)
 
 		svc := setupAppAuthService(t, nil)
-		_, err = svc.CreateAppAuthConfig(t.Context(), cfg)
+		_, err := svc.CreateAppAuthConfig(t.Context(), cfg)
 		require.Error(t, err)
 	})
 
 	t.Run("list configs", func(t *testing.T) {
 		expectedCfgs := []*appauthconfigv1.AppAuthConfig{
-			makeAppAuthJWTConfig(t, "jwt1"),
-			makeAppAuthJWTConfig(t, "jwt2"),
+			makeAppAuthJWTConfig("jwt1"),
+			makeAppAuthJWTConfig("jwt2"),
 		}
 		svc := setupAppAuthService(t, expectedCfgs)
 
@@ -78,8 +77,8 @@ func TestAppAuthConfigService(t *testing.T) {
 
 	t.Run("list with next key", func(t *testing.T) {
 		expectedCfgs := []*appauthconfigv1.AppAuthConfig{
-			makeAppAuthJWTConfig(t, "jwt1"),
-			makeAppAuthJWTConfig(t, "jwt2"),
+			makeAppAuthJWTConfig("jwt1"),
+			makeAppAuthJWTConfig("jwt2"),
 		}
 		svc := setupAppAuthService(t, expectedCfgs)
 
@@ -102,7 +101,7 @@ func TestAppAuthConfigService(t *testing.T) {
 	t.Run("create and retrieve", func(t *testing.T) {
 		svc := setupAppAuthService(t, nil)
 
-		cfgCreated, err := svc.CreateAppAuthConfig(t.Context(), makeAppAuthJWTConfig(t, "jwt1"))
+		cfgCreated, err := svc.CreateAppAuthConfig(t.Context(), makeAppAuthJWTConfig("jwt1"))
 		require.NoError(t, err)
 		cfgRetrieved, err := svc.GetAppAuthConfig(t.Context(), cfgCreated.Metadata.Name)
 		require.NoError(t, err)
@@ -111,7 +110,7 @@ func TestAppAuthConfigService(t *testing.T) {
 	})
 
 	t.Run("delete and retrieve", func(t *testing.T) {
-		cfg := makeAppAuthJWTConfig(t, "jwt1")
+		cfg := makeAppAuthJWTConfig("jwt1")
 		svc := setupAppAuthService(t, []*appauthconfigv1.AppAuthConfig{cfg})
 
 		err := svc.DeleteAppAuthConfig(t.Context(), cfg.Metadata.Name)
@@ -128,7 +127,7 @@ func TestAppAuthConfigService(t *testing.T) {
 	})
 
 	t.Run("upsert", func(t *testing.T) {
-		baseCfg := makeAppAuthJWTConfig(t, "jwt1")
+		baseCfg := makeAppAuthJWTConfig("jwt1")
 		svc := setupAppAuthService(t, []*appauthconfigv1.AppAuthConfig{})
 
 		firstCfg, err := svc.UpsertAppAuthConfig(t.Context(), baseCfg)
@@ -152,10 +151,8 @@ func requireAppAuthConfigEqual(t *testing.T, expected []*appauthconfigv1.AppAuth
 	))
 }
 
-func makeAppAuthJWTConfig(t *testing.T, name string) *appauthconfigv1.AppAuthConfig {
-	t.Helper()
-
-	cfg, err := appauthconfig.NewAppAuthConfigJWT(
+func makeAppAuthJWTConfig(name string) *appauthconfigv1.AppAuthConfig {
+	return appauthconfig.NewAppAuthConfigJWT(
 		name,
 		[]*labelv1.Label{{Name: "*", Values: []string{"*"}}},
 		&appauthconfigv1.AppAuthConfigJWTSpec{
@@ -166,8 +163,6 @@ func makeAppAuthJWTConfig(t *testing.T, name string) *appauthconfigv1.AppAuthCon
 			},
 		},
 	)
-	require.NoError(t, err)
-	return cfg
 }
 
 func setupAppAuthService(t *testing.T, cfgs []*appauthconfigv1.AppAuthConfig) *AppAuthConfigService {

@@ -67,7 +67,7 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 			name: "CreateAppAuthConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
 				_, err := clt.ServiceUnderTest.CreateAppAuthConfig(ctx, &appauthconfigv1.CreateAppAuthConfigRequest{
-					Config: newAppAuthConfigJWT(t),
+					Config: newAppAuthConfigJWT(),
 				})
 				return err
 			},
@@ -78,7 +78,7 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 		{
 			name: "GetAppAuthConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
-				cfg1 := newAppAuthConfigJWT(t)
+				cfg1 := newAppAuthConfigJWT()
 				_, err := clt.CreateAppAuthConfig(ctx, cfg1)
 				require.NoError(t, err)
 				_, err = clt.ServiceUnderTest.GetAppAuthConfig(ctx, &appauthconfigv1.GetAppAuthConfigRequest{
@@ -91,9 +91,9 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 		{
 			name: "ListAppAuthConfigs",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
-				_, err := clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT(t))
+				_, err := clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT())
 				require.NoError(t, err)
-				_, err = clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT(t))
+				_, err = clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT())
 				require.NoError(t, err)
 				resp, err := clt.ServiceUnderTest.ListAppAuthConfigs(ctx, &appauthconfigv1.ListAppAuthConfigsRequest{})
 				if err == nil {
@@ -108,7 +108,7 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 		{
 			name: "UpdateAppAuthConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
-				cfg, err := clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT(t))
+				cfg, err := clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT())
 				require.NoError(t, err)
 				firstRev := cfg.Metadata.Revision
 				cfg, err = clt.ServiceUnderTest.UpdateAppAuthConfig(ctx, &appauthconfigv1.UpdateAppAuthConfigRequest{
@@ -126,7 +126,7 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 		{
 			name: "UpsertAppAuthConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
-				cfg := newAppAuthConfigJWT(t)
+				cfg := newAppAuthConfigJWT()
 				_, err := clt.ServiceUnderTest.UpsertAppAuthConfig(ctx, &appauthconfigv1.UpsertAppAuthConfigRequest{
 					Config: cfg,
 				})
@@ -139,7 +139,7 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 		{
 			name: "DeleteAppAuthConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
-				cfg, err := clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT(t))
+				cfg, err := clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT())
 				require.NoError(t, err)
 				_, err = clt.ServiceUnderTest.DeleteAppAuthConfig(ctx, &appauthconfigv1.DeleteAppAuthConfigRequest{
 					Name: cfg.Metadata.GetName(),
@@ -214,9 +214,8 @@ func (c *accessTest) run(t *testing.T) {
 	})
 }
 
-func newAppAuthConfigJWT(t *testing.T) *appauthconfigv1.AppAuthConfig {
-	t.Helper()
-	r, err := appauthconfig.NewAppAuthConfigJWT(
+func newAppAuthConfigJWT() *appauthconfigv1.AppAuthConfig {
+	return appauthconfig.NewAppAuthConfigJWT(
 		uuid.NewString(),
 		[]*labelv1.Label{{Name: "*", Values: []string{"*"}}},
 		&appauthconfigv1.AppAuthConfigJWTSpec{
@@ -227,8 +226,6 @@ func newAppAuthConfigJWT(t *testing.T) *appauthconfigv1.AppAuthConfig {
 			},
 		},
 	)
-	require.NoError(t, err)
-	return r
 }
 
 func newService(t *testing.T, ctx context.Context) testClient {

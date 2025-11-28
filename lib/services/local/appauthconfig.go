@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const appAuthConfigPrefix = "appauthconfig"
+const appAuthConfigPrefix = "app_auth_config"
 
 // AppAuthConfigService manages [appauthconfigv1.AppAuthConfig] resources in
 // the backend.

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// ServiceConfig holds configuration options for [Service].
 type ServiceConfig struct {
 	// Authorizer used by the service.
 	Authorizer authz.Authorizer
@@ -44,6 +45,8 @@ type ServiceConfig struct {
 	Logger *slog.Logger
 }
 
+// Service implements the teleport.appauthconfig.v1.AppAuthConfigServer gRPC
+// API.
 type Service struct {
 	appauthconfigv1.UnimplementedAppAuthConfigServiceServer
 
@@ -54,6 +57,7 @@ type Service struct {
 	logger     *slog.Logger
 }
 
+// NewService creates a new instance of [Service].
 func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Authorizer == nil {
 		return nil, trace.BadParameter("authorizer is required for app auth config service")
