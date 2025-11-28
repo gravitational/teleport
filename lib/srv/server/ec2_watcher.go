@@ -440,6 +440,8 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 	return chunkInstances(instancesByRegion), nil
 }
 
+// chunkInstances splits instances into chunks of 50.
+// This is required because SSM SendCommand API calls only accept up to 50 instance IDs at a time.
 func chunkInstances(instancesByRegion map[string]EC2Instances) []Instances {
 	var instColl []Instances
 	for _, insts := range instancesByRegion {

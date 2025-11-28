@@ -136,14 +136,6 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "wildcard is invalid for regions when using non-ec2 types",
-			in: &AWSMatcher{
-				Types:   []string{"ec2", "rds"},
-				Regions: []string{"*"},
-			},
-			errCheck: isBadParameterErr,
-		},
-		{
 			name: "wildcard is valid for the ec2 type",
 			in: &AWSMatcher{
 				Types:   []string{"ec2"},

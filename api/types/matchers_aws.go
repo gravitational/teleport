@@ -158,13 +158,6 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 			if len(m.Regions) > 1 {
 				return trace.BadParameter("when using %q as region, no other regions can be specified", Wildcard)
 			}
-
-			// Only EC2 supports discovering regions.
-			// TODO(marco): add support for other resources types.
-			if len(m.Types) > 1 || m.Types[0] != AWSMatcherEC2 {
-				return trace.BadParameter("only EC2 resource discovery supports discovering all regions, " +
-					"enumerate all the regions or create a separate matcher for discovering EC2 resources")
-			}
 			break
 		}
 
