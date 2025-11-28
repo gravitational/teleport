@@ -31,8 +31,7 @@ func TestValidatAppAuthConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Base", func(t *testing.T) {
-		validSubkindName := types.SubKindJWTAppAuthConfig
-		validSubkind := &appauthconfigv1.AppAuthConfigSpec_Jwt{
+		validConfig := &appauthconfigv1.AppAuthConfigSpec_Jwt{
 			Jwt: &appauthconfigv1.AppAuthConfigJWTSpec{
 				Audience: "teleport",
 				Issuer:   "https://issuer-url/",
@@ -41,7 +40,7 @@ func TestValidatAppAuthConfig(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, validateJWTAppAuthConfig(validSubkind.Jwt), "this test expects the subkind to be valid, ensure it is up-to-date")
+		require.NoError(t, validateJWTAppAuthConfig(validConfig.Jwt), "this test expects the config to be valid, ensure it is up-to-date")
 
 		for name, tc := range map[string]struct {
 			res       *appauthconfigv1.AppAuthConfig
@@ -51,7 +50,6 @@ func TestValidatAppAuthConfig(t *testing.T) {
 				res: &appauthconfigv1.AppAuthConfig{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
-					SubKind: validSubkindName,
 					Metadata: &headerv1.Metadata{
 						Name: "example",
 					},
@@ -59,7 +57,7 @@ func TestValidatAppAuthConfig(t *testing.T) {
 						AppLabels: []*labelv1.Label{
 							{Name: "*", Values: []string{"*"}},
 						},
-						SubKindSpec: validSubkind,
+						SubKindSpec: validConfig,
 					},
 				},
 				assertErr: require.NoError,
@@ -68,7 +66,6 @@ func TestValidatAppAuthConfig(t *testing.T) {
 				res: &appauthconfigv1.AppAuthConfig{
 					Version: "999",
 					Kind:    types.KindAppAuthConfig,
-					SubKind: types.SubKindJWTAppAuthConfig,
 					Metadata: &headerv1.Metadata{
 						Name: "example",
 					},
@@ -76,24 +73,7 @@ func TestValidatAppAuthConfig(t *testing.T) {
 						AppLabels: []*labelv1.Label{
 							{Name: "*", Values: []string{"*"}},
 						},
-						SubKindSpec: validSubkind,
-					},
-				},
-				assertErr: require.Error,
-			},
-			"missing subkind is invalid": {
-				res: &appauthconfigv1.AppAuthConfig{
-					Version: types.V1,
-					Kind:    types.KindAppAuthConfig,
-					SubKind: "random-value",
-					Metadata: &headerv1.Metadata{
-						Name: "example",
-					},
-					Spec: &appauthconfigv1.AppAuthConfigSpec{
-						AppLabels: []*labelv1.Label{
-							{Name: "*", Values: []string{"*"}},
-						},
-						SubKindSpec: validSubkind,
+						SubKindSpec: validConfig,
 					},
 				},
 				assertErr: require.Error,
@@ -102,12 +82,11 @@ func TestValidatAppAuthConfig(t *testing.T) {
 				res: &appauthconfigv1.AppAuthConfig{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
-					SubKind: validSubkindName,
 					Spec: &appauthconfigv1.AppAuthConfigSpec{
 						AppLabels: []*labelv1.Label{
 							{Name: "*", Values: []string{"*"}},
 						},
-						SubKindSpec: validSubkind,
+						SubKindSpec: validConfig,
 					},
 				},
 				assertErr: require.Error,
@@ -116,12 +95,11 @@ func TestValidatAppAuthConfig(t *testing.T) {
 				res: &appauthconfigv1.AppAuthConfig{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
-					SubKind: validSubkindName,
 					Metadata: &headerv1.Metadata{
 						Name: "example",
 					},
 					Spec: &appauthconfigv1.AppAuthConfigSpec{
-						SubKindSpec: validSubkind,
+						SubKindSpec: validConfig,
 					},
 				},
 				assertErr: require.Error,
@@ -130,7 +108,6 @@ func TestValidatAppAuthConfig(t *testing.T) {
 				res: &appauthconfigv1.AppAuthConfig{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
-					SubKind: validSubkindName,
 					Metadata: &headerv1.Metadata{
 						Name: "example",
 					},
@@ -138,7 +115,7 @@ func TestValidatAppAuthConfig(t *testing.T) {
 						AppLabels: []*labelv1.Label{
 							{Name: "*", Values: []string{"some-random-value"}},
 						},
-						SubKindSpec: validSubkind,
+						SubKindSpec: validConfig,
 					},
 				},
 				assertErr: require.Error,
@@ -154,7 +131,7 @@ func TestValidatAppAuthConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("JWT subkind", func(t *testing.T) {
+	t.Run("JWT config", func(t *testing.T) {
 		for name, tc := range map[string]struct {
 			res       *appauthconfigv1.AppAuthConfigJWTSpec
 			assertErr require.ErrorAssertionFunc

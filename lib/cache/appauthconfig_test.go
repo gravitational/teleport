@@ -31,7 +31,6 @@ import (
 func newAppAuthConfigJWT(name string) *appauthconfigv1.AppAuthConfig {
 	return &appauthconfigv1.AppAuthConfig{
 		Kind:    types.KindAppAuthConfig,
-		SubKind: types.SubKindJWTAppAuthConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: name,

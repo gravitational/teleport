@@ -75,18 +75,18 @@ func ValidateAppAuthConfig(s *appauthconfigv1.AppAuthConfig) error {
 		}
 	}
 
-	switch s.SubKind {
-	case types.SubKindJWTAppAuthConfig:
-		return validateJWTAppAuthConfig(s.Spec.GetJwt())
+	switch spec := s.Spec.SubKindSpec.(type) {
+	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
+		return validateJWTAppAuthConfig(spec.Jwt)
 	default:
-		return trace.BadParameter("unsupported subkind %q", s.SubKind)
+		return trace.BadParameter("unsupported configuration type")
 	}
 }
 
 func validateJWTAppAuthConfig(s *appauthconfigv1.AppAuthConfigJWTSpec) error {
 	switch {
 	case s == nil:
-		return trace.BadParameter("spec.jwt is required when using %q subkind", types.SubKindJWTAppAuthConfig)
+		return trace.BadParameter("spec.jwt is required")
 	case s.Audience == "":
 		return trace.BadParameter("spec.jwt.audience cannot be empty")
 	case s.Issuer == "":
