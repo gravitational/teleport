@@ -71,10 +71,11 @@ struct ContentView: View {
             return
           }
           findAttempt = .loading
+          
           Task {
-            let finder = PingFinder()!
+            let ping = PingFindActor()
             do {
-              let response = try finder.find(clusterAddress)
+              let response = try await ping.find(proxyServer: clusterAddress)
               findAttempt = .success(response)
             } catch {
               findAttempt = .failure(.unknownError(error))
@@ -82,6 +83,22 @@ struct ContentView: View {
           }
         }
     }
+  }
+}
+
+actor PingFindActor {
+  private let queue = DispatchSerialQueue(
+    label: Bundle.main.bundleIdentifier! + ".PingFind",
+    qos: .userInitiated
+  )
+
+  nonisolated var unownedExecutor: UnownedSerialExecutor {
+    queue.asUnownedSerialExecutor()
+  }
+
+  func find(proxyServer: String) throws -> PingFindResponse {
+    let finder = PingFinder()!
+    return try finder.find(proxyServer)
   }
 }
 
