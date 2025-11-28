@@ -84,7 +84,7 @@ func databaseUserToGCPServiceAccount(database types.Database, dbUser string) str
 }
 
 type gcpClients interface {
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	GetSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 }
 
 type gcpAuth struct {
@@ -102,7 +102,7 @@ type gcpAuth struct {
 }
 
 func (a *gcpAuth) getGCPUserAndPassword(ctx context.Context) (string, string, error) {
-	gcpClient, err := a.clients.GetGCPSQLAdminClient(ctx)
+	gcpClient, err := a.clients.GetSQLAdminClient(ctx)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -243,7 +243,7 @@ func (a *gcpAuth) makeAcquireSemaphoreConfig() services.AcquireSemaphoreWithRetr
 
 func (a *gcpAuth) checkSSLRequired(ctx context.Context) (bool, error) {
 	a.sometimes.Do(func() {
-		client, err := a.clients.GetGCPSQLAdminClient(ctx)
+		client, err := a.clients.GetSQLAdminClient(ctx)
 		if err != nil {
 			a.requireSSL = false
 			a.requireSSLErr = err
@@ -268,7 +268,7 @@ func checkGCPRequireSSL(ctx context.Context, database types.Database, client gcp
 }
 
 func (a *gcpAuth) appendGCPClientCert(ctx context.Context, certExpiry time.Time, tlsConfig *tls.Config) error {
-	gcpClient, err := a.clients.GetGCPSQLAdminClient(ctx)
+	gcpClient, err := a.clients.GetSQLAdminClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

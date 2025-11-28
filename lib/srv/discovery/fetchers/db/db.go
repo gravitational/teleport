@@ -28,15 +28,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
-	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -197,7 +197,7 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 }
 
 // MakeAzureFetchers creates new Azure database fetchers.
-func MakeAzureFetchers(ctx context.Context, getAzureClients func(ctx context.Context, integration string) (cloud.AzureClients, error), matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
+func MakeAzureFetchers(ctx context.Context, getAzureClients func(ctx context.Context, integration string) (azure.Clients, error), matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
 	for _, matcher := range services.SimplifyAzureMatchers(matchers) {
 		azureClients, err := getAzureClients(ctx, matcher.Integration)
 		if err != nil {
