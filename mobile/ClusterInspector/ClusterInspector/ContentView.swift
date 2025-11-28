@@ -21,7 +21,7 @@
 //  Created by Rafał Cieślak on 2025-11-28.
 //
 
-import Ping
+@preconcurrency import Ping
 import SwiftUI
 
 struct ContentView: View {
