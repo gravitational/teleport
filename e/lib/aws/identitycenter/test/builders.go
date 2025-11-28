@@ -73,7 +73,9 @@ func (a Account) Build() *identitycenterv1.Account {
 			Name:        string(a.ID),
 			Description: a.Name,
 			Labels: map[string]string{
-				common.OriginLabel: common.OriginAWSIdentityCenter,
+				common.OriginLabel:          common.OriginAWSIdentityCenter,
+				types.AWSAccountIDLabel:     string(a.ID),
+				"teleport.dev/account-name": a.Name,
 			},
 		},
 		Spec: &identitycenterv1.AccountSpec{
@@ -165,7 +167,9 @@ func (a AccountAssignment) Build() *identitycenterv1.AccountAssignment {
 		Metadata: &headerv1.Metadata{
 			Name: a.ID,
 			Labels: map[string]string{
-				types.OriginLabel: common.OriginAWSIdentityCenter,
+				types.OriginLabel:           common.OriginAWSIdentityCenter,
+				types.AWSAccountIDLabel:     string(a.AccountID),
+				"teleport.dev/account-name": a.AccountName,
 			},
 		},
 		Spec: &identitycenterv1.AccountAssignmentSpec{

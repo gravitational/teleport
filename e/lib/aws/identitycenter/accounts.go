@@ -98,7 +98,9 @@ func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, 
 			Name:        string(id),
 			Description: name,
 			Labels: map[string]string{
-				types.OriginLabel: common.OriginAWSIdentityCenter,
+				types.OriginLabel:           common.OriginAWSIdentityCenter,
+				types.AWSAccountIDLabel:     string(id),
+				"teleport.dev/account-name": name,
 			},
 		},
 		Spec: &identitycenterv1.AccountSpec{
