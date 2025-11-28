@@ -25,9 +25,9 @@ import SwiftUI
 
 @main
 struct ClusterInspectorApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
+  var body: some Scene {
+    WindowGroup {
+      ContentView()
     }
+  }
 }
