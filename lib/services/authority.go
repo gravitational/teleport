@@ -28,7 +28,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -217,9 +216,8 @@ func checkJWTKeys(cai types.CertAuthority) error {
 			return trace.Wrap(err)
 		}
 		cfg := &jwt.Config{
-			ClusterName: ca.GetClusterName(),
-			PrivateKey:  privateKey,
-			PublicKey:   publicKey,
+			PrivateKey: privateKey,
+			PublicKey:  publicKey,
 		}
 		if _, err = jwt.New(cfg); err != nil {
 			return trace.Wrap(err)
@@ -258,16 +256,6 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 		}
 	}
 	return nil
-}
-
-// GetJWTSigner returns the active JWT key used to sign tokens.
-func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
-	key, err := jwt.New(&jwt.Config{
-		Clock:       clock,
-		ClusterName: clusterName,
-		PrivateKey:  signer,
-	})
-	return key, trace.Wrap(err)
 }
 
 // GetTLSCerts returns TLS certificates from CA

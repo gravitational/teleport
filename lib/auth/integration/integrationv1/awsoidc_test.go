@@ -118,9 +118,8 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 
 	// Validate JWT against public key
 	key, err := jwt.New(&jwt.Config{
-		ClusterName: clusterName,
-		Clock:       resourceSvc.clock,
-		PublicKey:   publicKey,
+		Clock:     resourceSvc.clock,
+		PublicKey: publicKey,
 	})
 	require.NoError(t, err)
 

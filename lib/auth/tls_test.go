@@ -3078,7 +3078,10 @@ func TestGenerateAppToken(t *testing.T) {
 
 	signer, err := testSrv.AuthServer.AuthServer.GetKeyStore().GetJWTSigner(ctx, ca)
 	require.NoError(t, err)
-	key, err := services.GetJWTSigner(signer, ca.GetClusterName(), clock)
+	key, err := jwt.New(&jwt.Config{
+		Clock:      clock,
+		PrivateKey: signer,
+	})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -3121,10 +3124,10 @@ func TestGenerateAppToken(t *testing.T) {
 			})
 		require.Equal(t, err != nil, ts.outError, ts.inComment)
 		if !ts.outError {
-			claims, err := key.Verify(jwt.VerifyParams{
-				Username: "foo@example.com",
-				RawToken: token,
-				URI:      "https://localhost:8080",
+			claims, err := key.Verify(token, jwt.VerifyParams{
+				Subject:  "foo@example.com",
+				Issuer:   ca.GetClusterName(),
+				Audience: []string{"https://localhost:8080"},
 			})
 			require.NoError(t, err, ts.inComment)
 			require.Equal(t, "foo@example.com", claims.Username, ts.inComment)
@@ -5574,18 +5577,17 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 		}
 
 		key, err := jwt.New(&jwt.Config{
-			Clock:       clock,
-			PublicKey:   publicKey,
-			ClusterName: clusterName,
+			Clock:     clock,
+			PublicKey: publicKey,
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
 		}
-		claims, err := key.Verify(jwt.VerifyParams{
-			RawToken: token,
-			Username: "foo",
-			URI:      "https://localhost:8080",
+		claims, err := key.Verify(token, jwt.VerifyParams{
+			Issuer:   clusterName,
+			Subject:  "foo",
+			Audience: []string{"https://localhost:8080"},
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -5607,9 +5609,8 @@ func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.
 		}
 
 		key, err := jwt.New(&jwt.Config{
-			Clock:       clock,
-			PublicKey:   publicKey,
-			ClusterName: clusterName,
+			Clock:     clock,
+			PublicKey: publicKey,
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))

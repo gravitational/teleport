@@ -100,9 +100,8 @@ func TestGenerateAzureOIDCToken(t *testing.T) {
 		publicKey, err := keys.ParsePublicKey(jwtPubKey)
 		require.NoError(t, err)
 		key, err := jwt.New(&jwt.Config{
-			ClusterName: clusterName,
-			Clock:       resourceSvc.clock,
-			PublicKey:   publicKey,
+			Clock:     resourceSvc.clock,
+			PublicKey: publicKey,
 		})
 		require.NoError(t, err)
 

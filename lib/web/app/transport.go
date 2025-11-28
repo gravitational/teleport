@@ -289,9 +289,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	clientJWTKey, err := jwt.New(&jwt.Config{
 		Clock:     t.c.clock,
 		PublicKey: r.TLS.PeerCertificates[0].PublicKey,
-		// TODO(gabrielcorado): use the cluster name. This value must match the
-		// one used by the proxy.
-		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -305,9 +302,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	wsJWTKey, err := jwt.New(&jwt.Config{
 		Clock:      t.c.clock,
 		PrivateKey: wsPrivateKey,
-		// TODO(gabrielcorado): use the cluster name. This value must match the
-		// one used by the proxy.
-		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)

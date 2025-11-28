@@ -599,7 +599,9 @@ func TestGCPKMSKeystore(t *testing.T) {
 				jwtSigner, err := manager.GetJWTSigner(clientContext, ca)
 				require.NoError(t, err, "unexpected error getting JWT signer")
 
-				servicesJWTSigner, err := services.GetJWTSigner(jwtSigner, "test-cluster", nil)
+				servicesJWTSigner, err := jwt.New(&jwt.Config{
+					PrivateKey: jwtSigner,
+				})
 				require.NoError(t, err, "unexpected error from services.GetJWTSigner")
 
 				if tc.doDeleteKey {
@@ -608,9 +610,10 @@ func TestGCPKMSKeystore(t *testing.T) {
 				}
 
 				_, err = servicesJWTSigner.Sign(jwt.SignParams{
+					Issuer:   "test-cluster",
 					Username: "root",
 					Roles:    []string{"access"},
-					URI:      "example.com",
+					Audience: "example.com",
 					Expires:  time.Now().Add(time.Hour),
 				})
 				if tc.expectSignError {
