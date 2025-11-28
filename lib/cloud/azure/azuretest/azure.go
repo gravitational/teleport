@@ -41,94 +41,82 @@ type Clients struct {
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
 	AzureRunCommand         azure.RunCommandClient
-	AzureRoleDefinitions    azure.RoleDefinitionsClient
-	AzureRoleAssignments    azure.RoleAssignmentsClient
 }
 
 var _ azure.Clients = (*Clients)(nil)
 
-// GetAzureCredential returns default Azure token credential chain.
-func (c *Clients) GetAzureCredential(ctx context.Context) (azcore.TokenCredential, error) {
+// GetCredential returns default Azure token credential chain.
+func (c *Clients) GetCredential(ctx context.Context) (azcore.TokenCredential, error) {
 	return &azidentity.ChainedTokenCredential{}, nil
 }
 
-// GetAzureMySQLClient returns an AzureMySQLClient for the specified subscription
-func (c *Clients) GetAzureMySQLClient(ctx context.Context, subscription string) (azure.DBServersClient, error) {
+// GetMySQLClient returns an AzureMySQLClient for the specified subscription
+func (c *Clients) GetMySQLClient(ctx context.Context, subscription string) (azure.DBServersClient, error) {
 	if len(c.AzureMySQLPerSub) != 0 {
 		return c.AzureMySQLPerSub[subscription], nil
 	}
 	return c.AzureMySQL, nil
 }
 
-// GetAzurePostgresClient returns an AzurePostgresClient for the specified subscription
-func (c *Clients) GetAzurePostgresClient(ctx context.Context, subscription string) (azure.DBServersClient, error) {
+// GetPostgresClient returns an AzurePostgresClient for the specified subscription
+func (c *Clients) GetPostgresClient(ctx context.Context, subscription string) (azure.DBServersClient, error) {
 	if len(c.AzurePostgresPerSub) != 0 {
 		return c.AzurePostgresPerSub[subscription], nil
 	}
 	return c.AzurePostgres, nil
 }
 
-// GetAzureKubernetesClient returns an AKS client for the specified subscription
-func (c *Clients) GetAzureKubernetesClient(ctx context.Context, subscription string) (azure.AKSClient, error) {
+// GetKubernetesClient returns an AKS client for the specified subscription
+func (c *Clients) GetKubernetesClient(ctx context.Context, subscription string) (azure.AKSClient, error) {
 	if len(c.AzureAKSClientPerSub) != 0 {
 		return c.AzureAKSClientPerSub[subscription], nil
 	}
 	return c.AzureAKSClient, nil
 }
 
-// GetAzureSubscriptionClient returns an Azure SubscriptionClient
-func (c *Clients) GetAzureSubscriptionClient(ctx context.Context) (*azure.SubscriptionClient, error) {
+// GetSubscriptionClient returns an Azure SubscriptionClient
+func (c *Clients) GetSubscriptionClient(ctx context.Context) (*azure.SubscriptionClient, error) {
 	return c.AzureSubscriptionClient, nil
 }
 
-// GetAzureRedisClient returns an Azure Redis client for the given subscription.
-func (c *Clients) GetAzureRedisClient(ctx context.Context, subscription string) (azure.RedisClient, error) {
+// GetRedisClient returns an Azure Redis client for the given subscription.
+func (c *Clients) GetRedisClient(ctx context.Context, subscription string) (azure.RedisClient, error) {
 	return c.AzureRedis, nil
 }
 
-// GetAzureRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
-func (c *Clients) GetAzureRedisEnterpriseClient(ctx context.Context, subscription string) (azure.RedisEnterpriseClient, error) {
+// GetRedisEnterpriseClient returns an Azure Redis Enterprise client for the given subscription.
+func (c *Clients) GetRedisEnterpriseClient(ctx context.Context, subscription string) (azure.RedisEnterpriseClient, error) {
 	return c.AzureRedisEnterprise, nil
 }
 
-// GetAzureVirtualMachinesClient returns an Azure Virtual Machines client for
+// GetVirtualMachinesClient returns an Azure Virtual Machines client for
 // the given subscription.
-func (c *Clients) GetAzureVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
+func (c *Clients) GetVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
 	return c.AzureVirtualMachines, nil
 }
 
-// GetAzureSQLServerClient returns an Azure client for listing SQL servers.
-func (c *Clients) GetAzureSQLServerClient(ctx context.Context, subscription string) (azure.SQLServerClient, error) {
+// GetSQLServerClient returns an Azure client for listing SQL servers.
+func (c *Clients) GetSQLServerClient(ctx context.Context, subscription string) (azure.SQLServerClient, error) {
 	return c.AzureSQLServer, nil
 }
 
-// GetAzureManagedSQLServerClient returns an Azure client for listing managed
+// GetManagedSQLServerClient returns an Azure client for listing managed
 // SQL servers.
-func (c *Clients) GetAzureManagedSQLServerClient(ctx context.Context, subscription string) (azure.ManagedSQLServerClient, error) {
+func (c *Clients) GetManagedSQLServerClient(ctx context.Context, subscription string) (azure.ManagedSQLServerClient, error) {
 	return c.AzureManagedSQLServer, nil
 }
 
-// GetAzureMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
-func (c *Clients) GetAzureMySQLFlexServersClient(ctx context.Context, subscription string) (azure.MySQLFlexServersClient, error) {
+// GetMySQLFlexServersClient returns an Azure MySQL Flexible server client for listing MySQL Flexible servers.
+func (c *Clients) GetMySQLFlexServersClient(ctx context.Context, subscription string) (azure.MySQLFlexServersClient, error) {
 	return c.AzureMySQLFlex, nil
 }
 
-// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
-func (c *Clients) GetAzurePostgresFlexServersClient(ctx context.Context, subscription string) (azure.PostgresFlexServersClient, error) {
+// GetPostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
+func (c *Clients) GetPostgresFlexServersClient(ctx context.Context, subscription string) (azure.PostgresFlexServersClient, error) {
 	return c.AzurePostgresFlex, nil
 }
 
-// GetAzureRunCommandClient returns an Azure Run Command client for the given subscription.
-func (c *Clients) GetAzureRunCommandClient(ctx context.Context, subscription string) (azure.RunCommandClient, error) {
+// GetRunCommandClient returns an Azure Run Command client for the given subscription.
+func (c *Clients) GetRunCommandClient(ctx context.Context, subscription string) (azure.RunCommandClient, error) {
 	return c.AzureRunCommand, nil
-}
-
-// GetAzureRoleDefinitionsClient returns an Azure Role Definitions client for the given subscription.
-func (c *Clients) GetAzureRoleDefinitionsClient(ctx context.Context, subscription string) (azure.RoleDefinitionsClient, error) {
-	return c.AzureRoleDefinitions, nil
-}
-
-// GetAzureRoleAssignmentsClient returns an Azure Role Assignments client for the given subscription.
-func (c *Clients) GetAzureRoleAssignmentsClient(ctx context.Context, subscription string) (azure.RoleAssignmentsClient, error) {
-	return c.AzureRoleAssignments, nil
 }

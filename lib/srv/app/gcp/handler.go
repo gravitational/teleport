@@ -94,7 +94,7 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 	if s.cloudClientGCP == nil {
 		// TODO (Tener): clients should be closed when no longer in use.
 		clients := libgcp.NewClients()
-		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
+		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetIAMClient}
 	}
 	return nil
 }

@@ -109,7 +109,7 @@ func TestWithAzureIntegrationCredentials(t *testing.T) {
 			clients, err := NewClients(opt)
 			require.NoError(t, err)
 
-			credential, err := clients.GetAzureCredential(t.Context())
+			credential, err := clients.GetCredential(t.Context())
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)

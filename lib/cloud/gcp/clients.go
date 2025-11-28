@@ -29,18 +29,18 @@ import (
 
 // Clients is an interface for providing GCP API clients.
 type Clients interface {
-	// GetGCPIAMClient returns GCP IAM client.
-	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (SQLAdminClient, error)
-	// GetGCPAlloyDBClient returns GCP AlloyDB Admin client.
-	GetGCPAlloyDBClient(context.Context) (AlloyDBAdminClient, error)
-	// GetGCPGKEClient returns GKE client.
-	GetGCPGKEClient(context.Context) (GKEClient, error)
-	// GetGCPProjectsClient returns Projects client.
-	GetGCPProjectsClient(context.Context) (ProjectsClient, error)
-	// GetGCPInstancesClient returns instances client.
-	GetGCPInstancesClient(context.Context) (InstancesClient, error)
+	// GetIAMClient returns GCP IAM client.
+	GetIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
+	// GetSQLAdminClient returns GCP Cloud SQL Admin client.
+	GetSQLAdminClient(context.Context) (SQLAdminClient, error)
+	// GetAlloyDBClient returns GCP AlloyDB Admin client.
+	GetAlloyDBClient(context.Context) (AlloyDBAdminClient, error)
+	// GetGKEClient returns GKE client.
+	GetGKEClient(context.Context) (GKEClient, error)
+	// GetProjectsClient returns Projects client.
+	GetProjectsClient(context.Context) (ProjectsClient, error)
+	// GetInstancesClient returns instances client.
+	GetInstancesClient(context.Context) (InstancesClient, error)
 
 	io.Closer
 }
@@ -75,39 +75,39 @@ type clients struct {
 	instances *clientCache[InstancesClient]
 }
 
-// GetGCPIAMClient returns GCP IAM client.
-func (c *clients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
+// GetIAMClient returns GCP IAM client.
+func (c *clients) GetIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.RLock()
 	if c.iam != nil {
 		defer c.mtx.RUnlock()
 		return c.iam, nil
 	}
 	c.mtx.RUnlock()
-	return c.initGCPIAMClient(ctx)
+	return c.initIAMClient(ctx)
 }
 
-// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-func (c *clients) GetGCPSQLAdminClient(ctx context.Context) (SQLAdminClient, error) {
+// GetSQLAdminClient returns GCP Cloud SQL Admin client.
+func (c *clients) GetSQLAdminClient(ctx context.Context) (SQLAdminClient, error) {
 	return c.sqlAdmin.GetClient(ctx)
 }
 
-// GetGCPAlloyDBClient returns GCP AlloyDB Admin client.
-func (c *clients) GetGCPAlloyDBClient(ctx context.Context) (AlloyDBAdminClient, error) {
+// GetAlloyDBClient returns GCP AlloyDB Admin client.
+func (c *clients) GetAlloyDBClient(ctx context.Context) (AlloyDBAdminClient, error) {
 	return c.alloyDBAdmin.GetClient(ctx)
 }
 
-// GetGCPGKEClient returns GKE client.
-func (c *clients) GetGCPGKEClient(ctx context.Context) (GKEClient, error) {
+// GetGKEClient returns GKE client.
+func (c *clients) GetGKEClient(ctx context.Context) (GKEClient, error) {
 	return c.gke.GetClient(ctx)
 }
 
-// GetGCPProjectsClient returns Project client.
-func (c *clients) GetGCPProjectsClient(ctx context.Context) (ProjectsClient, error) {
+// GetProjectsClient returns Project client.
+func (c *clients) GetProjectsClient(ctx context.Context) (ProjectsClient, error) {
 	return c.projects.GetClient(ctx)
 }
 
-// GetGCPInstancesClient returns instances client.
-func (c *clients) GetGCPInstancesClient(ctx context.Context) (InstancesClient, error) {
+// GetInstancesClient returns instances client.
+func (c *clients) GetInstancesClient(ctx context.Context) (InstancesClient, error) {
 	return c.instances.GetClient(ctx)
 }
 
@@ -122,7 +122,7 @@ func (c *clients) Close() (err error) {
 	return trace.Wrap(err)
 }
 
-func (c *clients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
+func (c *clients) initIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	if c.iam != nil { // If some other thread already got here first.

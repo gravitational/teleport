@@ -749,16 +749,16 @@ func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []t
 	})
 
 	if len(serverMatchers) == 0 {
-		// We have an early exit here because GetGCPInstancesClient returns an error
+		// We have an early exit here because GetInstancesClient returns an error
 		// when there are no credentials in the environment.
 		return nil, nil
 	}
 
-	client, err := s.gcpClients.GetGCPInstancesClient(ctx)
+	client, err := s.gcpClients.GetInstancesClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	projectsClient, err := s.gcpClients.GetGCPProjectsClient(ctx)
+	projectsClient, err := s.gcpClients.GetProjectsClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -899,7 +899,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 					if err != nil {
 						return trace.Wrap(err)
 					}
-					kubeClient, err := azureClients.GetAzureKubernetesClient(ctx, subscription)
+					kubeClient, err := azureClients.GetKubernetesClient(ctx, subscription)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -953,7 +953,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 
 // initGCPWatchers starts GCP resource watchers based on types provided.
 func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatcher, discoveryConfigName string) error {
-	// return early if there are no matchers as GetGCPGKEClient causes
+	// return early if there are no matchers as GetGKEClient causes
 	// an error if there are no credentials present
 
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
@@ -971,11 +971,11 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		return nil
 	}
 
-	kubeClient, err := s.gcpClients.GetGCPGKEClient(ctx)
+	kubeClient, err := s.gcpClients.GetGKEClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	projectClient, err := s.gcpClients.GetGCPProjectsClient(ctx)
+	projectClient, err := s.gcpClients.GetProjectsClient(ctx)
 	if err != nil {
 		return trace.Wrap(err, "unable to create gcp project client")
 	}
@@ -1411,7 +1411,7 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		return trace.Wrap(err)
 	}
 
-	runClient, err := azureClients.GetAzureRunCommandClient(s.ctx, instances.SubscriptionID)
+	runClient, err := azureClients.GetRunCommandClient(s.ctx, instances.SubscriptionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1500,7 +1500,7 @@ outer:
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
-	client, err := s.gcpClients.GetGCPInstancesClient(s.ctx)
+	client, err := s.gcpClients.GetInstancesClient(s.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2007,7 +2007,7 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, integration string, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		subsClient, err := azureClients.GetAzureSubscriptionClient(ctx)
+		subsClient, err := azureClients.GetSubscriptionClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

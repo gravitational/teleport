@@ -192,7 +192,7 @@ func (f *azureFetcher[DBType, ListClient]) getSubscriptions(ctx context.Context)
 	if f.cfg.Subscription != types.Wildcard {
 		return []string{f.cfg.Subscription}, nil
 	}
-	client, err := f.cfg.AzureClients.GetAzureSubscriptionClient(ctx)
+	client, err := f.cfg.AzureClients.GetSubscriptionClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

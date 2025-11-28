@@ -113,7 +113,7 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 			return nil, trace.Wrap(err)
 		}
 		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := c.gcpClients.GetGCPSQLAdminClient(ctx)
+		gcpClient, err := c.gcpClients.GetSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -142,7 +142,7 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		adminClient, err := c.gcpClients.GetGCPAlloyDBClient(ctx)
+		adminClient, err := c.gcpClients.GetAlloyDBClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

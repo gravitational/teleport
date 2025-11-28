@@ -40,7 +40,7 @@ type azurePostgresFlexServerFetcher struct{}
 
 // GetListClient returns a server-listing client for Azure PostgreSQL Flexible server.
 func (f *azurePostgresFlexServerFetcher) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.PostgresFlexServersClient, error) {
-	client, err := cfg.AzureClients.GetAzurePostgresFlexServersClient(ctx, subID)
+	client, err := cfg.AzureClients.GetPostgresFlexServersClient(ctx, subID)
 	return client, trace.Wrap(err)
 }
 

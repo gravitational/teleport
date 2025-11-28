@@ -39,7 +39,7 @@ func newAzureSQLServerFetcher(config azureFetcherConfig) (common.Fetcher, error)
 type azureSQLServerFetcher struct{}
 
 func (f *azureSQLServerFetcher) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.SQLServerClient, error) {
-	client, err := cfg.AzureClients.GetAzureSQLServerClient(ctx, subID)
+	client, err := cfg.AzureClients.GetSQLServerClient(ctx, subID)
 	return client, trace.Wrap(err)
 }
 

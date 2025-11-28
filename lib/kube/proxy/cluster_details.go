@@ -392,7 +392,7 @@ func getAzureCredentials(ctx context.Context, azureClients azure.Clients, cfg dy
 // azureRestConfigClient creates a dynamicCredsClient that returns credentials to a AKS cluster.
 func azureRestConfigClient(azureClients azure.Clients) dynamicCredsClient {
 	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
-		aksClient, err := azureClients.GetAzureKubernetesClient(ctx, cluster.GetAzureConfig().SubscriptionID)
+		aksClient, err := azureClients.GetKubernetesClient(ctx, cluster.GetAzureConfig().SubscriptionID)
 		if err != nil {
 			return nil, time.Time{}, trace.Wrap(err)
 		}
@@ -535,7 +535,7 @@ func getGCPCredentials(ctx context.Context, gcpClients gcp.Clients, cfg dynamicC
 // gcpRestConfigClient creates a dynamicCredsClient that returns credentials to a GKE cluster.
 func gcpRestConfigClient(gcpClients gcp.Clients) dynamicCredsClient {
 	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
-		gkeClient, err := gcpClients.GetGCPGKEClient(ctx)
+		gkeClient, err := gcpClients.GetGKEClient(ctx)
 		if err != nil {
 			return nil, time.Time{}, trace.Wrap(err)
 		}

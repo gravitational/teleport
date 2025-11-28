@@ -40,7 +40,7 @@ type azureMySQLFlexServerFetcher struct{}
 
 // GetListClient returns a server-listing client for Azure MySQL Flexible server.
 func (f *azureMySQLFlexServerFetcher) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.MySQLFlexServersClient, error) {
-	client, err := cfg.AzureClients.GetAzureMySQLFlexServersClient(ctx, subID)
+	client, err := cfg.AzureClients.GetMySQLFlexServersClient(ctx, subID)
 	return client, trace.Wrap(err)
 }
 

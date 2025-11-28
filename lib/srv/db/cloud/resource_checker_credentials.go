@@ -128,7 +128,7 @@ func (c *credentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS
 
 func (c *credentialsChecker) checkAzure(ctx context.Context, database types.Database) {
 	allSubIDs, err := utils.FnCacheGet(ctx, c.cache, types.CloudAzure, func(ctx context.Context) ([]string, error) {
-		client, err := c.azureClients.GetAzureSubscriptionClient(ctx)
+		client, err := c.azureClients.GetSubscriptionClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

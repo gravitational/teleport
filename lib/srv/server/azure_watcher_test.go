@@ -39,7 +39,7 @@ type mockClients struct {
 	vmClient azure.VirtualMachinesClient
 }
 
-func (c *mockClients) GetAzureVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
+func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
 	return c.vmClient, nil
 }
 

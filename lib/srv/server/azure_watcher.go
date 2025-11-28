@@ -173,7 +173,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := azureClients.GetAzureVirtualMachinesClient(ctx, f.Subscription)
+	client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

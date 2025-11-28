@@ -39,7 +39,7 @@ func newAzureRedisFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 type azureRedisPlugin struct{}
 
 func (p *azureRedisPlugin) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.RedisClient, error) {
-	client, err := cfg.AzureClients.GetAzureRedisClient(ctx, subID)
+	client, err := cfg.AzureClients.GetRedisClient(ctx, subID)
 	return client, trace.Wrap(err)
 }
 

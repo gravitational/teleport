@@ -45,10 +45,10 @@ type azureDBServerPlugin struct{}
 func (p *azureDBServerPlugin) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
 	switch cfg.Type {
 	case types.AzureMatcherMySQL:
-		client, err := cfg.AzureClients.GetAzureMySQLClient(ctx, subID)
+		client, err := cfg.AzureClients.GetMySQLClient(ctx, subID)
 		return client, trace.Wrap(err)
 	case types.AzureMatcherPostgres:
-		client, err := cfg.AzureClients.GetAzurePostgresClient(ctx, subID)
+		client, err := cfg.AzureClients.GetPostgresClient(ctx, subID)
 		return client, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown matcher type %q", cfg.Type)
