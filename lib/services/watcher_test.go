@@ -26,7 +26,6 @@ import (
 	"sort"
 	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 var _ types.Events = (*errorWatcher)(nil)
