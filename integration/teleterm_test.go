@@ -715,8 +715,8 @@ func testSettingSiteName(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	cluster, clusterClient, err = storage.ResolveCluster(cluster.URI)
 	require.NoError(t, err)
 	// These are empty because the user is not logged in, so there's no cert to retrieve the root cluster name.
-	require.Equal(t, "", clusterClient.SiteName)
-	require.Equal(t, "", cluster.Name)
+	require.Empty(t, clusterClient.SiteName)
+	require.Empty(t, cluster.Name)
 	// SiteName in the profile should still point to the leaf.
 	profile, err = clusterClient.GetProfile(tc.WebProxyAddr)
 	require.NoError(t, err)
