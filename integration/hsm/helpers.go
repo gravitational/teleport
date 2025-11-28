@@ -97,6 +97,15 @@ func (t *teleportService) waitForShutdown(ctx context.Context) error {
 	}
 }
 
+func (t *teleportService) cleanup() error {
+	if err := t.process.Close(); err != nil {
+		return trace.Wrap(err, "closing auth process")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return trace.Wrap(t.waitForShutdown(ctx), "waiting for auth process to shut down")
+}
+
 func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error {
 	t.log.DebugContext(ctx, "waiting for local additional keys")
 	authServer := t.process.GetAuthServer()
