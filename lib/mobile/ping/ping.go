@@ -59,11 +59,9 @@ func NewFinder() *Finder {
 	return &Finder{}
 }
 
-func (f *Finder) Find(proxyServer string) (*FindResponse, error) {
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+func (f *Finder) Find(ctx *Context, proxyServer string) (*FindResponse, error) {
 	grpcConn, err := proxyinsecureclient.NewConnection(
-		context.TODO(),
+		ctx.Context,
 		proxyinsecureclient.ConnectionConfig{
 			ProxyServer: proxyServer,
 			Clock:       clockwork.NewRealClock(),
@@ -75,7 +73,7 @@ func (f *Finder) Find(proxyServer string) (*FindResponse, error) {
 	}
 
 	pingClient := pingv1pb.NewPingServiceClient(grpcConn)
-	res, err := pingClient.Find(ctx, &pingv1pb.FindRequest{})
+	res, err := pingClient.Find(ctx.Context, &pingv1pb.FindRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,4 +96,21 @@ func (f *Finder) Find(proxyServer string) (*FindResponse, error) {
 		Edition:          res.Edition,
 		Fips:             res.Fips,
 	}, nil
+}
+
+type Context struct {
+	Context context.Context
+	cancel  context.CancelFunc
+}
+
+func NewContext() *Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Context{
+		Context: ctx,
+		cancel:  cancel,
+	}
+}
+
+func (c *Context) Cancel() {
+	c.cancel()
 }

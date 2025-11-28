@@ -28,6 +28,7 @@ struct ContentView: View {
   @State private var clusterAddress = ""
   @FocusState private var isFocused: Bool
   @State private var findAttempt: Attempt<PingFindResponse, FindError> = .idle
+  @State private var findTask: Task<Void, Never>?
 
   var body: some View {
     VStack(spacing: 16) {
@@ -58,6 +59,12 @@ struct ContentView: View {
       }
 
       Spacer()
+      if findAttempt.isLoading, findTask != nil, !findTask!.isCancelled {
+        Button("Cancel", role: .destructive) {
+          findTask?.cancel()
+          findAttempt = .idle
+        }.buttonStyle(.bordered)
+      }
       TextField("Cluster Address", text: $clusterAddress).autocorrectionDisabled(true)
         .keyboardType(.URL).textInputAutocapitalization(.never).focused($isFocused)
         .submitLabel(.send).textFieldStyle(.roundedBorder).padding(16)
@@ -66,19 +73,27 @@ struct ContentView: View {
           if findAttempt.didFinish {
             findAttempt = .idle
           }
-          // Don't interrupt if an attempt is in progress.
           if !findAttempt.isIdle {
-            return
+            findTask?.cancel()
           }
           findAttempt = .loading
-          
-          Task {
-            let ping = PingFindActor()
-            do {
-              let response = try await ping.find(proxyServer: clusterAddress)
-              findAttempt = .success(response)
-            } catch {
-              findAttempt = .failure(.unknownError(error))
+          let ctx = PingContext()!
+
+          findTask = Task {
+            defer { ctx.cancel() }
+            
+            await withTaskCancellationHandler {
+              let ping = PingFindActor()
+              do {
+                let response = try await ping.find(ctx, proxyServer: clusterAddress)
+                if Task.isCancelled { return }
+                findAttempt = .success(response)
+              } catch {
+                if Task.isCancelled { return }
+                findAttempt = .failure(.unknownError(error))
+              }
+            } onCancel: {
+              ctx.cancel()
             }
           }
         }
@@ -86,6 +101,9 @@ struct ContentView: View {
   }
 }
 
+// PingFindActor puts the blocking PingFinder.find on a separate queue,
+// unblocking the queue which handles UI updates.
+// https://stackoverflow.com/questions/72862670/integrate-a-blocking-function-into-swift-async
 actor PingFindActor {
   private let queue = DispatchSerialQueue(
     label: Bundle.main.bundleIdentifier! + ".PingFind",
@@ -96,9 +114,9 @@ actor PingFindActor {
     queue.asUnownedSerialExecutor()
   }
 
-  func find(proxyServer: String) throws -> PingFindResponse {
+  func find(_ ctx: PingContext, proxyServer: String) throws -> PingFindResponse {
     let finder = PingFinder()!
-    return try finder.find(proxyServer)
+    return try finder.find(ctx, proxyServer: proxyServer)
   }
 }
 
