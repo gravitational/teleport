@@ -41,6 +41,21 @@ Here are a few examples:
 | Teleport Cloud cluster        | `example.teleport.sh:443`           |
 | `teleport-cluster` Helm chart | `teleport.example.com:443`          |
 
+## `relayAddr`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`relayAddr` defines the optional address of the Teleport Relay
+Service tunnel endpoint that this agent should use.
+
+If set, the agent will open reverse tunnels to the specified Relay in addition
+to the tunnels to the control plane, for the protocols supported by the Relay.
+
+relayAddr is available starting from Teleport v18.5.0, taking effect for the
+Kubernetes service.
+
 ## `enterprise`
 
 | Type | Default |
