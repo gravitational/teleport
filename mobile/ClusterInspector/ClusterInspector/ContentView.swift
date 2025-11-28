@@ -27,35 +27,143 @@ import SwiftUI
 struct ContentView: View {
   @State private var clusterAddress = ""
   @FocusState private var isFocused: Bool
+  @State private var findAttempt: Attempt<PingFindResponse, FindError> = .idle
 
   var body: some View {
     VStack(spacing: 16) {
       VStack {
         Image("logo").resizable().aspectRatio(contentMode: .fit)
           .frame(height: 60)
-      }
-      Spacer()
+      }.padding(16)
 
+      switch findAttempt {
+      case .idle:
+        Spacer()
+        Text("Enter the cluster address to inspect its properties.").padding(hPadding)
+      case .loading:
+        Spacer()
+        Image(systemName: "progress.indicator").symbolEffect(
+          .variableColor.iterative,
+          options: .repeat(.continuous),
+          isActive: true
+        )
+      case let .success(response):
+        FindResponseView(response: response)
+      case let .failure(failure):
+        Spacer()
+        VStack {
+          Text("Could not inspect the cluster").font(.headline)
+          Text("There was an error: \(failure.localizedDescription)")
+        }.padding(hPadding)
+      }
+
+      Spacer()
       TextField("Cluster Address", text: $clusterAddress).autocorrectionDisabled(true)
         .keyboardType(.URL).textInputAutocapitalization(.never).focused($isFocused)
-        .submitLabel(.send).textFieldStyle(.roundedBorder)
+        .submitLabel(.send).textFieldStyle(.roundedBorder).padding(16)
         .modifier(ClearButton(text: $clusterAddress)).onSubmit {
+          // Retry an attempt on submit if previous one finished.
+          if findAttempt.didFinish {
+            findAttempt = .idle
+          }
+          // Don't interrupt if an attempt is in progress.
+          if !findAttempt.isIdle {
+            return
+          }
+          findAttempt = .loading
           Task {
             let finder = PingFinder()!
             do {
               let response = try finder.find(clusterAddress)
-              print(response)
+              findAttempt = .success(response)
             } catch {
-              print(error)
+              findAttempt = .failure(.unknownError(error))
             }
           }
         }
-    }.padding(16)
+    }
   }
 }
 
+let hPadding: CGFloat = 4
+
 #Preview {
   ContentView()
+}
+
+struct FindResponseView: View {
+  var response: PingFindResponse
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Cluster name: \(response.clusterName)")
+        Text("Server version: \(response.serverVersion)")
+        Text("Min client version: \(response.minClientVersion)")
+        Text(
+          "TLS routing: \(response.proxy?.tlsRoutingEnabled ?? false ? "enabled" : "not enabled")"
+        )
+        OptionalField(label: "Public address", value: response.proxy?.sshProxySettings?.publicAddr)
+        OptionalField(
+          label: "SSH public address",
+          value: response.proxy?.sshProxySettings?.sshPublicAddr
+        )
+        OptionalField(
+          label: "Tunnel public address",
+          value: response.proxy?.sshProxySettings?.tunnelPublicAddr
+        )
+        OptionalField(
+          label: "Web listen address",
+          value: response.proxy?.sshProxySettings?.webListenAddr
+        )
+        OptionalField(label: "Listen address", value: response.proxy?.sshProxySettings?.listenAddr)
+        OptionalField(
+          label: "Tunnel listen address",
+          value: response.proxy?.sshProxySettings?.tunnelListenAddr
+        )
+        Text("Edition: \(response.edition)")
+        Text("FIPS mode: \(response.fips ? "enabled" : "not enabled")")
+      }
+    }.padding(hPadding)
+  }
+}
+
+struct OptionalField: View {
+  var label: String
+  var value: String?
+
+  var body: some View {
+    if value != nil, !value!.isEmpty {
+      Text("\(label): \(value!)")
+    }
+  }
+}
+
+#Preview("FindResponseView") {
+  let response = PingFindResponse()
+  response.clusterName = "example.com"
+  response.serverVersion = "18.2.4"
+  return FindResponseView(response: response)
+}
+
+enum FindError: Error & Equatable, LocalizedError {
+  case unknownError(Error)
+
+  static func == (lhs: FindError, rhs: FindError) -> Bool {
+    if case let .unknownError(lhsError) = lhs,
+       case let .unknownError(rhsError) = rhs
+    {
+      return (lhsError as NSError) === (rhsError as NSError)
+    }
+    return false
+  }
+
+  var errorDescription: String? {
+    switch self {
+    case let .unknownError(error):
+      (error as NSError).localizedDescription
+    }
+  }
 }
 
 struct ClearButton: ViewModifier {
