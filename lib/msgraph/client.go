@@ -66,6 +66,8 @@ type AzureTokenProvider interface {
 }
 
 // Client interface exports methods supported by msgraph client.
+// Note: This interface currently only includes methods used in the Entra ID
+// integration.
 type ClientI interface {
 	GetApplication(ctx context.Context, applicationID string) (*Application, error)
 
@@ -205,6 +207,7 @@ type Client struct {
 }
 
 // NewClient returns a new client for the given config.
+//
 // DEPRECATED: Use NewClientI and update ClientI to export new methods.
 // TODO(sshah): Migrate all usage of NewClient to use NewClientI.
 func NewClient(cfg Config) (*Client, error) {
