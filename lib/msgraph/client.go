@@ -65,6 +65,56 @@ type AzureTokenProvider interface {
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
 }
 
+// Client interface exports methods supported by msgraph client.
+type ClientI interface {
+	GetApplication(ctx context.Context, applicationID string) (*Application, error)
+
+	IterateApplications(ctx context.Context, f func(*Application) bool, opts ...IterateOpt) error
+	IterateGroups(ctx context.Context, f func(*Group) bool, opts ...IterateOpt) error
+	IterateUsers(ctx context.Context, f func(*User) bool, opts ...IterateOpt) error
+	IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool, opts ...IterateOpt) error
+}
+
+// ClientProvider is a function to creates a new msgraph client.
+// Note that the ClientProvider is not thread-safe and
+// should be used only in integration tests.
+var ClientProvider = nativeClientProvider
+
+// NewClient returns a new client for the given config.
+// New usage of msgraph client should choose this over NewClient.
+func NewClientI(cfg Config) (ClientI, error) {
+	c, err := ClientProvider(cfg)
+	return c, trace.Wrap(err)
+}
+
+func nativeClientProvider(cfg Config) (ClientI, error) {
+	cfg.SetDefaults()
+	if err := cfg.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	base, err := url.Parse(cfg.GraphEndpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	m := newMetrics(cfg.MetricsRegistry)
+	// Gracefully handle not being given a metric registry
+	if err := m.register(cfg.MetricsRegistry); err != nil {
+		cfg.Logger.ErrorContext(context.Background(), "Failed to register metrics.", "error", err)
+	}
+
+	return &Client{
+		httpClient:    cfg.HTTPClient,
+		tokenProvider: cfg.TokenProvider,
+		clock:         cfg.Clock,
+		retryConfig:   *cfg.RetryConfig,
+		baseURL:       base.JoinPath(graphVersion),
+		pageSize:      cfg.PageSize,
+		logger:        cfg.Logger,
+		metrics:       m,
+	}, nil
+}
+
 func defaultHTTPClient() (*http.Client, error) {
 	transport, err := defaults.Transport()
 	if err != nil {
@@ -155,6 +205,8 @@ type Client struct {
 }
 
 // NewClient returns a new client for the given config.
+// DEPRECATED: Use NewClientI and update ClientI to export new methods.
+// TODO(sshah): Migrate all usage of NewClient to use NewClientI.
 func NewClient(cfg Config) (*Client, error) {
 	cfg.SetDefaults()
 	if err := cfg.Validate(); err != nil {
