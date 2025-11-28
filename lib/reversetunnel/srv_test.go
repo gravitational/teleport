@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -120,6 +121,35 @@ func TestServerKeyAuth(t *testing.T) {
 				utils.ExtIntCertType: utils.ExtIntCertTypeHost,
 				extCertRole:          string(types.RoleNode),
 				extAuthority:         "root",
+				extScope:             "",
+			},
+			wantErr: require.NoError,
+		},
+		{
+			desc: "scoped root host cert",
+			key: func() ssh.PublicKey {
+				rawCert, err := ta.GenerateHostCert(sshca.HostCertificateRequest{
+					CASigner:      hostCASigner,
+					PublicHostKey: newPubKey(t),
+					HostID:        "root-host-id",
+					NodeName:      con.User(),
+					Identity: sshca.Identity{
+						ClusterName: "root",
+						SystemRole:  types.RoleNode,
+						AgentScope:  "test-scope",
+					},
+				})
+				require.NoError(t, err)
+				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
+				require.NoError(t, err)
+				return key
+			}(),
+			wantExtensions: map[string]string{
+				extHost:              con.User(),
+				utils.ExtIntCertType: utils.ExtIntCertTypeHost,
+				extCertRole:          string(types.RoleNode),
+				extAuthority:         "root",
+				extScope:             "test-scope",
 			},
 			wantErr: require.NoError,
 		},
@@ -147,6 +177,36 @@ func TestServerKeyAuth(t *testing.T) {
 				utils.ExtIntCertType: utils.ExtIntCertTypeUser,
 				extCertRole:          "dev",
 				extAuthority:         "root",
+				extScope:             "",
+			},
+			wantErr: require.NoError,
+		},
+		{
+			desc: "scoped root user cert",
+			key: func() ssh.PublicKey {
+				rawCert, err := ta.GenerateUserCert(sshca.UserCertificateRequest{
+					CASigner:          userCASigner,
+					PublicUserKey:     newPubKey(t),
+					CertificateFormat: constants.CertificateFormatStandard,
+					TTL:               time.Minute,
+					Identity: sshca.Identity{
+						Username:   con.User(),
+						Principals: []string{con.User()},
+						Roles:      []string{"dev", "admin"},
+						ScopePin:   &scopesv1.Pin{Scope: "test"},
+					},
+				})
+				require.NoError(t, err)
+				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
+				require.NoError(t, err)
+				return key
+			}(),
+			wantExtensions: map[string]string{
+				extHost:              con.User(),
+				utils.ExtIntCertType: utils.ExtIntCertTypeUser,
+				extCertRole:          "scoped-identity@test",
+				extAuthority:         "root",
+				extScope:             "",
 			},
 			wantErr: require.NoError,
 		},
@@ -173,6 +233,7 @@ func TestServerKeyAuth(t *testing.T) {
 				utils.ExtIntCertType: utils.ExtIntCertTypeHost,
 				extCertRole:          string(types.RoleNode),
 				extAuthority:         "leaf",
+				extScope:             "",
 			},
 			wantErr: require.NoError,
 		},
