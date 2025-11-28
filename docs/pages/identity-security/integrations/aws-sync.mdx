@@ -164,9 +164,11 @@ to CloudWatch Logs.
 
 ![Show EKS Audit Settings](../../../img/access-graph/aws/eks-audit-settings.png)
 
-In your `discovery_config` resource, under the `access_graph.aws` section, add an `eks_audit_logs`
-section with tags to match AWS EKS cluster tags. Those clusters that match the tags will have
-the API server audit logs fetched from CloudWatch Logs and imported into Identity Activity Center.
+The default setup performed in step 4 matches all EKS clusters in the configured AWS regions. If
+you want to be more selective about which EKS cluster to fetch logs from, you can create a
+`discovery_config` resource with tags to match the tags on the EKS clusters. Those clusters that
+match the tags will have the API server audit logs fetched from CloudWatch Logs and imported into
+Identity Activity Center.
 
 - <Var name="resource-name" />: The name of the `discovery_config` resource.
 - <Var name="discovery-group" />: The `discovery_group` name matching the existing Discovery Service's `discovery_group` (as described in step 1).
@@ -189,6 +191,13 @@ spec:
             <Var name="tag-name" />: <Var name="tag-value" />
             ...
 ```
+
+1. Place this YAML configuration in a file <Var name="discovery_config.yaml" />
+1. Apply this configuration file to your cluster, assigning <Var name="teleport.example.com" />
+   to the domain name of your Teleport Proxy Service in your cluster:
+   ```code
+   $ tctl create --proxy=<Var name="teleport.example.com" /> -f <Var name="discovery_config.yaml" />
+   ```
 
 This will configure Teleport to fetch audit logs for EKS clusters in the specified regions where
 the EKS clusters match the specified tags. The last seven days of logs will be imported and then
