@@ -77,7 +77,7 @@ func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[
 		isLookingForEnd := params.end != "" && params.keyFunc != nil
 
 		for {
-			page, nextToken, err := Page(ctx, pageSize, pageToken, params.pageFunc)
+			page, nextToken, lastPageSize, err := Page(ctx, pageSize, pageToken, params.pageFunc)
 			if err != nil {
 				yield(*new(T), trace.Wrap(err))
 				return
@@ -97,6 +97,11 @@ func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[
 			if nextToken == "" {
 				return
 			}
+
+			// Note that the server may return a smaller page at its own discretion,
+			// we use the last successful requested page size here to allow the server
+			// to temporarily lower the size if needed.
+			pageSize = lastPageSize
 		}
 	}
 
@@ -170,8 +175,17 @@ func CollectWithFallback[T any](ctx context.Context,
 }
 
 // Page is a client side utility which implements auto page size adjustment.
-func Page[T any](ctx context.Context, pageSize int, pageToken string,
-	pageFunc func(context.Context, int, string) ([]T, string, error)) ([]T, string, error) {
+func Page[T any](
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+	pageFunc func(context.Context, int, string) ([]T, string, error),
+) (
+	_ []T,
+	nextPageToken string,
+	lastPageSize int,
+	_ error,
+) {
 	for {
 		page, nextToken, err := pageFunc(ctx, pageSize, pageToken)
 		if err != nil {
@@ -180,15 +194,15 @@ func Page[T any](ctx context.Context, pageSize int, pageToken string,
 				pageSize /= 2
 				// This is an extremely unlikely scenario, but better to cover it anyways.
 				if pageSize == 0 {
-					return nil, "", trace.Wrap(err, "resource is too large to retrieve, token: %q", pageToken)
+					return nil, "", 0, trace.Wrap(err, "resource is too large to retrieve, token: %q", pageToken)
 				}
 
 				continue
 			}
 
-			return nil, "", trace.Wrap(err)
+			return nil, "", pageSize, trace.Wrap(err)
 		}
 
-		return page, nextToken, nil
+		return page, nextToken, pageSize, nil
 	}
 }
