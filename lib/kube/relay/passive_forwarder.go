@@ -203,9 +203,11 @@ func (p *PassiveForwarder) Dispatch(serverName string, transcript *bytes.Buffer,
 		// so we shouldn't spawn additional goroutines
 		return true
 	}
-	p.wg.Go(func() {
+	p.wg.Add(1)
+	go func() {
+		p.wg.Done()
 		p.forward(sniPrefix, transcript, rawConn)
-	})
+	}()
 	p.mu.Unlock()
 
 	return true
@@ -359,7 +361,9 @@ func (p *PassiveForwarder) forward(sniPrefix string, transcript *bytes.Buffer, c
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	wg.Go(func() {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		defer log.Log(ctx, logutils.TraceLevel,
 			"Done copying data from client to agent",
 		)
@@ -381,9 +385,11 @@ func (p *PassiveForwarder) forward(sniPrefix string, transcript *bytes.Buffer, c
 			_ = agentConn.Close()
 			return
 		}
-	})
+	}()
 
-	wg.Go(func() {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		defer log.Log(ctx, logutils.TraceLevel,
 			"Done copying data from agent to client",
 		)
@@ -396,7 +402,7 @@ func (p *PassiveForwarder) forward(sniPrefix string, transcript *bytes.Buffer, c
 			_ = agentConn.Close()
 			return
 		}
-	})
+	}()
 }
 
 func traceIfOKNetworkError(err error, l slog.Level) slog.Level {
