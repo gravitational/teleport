@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package cloud
+package azure
 
 import (
 	"context"
@@ -103,13 +103,13 @@ func TestWithAzureIntegrationCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opt := WithAzureIntegrationCredentials(integrationName, &testAzureOIDCCredentials{
+			opt := WithIntegrationCredentials(integrationName, &testAzureOIDCCredentials{
 				integration: tt.integration,
 			})
-			clients, err := NewAzureClients(opt)
+			clients, err := NewClients(opt)
 			require.NoError(t, err)
 
-			credential, err := clients.GetAzureCredential()
+			credential, err := clients.GetCredential(t.Context())
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)

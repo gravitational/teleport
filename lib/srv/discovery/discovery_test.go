@@ -86,11 +86,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/cloud/cloudtest"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -1603,13 +1603,13 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			initAzureClients := func(opts ...cloud.AzureClientsOption) (cloud.AzureClients, error) {
-				return &cloudtest.AzureClients{
+			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
+				return &azuretest.Clients{
 					AzureAKSClient: newPopulatedAKSMock(),
 				}, nil
 			}
 
-			gcpClients := &cloudtest.GCPClients{
+			gcpClients := &gcptest.Clients{
 				GCPGKE:      newPopulatedGCPMock(),
 				GCPProjects: newPopulatedGCPProjectsMock(),
 			}
@@ -1749,7 +1749,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			// verify usage of integration credentials.
 			for _, matcher := range tc.azureMatchers {
 				require.NotNil(t, discServer.azureClientCache)
-				_, err = libutils.FnCacheGet(t.Context(), discServer.azureClientCache, matcher.Integration, func(ctx context.Context) (cloud.AzureClients, error) {
+				_, err = libutils.FnCacheGet(t.Context(), discServer.azureClientCache, matcher.Integration, func(ctx context.Context) (azure.Clients, error) {
 					return nil, trace.NotFound("cache key %q not found", matcher.Integration)
 				})
 				require.NoError(t, err)
@@ -2234,7 +2234,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 		return dc
 	}
 
-	azureClients := &cloudtest.AzureClients{
+	azureClients := &azuretest.Clients{
 		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
 			Servers: []*armredis.ResourceInfo{azRedisResource},
 		}),
@@ -2657,7 +2657,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						AWSConfigProvider: *fakeConfigProvider,
 						eksClusters:       []*ekstypes.Cluster{eksAWSResource},
 					},
-					initAzureClients: func(opts ...cloud.AzureClientsOption) (cloud.AzureClients, error) {
+					initAzureClients: func(opts ...azure.ClientsOption) (azure.Clients, error) {
 						return azureClients, nil
 					},
 					ClusterFeatures:           func() proto.Features { return proto.Features{} },
@@ -2741,7 +2741,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			// verify usage of integration credentials.
 			for _, matcher := range tc.azureMatchers {
 				require.NotNil(t, srv.azureClientCache)
-				_, err = libutils.FnCacheGet(t.Context(), srv.azureClientCache, matcher.Integration, func(ctx context.Context) (cloud.AzureClients, error) {
+				_, err = libutils.FnCacheGet(t.Context(), srv.azureClientCache, matcher.Integration, func(ctx context.Context) (azure.Clients, error) {
 					return nil, trace.NotFound("cache key %q not found", matcher.Integration)
 				})
 				require.NoError(t, err)
@@ -3174,8 +3174,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			initAzureClients := func(opts ...cloud.AzureClientsOption) (cloud.AzureClients, error) {
-				return &cloudtest.AzureClients{
+			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
+				return &azuretest.Clients{
 					AzureVirtualMachines: &mockAzureClient{
 						vms: foundAzureVMs(),
 					},
@@ -3257,7 +3257,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			// make sure azure client cache has expected entries
 			for _, integrationName := range tc.expectedIntegrationNames {
 				require.NotNil(t, server.azureClientCache)
-				_, err = libutils.FnCacheGet(t.Context(), server.azureClientCache, integrationName, func(ctx context.Context) (cloud.AzureClients, error) {
+				_, err = libutils.FnCacheGet(t.Context(), server.azureClientCache, integrationName, func(ctx context.Context) (azure.Clients, error) {
 					return nil, trace.NotFound("cache key %q not found", integrationName)
 				})
 				require.NoError(t, err)
@@ -3491,7 +3491,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			gcpClients := &cloudtest.GCPClients{
+			gcpClients := &gcptest.Clients{
 				GCPInstances: &mockGCPClient{
 					vms: tc.foundGCPVMs,
 				},
