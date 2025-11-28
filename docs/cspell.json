@@ -830,6 +830,7 @@
     "pgbouncer",
     "pgpass",
     "pguser",
+    "pipx",
     "pidof",
     "pkce",
     "pkill",
