@@ -2026,3 +2026,7 @@ gen-docs:
 .PHONY: mobile/Foobar/Foobar/gen/Authn.xcframework
 mobile/Foobar/Foobar/gen/Authn.xcframework:
 	gomobile bind -target=ios -o $@ github.com/gravitational/teleport/lib/mobile/devicetrust/authn
+
+.PHONY: mobile/ClusterInspector/ClusterInspector/gen/Ping.xcframework
+mobile/ClusterInspector/ClusterInspector/gen/Ping.xcframework:
+	gomobile bind -target=ios -o $@ github.com/gravitational/teleport/lib/mobile/ping

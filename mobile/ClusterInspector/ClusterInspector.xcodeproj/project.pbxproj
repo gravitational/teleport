@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		45F137F82ED9BC0600E3B347 /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 45F137F72ED9BBEB00E3B347 /* libresolv.9.tbd */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		45F137CF2ED9A57900E3B347 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		45F137C12ED9A57600E3B347 /* ClusterInspector.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClusterInspector.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		45F137CE2ED9A57900E3B347 /* ClusterInspectorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClusterInspectorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		45F137D82ED9A57900E3B347 /* ClusterInspectorUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClusterInspectorUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		45F137F72ED9BBEB00E3B347 /* libresolv.9.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.9.tbd; path = usr/lib/libresolv.9.tbd; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -52,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				45F137F82ED9BC0600E3B347 /* libresolv.9.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +84,7 @@
 				45F137C32ED9A57600E3B347 /* ClusterInspector */,
 				45F137D12ED9A57900E3B347 /* ClusterInspectorTests */,
 				45F137DB2ED9A57900E3B347 /* ClusterInspectorUITests */,
+				45F137F62ED9BBEB00E3B347 /* Frameworks */,
 				45F137C22ED9A57600E3B347 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +97,14 @@
 				45F137D82ED9A57900E3B347 /* ClusterInspectorUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		45F137F62ED9BBEB00E3B347 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				45F137F72ED9BBEB00E3B347 /* libresolv.9.tbd */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

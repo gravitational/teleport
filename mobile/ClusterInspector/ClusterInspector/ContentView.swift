@@ -21,20 +21,61 @@
 //  Created by Rafał Cieślak on 2025-11-28.
 //
 
+import Ping
 import SwiftUI
 
 struct ContentView: View {
+  @State private var clusterAddress = ""
+  @FocusState private var isFocused: Bool
+
   var body: some View {
-    VStack {
-      Image(systemName: "globe")
-        .imageScale(.large)
-        .foregroundStyle(.tint)
-      Text("Hello, world!")
-    }
-    .padding()
+    VStack(spacing: 16) {
+      VStack {
+        Image("logo").resizable().aspectRatio(contentMode: .fit)
+          .frame(height: 60)
+      }
+      Spacer()
+
+      TextField("Cluster Address", text: $clusterAddress).autocorrectionDisabled(true)
+        .keyboardType(.URL).textInputAutocapitalization(.never).focused($isFocused)
+        .submitLabel(.send).textFieldStyle(.roundedBorder)
+        .modifier(ClearButton(text: $clusterAddress)).onSubmit {
+          Task {
+            let finder = PingFinder()!
+            do {
+              let response = try finder.find(clusterAddress)
+              print(response)
+            } catch {
+              print(error)
+            }
+          }
+        }
+    }.padding(16)
   }
 }
 
 #Preview {
   ContentView()
+}
+
+struct ClearButton: ViewModifier {
+  @Binding var text: String
+
+  func body(content: Content) -> some View {
+    HStack {
+      content
+
+      if !text.isEmpty {
+        Button(action: {
+          text = ""
+        }) {
+          Image(systemName: "xmark.circle.fill")
+            .foregroundColor(Color(UIColor.opaqueSeparator))
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+      }
+    }
+  }
 }
