@@ -45,10 +45,11 @@ type ClientMock struct {
 	// MonkeyPatch allows tests to override the default behavior of a mock
 	// instance.
 	MonkeyPatch struct {
-		Users        func(context.Context) ([]*User, error)
-		Groups       func(context.Context) ([]*Group, error)
-		GroupMembers func(context.Context) ([]GroupMember, error)
-		Applications func(context.Context) ([]*Application, error)
+		IterateUsers        func(ctx context.Context, f func(u *User) bool, opts ...IterateOpt) error
+		IterateGroups       func(ctx context.Context, f func(*Group) bool, opts ...IterateOpt) error
+		IterateGroupMembers func(ctx context.Context, groupID string, f func(GroupMember) bool, opts ...IterateOpt) error
+		IterateApplications func(ctx context.Context, f func(*Application) bool, opts ...IterateOpt) error
+		GetApplication      func(ctx context.Context, applicationID string) (*Application, error)
 	}
 }
 
@@ -141,13 +142,26 @@ func NewMockedMSGraphState(options ...MockStateOption) MockedMSGraphStateType {
 
 // MockedMSGraphStateType is a struct that holds the mocked Entra ID state.
 type MockedMSGraphStateType struct {
-	Users        []*User
-	Groups       []*Group
+	// Entra ID users.
+	Users []*User
+	// Entra ID groups.
+	Groups []*Group
+	// Entra ID group members.
+	// Member can be of user or group type.
 	GroupMembers map[string][]GroupMember
+	// Entra ID enterprise applications.
 	Applications []*Application
 }
 
+// IterateUsers returns mocked users.
 func (c *ClientMock) IterateUsers(ctx context.Context, f func(*User) bool, opts ...IterateOpt) error {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.IterateUsers != nil {
+		return c.MonkeyPatch.IterateUsers(ctx, f)
+	}
+
 	for _, u := range c.Users {
 		if !f(u) {
 			return nil
@@ -156,7 +170,15 @@ func (c *ClientMock) IterateUsers(ctx context.Context, f func(*User) bool, opts 
 	return nil
 }
 
+// IterateGroups returns mocked groups.
 func (c *ClientMock) IterateGroups(ctx context.Context, f func(*Group) bool, opts ...IterateOpt) error {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.IterateGroups != nil {
+		return c.MonkeyPatch.IterateGroups(ctx, f)
+	}
+
 	for _, g := range c.Groups {
 		if !f(g) {
 			return nil
@@ -165,7 +187,15 @@ func (c *ClientMock) IterateGroups(ctx context.Context, f func(*Group) bool, opt
 	return nil
 }
 
+// IterateGroupMembers returns mocked group members.
 func (c *ClientMock) IterateGroupMembers(ctx context.Context, groupID string, f func(GroupMember) bool, opts ...IterateOpt) error {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.IterateGroupMembers != nil {
+		return c.MonkeyPatch.IterateGroupMembers(ctx, groupID, f)
+	}
+
 	for _, m := range c.GroupMembers[groupID] {
 		if !f(m) {
 			return nil
@@ -174,11 +204,32 @@ func (c *ClientMock) IterateGroupMembers(ctx context.Context, groupID string, f 
 	return nil
 }
 
+// IterateApplications returns mocked applications
 func (c *ClientMock) IterateApplications(ctx context.Context, f func(*Application) bool, opts ...IterateOpt) error {
-	return trace.NotImplemented("not implemented")
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.IterateApplications != nil {
+		return c.MonkeyPatch.IterateApplications(ctx, f)
+	}
+
+	for _, a := range c.Applications {
+		if !f(a) {
+			return nil
+		}
+	}
+	return nil
 }
 
+// GetApplication returns specific application.
 func (c *ClientMock) GetApplication(ctx context.Context, applicationID string) (*Application, error) {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.GetApplication != nil {
+		return c.MonkeyPatch.GetApplication(ctx, applicationID)
+	}
+
 	for _, app := range c.Applications {
 		if *app.AppID == applicationID {
 			return app, nil
