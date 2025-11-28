@@ -49,7 +49,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 		entraUser.SetRoles(roles)
 	}
 
-	teleportUsers, err := listTeleportUsers(ctx, r.userSvc)
+	teleportUsers, err := listTeleportUsers(ctx, r.userSvc, r.ssoConnectorID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,7 +92,8 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 		OnDelete: func(ctx context.Context, u types.User) error {
 			return trace.Wrap(r.userSvc.DeleteUser(ctx, u.GetName()))
 		},
-		Metrics: r.metrics.userReconcilerMetrics,
+		Metrics:            r.metrics.userReconcilerMetrics,
+		AllowOriginChanges: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -106,7 +107,7 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 	return usersByEntraID, nil
 }
 
-func listTeleportUsers(ctx context.Context, svc userAccessPoint) (map[string]types.User, error) {
+func listTeleportUsers(ctx context.Context, svc userAccessPoint, connectorID string) (map[string]types.User, error) {
 	result := map[string]types.User{}
 
 	var pageToken string
@@ -118,6 +119,21 @@ func listTeleportUsers(ctx context.Context, svc userAccessPoint) (map[string]typ
 
 		for _, user := range resp.Users {
 			if matchByLabel(user) {
+				result[user.GetName()] = user
+				continue
+			}
+
+			// Fallback to match by connector since it's possible for a
+			// user to log in to Teleport before their account is created by the
+			// plugin. In such a case, user account gets created by the SAML
+			// connector without the origin label assigned to the user resource.
+			// Note: All users created by the integration also have the "CreatedBy"
+			// field and will be matched with the [matchByConnector]. This arguably
+			// makes the origin checker redundant. But the origin checker gets
+			// precedence for now until its decided if we should consolidate to use
+			// connector matcher as default and the only supported matcher.
+			if matchByConnector(user.GetCreatedBy().Connector, connectorID) {
+				slog.InfoContext(ctx, "User account found to be created by the referenced connector, overwriting", "user", user.GetName())
 				result[user.GetName()] = user
 			}
 		}
@@ -302,4 +318,17 @@ func buildUserMemberships(groupsMap map[string]*msgraph.Group, groupMembersMap m
 		}
 	}
 	return result
+}
+
+// matchByConnector matches with the Auth Connector of the SAML type.
+// This should only be used as a fallback when user is not matched with
+// the origin label.
+func matchByConnector(ref *types.ConnectorRef, connectorID string) bool {
+	if ref == nil {
+		return false
+	}
+	return ref.IsSameProvider(&types.ConnectorRef{
+		Type: constants.SAML,
+		ID:   connectorID,
+	})
 }

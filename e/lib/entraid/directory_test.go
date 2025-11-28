@@ -12,6 +12,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -591,10 +592,10 @@ func Test_getGroupNameBuilderFunc(t *testing.T) {
 
 func TestUserSync(t *testing.T) {
 	ctx := t.Context()
-	graphClient := newFakeGraphClient()
-	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
 
 	t.Run("Create user succeeds", func(t *testing.T) {
+		graphClient := newFakeGraphClient()
+		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
 		graphClient.users = []*msgraph.User{
 			entraUser(t, "u1", "alice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
@@ -605,13 +606,15 @@ func TestUserSync(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, r.Reconcile(ctx))
 
-		users, err := listTeleportUsers(ctx, env.cfg.UserSvc)
+		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
 
 		require.Len(t, users, 2)
 	})
 
 	t.Run("User account skipped on sanitization error", func(t *testing.T) {
+		graphClient := newFakeGraphClient()
+		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
 		graphClient.users = []*msgraph.User{
 			entraUser(t, "u1", "al'ice@example.com"),
 			entraUser(t, "u2", "bob@example.com"),
@@ -640,7 +643,7 @@ func TestUserSync(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, r.Reconcile(ctx))
 
-		users, err := listTeleportUsers(ctx, env.cfg.UserSvc)
+		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
 		require.Len(t, users, 2)
 
@@ -653,6 +656,165 @@ func TestUserSync(t *testing.T) {
 		requireMemberExists(t, env.aclSvc, al1, "carol@example.com")
 		requireMemberExists(t, env.aclSvc, al2, "bob@example.com")
 		requireMemberExists(t, env.aclSvc, al2, "carol@example.com")
+	})
+
+	t.Run("Entra ID user conflicting with existing local user account is skipped", func(t *testing.T) {
+		graphClient := newFakeGraphClient()
+		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+
+		// create bob as local user
+		bobTeleport, err := types.NewUser("bob@example.com")
+		require.NoError(t, err)
+		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
+		require.NoError(t, err)
+		graphClient.users = []*msgraph.User{
+			entraUser(t, "u1", "alice@example.com"),
+			entraUser(t, "u2", "bob@example.com"),
+			entraUser(t, "u3", "carol@example.com"),
+		}
+
+		g1 := entraGroup(t, "g1", "apple")
+		g2 := entraGroup(t, "g2", "banana")
+		graphClient.groups = []*msgraph.Group{g1, g2}
+		graphClient.groupMembers = map[string][]msgraph.GroupMember{
+			"g1": {
+				entraUser(t, "u1", "alice@example.com"),
+				entraUser(t, "u2", "bob@example.com"),
+				entraUser(t, "u3", "carol@example.com"),
+			},
+			"g2": {
+				entraUser(t, "u2", "bob@example.com"),
+				entraUser(t, "u3", "carol@example.com"),
+			},
+		}
+		env.cfg.GraphClient = graphClient
+
+		r, err := NewDirectoryReconciler(env.cfg)
+		require.NoError(t, err)
+		require.NoError(t, r.Reconcile(ctx))
+
+		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+		require.Len(t, users, 2)
+
+		requireAccessListCount(t, env.aclSvc, 2)
+		al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+		al2 := requireAccessListForEntraGroupExists(t, env.aclSvc, g2)
+
+		requireMemberExists(t, env.aclSvc, al1, "alice@example.com")
+		requireMemberExists(t, env.aclSvc, al1, "carol@example.com")
+		requireMemberExists(t, env.aclSvc, al2, "carol@example.com")
+
+		requireMemberDoesNotExists(t, env.aclSvc, al1, "bob@example.com")
+		requireMemberDoesNotExists(t, env.aclSvc, al2, "bob@example.com")
+	})
+
+	t.Run("SAML user skipped if its not created by the plugin or by the referenced connector", func(t *testing.T) {
+		graphClient := newFakeGraphClient()
+		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+
+		// create bob with different connector
+		bobTeleport, err := types.NewUser("bob@example.com")
+		require.NoError(t, err)
+		bobTeleport.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				Type: constants.SAML,
+				ID:   "abc-ref",
+			},
+		})
+		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
+		require.NoError(t, err)
+		graphClient.users = []*msgraph.User{
+			entraUser(t, "u1", "alice@example.com"),
+			entraUser(t, "u2", "bob@example.com"),
+			entraUser(t, "u3", "carol@example.com"),
+		}
+
+		g1 := entraGroup(t, "g1", "apple")
+		g2 := entraGroup(t, "g2", "banana")
+		graphClient.groups = []*msgraph.Group{g1, g2}
+		graphClient.groupMembers = map[string][]msgraph.GroupMember{
+			"g1": {
+				entraUser(t, "u1", "alice@example.com"),
+				entraUser(t, "u2", "bob@example.com"),
+				entraUser(t, "u3", "carol@example.com"),
+			},
+			"g2": {
+				entraUser(t, "u2", "bob@example.com"),
+				entraUser(t, "u3", "carol@example.com"),
+			},
+		}
+		env.cfg.GraphClient = graphClient
+
+		r, err := NewDirectoryReconciler(env.cfg)
+		require.NoError(t, err)
+		require.NoError(t, r.Reconcile(ctx))
+
+		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+		require.Len(t, users, 2)
+
+		requireAccessListCount(t, env.aclSvc, 2)
+		al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+		al2 := requireAccessListForEntraGroupExists(t, env.aclSvc, g2)
+
+		requireMemberExists(t, env.aclSvc, al1, "alice@example.com")
+		requireMemberExists(t, env.aclSvc, al1, "carol@example.com")
+		requireMemberExists(t, env.aclSvc, al2, "carol@example.com")
+
+		requireMemberDoesNotExists(t, env.aclSvc, al1, "bob@example.com")
+		requireMemberDoesNotExists(t, env.aclSvc, al2, "bob@example.com")
+	})
+
+	t.Run("User account overwritten if it was created by the referenced connector", func(t *testing.T) {
+		graphClient := newFakeGraphClient()
+		env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+		bobTeleport, err := types.NewUser("bob@example.com")
+		require.NoError(t, err)
+		bobTeleport.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				Type: constants.SAML,
+				ID:   ssoConnectorID,
+			},
+		})
+		_, err = env.cfg.UserSvc.CreateUser(ctx, bobTeleport)
+		require.NoError(t, err)
+		graphClient.users = []*msgraph.User{
+			entraUser(t, "u1", "alice@example.com"),
+			entraUser(t, "u2", "bob@example.com"),
+		}
+		g1 := entraGroup(t, "g1", "apple")
+		g2 := entraGroup(t, "g2", "banana")
+		graphClient.groups = []*msgraph.Group{g1, g2}
+		graphClient.groupMembers = map[string][]msgraph.GroupMember{
+			"g1": {
+				entraUser(t, "u1", "alice@example.com"),
+				entraUser(t, "u2", "bob@example.com"),
+			},
+			"g2": {
+				entraUser(t, "u1", "alice@example.com"),
+				entraUser(t, "u2", "bob@example.com"),
+			},
+		}
+		env.cfg.GraphClient = graphClient
+
+		r, err := NewDirectoryReconciler(env.cfg)
+		require.NoError(t, err)
+		require.NoError(t, r.Reconcile(ctx))
+
+		users, err := listTeleportUsers(ctx, env.cfg.UserSvc, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+
+		require.Len(t, users, 2)
+		require.Equal(t, types.OriginEntraID, users["bob@example.com"].Origin())
+		requireAccessListCount(t, env.aclSvc, 2)
+		al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+		al2 := requireAccessListForEntraGroupExists(t, env.aclSvc, g2)
+
+		requireMemberExists(t, env.aclSvc, al1, "alice@example.com")
+		requireMemberExists(t, env.aclSvc, al1, "bob@example.com")
+		requireMemberExists(t, env.aclSvc, al2, "alice@example.com")
+		requireMemberExists(t, env.aclSvc, al2, "bob@example.com")
 	})
 }
 
@@ -1037,6 +1199,8 @@ type directoryReconcilerEnv struct {
 	aclSvc      *local.AccessListService
 }
 
+const ssoConnectorID = "my-sso-connector"
+
 func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, connector types.SAMLConnector) directoryReconcilerEnv {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
@@ -1058,7 +1222,6 @@ func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, conne
 	samlService, err := local.NewIdentityService(bk)
 	require.NoError(t, err)
 	if connector == nil {
-		ssoConnectorID := "my-sso-connector"
 		connector = newSAMLConnector(t, ssoConnectorID, uuid.NewString(), uuid.NewString())
 	}
 	_, err = samlService.CreateSAMLConnector(t.Context(), connector)
@@ -1185,4 +1348,10 @@ func requireMemberExists(t *testing.T, srv services.AccessListsGetter, accessLis
 	t.Helper()
 	_, err := srv.GetAccessListMember(t.Context(), accessList.GetName(), member)
 	require.NoError(t, err)
+}
+
+func requireMemberDoesNotExists(t *testing.T, srv services.AccessListsGetter, accessList *accesslist.AccessList, member string) {
+	t.Helper()
+	_, err := srv.GetAccessListMember(t.Context(), accessList.GetName(), member)
+	require.True(t, trace.IsNotFound(err))
 }
