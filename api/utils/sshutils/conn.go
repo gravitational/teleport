@@ -104,6 +104,9 @@ type DialReq struct {
 
 	// IsAgentlessNode specifies whether the target is an agentless node.
 	IsAgentlessNode bool `json:"is_agentless_node,omitempty"`
+
+	// TargetScope is the scope the target server must belong to.
+	TargetScope string `json:"target_scope,omitempty"`
 }
 
 // CheckAndSetDefaults verifies all the values are valid.

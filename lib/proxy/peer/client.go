@@ -259,6 +259,7 @@ func (c *grpcClientConn) Ping(ctx context.Context) error {
 // Dial implements [internal.ClientConn].
 func (c *grpcClientConn) Dial(
 	nodeID string,
+	scope string,
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
@@ -292,6 +293,7 @@ func (c *grpcClientConn) Dial(
 					Addr:    dst.String(),
 					Network: dst.Network(),
 				},
+				TargetScope: scope,
 			},
 		},
 	})
@@ -593,6 +595,7 @@ func (c *Client) GetConnectionsCount() int {
 func (c *Client) DialNode(
 	proxyIDs []string,
 	nodeID string,
+	scope string,
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
@@ -600,6 +603,7 @@ func (c *Client) DialNode(
 	conn, _, err := c.dial(
 		proxyIDs,
 		nodeID,
+		scope,
 		src,
 		dst,
 		tunnelType,
@@ -619,6 +623,7 @@ func (c *Client) DialNode(
 func (c *Client) dial(
 	proxyIDs []string,
 	nodeID string,
+	scope string,
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
@@ -630,7 +635,7 @@ func (c *Client) dial(
 
 	var errs []error
 	for _, clientConn := range conns {
-		conn, err := clientConn.Dial(nodeID, src, dst, tunnelType)
+		conn, err := clientConn.Dial(nodeID, scope, src, dst, tunnelType)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
