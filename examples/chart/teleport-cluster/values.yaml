@@ -825,6 +825,18 @@ resources: {}
 #  limits:
 #    memory: "2Gi"
 
+# goMemLimitRatio configures the GOMEMLIMIT env var set by the chart.
+# GOMEMLIMIT instructs the go garbage collector to try to keep allocated memory
+# below a given threshold. This is a best-effort attempt, but this helps
+# to prevent OOMs in case of bursts.
+#
+# When the memory limits are set and goMemLimitRatio is non-zero,
+# the chart sets the GOMEMLIMIT to `resources.memory.limits * goMemLimitRatio`.
+# The value must be between 0 and 1.
+# Set to 0 to unset GOMEMLIMIT.
+# This has no effect if GOMEMLIMIT is already set through `extraEnv`.
+goMemLimitRatio: 0.9
+
 # Pod security context for any pods created by the chart
 podSecurityContext: {}
   # fsGroup: 65532
