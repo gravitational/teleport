@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
+	"github.com/gravitational/teleport/e/lib/scim/service/middleware"
 	"github.com/gravitational/teleport/e/lib/scim/service/provider/generic"
 	"github.com/gravitational/teleport/e/lib/scim/service/provider/okta"
 )
@@ -31,7 +32,7 @@ func CreateHandlerForPlugin(plugin types.Plugin, config common.Config, resourceT
 		return nil, trace.BadParameter("unsupported plugin type: %v", plugin.GetType())
 	}
 
-	h, err := createFn(config, pluginV1, resourceType)
+	handler, err := createFn(config, pluginV1, resourceType)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating resource handler for plugin %q", plugin.GetName())
 	}
@@ -42,16 +43,17 @@ func CreateHandlerForPlugin(plugin types.Plugin, config common.Config, resourceT
 		return nil, trace.Wrap(err, "creating semaphore locker")
 	}
 
-	// Wrap the handler with lock middleware to serialize PATCH operations per resource
-	lh, err := common.NewLockMiddleware(common.LockMiddlewareConfig{
-		Locker:          semLock,
-		ResourceHandler: h,
-		Log:             config.Logger,
-		PluginName:      plugin.GetName(),
+	// Create lock middleware to serialize PATCH operations per resource
+	lockMiddleware, err := middleware.NewLockMiddleware(middleware.LockMiddlewareConfig{
+		Locker:     semLock,
+		Log:        config.Logger,
+		PluginName: plugin.GetName(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating lock middleware")
 	}
 
-	return lh, nil
+	// Create middleware chain and wrap the handler
+	chain := middleware.NewMiddlewareChain(lockMiddleware)
+	return chain.Wrap(handler), nil
 }

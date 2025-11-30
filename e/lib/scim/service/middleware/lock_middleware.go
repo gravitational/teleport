@@ -1,4 +1,4 @@
-package common
+package middleware
 
 import (
 	"context"
@@ -7,7 +7,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	"github.com/gravitational/teleport/e/lib/scim/service/common"
 )
 
 // locker defines the interface for acquiring and releasing distributed locks.
@@ -22,14 +23,13 @@ type locker interface {
 // when multiple concurrent PATCH requests modify the same resource.
 type LockMiddleware struct {
 	LockMiddlewareConfig
+	ForwardingMiddleware
 }
 
 // LockMiddlewareConfig contains the configuration for the lock middleware.
 type LockMiddlewareConfig struct {
 	// Locker provides distributed lock acquisition/release functionality.
 	Locker locker
-	// ResourceHandler is the underlying handler that performs the actual resource operations.
-	ResourceHandler
 	// Log is the logger for recording lock-related events and errors.
 	Log *slog.Logger
 	// PluginName is the name of the SCIM plugin, used as part of the lock key.
@@ -40,9 +40,6 @@ type LockMiddlewareConfig struct {
 func (l *LockMiddlewareConfig) checkAndSetDefaults() error {
 	if l.Locker == nil {
 		return trace.BadParameter("locker is required")
-	}
-	if l.ResourceHandler == nil {
-		return trace.BadParameter("resource handler is required")
 	}
 	if l.PluginName == "" {
 		return trace.BadParameter("plugin name is required")
@@ -65,12 +62,12 @@ func NewLockMiddleware(config LockMiddlewareConfig) (*LockMiddleware, error) {
 	}, nil
 }
 
-// PatchResource handles PATCH operations on SCIM resources with distributed locking.
+// PatchResourceMiddleware handles PATCH operations on SCIM resources with distributed locking.
 // It acquires a lock based on the plugin name and resource ID to prevent concurrent
 // modifications to the same resource, which could lead to race conditions.
 //
 // The lock is automatically released when the function returns, even if an error occurs.
-func (l *LockMiddleware) PatchResource(ctx context.Context, req *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
+func (l *LockMiddleware) PatchResourceMiddleware(ctx context.Context, req *pb.PatchSCIMResourceRequest, next common.ResourceHandler) (*pb.Resource, error) {
 	if req == nil {
 		return nil, trace.BadParameter("request cannot be nil")
 	}
@@ -96,6 +93,10 @@ func (l *LockMiddleware) PatchResource(ctx context.Context, req *scimpb.PatchSCI
 		}
 	}()
 
-	resp, err := l.ResourceHandler.PatchResource(ctx, req)
-	return resp, trace.Wrap(err)
+	// Call the next handler in the chain
+	resp, err := next.PatchResource(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }
