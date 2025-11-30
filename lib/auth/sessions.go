@@ -33,6 +33,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -95,6 +97,10 @@ type NewWebSessionRequest struct {
 	// May only be set internally by Auth (and Auth-related logic), not allowed
 	// for external requests.
 	CreateDeviceWebToken bool
+	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+	// authentication and some differences in locking behavior.
+	Scope string
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.
@@ -115,6 +121,11 @@ func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 }
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	if req.Scope != "" {
+		// TODO(fspmarshall/scopes): add scoping support for web sessions
+		return nil, trace.BadParameter("web sessions cannot be pinned to a scope")
+	}
+
 	session, _, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -741,6 +752,7 @@ type SessionCertsRequest struct {
 	RouteToCluster          string
 	KubernetesCluster       string
 	LoginIP                 string
+	Scope                   string
 }
 
 // CreateSessionCerts returns new user certs. The user must already be
@@ -749,17 +761,57 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	// It's safe to extract the access info directly from services.User because
-	// this occurs during the initial login before the first certs have been
-	// generated, so there's no possibility of any active access requests.
-	accessInfo := services.AccessInfoFromUserState(req.UserState)
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+
+	var checker *services.SplitAccessChecker
+	// scoped and unscoped logins use different access checkers and different underlying role types. the scope
+	// parameter is untrusted user input, but we reject attempts to login to a scope for which a user has no
+	// assigned privileges.
+	if req.Scope != "" {
+		// req.Scope is untrusted user input, so perform strong validation before proceeding.
+		if err := scopes.StrongValidate(req.Scope); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// set up scope pin (invalid until populated)
+		scopePin := &scopesv1.Pin{
+			Scope: req.Scope,
+		}
+
+		// populate the scope pin with the user's assigned scoped roles
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, req.UserState.GetName(), scopePin); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// build the user's access info based on the scope pin and userState
+		accessInfo := services.ScopePinnedAccessInfoFromUserState(req.UserState, scopePin)
+
+		// create a scoped access checker "at" the requested scope. Note that this is not what is typically done for
+		// ordinary access checks. Ordinary access checks should always start with an access checker at the root scope
+		// and descend to the resource scope iteratively. In the case of login/cert-gen however, we want to bring all
+		// scoped roles into the access checker that apply to all possible resources the resulting identity may have
+		// access to.
+		scopedChecker, err := services.RiskyNewScopedAccessCheckerAtScope(ctx, req.Scope, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		checker = services.NewScopedSplitAccessChecker(scopedChecker)
+	} else {
+		// It's safe to extract the access info directly from services.User because
+		// this occurs during the initial login before the first certs have been
+		// generated, so there's no possibility of any active access requests.
+		accessInfo := services.AccessInfoFromUserState(req.UserState)
+
+		unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		checker = services.NewUnscopedSplitAccessChecker(unscopedChecker)
 	}
 
 	certs, err := a.generateUserCert(ctx, certRequest{
@@ -770,7 +822,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		compatibility:                    req.Compatibility,
-		checker:                          services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to CreateSessionCerts.
+		checker:                          checker,
 		traits:                           req.UserState.GetTraits(),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,

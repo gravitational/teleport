@@ -5645,6 +5645,10 @@ message OIDCAuthRequest {
   // LoginHint is an optional username/email provided by the client that will be passed
   // to the IdP via the 'login_hint' query parameter.
   string login_hint = 25 [(gogoproto.jsontag) = "login_hint,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 26 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -5854,6 +5858,10 @@ message SAMLAuthRequest {
   bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
   // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
   string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 25 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -5999,6 +6007,10 @@ message GithubAuthRequest {
   // OAuth flow is used to retrieve GitHub identity info which will be added to
   // the existing user.
   string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 24 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.

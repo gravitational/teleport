@@ -718,6 +718,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		LoginTime:            a.clock.Now().UTC(),
 		AttestWebSession:     true,
 		CreateDeviceWebToken: true,
+		Scope:                req.Scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
