@@ -214,9 +214,20 @@ message Device {
   google.protobuf.Timestamp last_used = 7;
 
   oneof device {
-    WebauthnDevice webauthn = 8;
-    SSODevice sso = 9;
+    U2FDevice u2f = 8;
+    WebauthnDevice webauthn = 9;
+    SSODevice sso = 10;
   }
+}
+
+// U2FDevice holds the U2F-specific fields of Device.
+message U2FDevice {
+  // key_handle uniquely identifies a key on a device
+  bytes key_handle = 1;
+  // pub_key is a DER encoded ecdsa public key
+  bytes pub_key = 2;
+  // counter is the latest seen value of the U2F usage counter.
+  uint32 counter = 3;
 }
 
 // WebauthnDevice holds Webauthn-specific fields of Device.
