@@ -3929,7 +3929,6 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		Limit:      int(req.Limit),
 		Order:      types.EventOrder(req.Order),
 		StartKey:   req.StartKey,
-		Search:     req.Search,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5006,7 +5005,7 @@ func (g *GRPCServer) GetDomainName(ctx context.Context, req *emptypb.Empty) (*au
 func (g *GRPCServer) GetClusterCACert(
 	ctx context.Context, req *emptypb.Empty,
 ) (*authpb.GetClusterCACertResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6081,7 +6080,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	scopedaccessv1.RegisterScopedAccessServiceServer(server, scopedAccessControl)
 
 	scopedJoining, err := scopedjoining.New(scopedjoining.Config{
-		Authorizer: cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Backend:          cfg.AuthServer,
+		Logger:           logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
@@ -6144,10 +6145,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
 
 	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-		Authorizer:       cfg.Authorizer,
-		AuthService:      cfg.AuthServer,
-		FIPS:             cfg.AuthServer.fips,
-		OracleHTTPClient: cfg.OracleHTTPClient,
+		Authorizer:         cfg.Authorizer,
+		AuthService:        cfg.AuthServer,
+		FIPS:               cfg.AuthServer.fips,
+		OracleHTTPClient:   cfg.OracleHTTPClient,
+		ScopedTokenService: cfg.AuthServer.Services,
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{

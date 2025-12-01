@@ -79,9 +79,12 @@ type TLSServerConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	// OnReconcile is called after each kube_cluster resource reconciliation.
 	OnReconcile func(types.KubeClusters)
-	// CloudClients is a set of cloud clients that Teleport supports.
-	CloudClients cloud.Clients
-	awsClients   *awsClientsGetter
+	// azureClients provides Azure SDK clients
+	azureClients cloud.AzureClients
+	// gcpClients provides GCP SDK clients
+	gcpClients cloud.GCPClients
+	// awsCloudClients provides AWS SDK clients.
+	awsClients *awsClientsGetter
 	// StaticLabels is a map of static labels associated with this service.
 	// Each cluster advertised by this kubernetes_service will include these static labels.
 	// If the service and a cluster define labels with the same key,
@@ -163,12 +166,15 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = slog.Default()
 	}
-	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
+	if c.azureClients == nil {
+		azureClients, err := cloud.NewAzureClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.CloudClients = cloudClients
+		c.azureClients = azureClients
+	}
+	if c.gcpClients == nil {
+		c.gcpClients = cloud.NewGCPClients()
 	}
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
@@ -382,6 +388,31 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	t.kubeClusterWatcher = kubeClusterWatcher
 	t.mu.Unlock()
 
+	if t.OnHeartbeat != nil {
+		// Kube uses heartbeat v2, which heartbeats resources but not the server itself
+		// If there are no resources, we will never report ready.
+		// We work around by reporting ready after the first successful watcher init.
+		var watcherWaiters []func() error
+		if kubeClusterWatcher != nil {
+			watcherWaiters = append(watcherWaiters, kubeClusterWatcher.WaitInitialization)
+		}
+		if t.KubernetesServersWatcher != nil {
+			watcherWaiters = append(watcherWaiters, t.KubernetesServersWatcher.WaitInitialization)
+		}
+		if len(watcherWaiters) > 0 {
+			go func() {
+				for _, w := range watcherWaiters {
+					err := w()
+					if err != nil {
+						t.OnHeartbeat(err)
+						return
+					}
+				}
+				t.OnHeartbeat(nil)
+			}()
+		}
+	}
+
 	// kubeServerWatcher is used by the kube proxy to watch for changes in the
 	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap
 	// which holds the list of kubernetes_services connected to the proxy for a given
@@ -418,7 +449,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster, true))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
@@ -443,6 +474,9 @@ func (t *TLSServer) close(ctx context.Context) error {
 		listClose = t.listener.Close()
 	}
 	t.mu.Unlock()
+
+	errs = append(errs, t.gcpClients.Close())
+
 	return trace.NewAggregate(append(errs, listClose)...)
 }
 

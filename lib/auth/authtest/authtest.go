@@ -700,7 +700,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			})
+			}, "")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -713,7 +713,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			})
+			}, "")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1048,6 +1048,24 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 	}
 }
 
+// TestScopedHost returns TestIdentity for a scoped host
+func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) TestIdentity {
+	username := hostID
+	if clusterName != "" {
+		username = utils.HostFQDN(hostID, clusterName)
+	}
+	return TestIdentity{
+		I: authz.BuiltinRole{
+			Role:                  types.RoleInstance,
+			Username:              username,
+			AdditionalSystemRoles: types.SystemRoles{role},
+			Identity: tlsca.Identity{
+				AgentScope: scope,
+			},
+		},
+	}
+}
+
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 	return TestIdentity{
@@ -1325,7 +1343,7 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		})
+		}, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

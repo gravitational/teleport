@@ -142,6 +142,11 @@ func Test_handleStreamableHTTP(t *testing.T) {
 			}, sliceutils.Map(emitter.Events(), getEventCode))
 		}, 2*time.Second, time.Millisecond*100, "waiting for events")
 
+		// First event must be the start event.
+		startEvent, ok := emitter.Events()[0].(*apievents.MCPSessionStart)
+		require.True(t, ok)
+		require.Equal(t, "app-jwt", startEvent.EgressAuthType)
+
 		// Close client and wait for end event.
 		require.NoError(t, client.Close())
 		require.EventuallyWithT(t, func(t *assert.CollectT) {

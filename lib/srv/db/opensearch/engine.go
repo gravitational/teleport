@@ -21,7 +21,6 @@ package opensearch
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"io"
@@ -33,10 +32,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -45,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -399,33 +395,4 @@ func parseURI(uri string) (*url.URL, error) {
 	// force HTTPS
 	u.Scheme = "https"
 	return u, nil
-}
-
-// NewEndpointsResolver resolves an endpoint from DB URI.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	dbURL, err := parseURI(db.GetURI())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Not all of our DB engines respect http proxy env vars, but this one does.
-	// The endpoint resolved for TCP health checks should be the one that the
-	// agent will actually connect to, since often proxy env vars are set to
-	// accommodate self-imposed network restrictions that force external traffic
-	// to go through a proxy.
-	proxyFunc := httpproxy.FromEnvironment().ProxyFunc()
-	proxyURL, err := proxyFunc(dbURL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if proxyURL != nil {
-		dbURL = proxyURL
-	}
-	host := dbURL.Hostname()
-	port := cmp.Or(dbURL.Port(), "443")
-	hostPort := net.JoinHostPort(host, port)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{hostPort}, nil
-	}), nil
 }

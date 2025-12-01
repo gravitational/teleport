@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -213,10 +212,6 @@ func (a *Server) SetGCPIDTokenValidator(validator gcpIDTokenValidator) {
 	a.gcpIDTokenValidator = validator
 }
 
-func (a *Server) SetGitlabIDTokenValidator(validator gitlabIDTokenValidator) {
-	a.gitlabIDTokenValidator = validator
-}
-
 func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
 	a.k8sTokenReviewValidator = validator
 }
@@ -227,18 +222,6 @@ func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidato
 
 func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
 	a.terraformIDTokenValidator = validator
-}
-
-func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
-	a.tpmValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenValidator(validator ghaIDTokenValidator) {
-	a.ghaIDTokenValidator = validator
-}
-
-func (a *Server) SetGHAIDTokenJWKSValidator(validator ghaIDTokenJWKSValidator) {
-	a.ghaIDTokenJWKSValidator = validator
 }
 
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
@@ -379,10 +362,6 @@ func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diag
 
 func IsGCPZoneInLocation(rawLocation, rawZone string) bool {
 	return isGCPZoneInLocation(rawLocation, rawZone)
-}
-
-func JoinRuleGlobMatch(want string, got string) (bool, error) {
-	return joinRuleGlobMatch(want, got)
 }
 
 func FormatHeaderFromMap(m map[string]string) http.Header {
