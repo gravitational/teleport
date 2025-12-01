@@ -361,7 +361,22 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		appIntegration := appServer.GetApp().GetIntegration()
 		if appIntegration != "" {
 			src, dst := net.Pipe()
-			go t.c.integrationAppHandler.HandleConnection(src)
+
+			// Creating the connection using `net.Pipe()` results in both ends having the same local/remote address: "pipe".
+			// This causes IP Pinning checks to fail when validating that the connection remote address matches the certificate pinned IP.
+			//
+			// To fix this, we need to wrap the `src` connection to return the client source address as the remote address.
+			// The client source address is extracted from the context, the same way as in `dialAppServer`.
+			srcWithClientSrcAddr, err := wrapConnWithClientSrcAddrFromContext(ctx, src)
+			if err != nil {
+				// Log a warning and use the original remote address if we fail to extract the client source address from context.
+				// This will result in an error if the flow has pinned IP restrictions.
+				t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
+					Warnf("Failed to extract client source address from context when proxying access to Application with integration credentials. IP Pinning checks will fail. error: %v", err)
+				srcWithClientSrcAddr = src
+			}
+
+			go t.c.integrationAppHandler.HandleConnection(srcWithClientSrcAddr)
 			return dst, nil
 		}
 
@@ -385,6 +400,27 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 	}
 
 	return nil, trace.ConnectionProblem(nil, "no application servers remaining to connect")
+}
+
+type connWithCustomRemoteAddr struct {
+	net.Conn
+	remoteAddr net.Addr
+}
+
+func (w *connWithCustomRemoteAddr) RemoteAddr() net.Addr {
+	return w.remoteAddr
+}
+
+func wrapConnWithClientSrcAddrFromContext(ctx context.Context, conn net.Conn) (net.Conn, error) {
+	clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &connWithCustomRemoteAddr{
+		Conn:       conn,
+		remoteAddr: clientSrcAddr,
+	}, nil
 }
 
 // DialWebsocket dials a websocket connection over the transport's reverse
