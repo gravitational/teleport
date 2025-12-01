@@ -1339,58 +1339,82 @@ func (a *AccessListService) runWithGlobalLockAccessList(ctx context.Context, acc
 
 // checkDeletionBlockingRelationships checks if the access list has any relationships that would block deletion
 func (a *AccessListService) checkDeletionBlockingRelationships(ctx context.Context, accessList *accesslist.AccessList) error {
-	if len(accessList.Status.MemberOf) > 0 {
-		memberOfTitles := make([]string, 0, len(accessList.Status.MemberOf))
-		for _, memberOf := range accessList.Status.MemberOf {
-			parentList, err := a.service.GetResource(ctx, memberOf)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					continue
-				}
-				return trace.Wrap(err, "fetching parent list '%s'", memberOf)
+	if err := a.checkDeletionBlockingMemberRelationships(ctx, accessList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkDeletionBlockingOwnerRelationships(ctx, accessList); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// checkDeletionBlockingMemberRelationships checks if the access list is a member of any other access lists that would block deletion
+func (a *AccessListService) checkDeletionBlockingMemberRelationships(ctx context.Context, accessList *accesslist.AccessList) error {
+	memberOf := accessList.GetStatus().MemberOf
+	if len(memberOf) == 0 {
+		return nil
+	}
+
+	memberOfTitles := make([]string, 0, len(memberOf))
+	for _, memberOf := range memberOf {
+		parentList, err := a.service.GetResource(ctx, memberOf)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
 			}
-			member, err := a.memberService.WithPrefix(parentList.GetName()).GetResource(ctx, accessList.GetName())
-			if err != nil {
-				if trace.IsNotFound(err) {
-					continue
-				}
-				return trace.Wrap(err, "fetching member for '%s'", memberOf)
-			}
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				memberOfTitles = append(memberOfTitles, parentList.Spec.Title)
-			}
+			return trace.Wrap(err, `fetching parent list "%s"`, memberOf)
 		}
-		if len(memberOfTitles) > 0 {
-			return trace.AccessDenied("Cannot delete '%s', as it is a member of one or more other Access Lists: %s",
-				accessList.Spec.Title, quoteAndJoin(memberOfTitles))
+		member, err := a.memberService.WithPrefix(parentList.GetName()).GetResource(ctx, accessList.GetName())
+		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
+			return trace.Wrap(err, `fetching access list member for "%s"`, memberOf)
+		}
+		if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			memberOfTitles = append(memberOfTitles, parentList.Spec.Title)
 		}
 	}
 
-	if len(accessList.Status.OwnerOf) > 0 {
-		ownerOfTitles := make([]string, 0, len(accessList.Status.OwnerOf))
-		for _, ownerOf := range accessList.Status.OwnerOf {
-			ownedList, err := a.service.GetResource(ctx, ownerOf)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					continue
-				}
-				return trace.Wrap(err, "fetching owned list '%s'", ownerOf)
+	if len(memberOfTitles) > 0 {
+		return trace.AccessDenied(`Cannot delete "%s", as it is a member of Access Lists: %s`,
+			accessList.Spec.Title, quoteAndJoin(memberOfTitles))
+	}
+
+	return nil
+}
+
+// checkDeletionBlockingOwnerRelationships checks if the access list owns any other access lists that would block deletion
+func (a *AccessListService) checkDeletionBlockingOwnerRelationships(ctx context.Context, accessList *accesslist.AccessList) error {
+	ownerOf := accessList.GetStatus().OwnerOf
+	if len(ownerOf) == 0 {
+		return nil
+	}
+
+	ownerOfTitles := make([]string, 0, len(ownerOf))
+	for _, ownerOf := range ownerOf {
+		ownedList, err := a.service.GetResource(ctx, ownerOf)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				continue
 			}
-			isActualOwner := false
-			for _, owner := range ownedList.Spec.Owners {
-				if owner.Name == accessList.GetName() && owner.MembershipKind == accesslist.MembershipKindList {
-					isActualOwner = true
-					break
-				}
-			}
-			if isActualOwner {
-				ownerOfTitles = append(ownerOfTitles, ownedList.Spec.Title)
+			return trace.Wrap(err, `fetching owned list "%s"`, ownerOf)
+		}
+		isActualOwner := false
+		for _, owner := range ownedList.Spec.Owners {
+			if owner.Name == accessList.GetName() && owner.MembershipKind == accesslist.MembershipKindList {
+				isActualOwner = true
+				break
 			}
 		}
-		if len(ownerOfTitles) > 0 {
-			return trace.AccessDenied("Cannot delete '%s', as it is an owner of one or more other Access Lists: %s",
-				accessList.Spec.Title, quoteAndJoin(ownerOfTitles))
+		if isActualOwner {
+			ownerOfTitles = append(ownerOfTitles, ownedList.Spec.Title)
 		}
+	}
+
+	if len(ownerOfTitles) > 0 {
+		return trace.AccessDenied(`Cannot delete "%s", as it is an owner of Access Lists: %s`,
+			accessList.Spec.Title, quoteAndJoin(ownerOfTitles))
 	}
 
 	return nil
@@ -1401,10 +1425,9 @@ func quoteAndJoin(items []string) string {
 	if len(items) == 0 {
 		return ""
 	}
-
 	quotedItems := make([]string, len(items))
 	for i, item := range items {
-		quotedItems[i] = "'" + item + "'"
+		quotedItems[i] = `"` + item + `"`
 	}
 	return strings.Join(quotedItems, ", ")
 }
