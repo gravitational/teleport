@@ -394,6 +394,7 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 	switch r.GetKind() {
 	case types.KindNode,
 		types.KindWindowsDesktop,
+		types.KindLinuxDesktop,
 		types.KindGitServer,
 		types.KindDatabase,
 		types.KindKubernetesCluster:
@@ -521,6 +522,7 @@ type ResourceGetter interface {
 	DatabaseServersGetter
 	AppServersGetter
 	WindowsDesktopGetter
+	LinuxDesktopGetter
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
@@ -635,6 +637,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newLinuxDesktops, err := c.getLinuxDesktops(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	newICAccounts, err := c.getIdentityCenterAccounts(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -660,6 +667,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources(c, newKubes)
 	putResources(c, newSAMLApps)
 	putResources(c, newDesktops)
+	putResources(c, newLinuxDesktops)
 	putResources(c, newICAccounts)
 	putResources(c, newGitServers)
 	c.stale = false
@@ -712,6 +720,32 @@ func (c *UnifiedResourceCache) getDesktops(ctx context.Context) ([]types.Windows
 	}
 
 	return newDesktops, nil
+}
+
+// getLinuxDesktops will get all Linux desktops
+func (c *UnifiedResourceCache) getLinuxDesktops(ctx context.Context) ([]resource, error) {
+	var linuxDesktops []resource
+	var startKey string
+	for {
+		resp, nextKey, err := c.ListLinuxDesktops(ctx, apidefaults.DefaultChunkSize, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting linux desktops for resource watcher")
+		}
+		for _, linuxDesktop := range resp {
+			legacy := types.ProtoResource153ToLegacy(linuxDesktop)
+			res, ok := legacy.(resource)
+			if !ok {
+				return nil, trace.BadParameter("type %T doesn't implement services.resource", legacy)
+			}
+			linuxDesktops = append(linuxDesktops, res)
+		}
+
+		if nextKey == "" {
+			break
+		}
+		startKey = nextKey
+	}
+	return linuxDesktops, nil
 }
 
 // getSAMLApps will get all SAML Idp Service Providers
@@ -899,6 +933,7 @@ func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindGitServer},

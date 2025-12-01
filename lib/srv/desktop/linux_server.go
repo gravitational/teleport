@@ -6,8 +6,11 @@ import (
 	"crypto/tls"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -18,7 +21,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"log/slog"
+	"net"
+	"time"
 )
 
 // LinuxService implements the RDP-based Linux desktop access service.
@@ -66,6 +72,10 @@ type LinuxServiceConfig struct {
 	AuthClient authclient.ClientI
 	// ConnLimiter limits the number of active connections per client IP.
 	ConnLimiter *limiter.ConnectionsLimiter
+	// Heartbeat contains configuration for service heartbeats.
+	Heartbeat HeartbeatConfig
+	// Hostname of the Windows desktop service
+	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 	Labels               map[string]string
@@ -139,11 +149,22 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 
 func (s *LinuxService) startServiceHeartbeat() error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-		Context:         s.closeCtx,
-		Component:       teleport.ComponentLinuxDesktop,
-		Mode:            srv.HeartbeatModeLinuxDesktopService,
-		Announcer:       s.cfg.AccessPoint,
-		GetServerInfo:   s.getServiceHeartbeatInfo,
+		Context:   s.closeCtx,
+		Component: teleport.ComponentLinuxDesktop,
+		Mode:      srv.HeartbeatModeLinuxDesktopService,
+		Announcer: s.cfg.AccessPoint,
+		GetServerInfo: func() (types.Resource, error) {
+			desktop, err := linuxdesktopv1.NewLinuxDesktop(s.cfg.Heartbeat.HostUUID, &linuxdesktopv1pb.LinuxDesktopSpec{
+				Addr:     s.cfg.Heartbeat.PublicAddr,
+				Hostname: s.cfg.Hostname,
+			})
+			desktop.Metadata.Expires = timestamppb.New(s.cfg.Clock.Now().Add(5 * time.Minute))
+			desktop.Metadata.Labels = s.cfg.Labels
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return types.ProtoResource153ToLegacy(desktop), nil
+		},
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
@@ -167,4 +188,35 @@ func (s *LinuxService) Close() error {
 	s.close()
 
 	return nil
+}
+
+// Serve starts serving TLS connections for plainLis. plainLis should be a TCP
+// listener and Serve will handle TLS internally.
+func (s *LinuxService) Serve(plainLis net.Listener) error {
+	lis := tls.NewListener(plainLis, s.cfg.TLS)
+	defer lis.Close()
+	for {
+		select {
+		case <-s.closeCtx.Done():
+			return trace.Wrap(s.closeCtx.Err())
+		default:
+		}
+		conn, err := lis.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+		proxyConn, ok := conn.(*tls.Conn)
+		if !ok {
+			return trace.ConnectionProblem(nil, "Got %T from TLS listener, expected *tls.Conn", conn)
+		}
+
+		go s.handleConnection(proxyConn)
+	}
+}
+
+func (s *LinuxService) handleConnection(conn net.Conn) {
+	defer conn.Close()
 }

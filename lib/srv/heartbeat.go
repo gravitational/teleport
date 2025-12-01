@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"fmt"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"log/slog"
 	"time"
 
@@ -88,7 +89,7 @@ type HeartbeatMode int
 // CheckAndSetDefaults checks values and sets defaults
 func (h HeartbeatMode) CheckAndSetDefaults() error {
 	switch h {
-	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube, HeartbeatModeApp, HeartbeatModeDB, HeartbeatModeDatabaseService, HeartbeatModeWindowsDesktopService, HeartbeatModeWindowsDesktop:
+	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube, HeartbeatModeApp, HeartbeatModeDB, HeartbeatModeDatabaseService, HeartbeatModeWindowsDesktopService, HeartbeatModeWindowsDesktop, HeartbeatModeLinuxDesktopService:
 		return nil
 	default:
 		return trace.BadParameter("unrecognized mode")
@@ -144,6 +145,9 @@ const (
 	HeartbeatModeWindowsDesktopService
 	// HeartbeatModeWindowsDesktop sets heartbeat mode to windows desktop.
 	HeartbeatModeWindowsDesktop
+	// HeartbeatModeLinuxDesktopService sets heartbeat mode to Linux desktop
+	// service.
+	HeartbeatModeLinuxDesktopService
 )
 
 // NewHeartbeat returns a new instance of heartbeat
@@ -559,6 +563,22 @@ func (h *Heartbeat) announce() (doneSomething bool, _ error) {
 				return false, trace.BadParameter("expected types.WindowsDesktop, got %#v", h.current)
 			}
 			err := h.Announcer.UpsertWindowsDesktop(h.cancelCtx, desktop)
+			if err != nil {
+				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+				h.setState(HeartbeatStateAnnounceWait)
+				return false, trace.Wrap(err)
+			}
+			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
+			h.notifySend()
+			h.setState(HeartbeatStateAnnounceWait)
+			return true, nil
+		case HeartbeatModeLinuxDesktopService:
+			ld, ok := h.current.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
+			if !ok {
+				return false, trace.BadParameter("expected *linuxdesktopv1.LinuxDesktop, got %#v", h.current)
+			}
+			linuxDesktop := ld.UnwrapT()
+			linuxDesktop, err := h.Announcer.UpsertLinuxDesktop(h.cancelCtx, linuxDesktop)
 			if err != nil {
 				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
 				h.setState(HeartbeatStateAnnounceWait)

@@ -289,6 +289,10 @@ const (
 	// service is ready to start accepting connections.
 	WindowsDesktopReady = "WindowsDesktopReady"
 
+	// LinuxDesktopReady is generated when the Teleport Linux desktop
+	// service is ready to start accepting connections.
+	LinuxDesktopReady = "LinuxDesktopReady"
+
 	// TracingReady is generated when the Teleport tracing service is ready to
 	// start exporting spans.
 	TracingReady = "TracingReady"
@@ -1623,6 +1627,13 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 
 	if cfg.WindowsDesktop.Enabled {
 		process.initWindowsDesktopService()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.logger)
+	}
+
+	if cfg.LinuxDesktop.Enabled {
+		process.initLinuxDesktopService()
 		serviceStarted = true
 	} else {
 		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentWindowsDesktop), process.logger)
@@ -3010,6 +3021,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.WindowsDesktops = services.WindowsDesktops
 	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
+	cfg.LinuxDesktops = services.LinuxDesktops
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
 	cfg.IdentityCenter = services.IdentityCenter
@@ -3063,6 +3075,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.WebToken = client
 	cfg.WindowsDesktops = client
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
+	cfg.LinuxDesktops = client.LinuxDesktopClient()
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client

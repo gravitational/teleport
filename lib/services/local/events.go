@@ -2170,7 +2170,7 @@ func (p *linuxDesktopParser) parse(event backend.Event) (types.Resource, error) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return types.Resource153ToLegacy(r), nil
+		return types.ProtoResource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

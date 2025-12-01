@@ -87,6 +87,9 @@ type Announcer interface {
 
 	// UpsertDatabaseService registers a DatabaseService.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
+
+	// UpsertLinuxDesktop registers a Linux desktop.
+	UpsertLinuxDesktop(context.Context, *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error)
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)

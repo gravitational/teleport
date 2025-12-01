@@ -3008,6 +3008,18 @@ func (c *Client) GetLinuxDesktop(ctx context.Context, name string) (*linuxdeskto
 	return c.LinuxDesktopClient().GetLinuxDesktop(ctx, name)
 }
 
+func (c *Client) CreateLinuxDesktop(ctx context.Context, linuxDesktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	return c.LinuxDesktopClient().CreateLinuxDesktop(ctx, linuxDesktop)
+}
+
+func (c *Client) UpdateLinuxDesktop(ctx context.Context, linuxDesktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	return c.LinuxDesktopClient().UpdateLinuxDesktop(ctx, linuxDesktop)
+}
+
+func (c *Client) UpsertLinuxDesktop(ctx context.Context, linuxDesktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	return c.LinuxDesktopClient().UpsertLinuxDesktop(ctx, linuxDesktop)
+}
+
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {

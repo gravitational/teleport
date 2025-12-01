@@ -160,6 +160,26 @@ func (s *Service) UpdateLinuxDesktop(ctx context.Context, req *linuxdesktopv1.Up
 	return rsp, trace.Wrap(err)
 }
 
+// UpsertLinuxDesktop upserts Linux desktop resource.
+func (s *Service) UpsertLinuxDesktop(ctx context.Context, req *linuxdesktopv1.UpsertLinuxDesktopRequest) (*linuxdesktopv1.LinuxDesktop, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindLinuxDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := s.backend.UpsertLinuxDesktop(ctx, req.LinuxDesktop)
+
+	return rsp, trace.Wrap(err)
+}
+
 // DeleteLinuxDesktop deletes Linux desktop resource.
 func (s *Service) DeleteLinuxDesktop(ctx context.Context, req *linuxdesktopv1.DeleteLinuxDesktopRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)

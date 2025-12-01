@@ -22,6 +22,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	LinuxDesktopService_CreateLinuxDesktop_FullMethodName = "/teleport.linuxdesktop.v1.LinuxDesktopService/CreateLinuxDesktop"
 	LinuxDesktopService_UpdateLinuxDesktop_FullMethodName = "/teleport.linuxdesktop.v1.LinuxDesktopService/UpdateLinuxDesktop"
+	LinuxDesktopService_UpsertLinuxDesktop_FullMethodName = "/teleport.linuxdesktop.v1.LinuxDesktopService/UpsertLinuxDesktop"
 	LinuxDesktopService_GetLinuxDesktop_FullMethodName    = "/teleport.linuxdesktop.v1.LinuxDesktopService/GetLinuxDesktop"
 	LinuxDesktopService_ListLinuxDesktops_FullMethodName  = "/teleport.linuxdesktop.v1.LinuxDesktopService/ListLinuxDesktops"
 	LinuxDesktopService_DeleteLinuxDesktop_FullMethodName = "/teleport.linuxdesktop.v1.LinuxDesktopService/DeleteLinuxDesktop"
@@ -37,6 +38,8 @@ type LinuxDesktopServiceClient interface {
 	CreateLinuxDesktop(ctx context.Context, in *CreateLinuxDesktopRequest, opts ...grpc.CallOption) (*LinuxDesktop, error)
 	// Updates an existing LinuxDesktop in the backend.
 	UpdateLinuxDesktop(ctx context.Context, in *UpdateLinuxDesktopRequest, opts ...grpc.CallOption) (*LinuxDesktop, error)
+	// Updates an existing LinuxDesktop in the backend or creates one if needed.
+	UpsertLinuxDesktop(ctx context.Context, in *UpsertLinuxDesktopRequest, opts ...grpc.CallOption) (*LinuxDesktop, error)
 	// Returns a single LinuxDesktop matching the request
 	GetLinuxDesktop(ctx context.Context, in *GetLinuxDesktopRequest, opts ...grpc.CallOption) (*LinuxDesktop, error)
 	// Returns a page of LinuxDesktop and the token to find the next page of items.
@@ -67,6 +70,16 @@ func (c *linuxDesktopServiceClient) UpdateLinuxDesktop(ctx context.Context, in *
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LinuxDesktop)
 	err := c.cc.Invoke(ctx, LinuxDesktopService_UpdateLinuxDesktop_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *linuxDesktopServiceClient) UpsertLinuxDesktop(ctx context.Context, in *UpsertLinuxDesktopRequest, opts ...grpc.CallOption) (*LinuxDesktop, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LinuxDesktop)
+	err := c.cc.Invoke(ctx, LinuxDesktopService_UpsertLinuxDesktop_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +126,8 @@ type LinuxDesktopServiceServer interface {
 	CreateLinuxDesktop(context.Context, *CreateLinuxDesktopRequest) (*LinuxDesktop, error)
 	// Updates an existing LinuxDesktop in the backend.
 	UpdateLinuxDesktop(context.Context, *UpdateLinuxDesktopRequest) (*LinuxDesktop, error)
+	// Updates an existing LinuxDesktop in the backend or creates one if needed.
+	UpsertLinuxDesktop(context.Context, *UpsertLinuxDesktopRequest) (*LinuxDesktop, error)
 	// Returns a single LinuxDesktop matching the request
 	GetLinuxDesktop(context.Context, *GetLinuxDesktopRequest) (*LinuxDesktop, error)
 	// Returns a page of LinuxDesktop and the token to find the next page of items.
@@ -134,6 +149,9 @@ func (UnimplementedLinuxDesktopServiceServer) CreateLinuxDesktop(context.Context
 }
 func (UnimplementedLinuxDesktopServiceServer) UpdateLinuxDesktop(context.Context, *UpdateLinuxDesktopRequest) (*LinuxDesktop, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateLinuxDesktop not implemented")
+}
+func (UnimplementedLinuxDesktopServiceServer) UpsertLinuxDesktop(context.Context, *UpsertLinuxDesktopRequest) (*LinuxDesktop, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertLinuxDesktop not implemented")
 }
 func (UnimplementedLinuxDesktopServiceServer) GetLinuxDesktop(context.Context, *GetLinuxDesktopRequest) (*LinuxDesktop, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLinuxDesktop not implemented")
@@ -197,6 +215,24 @@ func _LinuxDesktopService_UpdateLinuxDesktop_Handler(srv interface{}, ctx contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(LinuxDesktopServiceServer).UpdateLinuxDesktop(ctx, req.(*UpdateLinuxDesktopRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LinuxDesktopService_UpsertLinuxDesktop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertLinuxDesktopRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LinuxDesktopServiceServer).UpsertLinuxDesktop(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LinuxDesktopService_UpsertLinuxDesktop_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LinuxDesktopServiceServer).UpsertLinuxDesktop(ctx, req.(*UpsertLinuxDesktopRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -269,6 +305,10 @@ var LinuxDesktopService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateLinuxDesktop",
 			Handler:    _LinuxDesktopService_UpdateLinuxDesktop_Handler,
+		},
+		{
+			MethodName: "UpsertLinuxDesktop",
+			Handler:    _LinuxDesktopService_UpsertLinuxDesktop_Handler,
 		},
 		{
 			MethodName: "GetLinuxDesktop",

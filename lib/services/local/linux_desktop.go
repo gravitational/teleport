@@ -42,13 +42,18 @@ func (s *LinuxDesktopService) GetLinuxDesktop(ctx context.Context, name string) 
 	return r, trace.Wrap(err)
 }
 
-func (s *LinuxDesktopService) CreateLinuxDesktop(ctx context.Context, crownJewel *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
-	r, err := s.service.CreateResource(ctx, crownJewel)
+func (s *LinuxDesktopService) CreateLinuxDesktop(ctx context.Context, linuxDesktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	r, err := s.service.CreateResource(ctx, linuxDesktop)
 	return r, trace.Wrap(err)
 }
 
-func (s *LinuxDesktopService) UpdateLinuxDesktop(ctx context.Context, crownJewel *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
-	r, err := s.service.ConditionalUpdateResource(ctx, crownJewel)
+func (s *LinuxDesktopService) UpdateLinuxDesktop(ctx context.Context, linuxDesktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	r, err := s.service.ConditionalUpdateResource(ctx, linuxDesktop)
+	return r, trace.Wrap(err)
+}
+
+func (s *LinuxDesktopService) UpsertLinuxDesktop(ctx context.Context, linuxDesktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	r, err := s.service.UpsertResource(ctx, linuxDesktop)
 	return r, trace.Wrap(err)
 }
 

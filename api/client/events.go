@@ -15,6 +15,7 @@
 package client
 
 import (
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -133,6 +134,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateBotInstanceReport]:
 		out.Resource = &proto.Event_AutoUpdateBotInstanceReport{
 			AutoUpdateBotInstanceReport: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+		out.Resource = &proto.Event_LinuxDesktop{
+			LinuxDesktop: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 		out.Resource = &proto.Event_ScopedRole{
@@ -682,6 +687,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetPlugin(); r != nil {
 		out.Resource = r
+		return &out, nil
+	} else if r := in.GetLinuxDesktop(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

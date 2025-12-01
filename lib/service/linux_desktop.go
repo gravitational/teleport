@@ -209,17 +209,23 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 	}
 
 	srv, err := desktop.NewLinuxService(desktop.LinuxServiceConfig{
-		DataDir:     process.Config.DataDir,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentLinuxDesktop, process.id)),
-		Clock:       process.Clock,
-		Authorizer:  authorizer,
-		Emitter:     conn.Client,
-		TLS:         tlsConfig,
-		AccessPoint: accessPoint,
-		ConnLimiter: connLimiter,
-		LockWatcher: lockWatcher,
-		AuthClient:  conn.Client,
-		Labels:      cfg.LinuxDesktop.Labels,
+		DataDir:              process.Config.DataDir,
+		Logger:               process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentLinuxDesktop, process.id)),
+		Clock:                process.Clock,
+		Authorizer:           authorizer,
+		Emitter:              conn.Client,
+		TLS:                  tlsConfig,
+		AccessPoint:          accessPoint,
+		ConnLimiter:          connLimiter,
+		LockWatcher:          lockWatcher,
+		AuthClient:           conn.Client,
+		Labels:               cfg.LinuxDesktop.Labels,
+		ConnectedProxyGetter: proxyGetter,
+		Heartbeat: desktop.HeartbeatConfig{
+			HostUUID:    conn.HostUUID(),
+			PublicAddr:  publicAddr,
+			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)

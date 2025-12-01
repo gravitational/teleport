@@ -15,6 +15,9 @@ service LinuxDesktopService {
   // Updates an existing LinuxDesktop in the backend.
   rpc UpdateLinuxDesktop(UpdateLinuxDesktopRequest) returns (LinuxDesktop);
 
+  // Updates an existing LinuxDesktop in the backend or creates one if needed.
+  rpc UpsertLinuxDesktop(UpsertLinuxDesktopRequest) returns (LinuxDesktop);
+
   // Returns a single LinuxDesktop matching the request
   rpc GetLinuxDesktop(GetLinuxDesktopRequest) returns (LinuxDesktop);
 
@@ -34,6 +37,12 @@ message CreateLinuxDesktopRequest {
 // UpdateLinuxDesktopRequest is request for UpdateLinuxDesktop method
 message UpdateLinuxDesktopRequest {
   // The full LinuxDesktop resource to update in the backend.
+  LinuxDesktop linux_desktop = 1;
+}
+
+// UpsertLinuxDesktopRequest is request for UpsertLinuxDesktop method
+message UpsertLinuxDesktopRequest {
+  // The full LinuxDesktop resource to create or update in the backend.
   LinuxDesktop linux_desktop = 1;
 }
 
