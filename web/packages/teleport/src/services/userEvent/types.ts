@@ -50,6 +50,7 @@ export enum IntegrationEnrollEvent {
   Step = 'tp.ui.integrationEnroll.step',
   SectionOpen = 'tp.ui.integrationEnroll.sectionOpen',
   FieldComplete = 'tp.ui.integrationEnroll.fieldComplete',
+  CodeCopy = 'tp.ui.integrationEnroll.codeCopy',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -165,6 +166,16 @@ export enum IntegrationEnrollField {
 }
 
 /**
+ * IntegrationEnrollCodeType identifies the type of code that was copied in an
+ * integration setup wizard. Value matches with proto enums defined in the
+ * backend.
+ */
+export enum IntegrationEnrollCodeType {
+  Terraform = 'INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM',
+  GitHubActionsYAML = 'INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML',
+}
+
+/**
  * IntegrationEnrollStepStatus defines fields for reporting
  * integration configuration step event.
  */
@@ -191,6 +202,7 @@ export type IntegrationEnrollEventData = {
   status?: IntegrationEnrollStepStatus;
   section?: IntegrationEnrollSection;
   field?: IntegrationEnrollField;
+  codeType?: IntegrationEnrollCodeType
 };
 
 /**

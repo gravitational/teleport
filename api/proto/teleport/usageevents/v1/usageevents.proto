@@ -760,6 +760,25 @@ enum IntegrationEnrollField {
   INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 12;
 }
 
+// UIIntegrationEnrollCodeCopyEvent is emitted when the user copies generated
+// IaC (e.g. Terraform) code in an integration setup wizard.
+message UIIntegrationEnrollCodeCopyEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the code was copied.
+  IntegrationEnrollStep step = 2;
+  // Type of code that was copied.
+  IntegrationEnrollCodeType type = 3;
+}
+
+// IntegrationEnrollCodeType identifies the type of code that was copied in an
+// integration setup wizard.
+enum IntegrationEnrollCodeType {
+  INTEGRATION_ENROLL_CODE_TYPE_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM = 1;
+  INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML = 2;
+}
+
 // ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
   // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
@@ -982,6 +1001,7 @@ message UsageEventOneOf {
     UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 61;
     UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 62;
     UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 63;
+    UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 64;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

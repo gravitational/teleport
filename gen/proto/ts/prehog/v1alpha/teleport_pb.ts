@@ -2206,6 +2206,32 @@ export interface UIIntegrationEnrollFieldCompleteEvent {
     field: IntegrationEnrollField;
 }
 /**
+ * UIIntegrationEnrollCodeCopyEvent is emitted when the user copies generated
+ * IaC (e.g. Terraform) code in an integration setup wizard.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent
+ */
+export interface UIIntegrationEnrollCodeCopyEvent {
+    /**
+     * Metadata of the event.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollMetadata metadata = 1;
+     */
+    metadata?: IntegrationEnrollMetadata;
+    /**
+     * Step where the code was copied.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStep step = 2;
+     */
+    step: IntegrationEnrollStep;
+    /**
+     * Type of code that was copied.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollCodeType type = 3;
+     */
+    type: IntegrationEnrollCodeType;
+}
+/**
  * EditorChangeEvent is an event that is emitted when a user role set changes resulting in
  * a editor role being added on removed
  *
@@ -3615,6 +3641,12 @@ export interface SubmitEventRequest {
          */
         uiIntegrationEnrollFieldCompleteEvent: UIIntegrationEnrollFieldCompleteEvent;
     } | {
+        oneofKind: "uiIntegrationEnrollCodeCopyEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103;
+         */
+        uiIntegrationEnrollCodeCopyEvent: UIIntegrationEnrollCodeCopyEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -4411,6 +4443,26 @@ export enum IntegrationEnrollField {
      * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 12;
      */
     MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 12
+}
+/**
+ * IntegrationEnrollCodeType identifies the type of code that was copied in an
+ * integration setup wizard.
+ *
+ * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollCodeType
+ */
+export enum IntegrationEnrollCodeType {
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_CODE_TYPE_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM = 1;
+     */
+    TERRAFORM = 1,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML = 2;
+     */
+    GITHUB_ACTIONS_YAML = 2
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status
@@ -9626,6 +9678,68 @@ class UIIntegrationEnrollFieldCompleteEvent$Type extends MessageType<UIIntegrati
  */
 export const UIIntegrationEnrollFieldCompleteEvent = new UIIntegrationEnrollFieldCompleteEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UIIntegrationEnrollCodeCopyEvent$Type extends MessageType<UIIntegrationEnrollCodeCopyEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => IntegrationEnrollMetadata },
+            { no: 2, name: "step", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStep", IntegrationEnrollStep, "INTEGRATION_ENROLL_STEP_"] },
+            { no: 3, name: "type", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollCodeType", IntegrationEnrollCodeType, "INTEGRATION_ENROLL_CODE_TYPE_"] }
+        ]);
+    }
+    create(value?: PartialMessage<UIIntegrationEnrollCodeCopyEvent>): UIIntegrationEnrollCodeCopyEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.step = 0;
+        message.type = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UIIntegrationEnrollCodeCopyEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIIntegrationEnrollCodeCopyEvent): UIIntegrationEnrollCodeCopyEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.IntegrationEnrollMetadata metadata */ 1:
+                    message.metadata = IntegrationEnrollMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.IntegrationEnrollStep step */ 2:
+                    message.step = reader.int32();
+                    break;
+                case /* prehog.v1alpha.IntegrationEnrollCodeType type */ 3:
+                    message.type = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIIntegrationEnrollCodeCopyEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.IntegrationEnrollMetadata metadata = 1; */
+        if (message.metadata)
+            IntegrationEnrollMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.IntegrationEnrollStep step = 2; */
+        if (message.step !== 0)
+            writer.tag(2, WireType.Varint).int32(message.step);
+        /* prehog.v1alpha.IntegrationEnrollCodeType type = 3; */
+        if (message.type !== 0)
+            writer.tag(3, WireType.Varint).int32(message.type);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent
+ */
+export const UIIntegrationEnrollCodeCopyEvent = new UIIntegrationEnrollCodeCopyEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class EditorChangeEvent$Type extends MessageType<EditorChangeEvent> {
     constructor() {
         super("prehog.v1alpha.EditorChangeEvent", [
@@ -11351,7 +11465,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 99, name: "access_request_create", kind: "message", oneof: "event", T: () => AccessRequestCreateEvent },
             { no: 100, name: "access_request_review", kind: "message", oneof: "event", T: () => AccessRequestReviewEvent },
             { no: 101, name: "ui_integration_enroll_section_open_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollSectionOpenEvent },
-            { no: 102, name: "ui_integration_enroll_field_complete_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollFieldCompleteEvent }
+            { no: 102, name: "ui_integration_enroll_field_complete_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollFieldCompleteEvent },
+            { no: 103, name: "ui_integration_enroll_code_copy_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollCodeCopyEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -11953,6 +12068,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiIntegrationEnrollFieldCompleteEvent: UIIntegrationEnrollFieldCompleteEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollFieldCompleteEvent)
                     };
                     break;
+                case /* prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event */ 103:
+                    message.event = {
+                        oneofKind: "uiIntegrationEnrollCodeCopyEvent",
+                        uiIntegrationEnrollCodeCopyEvent: UIIntegrationEnrollCodeCopyEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollCodeCopyEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -12262,6 +12383,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 102; */
         if (message.event.oneofKind === "uiIntegrationEnrollFieldCompleteEvent")
             UIIntegrationEnrollFieldCompleteEvent.internalBinaryWrite(message.event.uiIntegrationEnrollFieldCompleteEvent, writer.tag(102, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103; */
+        if (message.event.oneofKind === "uiIntegrationEnrollCodeCopyEvent")
+            UIIntegrationEnrollCodeCopyEvent.internalBinaryWrite(message.event.uiIntegrationEnrollCodeCopyEvent, writer.tag(103, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

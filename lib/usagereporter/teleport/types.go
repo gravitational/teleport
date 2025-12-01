@@ -360,6 +360,30 @@ func (u *UIIntegrationEnrollFieldCompleteEvent) Anonymize(a utils.Anonymizer) pr
 	}
 }
 
+// UIIntegrationEnrollCodeCopyEvent is emitted when the user copies generated
+// IaC (e.g. Terraform) code in an integration setup wizard.
+type UIIntegrationEnrollCodeCopyEvent prehogv1a.UIIntegrationEnrollCodeCopyEvent
+
+func (u *UIIntegrationEnrollCodeCopyEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollCodeCopyEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollCodeCopyEvent{
+			UiIntegrationEnrollCodeCopyEvent: &prehogv1a.UIIntegrationEnrollCodeCopyEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Step: u.Step,
+				Type: u.Type,
+			},
+		},
+	}
+}
+
 // UIBannerClickEvent is a UI event sent when a banner is clicked.
 type UIBannerClickEvent prehogv1a.UIBannerClickEvent
 
@@ -1544,6 +1568,17 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollFieldCompleteEvent.Metadata, userMD),
 			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollFieldCompleteEvent.Step),
 			Field:    prehogv1a.IntegrationEnrollField(e.UiIntegrationEnrollFieldCompleteEvent.Field),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCodeCopyEvent:
+		ret := &UIIntegrationEnrollCodeCopyEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollCodeCopyEvent.Metadata, userMD),
+			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollCodeCopyEvent.Step),
+			Type:     prehogv1a.IntegrationEnrollCodeType(e.UiIntegrationEnrollCodeCopyEvent.Type),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

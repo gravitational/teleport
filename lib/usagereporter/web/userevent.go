@@ -69,6 +69,7 @@ const (
 	uiIntegrationEnrollStepEvent          = "tp.ui.integrationEnroll.step"
 	uiIntegrationEnrollSectionOpenEvent   = "tp.ui.integrationEnroll.sectionOpen"
 	uiIntegrationEnrollFieldCompleteEvent = "tp.ui.integrationEnroll.fieldComplete"
+	uiIntegrationEnrollCodeCopyEvent      = "tp.ui.integrationEnroll.codeCopy"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
 
@@ -372,6 +373,32 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 				Step:  usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
 				Field: usageeventsv1.IntegrationEnrollField(usageeventsv1.IntegrationEnrollField_value[eventData.Field]),
+			},
+		}}, nil
+	case uiIntegrationEnrollCodeCopyEvent:
+		eventData := struct {
+			ID       string `json:"id"`
+			Kind     string `json:"kind"`
+			Step     string `json:"step"`
+			CodeType string `json:"codeType"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &eventData); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[eventData.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", eventData.Kind)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCodeCopyEvent{
+			UiIntegrationEnrollCodeCopyEvent: &usageeventsv1.UIIntegrationEnrollCodeCopyEvent{
+				Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+					Id:   eventData.ID,
+					Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+				},
+				Step: usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
+				Type: usageeventsv1.IntegrationEnrollCodeType(usageeventsv1.IntegrationEnrollCodeType_value[eventData.CodeType]),
 			},
 		}}, nil
 	case uiDiscoverStartedEvent,
