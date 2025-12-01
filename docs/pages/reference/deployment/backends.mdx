@@ -142,7 +142,7 @@ certificates and keys for the entire etcd cluster. After [installing
 cfssl](https://github.com/cloudflare/cfssl?tab=readme-ov-file#installation),
 clone the `tls-setup` repo and follow the `Readme.md` file to customize the
 script configuration. Make sure to tweak the makefile if you change the number
-of etcd nodes (and thus, the number of `infra` variables).
+of etcd nodes (and thus the number of `infra` variables).
 
 After you run `make`, the following files will be generated:
 
@@ -157,13 +157,14 @@ After you run `make`, the following files will be generated:
   etcd host needs to know them, and they are required for providing transport
   security on the etcd side.
 
-This should be enough to configure mTLS on etcd side, but to configure it on
-Teleport side, you need one more thing: client certificates. Here's one way to
-do it:
+This should be enough to configure mTLS on etcd side.
+
+On the Teleport side, you need to configure client certificates. Here's one way
+to do it:
 
 1. Generate a default CSR:
-   ```sh
-   cfssl print-defaults csr > client.json`
+   ```code
+   $ cfssl print-defaults csr > client.json`
    ```
 
 1. Remove all hostnames from the hosts element of the `client.json` file, as
@@ -171,8 +172,11 @@ do it:
    options if required.
 
 1. For each Auth Service instance, generate the client certificate:
-   ```sh
-   cfssl gencert -ca=certs/ca.pem -ca-key=certs/ca-key.pem -config=config/ca-config.json -profile=client client.json | cfssljson -bare certs/client
+   ```code
+   $ cfssl gencert -ca=certs/ca.pem \
+     -ca-key=certs/ca-key.pem \
+     -config=config/ca-config.json -profile=client client.json \
+     | cfssljson -bare certs/client
    ```
    This assumes that the `tls-setup` tool has been previously run and generated
    the `certs/ca.pem` and `certs/ca-key.pem` files.
@@ -190,8 +194,8 @@ do it:
 After generating all the keys and certificates, run etcd using some variation
 of this command, replacing <Var name="etcd-host"/> with your etcd hostname:
 
-```sh
-etcd --cert-file=certs/host.pem \
+```code
+$ etcd --cert-file=certs/host.pem \
   --key-file=certs/host-key.pem \
   --client-cert-auth \
   --trusted-ca-file=certs/ca.pem \
