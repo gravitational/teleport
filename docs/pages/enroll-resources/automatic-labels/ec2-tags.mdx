@@ -1,5 +1,6 @@
 ---
 title: EC2 Tags as Teleport Node Labels
+sidebar_label: EC2
 description: How to set up Teleport Node labels based on EC2 tags
 tags:
  - how-to
@@ -32,7 +33,7 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 - One Teleport Agent running on an Amazon EC2 instance. See
-  [our guides](../../../enroll-resources/agents/agents.mdx) for how to set up Teleport Agents.
+  [our guides](../agents/agents.mdx) for how to set up Teleport Agents.
 
 ## Enable tags in instance metadata
 
@@ -54,17 +55,17 @@ To launch a new instance with instance metadata tags enabled:
 1. Ensure that `Metadata accessible` is not disabled.
 1. Enable `Allow tags in metadata`.
 
-  ![Advanced Options](../../../../img/aws/launch-instance-advanced-options.png)
+  ![Advanced Options](../../../img/aws/launch-instance-advanced-options.png)
 
 To modify an existing instance to enable instance metadata tags:
 
 1. From the instance summary, go to `Actions > Instance Settings > Allow tags in instance metadata`.
 
-  ![Instance Settings](../../../../img/aws/instance-settings.png)
+  ![Instance Settings](../../../img/aws/instance-settings.png)
 
 1. Enable `Allow`.
 
-  ![Allow Tags](../../../../img/aws/allow-tags.png)
+  ![Allow Tags](../../../img/aws/allow-tags.png)
 
 ### AWS CLI
 

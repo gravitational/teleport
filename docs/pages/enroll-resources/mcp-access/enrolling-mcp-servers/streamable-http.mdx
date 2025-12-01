@@ -1,7 +1,6 @@
 ---
 title: MCP Access with Streamable-HTTP MCP Server
-sidebar_position: 3
-sidebar_label: Enroll a Streamable-HTTP MCP Server
+sidebar_label: Streamable-HTTP
 description: How to access MCP server with streamable-HTTP transport.
 tags:
 - how-to
@@ -18,7 +17,7 @@ This guides shows you how to:
 
 ## How it works
 
-![How it works](../../../img/mcp-access/architecture-http.svg)
+![How it works](../../../../img/mcp-access/architecture-http.svg)
 
 Users can configure their MCP clients such as Claude Desktop to start an MCP
 server using `tsh`. Once successfully authorized, `tsh` establishes a session
@@ -84,14 +83,14 @@ $ npx @modelcontextprotocol/inspector --transport http --cli --method tools/list
 ```
 
 Alternatively, instead of `tsh`, you can use [Teleport
-Connect](../../connect-your-client/teleport-connect.mdx#connecting-to-an-mcp-server) which can maintain
+Connect](../../../connect-your-client/teleport-connect.mdx#connecting-to-an-mcp-server) which can maintain
 the local proxies in the background.
 
 ## Next Steps
 
 Learn more about protecting MCP servers with Teleport in the following topics:
 
-- [MCP Access Control](./rbac.mdx).
-- [JWT Authentication to MCP server](./jwt.mdx)
-- [Register MCP servers dynamically](./dynamic-registration.mdx)
-- Configuration and CLI [reference](../../reference/agent-services/mcp-access.mdx).
+- [MCP Access Control](../rbac.mdx).
+- [JWT Authentication to MCP server](../jwt.mdx)
+- [Register MCP servers dynamically](../dynamic-registration.mdx)
+- Configuration and CLI [reference](../../../reference/agent-services/mcp-access.mdx).

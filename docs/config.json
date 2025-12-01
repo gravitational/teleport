@@ -1261,7 +1261,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/aws-kms/",
-      "destination": "/zero-trust-access/deploy-a-cluster/aws-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/aws-kms/",
       "permanent": true
     },
     {
@@ -1296,7 +1296,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/gcp-kms/",
-      "destination": "/zero-trust-access/deploy-a-cluster/gcp-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/gcp-kms/",
       "permanent": true
     },
     {
@@ -1526,12 +1526,12 @@
     },
     {
       "source": "/admin-guides/management/guides/ec2-tags/",
-      "destination": "/zero-trust-access/management/guides/ec2-tags/",
+      "destination": "/enroll-resources/automatic-labels/ec2-tags/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/gcp-tags/",
-      "destination": "/zero-trust-access/management/guides/gcp-tags/",
+      "destination": "/enroll-resources/automatic-labels/gcp-tags/",
       "permanent": true
     },
     {
@@ -1546,7 +1546,7 @@
     },
     {
       "source": "/admin-guides/management/guides/oracle-tags/",
-      "destination": "/zero-trust-access/management/guides/oracle-tags/",
+      "destination": "/enroll-resources/automatic-labels/oracle-tags/",
       "permanent": true
     },
     {
@@ -2596,12 +2596,12 @@
     },
     {
       "source": "/identity-governance/entra-id/manual-installation/",
-      "destination": "/identity-governance/integrations/entra-id/manual-installation/",
+      "destination": "/identity-governance/integrations/entra-id/setup/manual-installation/",
       "permanent": true
     },
     {
       "source": "/identity-governance/entra-id/terraform/",
-      "destination": "/identity-governance/integrations/entra-id/terraform/",
+      "destination": "/identity-governance/integrations/entra-id/setup/terraform/",
       "permanent": true
     },
     {
@@ -2667,6 +2667,106 @@
     {
       "source": "/enroll-resources/server-access/guides/recording-proxy-mode/",
       "destination": "/reference/architecture/session-recording/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/aws-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/aws-kms/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/gcp-kms/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/gcp-kms/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/ec2-tags/",
+      "destination": "/enroll-resources/automatic-labels/ec2-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/gcp-tags/",
+      "destination": "/enroll-resources/automatic-labels/gcp-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/oracle-tags/",
+      "destination": "/enroll-resources/automatic-labels/oracle-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-oracle/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/rds-oracle/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-mysql/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-postgres/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-sqlserver/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/sse/",
+      "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/sse/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/stdio/",
+      "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/stdio/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/streamable-http/",
+      "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/streamable-http/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/integrations/entra-id/manual-installation/",
+      "destination": "/identity-governance/integrations/entra-id/setup/manual-installation/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/integrations/entra-id/terraform/",
+      "destination": "/identity-governance/integrations/entra-id/setup/terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/amazon-athena/",
+      "destination": "/enroll-resources/application-access/protect-apps/amazon-athena/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/api-access/",
+      "destination": "/enroll-resources/application-access/protect-apps/api-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/connecting-apps/",
+      "destination": "/enroll-resources/application-access/protect-apps/connecting-apps/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/dynamodb/",
+      "destination": "/enroll-resources/application-access/protect-apps/dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/tcp/",
+      "destination": "/enroll-resources/application-access/protect-apps/tcp/",
       "permanent": true
     }
   ]
