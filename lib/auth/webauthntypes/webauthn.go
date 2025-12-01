@@ -406,6 +406,9 @@ type SessionData struct {
 	UserVerification string `json:"userVerification,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this webauthn session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions,omitempty"`
+	// Payload is an optional session identifying value that uniquely identifies the user's session.
+	// TODO(cthach): This should be a struct since Auth is interpreting it.
+	Payload []byte `json:"payload,omitempty"`
 }
 
 // SessionDataFromProtocol converts a [webauthn.SessionData] struct to an
