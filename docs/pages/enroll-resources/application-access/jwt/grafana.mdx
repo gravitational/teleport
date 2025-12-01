@@ -1,0 +1,96 @@
+---
+title: Using JWT authentication with Grafana
+description: How to use JWT authentication with Grafana
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+---
+
+{/* lint disable page-structure remark-lint */}
+
+This guide will help you configure Grafana [JWT
+authentication](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/jwt/)
+with Teleport.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- Running [Application Service](../protect-apps/connecting-apps.mdx).
+- Access to main config of your Grafana instance
+
+## Step 1/3. Configure JWT authentication in Grafana
+
+Add an `auth.jwt` section in your main config:
+```ini
+[auth.jwt]
+enabled = true
+
+# HTTP header to look into to get a JWT token.
+header_name = Authorization
+
+# Replace with your Teleport Proxy address.
+jwk_set_url = https://<Var name="teleport.example.com" />/.well-known/jwks.json
+
+# Teleport username can be found in "sub" or "username" claims.
+username_claim = sub
+
+# Map Teleport users to Grafana organization roles based on their Teleport
+# roles. Adjust accordingly.
+#
+# In this example, if the user's Teleport role list (the "roles" claim) contains
+# "editor", assign them the Grafana "Editor" role. All other users get the
+# "Viewer" role.
+#
+# Teleport user traits are also available in the "traits" claim and can be
+# used in expressions in the same way as roles.
+role_attribute_path = contains(roles[*], 'editor') && 'Editor' || 'Viewer'
+
+# auto-create users if they are not already matched.
+auto_sign_up = true
+```
+
+Restart your Grafana instance after updating the config.
+
+## Step 2/3. Register a Grafana application in Teleport
+
+In your Teleport App Service configuration file, `teleport.yaml`, register an
+entry for Grafana:
+
+```yaml
+app_service:
+  enabled: true
+  apps:
+  - name: "grafana"
+    uri: https://<Var name="grafana.example.com:3000"/>
+    rewrite:
+      headers:
+      - "Authorization: Bearer {{internal.jwt}}"
+```
+
+<Admonition type="tip">
+  You can also use [dynamic registration](../guides/dynamic-registration.mdx).
+</Admonition>
+
+The header rewrite configuration above will replace the `{{internal.jwt}}`
+template variable with a Teleport-signed JWT token in each request.
+
+## Step 3/3. Connect to the Grafana
+
+Log in to your Teleport cluster in your browser at `https://<Var
+name="teleport.example.com" />`.
+
+In the **Resources** tab, locate the `grafana` application and click **Launch**.
+
+Grafana will open and you should be automatically logged in as your Teleport
+user. You can verify this by clicking your profile icon in the upper-right
+corner.
+
+## Next steps
+
+- Get more information about integrating with [Teleport JWT tokens](./introduction.mdx).
+- Learn more about [accessing APIs](../protect-apps/api-access.mdx) with the Teleport
+  Application Service.
+- Take a look at application-related [Access Controls](../controls.mdx).
