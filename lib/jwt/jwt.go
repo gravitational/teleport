@@ -306,35 +306,42 @@ type SignParamsJWTSVID struct {
 func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	// Record time here for consistency between exp and iat.
 	now := k.config.Clock.Now()
-	claims := jwt.Claims{
+
+	claims := map[string]any{
 		// > 3.1. Subject:
 		// > The sub claim MUST be set to the SPIFFE ID of the workload to which it is issued.
-		Subject: p.SPIFFEID.String(),
+		"sub": p.SPIFFEID.String(),
+
 		// > 3.2. Audience:
 		// > The aud claim MUST be present, containing one or more values.
-		Audience: p.Audiences,
+		"aud": p.Audiences,
+
 		// > 3.3. Expiration Time:
 		// > The exp claim MUST be set
-		Expiry: jwt.NewNumericDate(now.Add(p.TTL)),
+		"exp": jwt.NewNumericDate(now.Add(p.TTL)),
+
 		// The spec makes no comment on inclusion of `iat`, but the SPIRE
 		// implementation does set this value and it feels like a good idea.
-		IssuedAt: jwt.NewNumericDate(now),
+		"iat": jwt.NewNumericDate(now),
+
 		// > 7.1. Replay Protection
 		// > the jti claim is permitted by this specification, it should be
 		// > noted that JWT-SVID validators are not required to track jti
 		// > uniqueness.
-		ID: p.JTI,
+		"jti": p.JTI,
+
 		// The SPIFFE specification makes no comment on the inclusion of `iss`,
 		// however, we provide this value so that the issued token can be a
 		// valid OIDC ID token and used with non-SPIFFE aware systems that do
 		// understand OIDC.
-		Issuer: p.Issuer,
+		"iss": p.Issuer,
 	}
+
 	if !p.SetIssuedAt.IsZero() {
-		claims.IssuedAt = jwt.NewNumericDate(p.SetIssuedAt)
+		claims["iat"] = jwt.NewNumericDate(p.SetIssuedAt)
 	}
 	if !p.SetExpiry.IsZero() {
-		claims.Expiry = jwt.NewNumericDate(p.SetExpiry)
+		claims["exp"] = jwt.NewNumericDate(p.SetExpiry)
 	}
 
 	// > 2.2. Key ID:
@@ -361,30 +368,17 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	//
 	// > Registered claims not described in this document, in addition to
 	// > private claims, MAY be used as implementers see fit.
-	var rawClaims any = claims
 	if len(p.PrivateClaims) != 0 {
-		// This is slightly awkward. We take a round-trip through json.Marshal
-		// and json.Unmarshal to get a version of the claims we can add to.
-		marshaled, err := json.Marshal(rawClaims)
-		if err != nil {
-			return "", trace.Wrap(err, "marshaling claims")
-		}
-		var unmarshaled map[string]any
-		if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
-			return "", trace.Wrap(err, "unmarshaling claims")
-		}
-
 		// Only inject claims that don't conflict with an existing primary claim
 		// such as sub or aud.
 		for k, v := range p.PrivateClaims {
-			if _, ok := unmarshaled[k]; !ok {
-				unmarshaled[k] = v
+			if _, ok := claims[k]; !ok {
+				claims[k] = v
 			}
 		}
-		rawClaims = unmarshaled
 	}
 
-	return k.sign(rawClaims, opts)
+	return k.sign(claims, opts)
 }
 
 // SignEntraOIDC signs a JWT for the Entra ID Integration.
