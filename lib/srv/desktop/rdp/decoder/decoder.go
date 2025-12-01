@@ -29,6 +29,12 @@ package decoder
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
 #cgo darwin LDFLAGS: -lrdp_decoder
 
+#cgo nocallback rdp_decoder_new
+#cgo nocallback rdp_decoder_free
+#cgo nocallback rdp_decoder_resize
+#cgo nocallback rdp_decoder_process
+#cgo nocallback rdp_decoder_image_data
+
 #include <stdint.h>
 
 typedef struct RdpDecoder RdpDecoder;

@@ -24,7 +24,7 @@ use std::ptr;
 use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_session::{
-    fast_path::{Processor, ProcessorBuilder, UpdateKind},
+    fast_path::{Processor, ProcessorBuilder},
     image::DecodedImage,
 };
 
@@ -80,13 +80,17 @@ pub extern "C" fn rdp_decoder_new(width: u16, height: u16) -> *mut RdpDecoder {
         Box::into_raw(Box::new(RdpDecoder::new(width, height)))
     })) {
         Ok(ptr) => ptr,
-        Err(e) => ptr::null_mut(),
+        Err(_) => ptr::null_mut(),
     }
 }
 
 /// Frees the memory associated with a decoder.
+///
+/// # Safety
+///
+/// `ptr` must be a pointer allocated by `rdp_decoder_new`.
 #[no_mangle]
-pub extern "C" fn rdp_decoder_free(ptr: *mut RdpDecoder) {
+pub unsafe extern "C" fn rdp_decoder_free(ptr: *mut RdpDecoder) {
     if ptr.is_null() {
         return;
     }
@@ -96,8 +100,16 @@ pub extern "C" fn rdp_decoder_free(ptr: *mut RdpDecoder) {
 }
 
 /// Resizes the decoder's internal image buffer.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid, non-null pointer previously returned by `rdp_decoder_new`
+///
+/// Note: Resizing replaces the decoder's internal image buffer; any previously obtained
+/// pointers into the internal buffer (for example via `rdp_decoder_image_data`) may become
+/// invalid after this call.
 #[no_mangle]
-pub extern "C" fn rdp_decoder_resize(ptr: *mut RdpDecoder, width: u16, height: u16) {
+pub unsafe extern "C" fn rdp_decoder_resize(ptr: *mut RdpDecoder, width: u16, height: u16) {
     if ptr.is_null() {
         return;
     }
@@ -107,8 +119,16 @@ pub extern "C" fn rdp_decoder_resize(ptr: *mut RdpDecoder, width: u16, height: u
     }));
 }
 
+/// Processes an RDP fast path frame and updates the internal state of the frame buffer.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new` and
+/// - `data` must point to `len` contiguous bytes that are readable by this function.
+///   Passing a null `data` pointer with `len > 0` is invalid. If `len == 0` the function
+///   returns immediately and no bytes are read.
 #[no_mangle]
-pub extern "C" fn rdp_decoder_process(ptr: *mut RdpDecoder, data: *const u8, len: usize) {
+pub unsafe extern "C" fn rdp_decoder_process(ptr: *mut RdpDecoder, data: *const u8, len: usize) {
     if ptr.is_null() || data.is_null() || len == 0 {
         return;
     }
@@ -120,10 +140,16 @@ pub extern "C" fn rdp_decoder_process(ptr: *mut RdpDecoder, data: *const u8, len
 }
 
 /// Returns a pointer to the decoder's internal image buffer and writes its length to `out_len`.
-/// The pointer is valid as long as the decoder is alive and is not mutated by other calls
-/// (e.g. `process`, `resize` may reallocate). Caller should copy the data if it needs to keep it.
+///
+/// # Safety
+///
+/// The returned pointer is valid as long as the decoder is alive and is not mutated by other calls
+/// (e.g. `process`, `resize`). Caller should copy the data if it needs to keep it.
 #[no_mangle]
-pub extern "C" fn rdp_decoder_image_data(ptr: *mut RdpDecoder, out_len: *mut usize) -> *const u8 {
+pub unsafe extern "C" fn rdp_decoder_image_data(
+    ptr: *mut RdpDecoder,
+    out_len: *mut usize,
+) -> *const u8 {
     if ptr.is_null() {
         if !out_len.is_null() {
             unsafe { *out_len = 0 };
@@ -140,7 +166,7 @@ pub extern "C" fn rdp_decoder_image_data(ptr: *mut RdpDecoder, out_len: *mut usi
         data.as_ptr()
     })) {
         Ok(p) => p,
-        Err(e) => {
+        Err(_) => {
             if !out_len.is_null() {
                 unsafe { *out_len = 0 };
             }
