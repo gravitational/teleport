@@ -162,7 +162,6 @@ export function registerAppFileProtocol(): void {
         standard: true,
         secure: true,
         supportFetchAPI: true,
-        codeCache: true,
       },
     },
   ]);
