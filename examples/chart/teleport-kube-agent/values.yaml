@@ -32,6 +32,16 @@ roles: "kube"
 # | `teleport-cluster` Helm chart | `teleport.example.com:443`          |
 proxyAddr: ""
 
+# relayAddr(string) -- defines the optional address of the Teleport Relay
+# Service tunnel endpoint that this agent should use.
+#
+# If set, the agent will open reverse tunnels to the specified Relay in addition
+# to the tunnels to the control plane, for the protocols supported by the Relay.
+#
+# relayAddr is available starting from Teleport v18.5.0, taking effect for the
+# Kubernetes service.
+relayAddr: ""
+
 # enterprise(bool) -- controls if the `teleport-kube-agent` chart should deploy
 # the OSS version or the enterprise version of the container image.
 # This must be set to `true` when connecting to Teleport Cloud or self-hosted
@@ -903,7 +913,7 @@ adminClusterRoleBinding:
 # You can override this to use your own Teleport image rather than a
 # Teleport-published image.
 #
-# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater"> 
+# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
 # When using the Teleport Kube Agent Updater, you must ensure the
 # image is available before the updater version target gets updated and
 # Kubernetes tries to pull the image.

@@ -44,8 +44,9 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/healthcheck"
@@ -64,7 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
+	"github.com/gravitational/teleport/lib/srv/db/healthchecks"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/objects"
@@ -82,37 +83,36 @@ import (
 
 func init() {
 	common.RegisterEngine(cassandra.NewEngine, defaults.ProtocolCassandra)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
+	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
 	common.RegisterEngine(elasticsearch.NewEngine, defaults.ProtocolElasticsearch)
-	common.RegisterEngine(opensearch.NewEngine, defaults.ProtocolOpenSearch)
 	common.RegisterEngine(mongodb.NewEngine, defaults.ProtocolMongoDB)
 	common.RegisterEngine(mysql.NewEngine, defaults.ProtocolMySQL)
+	common.RegisterEngine(opensearch.NewEngine, defaults.ProtocolOpenSearch)
 	common.RegisterEngine(postgres.NewEngine, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
 	common.RegisterEngine(redis.NewEngine, defaults.ProtocolRedis)
 	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
-	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
-	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
-	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
-	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
 	common.RegisterEngine(spanner.NewEngine, defaults.ProtocolSpanner)
+	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
 
 	objects.RegisterObjectFetcher(postgres.NewObjectFetcher, defaults.ProtocolPostgres)
 
-	endpoints.RegisterResolver(postgres.NewEndpointsResolver, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
+	healthchecks.RegisterHealthChecker(cassandra.NewHealthChecker, defaults.ProtocolCassandra)
+	healthchecks.RegisterHealthChecker(clickhouse.NewHTTPEndpointHealthChecker, defaults.ProtocolClickHouseHTTP)
+	healthchecks.RegisterHealthChecker(clickhouse.NewNativeEndpointHealthChecker, defaults.ProtocolClickHouse)
+	healthchecks.RegisterHealthChecker(dynamodb.NewHealthChecker, defaults.ProtocolDynamoDB)
+	healthchecks.RegisterHealthChecker(elasticsearch.NewHealthChecker, defaults.ProtocolElasticsearch)
+	healthchecks.RegisterHealthChecker(mongodb.NewHealthChecker, defaults.ProtocolMongoDB)
 	if isMySQLHealthCheckEnabled() {
-		endpoints.RegisterResolver(mysql.NewEndpointsResolver, defaults.ProtocolMySQL)
+		healthchecks.RegisterHealthChecker(mysql.NewHealthChecker, defaults.ProtocolMySQL)
 	}
-	endpoints.RegisterResolver(mongodb.NewEndpointsResolver, defaults.ProtocolMongoDB)
-
-	endpoints.RegisterResolver(cassandra.NewEndpointsResolver, defaults.ProtocolCassandra)
-	endpoints.RegisterResolver(clickhouse.NewNativeEndpointsResolver, defaults.ProtocolClickHouse)
-	endpoints.RegisterResolver(clickhouse.NewHTTPEndpointsResolver, defaults.ProtocolClickHouseHTTP)
-	endpoints.RegisterResolver(dynamodb.NewEndpointsResolver, defaults.ProtocolDynamoDB)
-	endpoints.RegisterResolver(elasticsearch.NewEndpointsResolver, defaults.ProtocolElasticsearch)
-	endpoints.RegisterResolver(opensearch.NewEndpointsResolver, defaults.ProtocolOpenSearch)
-	endpoints.RegisterResolver(redis.NewEndpointsResolver, defaults.ProtocolRedis)
-	endpoints.RegisterResolver(snowflake.NewEndpointsResolver, defaults.ProtocolSnowflake)
-	endpoints.RegisterResolver(spanner.NewEndpointsResolver, defaults.ProtocolSpanner)
-	endpoints.RegisterResolver(sqlserver.NewEndpointsResolver, defaults.ProtocolSQLServer)
+	healthchecks.RegisterHealthChecker(opensearch.NewHealthChecker, defaults.ProtocolOpenSearch)
+	healthchecks.RegisterHealthChecker(postgres.NewHealthChecker, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
+	healthchecks.RegisterHealthChecker(redis.NewHealthChecker, defaults.ProtocolRedis)
+	healthchecks.RegisterHealthChecker(snowflake.NewHealthChecker, defaults.ProtocolSnowflake)
+	healthchecks.RegisterHealthChecker(spanner.NewHealthChecker, defaults.ProtocolSpanner)
+	healthchecks.RegisterHealthChecker(sqlserver.NewHealthChecker, defaults.ProtocolSQLServer)
 }
 
 // isMySQLHealthCheckEnabled returns true if MySQL health checks are enabled.
@@ -171,9 +171,9 @@ type Config struct {
 	// CADownloader automatically downloads root certs for cloud hosted databases.
 	CADownloader CADownloader
 	// AzureClients provides Azure SDK clients.
-	AzureClients clients.AzureClients
+	AzureClients azure.Clients
 	// GCPClients provides GCP SDK clients.
-	GCPClients clients.GCPClients
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
@@ -231,14 +231,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		c.NewAudit = common.NewAudit
 	}
 	if c.AzureClients == nil {
-		azureClients, err := clients.NewAzureClients()
+		azureClients, err := azure.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		c.AzureClients = azureClients
 	}
 	if c.GCPClients == nil {
-		c.GCPClients = clients.NewGCPClients()
+		c.GCPClients = gcp.NewClients()
 	}
 	if c.AWSConfigProvider == nil {
 		provider, err := awsconfig.NewCache()
@@ -528,7 +528,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 // startDatabase performs initialization actions for the provided database
 // such as starting dynamic labels and initializing CA certificate.
 func (s *Server) startDatabase(ctx context.Context, database types.Database) error {
-	if err := s.startHealthCheck(ctx, database); err != nil && endpoints.IsRegistered(database) {
+	if err := s.startHealthCheck(ctx, database); err != nil && healthchecks.IsRegistered(database) {
 		s.log.DebugContext(ctx, "Failed to start database health checker",
 			"db", database.GetName(),
 			"error", err,
@@ -748,6 +748,16 @@ func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
 			name, s.proxiedDatabases)
 	}
 	return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
+}
+
+func (s *Server) updateProxiedDatabase(name string, doUpdate func(types.Database) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	db, found := s.proxiedDatabases[name]
+	if !found {
+		return trace.NotFound("%q not found among registered databases", name)
+	}
+	return trace.Wrap(doUpdate(db))
 }
 
 // copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
@@ -1339,15 +1349,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 				Clock:      s.cfg.Clock,
 			}
 		},
-		UpdateProxiedDatabase: func(name string, doUpdate func(types.Database) error) error {
-			s.mu.Lock()
-			defer s.mu.Unlock()
-			db, found := s.proxiedDatabases[name]
-			if !found {
-				return trace.NotFound("%q not found among registered databases", name)
-			}
-			return trace.Wrap(doUpdate(db))
-		},
+		UpdateProxiedDatabase: s.updateProxiedDatabase,
 	})
 }
 
@@ -1482,12 +1484,12 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 // startHealthCheck starts health checks for the database.
 func (s *Server) startHealthCheck(ctx context.Context, db types.Database) error {
-	resolver, err := s.getEndpointsResolver(ctx, db)
+	checker, err := s.getHealthChecker(ctx, db)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	err = s.cfg.healthCheckManager.AddTarget(healthcheck.Target{
-		HealthChecker: healthcheck.NewTargetDialer(resolver),
+		HealthChecker: checker,
 		GetResource: func() types.ResourceWithLabels {
 			s.mu.RLock()
 			defer s.mu.RUnlock()
@@ -1541,22 +1543,32 @@ func (s *Server) getTargetHealth(ctx context.Context, db types.Database) types.T
 	}
 }
 
-// getEndpointsResolver gets a health check endpoint resolver for the database.
-func (s *Server) getEndpointsResolver(ctx context.Context, db types.Database) (healthcheck.EndpointsResolverFunc, error) {
-	resolver, err := endpoints.GetResolver(ctx, db, endpoints.ResolverBuilderConfig{
-		GCPClients: s.cfg.GCPClients,
+func (s *Server) getHealthChecker(ctx context.Context, db types.Database) (healthcheck.HealthChecker, error) {
+	if err := checkSupportsHealthChecks(db); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.mu.RLock()
+	db = s.copyDatabaseWithUpdatedLabelsLocked(db)
+	s.mu.RUnlock()
+	checker, err := healthchecks.GetHealthChecker(ctx, healthchecks.HealthCheckerConfig{
+		Auth:                  s.cfg.Auth,
+		AuthClient:            s.cfg.AuthClient,
+		Clock:                 s.cfg.Clock,
+		Database:              db,
+		GCPClients:            s.cfg.GCPClients,
+		Log:                   s.log,
+		UpdateProxiedDatabase: s.updateProxiedDatabase,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resolver.Resolve, nil
+	return checker, nil
 }
 
 // checkSupportsHealthChecks returns nil if the database supports health checks.
-// TODO(gavin): add resolvers for all database protocols that we support, then
-// remove this helper.
 func checkSupportsHealthChecks(db types.Database) error {
-	if !endpoints.IsRegistered(db) {
+	if !healthchecks.IsRegistered(db) {
 		return trace.NotImplemented("endpoint health checks for database protocol %q are not supported", db.GetProtocol())
 	}
 	return nil
