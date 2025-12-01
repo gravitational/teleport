@@ -143,6 +143,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/pam"
@@ -181,6 +182,7 @@ import (
 	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
+	libwatcher "github.com/gravitational/teleport/lib/watcher"
 	"github.com/gravitational/teleport/lib/web"
 	webapp "github.com/gravitational/teleport/lib/web/app"
 )
@@ -719,8 +721,14 @@ type TeleportProcess struct {
 	// conflicts.
 	//
 	// Both the metricsRegistry and the default global registry are gathered by
-	// Telepeort's metric service.
+	// Teleport's metric service.
 	metricsRegistry *prometheus.Registry
+
+	// We gather metrics both from the in-process registry (preferred metrics registration method)
+	// and the global registry (used by some Teleport services and many dependencies).
+	// optionally other systems can add their gatherers, this can be used if they
+	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
+	*metrics.SyncGatherers
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
@@ -993,6 +1001,12 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 	return i, nil
 }
 
+// MetricsRegistry returns the process-scoped metrics registry.
+// New metrics must register against this and not the global prometheus registry.
+func (process *TeleportProcess) MetricsRegistry() prometheus.Registerer {
+	return process.metricsRegistry
+}
+
 // Process is a interface for processes
 type Process interface {
 	// Closer closes all resources used by the process
@@ -1084,14 +1098,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}()
 
-	// Use the custom metrics registry if specified, else create a new one.
-	// We must create the registry in NewTeleport, as opposed to ApplyConfig(),
+	// We must create the registry in NewTeleport, as opposed to the config,
 	// because some tests are running multiple Teleport instances from the same
-	// config.
-	metricsRegistry := cfg.MetricsRegistry
-	if metricsRegistry == nil {
-		metricsRegistry = prometheus.NewRegistry()
-	}
+	// config and reusing the same registry causes them to fail.
+	metricsRegistry := prometheus.NewRegistry()
 
 	// If FIPS mode was requested make sure binary is build against BoringCrypto.
 	if cfg.FIPS {
@@ -1294,6 +1304,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
+		SyncGatherers: metrics.NewSyncGatherers(
+			metricsRegistry,
+			prometheus.DefaultGatherer,
+		),
 	}
 
 	process.registerExpectedServices(cfg)
@@ -2615,60 +2629,15 @@ func (process *TeleportProcess) initAuthService() error {
 		component := teleport.Component(teleport.ComponentAuth, "backend")
 		process.ExpectService(component)
 		process.RegisterFunc("auth.wait-for-event-stream", func() error {
-			start := process.Clock.Now()
-
-			retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-				First:  0,
-				Driver: retryutils.NewLinearDriver(5 * time.Second),
-				Max:    time.Minute,
-				Jitter: retryutils.DefaultJitter,
-				Clock:  process.Clock,
-			})
-			if err != nil {
-				return trace.Wrap(err, "creating the backend watch retry (this is a bug)")
+			if err := libwatcher.WaitForReady(process.ExitContext(), libwatcher.WaitForReadyConfig{
+				Watcher: authServer,
+				Logger:  process.logger.With(teleport.ComponentLabel, component),
+				Clock:   process.Clock,
+			}); err != nil {
+				return trace.Wrap(err)
 			}
-			log := process.logger.With(teleport.ComponentLabel, component)
-			var attempt int
-
-			// The wait logic is retried until it is successful or a termination is triggered.
-			for {
-				attempt++
-				select {
-				case <-process.GracefulExitContext().Done():
-					return trace.Wrap(err, "context canceled while backing off (attempt %d)", attempt)
-				case <-retry.After():
-					retry.Inc()
-				}
-
-				w, err := authServer.NewWatcher(process.ExitContext(), types.Watch{
-					Name: "auth.wait-for-backend",
-					Kinds: []types.WatchKind{
-						{Kind: types.KindClusterName},
-					},
-				})
-				if err != nil {
-					log.ErrorContext(process.ExitContext(), "Failed to create watcher", "kind", types.KindClusterName, "attempt", attempt, "error", err)
-					continue
-				}
-
-				select {
-				case evt := <-w.Events():
-					w.Close()
-					if evt.Type != types.OpInit {
-						log.ErrorContext(process.ExitContext(), "expected init event, got something else (this is a bug)", "kind", types.KindClusterName, "attempt", attempt, "error", err, "event_type", evt.Type)
-						continue
-					}
-					process.logger.With(teleport.ComponentLabel, component).InfoContext(process.ExitContext(), "auth backend initialized", "duration", process.Clock.Since(start).String())
-					process.OnHeartbeat(component)(nil)
-					return nil
-				case <-w.Done():
-					log.ErrorContext(process.ExitContext(), "watcher closed while waiting for backend init", "kind", types.KindClusterName, "attempt", attempt, "error", w.Error())
-					continue
-				case <-process.GracefulExitContext().Done():
-					w.Close()
-					return trace.Wrap(err, "context canceled while waiting for backendf init event")
-				}
-			}
+			process.OnHeartbeat(component)(nil)
+			return nil
 		})
 	}
 
@@ -3838,6 +3807,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		InitialScanDelay:                15 * time.Second,
 		EncryptedRecordingUploader:      uploaderClient,
 		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
+		ConcurrentUploads:               2,
 	})
 	if err != nil {
 		return trace.Wrap(err)

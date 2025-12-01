@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -25,7 +23,6 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -36,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 // mockedFeatureGetter is a test proxy with a mocked Ping method
@@ -62,7 +60,7 @@ func (m *mockedFeatureGetter) setFeatures(f proto.Features) {
 }
 
 func TestFeaturesWatcher(t *testing.T) {
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		mockClient := &mockedFeatureGetter{features: proto.Features{
 			Kubernetes:     true,
 			Entitlements:   map[string]*proto.EntitlementInfo{},

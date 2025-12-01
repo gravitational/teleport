@@ -28,8 +28,19 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// Resolver resolves database endpoints.
+type Resolver interface {
+	// Resolve resolves database endpoints.
+	Resolve(ctx context.Context) ([]string, error)
+}
+
 // EndpointsResolverFunc is callback func that returns endpoints for a target.
 type EndpointsResolverFunc func(ctx context.Context) ([]string, error)
+
+// Resolve resolves database endpoints.
+func (f EndpointsResolverFunc) Resolve(ctx context.Context) ([]string, error) {
+	return f(ctx)
+}
 
 // dialFunc dials an address on the given network.
 type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
