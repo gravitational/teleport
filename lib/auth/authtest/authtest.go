@@ -1247,11 +1247,10 @@ func (t *TLSServer) Close() error {
 		errs = append(errs, err)
 	}
 
-	if t.AuthServer.Backend != nil {
-		if err := t.AuthServer.Backend.Close(); err != nil {
-			errs = append(errs, err)
-		}
+	if err := t.AuthServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
+
 	return trace.NewAggregate(errs...)
 }
 
@@ -1266,13 +1265,12 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			errs = append(errs, err)
 		}
+	}
 
+	if err := t.AuthServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	if t.AuthServer.Backend != nil {
-		if err := t.AuthServer.Backend.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
+
 	return trace.NewAggregate(errs...)
 }
 
