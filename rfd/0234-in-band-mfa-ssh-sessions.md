@@ -336,7 +336,7 @@ resource](#storing-validated-mfa-responses) to exist in the backend, rather than
 until the resource exists in the local backend or for replication to complete to the leaf backend.
 
 ```proto
-package teleport.mfa.v2;
+package teleport.mfa.v1;
 
 // MFAService defines the Multi-Factor Authentication (MFA) service. While this service is currently focused on
 // user sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation
@@ -528,7 +528,7 @@ guidelines](/rfd/0153-resource-guidelines.md). The only operations supported by 
 be automatically deleted after expiration.
 
 ```proto
-package teleport.mfa.v2;
+package teleport.mfa.v1;
 
 // ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
 message ValidatedMFAChallenge {

@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package mfav2
+package mfav1
 
-import pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+import pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 
 // ServiceConfig holds creation parameters for [Service].
 type ServiceConfig struct{}
