@@ -410,6 +410,10 @@ type ServerContext struct {
 	// set this field directly, use (Get|Set)SSHRequest instead.
 	sshRequest *ssh.Request
 
+	// stderr{r,w} are used to capture stderr from the child process.
+	stderrR *os.File
+	stderrW *os.File
+
 	// cmd{r,w} are used to send the command from the parent process to the
 	// child process.
 	cmdr *os.File
@@ -568,6 +572,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
+
+	// Create pipe used to capture stderr from the child process.
+	child.stderrR, child.stderrW, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.stderrR)
+	child.AddCloser(child.stderrW)
 
 	// Create pipe used to send command to child process.
 	child.cmdr, child.cmdw, err = os.Pipe()
