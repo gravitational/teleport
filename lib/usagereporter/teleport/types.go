@@ -211,6 +211,8 @@ func integrationEnrollMetadataToPrehog(u *usageeventsv1.IntegrationEnrollMetadat
 		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES
 	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD:
 		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES
 	default:
 		prehogKind = prehogv1a.IntegrationEnrollKind(u.Kind)
 	}
