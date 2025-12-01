@@ -36,6 +36,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -1152,6 +1153,10 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+
+	if s.proxyMode {
+		srv.SetComponentFeatures(componentfeatures.Join(srv.GetComponentFeatures(), componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)))
+	}
 
 	return srv
 }

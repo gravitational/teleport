@@ -50,6 +50,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -2785,9 +2786,10 @@ func (process *TeleportProcess) initAuthService() error {
 					Name:      connector.HostUUID(),
 				},
 				Spec: types.ServerSpecV2{
-					Addr:     authAddr,
-					Hostname: process.Config.Hostname,
-					Version:  teleport.Version,
+					Addr:              authAddr,
+					Hostname:          process.Config.Hostname,
+					Version:           teleport.Version,
+					ComponentFeatures: componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1),
 				},
 			}
 			state, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin)
