@@ -266,7 +266,6 @@ func TestKey_SignAndVerifyAWSOIDC(t *testing.T) {
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClockAt(time.Now())
-			const clusterName = "teleport-test"
 
 			// Create a new key that can sign and verify tokens.
 			key, err := New(&Config{
@@ -382,7 +381,6 @@ func TestKey_SignAndVerifyPluginToken(t *testing.T) {
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClockAt(time.Now())
-			const clusterName = "teleport-test"
 
 			// Create a new key that can sign and verify tokens.
 			key, err := New(&Config{
