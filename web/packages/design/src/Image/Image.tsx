@@ -37,7 +37,8 @@ import {
 } from 'design/system';
 
 interface ImageProps
-  extends SpaceProps,
+  extends
+    SpaceProps,
     ColorProps,
     WidthProps,
     HeightProps,

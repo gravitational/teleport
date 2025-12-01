@@ -52,9 +52,9 @@ const tshdRpcErrorObjectMatcher: TshdRpcError = expect.objectContaining({
   cause: undefined,
 });
 
-class MockServiceMethod<T extends (...args: any[]) => any>
-  implements ServiceInfo
-{
+class MockServiceMethod<
+  T extends (...args: any[]) => any,
+> implements ServiceInfo {
   public methods: MethodInfo[];
   public options = {};
   public typeName = '';
