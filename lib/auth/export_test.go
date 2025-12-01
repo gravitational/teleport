@@ -204,10 +204,6 @@ func (a *Server) SetCircleCITokenValidate(validator func(ctx context.Context, or
 	a.circleCITokenValidate = validator
 }
 
-func (a *Server) SetGCPIDTokenValidator(validator gcpIDTokenValidator) {
-	a.gcpIDTokenValidator = validator
-}
-
 func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
 	a.k8sTokenReviewValidator = validator
 }
@@ -354,10 +350,6 @@ func PopulateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) 
 
 func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter, logger *slog.Logger) (*authclient.GithubAuthResponse, error) {
 	return validateGithubAuthCallbackHelper(ctx, m, diagCtx, q, emitter, logger)
-}
-
-func IsGCPZoneInLocation(rawLocation, rawZone string) bool {
-	return isGCPZoneInLocation(rawLocation, rawZone)
 }
 
 func FormatHeaderFromMap(m map[string]string) http.Header {
