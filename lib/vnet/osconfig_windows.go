@@ -54,6 +54,9 @@ type platformOSConfigState struct {
 	configuredDNSZones []string
 	// configuredDNSAddrs caches DNS addresses so DNS is reconfigured when they change.
 	configuredDNSAddrs []string
+	// configuredGroupPolicyKey caches existence of the group policy key so DNS is reconfigured when
+	// the key is created or removed.
+	configuredGroupPolicyKey bool
 }
 
 func (p *platformOSConfigState) getIfaceIndex() (string, error) {
@@ -126,12 +129,19 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	// Configure DNS only if the DNS zones or addresses have changed. This typically happens when the
 	// user logs in or out of a cluster. Otherwise configureDNS would refresh all computer policies
 	// every 10 seconds when platformConfigureOS is called.
-	if !slices.Equal(cfg.dnsZones, state.configuredDNSZones) || !slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) {
-		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs); err != nil {
+	doesGroupPolicyKeyExist, err := doesKeyPathExist(registry.LOCAL_MACHINE, groupPolicyNRPTParentKey)
+	if err != nil {
+		return trace.Wrap(err, "checking existence of group policy NRPT registry key %s", groupPolicyNRPTParentKey)
+	}
+	if !slices.Equal(cfg.dnsZones, state.configuredDNSZones) ||
+		!slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) ||
+		doesGroupPolicyKeyExist != state.configuredGroupPolicyKey {
+		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs, doesGroupPolicyKeyExist); err != nil {
 			return trace.Wrap(err, "configuring DNS")
 		}
 		state.configuredDNSZones = cfg.dnsZones
 		state.configuredDNSAddrs = cfg.dnsAddrs
+		state.configuredGroupPolicyKey = doesGroupPolicyKeyExist
 	}
 
 	return nil
@@ -166,7 +176,7 @@ const (
 	vnetNRPTKeyID = `{ad074e9a-bd1b-447e-9108-14e545bf11a5}`
 )
 
-func configureDNS(ctx context.Context, zones, nameservers []string) error {
+func configureDNS(ctx context.Context, zones, nameservers []string, doesGroupPolicyKeyExist bool) error {
 	// Always configure NRPT rules under the local system NRPT registry key.
 	// This is harmless/innefective if groupPolicyNRPTParentKey exists, but
 	// always writing the rules here means they will be effective if
@@ -180,16 +190,9 @@ func configureDNS(ctx context.Context, zones, nameservers []string) error {
 	// systemNRPTParentKey will be ignored and rules under
 	// groupPolicyNRPTParentKey take precendence, so VNet needs to write rules
 	// under this key as well.
-	groupPolicyKey, err := registry.OpenKey(registry.LOCAL_MACHINE, groupPolicyNRPTParentKey, registry.READ)
-	if err != nil {
-		if !errors.Is(err, registry.ErrNotExist) {
-			return trace.Wrap(err, "opening group policy NRPT registry key %s", groupPolicyNRPTParentKey)
-		}
+	if !doesGroupPolicyKeyExist {
 		// The group policy parent key doesn't exist, no need to write under it.
 		return nil
-	}
-	if err := groupPolicyKey.Close(); err != nil {
-		return trace.Wrap(err, "closing registry key %s", groupPolicyNRPTParentKey)
 	}
 
 	nrptRegKey = groupPolicyNRPTParentKey + `\` + vnetNRPTKeyID
@@ -204,6 +207,20 @@ func configureDNS(ctx context.Context, zones, nameservers []string) error {
 		return trace.Wrap(err, "refreshing computer policies")
 	}
 	return nil
+}
+
+func doesKeyPathExist(k registry.Key, path string) (bool, error) {
+	key, err := registry.OpenKey(k, path, registry.READ)
+	if err != nil {
+		if !errors.Is(err, registry.ErrNotExist) {
+			return false, trace.Wrap(err, "opening registry key %s", path)
+		}
+		return false, nil
+	}
+	if err := key.Close(); err != nil {
+		return true, trace.Wrap(err, "closing registry key %s", path)
+	}
+	return true, nil
 }
 
 func configureDNSAtNRPTKey(ctx context.Context, nrptRegKey string, zones, nameservers []string) (err error) {
