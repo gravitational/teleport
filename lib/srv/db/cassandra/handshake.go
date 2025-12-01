@@ -21,7 +21,6 @@ package cassandra
 import (
 	"context"
 
-	"github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/sigv4"
 	"github.com/datastax/go-cassandra-native-protocol/frame"
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra/sigv4"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -219,11 +219,15 @@ func (a *authAWSSigV4Auth) getSigV4Authenticator(ctx context.Context) (gocql.Aut
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	auth := sigv4.NewAwsAuthenticator()
-	auth.Region = meta.Region
-	auth.AccessKeyId = cred.AccessKeyID
-	auth.SessionToken = cred.SessionToken
-	auth.SecretAccessKey = cred.SecretAccessKey
+	auth := sigv4.AwsAuthenticator{
+		// AWS Keyspaces databases do require region to be specified in the AWS
+		// metadata so there is no need to grab it from config or environment
+		// variables.
+		Region:          meta.Region,
+		AccessKeyId:     cred.AccessKeyID,
+		SessionToken:    cred.SessionToken,
+		SecretAccessKey: cred.SecretAccessKey,
+	}
 	return auth, nil
 }
 
