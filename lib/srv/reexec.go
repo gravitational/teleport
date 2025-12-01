@@ -240,12 +240,9 @@ func RunCommand() (code int, err error) {
 	var tty *os.File
 	defer func() {
 		if err != nil && code == teleport.RemoteCommandFailure {
-			var w io.Writer = os.Stdout
 			if tty != nil {
-				w = io.MultiWriter(os.Stdout, tty)
+				fmt.Fprintf(tty, "Failed to launch: %v.\r\n", err)
 			}
-
-			fmt.Fprintf(w, "Failed to launch: %v.\r\n", err)
 		}
 	}()
 
@@ -978,6 +975,11 @@ func RunAndExit(commandType string) {
 		code, err = teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
+		// Write the error to stderr, where it can be seen by the parent teleport process and the client.
+		if code == teleport.RemoteCommandFailure {
+			fmt.Fprintf(os.Stderr, "Failed to launch: %v.\r\n", err)
+		}
+
 		// The "operation not permitted" error is expected from a variety of operations if the
 		// teleport process is running as a non-root user and is trying to spawn a process for
 		// a different OS user.
