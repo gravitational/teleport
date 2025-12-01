@@ -1,6 +1,6 @@
 ---
 title: Introduction to Teleport Clients
-sidebar_label: Introduction
+sidebar_label: Teleport Clients
 description: The basics of connecting to resources with Teleport
 tags:
  - conceptual
@@ -77,7 +77,7 @@ server and database access within a single window.
 
 1. Click **CONNECT** to connect to the Teleport cluster:
 
-   ![A new instance of Teleport Connect](../../img/teleport-connect-init.png)
+   ![A new instance of Teleport Connect](../../../img/teleport-connect-init.png)
 
 1. Provide the address of your Teleport Cluster (e.g.
    `https://example.teleport.sh`) and click **NEXT**.
@@ -89,7 +89,7 @@ server and database access within a single window.
 
 1. Browse and connect to all the resources your user is permitted to access:
 
-   ![An example of Teleport Connect, populated with instances](../../img/use-teleport/connect-ui-overview@2x.png)
+   ![An example of Teleport Connect, populated with instances](../../../img/use-teleport/connect-ui-overview@2x.png)
 
 ### Web UI
 
@@ -182,27 +182,27 @@ your kubeconfig to point to your chosen Kubernetes cluster. You can then run
 After logging in to a cluster in Teleport Connect, click the **Kubes** tab to
 see a list of Kubernetes clusters you can access.
 
-![Clusters you can access](../../img/use-teleport/connect-kube-list.png)
+![Clusters you can access](../../../img/use-teleport/connect-kube-list.png)
 
 Next to your chosen cluster, click **Connect**. Teleport Connect will
 open a terminal in a new tab and authenticate to the cluster. You can then run
 `kubectl` commands to interact with the cluster.
 
-![Connect to a cluster](../../img/use-teleport/connect-kube-access.png)
+![Connect to a cluster](../../../img/use-teleport/connect-kube-access.png)
 </TabItem>
 <TabItem label="Web UI">
 
 In the Teleport Web UI, click the **Kubernetes** tab. You will see a list of
 Kubernetes clusters your Teleport user is authorized to connect to.
 
-![Available Kubernetes clusters](../../img/use-teleport/kubernetes-clusters.png)
+![Available Kubernetes clusters](../../../img/use-teleport/kubernetes-clusters.png)
 
 Find your chosen cluster and click **Connect**. You will see a modal window that
 lists the commands you can execute in your terminal to connect to the cluster
 via Teleport.
 
 ![Connect to a Kubernetes
-cluster](../../img/use-teleport/kubernetes-login.png)
+cluster](../../../img/use-teleport/kubernetes-login.png)
 
 </TabItem>
 </Tabs>
@@ -223,22 +223,22 @@ some-file.ext   7% |███████                | (25/342 MB, 2.9 MB/s)
 
 Teleport Connect allows you to transfer files to a remote server and runs on macOS, Linux and Windows. You can use the arrows in the top-left corner of an active SSH session to upload and download files:
 
-![Download with connect](../../img/download_files_connect.png)
+![Download with connect](../../../img/download_files_connect.png)
 
 You can upload files from systems using drag and drop:
 
-![Drag and drop in Connect](../../img/upload_files_connect_drag_drop.png)
+![Drag and drop in Connect](../../../img/upload_files_connect_drag_drop.png)
 
 </TabItem>
 <TabItem label="Web UI">
 
 You can use the arrows in the top-left corner of the Web UI to download files:
 
-![Arrows in Web UI](../../img/download_files_webui.png)
+![Arrows in Web UI](../../../img/download_files_webui.png)
 
 Or you can upload using drag and drop:
 
-![Upload in Web UI](../../img/upload_files_webui.png)
+![Upload in Web UI](../../../img/upload_files_webui.png)
 
 </TabItem>
 </Tabs>
@@ -311,7 +311,7 @@ Teleport Connect will open a tunneled connection to the database. You can copy
 the port number and connect with a GUI app at `localhost`, or click **RUN** to
 initiate a CLI connection inside Teleport Connect:
 
-![Teleport Connect database connection](../../img/teleport-connect-mysql.png)
+![Teleport Connect database connection](../../../img/teleport-connect-mysql.png)
 
 </TabItem>
 <TabItem label="Web UI">
@@ -355,5 +355,5 @@ either directly or through proxy tunnels.
   Teleport. You use it to connect to servers, databases, and Kubernetes
   clusters. See [Using Teleport Connect](./teleport-connect.mdx).
 
-- [Access Teleport-protected databases with GUI clients](./gui-clients.mdx):
+- [Access Teleport-protected databases with GUI clients](../third-party/gui-clients.mdx):
   Details how to connect many popular database GUI clients through Teleport.
