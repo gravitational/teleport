@@ -307,6 +307,10 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	// Record time here for consistency between exp and iat.
 	now := k.config.Clock.Now()
 
+	// We use map[string]any instead of jwt.Claims to avoid a json.Marshal/Unmarshal
+	// round-trip that would convert jwt.NumericDate (int64) to float64, causing
+	// timestamp claims to be serialized in scientific notation (e.g., "exp": 1.7e9).
+	// Using map[string]any preserves the jwt.NumericDate type until final marshaling.
 	claims := map[string]any{
 		// > 3.1. Subject:
 		// > The sub claim MUST be set to the SPIFFE ID of the workload to which it is issued.
