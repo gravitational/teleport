@@ -706,6 +706,29 @@ message UIIntegrationEnrollStepEvent {
   IntegrationEnrollStepStatus status = 3;
 }
 
+// UIIntegrationEnrollSectionOpenEvent is emitted when the user opens or expands
+// a section (e.g. "Advanced Options") in an integration setup wizard.
+message UIIntegrationEnrollSectionOpenEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the section was opened.
+  IntegrationEnrollStep step = 2;
+  // Section that was opened.
+  IntegrationEnrollSection section = 3;
+}
+
+// IntegrationEnrollSection identifies a section the user opened or expanded in
+// an integration setup wizard.
+enum IntegrationEnrollSection {
+  INTEGRATION_ENROLL_SECTION_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4;
+}
+
 // ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
   // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
@@ -926,6 +949,7 @@ message UsageEventOneOf {
     UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 59;
     UserTaskStateEvent user_task_state_event = 60;
     UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 61;
+    UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 62;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

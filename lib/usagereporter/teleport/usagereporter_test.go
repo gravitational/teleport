@@ -297,6 +297,29 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
+			name: "integration enroll section open event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollSectionOpenEvent{
+				UiIntegrationEnrollSectionOpenEvent: &usageeventsv1.UIIntegrationEnrollSectionOpenEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB,
+					Section:  usageeventsv1.IntegrationEnrollSection_INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollSectionOpenEvent{
+				UiIntegrationEnrollSectionOpenEvent: &prehogv1a.UIIntegrationEnrollSectionOpenEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES,
+					},
+					Step:    prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB,
+					Section: prehogv1a.IntegrationEnrollSection_INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS,
+				},
+			}},
+		},
+		{
 			name: "discover deploy service event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{

@@ -2154,6 +2154,32 @@ export interface UIIntegrationEnrollStepEvent {
     status?: IntegrationEnrollStepStatus;
 }
 /**
+ * UIIntegrationEnrollSectionOpenEvent is emitted when the user opens or expands
+ * a section (e.g. "Advanced Options") in an integration setup wizard.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
+ */
+export interface UIIntegrationEnrollSectionOpenEvent {
+    /**
+     * Metadata of the event.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollMetadata metadata = 1;
+     */
+    metadata?: IntegrationEnrollMetadata;
+    /**
+     * Step where the section was opened.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStep step = 2;
+     */
+    step: IntegrationEnrollStep;
+    /**
+     * Section that was opened.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollSection section = 3;
+     */
+    section: IntegrationEnrollSection;
+}
+/**
  * EditorChangeEvent is an event that is emitted when a user role set changes resulting in
  * a editor role being added on removed
  *
@@ -3551,6 +3577,12 @@ export interface SubmitEventRequest {
          */
         accessRequestReview: AccessRequestReviewEvent;
     } | {
+        oneofKind: "uiIntegrationEnrollSectionOpenEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101;
+         */
+        uiIntegrationEnrollSectionOpenEvent: UIIntegrationEnrollSectionOpenEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -4255,6 +4287,36 @@ export enum IntegrationEnrollStatusCode {
      * @generated from protobuf enum value: INTEGRATION_ENROLL_STATUS_CODE_ABORTED = 4;
      */
     ABORTED = 4
+}
+/**
+ * IntegrationEnrollSection identifies a section the user opened or expanded in
+ * an integration setup wizard.
+ *
+ * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollSection
+ */
+export enum IntegrationEnrollSection {
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1;
+     */
+    MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2;
+     */
+    MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3;
+     */
+    MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4;
+     */
+    MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status
@@ -9346,6 +9408,68 @@ class UIIntegrationEnrollStepEvent$Type extends MessageType<UIIntegrationEnrollS
  */
 export const UIIntegrationEnrollStepEvent = new UIIntegrationEnrollStepEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UIIntegrationEnrollSectionOpenEvent$Type extends MessageType<UIIntegrationEnrollSectionOpenEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => IntegrationEnrollMetadata },
+            { no: 2, name: "step", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStep", IntegrationEnrollStep, "INTEGRATION_ENROLL_STEP_"] },
+            { no: 3, name: "section", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollSection", IntegrationEnrollSection, "INTEGRATION_ENROLL_SECTION_"] }
+        ]);
+    }
+    create(value?: PartialMessage<UIIntegrationEnrollSectionOpenEvent>): UIIntegrationEnrollSectionOpenEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.step = 0;
+        message.section = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UIIntegrationEnrollSectionOpenEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIIntegrationEnrollSectionOpenEvent): UIIntegrationEnrollSectionOpenEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.IntegrationEnrollMetadata metadata */ 1:
+                    message.metadata = IntegrationEnrollMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.IntegrationEnrollStep step */ 2:
+                    message.step = reader.int32();
+                    break;
+                case /* prehog.v1alpha.IntegrationEnrollSection section */ 3:
+                    message.section = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIIntegrationEnrollSectionOpenEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.IntegrationEnrollMetadata metadata = 1; */
+        if (message.metadata)
+            IntegrationEnrollMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.IntegrationEnrollStep step = 2; */
+        if (message.step !== 0)
+            writer.tag(2, WireType.Varint).int32(message.step);
+        /* prehog.v1alpha.IntegrationEnrollSection section = 3; */
+        if (message.section !== 0)
+            writer.tag(3, WireType.Varint).int32(message.section);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
+ */
+export const UIIntegrationEnrollSectionOpenEvent = new UIIntegrationEnrollSectionOpenEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class EditorChangeEvent$Type extends MessageType<EditorChangeEvent> {
     constructor() {
         super("prehog.v1alpha.EditorChangeEvent", [
@@ -11069,7 +11193,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 94, name: "user_task_state", kind: "message", oneof: "event", T: () => UserTaskStateEvent },
             { no: 96, name: "ui_integration_enroll_step_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollStepEvent },
             { no: 99, name: "access_request_create", kind: "message", oneof: "event", T: () => AccessRequestCreateEvent },
-            { no: 100, name: "access_request_review", kind: "message", oneof: "event", T: () => AccessRequestReviewEvent }
+            { no: 100, name: "access_request_review", kind: "message", oneof: "event", T: () => AccessRequestReviewEvent },
+            { no: 101, name: "ui_integration_enroll_section_open_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollSectionOpenEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -11659,6 +11784,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         accessRequestReview: AccessRequestReviewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestReview)
                     };
                     break;
+                case /* prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event */ 101:
+                    message.event = {
+                        oneofKind: "uiIntegrationEnrollSectionOpenEvent",
+                        uiIntegrationEnrollSectionOpenEvent: UIIntegrationEnrollSectionOpenEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollSectionOpenEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -11962,6 +12093,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.AccessRequestReviewEvent access_request_review = 100; */
         if (message.event.oneofKind === "accessRequestReview")
             AccessRequestReviewEvent.internalBinaryWrite(message.event.accessRequestReview, writer.tag(100, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101; */
+        if (message.event.oneofKind === "uiIntegrationEnrollSectionOpenEvent")
+            UIIntegrationEnrollSectionOpenEvent.internalBinaryWrite(message.event.uiIntegrationEnrollSectionOpenEvent, writer.tag(101, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -48,6 +48,7 @@ export enum IntegrationEnrollEvent {
   Started = 'tp.ui.integrationEnroll.start',
   Complete = 'tp.ui.integrationEnroll.complete',
   Step = 'tp.ui.integrationEnroll.step',
+  SectionOpen = 'tp.ui.integrationEnroll.sectionOpen',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -126,6 +127,21 @@ export enum IntegrationEnrollStatusCode {
 }
 
 /**
+ * IntegrationEnrollSection identifies a section the user opened or expanded in
+ * an integration setup wizard. Value matches with proto enums defined in the
+ * backend.
+ */
+export enum IntegrationEnrollSection {
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SGitHubAdvancedOptions = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS',
+  MWIGHAK8SKubernetesLabelPicker = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER',
+  MWIGHAK8SKubernetesAdvancedOptions = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS',
+  MWIGHAK8SKubernetesResourceRulePicker = 'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER',
+}
+
+/**
  * IntegrationEnrollStepStatus defines fields for reporting
  * integration configuration step event.
  */
@@ -150,6 +166,7 @@ export type IntegrationEnrollEventData = {
   kind: IntegrationEnrollKind;
   step?: IntegrationEnrollStep;
   status?: IntegrationEnrollStepStatus;
+  section?: IntegrationEnrollSection;
 };
 
 /**

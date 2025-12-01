@@ -1242,6 +1242,29 @@ message UIIntegrationEnrollStepEvent {
   IntegrationEnrollStepStatus status = 3;
 }
 
+// UIIntegrationEnrollSectionOpenEvent is emitted when the user opens or expands
+// a section (e.g. "Advanced Options") in an integration setup wizard.
+message UIIntegrationEnrollSectionOpenEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the section was opened.
+  IntegrationEnrollStep step = 2;
+  // Section that was opened.
+  IntegrationEnrollSection section = 3;
+}
+
+// IntegrationEnrollSection identifies a section the user opened or expanded in
+// an integration setup wizard.
+enum IntegrationEnrollSection {
+  INTEGRATION_ENROLL_SECTION_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4;
+}
+
 // EditorChangeEvent is an event that is emitted when a user role set changes resulting in
 // a editor role being added on removed
 message EditorChangeEvent {
@@ -1854,6 +1877,8 @@ message SubmitEventRequest {
 
     AccessRequestCreateEvent access_request_create = 99;
     AccessRequestReviewEvent access_request_review = 100;
+
+    UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
