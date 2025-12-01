@@ -196,10 +196,6 @@ func (a *Server) SetJWKSValidator(clt JWKSValidator) {
 	a.k8sJWKSValidator = clt
 }
 
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
-	a.azureDevopsIDTokenValidator = validator
-}
-
 func (a *Server) SetBitbucketIDTokenValidator(validator bitbucketIDTokenValidator) {
 	a.bitbucketIDTokenValidator = validator
 }
