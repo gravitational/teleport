@@ -203,6 +203,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
 	case types.JoinMethodToken,
+		types.JoinMethodAzure,
 		types.JoinMethodAzureDevops,
 		types.JoinMethodBitbucket,
 		types.JoinMethodBoundKeypair,
@@ -304,6 +305,8 @@ func joinWithMethod(
 	switch types.JoinMethod(method) {
 	case types.JoinMethodToken:
 		return tokenJoin(stream, clientParams)
+	case types.JoinMethodAzure:
+		return azureJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodAzureDevops:
 		if joinParams.IDToken == "" {
 			joinParams.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)

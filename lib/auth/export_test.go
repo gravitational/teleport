@@ -70,8 +70,6 @@ const (
 
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
-
-	AzureAccessTokenAudience = azureAccessTokenAudience
 )
 
 var (
@@ -315,10 +313,6 @@ func TrimUserAgent(userAgent string) string {
 	return trimUserAgent(userAgent)
 }
 
-func IsAllowedDomain(cn string, domains []string) bool {
-	return isAllowedDomain(cn, domains)
-}
-
 func GetSnowflakeJWTParams(ctx context.Context, accountName, userName string, publicKey []byte) (string, string) {
 	return getSnowflakeJWTParams(ctx, accountName, userName, publicKey)
 }
@@ -344,32 +338,7 @@ func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 }
 
 type GitHubManager = githubManager
-type AttestedData = attestedData
-type SignedAttestedData = signedAttestedData
 type JWKSValidator = k8sJWKSValidator
-type AzureRegisterOption = azureRegisterOption
-type AzureRegisterConfig = azureRegisterConfig
-type AzureVMClientGetter = vmClientGetter
-type AzureVerifyTokenFunc = azureVerifyTokenFunc
-type AccessTokenClaims = accessTokenClaims
-
-func WithAzureCerts(certs []*x509.Certificate) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.certificateAuthorities = certs
-	}
-}
-
-func WithAzureVerifyFunc(verify azureVerifyTokenFunc) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.verify = verify
-	}
-}
-
-func WithAzureVMClientGetter(getVMClient vmClientGetter) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.getVMClient = getVMClient
-	}
-}
 
 func (s *TLSServer) GRPCServer() *GRPCServer {
 	return s.grpcServer
