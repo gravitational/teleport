@@ -104,6 +104,13 @@ export enum IntegrationEnrollStep {
   GitHubRaCreateGitServer = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER',
   GitHubRaConfigureSshCert = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT',
   GitHubRaCreateRole = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE',
+
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SConnectGitHub = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+  MWIGHAK8SConnectConfigureAccess = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
+  MWIGHAK8SSetupWorkflow = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW',
 }
 
 /**
@@ -124,15 +131,15 @@ export enum IntegrationEnrollStatusCode {
  */
 export type IntegrationEnrollStepStatus =
   | {
-      code: Exclude<
-        IntegrationEnrollStatusCode,
-        IntegrationEnrollStatusCode.Error
-      >;
-    }
+    code: Exclude<
+      IntegrationEnrollStatusCode,
+      IntegrationEnrollStatusCode.Error
+    >;
+  }
   | {
-      code: IntegrationEnrollStatusCode.Error;
-      error: string;
-    };
+    code: IntegrationEnrollStatusCode.Error;
+    error: string;
+  };
 
 /**
  * IntegrationEnrollEventData defines integration

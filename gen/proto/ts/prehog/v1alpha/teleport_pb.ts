@@ -4202,7 +4202,21 @@ export enum IntegrationEnrollStep {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
      */
-    GITHUBRA_CREATE_ROLE = 8
+    GITHUBRA_CREATE_ROLE = 8,
+    /**
+     * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+     *
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB = 9;
+     */
+    MWIGHAK8S_CONNECT_GITHUB = 9,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS = 10;
+     */
+    MWIGHAK8S_CONFIGURE_ACCESS = 10,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
+     */
+    MWIGHAK8S_SETUP_WORKFLOW = 11
 }
 /**
  * IntegrationEnrollStatusCode defines status code for an integration enroll step.
