@@ -267,6 +267,14 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+        # Contrary to what the docs say, if a dependency matches more than one rule, it is _not_
+        # included in the first group that it matches. Other groups must be explicitly included,
+        # otherwise Dependabot is going to perform minor Electron updates in the UI group.
+        # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#groups--
+        exclude-patterns:
+          - 'electron*'
+          - node-gyp
+          - node-pty
     open-pull-requests-limit: 20
   - package-ecosystem: github-actions
     directory: '/.github/workflows'
