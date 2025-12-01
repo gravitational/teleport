@@ -237,11 +237,23 @@ func (t *terminal) Run(ctx context.Context) error {
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
 	err := t.cmd.Wait()
+
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			status := exitErr.Sys().(syscall.WaitStatus)
-			return &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}, nil
+
+			res := &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}
+			if res.Code == teleport.RemoteCommandFailure {
+				t.serverContext.stderrW.Close()
+				stderr, err := io.ReadAll(t.serverContext.stderrR)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				res.Stderr = stderr
+			}
+
+			return res, nil
 		}
 		return nil, err
 	}
@@ -591,6 +603,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO: handle error handling for forwarder?
 	err = t.session.Wait()
 	if err != nil {
 		var exitErr *ssh.ExitError
