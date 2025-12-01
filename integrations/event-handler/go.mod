@@ -384,6 +384,7 @@ require (
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
+	rsc.io/ordered v1.1.1 // indirect
 	sigs.k8s.io/controller-runtime v0.20.4 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/kustomize/api v0.19.0 // indirect

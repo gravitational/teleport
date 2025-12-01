@@ -176,6 +176,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
     <IconBox IconCmpt={Icon.Mute} text="Mute" />
+    <IconBox IconCmpt={Icon.Network} text="Network" />
     <IconBox IconCmpt={Icon.NewTab} text="NewTab" />
     <IconBox IconCmpt={Icon.NoteAdded} text="NoteAdded" />
     <IconBox IconCmpt={Icon.Notification} text="Notification" />
@@ -215,6 +216,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Speed} text="Speed" />
     <IconBox IconCmpt={Icon.Spinner} text="Spinner" />
     <IconBox IconCmpt={Icon.SquaresFour} text="SquaresFour" />
+    <IconBox IconCmpt={Icon.Stack} text="Stack" />
     <IconBox IconCmpt={Icon.Stars} text="Stars" />
     <IconBox IconCmpt={Icon.Sun} text="Sun" />
     <IconBox IconCmpt={Icon.SyncAlt} text="SyncAlt" />
