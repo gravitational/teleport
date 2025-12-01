@@ -577,16 +577,12 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 
 		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
 			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
-				lstats := tdp.LatencyStats{
+				return clientConn.WriteMessage(tdp.LatencyStats{
 					ClientLatency: uint32(stats.Client),
 					ServerLatency: uint32(stats.Server),
-				}
-
-				_ = clientConn.WriteMessage(lstats)
-				return nil
+				})
 			}),
 		)
-
 	}
 
 	// Run joins and returns any read, write, or close errors from each side of the
