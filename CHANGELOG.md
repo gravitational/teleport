@@ -1,5 +1,28 @@
 # Changelog
 
+## 18.4.2 (12/01/25)
+
+* Fixed a bug causing high memory consumption in the Teleport Auth Service when clients were listing large resources. [#61849](https://github.com/gravitational/teleport/pull/61849)
+* Prevent data races when terminating interactive Kubernetes sessions. [#61818](https://github.com/gravitational/teleport/pull/61818)
+* Fixed `tsh db connect` failing to connect to databases using separate ports configuration (non-TLS routing mode). [#61812](https://github.com/gravitational/teleport/pull/61812)
+* Fixed a bug where Kubernetes App Discovery `poll_interval` is not set correctly. [#61791](https://github.com/gravitational/teleport/pull/61791)
+* Fixed an issue that caused a failed upload of an encrypted session recording to block other recordings from uploading. [#61774](https://github.com/gravitational/teleport/pull/61774)
+* Fixed relative path evaluation for SFTP in proxy recording mode. [#61760](https://github.com/gravitational/teleport/pull/61760)
+* Fixed `tsh kube ls` showing deleted clusters. [#61742](https://github.com/gravitational/teleport/pull/61742)
+* Fixed workload identity templating to support certain numeric values that previously gave a "expression did not evaluate to a string" error. [#61738](https://github.com/gravitational/teleport/pull/61738)
+* Added User Details view to Web UI. [#61737](https://github.com/gravitational/teleport/pull/61737)
+* Added --roles flag for tsh request search, allowing users to list all requestable roles. This flag is mutually exclusive with --kind. [#61699](https://github.com/gravitational/teleport/pull/61699)
+* Fixed EC2 SSM Document set up script used in Enroll New Resource. [#61673](https://github.com/gravitational/teleport/pull/61673)
+* Fixed AWS Console access when using AWS IAM Roles Anywhere or AWS OIDC integrations, when IP Pinning is enabled. [#61654](https://github.com/gravitational/teleport/pull/61654)
+* Fixed "invalid name syntax" connection error for PostgreSQL auto-provisioned users with email usernames. [#61631](https://github.com/gravitational/teleport/pull/61631)
+* Auth readiness tuned to wait for cache initialization. [#61620](https://github.com/gravitational/teleport/pull/61620)
+* Added ability to update existing Azure OIDC integration with `tctl`. [#61592](https://github.com/gravitational/teleport/pull/61592)
+
+Enterprise:
+* Added Entra directory sync metrics.
+* Improved the initial EntraID user and group synchronization time, reducing the time required for the first full sync.
+* Prevented Trivy from reporting false positives when scanning the Teleport binaries.
+
 ## 18.4.1 (11/20/25)
 
 * Fixed a bug that prevented searching audit log events in the web UI when using Athena audit storage. [#61603](https://github.com/gravitational/teleport/pull/61603)
