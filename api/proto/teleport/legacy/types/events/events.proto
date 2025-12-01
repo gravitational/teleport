@@ -1320,6 +1320,18 @@ message UserLogin {
   string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
+// MFAFlowType defines the type of MFA flow used for authentication.
+enum MFAFlowType {
+  // MFA_FLOW_TYPE_UNSPECIFIED is the default value when the flow type is not specified.
+  MFA_FLOW_TYPE_UNSPECIFIED = 0;
+  // MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE indicates that MFA was completed using
+  // a per-session MFA certificate (legacy flow).
+  MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE = 1;
+  // MFA_FLOW_TYPE_IN_BAND indicates that MFA was completed using the in-band flow
+  // during session establishment.
+  MFA_FLOW_TYPE_IN_BAND = 2;
+}
+
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
 message CreateMFAAuthChallenge {
   // Metadata is a common event metadata.
@@ -1342,6 +1354,9 @@ message CreateMFAAuthChallenge {
 
   // ChallengeAllowReuse defines whether the MFA challenge allows reuse.
   bool ChallengeAllowReuse = 4 [(gogoproto.jsontag) = "challenge_allow_reuse"];
+
+  // FlowType indicates the type of MFA flow used for the challenge.
+  MFAFlowType FlowType = 5 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
@@ -1376,6 +1391,9 @@ message ValidateMFAAuthResponse {
 
   // ChallengeAllowReuse defines whether the MFA challenge used for authentication can be reused.
   bool ChallengeAllowReuse = 6 [(gogoproto.jsontag) = "challenge_allow_reuse"];
+
+  // FlowType indicates the type of MFA flow used for the challenge.
+  MFAFlowType FlowType = 7 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
