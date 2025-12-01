@@ -213,6 +213,7 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	return &ExecResult{
 		Code:    t.reexecCmd.ExitCode(),
 		Command: t.reexecCmd.Path(),
+		Error:   t.reexecCmd.ChildError(),
 	}, nil
 }
 

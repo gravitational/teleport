@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -41,8 +42,9 @@ type Command struct {
 
 	cmd *exec.Cmd
 	// done is set when the command starts and closed the command completes.
-	done    chan struct{}
-	exitErr error
+	done     chan struct{}
+	exitErr  error
+	childErr error
 
 	// parent side of config pipe.
 	cfgW io.WriteCloser
@@ -144,6 +146,15 @@ func (c *Command) Start(closerOnExit ...io.Closer) error {
 		return trace.BadParameter("missing exec command")
 	}
 
+	// Capture stderr.
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.parentReadPipes = append(c.parentReadPipes, stderrR)
+	c.cmd.Stderr = stderrW
+	defer stderrW.Close()
+
 	// Prepare the child pipes and ensure they are closed after the command starts.
 	c.cmd.ExtraFiles = c.childPipes
 	c.childPipes = nil
@@ -155,7 +166,7 @@ func (c *Command) Start(closerOnExit ...io.Closer) error {
 	// unable to run some exec commands.
 	//
 	// To not depend on the OS implementation of a pipe, instead the copy should
-	// be non-blocking. The io.Copy will be closed either when the child
+	// be non-blocking. The io.Copy will be closed when either when the child
 	// process has fully read in the payload or the process exits with an error
 	// (and closes all child file descriptors).
 	//
@@ -182,6 +193,14 @@ func (c *Command) Start(closerOnExit ...io.Closer) error {
 
 	go func() {
 		c.exitErr = c.cmd.Wait()
+
+		childErr, err := readChildError(context.Background(), stderrR)
+		if err != nil {
+			c.logger.WarnContext(context.Background(), "Failed to read child process stderr", "error", err)
+		} else {
+			c.childErr = childErr
+		}
+
 		close(c.done)
 		closeAll(closerOnExit...)
 		c.Close()
@@ -336,6 +355,29 @@ func (c *Command) Done() <-chan struct{} {
 	return c.done
 }
 
+// ChildError returns the child stderr error message.
+// Returns nil if called before the command completes.
+func (c *Command) ChildError() error {
+	select {
+	case <-c.done:
+		return c.childErr
+	default:
+		return nil
+	}
+}
+
+// ExitCode returns the exit code.
+// Returns 0 if called before the command completes.
+func (c *Command) ExitCode() int {
+	select {
+	case <-c.done:
+		// ProcessState should always be populated when c.cmd.Wait returns and c.done is closed.
+		return c.cmd.ProcessState.ExitCode()
+	default:
+		return 0
+	}
+}
+
 // PID returns the command PID.
 // Returns 0 if called before the command is started.
 func (c *Command) PID() int {
@@ -369,18 +411,6 @@ func (c *Command) Env() []string {
 	return c.cmd.Env
 }
 
-// ExitCode returns the exit code.
-// Returns 0 if called before the command completes.
-func (c *Command) ExitCode() int {
-	select {
-	case <-c.done:
-		// ProcessState should always be populated when c.cmd.Wait returns and c.done is closed.
-		return c.cmd.ProcessState.ExitCode()
-	default:
-		return 0
-	}
-}
-
 func closeAll(files ...io.Closer) error {
 	var errs []error
 	for _, f := range files {
@@ -402,4 +432,32 @@ func filesToClosers(files []*os.File) []io.Closer {
 		closers[i] = f
 	}
 	return closers
+}
+
+// readChildError reads the child process's stderr pipe for an error.
+// If stderr is empty, a nil childErr is returned. If stderr is non-empty and
+// looks like "Failed to launch: <internal-error-message>", it is returned as childErr,
+// potentially with additional error context gathered from the given
+// server context. Otherwise, err is returned.
+func readChildError(ctx context.Context, stderr io.Reader) (childErr error, err error) {
+	// Read the error msg from stderr.
+	errMsg := new(strings.Builder)
+	if _, err := io.Copy(errMsg, stderr); err != nil {
+		return nil, trace.Wrap(err, "Failed to read error message from child process")
+	}
+
+	if errMsg.Len() == 0 {
+		return nil, nil
+	}
+
+	// It should be empty or include an error message like "Failed to launch: ..."
+	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
+		return nil, trace.Wrap(err, "Unexpected error message from child process: %s", errMsg.String())
+	}
+
+	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
+	// the cause of the session failure to add to the error message.
+	// e.g. user unknown because host user creation denied.
+
+	return errors.New(errMsg.String()), nil
 }

@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -74,20 +75,6 @@ func RunCommand() (code int, err error) {
 	// work when closing the entire teleport process group, exec sessions must
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
-
-	// If the command fails to launch, write the error to stdout for the parent process
-	// to digest. If we have a terminal, write it there for the user to see as well.
-	var tty *os.File
-	defer func() {
-		if err != nil && code == teleport.RemoteCommandFailure {
-			var w io.Writer = os.Stdout
-			if tty != nil {
-				w = io.MultiWriter(os.Stdout, tty)
-			}
-
-			fmt.Fprintf(w, "Failed to launch: %v.\r\n", err)
-		}
-	}()
 
 	// Parent sends the reexec configuration payload in the third file descriptor.
 	cfgfd := os.NewFile(reexec.ConfigFile, reexec.FDName(reexec.ConfigFile))
@@ -153,13 +140,37 @@ func RunCommand() (code int, err error) {
 		}
 	}()
 
-	// If a terminal was requested, file descriptor 7 always points to the
-	// TTY. Extract it and set the controlling TTY. Otherwise, connect
-	// std{in,out,err} directly.
+	var tty *os.File
+	var shellStdio stdio
 	if c.Terminal {
 		tty = os.NewFile(reexec.TTYFile, reexec.FDName(reexec.TTYFile))
 		if tty == nil {
 			return teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
+		}
+		shellStdio.in = tty
+		shellStdio.out = tty
+		shellStdio.err = tty
+	} else if c.Command == teleport.SFTPSubCommand {
+		// std{in/out} is not used by the SFTP sub process, just collect stderr.
+		shellStdio = stdio{
+			in:  bytes.NewReader([]byte{}),
+			out: io.Discard,
+			// Propagate sftp subprocess errors to the parent process.
+			err: os.Stderr,
+		}
+	} else {
+		// If this is a normal, non-interactive exec session, use the stdio pipes provided as extra files.
+		shellStdio.in = os.NewFile(reexec.StdinFile, reexec.FDName(reexec.StdinFile))
+		if shellStdio.in == nil {
+			return teleport.RemoteCommandFailure, trace.BadParameter("stdin not found")
+		}
+		shellStdio.out = os.NewFile(reexec.StdoutFile, reexec.FDName(reexec.StdoutFile))
+		if shellStdio.out == nil {
+			return teleport.RemoteCommandFailure, trace.BadParameter("stdout not found")
+		}
+		shellStdio.err = os.NewFile(reexec.StderrFile, reexec.FDName(reexec.StderrFile))
+		if shellStdio.err == nil {
+			return teleport.RemoteCommandFailure, trace.BadParameter("stderr not found")
 		}
 	}
 
@@ -168,35 +179,29 @@ func RunCommand() (code int, err error) {
 	// launch the shell under.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
-		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
-		// otherwise discard std{out,err}. If this was not done, things like MOTD
-		// would be printed for non-interactive "exec" requests.
-		var stdin io.Reader
-		var stdout io.Writer
-		var stderr io.Writer
-		if tty != nil {
-			stdin = tty
-			stdout = tty
-			stderr = tty
-		} else {
-			stdin = os.Stdin
-			stdout = io.Discard
-			stderr = io.Discard
-		}
-
-		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		cfg := &servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
-			Env:    c.PAMConfig.Environment,
-			Stdin:  stdin,
-			Stdout: stdout,
-			Stderr: stderr,
-		})
+			Env: c.PAMConfig.Environment,
+			// Connect std{in,out,err} to the TTY if a terminal has been allocated.
+			Stdin:  shellStdio.in,
+			Stdout: shellStdio.out,
+			Stderr: shellStdio.err,
+		}
+
+		// Discard std{out,err} for non-interactive requests. Otherwise, things like
+		// MOTD would be printed.
+		if !c.Terminal {
+			cfg.Stdout = io.Discard
+			cfg.Stderr = io.Discard
+		}
+
+		// Open the PAM context.
+		pamContext, err := pam.Open(cfg)
 		if err != nil {
 			return teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
@@ -245,7 +250,7 @@ func RunCommand() (code int, err error) {
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, localUser, tty, pamEnvironment)
+	cmd, err := buildCommand(&c, localUser, shellStdio, pamEnvironment)
 	if err != nil {
 		return teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -472,9 +477,10 @@ func RunNetworking() (code int, err error) {
 		pamContext, err := pam.Open(&servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
-			Stdin:       os.Stdin,
-			Stdout:      io.Discard,
-			Stderr:      io.Discard,
+			// TODO: add stdin?
+			Stdin:  os.Stdin,
+			Stdout: io.Discard,
+			Stderr: io.Discard,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
@@ -578,6 +584,11 @@ func RunNetworking() (code int, err error) {
 		_, _ = terminatefd.Read(make([]byte, 1))
 		parentConn.Close()
 	}()
+
+	// Alert the parent process that the child process has completed any setup operations,
+	// and that we are now waiting for the continue signal before proceeding. This is needed
+	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
+	parentConn.Write(make([]byte, 1))
 
 	for {
 		buf := make([]byte, 1024)
@@ -818,6 +829,12 @@ func RunAndExit(commandType string) {
 		code, err = teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
+		// Write the error to stderr, where it can be seen by the parent teleport process and
+		// propagated to the client.
+		if code == teleport.RemoteCommandFailure {
+			fmt.Fprintf(os.Stderr, "Failed to launch: %v", err)
+		}
+
 		// The "operation not permitted" error is expected from a variety of operations if the
 		// teleport process is running as a non-root user and is trying to spawn a process for
 		// a different OS user.
@@ -898,9 +915,18 @@ func readUserEnv(localUser *user.User, path string) ([]string, error) {
 	return envs, trace.Wrap(err)
 }
 
+type stdio struct {
+	// stdin
+	in io.Reader
+	// stdout
+	out io.Writer
+	// stderr
+	err io.Writer
+}
+
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *reexec.Config, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *reexec.Config, localUser *user.User, stdio stdio, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
@@ -980,14 +1006,12 @@ func buildCommand(c *reexec.Config, localUser *user.User, tty *os.File, pamEnvir
 	// after environment is fully built, set it to cmd
 	cmd.Env = *env
 
-	// If a terminal was requested, connect std{in,out,err} to the TTY and set
-	// the controlling TTY. Otherwise, connect std{in,out,err} to
-	// os.Std{in,out,err}.
-	if c.Terminal {
-		cmd.Stdin = tty
-		cmd.Stdout = tty
-		cmd.Stderr = tty
+	// set stdio. If a terminal was requested, the stdio fields all point to the same tty file.
+	cmd.Stdin = stdio.in
+	cmd.Stdout = stdio.out
+	cmd.Stderr = stdio.err
 
+	if c.Terminal {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid:  true,
 			Setctty: true,
@@ -995,10 +1019,6 @@ func buildCommand(c *reexec.Config, localUser *user.User, tty *os.File, pamEnvir
 			// set to our tty above.
 		}
 	} else {
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid: true,
 		}

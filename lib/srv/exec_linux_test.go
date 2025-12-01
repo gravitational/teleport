@@ -94,7 +94,12 @@ func TestOSCommandPrep(t *testing.T) {
 	reexecCfg, err := scx.ReexecConfig()
 	require.NoError(t, err)
 
-	cmd, err := buildCommand(reexecCfg, usr, nil, nil)
+	stdio := stdio{
+		in:  os.Stdin,
+		out: os.Stdout,
+		err: os.Stderr,
+	}
+	cmd, err := buildCommand(reexecCfg, usr, stdio, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -109,7 +114,7 @@ func TestOSCommandPrep(t *testing.T) {
 	reexecCfg, err = scx.ReexecConfig()
 	require.NoError(t, err)
 
-	cmd, err = buildCommand(reexecCfg, usr, nil, nil)
+	cmd, err = buildCommand(reexecCfg, usr, stdio, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -124,7 +129,7 @@ func TestOSCommandPrep(t *testing.T) {
 	reexecCfg, err = scx.ReexecConfig()
 	require.NoError(t, err)
 
-	cmd, err = buildCommand(reexecCfg, usr, nil, nil)
+	cmd, err = buildCommand(reexecCfg, usr, stdio, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, "/bin/sh", cmd.Path)
@@ -137,7 +142,7 @@ func TestOSCommandPrep(t *testing.T) {
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
 	expectedEnv[2] = "HOME=/wrong/place"
-	cmd, err = buildCommand(reexecCfg, usr, nil, nil)
+	cmd, err = buildCommand(reexecCfg, usr, stdio, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, root, cmd.Dir)

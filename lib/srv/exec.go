@@ -62,6 +62,9 @@ type ExecResult struct {
 
 	// Code is return code that execution of the command resulted in.
 	Code int
+
+	// Error is an error message from the child process.
+	Error error
 }
 
 // Exec executes an "exec" request.
@@ -159,8 +162,19 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 	e.Ctx.AddCloser(e.reexecCmd)
 
-	// Connect stdio to the channel so the user can interact with the command.
-	inputWriter, err := e.reexecCmd.WithStdio(channel, channel.Stderr())
+	// Create pipes to capture stdio of the shell (grandchild) process, closing our
+	// side of each pipe after starting the command.
+	shellStdinw, err := e.reexecCmd.AddParentToChildPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	shellStdoutr, err := e.reexecCmd.AddChildToParentPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	shellStderrr, err := e.reexecCmd.AddChildToParentPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,11 +193,22 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		}, trace.ConvertSystemError(err)
 	}
 
+	// copy stdio between the channel and shell process.
 	go func() {
-		if _, err := io.Copy(inputWriter, channel); err != nil {
+		if _, err := io.Copy(shellStdinw, channel); err != nil {
 			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
 		}
-		inputWriter.Close()
+		shellStdinw.Close()
+	}()
+	go func() {
+		if _, err := io.Copy(channel, shellStdoutr); err != nil {
+			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
+		}
+	}()
+	go func() {
+		if _, err := io.Copy(channel.Stderr(), shellStderrr); err != nil {
+			logger.WarnContext(ctx, "Failed to forward data from SSH channel to local command", "error", err)
+		}
 	}()
 
 	logger.InfoContext(ctx, "Started local command execution")
@@ -212,6 +237,7 @@ func (e *localExec) Wait() *ExecResult {
 	execResult := &ExecResult{
 		Command: e.GetCommand(),
 		Code:    e.reexecCmd.ExitCode(),
+		Error:   e.reexecCmd.ChildError(),
 	}
 
 	return execResult

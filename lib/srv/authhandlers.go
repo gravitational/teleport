@@ -326,7 +326,7 @@ func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 		return nil
 	}
 
-	return trace.AccessDenied("x11 forwarding not permitted")
+	return trace.AccessDenied("X11 forwarding not permitted")
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.

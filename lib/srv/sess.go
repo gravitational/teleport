@@ -1687,6 +1687,11 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 func (s *session) broadcastResult(r ExecResult) {
 	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
 	for _, p := range s.getParties() {
+		if r.Error != nil {
+			if _, err := io.WriteString(p.ch.Stderr(), fmt.Sprintf("%v\r\n", r.Error)); err != nil {
+				s.logger.WarnContext(s.serverCtx, "Failed writing to stderr of SSH channel", "error", err)
+			}
+		}
 		if _, err := p.ch.SendRequest("exit-status", false, payload); err != nil {
 			s.logger.InfoContext(
 				s.serverCtx, "Failed to send exit status",

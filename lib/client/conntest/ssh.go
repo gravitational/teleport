@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -183,7 +182,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		ClusterName: clusterName.GetClusterName(),
 	}
 
-	processStdout := &bytes.Buffer{}
+	processStderr := &bytes.Buffer{}
 
 	clientConf := &client.Config{}
 	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
@@ -193,9 +192,9 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	clientConf.HostLogin = req.SSHPrincipal
 	clientConf.NonInteractive = true
 	clientConf.SSHProxyAddr = s.sshProxyAddr
-	clientConf.Stderr = io.Discard
+	clientConf.Stderr = processStderr
 	clientConf.Stdin = &bytes.Buffer{}
-	clientConf.Stdout = processStdout
+	clientConf.Stdout = &bytes.Buffer{}
 	clientConf.TLS = clientConfTLS
 	clientConf.TLSRoutingEnabled = s.cfg.TLSRoutingEnabled
 	clientConf.Username = currentUser.GetName()
@@ -211,7 +210,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	defer cancelFunc()
 
 	if err := tc.SSH(ctxWithTimeout, []string{"whoami"}); err != nil {
-		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStdout, currentUser, req)
+		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStderr, currentUser, req)
 	}
 
 	connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
@@ -234,7 +233,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 }
 
 func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDiagnosticID string,
-	sshPrincipal string, sshError error, processStdout *bytes.Buffer, currentUser types.User, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
+	sshPrincipal string, sshError error, processStderr *bytes.Buffer, currentUser types.User, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
 	isConnectMyComputerNode := req.SSHNodeSetupMethod == SSHNodeSetupMethodConnectMyComputer
 
 	if trace.IsConnectionProblem(sshError) {
@@ -262,26 +261,26 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 		return connDiag, nil
 	}
 
-	processStdoutString := strings.TrimSpace(processStdout.String())
+	processStderrString := strings.TrimSpace(processStderr.String())
 	// If the selected principal does not exist on the node, attempting to connect emits:
 	// "Failed to launch: user: lookup username <principal>: no such file or directory."
-	isUsernameLookupFail := strings.HasPrefix(processStdoutString, "Failed to launch: user:")
+	isUsernameLookupFail := strings.HasPrefix(processStderrString, "Failed to launch: user:")
 	// Connect My Computer runs the agent as non-root. When attempting to connect as another system
 	// user that is not the same as the user who runs the agent, the emitted error is "Failed to
 	// launch: fork/exec <conn.User shell>: operation not permitted."
-	isForkExecOperationNotPermitted := strings.HasPrefix(processStdoutString, "Failed to launch: fork/exec") &&
-		strings.Contains(processStdoutString, "operation not permitted")
+	isForkExecOperationNotPermitted := strings.Contains(processStderrString, "Failed to launch: fork/exec") &&
+		strings.Contains(processStderrString, "operation not permitted")
 	// "operation not permitted" is handled only for the Connect My Computer case as we assume that
 	// regular SSH nodes are started as root and are unlikely to run into this error.
 	isInvalidNodePrincipal := isUsernameLookupFail || (isConnectMyComputerNode && isForkExecOperationNotPermitted)
 
 	if isInvalidNodePrincipal {
 		message := fmt.Sprintf("Invalid user. Please ensure the principal %q is a valid login in the target node. Output from Node: %v",
-			sshPrincipal, processStdoutString)
+			sshPrincipal, processStderrString)
 		if isConnectMyComputerNode {
 			connectMyComputerRoleName := connectmycomputer.GetRoleNameForUser(currentUser.GetName())
 			message = "Invalid user."
-			outputFromAgent := fmt.Sprintf("Output from the Connect My Computer agent: %v", processStdoutString)
+			outputFromAgent := fmt.Sprintf("Output from the Connect My Computer agent: %v", processStderrString)
 			retrySetupInstructions := "reload this page, pick Connect My Computer again, then in Teleport Connect " +
 				"remove the Connect My Computer agent and start Connect My Computer setup again."
 
@@ -327,7 +326,7 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 
 	connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 		types.ConnectionDiagnosticTrace_UNKNOWN_ERROR,
-		fmt.Sprintf("Unknown error. %s", processStdoutString),
+		fmt.Sprintf("Unknown error. %s", processStderrString),
 		sshError,
 	))
 	if err != nil {

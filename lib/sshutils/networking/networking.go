@@ -23,6 +23,8 @@
 //   - Start: The parent teleport process creates a unix socket pair and passes one side to the
 //     networking subprocess on start. This is used as a unidirectional pipe for the parent
 //     to make networking requests.
+//   - Ready: The child process signals that it is ready and listening on the unix socket by sending
+//     a single byte message.
 //   - Request: The parent creates a new request-level socket pair and sends one side through the
 //     main pipe, along with the request payload (e.g. dial tcp 8080).
 //   - Handle: The subprocess watches for new requests on the main pipe. When a request is received,
@@ -125,7 +127,22 @@ func NewProcess(ctx context.Context, cmd *reexec.Command) (*Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return proc, nil
+	// Wait for the child process to signal ready. A read error indicate a process
+	// failure and can be ignored here.
+	ready := make(chan struct{})
+	go func() {
+		if n, _ := localConn.Read(make([]byte, 1)); n == 1 {
+			close(ready)
+		}
+	}()
+
+	// Wait for the child process to be ready and listening, or fail.
+	select {
+	case <-ready:
+		return proc, nil
+	case <-proc.cmd.Done():
+		return nil, proc.cmd.ChildError()
+	}
 }
 
 // Close stops the process and frees up its related resources.
