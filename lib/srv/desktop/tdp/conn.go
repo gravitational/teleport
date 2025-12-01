@@ -285,7 +285,11 @@ func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
 		return err
 	}
 
-	for _, msg := range removeNilMessages(out) {
+	for _, msg := range out {
+		if msg == nil {
+			continue
+		}
+
 		if err = i.src.WriteMessage(msg); err != nil {
 			return err
 		}

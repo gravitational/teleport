@@ -244,7 +244,7 @@ func (h *Handler) createDesktopConnection(
 	// this blocks until the connection is closed
 	handleProxyWebsocketConnErr(
 		ctx,
-		proxyWebsocketConn(ctx, ws, serviceConnTLS, log, version),
+		proxyWebsocketConn(ctx, ws, serviceConnTLS, version),
 		log,
 	)
 
@@ -538,7 +538,7 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, _ *slog.Logger, version string) error {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, version string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
