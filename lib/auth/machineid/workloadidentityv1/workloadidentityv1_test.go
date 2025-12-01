@@ -22,13 +22,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 	"net"
 	"os"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -739,6 +742,33 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 			},
 			requireErr: require.NoError,
 			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				// Checks for a bug where unix epoch timestamps (e.g. the `exp`
+				// and `iat` claims) were represented in scientific notation
+				// rather than as plain integers due to a conversion bug.
+				payloadSection := strings.Split(
+					res.GetCredential().GetJwtSvid().GetJwt(),
+					".",
+				)[1]
+				payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(payloadSection, "="))
+				require.NoError(t, err)
+
+				var numericClaims struct {
+					Exp json.Number `json:"exp"`
+					Iat json.Number `json:"iat"`
+				}
+				require.NoError(t, json.Unmarshal([]byte(payload), &numericClaims))
+
+				integerExpr, err := regexp.Compile(`^\d+$`)
+				require.NoError(t, err)
+				require.Truef(t,
+					integerExpr.MatchString(numericClaims.Exp.String()),
+					"unexpected number format: %s", numericClaims.Exp.String(),
+				)
+				require.Truef(t,
+					integerExpr.MatchString(numericClaims.Iat.String()),
+					"unexpected number format: %s", numericClaims.Iat.String(),
+				)
+
 				parsed, err := jwt.ParseSigned(res.GetCredential().GetJwtSvid().GetJwt())
 				require.NoError(t, err)
 
