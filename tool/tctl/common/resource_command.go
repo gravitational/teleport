@@ -139,7 +139,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindHealthCheckConfig:           rc.createHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment: rc.createScopedRoleAssignment,
-		types.KindInferenceSecret:             rc.createInferenceSecret,
 		types.KindInferencePolicy:             rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
@@ -1036,8 +1035,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
-	case types.KindInferenceSecret:
-		return trace.Wrap(rc.deleteInferenceSecret(ctx, client))
 	case types.KindInferencePolicy:
 		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	default:
@@ -1638,9 +1635,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			c = append(c, types.ProtoResource153ToLegacy(rs))
 		}
 		return c, nil
-	case types.KindInferenceSecret:
-		secrets, err := rc.getInferenceSecrets(ctx, client)
-		return secrets, trace.Wrap(err)
 	case types.KindInferencePolicy:
 		policies, err := rc.getInferencePolicies(ctx, client)
 		return policies, trace.Wrap(err)

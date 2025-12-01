@@ -31,12 +31,14 @@ import (
 type mockSummarizerServiceServer struct {
 	summarizerv1.SummarizerServiceServer
 
-	models map[string]*summarizerv1.InferenceModel
+	models  map[string]*summarizerv1.InferenceModel
+	secrets map[string]*summarizerv1.InferenceSecret
 }
 
 func registerMockSummarizerServiceServer(svc grpc.ServiceRegistrar) {
 	summarizerv1.RegisterSummarizerServiceServer(svc, &mockSummarizerServiceServer{
-		models: make(map[string]*summarizerv1.InferenceModel),
+		models:  make(map[string]*summarizerv1.InferenceModel),
+		secrets: make(map[string]*summarizerv1.InferenceSecret),
 	})
 }
 
@@ -85,4 +87,51 @@ func (m *mockSummarizerServiceServer) DeleteInferenceModel(ctx context.Context, 
 	}
 	delete(m.models, req.Name)
 	return &summarizerv1.DeleteInferenceModelResponse{}, nil
+}
+
+func (m *mockSummarizerServiceServer) ListInferenceSecrets(context.Context, *summarizerv1.ListInferenceSecretsRequest) (*summarizerv1.ListInferenceSecretsResponse, error) {
+	return &summarizerv1.ListInferenceSecretsResponse{
+		Secrets:       slices.Concat(slices.Collect(maps.Values(m.secrets))),
+		NextPageToken: "",
+	}, nil
+}
+
+func (m *mockSummarizerServiceServer) CreateInferenceSecret(ctx context.Context, req *summarizerv1.CreateInferenceSecretRequest) (*summarizerv1.CreateInferenceSecretResponse, error) {
+	name := req.Secret.Metadata.Name
+	if _, exists := m.secrets[name]; exists {
+		return nil, trace.AlreadyExists("inference secret %q already exists", name)
+	}
+	m.secrets[name] = req.Secret
+	return &summarizerv1.CreateInferenceSecretResponse{Secret: req.Secret}, nil
+}
+
+func (m *mockSummarizerServiceServer) GetInferenceSecret(ctx context.Context, req *summarizerv1.GetInferenceSecretRequest) (*summarizerv1.GetInferenceSecretResponse, error) {
+	secret, exists := m.secrets[req.Name]
+	if !exists {
+		return nil, trace.NotFound("inference secret %q not found", req.Name)
+	}
+	return &summarizerv1.GetInferenceSecretResponse{Secret: secret}, nil
+}
+
+func (m *mockSummarizerServiceServer) UpdateInferenceSecret(ctx context.Context, req *summarizerv1.UpdateInferenceSecretRequest) (*summarizerv1.UpdateInferenceSecretResponse, error) {
+	name := req.Secret.Metadata.Name
+	if _, exists := m.secrets[name]; !exists {
+		return nil, trace.NotFound("inference secret %q not found", name)
+	}
+	req.Secret.Metadata.Revision = uuid.NewString()
+	m.secrets[name] = req.Secret
+	return &summarizerv1.UpdateInferenceSecretResponse{Secret: req.Secret}, nil
+}
+
+func (m *mockSummarizerServiceServer) UpsertInferenceSecret(ctx context.Context, req *summarizerv1.UpsertInferenceSecretRequest) (*summarizerv1.UpsertInferenceSecretResponse, error) {
+	m.secrets[req.Secret.Metadata.Name] = req.Secret
+	return &summarizerv1.UpsertInferenceSecretResponse{Secret: req.Secret}, nil
+}
+
+func (m *mockSummarizerServiceServer) DeleteInferenceSecret(ctx context.Context, req *summarizerv1.DeleteInferenceSecretRequest) (*summarizerv1.DeleteInferenceSecretResponse, error) {
+	if _, exists := m.secrets[req.Name]; !exists {
+		return nil, trace.NotFound("inference secret %q not found", req.Name)
+	}
+	delete(m.secrets, req.Name)
+	return &summarizerv1.DeleteInferenceSecretResponse{}, nil
 }
