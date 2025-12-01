@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'fs';
+import fs from 'fs/promises';
 import { pathToFileURL } from 'node:url';
 import * as path from 'path';
 
@@ -43,6 +43,11 @@ const disabledSchemes = [
 const APP_FILE_SCHEMA = 'app-file';
 const CONNECT_AUTHORITY = 'connect-app';
 
+export const DEV_APP_WINDOW_URL = 'http://localhost:8080/';
+export const PACKAGED_APP_WINDOW_URL = buildAppFileUri(
+  'build/app/renderer/index.html'
+);
+
 /**
  * Builds a URI for the custom 'app-file://' scheme.
  * The path will be resolved against `app.getAppPath()`.
@@ -59,7 +64,7 @@ function disableUnusedProtocols() {
   disabledSchemes.forEach(scheme => {
     protocol.handle(scheme, () => {
       const message = `Denying request: Invalid scheme (${scheme})`;
-      logger.error(`Denying request: Invalid scheme (${scheme})`);
+      logger.error(message);
       return new Response(message, {
         status: 403,
         statusText: 'Forbidden Protocol',
@@ -70,7 +75,7 @@ function disableUnusedProtocols() {
 
 /**
  * Registers the 'http://' protocol handler.
- * Adds cross-origin headers to handled responses to enable features requiring
+ * Adds cross-origin headers to the document response to enable features requiring
  * cross-origin isolation.
  */
 function handleHttpProtocol(): void {
@@ -79,7 +84,9 @@ function handleHttpProtocol(): void {
       // Must be true to prevent the handler from calling itself and entering an infinite loop.
       bypassCustomProtocolHandlers: true,
     });
-    setCrossOriginIsolationHeaders(response.headers);
+    if (request.url === DEV_APP_WINDOW_URL) {
+      setCrossOriginIsolationHeaders(response.headers);
+    }
     return response;
   });
 }
@@ -87,7 +94,7 @@ function handleHttpProtocol(): void {
 /**
  * Registers the 'app-file://' protocol handler.
  * Serves application files from the build directory and adds
- * cross-origin headers to responses, enabling features that
+ * cross-origin header to the document response, enabling features that
  * require cross-origin isolation.
  */
 function handleAppFileProtocol(): void {
@@ -102,7 +109,7 @@ function handleAppFileProtocol(): void {
     const target = path.join(appPath, filePath);
     let realPath: string;
     try {
-      realPath = await fs.promises.realpath(target);
+      realPath = await fs.realpath(target);
     } catch (error) {
       logger.error(`Failed to resolve path ${target}'`, error);
       return new Response(`Failed to resolve path: ${getErrorMessage(error)}`, {
@@ -127,7 +134,9 @@ function handleAppFileProtocol(): void {
       // We can bypass it because we performed the path traversal checks.
       bypassCustomProtocolHandlers: true,
     });
-    setCrossOriginIsolationHeaders(response.headers);
+    if (request.url === PACKAGED_APP_WINDOW_URL) {
+      setCrossOriginIsolationHeaders(response.headers);
+    }
     return response;
   });
 }
@@ -165,8 +174,10 @@ export function registerAppFileProtocol(): void {
  * - Registers handlers for `app-file://` and `http://` (for Vite dev server)
  * to enforce cross-origin isolation, enabling features like `SharedArrayBuffer`.
  */
-export function setUpProtocolHandlers(): void {
+export function setUpProtocolHandlers(dev: boolean): void {
   disableUnusedProtocols();
   handleAppFileProtocol();
-  handleHttpProtocol();
+  if (dev) {
+    handleHttpProtocol();
+  }
 }

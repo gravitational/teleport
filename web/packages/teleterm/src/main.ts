@@ -183,7 +183,7 @@ async function initializeApp(): Promise<void> {
   app
     .whenReady()
     .then(() => {
-      setUpProtocolHandlers();
+      setUpProtocolHandlers(settings.dev);
 
       windowsManager.createWindow();
 

@@ -34,7 +34,10 @@ import { ensureError } from 'shared/utils/error';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
-import { buildAppFileUri } from 'teleterm/mainProcess/protocolHandler';
+import {
+  DEV_APP_WINDOW_URL,
+  PACKAGED_APP_WINDOW_URL,
+} from 'teleterm/mainProcess/protocolHandler';
 import {
   RendererIpc,
   RuntimeSettings,
@@ -563,9 +566,5 @@ export class WindowsManager {
  * for the packaged app.
  * */
 function getWindowUrl(isDev: boolean): string {
-  if (isDev) {
-    return 'http://localhost:8080/';
-  }
-
-  return buildAppFileUri('build/app/renderer/index.html');
+  return isDev ? DEV_APP_WINDOW_URL : PACKAGED_APP_WINDOW_URL;
 }
