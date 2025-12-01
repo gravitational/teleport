@@ -494,14 +494,14 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0
       electron:
-        specifier: 39.2.4
-        version: 39.2.4
+        specifier: 39.2.2
+        version: 39.2.2
       electron-builder:
         specifier: ^26.0.12
         version: 26.0.12
       electron-updater:
-        specifier: ^6.7.2
-        version: 6.7.2
+        specifier: ^6.7.0
+        version: 6.7.0
       electron-vite:
         specifier: ^4.0.1
         version: 4.0.1(@swc/core@1.15.3)(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1))
@@ -3458,8 +3458,8 @@ packages:
     resolution: {integrity: sha512-2/egrNDDnRaxVwK3A+cJq6UOlqOdedGA7JPqCeJjN2Zjk1/QB/6QUi3b714ScIGS7HafFXTyzJEOr5b44I3kvQ==}
     engines: {node: '>=12.0.0'}
 
-  builder-util-runtime@9.5.1:
-    resolution: {integrity: sha512-qt41tMfgHTllhResqM5DcnHyDIWNgzHvuY2jDcYP9iaGpkWxTUzV6GQjDeLnlR1/DtdlcsWQbA7sByMpmJFTLQ==}
+  builder-util-runtime@9.5.0:
+    resolution: {integrity: sha512-7qmRMH8X/IzDM+1TysKNFo5cNWBbfacdLX4EqkuE5aiRTECAlYiKHSqEc6cc3c4Lrmpgk0utbxOPkj0iYaWAWQ==}
     engines: {node: '>=12.0.0'}
 
   builder-util@26.0.11:
@@ -4004,8 +4004,8 @@ packages:
   electron-to-chromium@1.5.227:
     resolution: {integrity: sha512-ITxuoPfJu3lsNWUi2lBM2PaBPYgH3uqmxut5vmBxgYvyI4AlJ6P3Cai1O76mOrkJCBzq0IxWg/NtqOrpu/0gKA==}
 
-  electron-updater@6.7.2:
-    resolution: {integrity: sha512-URw19f7afuB5HQOdxhu5wdnWE+w/lTGsXJ3RdObSJXIkW0i9r3ZUWrd1CjggTrD0qzEuxBODe4VFPM8OBg4qEA==}
+  electron-updater@6.7.0:
+    resolution: {integrity: sha512-j8ejBZCkp5kvv1MxJNoQaSjNvEbr/ZHSeQdwm0jbZGgVm+Z6ExqRpqE8oRxDsDacxQfk7l8hlBAnlq4qAk2wfw==}
 
   electron-vite@4.0.1:
     resolution: {integrity: sha512-QqacJbA8f1pmwUTqki1qLL5vIBaOQmeq13CZZefZ3r3vKVaIoC7cpoTgE+KPKxJDFTax+iFZV0VYvLVWPiQ8Aw==}
@@ -4018,8 +4018,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@39.2.4:
-    resolution: {integrity: sha512-KxPtwpFceQKSxRtUY39piHLYhJMMyHfOhc70e6zRnKGrbRdK6hzEqssth8IGjlKOdkeT4KCvIEngnNraYk39+g==}
+  electron@39.2.2:
+    resolution: {integrity: sha512-NgOmMSWwP4bvZBQOUtP1biMjOP4fYXghqmT3QjLJoUod9NnnoB6I4Th4l3BuX5zae/ohcLh67olqPE5aDiq0Gg==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -10114,7 +10114,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  builder-util-runtime@9.5.1:
+  builder-util-runtime@9.5.0:
     dependencies:
       debug: 4.4.3
       sax: 1.4.3
@@ -10768,9 +10768,9 @@ snapshots:
 
   electron-to-chromium@1.5.227: {}
 
-  electron-updater@6.7.2:
+  electron-updater@6.7.0:
     dependencies:
-      builder-util-runtime: 9.5.1
+      builder-util-runtime: 9.5.0
       fs-extra: 10.1.0
       js-yaml: 4.1.1
       lazy-val: 1.0.5
@@ -10795,7 +10795,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@39.2.4:
+  electron@39.2.2:
     dependencies:
       '@electron/get': 2.0.3
       '@types/node': 22.19.1
