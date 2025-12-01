@@ -12,16 +12,16 @@ work with Teleport.
 
 If you are using Teleport Connect to access your database, you can follow the
 instructions in the app to connect your GUI client. See [Using Teleport
-Connect](./teleport-connect.mdx#connecting-to-a-database).
+Connect](../teleport-clients/teleport-connect.mdx#connecting-to-a-database).
 
 ## Prerequisites
 
 - A running Teleport cluster. If you want to get started with Teleport, [sign
   up](https://goteleport.com/signup) for a free trial or [set up a demo
-  environment](../get-started/deploy-community.mdx).
+  environment](../../get-started/deploy-community.mdx).
 
-- The `tsh` client tool. Visit [Installation](../installation/installation.mdx) for instructions on downloading
-  `tsh`. See the [Using Teleport Connect](./teleport-connect.mdx) guide for a graphical desktop client
+- The `tsh` client tool. Visit [Installation](../../installation/installation.mdx) for instructions on downloading
+  `tsh`. See the [Using Teleport Connect](../teleport-clients/teleport-connect.mdx) guide for a graphical desktop client
   that includes `tsh`.
 
 - To check that you can connect to your Teleport cluster, sign in with `tsh login`. For example:
@@ -31,7 +31,7 @@ Connect](./teleport-connect.mdx#connecting-to-a-database).
   ```
 
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
+  [guides](../../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
   Database Service for your database.
 
 ## How GUI clients access Teleport-protected databases
@@ -124,7 +124,7 @@ your GUI client below. When entering the hostname, use `localhost` rather than
 ### Remote host and port
 
 If you are self-hosting Teleport and not using [TLS
-routing](../zero-trust-access/management/operations/tls-routing.mdx), run the
+routing](../../zero-trust-access/management/operations/tls-routing.mdx), run the
 following command to see the database connection information:
 
 ```code
@@ -158,21 +158,21 @@ graphical client.
 
 On the "New Connection" panel, click on "Fill in connection fields individually".
 
-![MongoDB Compass new connection](../../img/database-access/compass-new-connection@2x.png)
+![MongoDB Compass new connection](../../../img/database-access/compass-new-connection@2x.png)
 
 On the "Hostname" tab, enter the hostname and port of the proxy you will use to
 access the database (see
 [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)).
 Leave "Authentication" as None.
 
-![MongoDB Compass hostname](../../img/database-access/compass-hostname@2x.png)
+![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
 
 On the "More Options" tab, set SSL to "Client and Server Validation" and set the
 CA as well as the client key and certificate. Note that a CA path must be
 provided and be able to validate the certificate presented by your Teleport
 Proxy Service's web endpoint.
 
-![MongoDB Compass more options](../../img/database-access/compass-more-options@2x.png)
+![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
 
 The following fields in the More Options tab must correspond to paths printed by
 the `tsh proxy db` command you ran earlier:
@@ -189,26 +189,26 @@ Click on the "Connect" button.
 
 Right-click in the "Database Navigator" menu in the main view and select Create > Connection:
 
-![DBeaver Add Server](../../img/database-access/dbeaver-add-server.png)
+![DBeaver Add Server](../../../img/database-access/dbeaver-add-server.png)
 
 In the search bar of the "Connect to a database" window that opens up, type "mysql", select the MySQL driver, and click "Next":
 
-![DBeaver Select Driver](../../img/database-access/dbeaver-select-driver.png)
+![DBeaver Select Driver](../../../img/database-access/dbeaver-select-driver.png)
 
 In the newly-opened "Connection Settings" tab, use the Host as `localhost` and
 Port as the one returned by the proxy command (`62652` in the example above):
 
-![DBeaver Select Configure Server](../../img/database-access/dbeaver-configure-server.png)
+![DBeaver Select Configure Server](../../../img/database-access/dbeaver-configure-server.png)
 
 In that same tab, set the username to match the one that you are connecting to
 using Teleport and uncheck the "Save password locally" box:
 
-![DBeaver Select Configure User](../../img/database-access/dbeaver-configure-user.png)
+![DBeaver Select Configure User](../../../img/database-access/dbeaver-configure-user.png)
 
 Click the "Edit Driver Settings" button on the "Main" tab, check the "No
 Authentication" box, and click "Ok" to save:
 
-![DBeaver Driver Settings](../../img/database-access/dbeaver-driver-settings.png)
+![DBeaver Driver Settings](../../../img/database-access/dbeaver-driver-settings.png)
 
 Once you are back in the "Connection Settings" window, click "Ok" to finish and
 DBeaver should connect to the remote MySQL server automatically.
@@ -223,13 +223,13 @@ In the MySQL Workbench "Setup New Connection" dialog, fill out "Connection
 Name", "Hostname", "Port", and "Username":
 
 ![MySQL Workbench
-Parameters](../../img/database-access/workbench-parameters@2x.png)
+Parameters](../../../img/database-access/workbench-parameters@2x.png)
 
 In the "SSL" tab, set "Use SSL" to `Require and Verify Identity` and enter the
 paths to your CA, certificate, and private key files (see
 [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)):
 
-![MySQL Workbench SSL](../../img/database-access/workbench-ssl@2x.png)
+![MySQL Workbench SSL](../../../img/database-access/workbench-ssl@2x.png)
 
 The following fields in the SSL tab must correspond to paths printed by the `tsh
 proxy db` command you ran earlier:
@@ -242,7 +242,7 @@ proxy db` command you ran earlier:
 
 Optionally, click "Test Connection" to verify connectivity:
 
-![MySQL Workbench Test](../../img/database-access/workbench-test@2x.png)
+![MySQL Workbench Test](../../../img/database-access/workbench-test@2x.png)
 
 Save the connection and connect to the database.
 
@@ -255,7 +255,7 @@ Choose the **DynamoDB local** tab, and point to your proxy's endpoint. This is
 [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
 more information.)
 
-![DynamoDB local connection in NoSQL Workbench](../../img/database-access/nosql-workbench-connection.png)
+![DynamoDB local connection in NoSQL Workbench](../../../img/database-access/nosql-workbench-connection.png)
 
 ## SQL Server with Azure Data Studio
 
@@ -275,7 +275,7 @@ Create a connection with Microsoft SQL Server with these settings:
 |Encrypt|`False`|
 
 Example:
-![Azure Data Studio connection options](../../img/database-access/azure-data-studio-connection.png)
+![Azure Data Studio connection options](../../../img/database-access/azure-data-studio-connection.png)
 
 Click **Connect** to connect.
 
@@ -289,7 +289,7 @@ for more information).
 Use the "Database native" authentication with an empty password:
 
 ![DBeaver Postgres Configure
-Server](../../img/database-access/dbeaver-pg-configure-server.png)
+Server](../../../img/database-access/dbeaver-pg-configure-server.png)
 
 Clicking on "Test connection" should return a connection success message. Then,
 click on "Finish" to save the configuration.
@@ -302,21 +302,21 @@ PostgreSQL servers.
 To configure a new connection, right-click on "Servers" in the main browser view
 and create a new server:
 
-![pgAdmin Add Server](../../img/database-access/pgadmin-add-server@2x.png)
+![pgAdmin Add Server](../../../img/database-access/pgadmin-add-server@2x.png)
 
 In the "General" tab of the new server dialog, enter the server connection name:
 
-![pgAdmin General](../../img/database-access/pgadmin-general@2x.png)
+![pgAdmin General](../../../img/database-access/pgadmin-general@2x.png)
 
 In the "Connection" tab, fill in the hostname, port, user and database name from
 the configuration above:
 
-![pgAdmin Connection](../../img/database-access/pgadmin-connection@2x.png)
+![pgAdmin Connection](../../../img/database-access/pgadmin-connection@2x.png)
 
 In the "SSL" tab, set "SSL Mode" to `Verify-Full` and fill in paths for client
 certificate, key and root certificate from the configuration above:
 
-![pgAdmin SSL](../../img/database-access/pgadmin-ssl@2x.png)
+![pgAdmin SSL](../../../img/database-access/pgadmin-ssl@2x.png)
 
 The following fields in the SSL tab must correspond to paths printed by the `tsh
 proxy db` command you ran earlier:
@@ -349,7 +349,7 @@ Create a connection with Microsoft SQL Server with these settings:
 |Encryption|do not enable|
 
 Example:
-![Microsoft SQL Server Management Studio connection options](../../img/database-access/msft-sql-server-management-studio-connection.png)
+![Microsoft SQL Server Management Studio connection options](../../../img/database-access/msft-sql-server-management-studio-connection.png)
   
 Click Connect to connect.
 
@@ -361,7 +361,7 @@ Click Connect to connect.
 
 After opening Redis Insight click `ADD REDIS DATABASE`.
 
-![Redis Insight Startup Screen](../../img/database-access/guides/redis/redisinsight-startup.png)
+![Redis Insight Startup Screen](../../../img/database-access/guides/redis/redisinsight-startup.png)
 
 Now start a local proxy to your Redis instance:
 
@@ -372,7 +372,7 @@ the `tsh` command you ran in [Get connection information](./gui-clients.mdx#how-
 
 Provide your Redis username as `Username` and password as `Password`.
 
-![Redis Insight Configuration](../../img/database-access/guides/redis/redisinsight-add-config.png)
+![Redis Insight Configuration](../../../img/database-access/guides/redis/redisinsight-add-config.png)
 
 Next, check the `Use TLS` and `Verify TLS Certificates` boxes. Copy the contents
 of the files at the paths returned by the `tsh proxy db` command you ran earlier
@@ -387,11 +387,11 @@ Redis Insight fields that correspond to each path:
 
 Click `Add Redis Database`.
 
-![Redis Insight TLS Configuration](../../img/database-access/guides/redis/redisinsight-tls-config.png)
+![Redis Insight TLS Configuration](../../../img/database-access/guides/redis/redisinsight-tls-config.png)
 
 Congratulations! You have just connected to your Redis instance.
 
-![Redis Insight Connected](../../img/database-access/guides/redis/redisinsight-connected.png)
+![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)
 
 ## Snowflake: DBeaver
 
@@ -402,30 +402,30 @@ tsh proxy db --tunnel --port 2000 snowflake
 
 Add a new database by clicking the "add" icon in the top-left corner:
 
-![DBeaver Main Screen](../../img/database-access/guides/snowflake/dbeaver-main-screen.png)
+![DBeaver Main Screen](../../../img/database-access/guides/snowflake/dbeaver-main-screen.png)
 
 In the search bar of the "Connect to a database" window that opens up, type "snowflake", select the Snowflake driver, and click "Next":
 
-![DBeaver Select Database](../../img/database-access/guides/snowflake/dbeaver-select-database.png)
+![DBeaver Select Database](../../../img/database-access/guides/snowflake/dbeaver-select-database.png)
 
 Set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
 In the "Authentication" section set the "Username" to match the database username passed to Teleport with `--db-user`
 and enter any value (e.g., "teleport") in the "Password" field (the value of
  "Password" will be ignored when establishing a connection but is required by DBeaver to register your database):
 
-![DBeaver Main](../../img/database-access/guides/snowflake/dbeaver-main.png)
+![DBeaver Main](../../../img/database-access/guides/snowflake/dbeaver-main.png)
 
 Next, click the "Driver properties" tab and set "account" to any value (e.g., "teleport"; as with "Password", the value of
  "account" will be ignored when establishing a connection but is required by DBeaver to register your database). In "User properties", set "ssl" to `off`:
 
-![DBeaver Driver](../../img/database-access/guides/snowflake/dbeaver-driver.png)
+![DBeaver Driver](../../../img/database-access/guides/snowflake/dbeaver-driver.png)
 
 Teleport ignores the provided password and the account name as internally it uses values from the Database Agent configuration.
 SSL set to `off` disables only encryption on local machine. Connection to Snowflake is encrypted by Teleport.
 
 Now you can click on "Test Connection..." in the bottom-left corner:
 
-![DBeaver Success](../../img/database-access/guides/snowflake/dbeaver-success.png)
+![DBeaver Success](../../../img/database-access/guides/snowflake/dbeaver-success.png)
 
 Congratulations! You have just connected to your Snowflake instance.
 
@@ -438,25 +438,25 @@ tsh proxy db --tunnel --port 2000 snowflake
 
 In "Database Explorer" click the "add" button, pick "Data Source", and then pick "Snowflake":
 
-![JetBrains Add Database](../../img/database-access/guides/snowflake/jetbrains-add-database.png)
+![JetBrains Add Database](../../../img/database-access/guides/snowflake/jetbrains-add-database.png)
 
 Next, set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
 Set the "Username" to match the one that you are assuming when you connect to Snowflake
  via Teleport and enter any value (e.g., "teleport") in the "Password" field (the value of
  "Password" will be ignored but is required to create a data source in your IDE):
 
-![JetBrains General](../../img/database-access/guides/snowflake/jetbrains-general.png)
+![JetBrains General](../../../img/database-access/guides/snowflake/jetbrains-general.png)
 
 Switch to the "Advanced" tab, set any value (e.g., "teleport") for "account", and add a new record named `ssl` with value `off` (as with "Password", "account" is ignored while establishing the connection but required by your IDE):
 
-![JetBrains Advanced](../../img/database-access/guides/snowflake/jetbrains-advanced.png)
+![JetBrains Advanced](../../../img/database-access/guides/snowflake/jetbrains-advanced.png)
 
 Teleport ignores the provided password and the account name as internally it uses values from the Database Agent configuration.
 Setting "SSL" to `off` only disables encryption on your local machine. The connection to Snowflake is encrypted by Teleport.
 
 Now you can click "Test Connection" to check your configuration.
 
-![JetBrains Success](../../img/database-access/guides/snowflake/jetbrains-success.png)
+![JetBrains Success](../../../img/database-access/guides/snowflake/jetbrains-success.png)
 
 Congratulations! You have just connected to your Snowflake instance.
 
@@ -470,7 +470,7 @@ more information.)
 Select the "User & Password" authentication option and keep the "Password" field
 empty:
 
-![DataGrip connection options](../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
+![DataGrip connection options](../../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
 
 Click "OK" to connect.
 
@@ -483,7 +483,7 @@ more information.)
 
 Use the SQL Server Authentication option and keep the Password field empty:
 
-![DBeaver connection options](../../img/database-access/guides/sqlserver/dbeaver-connection@2x.png)
+![DBeaver connection options](../../../img/database-access/guides/sqlserver/dbeaver-connection@2x.png)
 
 Click OK to connect.
 
@@ -494,7 +494,7 @@ Click OK to connect.
 From the DataGrip menu, click "File > New > Data Source from URL", then copy and
 paste the JDBC URL that was output by `tsh proxy db`:
 
-![Create DataGrip Spanner Data Source From JDBC URL](../../img/database-access/spanner-gui/datagrip-data-source-from-jdbc-url@2x.png)
+![Create DataGrip Spanner Data Source From JDBC URL](../../../img/database-access/spanner-gui/datagrip-data-source-from-jdbc-url@2x.png)
 
 The "Google Cloud Spanner" driver should be automatically selected.
 Click "Ok".
@@ -503,7 +503,7 @@ DataGrip does not need GCP credentials - those are already provided by Teleport.
 On the "General" tab of the new data source, select the "Authentication"
 dropdown setting and choose "No auth":
 
-![Choose No Auth For DataGrip Spanner Data Source](../../img/database-access/spanner-gui/datagrip-choose-no-auth@2x.png)
+![Choose No Auth For DataGrip Spanner Data Source](../../../img/database-access/spanner-gui/datagrip-choose-no-auth@2x.png)
 
 Click "Test connection" to ensure the connection is configured correctly, then
 click "Ok" to create the data source.
@@ -516,12 +516,12 @@ click "Ok" to create the data source.
 
 From the menu, click "Database > Driver Manager":
 
-![Open DBeaver Driver Manager](../../img/database-access/spanner-gui/dbeaver-open-driver-manager@2x.png)
+![Open DBeaver Driver Manager](../../../img/database-access/spanner-gui/dbeaver-open-driver-manager@2x.png)
 
 Search for the "Google Cloud Spanner" driver, select it, and click the "Copy"
 button to make a custom driver configuration:
 
-![Copy DBeaver Google Spanner Driver](../../img/database-access/spanner-gui/dbeaver-copy-spanner-driver@2x.png)
+![Copy DBeaver Google Spanner Driver](../../../img/database-access/spanner-gui/dbeaver-copy-spanner-driver@2x.png)
 
 Give the custom driver a name, e.g. "Teleport Spanner", then set "URL Template"
 to this pattern string:
@@ -530,7 +530,7 @@ to this pattern string:
 jdbc:cloudspanner://127.0.0.1:{port}/projects/{server}/instances/{host}/databases/{database};usePlainText=true
 ```
 
-![Create Custom DBeaver Google Spanner Driver](../../img/database-access/spanner-gui/dbeaver-create-spanner-driver@2x.png)
+![Create Custom DBeaver Google Spanner Driver](../../../img/database-access/spanner-gui/dbeaver-create-spanner-driver@2x.png)
 
 Click "Ok", then click "Close"
 
@@ -538,7 +538,7 @@ From the menu, click "Database > New Connection from JDBC URL":
 
 Now copy the JDBC URL that was output by `tsh proxy db` and paste it:
 
-![Create DBeaver Spanner Connection From JDBC URL](../../img/database-access/spanner-gui/dbeaver-connection-from-jdbc-url@2x.png)
+![Create DBeaver Spanner Connection From JDBC URL](../../../img/database-access/spanner-gui/dbeaver-connection-from-jdbc-url@2x.png)
 
 Click "Proceed", then click "Finish".
 
@@ -577,16 +577,16 @@ Teleport versions earlier than 17.2.0 support only a limited range of clients an
 
 In "Connections" click the "+" button for a new database connection:
 
-![Oracle SQL Developer Add Database Connection](../../img/database-access/guides/oracle/sql-developer-standalone-add-database.png)
+![Oracle SQL Developer Add Database Connection](../../../img/database-access/guides/oracle/sql-developer-standalone-add-database.png)
 
 Next, set the name and username from the `--db-user` parameter. Set connection type to "Custom JDBC" and 
 set the "Custom JDBC URL" from the `tsh proxy db` command.
 
-![Oracle SQL Developer](../../img/database-access/guides/oracle/sql-developer-standalone-conn-details-tcps.png)
+![Oracle SQL Developer](../../../img/database-access/guides/oracle/sql-developer-standalone-conn-details-tcps.png)
 
 Now you can click "Test" to check your configuration.
 
-![Oracle SQL Developer Success](../../img/database-access/guides/oracle/sql-developer-standalone-success.png)
+![Oracle SQL Developer Success](../../../img/database-access/guides/oracle/sql-developer-standalone-success.png)
 
 ### Oracle SQL Developer (VS Code extension)
 
@@ -599,7 +599,7 @@ Both TCP and TCPS modes can be used.
 
 Open the extension toolbar and click on "Create Connection" button.
 
-![SQL Developer (VS Code) Start](../../img/database-access/guides/oracle/sql-developer-vscode-start@2x.png)
+![SQL Developer (VS Code) Start](../../../img/database-access/guides/oracle/sql-developer-vscode-start@2x.png)
 
 Enter the following connection details:
 
@@ -617,11 +617,11 @@ Enter the following connection details:
 
 Test and create the connection.
 
-![SQL Developer (VS Code) Connection Details (basic)](../../img/database-access/guides/oracle/sql-developer-vscode-conn-details-basic@2x.png)
+![SQL Developer (VS Code) Connection Details (basic)](../../../img/database-access/guides/oracle/sql-developer-vscode-conn-details-basic@2x.png)
 
 The new connection should appear on the list.
 
-![SQL Developer (VS Code) Connected (basic)](../../img/database-access/guides/oracle/sql-developer-vscode-connected-basic@2x.png)
+![SQL Developer (VS Code) Connected (basic)](../../../img/database-access/guides/oracle/sql-developer-vscode-connected-basic@2x.png)
 
 </TabItem>
 
@@ -629,7 +629,7 @@ The new connection should appear on the list.
 
 Open the extension toolbar and click on "Create Connection" button.
 
-![SQL Developer (VS Code) Start](../../img/database-access/guides/oracle/sql-developer-vscode-start@2x.png)
+![SQL Developer (VS Code) Start](../../../img/database-access/guides/oracle/sql-developer-vscode-start@2x.png)
 
 Enter the following connection details:
 
@@ -644,11 +644,11 @@ Enter the following connection details:
 
 Test and create the connection.
 
-![SQL Developer (VS Code) Connection Details (JDBC)](../../img/database-access/guides/oracle/sql-developer-vscode-conn-details-jdbc@2x.png)
+![SQL Developer (VS Code) Connection Details (JDBC)](../../../img/database-access/guides/oracle/sql-developer-vscode-conn-details-jdbc@2x.png)
 
 The new connection should appear on the list.
 
-![SQL Developer (VS Code) Connected (JDBC)](../../img/database-access/guides/oracle/sql-developer-vscode-connected-jdbc@2x.png)
+![SQL Developer (VS Code) Connected (JDBC)](../../../img/database-access/guides/oracle/sql-developer-vscode-connected-jdbc@2x.png)
 
 
 </TabItem>
@@ -658,7 +658,7 @@ The new connection should appear on the list.
 
 Add new login record in the logins dialog.
 
-![Toad Add Login Record](../../img/database-access/guides/oracle/toad-add-login-record@2x.png)
+![Toad Add Login Record](../../../img/database-access/guides/oracle/toad-add-login-record@2x.png)
 
 Enter the connection details in "Direct" tab:
 
@@ -673,11 +673,11 @@ Enter the connection details in "Direct" tab:
 
 Test the connection to verify the setup.
 
-![Toad Add Login Tested](../../img/database-access/guides/oracle/toad-add-login-tested@2x.png)
+![Toad Add Login Tested](../../../img/database-access/guides/oracle/toad-add-login-tested@2x.png)
 
 The newly added login should appear on the login list.
 
-![Toad Login List](../../img/database-access/guides/oracle/toad-login-list@2x.png)
+![Toad Login List](../../../img/database-access/guides/oracle/toad-login-list@2x.png)
 
 <Admonition type="tip">
 You can also configure Toad to use an external Oracle client. Both native and external clients are supported.
@@ -687,13 +687,13 @@ You can also configure Toad to use an external Oracle client. Both native and ex
 
 Click on the "New Database Connection" button.
 
-![DBeaver new connection button](../../img/database-access/guides/oracle/dbeaver-new-connection@2x.png)
+![DBeaver new connection button](../../../img/database-access/guides/oracle/dbeaver-new-connection@2x.png)
 
 Select "Oracle" from the driver list. You may use the search toolbar to narrow down the list.
-![DBeaver connect to a database](../../img/database-access/guides/oracle/dbeaver-connect-to-a-database@2x.png)
+![DBeaver connect to a database](../../../img/database-access/guides/oracle/dbeaver-connect-to-a-database@2x.png)
 
 Choose "Custom" connection type and paste the JDBC connection string printed by `tsh proxy db`.
-![DBeaver JDBC details](../../img/database-access/guides/oracle/dbeaver-jdbc-details@2x.png)
+![DBeaver JDBC details](../../../img/database-access/guides/oracle/dbeaver-jdbc-details@2x.png)
 
 Test the connection to verify the setup. Finalize by clicking "Finish".
 

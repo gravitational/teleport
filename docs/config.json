@@ -2943,6 +2943,56 @@
       "source": "/identity-governance/idps/saml-microsoft-entra-external-id/",
       "destination": "/identity-governance/idps/usage/saml-microsoft-entra-external-id/",
       "permanent": true
+    },
+    {
+      "source": "/connect-your-client/gui-clients/",
+      "destination": "/connect-your-client/third-party/gui-clients/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/introduction/",
+      "destination": "/connect-your-client/teleport-clients/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/notifications/",
+      "destination": "/connect-your-client/teleport-clients/notifications/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/putty-winscp/",
+      "destination": "/connect-your-client/third-party/putty-winscp/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/teleport-connect/",
+      "destination": "/connect-your-client/teleport-clients/teleport-connect/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/tsh/",
+      "destination": "/connect-your-client/teleport-clients/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/vnet/",
+      "destination": "/connect-your-client/teleport-clients/vnet/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/web-ui/",
+      "destination": "/connect-your-client/teleport-clients/web-ui/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/jetbrains-sftp/",
+      "destination": "/connect-your-client/third-party/jetbrains-sftp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/vscode/",
+      "destination": "/connect-your-client/third-party/vscode/",
+      "permanent": true
     }
   ]
 }
