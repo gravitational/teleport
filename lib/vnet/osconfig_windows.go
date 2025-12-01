@@ -49,6 +49,11 @@ type platformOSConfigState struct {
 	configuredRanges    []string
 
 	ifaceIndex string
+
+	// configuredDNSZones caches DNS zones so DNS is reconfigured when they change.
+	configuredDNSZones []string
+	// configuredDNSAddrs caches DNS addresses so DNS is reconfigured when they change.
+	configuredDNSAddrs []string
 }
 
 func (p *platformOSConfigState) getIfaceIndex() (string, error) {
@@ -118,8 +123,15 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.configuredV6Address = true
 	}
 
-	if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs); err != nil {
-		return trace.Wrap(err, "configuring DNS")
+	// Configure DNS only if the DNS zones or addresses have changed. This typically happens when the
+	// user logs in or out of a cluster. Otherwise configureDNS would refresh all computer policies
+	// every 10 seconds when platformConfigureOS is called.
+	if !slices.Equal(cfg.dnsZones, state.configuredDNSZones) || !slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) {
+		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs); err != nil {
+			return trace.Wrap(err, "configuring DNS")
+		}
+		state.configuredDNSZones = cfg.dnsZones
+		state.configuredDNSAddrs = cfg.dnsAddrs
 	}
 
 	return nil
@@ -199,7 +211,7 @@ func configureDNSAtNRPTKey(ctx context.Context, nrptRegKey string, zones, namese
 		// Can't handle any zones if there are no nameservers.
 		zones = nil
 	}
-	log.InfoContext(ctx, "Configuring DNS.", "zones", zones, "nameservers", nameservers)
+	log.InfoContext(ctx, "Configuring DNS.", "reg_key", nrptRegKey, "zones", zones, "nameservers", nameservers)
 
 	if len(zones) == 0 {
 		// Either we have no zones we want to handle (the user is not
