@@ -7,9 +7,6 @@ settings:
 pnpmfileChecksum: sha256-UhbfH9wqbTOi0Lx+Gm0eQ8EkqLSQxYCWXAFDAbl28uo=
 
 patchedDependencies:
-  '@types/wicg-file-system-access@2023.10.6':
-    hash: d78cdc47c763f4a23344955ac2c09be11b33372d0f77eb4d6384f1286a75ece8
-    path: web/patches/@types__wicg-file-system-access@2023.10.6.patch
   jest-canvas-mock@2.5.2:
     hash: 8329a68f6b8f930f6204c405a071859893962d4a6641b6c2c2bb33122c0441b1
     path: web/patches/jest-canvas-mock@2.5.2.patch
@@ -167,8 +164,8 @@ importers:
         specifier: ^4.4.12
         version: 4.4.12(@types/react@19.2.7)
       '@types/wicg-file-system-access':
-        specifier: ^2023.10.6
-        version: 2023.10.6(patch_hash=d78cdc47c763f4a23344955ac2c09be11b33372d0f77eb4d6384f1286a75ece8)
+        specifier: ^2023.10.7
+        version: 2023.10.7
       cspell:
         specifier: ^9.3.2
         version: 9.3.2
@@ -2889,8 +2886,8 @@ packages:
   '@types/which@3.0.4':
     resolution: {integrity: sha512-liyfuo/106JdlgSchJzXEQCVArk0CvevqPote8F8HgWgJ3dRCcTHgJIsLDuee0kxk/mhbInzIZk3QWSZJ8R+2w==}
 
-  '@types/wicg-file-system-access@2023.10.6':
-    resolution: {integrity: sha512-YO/183gNRzZFSdKu+ikkD7ambAj4PhgjFAF2A/Mw/7wroSF6ne8r804RkpZzqrJ/F6DO2/IYlQF/ULOZ/bhKyA==}
+  '@types/wicg-file-system-access@2023.10.7':
+    resolution: {integrity: sha512-g49ijasEJvCd7ifmAY2D0wdEtt1xRjBbA33PJTiv8mKBr7DoMsPeISoJ8oQOTopSRi+FBWPpPW5ouDj2QPKtGA==}
 
   '@types/yargs-parser@21.0.3':
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}
@@ -9453,7 +9450,7 @@ snapshots:
 
   '@types/which@3.0.4': {}
 
-  '@types/wicg-file-system-access@2023.10.6(patch_hash=d78cdc47c763f4a23344955ac2c09be11b33372d0f77eb4d6384f1286a75ece8)': {}
+  '@types/wicg-file-system-access@2023.10.7': {}
 
   '@types/yargs-parser@21.0.3': {}
 
