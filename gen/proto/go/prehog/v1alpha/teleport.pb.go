@@ -914,6 +914,88 @@ func (IntegrationEnrollSection) EnumDescriptor() ([]byte, []int) {
 	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{9}
 }
 
+// IntegrationEnrollField identifies a field the user completed in an integration
+// setup wizard.
+type IntegrationEnrollField int32
+
+const (
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_UNSPECIFIED IntegrationEnrollField = 0
+	// MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL         IntegrationEnrollField = 1
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH                 IntegrationEnrollField = 2
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW               IntegrationEnrollField = 3
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT            IntegrationEnrollField = 4
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF                    IntegrationEnrollField = 5
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_HOST        IntegrationEnrollField = 6
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG        IntegrationEnrollField = 7
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS IntegrationEnrollField = 8
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS             IntegrationEnrollField = 9
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS             IntegrationEnrollField = 10
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS              IntegrationEnrollField = 11
+	IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES     IntegrationEnrollField = 12
+)
+
+// Enum value maps for IntegrationEnrollField.
+var (
+	IntegrationEnrollField_name = map[int32]string{
+		0:  "INTEGRATION_ENROLL_FIELD_UNSPECIFIED",
+		1:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL",
+		2:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH",
+		3:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW",
+		4:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT",
+		5:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF",
+		6:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_HOST",
+		7:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG",
+		8:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS",
+		9:  "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS",
+		10: "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS",
+		11: "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS",
+		12: "INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES",
+	}
+	IntegrationEnrollField_value = map[string]int32{
+		"INTEGRATION_ENROLL_FIELD_UNSPECIFIED":                             0,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL":         1,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH":                 2,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW":               3,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT":            4,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF":                    5,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_HOST":        6,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG":        7,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS": 8,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS":             9,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS":             10,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS":              11,
+		"INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES":     12,
+	}
+)
+
+func (x IntegrationEnrollField) Enum() *IntegrationEnrollField {
+	p := new(IntegrationEnrollField)
+	*p = x
+	return p
+}
+
+func (x IntegrationEnrollField) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (IntegrationEnrollField) Descriptor() protoreflect.EnumDescriptor {
+	return file_prehog_v1alpha_teleport_proto_enumTypes[10].Descriptor()
+}
+
+func (IntegrationEnrollField) Type() protoreflect.EnumType {
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[10]
+}
+
+func (x IntegrationEnrollField) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use IntegrationEnrollField.Descriptor instead.
+func (IntegrationEnrollField) EnumDescriptor() ([]byte, []int) {
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{10}
+}
+
 // EditorChangeStatus is the possible value of an EditorChangeEvent event status
 type EditorChangeStatus int32
 
@@ -950,11 +1032,11 @@ func (x EditorChangeStatus) String() string {
 }
 
 func (EditorChangeStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_prehog_v1alpha_teleport_proto_enumTypes[10].Descriptor()
+	return file_prehog_v1alpha_teleport_proto_enumTypes[11].Descriptor()
 }
 
 func (EditorChangeStatus) Type() protoreflect.EnumType {
-	return &file_prehog_v1alpha_teleport_proto_enumTypes[10]
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[11]
 }
 
 func (x EditorChangeStatus) Number() protoreflect.EnumNumber {
@@ -963,7 +1045,7 @@ func (x EditorChangeStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use EditorChangeStatus.Descriptor instead.
 func (EditorChangeStatus) EnumDescriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{10}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{11}
 }
 
 // Feature is name of Teleport feature
@@ -997,11 +1079,11 @@ func (x Feature) String() string {
 }
 
 func (Feature) Descriptor() protoreflect.EnumDescriptor {
-	return file_prehog_v1alpha_teleport_proto_enumTypes[11].Descriptor()
+	return file_prehog_v1alpha_teleport_proto_enumTypes[12].Descriptor()
 }
 
 func (Feature) Type() protoreflect.EnumType {
-	return &file_prehog_v1alpha_teleport_proto_enumTypes[11]
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[12]
 }
 
 func (x Feature) Number() protoreflect.EnumNumber {
@@ -1010,7 +1092,7 @@ func (x Feature) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Feature.Descriptor instead.
 func (Feature) EnumDescriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{11}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{12}
 }
 
 // FeatureRecommendationStatus is feature recommendation status.
@@ -1049,11 +1131,11 @@ func (x FeatureRecommendationStatus) String() string {
 }
 
 func (FeatureRecommendationStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_prehog_v1alpha_teleport_proto_enumTypes[12].Descriptor()
+	return file_prehog_v1alpha_teleport_proto_enumTypes[13].Descriptor()
 }
 
 func (FeatureRecommendationStatus) Type() protoreflect.EnumType {
-	return &file_prehog_v1alpha_teleport_proto_enumTypes[12]
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[13]
 }
 
 func (x FeatureRecommendationStatus) Number() protoreflect.EnumNumber {
@@ -1062,7 +1144,7 @@ func (x FeatureRecommendationStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FeatureRecommendationStatus.Descriptor instead.
 func (FeatureRecommendationStatus) EnumDescriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{12}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{13}
 }
 
 // LicenseLimit indicates event type that triggered LicenseLimitEvent.
@@ -1103,11 +1185,11 @@ func (x LicenseLimit) String() string {
 }
 
 func (LicenseLimit) Descriptor() protoreflect.EnumDescriptor {
-	return file_prehog_v1alpha_teleport_proto_enumTypes[13].Descriptor()
+	return file_prehog_v1alpha_teleport_proto_enumTypes[14].Descriptor()
 }
 
 func (LicenseLimit) Type() protoreflect.EnumType {
-	return &file_prehog_v1alpha_teleport_proto_enumTypes[13]
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[14]
 }
 
 func (x LicenseLimit) Number() protoreflect.EnumNumber {
@@ -1116,7 +1198,7 @@ func (x LicenseLimit) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LicenseLimit.Descriptor instead.
 func (LicenseLimit) EnumDescriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{13}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{14}
 }
 
 // DeployMethod describes the method used to deploy a service.
@@ -1157,11 +1239,11 @@ func (x UIDiscoverDeployServiceEvent_DeployMethod) String() string {
 }
 
 func (UIDiscoverDeployServiceEvent_DeployMethod) Descriptor() protoreflect.EnumDescriptor {
-	return file_prehog_v1alpha_teleport_proto_enumTypes[14].Descriptor()
+	return file_prehog_v1alpha_teleport_proto_enumTypes[15].Descriptor()
 }
 
 func (UIDiscoverDeployServiceEvent_DeployMethod) Type() protoreflect.EnumType {
-	return &file_prehog_v1alpha_teleport_proto_enumTypes[14]
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[15]
 }
 
 func (x UIDiscoverDeployServiceEvent_DeployMethod) Number() protoreflect.EnumNumber {
@@ -1213,11 +1295,11 @@ func (x UIDiscoverDeployServiceEvent_DeployType) String() string {
 }
 
 func (UIDiscoverDeployServiceEvent_DeployType) Descriptor() protoreflect.EnumDescriptor {
-	return file_prehog_v1alpha_teleport_proto_enumTypes[15].Descriptor()
+	return file_prehog_v1alpha_teleport_proto_enumTypes[16].Descriptor()
 }
 
 func (UIDiscoverDeployServiceEvent_DeployType) Type() protoreflect.EnumType {
-	return &file_prehog_v1alpha_teleport_proto_enumTypes[15]
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[16]
 }
 
 func (x UIDiscoverDeployServiceEvent_DeployType) Number() protoreflect.EnumNumber {
@@ -1274,11 +1356,11 @@ func (x UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod) String() string {
 }
 
 func (UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod) Descriptor() protoreflect.EnumDescriptor {
-	return file_prehog_v1alpha_teleport_proto_enumTypes[16].Descriptor()
+	return file_prehog_v1alpha_teleport_proto_enumTypes[17].Descriptor()
 }
 
 func (UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod) Type() protoreflect.EnumType {
-	return &file_prehog_v1alpha_teleport_proto_enumTypes[16]
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[17]
 }
 
 func (x UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod) Number() protoreflect.EnumNumber {
@@ -1327,11 +1409,11 @@ func (x AccessRequestReviewEvent_ProposedState) String() string {
 }
 
 func (AccessRequestReviewEvent_ProposedState) Descriptor() protoreflect.EnumDescriptor {
-	return file_prehog_v1alpha_teleport_proto_enumTypes[17].Descriptor()
+	return file_prehog_v1alpha_teleport_proto_enumTypes[18].Descriptor()
 }
 
 func (AccessRequestReviewEvent_ProposedState) Type() protoreflect.EnumType {
-	return &file_prehog_v1alpha_teleport_proto_enumTypes[17]
+	return &file_prehog_v1alpha_teleport_proto_enumTypes[18]
 }
 
 func (x AccessRequestReviewEvent_ProposedState) Number() protoreflect.EnumNumber {
@@ -1340,7 +1422,7 @@ func (x AccessRequestReviewEvent_ProposedState) Number() protoreflect.EnumNumber
 
 // Deprecated: Use AccessRequestReviewEvent_ProposedState.Descriptor instead.
 func (AccessRequestReviewEvent_ProposedState) EnumDescriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{105, 0}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{106, 0}
 }
 
 // a successful user login
@@ -6647,6 +6729,71 @@ func (x *UIIntegrationEnrollSectionOpenEvent) GetSection() IntegrationEnrollSect
 	return IntegrationEnrollSection_INTEGRATION_ENROLL_SECTION_UNSPECIFIED
 }
 
+// UIIntegrationEnrollFieldCompleteEvent is emitted when the user completes a
+// field in an integration setup wizard.
+type UIIntegrationEnrollFieldCompleteEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Metadata of the event.
+	Metadata *IntegrationEnrollMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// Step where the field was completed.
+	Step IntegrationEnrollStep `protobuf:"varint,2,opt,name=step,proto3,enum=prehog.v1alpha.IntegrationEnrollStep" json:"step,omitempty"`
+	// Field that was completed.
+	Field         IntegrationEnrollField `protobuf:"varint,3,opt,name=field,proto3,enum=prehog.v1alpha.IntegrationEnrollField" json:"field,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UIIntegrationEnrollFieldCompleteEvent) Reset() {
+	*x = UIIntegrationEnrollFieldCompleteEvent{}
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UIIntegrationEnrollFieldCompleteEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UIIntegrationEnrollFieldCompleteEvent) ProtoMessage() {}
+
+func (x *UIIntegrationEnrollFieldCompleteEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UIIntegrationEnrollFieldCompleteEvent.ProtoReflect.Descriptor instead.
+func (*UIIntegrationEnrollFieldCompleteEvent) Descriptor() ([]byte, []int) {
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *UIIntegrationEnrollFieldCompleteEvent) GetMetadata() *IntegrationEnrollMetadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *UIIntegrationEnrollFieldCompleteEvent) GetStep() IntegrationEnrollStep {
+	if x != nil {
+		return x.Step
+	}
+	return IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_UNSPECIFIED
+}
+
+func (x *UIIntegrationEnrollFieldCompleteEvent) GetField() IntegrationEnrollField {
+	if x != nil {
+		return x.Field
+	}
+	return IntegrationEnrollField_INTEGRATION_ENROLL_FIELD_UNSPECIFIED
+}
+
 // EditorChangeEvent is an event that is emitted when a user role set changes resulting in
 // a editor role being added on removed
 type EditorChangeEvent struct {
@@ -6660,7 +6807,7 @@ type EditorChangeEvent struct {
 
 func (x *EditorChangeEvent) Reset() {
 	*x = EditorChangeEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[80]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6672,7 +6819,7 @@ func (x *EditorChangeEvent) String() string {
 func (*EditorChangeEvent) ProtoMessage() {}
 
 func (x *EditorChangeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[80]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6685,7 +6832,7 @@ func (x *EditorChangeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditorChangeEvent.ProtoReflect.Descriptor instead.
 func (*EditorChangeEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{80}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *EditorChangeEvent) GetUserName() string {
@@ -6723,7 +6870,7 @@ type DeviceAuthenticateEvent struct {
 
 func (x *DeviceAuthenticateEvent) Reset() {
 	*x = DeviceAuthenticateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[81]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6735,7 +6882,7 @@ func (x *DeviceAuthenticateEvent) String() string {
 func (*DeviceAuthenticateEvent) ProtoMessage() {}
 
 func (x *DeviceAuthenticateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[81]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6748,7 +6895,7 @@ func (x *DeviceAuthenticateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceAuthenticateEvent.ProtoReflect.Descriptor instead.
 func (*DeviceAuthenticateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{81}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *DeviceAuthenticateEvent) GetDeviceId() string {
@@ -6799,7 +6946,7 @@ type DeviceEnrollEvent struct {
 
 func (x *DeviceEnrollEvent) Reset() {
 	*x = DeviceEnrollEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[82]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6811,7 +6958,7 @@ func (x *DeviceEnrollEvent) String() string {
 func (*DeviceEnrollEvent) ProtoMessage() {}
 
 func (x *DeviceEnrollEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[82]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6824,7 +6971,7 @@ func (x *DeviceEnrollEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceEnrollEvent.ProtoReflect.Descriptor instead.
 func (*DeviceEnrollEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{82}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *DeviceEnrollEvent) GetDeviceId() string {
@@ -6880,7 +7027,7 @@ type FeatureRecommendationEvent struct {
 
 func (x *FeatureRecommendationEvent) Reset() {
 	*x = FeatureRecommendationEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[83]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6892,7 +7039,7 @@ func (x *FeatureRecommendationEvent) String() string {
 func (*FeatureRecommendationEvent) ProtoMessage() {}
 
 func (x *FeatureRecommendationEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[83]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6905,7 +7052,7 @@ func (x *FeatureRecommendationEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeatureRecommendationEvent.ProtoReflect.Descriptor instead.
 func (*FeatureRecommendationEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{83}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *FeatureRecommendationEvent) GetUserName() string {
@@ -6943,7 +7090,7 @@ type LicenseLimitEvent struct {
 
 func (x *LicenseLimitEvent) Reset() {
 	*x = LicenseLimitEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[84]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6955,7 +7102,7 @@ func (x *LicenseLimitEvent) String() string {
 func (*LicenseLimitEvent) ProtoMessage() {}
 
 func (x *LicenseLimitEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[84]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6968,7 +7115,7 @@ func (x *LicenseLimitEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LicenseLimitEvent.ProtoReflect.Descriptor instead.
 func (*LicenseLimitEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{84}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *LicenseLimitEvent) GetLicenseLimit() LicenseLimit {
@@ -7000,7 +7147,7 @@ type DesktopDirectoryShareEvent struct {
 
 func (x *DesktopDirectoryShareEvent) Reset() {
 	*x = DesktopDirectoryShareEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[85]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7012,7 +7159,7 @@ func (x *DesktopDirectoryShareEvent) String() string {
 func (*DesktopDirectoryShareEvent) ProtoMessage() {}
 
 func (x *DesktopDirectoryShareEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[85]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7025,7 +7172,7 @@ func (x *DesktopDirectoryShareEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DesktopDirectoryShareEvent.ProtoReflect.Descriptor instead.
 func (*DesktopDirectoryShareEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{85}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *DesktopDirectoryShareEvent) GetDesktop() string {
@@ -7067,7 +7214,7 @@ type DesktopClipboardEvent struct {
 
 func (x *DesktopClipboardEvent) Reset() {
 	*x = DesktopClipboardEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[86]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7079,7 +7226,7 @@ func (x *DesktopClipboardEvent) String() string {
 func (*DesktopClipboardEvent) ProtoMessage() {}
 
 func (x *DesktopClipboardEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[86]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7092,7 +7239,7 @@ func (x *DesktopClipboardEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DesktopClipboardEvent.ProtoReflect.Descriptor instead.
 func (*DesktopClipboardEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{86}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *DesktopClipboardEvent) GetDesktop() string {
@@ -7129,7 +7276,7 @@ type TAGExecuteQueryEvent struct {
 
 func (x *TAGExecuteQueryEvent) Reset() {
 	*x = TAGExecuteQueryEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[87]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7141,7 +7288,7 @@ func (x *TAGExecuteQueryEvent) String() string {
 func (*TAGExecuteQueryEvent) ProtoMessage() {}
 
 func (x *TAGExecuteQueryEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[87]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7154,7 +7301,7 @@ func (x *TAGExecuteQueryEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TAGExecuteQueryEvent.ProtoReflect.Descriptor instead.
 func (*TAGExecuteQueryEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{87}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *TAGExecuteQueryEvent) GetUserName() string {
@@ -7199,7 +7346,7 @@ type AccessGraphSecretsScanAuthorizedKeysEvent struct {
 
 func (x *AccessGraphSecretsScanAuthorizedKeysEvent) Reset() {
 	*x = AccessGraphSecretsScanAuthorizedKeysEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[88]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7211,7 +7358,7 @@ func (x *AccessGraphSecretsScanAuthorizedKeysEvent) String() string {
 func (*AccessGraphSecretsScanAuthorizedKeysEvent) ProtoMessage() {}
 
 func (x *AccessGraphSecretsScanAuthorizedKeysEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[88]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7224,7 +7371,7 @@ func (x *AccessGraphSecretsScanAuthorizedKeysEvent) ProtoReflect() protoreflect.
 
 // Deprecated: Use AccessGraphSecretsScanAuthorizedKeysEvent.ProtoReflect.Descriptor instead.
 func (*AccessGraphSecretsScanAuthorizedKeysEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{88}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *AccessGraphSecretsScanAuthorizedKeysEvent) GetHostId() string {
@@ -7257,7 +7404,7 @@ type AccessGraphSecretsScanSSHPrivateKeysEvent struct {
 
 func (x *AccessGraphSecretsScanSSHPrivateKeysEvent) Reset() {
 	*x = AccessGraphSecretsScanSSHPrivateKeysEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[89]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7269,7 +7416,7 @@ func (x *AccessGraphSecretsScanSSHPrivateKeysEvent) String() string {
 func (*AccessGraphSecretsScanSSHPrivateKeysEvent) ProtoMessage() {}
 
 func (x *AccessGraphSecretsScanSSHPrivateKeysEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[89]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7282,7 +7429,7 @@ func (x *AccessGraphSecretsScanSSHPrivateKeysEvent) ProtoReflect() protoreflect.
 
 // Deprecated: Use AccessGraphSecretsScanSSHPrivateKeysEvent.ProtoReflect.Descriptor instead.
 func (*AccessGraphSecretsScanSSHPrivateKeysEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{89}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *AccessGraphSecretsScanSSHPrivateKeysEvent) GetDeviceId() string {
@@ -7322,7 +7469,7 @@ type AccessGraphGitlabScanEvent struct {
 
 func (x *AccessGraphGitlabScanEvent) Reset() {
 	*x = AccessGraphGitlabScanEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[90]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7334,7 +7481,7 @@ func (x *AccessGraphGitlabScanEvent) String() string {
 func (*AccessGraphGitlabScanEvent) ProtoMessage() {}
 
 func (x *AccessGraphGitlabScanEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[90]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7347,7 +7494,7 @@ func (x *AccessGraphGitlabScanEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessGraphGitlabScanEvent.ProtoReflect.Descriptor instead.
 func (*AccessGraphGitlabScanEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{90}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *AccessGraphGitlabScanEvent) GetTotalProjects() uint64 {
@@ -7403,7 +7550,7 @@ type AccessGraphAWSScanEvent struct {
 
 func (x *AccessGraphAWSScanEvent) Reset() {
 	*x = AccessGraphAWSScanEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[91]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7415,7 +7562,7 @@ func (x *AccessGraphAWSScanEvent) String() string {
 func (*AccessGraphAWSScanEvent) ProtoMessage() {}
 
 func (x *AccessGraphAWSScanEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[91]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7428,7 +7575,7 @@ func (x *AccessGraphAWSScanEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessGraphAWSScanEvent.ProtoReflect.Descriptor instead.
 func (*AccessGraphAWSScanEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{91}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *AccessGraphAWSScanEvent) GetTotalEc2Instances() uint64 {
@@ -7522,7 +7669,7 @@ type AccessGraphAccessPathChangedEvent struct {
 
 func (x *AccessGraphAccessPathChangedEvent) Reset() {
 	*x = AccessGraphAccessPathChangedEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[92]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7534,7 +7681,7 @@ func (x *AccessGraphAccessPathChangedEvent) String() string {
 func (*AccessGraphAccessPathChangedEvent) ProtoMessage() {}
 
 func (x *AccessGraphAccessPathChangedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[92]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7547,7 +7694,7 @@ func (x *AccessGraphAccessPathChangedEvent) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use AccessGraphAccessPathChangedEvent.ProtoReflect.Descriptor instead.
 func (*AccessGraphAccessPathChangedEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{92}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *AccessGraphAccessPathChangedEvent) GetAffectedResourceSource() string {
@@ -7577,7 +7724,7 @@ type UIAccessGraphCrownJewelDiffViewEvent struct {
 
 func (x *UIAccessGraphCrownJewelDiffViewEvent) Reset() {
 	*x = UIAccessGraphCrownJewelDiffViewEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[93]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7589,7 +7736,7 @@ func (x *UIAccessGraphCrownJewelDiffViewEvent) String() string {
 func (*UIAccessGraphCrownJewelDiffViewEvent) ProtoMessage() {}
 
 func (x *UIAccessGraphCrownJewelDiffViewEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[93]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7602,7 +7749,7 @@ func (x *UIAccessGraphCrownJewelDiffViewEvent) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use UIAccessGraphCrownJewelDiffViewEvent.ProtoReflect.Descriptor instead.
 func (*UIAccessGraphCrownJewelDiffViewEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{93}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *UIAccessGraphCrownJewelDiffViewEvent) GetAffectedResourceSource() string {
@@ -7629,7 +7776,7 @@ type AccessGraphCrownJewelCreateEvent struct {
 
 func (x *AccessGraphCrownJewelCreateEvent) Reset() {
 	*x = AccessGraphCrownJewelCreateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[94]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7641,7 +7788,7 @@ func (x *AccessGraphCrownJewelCreateEvent) String() string {
 func (*AccessGraphCrownJewelCreateEvent) ProtoMessage() {}
 
 func (x *AccessGraphCrownJewelCreateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[94]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7654,7 +7801,7 @@ func (x *AccessGraphCrownJewelCreateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessGraphCrownJewelCreateEvent.ProtoReflect.Descriptor instead.
 func (*AccessGraphCrownJewelCreateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{94}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{95}
 }
 
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
@@ -7669,7 +7816,7 @@ type ExternalAuditStorageAuthenticateEvent struct {
 
 func (x *ExternalAuditStorageAuthenticateEvent) Reset() {
 	*x = ExternalAuditStorageAuthenticateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[95]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7681,7 +7828,7 @@ func (x *ExternalAuditStorageAuthenticateEvent) String() string {
 func (*ExternalAuditStorageAuthenticateEvent) ProtoMessage() {}
 
 func (x *ExternalAuditStorageAuthenticateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[95]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7694,7 +7841,7 @@ func (x *ExternalAuditStorageAuthenticateEvent) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use ExternalAuditStorageAuthenticateEvent.ProtoReflect.Descriptor instead.
 func (*ExternalAuditStorageAuthenticateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{95}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{96}
 }
 
 // SecurityReportGetResultEvent is emitted when the user requests a security report.
@@ -7712,7 +7859,7 @@ type SecurityReportGetResultEvent struct {
 
 func (x *SecurityReportGetResultEvent) Reset() {
 	*x = SecurityReportGetResultEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[96]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7724,7 +7871,7 @@ func (x *SecurityReportGetResultEvent) String() string {
 func (*SecurityReportGetResultEvent) ProtoMessage() {}
 
 func (x *SecurityReportGetResultEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[96]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7737,7 +7884,7 @@ func (x *SecurityReportGetResultEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SecurityReportGetResultEvent.ProtoReflect.Descriptor instead.
 func (*SecurityReportGetResultEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{96}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *SecurityReportGetResultEvent) GetUserName() string {
@@ -7776,7 +7923,7 @@ type AuditQueryRunEvent struct {
 
 func (x *AuditQueryRunEvent) Reset() {
 	*x = AuditQueryRunEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[97]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7788,7 +7935,7 @@ func (x *AuditQueryRunEvent) String() string {
 func (*AuditQueryRunEvent) ProtoMessage() {}
 
 func (x *AuditQueryRunEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[97]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7801,7 +7948,7 @@ func (x *AuditQueryRunEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditQueryRunEvent.ProtoReflect.Descriptor instead.
 func (*AuditQueryRunEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{97}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *AuditQueryRunEvent) GetUserName() string {
@@ -7845,7 +7992,7 @@ type DiscoveryFetchEvent struct {
 
 func (x *DiscoveryFetchEvent) Reset() {
 	*x = DiscoveryFetchEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[98]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7857,7 +8004,7 @@ func (x *DiscoveryFetchEvent) String() string {
 func (*DiscoveryFetchEvent) ProtoMessage() {}
 
 func (x *DiscoveryFetchEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[98]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7870,7 +8017,7 @@ func (x *DiscoveryFetchEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoveryFetchEvent.ProtoReflect.Descriptor instead.
 func (*DiscoveryFetchEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{98}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *DiscoveryFetchEvent) GetCloudProvider() string {
@@ -7911,7 +8058,7 @@ type OktaAccessListSyncEvent struct {
 
 func (x *OktaAccessListSyncEvent) Reset() {
 	*x = OktaAccessListSyncEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[99]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7923,7 +8070,7 @@ func (x *OktaAccessListSyncEvent) String() string {
 func (*OktaAccessListSyncEvent) ProtoMessage() {}
 
 func (x *OktaAccessListSyncEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[99]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7936,7 +8083,7 @@ func (x *OktaAccessListSyncEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OktaAccessListSyncEvent.ProtoReflect.Descriptor instead.
 func (*OktaAccessListSyncEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{99}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *OktaAccessListSyncEvent) GetNumAppFilters() int32 {
@@ -8003,7 +8150,7 @@ type DatabaseUserCreatedEvent struct {
 
 func (x *DatabaseUserCreatedEvent) Reset() {
 	*x = DatabaseUserCreatedEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[100]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8015,7 +8162,7 @@ func (x *DatabaseUserCreatedEvent) String() string {
 func (*DatabaseUserCreatedEvent) ProtoMessage() {}
 
 func (x *DatabaseUserCreatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[100]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8028,7 +8175,7 @@ func (x *DatabaseUserCreatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatabaseUserCreatedEvent.ProtoReflect.Descriptor instead.
 func (*DatabaseUserCreatedEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{100}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *DatabaseUserCreatedEvent) GetDatabase() *SessionStartDatabaseMetadata {
@@ -8070,7 +8217,7 @@ type DatabaseUserPermissionsUpdateEvent struct {
 
 func (x *DatabaseUserPermissionsUpdateEvent) Reset() {
 	*x = DatabaseUserPermissionsUpdateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[101]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8082,7 +8229,7 @@ func (x *DatabaseUserPermissionsUpdateEvent) String() string {
 func (*DatabaseUserPermissionsUpdateEvent) ProtoMessage() {}
 
 func (x *DatabaseUserPermissionsUpdateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[101]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8095,7 +8242,7 @@ func (x *DatabaseUserPermissionsUpdateEvent) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use DatabaseUserPermissionsUpdateEvent.ProtoReflect.Descriptor instead.
 func (*DatabaseUserPermissionsUpdateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{101}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *DatabaseUserPermissionsUpdateEvent) GetDatabase() *SessionStartDatabaseMetadata {
@@ -8154,7 +8301,7 @@ type SessionRecordingAccessEvent struct {
 
 func (x *SessionRecordingAccessEvent) Reset() {
 	*x = SessionRecordingAccessEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8166,7 +8313,7 @@ func (x *SessionRecordingAccessEvent) String() string {
 func (*SessionRecordingAccessEvent) ProtoMessage() {}
 
 func (x *SessionRecordingAccessEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8179,7 +8326,7 @@ func (x *SessionRecordingAccessEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionRecordingAccessEvent.ProtoReflect.Descriptor instead.
 func (*SessionRecordingAccessEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{102}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *SessionRecordingAccessEvent) GetSessionType() string {
@@ -8237,7 +8384,7 @@ type UserTaskStateEvent struct {
 
 func (x *UserTaskStateEvent) Reset() {
 	*x = UserTaskStateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8249,7 +8396,7 @@ func (x *UserTaskStateEvent) String() string {
 func (*UserTaskStateEvent) ProtoMessage() {}
 
 func (x *UserTaskStateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8262,7 +8409,7 @@ func (x *UserTaskStateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserTaskStateEvent.ProtoReflect.Descriptor instead.
 func (*UserTaskStateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{103}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *UserTaskStateEvent) GetTaskType() string {
@@ -8310,7 +8457,7 @@ type AccessRequestCreateEvent struct {
 
 func (x *AccessRequestCreateEvent) Reset() {
 	*x = AccessRequestCreateEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8322,7 +8469,7 @@ func (x *AccessRequestCreateEvent) String() string {
 func (*AccessRequestCreateEvent) ProtoMessage() {}
 
 func (x *AccessRequestCreateEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8335,7 +8482,7 @@ func (x *AccessRequestCreateEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestCreateEvent.ProtoReflect.Descriptor instead.
 func (*AccessRequestCreateEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{104}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *AccessRequestCreateEvent) GetUserName() string {
@@ -8378,7 +8525,7 @@ type AccessRequestReviewEvent struct {
 
 func (x *AccessRequestReviewEvent) Reset() {
 	*x = AccessRequestReviewEvent{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8390,7 +8537,7 @@ func (x *AccessRequestReviewEvent) String() string {
 func (*AccessRequestReviewEvent) ProtoMessage() {}
 
 func (x *AccessRequestReviewEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8403,7 +8550,7 @@ func (x *AccessRequestReviewEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestReviewEvent.ProtoReflect.Descriptor instead.
 func (*AccessRequestReviewEvent) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{105}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *AccessRequestReviewEvent) GetUserName() string {
@@ -8549,6 +8696,7 @@ type SubmitEventRequest struct {
 	//	*SubmitEventRequest_AccessRequestCreate
 	//	*SubmitEventRequest_AccessRequestReview
 	//	*SubmitEventRequest_UiIntegrationEnrollSectionOpenEvent
+	//	*SubmitEventRequest_UiIntegrationEnrollFieldCompleteEvent
 	Event         isSubmitEventRequest_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -8556,7 +8704,7 @@ type SubmitEventRequest struct {
 
 func (x *SubmitEventRequest) Reset() {
 	*x = SubmitEventRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8568,7 +8716,7 @@ func (x *SubmitEventRequest) String() string {
 func (*SubmitEventRequest) ProtoMessage() {}
 
 func (x *SubmitEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8581,7 +8729,7 @@ func (x *SubmitEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventRequest.ProtoReflect.Descriptor instead.
 func (*SubmitEventRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{106}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *SubmitEventRequest) GetClusterName() string {
@@ -9467,6 +9615,15 @@ func (x *SubmitEventRequest) GetUiIntegrationEnrollSectionOpenEvent() *UIIntegra
 	return nil
 }
 
+func (x *SubmitEventRequest) GetUiIntegrationEnrollFieldCompleteEvent() *UIIntegrationEnrollFieldCompleteEvent {
+	if x != nil {
+		if x, ok := x.Event.(*SubmitEventRequest_UiIntegrationEnrollFieldCompleteEvent); ok {
+			return x.UiIntegrationEnrollFieldCompleteEvent
+		}
+	}
+	return nil
+}
+
 type isSubmitEventRequest_Event interface {
 	isSubmitEventRequest_Event()
 }
@@ -9856,6 +10013,10 @@ type SubmitEventRequest_UiIntegrationEnrollSectionOpenEvent struct {
 	UiIntegrationEnrollSectionOpenEvent *UIIntegrationEnrollSectionOpenEvent `protobuf:"bytes,101,opt,name=ui_integration_enroll_section_open_event,json=uiIntegrationEnrollSectionOpenEvent,proto3,oneof"`
 }
 
+type SubmitEventRequest_UiIntegrationEnrollFieldCompleteEvent struct {
+	UiIntegrationEnrollFieldCompleteEvent *UIIntegrationEnrollFieldCompleteEvent `protobuf:"bytes,102,opt,name=ui_integration_enroll_field_complete_event,json=uiIntegrationEnrollFieldCompleteEvent,proto3,oneof"`
+}
+
 func (*SubmitEventRequest_UserLogin) isSubmitEventRequest_Event() {}
 
 func (*SubmitEventRequest_SsoCreate) isSubmitEventRequest_Event() {}
@@ -10048,6 +10209,8 @@ func (*SubmitEventRequest_AccessRequestReview) isSubmitEventRequest_Event() {}
 
 func (*SubmitEventRequest_UiIntegrationEnrollSectionOpenEvent) isSubmitEventRequest_Event() {}
 
+func (*SubmitEventRequest_UiIntegrationEnrollFieldCompleteEvent) isSubmitEventRequest_Event() {}
+
 type SubmitEventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -10056,7 +10219,7 @@ type SubmitEventResponse struct {
 
 func (x *SubmitEventResponse) Reset() {
 	*x = SubmitEventResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10068,7 +10231,7 @@ func (x *SubmitEventResponse) String() string {
 func (*SubmitEventResponse) ProtoMessage() {}
 
 func (x *SubmitEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10081,7 +10244,7 @@ func (x *SubmitEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventResponse.ProtoReflect.Descriptor instead.
 func (*SubmitEventResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{107}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{108}
 }
 
 type SubmitEventsRequest struct {
@@ -10094,7 +10257,7 @@ type SubmitEventsRequest struct {
 
 func (x *SubmitEventsRequest) Reset() {
 	*x = SubmitEventsRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10106,7 +10269,7 @@ func (x *SubmitEventsRequest) String() string {
 func (*SubmitEventsRequest) ProtoMessage() {}
 
 func (x *SubmitEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10119,7 +10282,7 @@ func (x *SubmitEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventsRequest.ProtoReflect.Descriptor instead.
 func (*SubmitEventsRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{108}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *SubmitEventsRequest) GetEvents() []*SubmitEventRequest {
@@ -10137,7 +10300,7 @@ type SubmitEventsResponse struct {
 
 func (x *SubmitEventsResponse) Reset() {
 	*x = SubmitEventsResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10149,7 +10312,7 @@ func (x *SubmitEventsResponse) String() string {
 func (*SubmitEventsResponse) ProtoMessage() {}
 
 func (x *SubmitEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10162,7 +10325,7 @@ func (x *SubmitEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventsResponse.ProtoReflect.Descriptor instead.
 func (*SubmitEventsResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{109}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{110}
 }
 
 type HelloTeleportRequest struct {
@@ -10173,7 +10336,7 @@ type HelloTeleportRequest struct {
 
 func (x *HelloTeleportRequest) Reset() {
 	*x = HelloTeleportRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[110]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10185,7 +10348,7 @@ func (x *HelloTeleportRequest) String() string {
 func (*HelloTeleportRequest) ProtoMessage() {}
 
 func (x *HelloTeleportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[110]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10198,7 +10361,7 @@ func (x *HelloTeleportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloTeleportRequest.ProtoReflect.Descriptor instead.
 func (*HelloTeleportRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{110}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{111}
 }
 
 type HelloTeleportResponse struct {
@@ -10209,7 +10372,7 @@ type HelloTeleportResponse struct {
 
 func (x *HelloTeleportResponse) Reset() {
 	*x = HelloTeleportResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[111]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10221,7 +10384,7 @@ func (x *HelloTeleportResponse) String() string {
 func (*HelloTeleportResponse) ProtoMessage() {}
 
 func (x *HelloTeleportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[111]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10234,7 +10397,7 @@ func (x *HelloTeleportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloTeleportResponse.ProtoReflect.Descriptor instead.
 func (*HelloTeleportResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{111}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{112}
 }
 
 var File_prehog_v1alpha_teleport_proto protoreflect.FileDescriptor
@@ -10608,7 +10771,11 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"#UIIntegrationEnrollSectionOpenEvent\x12E\n" +
 	"\bmetadata\x18\x01 \x01(\v2).prehog.v1alpha.IntegrationEnrollMetadataR\bmetadata\x129\n" +
 	"\x04step\x18\x02 \x01(\x0e2%.prehog.v1alpha.IntegrationEnrollStepR\x04step\x12B\n" +
-	"\asection\x18\x03 \x01(\x0e2(.prehog.v1alpha.IntegrationEnrollSectionR\asection\"l\n" +
+	"\asection\x18\x03 \x01(\x0e2(.prehog.v1alpha.IntegrationEnrollSectionR\asection\"\xe7\x01\n" +
+	"%UIIntegrationEnrollFieldCompleteEvent\x12E\n" +
+	"\bmetadata\x18\x01 \x01(\v2).prehog.v1alpha.IntegrationEnrollMetadataR\bmetadata\x129\n" +
+	"\x04step\x18\x02 \x01(\x0e2%.prehog.v1alpha.IntegrationEnrollStepR\x04step\x12<\n" +
+	"\x05field\x18\x03 \x01(\x0e2&.prehog.v1alpha.IntegrationEnrollFieldR\x05field\"l\n" +
 	"\x11EditorChangeEvent\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\tR\buserName\x12:\n" +
 	"\x06status\x18\x02 \x01(\x0e2\".prehog.v1alpha.EditorChangeStatusR\x06status\"y\n" +
@@ -10731,7 +10898,7 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\rProposedState\x12\x1e\n" +
 	"\x1aPROPOSED_STATE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17PROPOSED_STATE_APPROVED\x10\x01\x12\x19\n" +
-	"\x15PROPOSED_STATE_DENIED\x10\x02\"\xbcS\n" +
+	"\x15PROPOSED_STATE_DENIED\x10\x02\"\xd1T\n" +
 	"\x12SubmitEventRequest\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12)\n" +
@@ -10835,7 +11002,8 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	" ui_integration_enroll_step_event\x18` \x01(\v2,.prehog.v1alpha.UIIntegrationEnrollStepEventH\x00R\x1cuiIntegrationEnrollStepEvent\x12^\n" +
 	"\x15access_request_create\x18c \x01(\v2(.prehog.v1alpha.AccessRequestCreateEventH\x00R\x13accessRequestCreate\x12^\n" +
 	"\x15access_request_review\x18d \x01(\v2(.prehog.v1alpha.AccessRequestReviewEventH\x00R\x13accessRequestReview\x12\x8c\x01\n" +
-	"(ui_integration_enroll_section_open_event\x18e \x01(\v23.prehog.v1alpha.UIIntegrationEnrollSectionOpenEventH\x00R#uiIntegrationEnrollSectionOpenEventB\a\n" +
+	"(ui_integration_enroll_section_open_event\x18e \x01(\v23.prehog.v1alpha.UIIntegrationEnrollSectionOpenEventH\x00R#uiIntegrationEnrollSectionOpenEvent\x12\x92\x01\n" +
+	"*ui_integration_enroll_field_complete_event\x18f \x01(\v25.prehog.v1alpha.UIIntegrationEnrollFieldCompleteEventH\x00R%uiIntegrationEnrollFieldCompleteEventB\a\n" +
 	"\x05eventJ\x04\b\b\x10\tJ\x04\ba\x10bJ\x04\bb\x10cR\x1cui_onboard_get_started_clickR\x1baccess_request_create_eventR\x1baccess_request_review_event\"\x15\n" +
 	"\x13SubmitEventResponse\"Q\n" +
 	"\x13SubmitEventsRequest\x12:\n" +
@@ -10992,7 +11160,22 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"<INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS\x10\x01\x12@\n" +
 	"<INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER\x10\x02\x12D\n" +
 	"@INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS\x10\x03\x12H\n" +
-	"DINTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER\x10\x04*\x88\x01\n" +
+	"DINTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER\x10\x04*\x8f\x06\n" +
+	"\x16IntegrationEnrollField\x12(\n" +
+	"$INTEGRATION_ENROLL_FIELD_UNSPECIFIED\x10\x00\x12<\n" +
+	"8INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL\x10\x01\x124\n" +
+	"0INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH\x10\x02\x126\n" +
+	"2INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW\x10\x03\x129\n" +
+	"5INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT\x10\x04\x121\n" +
+	"-INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF\x10\x05\x12=\n" +
+	"9INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_HOST\x10\x06\x12=\n" +
+	"9INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG\x10\a\x12D\n" +
+	"@INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS\x10\b\x128\n" +
+	"4INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS\x10\t\x128\n" +
+	"4INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS\x10\n" +
+	"\x127\n" +
+	"3INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS\x10\v\x12@\n" +
+	"<INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES\x10\f*\x88\x01\n" +
 	"\x12EditorChangeStatus\x12$\n" +
 	" EDITOR_CHANGE_STATUS_UNSPECIFIED\x10\x00\x12%\n" +
 	"!EDITOR_CHANGE_STATUS_ROLE_GRANTED\x10\x01\x12%\n" +
@@ -11026,354 +11209,360 @@ func file_prehog_v1alpha_teleport_proto_rawDescGZIP() []byte {
 	return file_prehog_v1alpha_teleport_proto_rawDescData
 }
 
-var file_prehog_v1alpha_teleport_proto_enumTypes = make([]protoimpl.EnumInfo, 18)
-var file_prehog_v1alpha_teleport_proto_msgTypes = make([]protoimpl.MessageInfo, 112)
+var file_prehog_v1alpha_teleport_proto_enumTypes = make([]protoimpl.EnumInfo, 19)
+var file_prehog_v1alpha_teleport_proto_msgTypes = make([]protoimpl.MessageInfo, 113)
 var file_prehog_v1alpha_teleport_proto_goTypes = []any{
-	(UserOrigin)(0),                                // 0: prehog.v1alpha.UserOrigin
-	(ResourceKind)(0),                              // 1: prehog.v1alpha.ResourceKind
-	(UserKind)(0),                                  // 2: prehog.v1alpha.UserKind
-	(DiscoverResource)(0),                          // 3: prehog.v1alpha.DiscoverResource
-	(DiscoverStatus)(0),                            // 4: prehog.v1alpha.DiscoverStatus
-	(CTA)(0),                                       // 5: prehog.v1alpha.CTA
-	(IntegrationEnrollKind)(0),                     // 6: prehog.v1alpha.IntegrationEnrollKind
-	(IntegrationEnrollStep)(0),                     // 7: prehog.v1alpha.IntegrationEnrollStep
-	(IntegrationEnrollStatusCode)(0),               // 8: prehog.v1alpha.IntegrationEnrollStatusCode
-	(IntegrationEnrollSection)(0),                  // 9: prehog.v1alpha.IntegrationEnrollSection
-	(EditorChangeStatus)(0),                        // 10: prehog.v1alpha.EditorChangeStatus
-	(Feature)(0),                                   // 11: prehog.v1alpha.Feature
-	(FeatureRecommendationStatus)(0),               // 12: prehog.v1alpha.FeatureRecommendationStatus
-	(LicenseLimit)(0),                              // 13: prehog.v1alpha.LicenseLimit
-	(UIDiscoverDeployServiceEvent_DeployMethod)(0), // 14: prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployMethod
-	(UIDiscoverDeployServiceEvent_DeployType)(0),   // 15: prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployType
-	(UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod)(0),    // 16: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod
-	(AccessRequestReviewEvent_ProposedState)(0),               // 17: prehog.v1alpha.AccessRequestReviewEvent.ProposedState
-	(*UserLoginEvent)(nil),                                    // 18: prehog.v1alpha.UserLoginEvent
-	(*MFAAuthenticationEvent)(nil),                            // 19: prehog.v1alpha.MFAAuthenticationEvent
-	(*SSOCreateEvent)(nil),                                    // 20: prehog.v1alpha.SSOCreateEvent
-	(*ResourceCreateEvent)(nil),                               // 21: prehog.v1alpha.ResourceCreateEvent
-	(*DiscoveredDatabaseMetadata)(nil),                        // 22: prehog.v1alpha.DiscoveredDatabaseMetadata
-	(*ResourceHeartbeatEvent)(nil),                            // 23: prehog.v1alpha.ResourceHeartbeatEvent
-	(*SessionStartEvent)(nil),                                 // 24: prehog.v1alpha.SessionStartEvent
-	(*SessionStartDatabaseMetadata)(nil),                      // 25: prehog.v1alpha.SessionStartDatabaseMetadata
-	(*SessionStartDesktopMetadata)(nil),                       // 26: prehog.v1alpha.SessionStartDesktopMetadata
-	(*SessionStartAppMetadata)(nil),                           // 27: prehog.v1alpha.SessionStartAppMetadata
-	(*SessionStartGitMetadata)(nil),                           // 28: prehog.v1alpha.SessionStartGitMetadata
-	(*SessionStartMCPMetadata)(nil),                           // 29: prehog.v1alpha.SessionStartMCPMetadata
-	(*UserCertificateIssuedEvent)(nil),                        // 30: prehog.v1alpha.UserCertificateIssuedEvent
-	(*SPIFFESVIDIssuedEvent)(nil),                             // 31: prehog.v1alpha.SPIFFESVIDIssuedEvent
-	(*UIBannerClickEvent)(nil),                                // 32: prehog.v1alpha.UIBannerClickEvent
-	(*UIOnboardCompleteGoToDashboardClickEvent)(nil),          // 33: prehog.v1alpha.UIOnboardCompleteGoToDashboardClickEvent
-	(*UIOnboardAddFirstResourceClickEvent)(nil),               // 34: prehog.v1alpha.UIOnboardAddFirstResourceClickEvent
-	(*UIOnboardAddFirstResourceLaterClickEvent)(nil),          // 35: prehog.v1alpha.UIOnboardAddFirstResourceLaterClickEvent
-	(*UIOnboardSetCredentialSubmitEvent)(nil),                 // 36: prehog.v1alpha.UIOnboardSetCredentialSubmitEvent
-	(*UIOnboardRegisterChallengeSubmitEvent)(nil),             // 37: prehog.v1alpha.UIOnboardRegisterChallengeSubmitEvent
-	(*UIOnboardQuestionnaireSubmitEvent)(nil),                 // 38: prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent
-	(*UIRecoveryCodesContinueClickEvent)(nil),                 // 39: prehog.v1alpha.UIRecoveryCodesContinueClickEvent
-	(*UIRecoveryCodesCopyClickEvent)(nil),                     // 40: prehog.v1alpha.UIRecoveryCodesCopyClickEvent
-	(*UIRecoveryCodesPrintClickEvent)(nil),                    // 41: prehog.v1alpha.UIRecoveryCodesPrintClickEvent
-	(*DiscoverMetadata)(nil),                                  // 42: prehog.v1alpha.DiscoverMetadata
-	(*DiscoverResourceMetadata)(nil),                          // 43: prehog.v1alpha.DiscoverResourceMetadata
-	(*DiscoverStepStatus)(nil),                                // 44: prehog.v1alpha.DiscoverStepStatus
-	(*UIDiscoverStartedEvent)(nil),                            // 45: prehog.v1alpha.UIDiscoverStartedEvent
-	(*UIDiscoverResourceSelectionEvent)(nil),                  // 46: prehog.v1alpha.UIDiscoverResourceSelectionEvent
-	(*UIDiscoverIntegrationAWSOIDCConnectEvent)(nil),          // 47: prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent
-	(*UIDiscoverDatabaseRDSEnrollEvent)(nil),                  // 48: prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent
-	(*UIDiscoverKubeEKSEnrollEvent)(nil),                      // 49: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent
-	(*UIDiscoverDeployServiceEvent)(nil),                      // 50: prehog.v1alpha.UIDiscoverDeployServiceEvent
-	(*UIDiscoverCreateDiscoveryConfigEvent)(nil),              // 51: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
-	(*UIDiscoverDatabaseRegisterEvent)(nil),                   // 52: prehog.v1alpha.UIDiscoverDatabaseRegisterEvent
-	(*UIDiscoverDatabaseConfigureMTLSEvent)(nil),              // 53: prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent
-	(*UIDiscoverDesktopActiveDirectoryToolsInstallEvent)(nil), // 54: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent
-	(*UIDiscoverDesktopActiveDirectoryConfigureEvent)(nil),    // 55: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent
-	(*UIDiscoverAutoDiscoveredResourcesEvent)(nil),            // 56: prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent
-	(*UIDiscoverEC2InstanceSelectionEvent)(nil),               // 57: prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent
-	(*UIDiscoverDeployEICEEvent)(nil),                         // 58: prehog.v1alpha.UIDiscoverDeployEICEEvent
-	(*UIDiscoverCreateNodeEvent)(nil),                         // 59: prehog.v1alpha.UIDiscoverCreateNodeEvent
-	(*UIDiscoverCreateAppServerEvent)(nil),                    // 60: prehog.v1alpha.UIDiscoverCreateAppServerEvent
-	(*UIDiscoverDatabaseConfigureIAMPolicyEvent)(nil),         // 61: prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent
-	(*UIDiscoverPrincipalsConfigureEvent)(nil),                // 62: prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent
-	(*UIDiscoverTestConnectionEvent)(nil),                     // 63: prehog.v1alpha.UIDiscoverTestConnectionEvent
-	(*UIDiscoverCompletedEvent)(nil),                          // 64: prehog.v1alpha.UIDiscoverCompletedEvent
-	(*RoleCreateEvent)(nil),                                   // 65: prehog.v1alpha.RoleCreateEvent
-	(*BotCreateEvent)(nil),                                    // 66: prehog.v1alpha.BotCreateEvent
-	(*BotJoinEvent)(nil),                                      // 67: prehog.v1alpha.BotJoinEvent
-	(*UICreateNewRoleClickEvent)(nil),                         // 68: prehog.v1alpha.UICreateNewRoleClickEvent
-	(*UICreateNewRoleSaveClickEvent)(nil),                     // 69: prehog.v1alpha.UICreateNewRoleSaveClickEvent
-	(*UICreateNewRoleCancelClickEvent)(nil),                   // 70: prehog.v1alpha.UICreateNewRoleCancelClickEvent
-	(*UICreateNewRoleViewDocumentationClickEvent)(nil),        // 71: prehog.v1alpha.UICreateNewRoleViewDocumentationClickEvent
-	(*UICallToActionClickEvent)(nil),                          // 72: prehog.v1alpha.UICallToActionClickEvent
-	(*KubeRequestEvent)(nil),                                  // 73: prehog.v1alpha.KubeRequestEvent
-	(*SFTPEvent)(nil),                                         // 74: prehog.v1alpha.SFTPEvent
-	(*AgentMetadataEvent)(nil),                                // 75: prehog.v1alpha.AgentMetadataEvent
-	(*AssistCompletionEvent)(nil),                             // 76: prehog.v1alpha.AssistCompletionEvent
-	(*AssistExecutionEvent)(nil),                              // 77: prehog.v1alpha.AssistExecutionEvent
-	(*AssistNewConversationEvent)(nil),                        // 78: prehog.v1alpha.AssistNewConversationEvent
-	(*AssistAccessRequestEvent)(nil),                          // 79: prehog.v1alpha.AssistAccessRequestEvent
-	(*AssistActionEvent)(nil),                                 // 80: prehog.v1alpha.AssistActionEvent
-	(*AccessListMetadata)(nil),                                // 81: prehog.v1alpha.AccessListMetadata
-	(*AccessListCreateEvent)(nil),                             // 82: prehog.v1alpha.AccessListCreateEvent
-	(*AccessListUpdateEvent)(nil),                             // 83: prehog.v1alpha.AccessListUpdateEvent
-	(*AccessListDeleteEvent)(nil),                             // 84: prehog.v1alpha.AccessListDeleteEvent
-	(*AccessListMemberCreateEvent)(nil),                       // 85: prehog.v1alpha.AccessListMemberCreateEvent
-	(*AccessListMemberUpdateEvent)(nil),                       // 86: prehog.v1alpha.AccessListMemberUpdateEvent
-	(*AccessListMemberDeleteEvent)(nil),                       // 87: prehog.v1alpha.AccessListMemberDeleteEvent
-	(*AccessListGrantsToUserEvent)(nil),                       // 88: prehog.v1alpha.AccessListGrantsToUserEvent
-	(*AccessListReviewCreateEvent)(nil),                       // 89: prehog.v1alpha.AccessListReviewCreateEvent
-	(*AccessListReviewDeleteEvent)(nil),                       // 90: prehog.v1alpha.AccessListReviewDeleteEvent
-	(*AccessListReviewComplianceEvent)(nil),                   // 91: prehog.v1alpha.AccessListReviewComplianceEvent
-	(*IntegrationEnrollMetadata)(nil),                         // 92: prehog.v1alpha.IntegrationEnrollMetadata
-	(*UIIntegrationEnrollStartEvent)(nil),                     // 93: prehog.v1alpha.UIIntegrationEnrollStartEvent
-	(*UIIntegrationEnrollCompleteEvent)(nil),                  // 94: prehog.v1alpha.UIIntegrationEnrollCompleteEvent
-	(*IntegrationEnrollStepStatus)(nil),                       // 95: prehog.v1alpha.IntegrationEnrollStepStatus
-	(*UIIntegrationEnrollStepEvent)(nil),                      // 96: prehog.v1alpha.UIIntegrationEnrollStepEvent
-	(*UIIntegrationEnrollSectionOpenEvent)(nil),               // 97: prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
-	(*EditorChangeEvent)(nil),                                 // 98: prehog.v1alpha.EditorChangeEvent
-	(*DeviceAuthenticateEvent)(nil),                           // 99: prehog.v1alpha.DeviceAuthenticateEvent
-	(*DeviceEnrollEvent)(nil),                                 // 100: prehog.v1alpha.DeviceEnrollEvent
-	(*FeatureRecommendationEvent)(nil),                        // 101: prehog.v1alpha.FeatureRecommendationEvent
-	(*LicenseLimitEvent)(nil),                                 // 102: prehog.v1alpha.LicenseLimitEvent
-	(*DesktopDirectoryShareEvent)(nil),                        // 103: prehog.v1alpha.DesktopDirectoryShareEvent
-	(*DesktopClipboardEvent)(nil),                             // 104: prehog.v1alpha.DesktopClipboardEvent
-	(*TAGExecuteQueryEvent)(nil),                              // 105: prehog.v1alpha.TAGExecuteQueryEvent
-	(*AccessGraphSecretsScanAuthorizedKeysEvent)(nil),         // 106: prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
-	(*AccessGraphSecretsScanSSHPrivateKeysEvent)(nil),         // 107: prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
-	(*AccessGraphGitlabScanEvent)(nil),                        // 108: prehog.v1alpha.AccessGraphGitlabScanEvent
-	(*AccessGraphAWSScanEvent)(nil),                           // 109: prehog.v1alpha.AccessGraphAWSScanEvent
-	(*AccessGraphAccessPathChangedEvent)(nil),                 // 110: prehog.v1alpha.AccessGraphAccessPathChangedEvent
-	(*UIAccessGraphCrownJewelDiffViewEvent)(nil),              // 111: prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
-	(*AccessGraphCrownJewelCreateEvent)(nil),                  // 112: prehog.v1alpha.AccessGraphCrownJewelCreateEvent
-	(*ExternalAuditStorageAuthenticateEvent)(nil),             // 113: prehog.v1alpha.ExternalAuditStorageAuthenticateEvent
-	(*SecurityReportGetResultEvent)(nil),                      // 114: prehog.v1alpha.SecurityReportGetResultEvent
-	(*AuditQueryRunEvent)(nil),                                // 115: prehog.v1alpha.AuditQueryRunEvent
-	(*DiscoveryFetchEvent)(nil),                               // 116: prehog.v1alpha.DiscoveryFetchEvent
-	(*OktaAccessListSyncEvent)(nil),                           // 117: prehog.v1alpha.OktaAccessListSyncEvent
-	(*DatabaseUserCreatedEvent)(nil),                          // 118: prehog.v1alpha.DatabaseUserCreatedEvent
-	(*DatabaseUserPermissionsUpdateEvent)(nil),                // 119: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
-	(*SessionRecordingAccessEvent)(nil),                       // 120: prehog.v1alpha.SessionRecordingAccessEvent
-	(*UserTaskStateEvent)(nil),                                // 121: prehog.v1alpha.UserTaskStateEvent
-	(*AccessRequestCreateEvent)(nil),                          // 122: prehog.v1alpha.AccessRequestCreateEvent
-	(*AccessRequestReviewEvent)(nil),                          // 123: prehog.v1alpha.AccessRequestReviewEvent
-	(*SubmitEventRequest)(nil),                                // 124: prehog.v1alpha.SubmitEventRequest
-	(*SubmitEventResponse)(nil),                               // 125: prehog.v1alpha.SubmitEventResponse
-	(*SubmitEventsRequest)(nil),                               // 126: prehog.v1alpha.SubmitEventsRequest
-	(*SubmitEventsResponse)(nil),                              // 127: prehog.v1alpha.SubmitEventsResponse
-	(*HelloTeleportRequest)(nil),                              // 128: prehog.v1alpha.HelloTeleportRequest
-	(*HelloTeleportResponse)(nil),                             // 129: prehog.v1alpha.HelloTeleportResponse
-	(*durationpb.Duration)(nil),                               // 130: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),                             // 131: google.protobuf.Timestamp
+	(UserOrigin)(0),                                           // 0: prehog.v1alpha.UserOrigin
+	(ResourceKind)(0),                                         // 1: prehog.v1alpha.ResourceKind
+	(UserKind)(0),                                             // 2: prehog.v1alpha.UserKind
+	(DiscoverResource)(0),                                     // 3: prehog.v1alpha.DiscoverResource
+	(DiscoverStatus)(0),                                       // 4: prehog.v1alpha.DiscoverStatus
+	(CTA)(0),                                                  // 5: prehog.v1alpha.CTA
+	(IntegrationEnrollKind)(0),                                // 6: prehog.v1alpha.IntegrationEnrollKind
+	(IntegrationEnrollStep)(0),                                // 7: prehog.v1alpha.IntegrationEnrollStep
+	(IntegrationEnrollStatusCode)(0),                          // 8: prehog.v1alpha.IntegrationEnrollStatusCode
+	(IntegrationEnrollSection)(0),                             // 9: prehog.v1alpha.IntegrationEnrollSection
+	(IntegrationEnrollField)(0),                               // 10: prehog.v1alpha.IntegrationEnrollField
+	(EditorChangeStatus)(0),                                   // 11: prehog.v1alpha.EditorChangeStatus
+	(Feature)(0),                                              // 12: prehog.v1alpha.Feature
+	(FeatureRecommendationStatus)(0),                          // 13: prehog.v1alpha.FeatureRecommendationStatus
+	(LicenseLimit)(0),                                         // 14: prehog.v1alpha.LicenseLimit
+	(UIDiscoverDeployServiceEvent_DeployMethod)(0),            // 15: prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployMethod
+	(UIDiscoverDeployServiceEvent_DeployType)(0),              // 16: prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployType
+	(UIDiscoverCreateDiscoveryConfigEvent_ConfigMethod)(0),    // 17: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod
+	(AccessRequestReviewEvent_ProposedState)(0),               // 18: prehog.v1alpha.AccessRequestReviewEvent.ProposedState
+	(*UserLoginEvent)(nil),                                    // 19: prehog.v1alpha.UserLoginEvent
+	(*MFAAuthenticationEvent)(nil),                            // 20: prehog.v1alpha.MFAAuthenticationEvent
+	(*SSOCreateEvent)(nil),                                    // 21: prehog.v1alpha.SSOCreateEvent
+	(*ResourceCreateEvent)(nil),                               // 22: prehog.v1alpha.ResourceCreateEvent
+	(*DiscoveredDatabaseMetadata)(nil),                        // 23: prehog.v1alpha.DiscoveredDatabaseMetadata
+	(*ResourceHeartbeatEvent)(nil),                            // 24: prehog.v1alpha.ResourceHeartbeatEvent
+	(*SessionStartEvent)(nil),                                 // 25: prehog.v1alpha.SessionStartEvent
+	(*SessionStartDatabaseMetadata)(nil),                      // 26: prehog.v1alpha.SessionStartDatabaseMetadata
+	(*SessionStartDesktopMetadata)(nil),                       // 27: prehog.v1alpha.SessionStartDesktopMetadata
+	(*SessionStartAppMetadata)(nil),                           // 28: prehog.v1alpha.SessionStartAppMetadata
+	(*SessionStartGitMetadata)(nil),                           // 29: prehog.v1alpha.SessionStartGitMetadata
+	(*SessionStartMCPMetadata)(nil),                           // 30: prehog.v1alpha.SessionStartMCPMetadata
+	(*UserCertificateIssuedEvent)(nil),                        // 31: prehog.v1alpha.UserCertificateIssuedEvent
+	(*SPIFFESVIDIssuedEvent)(nil),                             // 32: prehog.v1alpha.SPIFFESVIDIssuedEvent
+	(*UIBannerClickEvent)(nil),                                // 33: prehog.v1alpha.UIBannerClickEvent
+	(*UIOnboardCompleteGoToDashboardClickEvent)(nil),          // 34: prehog.v1alpha.UIOnboardCompleteGoToDashboardClickEvent
+	(*UIOnboardAddFirstResourceClickEvent)(nil),               // 35: prehog.v1alpha.UIOnboardAddFirstResourceClickEvent
+	(*UIOnboardAddFirstResourceLaterClickEvent)(nil),          // 36: prehog.v1alpha.UIOnboardAddFirstResourceLaterClickEvent
+	(*UIOnboardSetCredentialSubmitEvent)(nil),                 // 37: prehog.v1alpha.UIOnboardSetCredentialSubmitEvent
+	(*UIOnboardRegisterChallengeSubmitEvent)(nil),             // 38: prehog.v1alpha.UIOnboardRegisterChallengeSubmitEvent
+	(*UIOnboardQuestionnaireSubmitEvent)(nil),                 // 39: prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent
+	(*UIRecoveryCodesContinueClickEvent)(nil),                 // 40: prehog.v1alpha.UIRecoveryCodesContinueClickEvent
+	(*UIRecoveryCodesCopyClickEvent)(nil),                     // 41: prehog.v1alpha.UIRecoveryCodesCopyClickEvent
+	(*UIRecoveryCodesPrintClickEvent)(nil),                    // 42: prehog.v1alpha.UIRecoveryCodesPrintClickEvent
+	(*DiscoverMetadata)(nil),                                  // 43: prehog.v1alpha.DiscoverMetadata
+	(*DiscoverResourceMetadata)(nil),                          // 44: prehog.v1alpha.DiscoverResourceMetadata
+	(*DiscoverStepStatus)(nil),                                // 45: prehog.v1alpha.DiscoverStepStatus
+	(*UIDiscoverStartedEvent)(nil),                            // 46: prehog.v1alpha.UIDiscoverStartedEvent
+	(*UIDiscoverResourceSelectionEvent)(nil),                  // 47: prehog.v1alpha.UIDiscoverResourceSelectionEvent
+	(*UIDiscoverIntegrationAWSOIDCConnectEvent)(nil),          // 48: prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent
+	(*UIDiscoverDatabaseRDSEnrollEvent)(nil),                  // 49: prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent
+	(*UIDiscoverKubeEKSEnrollEvent)(nil),                      // 50: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent
+	(*UIDiscoverDeployServiceEvent)(nil),                      // 51: prehog.v1alpha.UIDiscoverDeployServiceEvent
+	(*UIDiscoverCreateDiscoveryConfigEvent)(nil),              // 52: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
+	(*UIDiscoverDatabaseRegisterEvent)(nil),                   // 53: prehog.v1alpha.UIDiscoverDatabaseRegisterEvent
+	(*UIDiscoverDatabaseConfigureMTLSEvent)(nil),              // 54: prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent
+	(*UIDiscoverDesktopActiveDirectoryToolsInstallEvent)(nil), // 55: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent
+	(*UIDiscoverDesktopActiveDirectoryConfigureEvent)(nil),    // 56: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent
+	(*UIDiscoverAutoDiscoveredResourcesEvent)(nil),            // 57: prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent
+	(*UIDiscoverEC2InstanceSelectionEvent)(nil),               // 58: prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent
+	(*UIDiscoverDeployEICEEvent)(nil),                         // 59: prehog.v1alpha.UIDiscoverDeployEICEEvent
+	(*UIDiscoverCreateNodeEvent)(nil),                         // 60: prehog.v1alpha.UIDiscoverCreateNodeEvent
+	(*UIDiscoverCreateAppServerEvent)(nil),                    // 61: prehog.v1alpha.UIDiscoverCreateAppServerEvent
+	(*UIDiscoverDatabaseConfigureIAMPolicyEvent)(nil),         // 62: prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent
+	(*UIDiscoverPrincipalsConfigureEvent)(nil),                // 63: prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent
+	(*UIDiscoverTestConnectionEvent)(nil),                     // 64: prehog.v1alpha.UIDiscoverTestConnectionEvent
+	(*UIDiscoverCompletedEvent)(nil),                          // 65: prehog.v1alpha.UIDiscoverCompletedEvent
+	(*RoleCreateEvent)(nil),                                   // 66: prehog.v1alpha.RoleCreateEvent
+	(*BotCreateEvent)(nil),                                    // 67: prehog.v1alpha.BotCreateEvent
+	(*BotJoinEvent)(nil),                                      // 68: prehog.v1alpha.BotJoinEvent
+	(*UICreateNewRoleClickEvent)(nil),                         // 69: prehog.v1alpha.UICreateNewRoleClickEvent
+	(*UICreateNewRoleSaveClickEvent)(nil),                     // 70: prehog.v1alpha.UICreateNewRoleSaveClickEvent
+	(*UICreateNewRoleCancelClickEvent)(nil),                   // 71: prehog.v1alpha.UICreateNewRoleCancelClickEvent
+	(*UICreateNewRoleViewDocumentationClickEvent)(nil),        // 72: prehog.v1alpha.UICreateNewRoleViewDocumentationClickEvent
+	(*UICallToActionClickEvent)(nil),                          // 73: prehog.v1alpha.UICallToActionClickEvent
+	(*KubeRequestEvent)(nil),                                  // 74: prehog.v1alpha.KubeRequestEvent
+	(*SFTPEvent)(nil),                                         // 75: prehog.v1alpha.SFTPEvent
+	(*AgentMetadataEvent)(nil),                                // 76: prehog.v1alpha.AgentMetadataEvent
+	(*AssistCompletionEvent)(nil),                             // 77: prehog.v1alpha.AssistCompletionEvent
+	(*AssistExecutionEvent)(nil),                              // 78: prehog.v1alpha.AssistExecutionEvent
+	(*AssistNewConversationEvent)(nil),                        // 79: prehog.v1alpha.AssistNewConversationEvent
+	(*AssistAccessRequestEvent)(nil),                          // 80: prehog.v1alpha.AssistAccessRequestEvent
+	(*AssistActionEvent)(nil),                                 // 81: prehog.v1alpha.AssistActionEvent
+	(*AccessListMetadata)(nil),                                // 82: prehog.v1alpha.AccessListMetadata
+	(*AccessListCreateEvent)(nil),                             // 83: prehog.v1alpha.AccessListCreateEvent
+	(*AccessListUpdateEvent)(nil),                             // 84: prehog.v1alpha.AccessListUpdateEvent
+	(*AccessListDeleteEvent)(nil),                             // 85: prehog.v1alpha.AccessListDeleteEvent
+	(*AccessListMemberCreateEvent)(nil),                       // 86: prehog.v1alpha.AccessListMemberCreateEvent
+	(*AccessListMemberUpdateEvent)(nil),                       // 87: prehog.v1alpha.AccessListMemberUpdateEvent
+	(*AccessListMemberDeleteEvent)(nil),                       // 88: prehog.v1alpha.AccessListMemberDeleteEvent
+	(*AccessListGrantsToUserEvent)(nil),                       // 89: prehog.v1alpha.AccessListGrantsToUserEvent
+	(*AccessListReviewCreateEvent)(nil),                       // 90: prehog.v1alpha.AccessListReviewCreateEvent
+	(*AccessListReviewDeleteEvent)(nil),                       // 91: prehog.v1alpha.AccessListReviewDeleteEvent
+	(*AccessListReviewComplianceEvent)(nil),                   // 92: prehog.v1alpha.AccessListReviewComplianceEvent
+	(*IntegrationEnrollMetadata)(nil),                         // 93: prehog.v1alpha.IntegrationEnrollMetadata
+	(*UIIntegrationEnrollStartEvent)(nil),                     // 94: prehog.v1alpha.UIIntegrationEnrollStartEvent
+	(*UIIntegrationEnrollCompleteEvent)(nil),                  // 95: prehog.v1alpha.UIIntegrationEnrollCompleteEvent
+	(*IntegrationEnrollStepStatus)(nil),                       // 96: prehog.v1alpha.IntegrationEnrollStepStatus
+	(*UIIntegrationEnrollStepEvent)(nil),                      // 97: prehog.v1alpha.UIIntegrationEnrollStepEvent
+	(*UIIntegrationEnrollSectionOpenEvent)(nil),               // 98: prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
+	(*UIIntegrationEnrollFieldCompleteEvent)(nil),             // 99: prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent
+	(*EditorChangeEvent)(nil),                                 // 100: prehog.v1alpha.EditorChangeEvent
+	(*DeviceAuthenticateEvent)(nil),                           // 101: prehog.v1alpha.DeviceAuthenticateEvent
+	(*DeviceEnrollEvent)(nil),                                 // 102: prehog.v1alpha.DeviceEnrollEvent
+	(*FeatureRecommendationEvent)(nil),                        // 103: prehog.v1alpha.FeatureRecommendationEvent
+	(*LicenseLimitEvent)(nil),                                 // 104: prehog.v1alpha.LicenseLimitEvent
+	(*DesktopDirectoryShareEvent)(nil),                        // 105: prehog.v1alpha.DesktopDirectoryShareEvent
+	(*DesktopClipboardEvent)(nil),                             // 106: prehog.v1alpha.DesktopClipboardEvent
+	(*TAGExecuteQueryEvent)(nil),                              // 107: prehog.v1alpha.TAGExecuteQueryEvent
+	(*AccessGraphSecretsScanAuthorizedKeysEvent)(nil),         // 108: prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
+	(*AccessGraphSecretsScanSSHPrivateKeysEvent)(nil),         // 109: prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
+	(*AccessGraphGitlabScanEvent)(nil),                        // 110: prehog.v1alpha.AccessGraphGitlabScanEvent
+	(*AccessGraphAWSScanEvent)(nil),                           // 111: prehog.v1alpha.AccessGraphAWSScanEvent
+	(*AccessGraphAccessPathChangedEvent)(nil),                 // 112: prehog.v1alpha.AccessGraphAccessPathChangedEvent
+	(*UIAccessGraphCrownJewelDiffViewEvent)(nil),              // 113: prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
+	(*AccessGraphCrownJewelCreateEvent)(nil),                  // 114: prehog.v1alpha.AccessGraphCrownJewelCreateEvent
+	(*ExternalAuditStorageAuthenticateEvent)(nil),             // 115: prehog.v1alpha.ExternalAuditStorageAuthenticateEvent
+	(*SecurityReportGetResultEvent)(nil),                      // 116: prehog.v1alpha.SecurityReportGetResultEvent
+	(*AuditQueryRunEvent)(nil),                                // 117: prehog.v1alpha.AuditQueryRunEvent
+	(*DiscoveryFetchEvent)(nil),                               // 118: prehog.v1alpha.DiscoveryFetchEvent
+	(*OktaAccessListSyncEvent)(nil),                           // 119: prehog.v1alpha.OktaAccessListSyncEvent
+	(*DatabaseUserCreatedEvent)(nil),                          // 120: prehog.v1alpha.DatabaseUserCreatedEvent
+	(*DatabaseUserPermissionsUpdateEvent)(nil),                // 121: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
+	(*SessionRecordingAccessEvent)(nil),                       // 122: prehog.v1alpha.SessionRecordingAccessEvent
+	(*UserTaskStateEvent)(nil),                                // 123: prehog.v1alpha.UserTaskStateEvent
+	(*AccessRequestCreateEvent)(nil),                          // 124: prehog.v1alpha.AccessRequestCreateEvent
+	(*AccessRequestReviewEvent)(nil),                          // 125: prehog.v1alpha.AccessRequestReviewEvent
+	(*SubmitEventRequest)(nil),                                // 126: prehog.v1alpha.SubmitEventRequest
+	(*SubmitEventResponse)(nil),                               // 127: prehog.v1alpha.SubmitEventResponse
+	(*SubmitEventsRequest)(nil),                               // 128: prehog.v1alpha.SubmitEventsRequest
+	(*SubmitEventsResponse)(nil),                              // 129: prehog.v1alpha.SubmitEventsResponse
+	(*HelloTeleportRequest)(nil),                              // 130: prehog.v1alpha.HelloTeleportRequest
+	(*HelloTeleportResponse)(nil),                             // 131: prehog.v1alpha.HelloTeleportResponse
+	(*durationpb.Duration)(nil),                               // 132: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),                             // 133: google.protobuf.Timestamp
 }
 var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	0,   // 0: prehog.v1alpha.UserLoginEvent.user_origin:type_name -> prehog.v1alpha.UserOrigin
-	22,  // 1: prehog.v1alpha.ResourceCreateEvent.database:type_name -> prehog.v1alpha.DiscoveredDatabaseMetadata
+	23,  // 1: prehog.v1alpha.ResourceCreateEvent.database:type_name -> prehog.v1alpha.DiscoveredDatabaseMetadata
 	1,   // 2: prehog.v1alpha.ResourceHeartbeatEvent.resource_kind:type_name -> prehog.v1alpha.ResourceKind
-	25,  // 3: prehog.v1alpha.SessionStartEvent.database:type_name -> prehog.v1alpha.SessionStartDatabaseMetadata
-	26,  // 4: prehog.v1alpha.SessionStartEvent.desktop:type_name -> prehog.v1alpha.SessionStartDesktopMetadata
+	26,  // 3: prehog.v1alpha.SessionStartEvent.database:type_name -> prehog.v1alpha.SessionStartDatabaseMetadata
+	27,  // 4: prehog.v1alpha.SessionStartEvent.desktop:type_name -> prehog.v1alpha.SessionStartDesktopMetadata
 	2,   // 5: prehog.v1alpha.SessionStartEvent.user_kind:type_name -> prehog.v1alpha.UserKind
-	27,  // 6: prehog.v1alpha.SessionStartEvent.app:type_name -> prehog.v1alpha.SessionStartAppMetadata
-	28,  // 7: prehog.v1alpha.SessionStartEvent.git:type_name -> prehog.v1alpha.SessionStartGitMetadata
-	29,  // 8: prehog.v1alpha.SessionStartEvent.mcp:type_name -> prehog.v1alpha.SessionStartMCPMetadata
-	130, // 9: prehog.v1alpha.UserCertificateIssuedEvent.ttl:type_name -> google.protobuf.Duration
+	28,  // 6: prehog.v1alpha.SessionStartEvent.app:type_name -> prehog.v1alpha.SessionStartAppMetadata
+	29,  // 7: prehog.v1alpha.SessionStartEvent.git:type_name -> prehog.v1alpha.SessionStartGitMetadata
+	30,  // 8: prehog.v1alpha.SessionStartEvent.mcp:type_name -> prehog.v1alpha.SessionStartMCPMetadata
+	132, // 9: prehog.v1alpha.UserCertificateIssuedEvent.ttl:type_name -> google.protobuf.Duration
 	2,   // 10: prehog.v1alpha.SPIFFESVIDIssuedEvent.user_kind:type_name -> prehog.v1alpha.UserKind
 	3,   // 11: prehog.v1alpha.DiscoverResourceMetadata.resource:type_name -> prehog.v1alpha.DiscoverResource
 	4,   // 12: prehog.v1alpha.DiscoverStepStatus.status:type_name -> prehog.v1alpha.DiscoverStatus
-	42,  // 13: prehog.v1alpha.UIDiscoverStartedEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	44,  // 14: prehog.v1alpha.UIDiscoverStartedEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 15: prehog.v1alpha.UIDiscoverResourceSelectionEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 16: prehog.v1alpha.UIDiscoverResourceSelectionEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 17: prehog.v1alpha.UIDiscoverResourceSelectionEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 18: prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 19: prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 20: prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 21: prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 22: prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 23: prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 24: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 25: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 26: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 27: prehog.v1alpha.UIDiscoverDeployServiceEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 28: prehog.v1alpha.UIDiscoverDeployServiceEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 29: prehog.v1alpha.UIDiscoverDeployServiceEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	14,  // 30: prehog.v1alpha.UIDiscoverDeployServiceEvent.deploy_method:type_name -> prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployMethod
-	15,  // 31: prehog.v1alpha.UIDiscoverDeployServiceEvent.deploy_type:type_name -> prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployType
-	42,  // 32: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 33: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 34: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	16,  // 35: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.config_method:type_name -> prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod
-	42,  // 36: prehog.v1alpha.UIDiscoverDatabaseRegisterEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 37: prehog.v1alpha.UIDiscoverDatabaseRegisterEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 38: prehog.v1alpha.UIDiscoverDatabaseRegisterEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 39: prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 40: prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 41: prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 42: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 43: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 44: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 45: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 46: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 47: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 48: prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 49: prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 50: prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 51: prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 52: prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 53: prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 54: prehog.v1alpha.UIDiscoverDeployEICEEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 55: prehog.v1alpha.UIDiscoverDeployEICEEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 56: prehog.v1alpha.UIDiscoverDeployEICEEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 57: prehog.v1alpha.UIDiscoverCreateNodeEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 58: prehog.v1alpha.UIDiscoverCreateNodeEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 59: prehog.v1alpha.UIDiscoverCreateNodeEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 60: prehog.v1alpha.UIDiscoverCreateAppServerEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 61: prehog.v1alpha.UIDiscoverCreateAppServerEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 62: prehog.v1alpha.UIDiscoverCreateAppServerEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 63: prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 64: prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 65: prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 66: prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 67: prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 68: prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 69: prehog.v1alpha.UIDiscoverTestConnectionEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 70: prehog.v1alpha.UIDiscoverTestConnectionEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 71: prehog.v1alpha.UIDiscoverTestConnectionEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
-	42,  // 72: prehog.v1alpha.UIDiscoverCompletedEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
-	43,  // 73: prehog.v1alpha.UIDiscoverCompletedEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
-	44,  // 74: prehog.v1alpha.UIDiscoverCompletedEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 13: prehog.v1alpha.UIDiscoverStartedEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	45,  // 14: prehog.v1alpha.UIDiscoverStartedEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 15: prehog.v1alpha.UIDiscoverResourceSelectionEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 16: prehog.v1alpha.UIDiscoverResourceSelectionEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 17: prehog.v1alpha.UIDiscoverResourceSelectionEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 18: prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 19: prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 20: prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 21: prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 22: prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 23: prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 24: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 25: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 26: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 27: prehog.v1alpha.UIDiscoverDeployServiceEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 28: prehog.v1alpha.UIDiscoverDeployServiceEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 29: prehog.v1alpha.UIDiscoverDeployServiceEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	15,  // 30: prehog.v1alpha.UIDiscoverDeployServiceEvent.deploy_method:type_name -> prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployMethod
+	16,  // 31: prehog.v1alpha.UIDiscoverDeployServiceEvent.deploy_type:type_name -> prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployType
+	43,  // 32: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 33: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 34: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	17,  // 35: prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.config_method:type_name -> prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent.ConfigMethod
+	43,  // 36: prehog.v1alpha.UIDiscoverDatabaseRegisterEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 37: prehog.v1alpha.UIDiscoverDatabaseRegisterEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 38: prehog.v1alpha.UIDiscoverDatabaseRegisterEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 39: prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 40: prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 41: prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 42: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 43: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 44: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 45: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 46: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 47: prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 48: prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 49: prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 50: prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 51: prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 52: prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 53: prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 54: prehog.v1alpha.UIDiscoverDeployEICEEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 55: prehog.v1alpha.UIDiscoverDeployEICEEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 56: prehog.v1alpha.UIDiscoverDeployEICEEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 57: prehog.v1alpha.UIDiscoverCreateNodeEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 58: prehog.v1alpha.UIDiscoverCreateNodeEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 59: prehog.v1alpha.UIDiscoverCreateNodeEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 60: prehog.v1alpha.UIDiscoverCreateAppServerEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 61: prehog.v1alpha.UIDiscoverCreateAppServerEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 62: prehog.v1alpha.UIDiscoverCreateAppServerEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 63: prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 64: prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 65: prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 66: prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 67: prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 68: prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 69: prehog.v1alpha.UIDiscoverTestConnectionEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 70: prehog.v1alpha.UIDiscoverTestConnectionEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 71: prehog.v1alpha.UIDiscoverTestConnectionEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
+	43,  // 72: prehog.v1alpha.UIDiscoverCompletedEvent.metadata:type_name -> prehog.v1alpha.DiscoverMetadata
+	44,  // 73: prehog.v1alpha.UIDiscoverCompletedEvent.resource:type_name -> prehog.v1alpha.DiscoverResourceMetadata
+	45,  // 74: prehog.v1alpha.UIDiscoverCompletedEvent.status:type_name -> prehog.v1alpha.DiscoverStepStatus
 	5,   // 75: prehog.v1alpha.UICallToActionClickEvent.cta:type_name -> prehog.v1alpha.CTA
 	2,   // 76: prehog.v1alpha.KubeRequestEvent.user_kind:type_name -> prehog.v1alpha.UserKind
 	2,   // 77: prehog.v1alpha.SFTPEvent.user_kind:type_name -> prehog.v1alpha.UserKind
-	81,  // 78: prehog.v1alpha.AccessListCreateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	81,  // 79: prehog.v1alpha.AccessListUpdateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	81,  // 80: prehog.v1alpha.AccessListDeleteEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	81,  // 81: prehog.v1alpha.AccessListMemberCreateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	81,  // 82: prehog.v1alpha.AccessListMemberUpdateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	81,  // 83: prehog.v1alpha.AccessListMemberDeleteEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	81,  // 84: prehog.v1alpha.AccessListReviewCreateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
-	81,  // 85: prehog.v1alpha.AccessListReviewDeleteEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
+	82,  // 78: prehog.v1alpha.AccessListCreateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
+	82,  // 79: prehog.v1alpha.AccessListUpdateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
+	82,  // 80: prehog.v1alpha.AccessListDeleteEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
+	82,  // 81: prehog.v1alpha.AccessListMemberCreateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
+	82,  // 82: prehog.v1alpha.AccessListMemberUpdateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
+	82,  // 83: prehog.v1alpha.AccessListMemberDeleteEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
+	82,  // 84: prehog.v1alpha.AccessListReviewCreateEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
+	82,  // 85: prehog.v1alpha.AccessListReviewDeleteEvent.metadata:type_name -> prehog.v1alpha.AccessListMetadata
 	6,   // 86: prehog.v1alpha.IntegrationEnrollMetadata.kind:type_name -> prehog.v1alpha.IntegrationEnrollKind
-	92,  // 87: prehog.v1alpha.UIIntegrationEnrollStartEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
-	92,  // 88: prehog.v1alpha.UIIntegrationEnrollCompleteEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
+	93,  // 87: prehog.v1alpha.UIIntegrationEnrollStartEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
+	93,  // 88: prehog.v1alpha.UIIntegrationEnrollCompleteEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
 	8,   // 89: prehog.v1alpha.IntegrationEnrollStepStatus.code:type_name -> prehog.v1alpha.IntegrationEnrollStatusCode
-	92,  // 90: prehog.v1alpha.UIIntegrationEnrollStepEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
+	93,  // 90: prehog.v1alpha.UIIntegrationEnrollStepEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
 	7,   // 91: prehog.v1alpha.UIIntegrationEnrollStepEvent.step:type_name -> prehog.v1alpha.IntegrationEnrollStep
-	95,  // 92: prehog.v1alpha.UIIntegrationEnrollStepEvent.status:type_name -> prehog.v1alpha.IntegrationEnrollStepStatus
-	92,  // 93: prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
+	96,  // 92: prehog.v1alpha.UIIntegrationEnrollStepEvent.status:type_name -> prehog.v1alpha.IntegrationEnrollStepStatus
+	93,  // 93: prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
 	7,   // 94: prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent.step:type_name -> prehog.v1alpha.IntegrationEnrollStep
 	9,   // 95: prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent.section:type_name -> prehog.v1alpha.IntegrationEnrollSection
-	10,  // 96: prehog.v1alpha.EditorChangeEvent.status:type_name -> prehog.v1alpha.EditorChangeStatus
-	11,  // 97: prehog.v1alpha.FeatureRecommendationEvent.feature:type_name -> prehog.v1alpha.Feature
-	12,  // 98: prehog.v1alpha.FeatureRecommendationEvent.feature_recommendation_status:type_name -> prehog.v1alpha.FeatureRecommendationStatus
-	13,  // 99: prehog.v1alpha.LicenseLimitEvent.license_limit:type_name -> prehog.v1alpha.LicenseLimit
-	25,  // 100: prehog.v1alpha.DatabaseUserCreatedEvent.database:type_name -> prehog.v1alpha.SessionStartDatabaseMetadata
-	25,  // 101: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent.database:type_name -> prehog.v1alpha.SessionStartDatabaseMetadata
-	17,  // 102: prehog.v1alpha.AccessRequestReviewEvent.proposed_state:type_name -> prehog.v1alpha.AccessRequestReviewEvent.ProposedState
-	131, // 103: prehog.v1alpha.SubmitEventRequest.timestamp:type_name -> google.protobuf.Timestamp
-	18,  // 104: prehog.v1alpha.SubmitEventRequest.user_login:type_name -> prehog.v1alpha.UserLoginEvent
-	20,  // 105: prehog.v1alpha.SubmitEventRequest.sso_create:type_name -> prehog.v1alpha.SSOCreateEvent
-	21,  // 106: prehog.v1alpha.SubmitEventRequest.resource_create:type_name -> prehog.v1alpha.ResourceCreateEvent
-	24,  // 107: prehog.v1alpha.SubmitEventRequest.session_start:type_name -> prehog.v1alpha.SessionStartEvent
-	32,  // 108: prehog.v1alpha.SubmitEventRequest.ui_banner_click:type_name -> prehog.v1alpha.UIBannerClickEvent
-	33,  // 109: prehog.v1alpha.SubmitEventRequest.ui_onboard_complete_go_to_dashboard_click:type_name -> prehog.v1alpha.UIOnboardCompleteGoToDashboardClickEvent
-	34,  // 110: prehog.v1alpha.SubmitEventRequest.ui_onboard_add_first_resource_click:type_name -> prehog.v1alpha.UIOnboardAddFirstResourceClickEvent
-	35,  // 111: prehog.v1alpha.SubmitEventRequest.ui_onboard_add_first_resource_later_click:type_name -> prehog.v1alpha.UIOnboardAddFirstResourceLaterClickEvent
-	36,  // 112: prehog.v1alpha.SubmitEventRequest.ui_onboard_set_credential_submit:type_name -> prehog.v1alpha.UIOnboardSetCredentialSubmitEvent
-	37,  // 113: prehog.v1alpha.SubmitEventRequest.ui_onboard_register_challenge_submit:type_name -> prehog.v1alpha.UIOnboardRegisterChallengeSubmitEvent
-	39,  // 114: prehog.v1alpha.SubmitEventRequest.ui_recovery_codes_continue_click:type_name -> prehog.v1alpha.UIRecoveryCodesContinueClickEvent
-	40,  // 115: prehog.v1alpha.SubmitEventRequest.ui_recovery_codes_copy_click:type_name -> prehog.v1alpha.UIRecoveryCodesCopyClickEvent
-	41,  // 116: prehog.v1alpha.SubmitEventRequest.ui_recovery_codes_print_click:type_name -> prehog.v1alpha.UIRecoveryCodesPrintClickEvent
-	45,  // 117: prehog.v1alpha.SubmitEventRequest.ui_discover_started_event:type_name -> prehog.v1alpha.UIDiscoverStartedEvent
-	46,  // 118: prehog.v1alpha.SubmitEventRequest.ui_discover_resource_selection_event:type_name -> prehog.v1alpha.UIDiscoverResourceSelectionEvent
-	30,  // 119: prehog.v1alpha.SubmitEventRequest.user_certificate_issued_event:type_name -> prehog.v1alpha.UserCertificateIssuedEvent
-	24,  // 120: prehog.v1alpha.SubmitEventRequest.session_start_v2:type_name -> prehog.v1alpha.SessionStartEvent
-	50,  // 121: prehog.v1alpha.SubmitEventRequest.ui_discover_deploy_service_event:type_name -> prehog.v1alpha.UIDiscoverDeployServiceEvent
-	52,  // 122: prehog.v1alpha.SubmitEventRequest.ui_discover_database_register_event:type_name -> prehog.v1alpha.UIDiscoverDatabaseRegisterEvent
-	53,  // 123: prehog.v1alpha.SubmitEventRequest.ui_discover_database_configure_mtls_event:type_name -> prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent
-	54,  // 124: prehog.v1alpha.SubmitEventRequest.ui_discover_desktop_active_directory_tools_install_event:type_name -> prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent
-	55,  // 125: prehog.v1alpha.SubmitEventRequest.ui_discover_desktop_active_directory_configure_event:type_name -> prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent
-	56,  // 126: prehog.v1alpha.SubmitEventRequest.ui_discover_auto_discovered_resources_event:type_name -> prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent
-	61,  // 127: prehog.v1alpha.SubmitEventRequest.ui_discover_database_configure_iam_policy_event:type_name -> prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent
-	62,  // 128: prehog.v1alpha.SubmitEventRequest.ui_discover_principals_configure_event:type_name -> prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent
-	63,  // 129: prehog.v1alpha.SubmitEventRequest.ui_discover_test_connection_event:type_name -> prehog.v1alpha.UIDiscoverTestConnectionEvent
-	64,  // 130: prehog.v1alpha.SubmitEventRequest.ui_discover_completed_event:type_name -> prehog.v1alpha.UIDiscoverCompletedEvent
-	65,  // 131: prehog.v1alpha.SubmitEventRequest.role_create:type_name -> prehog.v1alpha.RoleCreateEvent
-	68,  // 132: prehog.v1alpha.SubmitEventRequest.ui_create_new_role_click:type_name -> prehog.v1alpha.UICreateNewRoleClickEvent
-	69,  // 133: prehog.v1alpha.SubmitEventRequest.ui_create_new_role_save_click:type_name -> prehog.v1alpha.UICreateNewRoleSaveClickEvent
-	70,  // 134: prehog.v1alpha.SubmitEventRequest.ui_create_new_role_cancel_click:type_name -> prehog.v1alpha.UICreateNewRoleCancelClickEvent
-	71,  // 135: prehog.v1alpha.SubmitEventRequest.ui_create_new_role_view_documentation_click:type_name -> prehog.v1alpha.UICreateNewRoleViewDocumentationClickEvent
-	73,  // 136: prehog.v1alpha.SubmitEventRequest.kube_request:type_name -> prehog.v1alpha.KubeRequestEvent
-	74,  // 137: prehog.v1alpha.SubmitEventRequest.sftp:type_name -> prehog.v1alpha.SFTPEvent
-	75,  // 138: prehog.v1alpha.SubmitEventRequest.agent_metadata_event:type_name -> prehog.v1alpha.AgentMetadataEvent
-	23,  // 139: prehog.v1alpha.SubmitEventRequest.resource_heartbeat:type_name -> prehog.v1alpha.ResourceHeartbeatEvent
-	47,  // 140: prehog.v1alpha.SubmitEventRequest.ui_discover_integration_aws_oidc_connect_event:type_name -> prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent
-	48,  // 141: prehog.v1alpha.SubmitEventRequest.ui_discover_database_rds_enroll_event:type_name -> prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent
-	72,  // 142: prehog.v1alpha.SubmitEventRequest.ui_call_to_action_click_event:type_name -> prehog.v1alpha.UICallToActionClickEvent
-	76,  // 143: prehog.v1alpha.SubmitEventRequest.assist_completion:type_name -> prehog.v1alpha.AssistCompletionEvent
-	93,  // 144: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_start_event:type_name -> prehog.v1alpha.UIIntegrationEnrollStartEvent
-	94,  // 145: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_complete_event:type_name -> prehog.v1alpha.UIIntegrationEnrollCompleteEvent
-	98,  // 146: prehog.v1alpha.SubmitEventRequest.editor_change_event:type_name -> prehog.v1alpha.EditorChangeEvent
-	66,  // 147: prehog.v1alpha.SubmitEventRequest.bot_create:type_name -> prehog.v1alpha.BotCreateEvent
-	38,  // 148: prehog.v1alpha.SubmitEventRequest.ui_onboard_questionnaire_submit:type_name -> prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent
-	67,  // 149: prehog.v1alpha.SubmitEventRequest.bot_join:type_name -> prehog.v1alpha.BotJoinEvent
-	77,  // 150: prehog.v1alpha.SubmitEventRequest.assist_execution:type_name -> prehog.v1alpha.AssistExecutionEvent
-	78,  // 151: prehog.v1alpha.SubmitEventRequest.assist_new_conversation:type_name -> prehog.v1alpha.AssistNewConversationEvent
-	99,  // 152: prehog.v1alpha.SubmitEventRequest.device_authenticate_event:type_name -> prehog.v1alpha.DeviceAuthenticateEvent
-	101, // 153: prehog.v1alpha.SubmitEventRequest.feature_recommendation_event:type_name -> prehog.v1alpha.FeatureRecommendationEvent
-	79,  // 154: prehog.v1alpha.SubmitEventRequest.assist_access_request:type_name -> prehog.v1alpha.AssistAccessRequestEvent
-	80,  // 155: prehog.v1alpha.SubmitEventRequest.assist_action:type_name -> prehog.v1alpha.AssistActionEvent
-	100, // 156: prehog.v1alpha.SubmitEventRequest.device_enroll_event:type_name -> prehog.v1alpha.DeviceEnrollEvent
-	102, // 157: prehog.v1alpha.SubmitEventRequest.license_limit_event:type_name -> prehog.v1alpha.LicenseLimitEvent
-	82,  // 158: prehog.v1alpha.SubmitEventRequest.access_list_create:type_name -> prehog.v1alpha.AccessListCreateEvent
-	83,  // 159: prehog.v1alpha.SubmitEventRequest.access_list_update:type_name -> prehog.v1alpha.AccessListUpdateEvent
-	84,  // 160: prehog.v1alpha.SubmitEventRequest.access_list_delete:type_name -> prehog.v1alpha.AccessListDeleteEvent
-	85,  // 161: prehog.v1alpha.SubmitEventRequest.access_list_member_create:type_name -> prehog.v1alpha.AccessListMemberCreateEvent
-	86,  // 162: prehog.v1alpha.SubmitEventRequest.access_list_member_update:type_name -> prehog.v1alpha.AccessListMemberUpdateEvent
-	87,  // 163: prehog.v1alpha.SubmitEventRequest.access_list_member_delete:type_name -> prehog.v1alpha.AccessListMemberDeleteEvent
-	88,  // 164: prehog.v1alpha.SubmitEventRequest.access_list_grants_to_user:type_name -> prehog.v1alpha.AccessListGrantsToUserEvent
-	57,  // 165: prehog.v1alpha.SubmitEventRequest.ui_discover_ec2_instance_selection:type_name -> prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent
-	58,  // 166: prehog.v1alpha.SubmitEventRequest.ui_discover_deploy_eice:type_name -> prehog.v1alpha.UIDiscoverDeployEICEEvent
-	59,  // 167: prehog.v1alpha.SubmitEventRequest.ui_discover_create_node:type_name -> prehog.v1alpha.UIDiscoverCreateNodeEvent
-	103, // 168: prehog.v1alpha.SubmitEventRequest.desktop_directory_share:type_name -> prehog.v1alpha.DesktopDirectoryShareEvent
-	104, // 169: prehog.v1alpha.SubmitEventRequest.desktop_clipboard_transfer:type_name -> prehog.v1alpha.DesktopClipboardEvent
-	105, // 170: prehog.v1alpha.SubmitEventRequest.tag_execute_query:type_name -> prehog.v1alpha.TAGExecuteQueryEvent
-	113, // 171: prehog.v1alpha.SubmitEventRequest.external_audit_storage_authenticate:type_name -> prehog.v1alpha.ExternalAuditStorageAuthenticateEvent
-	114, // 172: prehog.v1alpha.SubmitEventRequest.security_report_get_result:type_name -> prehog.v1alpha.SecurityReportGetResultEvent
-	115, // 173: prehog.v1alpha.SubmitEventRequest.audit_query_run:type_name -> prehog.v1alpha.AuditQueryRunEvent
-	116, // 174: prehog.v1alpha.SubmitEventRequest.discovery_fetch_event:type_name -> prehog.v1alpha.DiscoveryFetchEvent
-	89,  // 175: prehog.v1alpha.SubmitEventRequest.access_list_review_create:type_name -> prehog.v1alpha.AccessListReviewCreateEvent
-	90,  // 176: prehog.v1alpha.SubmitEventRequest.access_list_review_delete:type_name -> prehog.v1alpha.AccessListReviewDeleteEvent
-	91,  // 177: prehog.v1alpha.SubmitEventRequest.access_list_review_compliance:type_name -> prehog.v1alpha.AccessListReviewComplianceEvent
-	19,  // 178: prehog.v1alpha.SubmitEventRequest.mfa_authentication_event:type_name -> prehog.v1alpha.MFAAuthenticationEvent
-	31,  // 179: prehog.v1alpha.SubmitEventRequest.spiffe_svid_issued:type_name -> prehog.v1alpha.SPIFFESVIDIssuedEvent
-	117, // 180: prehog.v1alpha.SubmitEventRequest.okta_access_list_sync:type_name -> prehog.v1alpha.OktaAccessListSyncEvent
-	118, // 181: prehog.v1alpha.SubmitEventRequest.database_user_created:type_name -> prehog.v1alpha.DatabaseUserCreatedEvent
-	119, // 182: prehog.v1alpha.SubmitEventRequest.database_user_permissions_updated:type_name -> prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
-	51,  // 183: prehog.v1alpha.SubmitEventRequest.ui_discover_create_discovery_config:type_name -> prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
-	49,  // 184: prehog.v1alpha.SubmitEventRequest.ui_discover_kube_eks_enroll_event:type_name -> prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent
-	60,  // 185: prehog.v1alpha.SubmitEventRequest.ui_discover_create_app_server_event:type_name -> prehog.v1alpha.UIDiscoverCreateAppServerEvent
-	108, // 186: prehog.v1alpha.SubmitEventRequest.access_graph_gitlab_scan:type_name -> prehog.v1alpha.AccessGraphGitlabScanEvent
-	106, // 187: prehog.v1alpha.SubmitEventRequest.access_graph_secrets_scan_authorized_keys:type_name -> prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
-	107, // 188: prehog.v1alpha.SubmitEventRequest.access_graph_secrets_scan_ssh_private_keys:type_name -> prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
-	109, // 189: prehog.v1alpha.SubmitEventRequest.access_graph_aws_scan:type_name -> prehog.v1alpha.AccessGraphAWSScanEvent
-	110, // 190: prehog.v1alpha.SubmitEventRequest.access_graph_access_path_changed:type_name -> prehog.v1alpha.AccessGraphAccessPathChangedEvent
-	112, // 191: prehog.v1alpha.SubmitEventRequest.access_graph_crown_jewel_create:type_name -> prehog.v1alpha.AccessGraphCrownJewelCreateEvent
-	111, // 192: prehog.v1alpha.SubmitEventRequest.ui_access_graph_crown_jewel_diff_view:type_name -> prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
-	120, // 193: prehog.v1alpha.SubmitEventRequest.session_recording_access:type_name -> prehog.v1alpha.SessionRecordingAccessEvent
-	121, // 194: prehog.v1alpha.SubmitEventRequest.user_task_state:type_name -> prehog.v1alpha.UserTaskStateEvent
-	96,  // 195: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_step_event:type_name -> prehog.v1alpha.UIIntegrationEnrollStepEvent
-	122, // 196: prehog.v1alpha.SubmitEventRequest.access_request_create:type_name -> prehog.v1alpha.AccessRequestCreateEvent
-	123, // 197: prehog.v1alpha.SubmitEventRequest.access_request_review:type_name -> prehog.v1alpha.AccessRequestReviewEvent
-	97,  // 198: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_section_open_event:type_name -> prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
-	124, // 199: prehog.v1alpha.SubmitEventsRequest.events:type_name -> prehog.v1alpha.SubmitEventRequest
-	124, // 200: prehog.v1alpha.TeleportReportingService.SubmitEvent:input_type -> prehog.v1alpha.SubmitEventRequest
-	126, // 201: prehog.v1alpha.TeleportReportingService.SubmitEvents:input_type -> prehog.v1alpha.SubmitEventsRequest
-	128, // 202: prehog.v1alpha.TeleportReportingService.HelloTeleport:input_type -> prehog.v1alpha.HelloTeleportRequest
-	125, // 203: prehog.v1alpha.TeleportReportingService.SubmitEvent:output_type -> prehog.v1alpha.SubmitEventResponse
-	127, // 204: prehog.v1alpha.TeleportReportingService.SubmitEvents:output_type -> prehog.v1alpha.SubmitEventsResponse
-	129, // 205: prehog.v1alpha.TeleportReportingService.HelloTeleport:output_type -> prehog.v1alpha.HelloTeleportResponse
-	203, // [203:206] is the sub-list for method output_type
-	200, // [200:203] is the sub-list for method input_type
-	200, // [200:200] is the sub-list for extension type_name
-	200, // [200:200] is the sub-list for extension extendee
-	0,   // [0:200] is the sub-list for field type_name
+	93,  // 96: prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent.metadata:type_name -> prehog.v1alpha.IntegrationEnrollMetadata
+	7,   // 97: prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent.step:type_name -> prehog.v1alpha.IntegrationEnrollStep
+	10,  // 98: prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent.field:type_name -> prehog.v1alpha.IntegrationEnrollField
+	11,  // 99: prehog.v1alpha.EditorChangeEvent.status:type_name -> prehog.v1alpha.EditorChangeStatus
+	12,  // 100: prehog.v1alpha.FeatureRecommendationEvent.feature:type_name -> prehog.v1alpha.Feature
+	13,  // 101: prehog.v1alpha.FeatureRecommendationEvent.feature_recommendation_status:type_name -> prehog.v1alpha.FeatureRecommendationStatus
+	14,  // 102: prehog.v1alpha.LicenseLimitEvent.license_limit:type_name -> prehog.v1alpha.LicenseLimit
+	26,  // 103: prehog.v1alpha.DatabaseUserCreatedEvent.database:type_name -> prehog.v1alpha.SessionStartDatabaseMetadata
+	26,  // 104: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent.database:type_name -> prehog.v1alpha.SessionStartDatabaseMetadata
+	18,  // 105: prehog.v1alpha.AccessRequestReviewEvent.proposed_state:type_name -> prehog.v1alpha.AccessRequestReviewEvent.ProposedState
+	133, // 106: prehog.v1alpha.SubmitEventRequest.timestamp:type_name -> google.protobuf.Timestamp
+	19,  // 107: prehog.v1alpha.SubmitEventRequest.user_login:type_name -> prehog.v1alpha.UserLoginEvent
+	21,  // 108: prehog.v1alpha.SubmitEventRequest.sso_create:type_name -> prehog.v1alpha.SSOCreateEvent
+	22,  // 109: prehog.v1alpha.SubmitEventRequest.resource_create:type_name -> prehog.v1alpha.ResourceCreateEvent
+	25,  // 110: prehog.v1alpha.SubmitEventRequest.session_start:type_name -> prehog.v1alpha.SessionStartEvent
+	33,  // 111: prehog.v1alpha.SubmitEventRequest.ui_banner_click:type_name -> prehog.v1alpha.UIBannerClickEvent
+	34,  // 112: prehog.v1alpha.SubmitEventRequest.ui_onboard_complete_go_to_dashboard_click:type_name -> prehog.v1alpha.UIOnboardCompleteGoToDashboardClickEvent
+	35,  // 113: prehog.v1alpha.SubmitEventRequest.ui_onboard_add_first_resource_click:type_name -> prehog.v1alpha.UIOnboardAddFirstResourceClickEvent
+	36,  // 114: prehog.v1alpha.SubmitEventRequest.ui_onboard_add_first_resource_later_click:type_name -> prehog.v1alpha.UIOnboardAddFirstResourceLaterClickEvent
+	37,  // 115: prehog.v1alpha.SubmitEventRequest.ui_onboard_set_credential_submit:type_name -> prehog.v1alpha.UIOnboardSetCredentialSubmitEvent
+	38,  // 116: prehog.v1alpha.SubmitEventRequest.ui_onboard_register_challenge_submit:type_name -> prehog.v1alpha.UIOnboardRegisterChallengeSubmitEvent
+	40,  // 117: prehog.v1alpha.SubmitEventRequest.ui_recovery_codes_continue_click:type_name -> prehog.v1alpha.UIRecoveryCodesContinueClickEvent
+	41,  // 118: prehog.v1alpha.SubmitEventRequest.ui_recovery_codes_copy_click:type_name -> prehog.v1alpha.UIRecoveryCodesCopyClickEvent
+	42,  // 119: prehog.v1alpha.SubmitEventRequest.ui_recovery_codes_print_click:type_name -> prehog.v1alpha.UIRecoveryCodesPrintClickEvent
+	46,  // 120: prehog.v1alpha.SubmitEventRequest.ui_discover_started_event:type_name -> prehog.v1alpha.UIDiscoverStartedEvent
+	47,  // 121: prehog.v1alpha.SubmitEventRequest.ui_discover_resource_selection_event:type_name -> prehog.v1alpha.UIDiscoverResourceSelectionEvent
+	31,  // 122: prehog.v1alpha.SubmitEventRequest.user_certificate_issued_event:type_name -> prehog.v1alpha.UserCertificateIssuedEvent
+	25,  // 123: prehog.v1alpha.SubmitEventRequest.session_start_v2:type_name -> prehog.v1alpha.SessionStartEvent
+	51,  // 124: prehog.v1alpha.SubmitEventRequest.ui_discover_deploy_service_event:type_name -> prehog.v1alpha.UIDiscoverDeployServiceEvent
+	53,  // 125: prehog.v1alpha.SubmitEventRequest.ui_discover_database_register_event:type_name -> prehog.v1alpha.UIDiscoverDatabaseRegisterEvent
+	54,  // 126: prehog.v1alpha.SubmitEventRequest.ui_discover_database_configure_mtls_event:type_name -> prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent
+	55,  // 127: prehog.v1alpha.SubmitEventRequest.ui_discover_desktop_active_directory_tools_install_event:type_name -> prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent
+	56,  // 128: prehog.v1alpha.SubmitEventRequest.ui_discover_desktop_active_directory_configure_event:type_name -> prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent
+	57,  // 129: prehog.v1alpha.SubmitEventRequest.ui_discover_auto_discovered_resources_event:type_name -> prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent
+	62,  // 130: prehog.v1alpha.SubmitEventRequest.ui_discover_database_configure_iam_policy_event:type_name -> prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent
+	63,  // 131: prehog.v1alpha.SubmitEventRequest.ui_discover_principals_configure_event:type_name -> prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent
+	64,  // 132: prehog.v1alpha.SubmitEventRequest.ui_discover_test_connection_event:type_name -> prehog.v1alpha.UIDiscoverTestConnectionEvent
+	65,  // 133: prehog.v1alpha.SubmitEventRequest.ui_discover_completed_event:type_name -> prehog.v1alpha.UIDiscoverCompletedEvent
+	66,  // 134: prehog.v1alpha.SubmitEventRequest.role_create:type_name -> prehog.v1alpha.RoleCreateEvent
+	69,  // 135: prehog.v1alpha.SubmitEventRequest.ui_create_new_role_click:type_name -> prehog.v1alpha.UICreateNewRoleClickEvent
+	70,  // 136: prehog.v1alpha.SubmitEventRequest.ui_create_new_role_save_click:type_name -> prehog.v1alpha.UICreateNewRoleSaveClickEvent
+	71,  // 137: prehog.v1alpha.SubmitEventRequest.ui_create_new_role_cancel_click:type_name -> prehog.v1alpha.UICreateNewRoleCancelClickEvent
+	72,  // 138: prehog.v1alpha.SubmitEventRequest.ui_create_new_role_view_documentation_click:type_name -> prehog.v1alpha.UICreateNewRoleViewDocumentationClickEvent
+	74,  // 139: prehog.v1alpha.SubmitEventRequest.kube_request:type_name -> prehog.v1alpha.KubeRequestEvent
+	75,  // 140: prehog.v1alpha.SubmitEventRequest.sftp:type_name -> prehog.v1alpha.SFTPEvent
+	76,  // 141: prehog.v1alpha.SubmitEventRequest.agent_metadata_event:type_name -> prehog.v1alpha.AgentMetadataEvent
+	24,  // 142: prehog.v1alpha.SubmitEventRequest.resource_heartbeat:type_name -> prehog.v1alpha.ResourceHeartbeatEvent
+	48,  // 143: prehog.v1alpha.SubmitEventRequest.ui_discover_integration_aws_oidc_connect_event:type_name -> prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent
+	49,  // 144: prehog.v1alpha.SubmitEventRequest.ui_discover_database_rds_enroll_event:type_name -> prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent
+	73,  // 145: prehog.v1alpha.SubmitEventRequest.ui_call_to_action_click_event:type_name -> prehog.v1alpha.UICallToActionClickEvent
+	77,  // 146: prehog.v1alpha.SubmitEventRequest.assist_completion:type_name -> prehog.v1alpha.AssistCompletionEvent
+	94,  // 147: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_start_event:type_name -> prehog.v1alpha.UIIntegrationEnrollStartEvent
+	95,  // 148: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_complete_event:type_name -> prehog.v1alpha.UIIntegrationEnrollCompleteEvent
+	100, // 149: prehog.v1alpha.SubmitEventRequest.editor_change_event:type_name -> prehog.v1alpha.EditorChangeEvent
+	67,  // 150: prehog.v1alpha.SubmitEventRequest.bot_create:type_name -> prehog.v1alpha.BotCreateEvent
+	39,  // 151: prehog.v1alpha.SubmitEventRequest.ui_onboard_questionnaire_submit:type_name -> prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent
+	68,  // 152: prehog.v1alpha.SubmitEventRequest.bot_join:type_name -> prehog.v1alpha.BotJoinEvent
+	78,  // 153: prehog.v1alpha.SubmitEventRequest.assist_execution:type_name -> prehog.v1alpha.AssistExecutionEvent
+	79,  // 154: prehog.v1alpha.SubmitEventRequest.assist_new_conversation:type_name -> prehog.v1alpha.AssistNewConversationEvent
+	101, // 155: prehog.v1alpha.SubmitEventRequest.device_authenticate_event:type_name -> prehog.v1alpha.DeviceAuthenticateEvent
+	103, // 156: prehog.v1alpha.SubmitEventRequest.feature_recommendation_event:type_name -> prehog.v1alpha.FeatureRecommendationEvent
+	80,  // 157: prehog.v1alpha.SubmitEventRequest.assist_access_request:type_name -> prehog.v1alpha.AssistAccessRequestEvent
+	81,  // 158: prehog.v1alpha.SubmitEventRequest.assist_action:type_name -> prehog.v1alpha.AssistActionEvent
+	102, // 159: prehog.v1alpha.SubmitEventRequest.device_enroll_event:type_name -> prehog.v1alpha.DeviceEnrollEvent
+	104, // 160: prehog.v1alpha.SubmitEventRequest.license_limit_event:type_name -> prehog.v1alpha.LicenseLimitEvent
+	83,  // 161: prehog.v1alpha.SubmitEventRequest.access_list_create:type_name -> prehog.v1alpha.AccessListCreateEvent
+	84,  // 162: prehog.v1alpha.SubmitEventRequest.access_list_update:type_name -> prehog.v1alpha.AccessListUpdateEvent
+	85,  // 163: prehog.v1alpha.SubmitEventRequest.access_list_delete:type_name -> prehog.v1alpha.AccessListDeleteEvent
+	86,  // 164: prehog.v1alpha.SubmitEventRequest.access_list_member_create:type_name -> prehog.v1alpha.AccessListMemberCreateEvent
+	87,  // 165: prehog.v1alpha.SubmitEventRequest.access_list_member_update:type_name -> prehog.v1alpha.AccessListMemberUpdateEvent
+	88,  // 166: prehog.v1alpha.SubmitEventRequest.access_list_member_delete:type_name -> prehog.v1alpha.AccessListMemberDeleteEvent
+	89,  // 167: prehog.v1alpha.SubmitEventRequest.access_list_grants_to_user:type_name -> prehog.v1alpha.AccessListGrantsToUserEvent
+	58,  // 168: prehog.v1alpha.SubmitEventRequest.ui_discover_ec2_instance_selection:type_name -> prehog.v1alpha.UIDiscoverEC2InstanceSelectionEvent
+	59,  // 169: prehog.v1alpha.SubmitEventRequest.ui_discover_deploy_eice:type_name -> prehog.v1alpha.UIDiscoverDeployEICEEvent
+	60,  // 170: prehog.v1alpha.SubmitEventRequest.ui_discover_create_node:type_name -> prehog.v1alpha.UIDiscoverCreateNodeEvent
+	105, // 171: prehog.v1alpha.SubmitEventRequest.desktop_directory_share:type_name -> prehog.v1alpha.DesktopDirectoryShareEvent
+	106, // 172: prehog.v1alpha.SubmitEventRequest.desktop_clipboard_transfer:type_name -> prehog.v1alpha.DesktopClipboardEvent
+	107, // 173: prehog.v1alpha.SubmitEventRequest.tag_execute_query:type_name -> prehog.v1alpha.TAGExecuteQueryEvent
+	115, // 174: prehog.v1alpha.SubmitEventRequest.external_audit_storage_authenticate:type_name -> prehog.v1alpha.ExternalAuditStorageAuthenticateEvent
+	116, // 175: prehog.v1alpha.SubmitEventRequest.security_report_get_result:type_name -> prehog.v1alpha.SecurityReportGetResultEvent
+	117, // 176: prehog.v1alpha.SubmitEventRequest.audit_query_run:type_name -> prehog.v1alpha.AuditQueryRunEvent
+	118, // 177: prehog.v1alpha.SubmitEventRequest.discovery_fetch_event:type_name -> prehog.v1alpha.DiscoveryFetchEvent
+	90,  // 178: prehog.v1alpha.SubmitEventRequest.access_list_review_create:type_name -> prehog.v1alpha.AccessListReviewCreateEvent
+	91,  // 179: prehog.v1alpha.SubmitEventRequest.access_list_review_delete:type_name -> prehog.v1alpha.AccessListReviewDeleteEvent
+	92,  // 180: prehog.v1alpha.SubmitEventRequest.access_list_review_compliance:type_name -> prehog.v1alpha.AccessListReviewComplianceEvent
+	20,  // 181: prehog.v1alpha.SubmitEventRequest.mfa_authentication_event:type_name -> prehog.v1alpha.MFAAuthenticationEvent
+	32,  // 182: prehog.v1alpha.SubmitEventRequest.spiffe_svid_issued:type_name -> prehog.v1alpha.SPIFFESVIDIssuedEvent
+	119, // 183: prehog.v1alpha.SubmitEventRequest.okta_access_list_sync:type_name -> prehog.v1alpha.OktaAccessListSyncEvent
+	120, // 184: prehog.v1alpha.SubmitEventRequest.database_user_created:type_name -> prehog.v1alpha.DatabaseUserCreatedEvent
+	121, // 185: prehog.v1alpha.SubmitEventRequest.database_user_permissions_updated:type_name -> prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
+	52,  // 186: prehog.v1alpha.SubmitEventRequest.ui_discover_create_discovery_config:type_name -> prehog.v1alpha.UIDiscoverCreateDiscoveryConfigEvent
+	50,  // 187: prehog.v1alpha.SubmitEventRequest.ui_discover_kube_eks_enroll_event:type_name -> prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent
+	61,  // 188: prehog.v1alpha.SubmitEventRequest.ui_discover_create_app_server_event:type_name -> prehog.v1alpha.UIDiscoverCreateAppServerEvent
+	110, // 189: prehog.v1alpha.SubmitEventRequest.access_graph_gitlab_scan:type_name -> prehog.v1alpha.AccessGraphGitlabScanEvent
+	108, // 190: prehog.v1alpha.SubmitEventRequest.access_graph_secrets_scan_authorized_keys:type_name -> prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
+	109, // 191: prehog.v1alpha.SubmitEventRequest.access_graph_secrets_scan_ssh_private_keys:type_name -> prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
+	111, // 192: prehog.v1alpha.SubmitEventRequest.access_graph_aws_scan:type_name -> prehog.v1alpha.AccessGraphAWSScanEvent
+	112, // 193: prehog.v1alpha.SubmitEventRequest.access_graph_access_path_changed:type_name -> prehog.v1alpha.AccessGraphAccessPathChangedEvent
+	114, // 194: prehog.v1alpha.SubmitEventRequest.access_graph_crown_jewel_create:type_name -> prehog.v1alpha.AccessGraphCrownJewelCreateEvent
+	113, // 195: prehog.v1alpha.SubmitEventRequest.ui_access_graph_crown_jewel_diff_view:type_name -> prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
+	122, // 196: prehog.v1alpha.SubmitEventRequest.session_recording_access:type_name -> prehog.v1alpha.SessionRecordingAccessEvent
+	123, // 197: prehog.v1alpha.SubmitEventRequest.user_task_state:type_name -> prehog.v1alpha.UserTaskStateEvent
+	97,  // 198: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_step_event:type_name -> prehog.v1alpha.UIIntegrationEnrollStepEvent
+	124, // 199: prehog.v1alpha.SubmitEventRequest.access_request_create:type_name -> prehog.v1alpha.AccessRequestCreateEvent
+	125, // 200: prehog.v1alpha.SubmitEventRequest.access_request_review:type_name -> prehog.v1alpha.AccessRequestReviewEvent
+	98,  // 201: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_section_open_event:type_name -> prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
+	99,  // 202: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_field_complete_event:type_name -> prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent
+	126, // 203: prehog.v1alpha.SubmitEventsRequest.events:type_name -> prehog.v1alpha.SubmitEventRequest
+	126, // 204: prehog.v1alpha.TeleportReportingService.SubmitEvent:input_type -> prehog.v1alpha.SubmitEventRequest
+	128, // 205: prehog.v1alpha.TeleportReportingService.SubmitEvents:input_type -> prehog.v1alpha.SubmitEventsRequest
+	130, // 206: prehog.v1alpha.TeleportReportingService.HelloTeleport:input_type -> prehog.v1alpha.HelloTeleportRequest
+	127, // 207: prehog.v1alpha.TeleportReportingService.SubmitEvent:output_type -> prehog.v1alpha.SubmitEventResponse
+	129, // 208: prehog.v1alpha.TeleportReportingService.SubmitEvents:output_type -> prehog.v1alpha.SubmitEventsResponse
+	131, // 209: prehog.v1alpha.TeleportReportingService.HelloTeleport:output_type -> prehog.v1alpha.HelloTeleportResponse
+	207, // [207:210] is the sub-list for method output_type
+	204, // [204:207] is the sub-list for method input_type
+	204, // [204:204] is the sub-list for extension type_name
+	204, // [204:204] is the sub-list for extension extendee
+	0,   // [0:204] is the sub-list for field type_name
 }
 
 func init() { file_prehog_v1alpha_teleport_proto_init() }
@@ -11381,7 +11570,7 @@ func file_prehog_v1alpha_teleport_proto_init() {
 	if File_prehog_v1alpha_teleport_proto != nil {
 		return
 	}
-	file_prehog_v1alpha_teleport_proto_msgTypes[106].OneofWrappers = []any{
+	file_prehog_v1alpha_teleport_proto_msgTypes[107].OneofWrappers = []any{
 		(*SubmitEventRequest_UserLogin)(nil),
 		(*SubmitEventRequest_SsoCreate)(nil),
 		(*SubmitEventRequest_ResourceCreate)(nil),
@@ -11477,14 +11666,15 @@ func file_prehog_v1alpha_teleport_proto_init() {
 		(*SubmitEventRequest_AccessRequestCreate)(nil),
 		(*SubmitEventRequest_AccessRequestReview)(nil),
 		(*SubmitEventRequest_UiIntegrationEnrollSectionOpenEvent)(nil),
+		(*SubmitEventRequest_UiIntegrationEnrollFieldCompleteEvent)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_prehog_v1alpha_teleport_proto_rawDesc), len(file_prehog_v1alpha_teleport_proto_rawDesc)),
-			NumEnums:      18,
-			NumMessages:   112,
+			NumEnums:      19,
+			NumMessages:   113,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

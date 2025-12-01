@@ -336,6 +336,30 @@ func (u *UIIntegrationEnrollSectionOpenEvent) Anonymize(a utils.Anonymizer) preh
 	}
 }
 
+// UIIntegrationEnrollFieldCompleteEvent is emitted when the user completes a
+// field in an integration setup wizard.
+type UIIntegrationEnrollFieldCompleteEvent prehogv1a.UIIntegrationEnrollFieldCompleteEvent
+
+func (u *UIIntegrationEnrollFieldCompleteEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
+}
+
+func (u *UIIntegrationEnrollFieldCompleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollFieldCompleteEvent{
+			UiIntegrationEnrollFieldCompleteEvent: &prehogv1a.UIIntegrationEnrollFieldCompleteEvent{
+				Metadata: &prehogv1a.IntegrationEnrollMetadata{
+					Id:       u.Metadata.Id,
+					Kind:     u.Metadata.Kind,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Step:  u.Step,
+				Field: u.Field,
+			},
+		},
+	}
+}
+
 // UIBannerClickEvent is a UI event sent when a banner is clicked.
 type UIBannerClickEvent prehogv1a.UIBannerClickEvent
 
@@ -1509,6 +1533,17 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollSectionOpenEvent.Metadata, userMD),
 			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollSectionOpenEvent.Step),
 			Section:  prehogv1a.IntegrationEnrollSection(e.UiIntegrationEnrollSectionOpenEvent.Section),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollFieldCompleteEvent:
+		ret := &UIIntegrationEnrollFieldCompleteEvent{
+			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollFieldCompleteEvent.Metadata, userMD),
+			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollFieldCompleteEvent.Step),
+			Field:    prehogv1a.IntegrationEnrollField(e.UiIntegrationEnrollFieldCompleteEvent.Field),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

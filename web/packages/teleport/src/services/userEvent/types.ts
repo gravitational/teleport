@@ -49,6 +49,7 @@ export enum IntegrationEnrollEvent {
   Complete = 'tp.ui.integrationEnroll.complete',
   Step = 'tp.ui.integrationEnroll.step',
   SectionOpen = 'tp.ui.integrationEnroll.sectionOpen',
+  FieldComplete = 'tp.ui.integrationEnroll.fieldComplete',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -142,6 +143,28 @@ export enum IntegrationEnrollSection {
 }
 
 /**
+ * IntegrationEnrollField identifies a field the user completed in an integration
+ * setup wizard. Value matches with proto enums defined in the backend.
+ */
+export enum IntegrationEnrollField {
+  /**
+   * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+   */
+  MWIGHAK8SGitHubRepositoryURL = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL',
+  MWIGHAK8SGitHubBranch = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH',
+  MWIGHAK8SGitHubWorkflow = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW',
+  MWIGHAK8SGitHubEnvironment = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT',
+  MWIGHAK8SGitHubRef = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF',
+  MWIGHAK8SGitHubEnterpriseHost = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_HOST',
+  MWIGHAK8SGitHubEnterpriseSlug = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG',
+  MWIGHAK8SGitHubEnterpriseStaticJWKS = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS',
+  MWIGHAK8SKubernetesLabels = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS',
+  MWIGHAK8SKubernetesGroups = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS',
+  MWIGHAK8SKubernetesUsers = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS',
+  MWIGHAK8SKubernetesResourceRules = 'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES',
+}
+
+/**
  * IntegrationEnrollStepStatus defines fields for reporting
  * integration configuration step event.
  */
@@ -167,6 +190,7 @@ export type IntegrationEnrollEventData = {
   step?: IntegrationEnrollStep;
   status?: IntegrationEnrollStepStatus;
   section?: IntegrationEnrollSection;
+  field?: IntegrationEnrollField;
 };
 
 /**

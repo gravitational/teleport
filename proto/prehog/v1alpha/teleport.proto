@@ -1265,6 +1265,37 @@ enum IntegrationEnrollSection {
   INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4;
 }
 
+// UIIntegrationEnrollFieldCompleteEvent is emitted when the user completes a
+// field in an integration setup wizard.
+message UIIntegrationEnrollFieldCompleteEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the field was completed.
+  IntegrationEnrollStep step = 2;
+  // Field that was completed.
+  IntegrationEnrollField field = 3;
+}
+
+// IntegrationEnrollField identifies a field the user completed in an integration
+// setup wizard.
+enum IntegrationEnrollField {
+  INTEGRATION_ENROLL_FIELD_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL = 1;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH = 2;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW = 3;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT = 4;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF = 5;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_HOST = 6;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 7;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 8;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS = 9;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS = 10;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS = 11;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 12;
+}
+
 // EditorChangeEvent is an event that is emitted when a user role set changes resulting in
 // a editor role being added on removed
 message EditorChangeEvent {
@@ -1879,6 +1910,7 @@ message SubmitEventRequest {
     AccessRequestReviewEvent access_request_review = 100;
 
     UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101;
+    UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 102;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

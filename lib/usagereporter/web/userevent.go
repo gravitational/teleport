@@ -64,10 +64,11 @@ const (
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
 
-	uiIntegrationEnrollStartEvent       = "tp.ui.integrationEnroll.start"
-	uiIntegrationEnrollCompleteEvent    = "tp.ui.integrationEnroll.complete"
-	uiIntegrationEnrollStepEvent        = "tp.ui.integrationEnroll.step"
-	uiIntegrationEnrollSectionOpenEvent = "tp.ui.integrationEnroll.sectionOpen"
+	uiIntegrationEnrollStartEvent         = "tp.ui.integrationEnroll.start"
+	uiIntegrationEnrollCompleteEvent      = "tp.ui.integrationEnroll.complete"
+	uiIntegrationEnrollStepEvent          = "tp.ui.integrationEnroll.step"
+	uiIntegrationEnrollSectionOpenEvent   = "tp.ui.integrationEnroll.sectionOpen"
+	uiIntegrationEnrollFieldCompleteEvent = "tp.ui.integrationEnroll.fieldComplete"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
 
@@ -97,6 +98,7 @@ var eventsWithDataRequired = []string{
 	uiIntegrationEnrollCompleteEvent,
 	uiIntegrationEnrollStepEvent,
 	uiIntegrationEnrollSectionOpenEvent,
+	uiIntegrationEnrollFieldCompleteEvent,
 	uiDiscoverCreateDiscoveryConfigEvent,
 	uiAccessGraphCrownJewelDiffViewEvent,
 }
@@ -344,6 +346,32 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 				Step:    usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
 				Section: usageeventsv1.IntegrationEnrollSection(usageeventsv1.IntegrationEnrollSection_value[eventData.Section]),
+			},
+		}}, nil
+	case uiIntegrationEnrollFieldCompleteEvent:
+		eventData := struct {
+			ID    string `json:"id"`
+			Kind  string `json:"kind"`
+			Step  string `json:"step"`
+			Field string `json:"field"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &eventData); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[eventData.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", eventData.Kind)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollFieldCompleteEvent{
+			UiIntegrationEnrollFieldCompleteEvent: &usageeventsv1.UIIntegrationEnrollFieldCompleteEvent{
+				Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+					Id:   eventData.ID,
+					Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+				},
+				Step:  usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
+				Field: usageeventsv1.IntegrationEnrollField(usageeventsv1.IntegrationEnrollField_value[eventData.Field]),
 			},
 		}}, nil
 	case uiDiscoverStartedEvent,
