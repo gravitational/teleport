@@ -8,12 +8,12 @@ tags:
  - privileged-access
 ---
 
-With Teleport [Access Requests](../../identity-governance/access-requests/access-requests.mdx), you can
+With Teleport [Access Requests](../access-requests.mdx), you can
 assign Teleport users to less privileged roles by default and allow them to
 temporarily escalate their privileges. Reviewers can grant or deny Access
 Requests within your organization's existing communication workflows (e.g.,
 Slack, email, and PagerDuty) using [Access Request
-plugins](../../identity-governance/access-request-plugins/access-request-plugins.mdx).
+plugins](plugins.mdx).
 
 You can use Teleport's API client library to build an Access Request plugin that
 integrates with your organization's unique workflows. 
@@ -23,7 +23,7 @@ showing you how to write a plugin that lets you manage Access Requests via
 Google Sheets. The plugin lists new Access Requests in a Google Sheets
 spreadsheet, with links to allow or deny each request. 
 
-![The result of the plugin](../../../img/api/google-sheets.png)
+![The result of the plugin](../../../../img/api/google-sheets.png)
 
 ## How it works
 
@@ -496,6 +496,6 @@ management.
 In this example, we used the `tctl auth sign` command to fetch credentials for
 the plugin. For production usage, we recommend provisioning short-lived
 credentials via Machine & Workload Identity, which reduces the risk of these credentials becoming
-stolen. View our [Machine & Workload Identity documentation](../../machine-workload-identity/machine-workload-identity.mdx) to
+stolen. View our [Machine & Workload Identity documentation](../../../machine-workload-identity/machine-workload-identity.mdx) to
 learn more.
 
