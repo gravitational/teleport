@@ -25,10 +25,10 @@ address managed by VNet that will handle the connection.
 
 VNet's SSH support enables third-party SSH clients to connect to Teleport SSH
 servers with minimal configuration required, while still offering Teleport
-access controls and features like [Per-session MFA](../zero-trust-access/authentication/per-session-mfa.mdx)
-and [Hardware Key Support](../zero-trust-access/authentication/hardware-key-support.mdx).
+access controls and features like [Per-session MFA](../../zero-trust-access/authentication/per-session-mfa.mdx)
+and [Hardware Key Support](../../zero-trust-access/authentication/hardware-key-support.mdx).
 
-![Diagram showing VNet architecture](../../img/vnet/how-it-works.svg)
+![Diagram showing VNet architecture](../../../img/vnet/how-it-works.svg)
 
 VNet delivers an experience like a VPN through this local virtual network,
 while maintaining all of Teleport's identity verification and zero trust
@@ -79,7 +79,7 @@ Open the **connection list** in the top left and click the icon to start VNet.
 Or, skip this step and VNet will start automatically when you click "Connect"
 on a TCP app or "Connect with VNet" on an SSH server.
 
-![VNet shown in connection list](../../img/vnet/start-vnet.png)
+![VNet shown in connection list](../../../img/vnet/start-vnet.png)
 
 After VNet has been started once it will automatically start every time
 Teleport Connect is opened, unless you stop VNet before closing Teleport
@@ -92,7 +92,7 @@ this background item in order to configure DNS on your device. To enable the bac
 interact with the system notification or go to System Settings > General > Login Items and look for
 tsh.app under "Allow in the Background".
 
-![VNet starting up](../../img/use-teleport/vnet-starting@2x.png)
+![VNet starting up](../../../img/use-teleport/vnet-starting@2x.png)
 </details>
 
 ## Step 2/3. Connect to a TCP app
@@ -100,7 +100,7 @@ tsh.app under "Allow in the Background".
 Find the TCP app you want to connect to.
 TCP apps have `tcp://` as the protocol in their address.
 
-![Resource list in Teleport Connect with a TCP app hovered over](../../img/use-teleport/vnet-resources-list@2x.png)
+![Resource list in Teleport Connect with a TCP app hovered over](../../../img/use-teleport/vnet-resources-list@2x.png)
 
 Click "Connect" next to the TCP app.
 This will start VNet if it's not already running, and then copy the app's
@@ -119,12 +119,12 @@ Teleport Connect.
 
 <Admonition type="note" title="Support for multiple ports">
 Unless the application specifies [multiple
-ports](../enroll-resources/application-access/protect-apps/tcp.mdx#configuring-access-to-multiple-ports),
+ports](../../enroll-resources/application-access/protect-apps/tcp.mdx#configuring-access-to-multiple-ports),
 VNet proxies connections over any port used by the application client. For multi-port apps, the port
 number must match one of the target ports of the app. To see a list of target ports, click the
 three dot menu next to an application in Teleport Connect or execute `tsh apps ls`.
 
-If [per-session MFA](../zero-trust-access/authentication/per-session-mfa.mdx) is enabled, the
+If [per-session MFA](../../zero-trust-access/authentication/per-session-mfa.mdx) is enabled, the
 first connection over each port triggers an MFA check.
 </Admonition>
 
@@ -135,7 +135,7 @@ dropdown, and click "Connect with VNet".
 This will start VNet if it's not already running, and then copy the VNet
 address for the server to your clipboard.
 
-![SSH server in Teleport Connect with "Connect with VNet" menu open](../../img/vnet/ssh-connect.png)
+![SSH server in Teleport Connect with "Connect with VNet" menu open](../../../img/vnet/ssh-connect.png)
 
 There is a one-time configuration step required before SSH clients will be able
 to connect to Teleport SSH servers through VNet.
@@ -143,7 +143,7 @@ When you click "Connect with VNet" on an SSH server, Teleport Connect will
 automatically check if this configuration is present and walk you through it if
 necessary.
 
-![SSH client configuration modal in Teleport Connect](../../img/vnet/configure-ssh-clients.png)
+![SSH client configuration modal in Teleport Connect](../../../img/vnet/configure-ssh-clients.png)
 
 Once the configuration step is complete, any OpenSSH-compatible client that
 reads configuration options from `~/.ssh/config` should be able to connect to
@@ -188,7 +188,7 @@ running Tailscale or another VPN client, and try disabling it to see if the
 issue persists.
 To avoid the conflict and run VNet alongside Tailscale or another VPN client you
 can configure VNet to use a different IPv4 range, see our VNet configuration
-[guide](../enroll-resources/application-access/guides/vnet.mdx#configuring-ipv4-cidr-range).
+[guide](../../enroll-resources/application-access/guides/vnet.mdx#configuring-ipv4-cidr-range).
 
 ### Connecting to the app without VNet
 
@@ -355,7 +355,7 @@ Before version 18.0.0, VNet logs were saved in `C:\Program Files\Teleport Connec
 
 ## Next steps
 
-- Read our VNet configuration [guide](../enroll-resources/application-access/guides/vnet.mdx)
+- Read our VNet configuration [guide](../../enroll-resources/application-access/guides/vnet.mdx)
   to learn how to configure VNet access to your applications.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.
 - Read [RFD 207](https://github.com/gravitational/teleport/blob/master/rfd/0207-vnet-ssh.md) to learn how VNet SSH access works.
