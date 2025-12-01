@@ -235,17 +235,6 @@ func RunCommand() (code int, err error) {
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
-	// If the command fails to launch, write the error to stdout for the parent process
-	// to digest. If we have a terminal, write it there for the user to see as well.
-	var tty *os.File
-	defer func() {
-		if err != nil && code == teleport.RemoteCommandFailure {
-			if tty != nil {
-				fmt.Fprintf(tty, "Failed to launch: %v.\r\n", err)
-			}
-		}
-	}()
-
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
@@ -313,6 +302,7 @@ func RunCommand() (code int, err error) {
 	// If a terminal was requested, file descriptor 7 always points to the
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
+	var tty *os.File
 	if c.Terminal {
 		tty = os.NewFile(TTYFile, fdName(TTYFile))
 		if tty == nil {
@@ -1292,6 +1282,9 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	if len(extraFiles) > 0 {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
 	}
+
+	// Capture stderr.
+	cmd.Stderr = ctx.stderrW
 
 	// Perform OS-specific tweaks to the command.
 	reexecCommandOSTweaks(cmd)

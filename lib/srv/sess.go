@@ -1702,6 +1702,16 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 func (s *session) broadcastResult(r ExecResult) {
 	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
 	for _, p := range s.getParties() {
+		if len(r.Stderr) > 0 {
+			if _, err := p.ch.Stderr().Write(r.Stderr); err != nil {
+				s.logger.InfoContext(
+					s.serverCtx, "Failed to send stderr",
+					"command", r.Command,
+					"stderr", string(r.Stderr),
+					"error", err,
+				)
+			}
+		}
 		if _, err := p.ch.SendRequest("exit-status", false, payload); err != nil {
 			s.logger.InfoContext(
 				s.serverCtx, "Failed to send exit status",
