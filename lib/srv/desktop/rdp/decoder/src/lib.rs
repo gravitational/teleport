@@ -18,6 +18,9 @@
 //! a series of RDP fast path PDUs. It exposes a small C API so that
 //! Go (via cgo) can create a decoder and call its methods.
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::ptr;
+
 use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_session::{
@@ -90,24 +93,35 @@ impl RdpDecoder {
 /// when the decoder is no longer needed.
 #[no_mangle]
 pub extern "C" fn rdp_decoder_new(width: u16, height: u16) -> *mut RdpDecoder {
-    Box::into_raw(Box::new(RdpDecoder::new(width, height)))
+    match catch_unwind(AssertUnwindSafe(|| {
+        Box::into_raw(Box::new(RdpDecoder::new(width, height)))
+    })) {
+        Ok(ptr) => ptr,
+        Err(e) => ptr::null_mut(),
+    }
 }
 
 /// Frees the memory associated with a decoder.
 #[no_mangle]
 pub extern "C" fn rdp_decoder_free(ptr: *mut RdpDecoder) {
-    unsafe {
-        let _ = Box::from_raw(ptr);
+    if ptr.is_null() {
+        return;
     }
+    let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
+        let _ = Box::from_raw(ptr);
+    }));
 }
 
 /// Resizes the decoder's internal image buffer.
 #[no_mangle]
 pub extern "C" fn rdp_decoder_resize(ptr: *mut RdpDecoder, width: u16, height: u16) {
-    unsafe {
+    if ptr.is_null() {
+        return;
+    }
+    let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
         let decoder = &mut *ptr;
         decoder.resize(width, height);
-    }
+    }));
 }
 
 #[no_mangle]
@@ -115,11 +129,11 @@ pub extern "C" fn rdp_decoder_process(ptr: *mut RdpDecoder, data: *const u8, len
     if ptr.is_null() || data.is_null() || len == 0 {
         return;
     }
-    unsafe {
+    let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
         let decoder = &mut *ptr;
         let slice = std::slice::from_raw_parts(data, len);
         decoder.process(slice);
-    }
+    }));
 }
 
 /// Returns a pointer to the decoder's internal image buffer and writes its length to `out_len`.
@@ -131,14 +145,23 @@ pub extern "C" fn rdp_decoder_image_data(ptr: *mut RdpDecoder, out_len: *mut usi
         if !out_len.is_null() {
             unsafe { *out_len = 0 };
         }
-        return std::ptr::null();
+        return ptr::null();
     }
-    unsafe {
+
+    match catch_unwind(AssertUnwindSafe(|| unsafe {
         let decoder = &*ptr;
         let data = decoder.image_data();
         if !out_len.is_null() {
             *out_len = data.len();
         }
         data.as_ptr()
+    })) {
+        Ok(p) => p,
+        Err(e) => {
+            if !out_len.is_null() {
+                unsafe { *out_len = 0 };
+            }
+            ptr::null()
+        }
     }
 }
