@@ -61,6 +61,7 @@ func TestStartCmdConfig(t *testing.T) {
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
 						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
@@ -101,6 +102,7 @@ func TestStartCmdConfig(t *testing.T) {
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
 						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
@@ -141,6 +143,7 @@ func TestStartCmdConfig(t *testing.T) {
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
 						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
