@@ -38,12 +38,11 @@ impl RdpDecoder {
         Self {
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
             fast_path_processor: ProcessorBuilder {
-                // These channel IDs only matter in a real RDP session when we have
+                // These options only matter in a real RDP session when we have
                 // to send responses back to the server. We can safely leave them
-                // set to 0 when decoding session recordings.
+                // at defaults when decoding session recordings.
                 io_channel_id: 0,
                 user_channel_id: 0,
-                // TODO: what does this change?
                 enable_server_pointer: false,
                 pointer_software_rendering: false,
             }
@@ -62,29 +61,13 @@ impl RdpDecoder {
     pub fn process(&mut self, tdp_fast_path_frame: &[u8]) {
         let mut output = WriteBuf::new();
 
-        // TODO: need error handling here
-        let updates = self
+        // In a live RDP connection, this would return data that we need
+        // to use to create reponses to send to the server.
+        // We're only interested in updating the internal frame buffer,
+        // so we can ignore the result.
+        let _ = self
             .fast_path_processor
-            .process(&mut self.image, tdp_fast_path_frame, &mut output)
-            .unwrap_or_default();
-
-        for update in updates {
-            match update {
-                UpdateKind::None => {}
-                UpdateKind::Region(inclusive_rectangle) => {
-                    if inclusive_rectangle.right > self.image.width()
-                        || inclusive_rectangle.bottom >= self.image.height()
-                    {
-                        todo!("Region exceeds bounds, needs resize!")
-                    }
-                }
-                // We don't care about the mouse pointer.
-                UpdateKind::PointerDefault => {}
-                UpdateKind::PointerHidden => {}
-                UpdateKind::PointerPosition { x: _, y: _ } => {}
-                UpdateKind::PointerBitmap(_) => {}
-            }
-        }
+            .process(&mut self.image, tdp_fast_path_frame, &mut output);
     }
 }
 
