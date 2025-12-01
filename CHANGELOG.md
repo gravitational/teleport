@@ -14,7 +14,7 @@
 * Added --roles flag for tsh request search, allowing users to list all requestable roles. This flag is mutually exclusive with --kind. [#61699](https://github.com/gravitational/teleport/pull/61699)
 * Fixed EC2 SSM Document set up script used in Enroll New Resource. [#61673](https://github.com/gravitational/teleport/pull/61673)
 * Fixed AWS Console access when using AWS IAM Roles Anywhere or AWS OIDC integrations, when IP Pinning is enabled. [#61654](https://github.com/gravitational/teleport/pull/61654)
-* Fix "invalid name syntax" connection error for PostgreSQL auto-provisioned users with email usernames. [#61631](https://github.com/gravitational/teleport/pull/61631)
+* Fixed "invalid name syntax" connection error for PostgreSQL auto-provisioned users with email usernames. [#61631](https://github.com/gravitational/teleport/pull/61631)
 * Auth readiness tuned to wait for cache initialization. [#61620](https://github.com/gravitational/teleport/pull/61620)
 * Added ability to update existing Azure OIDC integration with `tctl`. [#61592](https://github.com/gravitational/teleport/pull/61592)
 
