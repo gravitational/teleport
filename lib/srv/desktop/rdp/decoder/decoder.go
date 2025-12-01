@@ -19,7 +19,16 @@
 package decoder
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/../../../../../target/release -lrdp_decoder
+#cgo linux,386 LDFLAGS: -L${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
+#cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
+#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
+#cgo linux LDFLAGS: -lrdp_decoder
+
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
+#cgo darwin LDFLAGS: -lrdp_decoder
+
 #include <stdint.h>
 
 typedef struct RdpDecoder RdpDecoder;
