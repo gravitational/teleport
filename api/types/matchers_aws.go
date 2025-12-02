@@ -166,10 +166,17 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	if err := m.validOrganizationAccountDiscovery(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if m.AssumeRole != nil {
 		if m.AssumeRole.RoleARN != "" {
-			if err := awsapiutils.CheckRoleARN(m.AssumeRole.RoleARN); err != nil {
-				return trace.BadParameter("invalid assume role: %v", err)
+			// When discovering Accounts under an Organization, the Role is validated above.
+			if !m.HasOrganizationMatcher() {
+				if err := awsapiutils.CheckRoleARN(m.AssumeRole.RoleARN); err != nil {
+					return trace.BadParameter("invalid assume role: %v", err)
+				}
 			}
 		} else if m.AssumeRole.ExternalID != "" {
 			for _, t := range m.Types {
@@ -272,5 +279,37 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 			m.SSM.DocumentName = AWSInstallerDocument
 		}
 	}
+	return nil
+}
+
+// HasOrganizationMatcher returns true if the matcher has an organization ID set.
+func (m *AWSMatcher) HasOrganizationMatcher() bool {
+	return m.Organization != nil && m.Organization.OrganizationID != ""
+}
+
+func (m *AWSMatcher) validOrganizationAccountDiscovery() error {
+	if m.Organization == nil {
+		return nil
+	}
+
+	if m.Organization.OrganizationID == "" {
+		// If no organization is set, accounts filter cannot be set.
+		if m.Organization.OrganizationalUnits != nil {
+			if len(m.Organization.OrganizationalUnits.Exclude) > 0 || len(m.Organization.OrganizationalUnits.Include) > 0 {
+				return trace.BadParameter("organization id is required when using accounts filter")
+			}
+		}
+
+		return nil
+	}
+
+	if m.AssumeRole == nil || m.AssumeRole.RoleARN == "" {
+		return trace.BadParameter("assume role must be set to the role name when discovering accounts")
+	}
+
+	if err := awsapiutils.IsValidIAMRoleName(m.AssumeRole.RoleARN); err != nil {
+		return trace.BadParameter("assume role must be set to the role name (not the arn) when discovering accounts: %v", err)
+	}
+
 	return nil
 }

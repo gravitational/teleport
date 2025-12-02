@@ -144,6 +144,14 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name: "wildcard is valid for the ec2 type",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"*"},
+			},
+			errCheck: require.NoError,
+		},
+		{
 			name: "invalid type",
 			in: &AWSMatcher{
 				Types:   []string{"ec2", "rds", "xpto"},
@@ -190,9 +198,9 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			name: "no region",
 			in: &AWSMatcher{
 				Types:   []string{"ec2"},
-				Regions: []string{},
+				Regions: []string{"*"},
 			},
-			errCheck: isBadParameterErr,
+			errCheck: require.NoError,
 		},
 		{
 			name: "invalid assume role arn",
@@ -383,6 +391,56 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				Params: &InstallerParams{
 					HTTPProxySettings: &HTTPProxySettings{
 						HTTPProxy: "not a valid url",
+					},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "valid organization matcher",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1"},
+				AssumeRole: &AssumeRole{
+					RoleARN: "MyRole",
+				},
+				Organization: &AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+						Exclude: []string{"ou-456"},
+					},
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "valid organization matcher, but missing assume role",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1"},
+				Organization: &AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+						Exclude: []string{"ou-456"},
+					},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "organizational units set, but missing org id",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1"},
+				AssumeRole: &AssumeRole{
+					RoleARN: "MyRole",
+				},
+				Organization: &AWSOrganizationMatcher{
+					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+						Exclude: []string{"ou-456"},
 					},
 				},
 			},
