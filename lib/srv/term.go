@@ -552,12 +552,14 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
-	// combine stdout and stderr
 	stdout, err := t.session.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.session.Stderr = t.session.Stdout
+	stderr, err := t.session.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	stdin, err := t.session.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err)
@@ -565,7 +567,8 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 
 	// create a pty buffer that stdin and stdout are hooked up to
 	t.ptyBuffer = &ptyBuffer{
-		r: stdout,
+		// combine stdout and stderr
+		r: io.MultiReader(stdout, stderr),
 		w: stdin,
 	}
 
