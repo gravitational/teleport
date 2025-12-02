@@ -236,36 +236,28 @@ func (t *terminal) Run(ctx context.Context) error {
 
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
+	var code int
 	err := t.cmd.Wait()
-
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			status := exitErr.Sys().(syscall.WaitStatus)
-
-			res := &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}
-			if res.Code == teleport.RemoteCommandFailure {
-				t.serverContext.stderrW.Close()
-				stderr, err := io.ReadAll(t.serverContext.stderrR)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				res.Stderr = stderr
-			}
-
-			return res, nil
+		code = exitCode(err)
+	} else {
+		status, ok := t.cmd.ProcessState.Sys().(syscall.WaitStatus)
+		if !ok {
+			return nil, trace.Errorf("unknown exit status: %T(%v)", t.cmd.ProcessState.Sys(), t.cmd.ProcessState.Sys())
 		}
-		return nil, err
+		code = status.ExitStatus()
 	}
 
-	status, ok := t.cmd.ProcessState.Sys().(syscall.WaitStatus)
-	if !ok {
-		return nil, trace.Errorf("unknown exit status: %T(%v)", t.cmd.ProcessState.Sys(), t.cmd.ProcessState.Sys())
+	t.serverContext.stderrW.Close()
+	stderr, err := io.ReadAll(t.serverContext.stderrR)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &ExecResult{
-		Code:    status.ExitStatus(),
+		Code:    code,
 		Command: t.cmd.Path,
+		Stderr:  stderr,
 	}, nil
 }
 
