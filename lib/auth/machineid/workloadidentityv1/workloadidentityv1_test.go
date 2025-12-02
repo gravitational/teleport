@@ -767,7 +767,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					Exp json.Number `json:"exp"`
 					Iat json.Number `json:"iat"`
 				}
-				require.NoError(t, json.Unmarshal([]byte(payload), &numericClaims))
+				require.NoError(t, json.Unmarshal(payload, &numericClaims))
 
 				integerExpr, err := regexp.Compile(`^\d+$`)
 				require.NoError(t, err)
