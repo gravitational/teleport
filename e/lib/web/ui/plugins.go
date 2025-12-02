@@ -125,8 +125,10 @@ type PluginStatusV1 struct {
 	Code types.PluginStatusCode `json:"code,omitempty"`
 	// LastSyncTime is the time the plugin was last run
 	LastSyncTime time.Time `json:"lastRun"`
-	// ErrorMessage is the last error message from the plugin
+	// ErrorMessage is the friendly error message from the plugin
 	ErrorMessage string `json:"errorMessage,omitempty"`
+	// LastRawError is the last raw message from the plugin
+	LastRawError string `json:"lastRawError,omitempty"`
 	// Details contains provider-specific status information
 	Details *PluginDetails `json:"details,omitempty"`
 }
@@ -198,6 +200,7 @@ func NewPlugin(p *types.PluginV1) (*Plugin, error) {
 			Code:         status.GetCode(),
 			LastSyncTime: status.GetLastSyncTime(),
 			ErrorMessage: status.GetErrorMessage(),
+			LastRawError: status.GetLastRawError(),
 		},
 	}
 

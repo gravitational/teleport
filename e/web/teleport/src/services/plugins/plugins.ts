@@ -169,6 +169,7 @@ function makePlugin(json: any): Plugin {
       code: status.code,
       lastRun: new Date(status.lastRun),
       errorMessage: status.errorMessage,
+      lastRawError: status.lastRawError ?? '',
     };
 
     if (status.details) {
