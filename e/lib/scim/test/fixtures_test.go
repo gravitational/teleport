@@ -113,7 +113,7 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *test
 		fix.AssertExpectations(t)
 	})
 
-	scimSvc.CreateHandlerForPlugin = func(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error) {
+	scimSvc.CreatePluginHandler = func(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error) {
 		switch resourceType {
 		case "Users":
 			return &oktahandler.UserHandler{

@@ -10,6 +10,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
+	"github.com/gravitational/teleport/e/lib/scim/service/middleware"
 	"github.com/gravitational/teleport/e/lib/scim/service/provider"
 )
 
@@ -18,7 +19,7 @@ import (
 type Service struct {
 	pb.UnimplementedSCIMServiceServer
 	common.Config
-	CreateHandlerForPlugin func(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error)
+	CreatePluginHandler func(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error)
 }
 
 // NewService creates and configures a new SCIM service
@@ -27,9 +28,49 @@ func NewService(cfg *common.Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &Service{
-		Config:                 *cfg,
-		CreateHandlerForPlugin: provider.CreateHandlerForPlugin,
+		Config:              *cfg,
+		CreatePluginHandler: provider.CreatePluginHandler,
 	}, nil
+}
+
+func (s *Service) createMiddlewaresChain(plugin types.Plugin) (*middleware.Chain, error) {
+	loggingMiddlewareConfig := middleware.LoggingMiddlewareConfig{
+		Log: s.Logger,
+	}
+	loggingMiddleware, err := middleware.NewLoggingMiddleware(loggingMiddlewareConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating logging middleware")
+	}
+
+	semLock, err := common.NewSemaphoreLocker(s.Semaphore, common.WithClock(s.Clock))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lockMiddleware, err := middleware.NewLockMiddleware(middleware.LockMiddlewareConfig{
+		Locker:     semLock,
+		Log:        s.Logger,
+		PluginName: plugin.GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return middleware.NewMiddlewareChain(
+		loggingMiddleware,
+		lockMiddleware,
+	), nil
+}
+
+func (s *Service) createHandlerWithMiddleware(plugin types.Plugin, resourceType string) (common.ResourceHandler, error) {
+	handler, err := s.CreatePluginHandler(plugin, s.Config, resourceType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	chain, err := s.createMiddlewaresChain(plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return chain.Wrap(handler), nil
 }
 
 // ListSCIMResources handles a request to list all the appropriate resources
@@ -39,7 +80,7 @@ func (s *Service) ListSCIMResources(ctx context.Context, req *pb.ListSCIMResourc
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	handler, err := s.CreateHandlerForPlugin(plugin, s.Config, req.GetTarget().GetResourceType())
+	handler, err := s.createHandlerWithMiddleware(plugin, req.GetTarget().GetResourceType())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +106,7 @@ func (s *Service) GetSCIMResource(ctx context.Context, req *pb.GetSCIMResourceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	handler, err := s.CreateHandlerForPlugin(plugin, s.Config, req.GetTarget().GetResourceType())
+	handler, err := s.createHandlerWithMiddleware(plugin, req.GetTarget().GetResourceType())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,7 +127,7 @@ func (s *Service) CreateSCIMResource(ctx context.Context, req *pb.CreateSCIMReso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	handler, err := s.CreateHandlerForPlugin(plugin, s.Config, req.GetTarget().GetResourceType())
+	handler, err := s.createHandlerWithMiddleware(plugin, req.GetTarget().GetResourceType())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -108,7 +149,7 @@ func (s *Service) UpdateSCIMResource(ctx context.Context, req *pb.UpdateSCIMReso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	handler, err := s.CreateHandlerForPlugin(plugin, s.Config, req.GetTarget().GetResourceType())
+	handler, err := s.createHandlerWithMiddleware(plugin, req.GetTarget().GetResourceType())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,7 +170,7 @@ func (s *Service) DeleteSCIMResource(ctx context.Context, req *pb.DeleteSCIMReso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	handler, err := s.CreateHandlerForPlugin(plugin, s.Config, req.GetTarget().GetResourceType())
+	handler, err := s.createHandlerWithMiddleware(plugin, req.GetTarget().GetResourceType())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,7 +188,7 @@ func (s *Service) PatchSCIMResource(ctx context.Context, req *pb.PatchSCIMResour
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	handler, err := s.CreateHandlerForPlugin(plugin, s.Config, req.GetTarget().GetResourceType())
+	handler, err := s.createHandlerWithMiddleware(plugin, req.GetTarget().GetResourceType())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
