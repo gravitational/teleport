@@ -143,17 +143,19 @@ func (EventAction) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_007ba1c3d6266d56, []int{2}
 }
 
-// MFAFlowType defines the type of MFA flow used for authentication.
+// MFAFlowType defines how MFA was enforced for a given authentication event.
 type MFAFlowType int32
 
 const (
-	// MFA_FLOW_TYPE_UNSPECIFIED is the default value when the flow type is not specified.
+	// MFA_FLOW_TYPE_UNSPECIFIED is the default value when the flow type is not specified. This value is used for
+	// backwards compatibility or when the MFA flow cannot be determined.
 	MFAFlowType_MFA_FLOW_TYPE_UNSPECIFIED MFAFlowType = 0
-	// MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE indicates that MFA was completed using
-	// a per-session MFA certificate (legacy flow).
+	// MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE indicates that MFA was completed using a per-session certificate during
+	// session establishment. In this flow, a short-lived certificate is issued after successful MFA, which is then used
+	// to authenticate the session.
 	MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE MFAFlowType = 1
-	// MFA_FLOW_TYPE_IN_BAND indicates that MFA was completed using the in-band flow
-	// during session establishment.
+	// MFA_FLOW_TYPE_IN_BAND indicates that MFA was completed using the in-band flow during session establishment. In this
+	// flow, the target service prompts for and verifies MFA directly as part of session creation.
 	MFAFlowType_MFA_FLOW_TYPE_IN_BAND MFAFlowType = 2
 )
 
