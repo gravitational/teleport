@@ -163,6 +163,14 @@ func StreamJSONArray[T any](items stream.Stream[T], out io.Writer, indent bool) 
 	return trace.NewAggregate(items.Done(), stream.Flush())
 }
 
+// WriteYAMLArray marshals values as a YAML array.
+func WriteYAMLArray[T any](w io.Writer, values []T) error {
+	if len(values) == 0 {
+		values = []T{}
+	}
+	return writeYAML(w, values)
+}
+
 const yamlDocDelimiter = "---"
 
 // WriteYAML detects whether value is a list
