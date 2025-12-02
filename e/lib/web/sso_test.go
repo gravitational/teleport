@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -67,7 +68,7 @@ func TestSAML(t *testing.T) {
 			name:                "fail to map claims to roles",
 			rawConnector:        strings.ReplaceAll(fixtures.SAMLOktaConnectorV2, "Everyone", "No-one"),
 			validSession:        false,
-			expectedRedirectURL: client.LoginFailedUnauthorizedRedirectURL,
+			expectedRedirectURL: sso.LoginFailedUnauthorizedRedirectURL,
 		},
 	}
 

@@ -343,6 +343,9 @@ func (sas *SAMLAuthService) calculateSAMLUser(ctx context.Context, diagCtx *auth
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.Roles, sas.auth, p.Traits)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.Wrap(types.ErrNonExistingRoleAssigned)
+		}
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
