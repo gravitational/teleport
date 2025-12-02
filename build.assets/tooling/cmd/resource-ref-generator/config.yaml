@@ -9,3 +9,7 @@ resources:
     package: types
     yaml_kind: "saml"
     yaml_version: "v2"
+  - type: DatabaseV3
+    package: types
+    yaml:kind: db
+    yaml_version: v3
