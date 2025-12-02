@@ -22,6 +22,7 @@ import styled from 'styled-components';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
+import 'ace-builds/src-noconflict/mode-terraform.js';
 import 'ace-builds/src-noconflict/ext-searchbox';
 
 import { ButtonSecondary } from 'design/Button';
@@ -57,6 +58,12 @@ class TextEditor extends Component {
     }
     if (prevProps.readOnly !== this.props.readOnly) {
       this.editor.setReadOnly(this.props.readOnly);
+    }
+
+    if (prevProps.data !== this.props.data) {
+      this.props.data.forEach((doc, i) => {
+        this.sessions[i].setValue(doc.content);
+      });
     }
 
     this.editor.resize();
@@ -160,7 +167,15 @@ function getMode(docType) {
     return 'ace/mode/json';
   }
 
-  return 'ace/mode/yaml';
+  if (docType === 'yaml') {
+    return 'ace/mode/yaml';
+  }
+
+  if (docType === 'terraform') {
+    return 'ace/mode/terraform';
+  }
+
+  return 'ace/mode/text';
 }
 
 const EditorButton = styled(ButtonSecondary)`

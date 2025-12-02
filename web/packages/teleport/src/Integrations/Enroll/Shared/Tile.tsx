@@ -130,6 +130,7 @@ export function Tile({
       tileProps = {
         as: InternalLink,
         to: link.url,
+        onClick: link.onClick,
       };
     }
   }

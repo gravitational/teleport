@@ -54,9 +54,19 @@ export const integrations: BotIntegration[] = [
   {
     title: 'GitHub Actions + SSH',
     description: 'Use Machine ID to power GitHub CI/CD workflows.',
-    link: cfg.getBotsNewRoute(BotFlowType.GitHubActions),
+    link: cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh),
     icon: 'github',
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
+    type: 'bot',
+    guided: true,
+    tags: ['bot', 'cicd'],
+  },
+  {
+    title: 'GitHub Actions + Kubernetes',
+    description: 'Use Machine ID to power GitHub CI/CD workflows.',
+    link: cfg.getBotsNewRoute(BotFlowType.GitHubActionsK8s),
+    icon: 'github',
+    kind: IntegrationEnrollKind.MachineIDGitHubActionsK8s,
     type: 'bot',
     guided: true,
     tags: ['bot', 'cicd'],
@@ -231,6 +241,7 @@ export function BotTile({
   integration: BotIntegration;
   hasCreateBotPermission: boolean;
 }) {
+  console.log('BotTile', integration);
   if (integration.guided) {
     return (
       <GuidedTile
@@ -272,7 +283,9 @@ function GuidedTile({
   integration: BotIntegration;
   hasCreateBotPermission: boolean;
 }) {
+  console.log('GuidedTile', integration);
   const onBotClick = () => {
+    console.log('GuidedTile > onBotClick', integration);
     if (!hasCreateBotPermission) {
       return;
     }

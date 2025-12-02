@@ -225,8 +225,6 @@ export type ProvisionTokenSpecV2GitHub = {
   enterpriseServerHost: string;
 };
 
-export type RefType = 'branch' | 'tag';
-
 export type GitHubRepoRule = {
   sub?: string;
   repository: string;

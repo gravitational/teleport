@@ -31,7 +31,8 @@
       "teleterm/*": ["web/packages/teleterm/src/*"],
       "e-teleport/*": ["e/web/teleport/src/*"],
       "gen-proto-ts/*": ["gen/proto/ts/*"]
-    }
+    },
+    "strictNullChecks": true
   },
   "exclude": [
     "web/packages/design",

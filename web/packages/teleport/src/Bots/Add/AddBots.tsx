@@ -22,14 +22,19 @@ import cfg from 'teleport/config';
 
 import { BotFlowType } from '../types';
 import GitHubActionsFlow from './GitHubActions';
+import { GitHubActionsK8s } from './GitHubActionsK8s/GitHubActionsK8s';
 
 export function AddBots() {
   return (
     <FeatureBox>
       <Switch>
         <Route
-          path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
+          path={cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh)}
           component={GitHubActionsFlow}
+        />
+        <Route
+          path={cfg.getBotsNewRoute(BotFlowType.GitHubActionsK8s)}
+          component={GitHubActionsK8s}
         />
         <Redirect
           path={cfg.getBotsNewRoute()}

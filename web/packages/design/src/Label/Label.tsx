@@ -119,6 +119,8 @@ const Label = styled.div<LabelProps>`
   vertical-align: middle;
   overflow: hidden;
 
+  flex-shrink: 0;
+
   ${kind}
   ${space}
   ${border}
