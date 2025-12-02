@@ -239,7 +239,7 @@ importers:
         version: 27.0.0
       '@vitejs/plugin-react-swc':
         specifier: ^4.2.2
-        version: 4.2.2(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1))
+        version: 4.2.2(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))
       babel-plugin-styled-components:
         specifier: ^2.1.4
         version: 2.1.4(@babel/core@7.28.5)(styled-components@6.1.19(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
@@ -260,7 +260,7 @@ importers:
         version: 7.0.1(eslint@9.39.1)
       eslint-plugin-storybook:
         specifier: ^9.1.3
-        version: 9.1.3(eslint@9.39.1)(storybook@9.1.16(@testing-library/dom@10.1.0)(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(prettier@3.7.3)(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1)))(typescript@5.9.3)
+        version: 9.1.3(eslint@9.39.1)(storybook@9.1.16(@testing-library/dom@10.1.0)(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(prettier@3.7.3)(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1)))(typescript@5.9.3)
       eslint-plugin-testing-library:
         specifier: 7.13.5
         version: 7.13.5(eslint@9.39.1)(typescript@5.9.3)
@@ -287,13 +287,13 @@ importers:
         version: 8.48.0(eslint@9.39.1)(typescript@5.9.3)
       vite-plugin-compression:
         specifier: ^0.5.1
-        version: 0.5.1(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1))
+        version: 0.5.1(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))
       vite-plugin-wasm:
         specifier: ^3.5.0
-        version: 3.5.0(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1))
+        version: 3.5.0(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))
       vite-tsconfig-paths:
         specifier: ^5.1.4
-        version: 5.1.4(typescript@5.9.3)(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1))
+        version: 5.1.4(typescript@5.9.3)(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))
 
   web/packages/design:
     dependencies:
@@ -460,8 +460,8 @@ importers:
         specifier: ^3.1.1
         version: 3.1.1
       which:
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^6.0.0
+        version: 6.0.0
       winston:
         specifier: ^3.18.3
         version: 3.18.3
@@ -504,7 +504,7 @@ importers:
         version: 6.7.0
       electron-vite:
         specifier: ^4.0.1
-        version: 4.0.1(@swc/core@1.15.3)(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1))
+        version: 4.0.1(@swc/core@1.15.3)(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))
       events:
         specifier: 3.3.0
         version: 3.3.0
@@ -6586,6 +6586,46 @@ packages:
       yaml:
         optional: true
 
+  vite@7.2.4:
+    resolution: {integrity: sha512-NL8jTlbo0Tn4dUEXEsUg8KeyG/Lkmc4Fnzb8JXN/Ykm9G4HNImjtABMJgkQoVjOBN/j2WAwDTRytdqJbZsah7w==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    hasBin: true
+    peerDependencies:
+      '@types/node': ^20.19.0 || >=22.12.0
+      jiti: '>=1.21.0'
+      less: ^4.0.0
+      lightningcss: ^1.21.0
+      sass: ^1.70.0
+      sass-embedded: ^1.70.0
+      stylus: '>=0.54.8'
+      sugarss: ^5.0.0
+      terser: ^5.16.0
+      tsx: ^4.8.1
+      yaml: ^2.4.2
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+      jiti:
+        optional: true
+      less:
+        optional: true
+      lightningcss:
+        optional: true
+      sass:
+        optional: true
+      sass-embedded:
+        optional: true
+      stylus:
+        optional: true
+      sugarss:
+        optional: true
+      terser:
+        optional: true
+      tsx:
+        optional: true
+      yaml:
+        optional: true
+
   vscode-languageserver-textdocument@1.0.12:
     resolution: {integrity: sha512-cxWNPesCnQCcMPeenjKKsOCKQZ/L6Tv19DTRIGuLWe32lyzWhihGVJ/rcckZXJxfdKCFvRLS3fpBIsV/ZGX4zA==}
 
@@ -6656,9 +6696,9 @@ packages:
     engines: {node: '>= 8'}
     hasBin: true
 
-  which@5.0.0:
-    resolution: {integrity: sha512-JEdGzHwwkrbWoGOlIHqQ5gtprKGOenpDHpxE9zVR1bWbOtYRyPPHMe9FaP6x61CmNaTThSkb0DAJte5jD+DmzQ==}
-    engines: {node: ^18.17.0 || >=20.5.0}
+  which@6.0.0:
+    resolution: {integrity: sha512-f+gEpIKMR9faW/JgAgPK1D7mekkFoqbmiwvNzuhsHetni20QSgzg9Vhn0g2JSJkkfehQnqdUAx7/e15qS1lPxg==}
+    engines: {node: ^20.17.0 || >=22.9.0}
     hasBin: true
 
   winston-transport@4.9.0:
@@ -9736,11 +9776,11 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.11.1':
     optional: true
 
-  '@vitejs/plugin-react-swc@4.2.2(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1))':
+  '@vitejs/plugin-react-swc@4.2.2(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-beta.47
       '@swc/core': 1.15.3
-      vite: 7.1.12(@types/node@22.19.1)(yaml@2.8.1)
+      vite: 7.2.4(@types/node@22.19.1)(yaml@2.8.1)
     transitivePeerDependencies:
       - '@swc/helpers'
 
@@ -9760,6 +9800,15 @@ snapshots:
     optionalDependencies:
       msw: 2.12.3(@types/node@22.19.1)(typescript@5.9.3)
       vite: 7.1.12(@types/node@22.19.1)(yaml@2.8.1)
+
+  '@vitest/mocker@3.2.4(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))':
+    dependencies:
+      '@vitest/spy': 3.2.4
+      estree-walker: 3.0.3
+      magic-string: 0.30.19
+    optionalDependencies:
+      msw: 2.12.3(@types/node@22.19.1)(typescript@5.9.3)
+      vite: 7.2.4(@types/node@22.19.1)(yaml@2.8.1)
 
   '@vitest/pretty-format@3.2.4':
     dependencies:
@@ -10881,7 +10930,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron-vite@4.0.1(@swc/core@1.15.3)(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1)):
+  electron-vite@4.0.1(@swc/core@1.15.3)(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1)):
     dependencies:
       '@babel/core': 7.28.5
       '@babel/plugin-transform-arrow-functions': 7.27.1(@babel/core@7.28.5)
@@ -10889,7 +10938,7 @@ snapshots:
       esbuild: 0.25.12
       magic-string: 0.30.19
       picocolors: 1.1.1
-      vite: 7.1.12(@types/node@22.19.1)(yaml@2.8.1)
+      vite: 7.2.4(@types/node@22.19.1)(yaml@2.8.1)
     optionalDependencies:
       '@swc/core': 1.15.3
     transitivePeerDependencies:
@@ -11129,11 +11178,11 @@ snapshots:
       string.prototype.matchall: 4.0.12
       string.prototype.repeat: 1.0.0
 
-  eslint-plugin-storybook@9.1.3(eslint@9.39.1)(storybook@9.1.16(@testing-library/dom@10.1.0)(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(prettier@3.7.3)(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1)))(typescript@5.9.3):
+  eslint-plugin-storybook@9.1.3(eslint@9.39.1)(storybook@9.1.16(@testing-library/dom@10.1.0)(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(prettier@3.7.3)(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1)))(typescript@5.9.3):
     dependencies:
       '@typescript-eslint/utils': 8.48.0(eslint@9.39.1)(typescript@5.9.3)
       eslint: 9.39.1
-      storybook: 9.1.16(@testing-library/dom@10.1.0)(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(prettier@3.7.3)(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1))
+      storybook: 9.1.16(@testing-library/dom@10.1.0)(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(prettier@3.7.3)(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -13422,6 +13471,30 @@ snapshots:
       - utf-8-validate
       - vite
 
+  storybook@9.1.16(@testing-library/dom@10.1.0)(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(prettier@3.7.3)(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1)):
+    dependencies:
+      '@storybook/global': 5.0.0
+      '@testing-library/jest-dom': 6.9.1
+      '@testing-library/user-event': 14.6.1(@testing-library/dom@10.1.0)
+      '@vitest/expect': 3.2.4
+      '@vitest/mocker': 3.2.4(msw@2.12.3(@types/node@22.19.1)(typescript@5.9.3))(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1))
+      '@vitest/spy': 3.2.4
+      better-opn: 3.0.2
+      esbuild: 0.25.12
+      esbuild-register: 3.6.0(esbuild@0.25.12)
+      recast: 0.23.11
+      semver: 7.7.3
+      ws: 8.18.3
+    optionalDependencies:
+      prettier: 3.7.3
+    transitivePeerDependencies:
+      - '@testing-library/dom'
+      - bufferutil
+      - msw
+      - supports-color
+      - utf-8-validate
+      - vite
+
   streamx@2.22.0:
     dependencies:
       fast-fifo: 1.3.2
@@ -13894,31 +13967,44 @@ snapshots:
       extsprintf: 1.4.1
     optional: true
 
-  vite-plugin-compression@0.5.1(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1)):
+  vite-plugin-compression@0.5.1(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1)):
     dependencies:
       chalk: 4.1.2
       debug: 4.4.3
       fs-extra: 10.1.0
-      vite: 7.1.12(@types/node@22.19.1)(yaml@2.8.1)
+      vite: 7.2.4(@types/node@22.19.1)(yaml@2.8.1)
     transitivePeerDependencies:
       - supports-color
 
-  vite-plugin-wasm@3.5.0(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1)):
+  vite-plugin-wasm@3.5.0(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1)):
     dependencies:
-      vite: 7.1.12(@types/node@22.19.1)(yaml@2.8.1)
+      vite: 7.2.4(@types/node@22.19.1)(yaml@2.8.1)
 
-  vite-tsconfig-paths@5.1.4(typescript@5.9.3)(vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1)):
+  vite-tsconfig-paths@5.1.4(typescript@5.9.3)(vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1)):
     dependencies:
       debug: 4.4.3
       globrex: 0.1.2
       tsconfck: 3.1.0(typescript@5.9.3)
     optionalDependencies:
-      vite: 7.1.12(@types/node@22.19.1)(yaml@2.8.1)
+      vite: 7.2.4(@types/node@22.19.1)(yaml@2.8.1)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
   vite@7.1.12(@types/node@22.19.1)(yaml@2.8.1):
+    dependencies:
+      esbuild: 0.25.12
+      fdir: 6.5.0(picomatch@4.0.3)
+      picomatch: 4.0.3
+      postcss: 8.5.6
+      rollup: 4.53.3
+      tinyglobby: 0.2.15
+    optionalDependencies:
+      '@types/node': 22.19.1
+      fsevents: 2.3.3
+      yaml: 2.8.1
+
+  vite@7.2.4(@types/node@22.19.1)(yaml@2.8.1):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.3)
@@ -14018,7 +14104,7 @@ snapshots:
     dependencies:
       isexe: 2.0.0
 
-  which@5.0.0:
+  which@6.0.0:
     dependencies:
       isexe: 3.1.1
 
