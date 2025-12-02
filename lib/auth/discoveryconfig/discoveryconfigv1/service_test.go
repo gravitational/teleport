@@ -570,7 +570,7 @@ func TestDowngrade(t *testing.T) {
 	}{
 		{
 			name:          "no downgrade for recent client",
-			clientVersion: "18.4.2",
+			clientVersion: "18.5.0",
 			input: func() *discoveryconfig.DiscoveryConfig {
 				dc, err := discoveryconfig.NewDiscoveryConfig(
 					header.Metadata{Name: "dc1"},
@@ -606,7 +606,7 @@ func TestDowngrade(t *testing.T) {
 		},
 		{
 			name:          "downgrade for old client",
-			clientVersion: "18.4.1",
+			clientVersion: "18.4.2",
 			input: func() *discoveryconfig.DiscoveryConfig {
 				dc, err := discoveryconfig.NewDiscoveryConfig(
 					header.Metadata{Name: "dc1"},

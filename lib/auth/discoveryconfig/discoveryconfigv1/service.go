@@ -395,7 +395,7 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 // MaybeDowngradeDiscoveryConfig tests the client version passed through the gRPC metadata,
 // and if necessary downgrades the Discovery Config resource for compatibility with the older client.
 // The following rules are applied:
-//   - if version is lower than 18.4.2, the AWS wildcard region is replaced with "aws-global" sentinel region
+//   - if version is lower than 18.5.0, the AWS wildcard region is replaced with "aws-global" sentinel region
 //     this ensures the client can still discover other resources without erroring out.
 func MaybeDowngradeDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
 	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
@@ -414,7 +414,7 @@ func MaybeDowngradeDiscoveryConfig(ctx context.Context, dc *discoveryconfig.Disc
 	return dc, nil
 }
 
-var minSupportedDiscoveryConfigAWSWildcardRegionVersion = semver.Version{Major: 18, Minor: 4, Patch: 2}
+var minSupportedDiscoveryConfigAWSWildcardRegionVersion = semver.Version{Major: 18, Minor: 5, Patch: 0}
 
 // For Auth Server v20.0.0, the expected minimum supported client version is v19.0.0, which supports the AWS wildcard region.
 // This function should be deleted at that time.
