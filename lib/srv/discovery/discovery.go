@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/account"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -130,6 +131,8 @@ type Config struct {
 
 	// GetEC2Client gets an AWS EC2 client for the given region.
 	GetEC2Client server.EC2ClientGetter
+	// GetAWSRegionsLister gets a client that is capable of listing AWS regions.
+	GetAWSRegionsLister server.RegionsListerGetter
 	// GetSSMClient gets an AWS SSM client for the given region.
 	GetSSMClient func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error)
 	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
@@ -278,6 +281,16 @@ kubernetes matchers are present.`)
 				return nil, trace.Wrap(err)
 			}
 			return ec2.NewFromConfig(cfg), nil
+		}
+	}
+	if c.GetAWSRegionsLister == nil {
+		c.GetAWSRegionsLister = func(ctx context.Context, opts ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error) {
+			region := "" // Account API is global, no region needed.
+			cfg, err := c.getAWSConfig(ctx, region, opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return account.NewFromConfig(cfg), nil
 		}
 	}
 	if c.AWSFetchersClients == nil {
@@ -599,6 +612,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
 		Matchers:              ec2Matchers,
 		EC2ClientGetter:       s.GetEC2Client,
+		RegionsListerGetter:   s.GetAWSRegionsLister,
 		PublicProxyAddrGetter: s.publicProxyAddress,
 	})
 	if err != nil {
@@ -723,6 +737,7 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherToEC2FetcherParams{
 		Matchers:              serverMatchers,
 		EC2ClientGetter:       s.GetEC2Client,
+		RegionsListerGetter:   s.GetAWSRegionsLister,
 		DiscoveryConfigName:   discoveryConfigName,
 		PublicProxyAddrGetter: s.publicProxyAddress,
 	})

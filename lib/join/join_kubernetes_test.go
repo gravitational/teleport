@@ -16,20 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
@@ -46,7 +47,7 @@ func (m *mockK8STokenReviewValidator) Validate(_ context.Context, token, _ strin
 	return result, nil
 }
 
-func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
+func TestJoinKubernetes(t *testing.T) {
 	// Test setup
 
 	// Creating an auth server with mock Kubernetes token validator
@@ -63,23 +64,25 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 	}
 
 	ctx := t.Context()
-	p, err := newTestPack(ctx, testPackOptions{
-		DataDir: t.TempDir(),
-		MutateAuth: func(server *auth.Server) error {
-			server.SetK8sTokenReviewValidator(&mockK8STokenReviewValidator{tokens: tokenReviewTokens})
-			server.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, token string) (*kubetoken.ValidationResult, error) {
-				result, ok := jwksTokens[token]
-				if !ok {
-					return nil, errMockInvalidToken
-				}
-				return result, nil
-			})
 
-			return nil
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
 		},
 	})
 	require.NoError(t, err)
-	auth := p.a
+
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+	auth := authServer.Auth()
+
+	auth.SetK8sTokenReviewValidator(&mockK8STokenReviewValidator{tokens: tokenReviewTokens})
+	auth.SetK8sJWKSValidator(func(_ time.Time, _ []byte, _ string, token string) (*kubetoken.ValidationResult, error) {
+		result, ok := jwksTokens[token]
+		if !ok {
+			return nil, errMockInvalidToken
+		}
+		return result, nil
+	})
 
 	// Creating and loading our two Kubernetes ProvisionTokens
 	implicitInClusterPT, err := types.NewProvisionTokenFromSpec("implicit-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
@@ -144,63 +147,107 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 		name           string
 		kubeToken      string
 		provisionToken types.ProvisionToken
-		expectedErr    error
+		assertError    require.ErrorAssertionFunc
 	}{
 		{
 			"in_cluster (implicit): success",
 			"matching-implicit-in-cluster",
 			implicitInClusterPT,
-			nil,
+			require.NoError,
 		},
 		{
 			"in_cluster (explicit): success",
 			"matching-explicit-in-cluster",
 			explicitInClusterPT,
-			nil,
+			require.NoError,
 		},
 		{
 			"in_cluster: service account rule mismatch",
 			"matching-explicit-in-cluster",
 			implicitInClusterPT,
-			trace.AccessDenied("kubernetes token did not match any allow rules"),
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
 		},
 		{
 			"in_cluster: failed token join (unknown kubeToken)",
 			"unknown",
 			implicitInClusterPT,
-			errMockInvalidToken,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "invalid token")
+			},
 		},
 		{
 			"in_cluster: failed token join (user token)",
 			"user-token",
 			implicitInClusterPT,
-			trace.AccessDenied("kubernetes token did not match any allow rules"),
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
 		},
 		{
 			"static_jwks: success",
 			"jwks-matching-service-account",
 			staticJWKSPT,
-			nil,
+			require.NoError,
 		},
 		{
 			"static_jwks: service account rule mismatch",
 			"jwks-mismatched-service-account",
 			staticJWKSPT,
-			trace.AccessDenied("kubernetes token did not match any allow rules"),
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
 		},
 		{
 			"static_jwks: validation fails",
 			"unknown",
 			staticJWKSPT,
-			errMockInvalidToken,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "invalid token")
+			},
 		},
 	}
 
 	// Doing the real test
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := auth.RegisterUsingToken(ctx, newRequest(tt.provisionToken.GetName(), tt.kubeToken))
-			require.ErrorIs(t, err, tt.expectedErr)
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			t.Run("legacy", func(t *testing.T) {
+				_, err := auth.RegisterUsingToken(ctx, newRequest(tt.provisionToken.GetName(), tt.kubeToken))
+				tt.assertError(t, err)
+			})
+
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tt.provisionToken.GetName(),
+					JoinMethod: types.JoinMethodKubernetes,
+					ID: state.IdentityID{
+						Role:     types.RoleNode,
+						NodeName: "testnode",
+						HostUUID: "host-id",
+					},
+					IDToken:    tt.kubeToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
+
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tt.provisionToken.GetName(),
+					JoinMethod: types.JoinMethodKubernetes,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.kubeToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+			})
 		})
 	}
 }
