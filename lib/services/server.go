@@ -166,7 +166,7 @@ func compareApplicationServers(a, b types.AppServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetApp(), b.GetApp()) {
+	if !a.GetApp().IsEqual(b.GetApp()) {
 		return Different
 	}
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
