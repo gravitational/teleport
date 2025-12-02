@@ -1403,11 +1403,37 @@ func newFixture(t *testing.T) (*mockGetter, string) {
 				},
 			},
 		},
+		"saml-dev-team": {
+			Allow: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env": {"dev"},
+				},
+			},
+		},
+		"saml-v8-prod-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{
+						"saml-prod-team",
+					},
+				},
+			},
+		},
 		"saml-v8-dev-requester": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{
-						"saml-rolev7",
+						"saml-dev-team",
+					},
+				},
+			},
+		},
+		"saml-v8-prod-dev-requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{
+						"saml-dev-team",
+						"saml-prod-team",
 					},
 				},
 			},
@@ -2066,6 +2092,32 @@ func TestValidateSAMLIdPAccessRequest(t *testing.T) {
 			errorAssertion: require.NoError,
 		},
 		{
+			desc: "requesting two requester v8 roles, one allows",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp1",
+				},
+			},
+			overrideRoles:  []string{"saml-v8-prod-requester", "saml-v8-dev-requester"},
+			expectRoles:    []string{"saml-dev-team"},
+			errorAssertion: require.NoError,
+		},
+		{
+			desc: "requesting one requester v8 roles with two configured search as roles, one allows",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: g.clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp1",
+				},
+			},
+			overrideRoles:  []string{"saml-v8-prod-dev-requester"},
+			expectRoles:    []string{"saml-dev-team"},
+			errorAssertion: require.NoError,
+		},
+		{
 			desc: "v7 role grants access, but can't search resource using v8 role",
 			requestResourceIDs: []types.ResourceID{
 				{
@@ -2074,8 +2126,7 @@ func TestValidateSAMLIdPAccessRequest(t *testing.T) {
 					Name:        "samlapp1",
 				},
 			},
-			expectRoles:   []string{"app-admins"},
-			overrideRoles: []string{"saml-rolev7", "saml-v8-dev-requester"},
+			overrideRoles: []string{"saml-rolev7", "saml-v8-prod-requester"},
 			errorAssertion: func(t require.TestingT, err error, args ...interface{}) {
 				require.ErrorContains(t, err, "no roles configured")
 			},
@@ -2115,8 +2166,11 @@ func TestValidateSAMLIdPAccessRequest(t *testing.T) {
 					"some-id", uls.GetName(), []string{}, tc.requestResourceIDs)
 				require.NoError(t, err)
 
-				tc.errorAssertion(t, validator.validate(ctx, req.Copy(), identity))
+				tc.errorAssertion(t, validator.validate(ctx, req, identity))
 
+				if len(tc.expectRoles) > 0 {
+					require.ElementsMatch(t, tc.expectRoles, req.GetRoles())
+				}
 			}
 
 			// test CalculateAccessCapabilities
@@ -2127,8 +2181,12 @@ func TestValidateSAMLIdPAccessRequest(t *testing.T) {
 					RequestableRoles: len(tc.requestResourceIDs) == 0,
 				}
 
-				_, err := CalculateAccessCapabilities(ctx, clock, g, identity, req)
+				cap, err := CalculateAccessCapabilities(ctx, clock, g, identity, req)
 				tc.errorAssertion(t, err)
+
+				if len(tc.expectRoles) > 0 {
+					require.ElementsMatch(t, tc.expectRoles, cap.ApplicableRolesForResources)
+				}
 			}
 		})
 	}

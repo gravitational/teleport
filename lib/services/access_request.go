@@ -1326,6 +1326,13 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 			return trace.Wrap(err)
 		}
 
+		// Access precheck to validate if there is a restricting standing
+		// role for this user, which may otherwise deny access to the SAML
+		// resource even after assuming roles granted by this access request.
+		if err := m.canEventuallyAccessSAMLApp(ctx, req.GetRoles(), req.GetRequestedResourceIDs()); err != nil {
+			return trace.Wrap(err)
+		}
+
 		// build the threshold array and role-threshold-mapping.  the rtm encodes the
 		// relationship between a role, and the thresholds which must pass in order
 		// for that role to be considered approved.  when building the validator we
@@ -2330,15 +2337,15 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	ctx context.Context,
 	resourceIDs []types.ResourceID,
 	loginHint string,
-	requestedRoles []string,
+	roles []string,
 ) ([]string, error) {
 	if len(resourceIDs) == 0 {
 		// This is not a resource request, nothing to do
-		return requestedRoles, nil
+		return roles, nil
 	}
 
-	requestedRoles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(resourceIDs, requestedRoles)
-	if len(requestedRoles) == 0 { // all roles got pruned from not matching every kube requested kind.
+	roles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(resourceIDs, roles)
+	if len(roles) == 0 { // all roles got pruned from not matching every kube requested kind.
 		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
 	}
 
@@ -2353,16 +2360,11 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
 				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
 			)
-			return requestedRoles, nil
+			return roles, nil
 		}
 	}
 
-	requestedRoleMap := make(map[string]struct{}, len(requestedRoles))
-	for _, r := range requestedRoles {
-		requestedRoleMap[r] = struct{}{}
-	}
-	allRoles := slices.Concat(requestedRoles, m.userState.GetRoles())
-	roleSet, err := FetchRoles(allRoles, m.getter, m.userState.GetTraits())
+	allRoles, err := FetchRoles(roles, m.getter, m.userState.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2395,11 +2397,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 
-		for _, role := range roleSet {
-			// limit access checker to the scope of originally requested roles.
-			if _, ok := requestedRoleMap[role.GetName()]; !ok {
-				continue
-			}
+		for _, role := range allRoles {
 			roleAllowsAccess, err := m.roleAllowsResource(role, resource, loginHint, matchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -2423,15 +2421,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				`no roles configured in the "search_as_roles" for this user allow `+
 					`access to at least one requested resources. `+
 					`resources: %s roles: %v unmatched resources: %v`,
-				resourcesStr, requestedRoles, kubeResourceMatcher.Unmatched())
-		}
-		if resource.GetKind() == types.KindSAMLIdPServiceProvider {
-			// Access precheck to validate if there is a restricting standing
-			// role for this user, which may otherwise deny access to this
-			// resource even after assuming roles granted by this access request.
-			if err := canAccessSaml(localClusterName, roleSet, resource, m.userState.GetTraits(), matchers...); err != nil {
-				return nil, trace.Wrap(err)
-			}
+				resourcesStr, roles, kubeResourceMatcher.Unmatched())
 		}
 		if len(loginHint) > 0 {
 			// If we have a login hint, request the single role with the fewest
@@ -2454,46 +2444,13 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				`access to any requested resources. The user may already have `+
 				`access to all requested resources with their existing roles. `+
 				`resources: %s roles: %v login: %q`,
-			resourcesStr, requestedRoles, loginHint)
+			resourcesStr, roles, loginHint)
 	}
 	prunedRoles := make([]string, 0, len(necessaryRoles))
 	for role := range necessaryRoles {
 		prunedRoles = append(prunedRoles, role)
 	}
 	return prunedRoles, nil
-}
-
-// canAccessSaml checks access to saml resource based on given [roleSet].
-// AccessDenied error is returned as a BadParameter to indicate error is
-// related to the access request configuration.
-func canAccessSaml(
-	clusterName string,
-	roleSet RoleSet,
-	r types.ResourceWithLabels,
-	traits map[string][]string,
-	matchers ...RoleMatcher,
-) error {
-	if err := roleSet.CheckAccessToSAMLIdP(
-		r,
-		traits,
-		nil, /*AuthPreference, checked during login*/
-		AccessState{MFAVerified: true},
-		matchers...,
-	); err != nil {
-		if trace.IsAccessDenied(err) {
-			return trace.BadParameter(
-				`no roles configured in the "search_as_roles" for this user allow `+
-					`access to %q.`, types.ResourceIDToString(types.ResourceID{
-					ClusterName: clusterName,
-					Name:        r.GetName(),
-					Kind:        r.GetKind(),
-					// SubResourceName not applicable for this resource.
-				}))
-		}
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 func fewestLogins(roles []types.Role) []types.Role {
@@ -2534,7 +2491,7 @@ func (m *RequestValidator) roleAllowsResource(
 	if resource.GetKind() == types.KindSAMLIdPServiceProvider {
 		if types.IsLegacySAMLRBAC(role.GetVersion()) {
 			// legacy roles grant implicit access to saml resource
-			// and can be removed from the reqeust.
+			// and can be removed from the request.
 			return false, nil
 		}
 		err = roleSet.CheckAccessToSAMLIdP(
@@ -2651,6 +2608,68 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 		}
 	}
 	return kubernetesResources, nil
+}
+
+// canEventuallyAccessSAMLApp checks access to saml resource with a [RoleSet]
+// created from requested and standing roles.
+// AccessDenied error is returned as a BadParameter to indicate error is
+// related to the access request configuration.
+func (m *RequestValidator) canEventuallyAccessSAMLApp(ctx context.Context, requestedRoles []string, requestedResourceIDs []types.ResourceID) error {
+	if len(requestedResourceIDs) == 0 {
+		return nil
+	}
+
+	var samlResourceIDs []types.ResourceID
+	for _, r := range requestedResourceIDs {
+		if r.Kind == types.KindSAMLIdPServiceProvider {
+			samlResourceIDs = append(samlResourceIDs, r)
+		}
+	}
+	if len(samlResourceIDs) == 0 {
+		return nil
+	}
+
+	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, samlResourceIDs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	allRoles := slices.Concat(requestedRoles, m.userState.GetRoles())
+	roleSet, err := FetchRoles(allRoles, m.getter, m.userState.GetTraits())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cluster, err := m.getter.GetClusterName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, r := range resources {
+		if r.GetKind() != types.KindSAMLIdPServiceProvider {
+			continue
+		}
+
+		if err := roleSet.CheckAccessToSAMLIdP(
+			r,
+			m.userState.GetTraits(),
+			nil, /*AuthPreference, checked during login*/
+			AccessState{MFAVerified: true},
+		); err != nil {
+			if trace.IsAccessDenied(err) {
+				return trace.BadParameter(
+					`no roles configured in the "search_as_roles" for this user allow `+
+						`access to %q.`, types.ResourceIDToString(types.ResourceID{
+						ClusterName: cluster.GetClusterName(),
+						Name:        r.GetName(),
+						Kind:        r.GetKind(),
+						// SubResourceName not applicable for this resource.
+					}))
+			}
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 func newReviewPermissionParser() (*typical.Parser[reviewPermissionContext, bool], error) {

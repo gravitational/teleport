@@ -79,13 +79,14 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		opts         []ConnectCommandFunc
-		dbProtocol   string
-		databaseName string
-		execer       *fakeExec
-		cmd          []string
-		wantErr      bool
+		name            string
+		opts            []ConnectCommandFunc
+		dbProtocol      string
+		databaseName    string
+		execer          *fakeExec
+		cmd             []string
+		wantErr         bool
+		getDatabaseFunc GetDatabaseFunc
 	}{
 		{
 			name:         "postgres",
@@ -327,10 +328,10 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "mongodb (legacy)",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "mydb",
-			opts:         []ConnectCommandFunc{withMongoDBAtlasDatabase()},
+			name:            "mongodb (legacy)",
+			dbProtocol:      defaults.ProtocolMongoDB,
+			databaseName:    "mydb",
+			getDatabaseFunc: withMongoDBAtlasDatabase(),
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mongo": []byte("legacy"),
@@ -344,10 +345,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "mongodb no TLS (legacy)",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "mydb",
-			opts:         []ConnectCommandFunc{WithNoTLS(), withMongoDBAtlasDatabase()},
+			name:            "mongodb no TLS (legacy)",
+			dbProtocol:      defaults.ProtocolMongoDB,
+			databaseName:    "mydb",
+			getDatabaseFunc: withMongoDBAtlasDatabase(),
+			opts:            []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mongo": []byte("legacy"),
@@ -359,10 +361,10 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "mongosh no CA",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "mydb",
-			opts:         []ConnectCommandFunc{withMongoDBAtlasDatabase()},
+			name:            "mongosh no CA",
+			dbProtocol:      defaults.ProtocolMongoDB,
+			databaseName:    "mydb",
+			getDatabaseFunc: withMongoDBAtlasDatabase(),
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mongosh": []byte("1.1.6"),
@@ -376,12 +378,12 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 		},
 		{
-			name:         "mongosh",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "mydb",
+			name:            "mongosh",
+			dbProtocol:      defaults.ProtocolMongoDB,
+			databaseName:    "mydb",
+			getDatabaseFunc: withMongoDBAtlasDatabase(),
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, "/tmp/keys/example.com/cas/example.com.pem"),
-				withMongoDBAtlasDatabase(),
 			},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
@@ -396,10 +398,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 		},
 		{
-			name:         "mongosh no TLS",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "mydb",
-			opts:         []ConnectCommandFunc{WithNoTLS(), withMongoDBAtlasDatabase()},
+			name:            "mongosh no TLS",
+			dbProtocol:      defaults.ProtocolMongoDB,
+			databaseName:    "mydb",
+			getDatabaseFunc: withMongoDBAtlasDatabase(),
+			opts:            []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mongosh": []byte("1.1.6"),
@@ -410,10 +413,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 		},
 		{
-			name:         "mongosh preferred",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "mydb",
-			opts:         []ConnectCommandFunc{WithNoTLS(), withMongoDBAtlasDatabase()},
+			name:            "mongosh preferred",
+			dbProtocol:      defaults.ProtocolMongoDB,
+			databaseName:    "mydb",
+			getDatabaseFunc: withMongoDBAtlasDatabase(),
+			opts:            []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{}, // Cannot find either bin.
 			},
@@ -422,10 +426,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 		},
 		{
-			name:         "DocumentDB",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "docdb",
-			opts:         []ConnectCommandFunc{WithNoTLS(), withDocumentDBDatabase()},
+			name:            "DocumentDB",
+			dbProtocol:      defaults.ProtocolMongoDB,
+			databaseName:    "docdb",
+			getDatabaseFunc: withDocumentDBDatabase(),
+			opts:            []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					// When both are available, legacy mongo is preferred.
@@ -439,10 +444,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "DocumentDB mongosh",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "docdb",
-			opts:         []ConnectCommandFunc{WithNoTLS(), withDocumentDBDatabase()},
+			name:            "DocumentDB mongosh",
+			dbProtocol:      defaults.ProtocolMongoDB,
+			databaseName:    "docdb",
+			getDatabaseFunc: withDocumentDBDatabase(),
+			opts:            []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"mongosh": []byte("1.1.6"),
@@ -678,12 +684,12 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr:      false,
 		},
 		{
-			name:       "Spanner for exec is ok",
-			dbProtocol: defaults.ProtocolSpanner,
+			name:            "Spanner for exec is ok",
+			dbProtocol:      defaults.ProtocolSpanner,
+			getDatabaseFunc: withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -691,13 +697,13 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr:      false,
 		},
 		{
-			name:       "Spanner with print format is ok",
-			dbProtocol: defaults.ProtocolSpanner,
+			name:            "Spanner with print format is ok",
+			dbProtocol:      defaults.ProtocolSpanner,
+			getDatabaseFunc: withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			opts: []ConnectCommandFunc{
 				WithPrintFormat(),
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -705,13 +711,13 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr:      false,
 		},
 		{
-			name:       "Spanner with print format and placeholders is ok",
-			dbProtocol: defaults.ProtocolSpanner,
+			name:            "Spanner with print format and placeholders is ok",
+			dbProtocol:      defaults.ProtocolSpanner,
+			getDatabaseFunc: getDatabaseFuncWithError, // When format is set the command can accept error when fetching the database.
 			opts: []ConnectCommandFunc{
 				WithPrintFormat(),
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "",
@@ -719,48 +725,48 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr:      false,
 		},
 		{
-			name:       "Spanner for exec without GCP project is an error",
-			dbProtocol: defaults.ProtocolSpanner,
+			name:            "Spanner for exec without GCP project is an error",
+			dbProtocol:      defaults.ProtocolSpanner,
+			getDatabaseFunc: withSpannerDatabase(types.GCPCloudSQL{InstanceID: "bar-instance"}),
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{InstanceID: "bar-instance"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
 			wantErr:      true,
 		},
 		{
-			name:       "Spanner for exec without GCP instance is an error",
-			dbProtocol: defaults.ProtocolSpanner,
+			name:            "Spanner for exec without GCP instance is an error",
+			dbProtocol:      defaults.ProtocolSpanner,
+			getDatabaseFunc: withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj"}),
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
 			wantErr:      true,
 		},
 		{
-			name:       "Spanner for exec without database name is an error",
-			dbProtocol: defaults.ProtocolSpanner,
+			name:            "Spanner for exec without database name is an error",
+			dbProtocol:      defaults.ProtocolSpanner,
+			getDatabaseFunc: withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj"}),
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
 			wantErr:      true,
 		},
 		{
-			name:       "Spanner without a local proxy is an error",
-			dbProtocol: defaults.ProtocolSpanner,
+			name:            "Spanner without a local proxy is an error",
+			dbProtocol:      defaults.ProtocolSpanner,
+			getDatabaseFunc: withSpannerDatabase(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			opts: []ConnectCommandFunc{
 				WithLocalProxy("", 0, ""),
 				WithNoTLS(),
-				WithGCP(types.GCPCloudSQL{ProjectID: "foo-proj", InstanceID: "bar-instance"}),
 			},
 			execer:       &fakeExec{},
 			databaseName: "googlesql-db",
@@ -791,7 +797,13 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				WithExecer(tt.execer),
 			}, tt.opts...)
 
-			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			getDatabaseFunc := tt.getDatabaseFunc
+			if getDatabaseFunc == nil {
+				getDatabaseFunc = getDatabaseFuncWithError
+			}
+
+			c, err := NewCmdBuilder(tc, profile, database, "root", getDatabaseFunc, opts...)
+			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 			got, err := c.GetConnectCommand(context.Background())
 			if tt.wantErr {
@@ -824,13 +836,14 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		opts         []ConnectCommandFunc
-		dbProtocol   string
-		databaseName string
-		execer       *fakeExec
-		cmd          map[string][]string
-		wantErr      bool
+		name            string
+		opts            []ConnectCommandFunc
+		dbProtocol      string
+		databaseName    string
+		execer          *fakeExec
+		cmd             map[string][]string
+		wantErr         bool
+		getDatabaseFunc GetDatabaseFunc
 	}{
 		{
 			name:         "postgres no TLS",
@@ -953,7 +966,13 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 				WithExecer(tt.execer),
 			}, tt.opts...)
 
-			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			getDatabaseFunc := tt.getDatabaseFunc
+			if getDatabaseFunc == nil {
+				getDatabaseFunc = getDatabaseFuncWithError
+			}
+
+			c, err := NewCmdBuilder(tc, profile, database, "root", getDatabaseFunc, opts...)
+			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 
 			commandOptions, err := c.GetConnectCommandAlternatives(context.Background())
@@ -993,12 +1012,13 @@ func TestConvertCommandError(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc       string
-		dbProtocol string
-		execer     *fakeExec
-		stderr     []byte
-		wantBin    string
-		wantStdErr string
+		desc            string
+		dbProtocol      string
+		execer          *fakeExec
+		stderr          []byte
+		wantBin         string
+		wantStdErr      string
+		getDatabaseFunc GetDatabaseFunc
 	}{
 		{
 			desc:       "converts access denied to helpful message",
@@ -1038,7 +1058,14 @@ func TestConvertCommandError(t *testing.T) {
 				WithNoTLS(),
 				WithExecer(tt.execer),
 			}
-			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+
+			getDatabaseFunc := tt.getDatabaseFunc
+			if getDatabaseFunc == nil {
+				getDatabaseFunc = getDatabaseFuncWithError
+			}
+
+			c, err := NewCmdBuilder(tc, profile, database, "root", getDatabaseFunc, opts...)
+			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 
 			cmd, err := c.GetConnectCommand(context.Background())
@@ -1057,8 +1084,8 @@ func TestConvertCommandError(t *testing.T) {
 	}
 }
 
-func withMongoDBAtlasDatabase() ConnectCommandFunc {
-	return WithGetDatabaseFunc(func(context.Context, *client.TeleportClient, string) (types.Database, error) {
+func withMongoDBAtlasDatabase() GetDatabaseFunc {
+	return func(context.Context, *client.TeleportClient, string) (types.Database, error) {
 		db, err := types.NewDatabaseV3(
 			types.Metadata{
 				Name: "mongodb-atlas",
@@ -1069,11 +1096,11 @@ func withMongoDBAtlasDatabase() ConnectCommandFunc {
 			},
 		)
 		return db, trace.Wrap(err)
-	})
+	}
 }
 
-func withDocumentDBDatabase() ConnectCommandFunc {
-	return WithGetDatabaseFunc(func(context.Context, *client.TeleportClient, string) (types.Database, error) {
+func withDocumentDBDatabase() GetDatabaseFunc {
+	return func(context.Context, *client.TeleportClient, string) (types.Database, error) {
 		db, err := types.NewDatabaseV3(
 			types.Metadata{
 				Name: "docdb",
@@ -1084,5 +1111,28 @@ func withDocumentDBDatabase() ConnectCommandFunc {
 			},
 		)
 		return db, trace.Wrap(err)
-	})
+	}
+}
+
+func withSpannerDatabase(gcp types.GCPCloudSQL) GetDatabaseFunc {
+	return func(context.Context, *client.TeleportClient, string) (types.Database, error) {
+		db, err := types.NewDatabaseV3(
+			types.Metadata{
+				Name: "docdb",
+			},
+			types.DatabaseSpecV3{
+				Protocol: types.DatabaseTypeSpanner,
+				URI:      "spanner.googleapis.com:443",
+				GCP:      gcp,
+			},
+		)
+		return db, trace.Wrap(err)
+	}
+}
+
+// getDatabaseFuncWithError provides a non-nil function that returns error when
+// retrieving the database. This can be used in tests that don't retrieve
+// databases.
+func getDatabaseFuncWithError(ctx context.Context, tc *client.TeleportClient, s string) (types.Database, error) {
+	return nil, trace.NotImplemented("unexpected call to getDatabase function")
 }
