@@ -318,7 +318,7 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 
 		// > 3.2. Audience:
 		// > The aud claim MUST be present, containing one or more values.
-		"aud": p.Audiences,
+		"aud": jwt.Audience(p.Audiences),
 
 		// > 3.3. Expiration Time:
 		// > The exp claim MUST be set
