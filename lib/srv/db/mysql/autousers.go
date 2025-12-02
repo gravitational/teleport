@@ -277,7 +277,7 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.
 	}
 
 	// If update is necessary, do a transaction.
-	e.Log.DebugContext(e.Context, "Updating stored procedures for MySQL server.", "database", sessionCtx.Database.GetName())
+	e.Log.DebugContext(e.Context, "Updating stored procedures for MySQL server.")
 	return trace.Wrap(doTransaction(conn, func() error {
 		for _, procedureName := range allProcedureNames {
 			dropCommand := fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedureName)

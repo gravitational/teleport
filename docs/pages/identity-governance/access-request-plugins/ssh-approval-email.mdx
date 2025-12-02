@@ -79,33 +79,27 @@ regularly.
 
 ## Step 1/7. Define RBAC resources
 
-Before you set up the email plugin, enable Role Access Requests in your Teleport cluster.
+Before you set up the email plugin, you will need to enable Role Access Requests
+in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/7. Install the Teleport email plugin
+## Step 2/7. Define a Teleport email plugin user
 
-<details>
-<summary>Using a local SMTP server?</summary>
+The required permissions for the plugin are configured in the preset `access-plugin`
+role. To generate credentials for the plugin, define either a Machine ID bot user
+or a regular Teleport user.
 
-If you are using a local SMTP server to test the plugin, you should install the
-plugin on your local machine to ensure the plugin can connect to the SMTP server 
-and perform any necessary DNS lookups to send email.
+<Tabs>
+<TabItem label="Machine & Workload Identity">
+(!docs/pages/includes/plugins/rbac-impersonate-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/rbac-impersonate.mdx!)
+</TabItem>
+</Tabs>
 
-Your Teleport cluster does *not* need to perform DNS lookups for your plugin
-because the plugin dials out to the Teleport Proxy Service or Teleport Auth Service. 
-
-</details>
-
-(!docs/pages/includes/plugins/install-access-request.mdx name="email"!)
-
-## Step 3/7. Create a user and role for the plugin
-
-(!docs/pages/includes/plugins/rbac-with-friendly-name.mdx!)
-
-(!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
-
-## Step 4/7. Export the access plugin identity
+## Step 3/7. Export the access plugin identity
 
 Give the plugin access to a Teleport identity file. We recommend using Machine
 ID for this in order to produce short-lived identity files that are less
@@ -117,9 +111,29 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-email-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-email-identity" !)
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-email-identity"!)
 </TabItem>
 </Tabs>
+
+## Step 4/7. Install the Teleport email plugin
+
+In this step, you'll install the Teleport email plugin on a host that has network
+access to your SMTP server. This host can be any system capable of reaching both
+your Teleport cluster and the SMTP server used for sending emails.
+
+<details>
+<summary>Using a local SMTP server?</summary>
+
+If you are using a local SMTP server to test the plugin, you should install the
+plugin on your local machine to ensure the plugin can connect to the SMTP server
+and perform any necessary DNS lookups to send email.
+
+Your Teleport cluster does *not* need to perform DNS lookups for your plugin
+because the plugin dials out to the Teleport Proxy Service or Teleport Auth Service.
+
+</details>
+
+(!docs/pages/includes/plugins/install-access-request.mdx name="email"!)
 
 ## Step 5/7. Configure the plugin
 

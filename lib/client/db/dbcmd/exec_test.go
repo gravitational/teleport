@@ -58,11 +58,12 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		opts     []ConnectCommandFunc
-		protocol string
-		cmd      []string
-		wantErr  bool
+		name            string
+		opts            []ConnectCommandFunc
+		protocol        string
+		cmd             []string
+		wantErr         bool
+		getDatabaseFunc GetDatabaseFunc
 	}{
 		{
 			name:     "not authenticated tunnel",
@@ -105,7 +106,13 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 				WithExecer(fakeExec),
 			}, tt.opts...)
 
-			c := NewCmdBuilder(tc, profile, database, "root", opts...)
+			getDatabaseFunc := tt.getDatabaseFunc
+			if getDatabaseFunc == nil {
+				getDatabaseFunc = getDatabaseFuncWithError
+			}
+
+			c, err := NewCmdBuilder(tc, profile, database, "root", getDatabaseFunc, opts...)
+			require.NoError(t, err)
 			c.uid = utils.NewFakeUID()
 			got, err := c.GetExecCommand(context.Background(), "select 1")
 			if tt.wantErr {

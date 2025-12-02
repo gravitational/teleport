@@ -629,6 +629,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	}
 
 	lr, err := newLabelReconciler(&labelReconcilerConfig{
+		clock:       s.clock,
 		log:         s.Log,
 		accessPoint: s.AccessPoint,
 	})
@@ -1963,6 +1964,7 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 			Logger:       s.Log,
 			Client:       s.AccessPoint,
 			MaxStaleness: time.Minute,
+			Clock:        s.clock,
 		},
 		NodesGetter: s.AccessPoint,
 	})
