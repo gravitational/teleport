@@ -2465,6 +2465,9 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if localLog, ok := process.auditLog.(*events.AuditLog); ok {
+		localLog.AlertHandler = authServer
+	}
 	authServer.EncryptedIO = encryptedIO
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
