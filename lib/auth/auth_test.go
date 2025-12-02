@@ -4566,7 +4566,6 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 		expectedResources []types.ResourceID
 		expectedRoles     []string
 		errAssertion      require.ErrorAssertionFunc
-		checkResource     bool
 	}{
 		{
 			name:      "has access",
@@ -4579,7 +4578,7 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
 			},
-			checkResource: true,
+			expectedRoles: []string{awsicRole.GetName()},
 			errAssertion:  require.NoError,
 		},
 		{
@@ -4593,11 +4592,11 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
 			},
-			checkResource: true,
+			expectedRoles: []string{awsicRole.GetName()},
 			errAssertion:  require.NoError,
 		},
 		{
-			name:      "has access and no roleV8",
+			name:      "can search with rolev8",
 			userRoles: []string{awsicRequesterWithSAML.GetName()},
 			reqResources: []types.ResourceID{
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
@@ -4607,7 +4606,7 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
 			},
-			checkResource: true,
+			expectedRoles: []string{awsicRole.GetName(), samlRole.GetName()},
 			errAssertion:  require.NoError,
 		},
 		{
@@ -4621,7 +4620,6 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
 			},
-			checkResource: false,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "no roles configured")
 			},
@@ -4637,7 +4635,7 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
 			},
-			checkResource: true,
+			expectedRoles: []string{awsicRole.GetName(), samlRole.GetName()},
 			errAssertion:  require.NoError,
 		},
 		{
@@ -4650,7 +4648,6 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
 			},
-			checkResource: false,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "no roles configured")
 			},
@@ -4673,7 +4670,7 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-1"},
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-2"},
 			},
-			checkResource: true,
+			expectedRoles: []string{awsicRole.GetName(), samlRole.GetName()},
 			errAssertion:  require.NoError,
 		},
 		{
@@ -4689,11 +4686,11 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
 				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
 			},
-			checkResource: true,
+			expectedRoles: []string{awsicRole.GetName(), samlRole.GetName()},
 			errAssertion:  require.NoError,
 		},
 		{
-			name:      "no access and cannot search but unspecified cluster",
+			name:      "no access and cannot search with unspecified cluster",
 			userRoles: []string{requesterRole.GetName(), someRole.GetName()},
 			reqResources: []types.ResourceID{
 				{Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
@@ -4703,8 +4700,9 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 				{Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
 				{Kind: types.KindIdentityCenterAccount, Name: "account-0"},
 			},
-			checkResource: true,
-			errAssertion:  require.NoError, // access request passes but user will be denied on login
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "no roles configured")
+			},
 		},
 	}
 
@@ -4716,12 +4714,14 @@ func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
 
 			resp, err := userClient.CreateAccessRequestV2(ctx, r)
 			tc.errAssertion(t, err)
-			if tc.checkResource {
+			if len(tc.expectedRoles) > 0 {
 				gotIds, err := types.ResourceIDsToString(resp.GetRequestedResourceIDs())
 				require.NoError(t, err)
 				wantIds, err := types.ResourceIDsToString(tc.expectedResources)
 				require.NoError(t, err)
 				require.Equal(t, wantIds, gotIds)
+
+				require.ElementsMatch(t, tc.expectedRoles, resp.GetRoles())
 			} else {
 				require.Nil(t, resp)
 			}
