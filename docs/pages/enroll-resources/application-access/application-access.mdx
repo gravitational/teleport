@@ -1,30 +1,111 @@
 ---
 title: Applications
-description: Guides to using Teleport to protect web applications, cloud provider APIs, and more.
+description: Protect applications with Teleport by deploying the Teleport Application Service.
+template: doc-page
 tags:
  - zero-trust
  - infrastructure-identity
 ---
 
-The guides in this section explain how to protect applications with
-Teleport by deploying the Teleport Application Service.
+import DocHero from "@site/src/components/Pages/Landing/DocHero";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
 
-It is also possible to enroll applications in your cluster by deploying the
-Teleport SAML identity provider and configuring the applications as service
-providers. For more information, read [Configure Teleport as an identity
-provider](../../identity-governance/idps/idps.mdx).
+import userCheckSvg from "@site/src/components/Icon/svg/user-check.svg";
+import slidersHorizontalSvg from "@site/src/components/Icon/svg/sliders-horizontal.svg";
+import graphSvg from "@site/src/components/Icon/svg/graph.svg";
+import questionSvg from "@site/src/components/Icon/svg/question2.svg";
 
-## Getting started
-- [Introduction to Enrolling Applications](./introduction.mdx): How to set up Teleport to protect applications and cloud provider APIs
-- [Protect a Web Application with Teleport](./getting-started.mdx): Provides instructions to set up the Teleport Application Service and enable secure access to a web application.
+<DocHero
+  title="Enroll your first application"
+  youtubeVideoId="cvW4b96aPL0"
+  ctaLinks={[
+    {
+      title: "Get started with application access",
+      href: "./getting-started/",
+      variant: "secondary",
+      arrow: true,
+    },
+  ]}
+  links={[
+    {
+      title: "Role-based access control",
+      description: "Set up granular access policies for applications connected to Teleport.",
+      href: "./controls/",
+      icon: userCheckSvg,
+    }, 
+    {
+      title: "Configure Teleport as an IdP",
+      description: "Securely log into internal and external apps with Teleport as an identity provider.",
+      href: "../../identity-governance/idps/",
+      icon: slidersHorizontalSvg,
+    },
+    {
+      title: "VNet: Build without VPNs",
+      description: "Secure app and SSH access with no VPNs or proxies",
+      href: "./guides/vnet/",
+      icon: graphSvg,
+    }, 
+    {
+      title: "Troubleshooting",
+      description: "Common application access problems and their solutions.",
+      href: "./troubleshooting-apps/",
+      icon: questionSvg,
+    },
+  ]}
+>
+Teleport provides secure access to applications and cloud provider APIs with RBAC, audit logging, and just-in-time access. 
 
-## Guides
-- [Guides (section)](./guides/): Guides for configuring Teleport application access.
-- [Securing Access to Cloud APIs (section)](./cloud-apis/): How to use Teleport to achieve secure access while managing your cloud-based infrastructure.
-- [JWT Authentication (section)](./jwt/): Guides for using Teleport application access JWT authentication.
+The Teleport Application Service enables secure connections to private networks, supports Teleport JWTs for authentication, and provides guidance on app enrollment and access control configuration.
+</DocHero>
 
-## Configuration & management
-- [Role-Based Access Control](./controls.mdx): Role-Based Access Control (RBAC) for Teleport application access.
+<UseCasesList
+  title="Enrolling applications"
+  variant="doc"
+  desktopColumnsCount={2}
+  useCases={[
+    {
+      title: "Cloud provider APIs",
+      description: "Secure access to cloud APIs, consoles, and CLI tools with Teleport RBAC.",
+      href: "./cloud-apis/",
+    },
+    {
+      title: "Web apps",
+      description: "Connect a web application to manage and control access, set up RBAC, audit logging and more.",
+      href: "./protect-apps/connecting-apps/",
+    }, 
+    {
+      title: "TCP apps",
+      description: "Connect to services not natively supported by Teleport, like SMTP servers and databases.",
+      href: "./protect-apps/tcp/",
+    },
+    {
+      title: "REST APIs",
+      description: "Use Teleport to access REST APIs with tools like curl or Postman.",
+      href: "./protect-apps/api-access/",
+    },
+  ]}
+/>
 
-## Troubleshooting & support
-- [Troubleshooting](./troubleshooting-apps.mdx): Describes common issues and solutions for access to applications protected by Teleport.
+<UseCasesList
+  title="Application access guides"
+  variant="doc"
+  desktopColumnsCount={3}
+  useCases={[ 
+    {
+      title: "Dynamic app registration",
+      description: "Admin can register new apps without updating static configuration files.",
+      href: "./guides/dynamic-registration/",
+    },
+    {
+      title: "High availability app access",
+      description: "Configure the Teleport Application Service for high availability.",
+      href: "./guides/ha/",
+    },
+    {
+      title: "JWT authentication",
+      description: "Secure web apps with Teleport-signed JWTs for identity-based access.",
+      href: "./jwt/",
+    }
+  ]}
+/>

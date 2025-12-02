@@ -1298,11 +1298,11 @@ type Server struct {
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
 	// the purpose of tests.
-	k8sTokenReviewValidator k8sTokenReviewValidator
+	k8sTokenReviewValidator kubetoken.InClusterValidator
 	// k8sJWKSValidator allows tokens from Kubernetes to be validated
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
-	k8sJWKSValidator k8sJWKSValidator
+	k8sJWKSValidator kubetoken.JWKSValidator
 	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
 	// auth server using a known OIDC endpoint. It can be overridden in tests.
 	k8sOIDCValidator *kubetoken.KubernetesOIDCTokenValidator

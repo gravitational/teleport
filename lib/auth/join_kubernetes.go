@@ -20,8 +20,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -29,85 +27,55 @@ import (
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
-type k8sTokenReviewValidator interface {
-	Validate(ctx context.Context, token, clusterName string) (*kubetoken.ValidationResult, error)
+// GetK8sTokenReviewValidator returns the currently configured validator for
+// Kubernetes Token Review API (in-cluster) tokens.
+func (a *Server) GetK8sTokenReviewValidator() kubetoken.InClusterValidator {
+	return a.k8sTokenReviewValidator
 }
 
-type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubetoken.ValidationResult, error)
+// SetK8sTokenReviewValidator sets the token review validator implementation,
+// used in tests.
+func (a *Server) SetK8sTokenReviewValidator(validator kubetoken.InClusterValidator) {
+	a.k8sTokenReviewValidator = validator
+}
+
+// GetK8sJWKSValidator returns the currently configured validator for Kubernetes
+// static_jwks tokens.
+func (a *Server) GetK8sJWKSValidator() kubetoken.JWKSValidator {
+	return a.k8sJWKSValidator
+}
+
+// SetK8sJWKSValidator sets the Kubernetes JWKS validator implementation, used
+// in tests.
+func (a *Server) SetK8sJWKSValidator(validator kubetoken.JWKSValidator) {
+	a.k8sJWKSValidator = validator
+}
+
+// GetK8sOIDCValidator returns the currently configured validator for Kubernetes
+// OIDC tokens.
+func (a *Server) GetK8sOIDCValidator() *kubetoken.KubernetesOIDCTokenValidator {
+	return a.k8sOIDCValidator
+}
 
 func (a *Server) checkKubernetesJoinRequest(
 	ctx context.Context,
 	req *types.RegisterUsingTokenRequest,
 	unversionedToken types.ProvisionToken,
 ) (*kubetoken.ValidationResult, error) {
-	if req.IDToken == "" {
-		return nil, trace.BadParameter("IDToken not provided for Kubernetes join request")
-	}
-	token, ok := unversionedToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter(
-			"kubernetes join method only supports ProvisionTokenV2, '%T' was provided",
-			unversionedToken,
-		)
-	}
-
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Switch to join method subtype token validation.
-	var result *kubetoken.ValidationResult
-	switch token.Spec.Kubernetes.Type {
-	case types.KubernetesJoinTypeStaticJWKS:
-		result, err = a.k8sJWKSValidator(
-			a.clock.Now(),
-			[]byte(token.Spec.Kubernetes.StaticJWKS.JWKS),
-			clusterName,
-			req.IDToken,
-		)
-		if err != nil {
-			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
-		}
-	case types.KubernetesJoinTypeOIDC:
-		result, err = a.k8sOIDCValidator.ValidateToken(
-			ctx,
-			token.Spec.Kubernetes.OIDC.Issuer,
-			clusterName,
-			req.IDToken,
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "reviewing kubernetes token with oidc")
-		}
-	case types.KubernetesJoinTypeInCluster, types.KubernetesJoinTypeUnspecified:
-		result, err = a.k8sTokenReviewValidator.Validate(ctx, req.IDToken, clusterName)
-		if err != nil {
-			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with in_cluster")
-		}
-	default:
-		return nil, trace.BadParameter(
-			"unsupported kubernetes join method type (%s)",
-			token.Spec.Kubernetes.Type,
-		)
-	}
+	result, err := kubetoken.CheckIDToken(ctx, &kubetoken.CheckIDTokenParams{
+		ProvisionToken:     unversionedToken,
+		Clock:              a.GetClock(),
+		ClusterName:        clusterName,
+		IDToken:            []byte(req.IDToken),
+		InClusterValidator: a.k8sTokenReviewValidator,
+		JWKSValidator:      a.k8sJWKSValidator,
+		OIDCValidator:      a.k8sOIDCValidator,
+	})
 
-	a.logger.InfoContext(ctx, "Kubernetes workload trying to join cluster",
-		"validated_identity", result,
-		"token", token.GetName(),
-	)
-
-	return result, trace.Wrap(checkKubernetesAllowRules(token, result))
-}
-
-func checkKubernetesAllowRules(pt *types.ProvisionTokenV2, got *kubetoken.ValidationResult) error {
-	// If a single rule passes, accept the token
-	for _, rule := range pt.Spec.Kubernetes.Allow {
-		wantUsername := fmt.Sprintf("%s:%s", kubetoken.ServiceAccountNamePrefix, rule.ServiceAccount)
-		if wantUsername != got.Username {
-			continue
-		}
-		return nil
-	}
-
-	return trace.AccessDenied("kubernetes token did not match any allow rules")
+	return result, trace.Wrap(err)
 }
