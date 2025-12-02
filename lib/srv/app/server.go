@@ -214,6 +214,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetAppByPublicAddress)
 
 	callClose = false
+
+	// hack hack remove me
+	s.log.WarnContext(ctx, "app server shard config", "SHARD_MAX", shardMaxCount(), "SHARD_INDEX", shardIndex())
+
 	return s, nil
 }
 
