@@ -79,7 +79,7 @@
     "date-fns": "^4.1.0",
     "highlight.js": "^11.11.1",
     "history": "^4.9.0",
-    "immer": "^10.2.0",
+    "immer": "^11.0.1",
     "prop-types": "^15.8.1",
     "react": "^19.2.0",
     "react-day-picker": "^9.11.1",

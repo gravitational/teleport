@@ -70,8 +70,8 @@ importers:
         specifier: ^4.9.0
         version: 4.10.1
       immer:
-        specifier: ^10.2.0
-        version: 10.2.0
+        specifier: ^11.0.1
+        version: 11.0.1
       prop-types:
         specifier: ^15.8.1
         version: 15.8.1
@@ -110,7 +110,7 @@ importers:
         version: 2.8.1
       use-immer:
         specifier: ^0.11.0
-        version: 0.11.0(immer@10.2.0)(react@19.2.0)
+        version: 0.11.0(immer@11.0.1)(react@19.2.0)
       usehooks-ts:
         specifier: ^3.1.1
         version: 3.1.1(react@19.2.0)
@@ -4680,8 +4680,8 @@ packages:
     resolution: {integrity: sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg==}
     engines: {node: '>= 4'}
 
-  immer@10.2.0:
-    resolution: {integrity: sha512-d/+XTN3zfODyjr89gM3mPq1WNX2B8pYsu7eORitdwyA2sBubnTl3laYlBk4sXY5FUa5qTZGBDPJICVbvqzjlbw==}
+  immer@11.0.1:
+    resolution: {integrity: sha512-naDCyggtcBWANtIrjQEajhhBEuL9b0Zg4zmlWK2CzS6xCWSE39/vvf4LqnMjUAWHBhot4m9MHCM/Z+mfWhUkiA==}
 
   import-fresh@3.3.1:
     resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==}
@@ -11763,7 +11763,7 @@ snapshots:
 
   ignore@7.0.5: {}
 
-  immer@10.2.0: {}
+  immer@11.0.1: {}
 
   import-fresh@3.3.1:
     dependencies:
@@ -13962,9 +13962,9 @@ snapshots:
     dependencies:
       react: 19.2.0
 
-  use-immer@0.11.0(immer@10.2.0)(react@19.2.0):
+  use-immer@0.11.0(immer@11.0.1)(react@19.2.0):
     dependencies:
-      immer: 10.2.0
+      immer: 11.0.1
       react: 19.2.0
 
   use-isomorphic-layout-effect@1.2.1(@types/react@19.2.2)(react@19.2.0):
