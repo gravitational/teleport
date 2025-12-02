@@ -187,6 +187,14 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name: "no region",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
 			name: "invalid assume role arn",
 			in: &AWSMatcher{
 				Types:   []string{"ec2"},
