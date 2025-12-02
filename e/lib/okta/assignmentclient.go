@@ -210,7 +210,7 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaA
 			cached.Add(member)
 		}
 		a.logger.DebugContext(ctx, "Found users assigned to app",
-			"members", maps.Keys(cached),
+			"members", len(cached),
 			"app_id", appID,
 		)
 

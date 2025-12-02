@@ -21,7 +21,8 @@ func TestAssignmentReconciler(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clock)
-	svc, oktaClient, emitter := newTestService(t, ap)
+	oktaClient := newTestOktaClient()
+	svc, emitter := newTestService(t, ap, oktaClient)
 	svc.clock = clock
 	onReconcileCh := make(chan struct{}, 1)
 	testUser := userName("test-user@test.user")

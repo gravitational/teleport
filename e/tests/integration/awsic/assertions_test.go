@@ -221,7 +221,7 @@ func hasAccountAssignment(ps, accountID string) principalAssignmentAssertion {
 			func(asmt *identitycenterv1.AccountAssignmentRef) bool {
 				return asmt.AccountId == accountID && asmt.PermissionSetArn == ps
 			})
-		return assert.NotEqual(t, idx, -1, "No such account assignment found")
+		return assert.NotEqual(t, -1, idx, "No such account assignment found")
 	}
 }
 

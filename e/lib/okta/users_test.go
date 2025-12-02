@@ -44,9 +44,9 @@ func TestUserAssignmentCreator(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	suite := initUACSuite(t, ctx, clock)
 
-	app1 := application(t, suite.uac.hash, "app1", "link", types.OriginOkta, testOrgURL, testHostID)
-	app2 := application(t, suite.uac.hash, "app2", "link", types.OriginOkta, testOrgURL, testHostID)
-	appDupe := application(t, suite.uac.hash, "app1", "link", types.OriginOkta, testOrgURL, "dummy-host")
+	app1 := application(t, "app1", "link", types.OriginOkta, testOrgURL, testHostID)
+	app2 := application(t, "app2", "link", types.OriginOkta, testOrgURL, testHostID)
+	appDupe := application(t, "app1", "link", types.OriginOkta, testOrgURL, "dummy-host")
 	group1 := group(t, "group1", types.OriginOkta, testOrgURL)
 	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
 
@@ -193,7 +193,7 @@ func BenchmarkUserAssignmentCreator(b *testing.B) {
 	suite := initUACSuite(b, ctx, clock)
 
 	for i := range 1234 {
-		app1 := application(b, suite.uac.hash, "app"+strconv.Itoa(i), "link", types.OriginOkta, testOrgURL, testHostID)
+		app1 := application(b, "app"+strconv.Itoa(i), "link", types.OriginOkta, testOrgURL, testHostID)
 		mustUpsertApplicationServer(b, ctx, suite, app1)
 	}
 

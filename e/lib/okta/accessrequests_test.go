@@ -2,7 +2,6 @@ package okta
 
 import (
 	"context"
-	"crypto"
 	"testing"
 	"time"
 
@@ -52,8 +51,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
-	hash := crypto.SHA256
-	appServer := application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID)
+	appServer := application(t, "app1", "link1", types.OriginOkta, testOrgURL, testHostID)
 	_, err = ap.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
@@ -197,8 +195,7 @@ func TestAccessRequestReconciler_idempotency(t *testing.T) {
 	require.Empty(t, assignments)
 
 	// Create approved AccessRequest
-	hash := crypto.SHA256
-	appServer := application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID)
+	appServer := application(t, "app1", "link1", types.OriginOkta, testOrgURL, testHostID)
 	_, err = ap.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
@@ -242,7 +239,6 @@ func TestAccessRequestReconciler_idempotency(t *testing.T) {
 func TestAccessRequestToOktaAssignment(t *testing.T) {
 	const accessRequestName = "access_request"
 	const user = "user"
-	hash := crypto.SHA256
 	clock := clockwork.NewFakeClock()
 	expires := clock.Now()
 
@@ -258,9 +254,9 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 		{
 			name: "Okta targets",
 			appTargets: []types.AppServer{
-				application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
-				application(t, hash, "app2", "link1", types.OriginOkta, testOrgURL, testHostID),
-				application(t, hash, "app3", "link1", types.OriginDynamic, testOrgURL, testHostID),
+				application(t, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app2", "link1", types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app3", "link1", types.OriginDynamic, testOrgURL, testHostID),
 			},
 			groupTargets: []types.UserGroup{
 				group(t, "group1", types.OriginOkta, testOrgURL),
@@ -278,7 +274,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 			name:              "app not found",
 			skipBackendCreate: true,
 			appTargets: []types.AppServer{
-				application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignmentStatus: constants.OktaAssignmentStatusPending,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
@@ -299,9 +295,9 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 		{
 			name: "no Okta targets",
 			appTargets: []types.AppServer{
-				application(t, hash, "app1", "link1", types.OriginDynamic, testOrgURL, testHostID),
-				application(t, hash, "app2", "link1", types.OriginDynamic, testOrgURL, testHostID),
-				application(t, hash, "app3", "link1", types.OriginDynamic, testOrgURL, testHostID), // This should be skipped
+				application(t, "app1", "link1", types.OriginDynamic, testOrgURL, testHostID),
+				application(t, "app2", "link1", types.OriginDynamic, testOrgURL, testHostID),
+				application(t, "app3", "link1", types.OriginDynamic, testOrgURL, testHostID), // This should be skipped
 			},
 			groupTargets: []types.UserGroup{
 				group(t, "group1", types.OriginDynamic, testOrgURL),

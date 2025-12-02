@@ -24,7 +24,7 @@ type LocalData struct {
 	// data
 	apps   utils.SyncMap[oktaapi.OktaAppID, *okta.Application]
 	groups utils.SyncMap[oktaapi.OktaGroupID, *okta.Group]
-	users  utils.SyncMap[oktaapi.UserName, oktaapi.OktaUserID]
+	users  utils.SyncMap[oktaapi.UserName, *okta.User]
 	// relationships
 	groupsToUsers utils.SyncMap[oktaapi.OktaGroupID, set.Set[oktaapi.OktaUserID]]
 	appsToUsers   utils.SyncMap[oktaapi.OktaAppID, set.Set[oktaapi.OktaUserID]]
@@ -36,7 +36,7 @@ func newLocalData() *LocalData {
 		// data
 		apps:   utils.SyncMap[oktaapi.OktaAppID, *okta.Application]{},
 		groups: utils.SyncMap[oktaapi.OktaGroupID, *okta.Group]{},
-		users:  utils.SyncMap[oktaapi.UserName, oktaapi.OktaUserID]{},
+		users:  utils.SyncMap[oktaapi.UserName, *okta.User]{},
 		// relationships
 		groupsToUsers: utils.SyncMap[oktaapi.OktaGroupID, set.Set[oktaapi.OktaUserID]]{},
 		appsToUsers:   utils.SyncMap[oktaapi.OktaAppID, set.Set[oktaapi.OktaUserID]]{},
@@ -54,18 +54,35 @@ func (d *LocalData) GetAppUserAssignments() map[oktaapi.OktaAppID]set.Set[oktaap
 	return d.appsToUsers.Clone()
 }
 
-func (d *LocalData) UpsertUser(username oktaapi.UserName, userId oktaapi.OktaUserID) {
-	d.users.Store(username, userId)
+// UpsertUserForId is used set up testing Okta org user.  It's a convenience function for UpsertUser.
+func (d *LocalData) UpsertUserForId(username oktaapi.UserName, id string) {
+	u := NewOrgUser(UserArgs{Name: string(username), ID: id, Status: StatusActive})
+	d.UpsertUser(u)
+}
+
+// UpsertUser is used set up testing Okta org user. [NewOrgUser] helper can be used to create the
+// user struct.
+func (d *LocalData) UpsertUser(u *okta.User) {
+	username := getProfileLogin(u.Profile)
+	d.users.Store(oktaapi.UserName(username), u)
 }
 
 func (d *LocalData) DeleteUser(username oktaapi.UserName) {
 	d.users.Delete(username)
 }
 
+// UpsertApp is used set up testing Okta application. It's a convenience function for UpsertApp.
 func (d *LocalData) UpsertAppForId(appId oktaapi.OktaAppID) {
-	d.UpsertApp(&okta.Application{Id: string(appId)})
+	d.UpsertApp(NewApplication(ApplicationArgs{
+		ID:     string(appId),
+		Label:  "Test Application " + string(appId),
+		Status: StatusActive,
+		Links:  []AppLink{{Name: "test_link_1", Href: "https://testlink1.example.com"}},
+	}))
 }
 
+// UpsertApp is used set up testing Okta application. [NewApplication] helper can be used to create the
+// application struct.
 func (d *LocalData) UpsertApp(app *okta.Application) {
 	d.apps.Store(oktaapi.OktaAppID(app.Id), app)
 }
@@ -77,9 +94,10 @@ func (d *LocalData) DeleteApp(appId oktaapi.OktaAppID) {
 }
 
 func (d *LocalData) UpsertGroupForId(groupId oktaapi.OktaGroupID) {
-	d.UpsertGroup(&okta.Group{Id: string(groupId)})
+	d.UpsertGroup(NewGroup(GroupArgs{ID: string(groupId), Name: "Name of group " + string(groupId)}))
 }
 
+// UpsertGroup sets up Okta group for testing. You can user [NewGroup] to create the group struct.
 func (d *LocalData) UpsertGroup(group *okta.Group) {
 	d.groups.Store(oktaapi.OktaGroupID(group.Id), group)
 }
@@ -113,8 +131,36 @@ func (d *LocalData) UpsertAppGroups(appId oktaapi.OktaAppID, groupIds ...oktaapi
 // newClientFuncs creates ClientFuncs operating on the local data.
 func (d *LocalData) newClientFuncs() ClientFuncs {
 	return ClientFuncs{
-		ListUsersFunc: func(_ *testing.T, _ context.Context, _ ...query.ParamOptions) (map[oktaapi.UserName]oktaapi.OktaUserID, error) {
-			return d.users.Clone(), nil
+		ListUsersFunc: func(_ *testing.T, _ context.Context, paramOpt ...query.ParamOptions) (map[oktaapi.UserName]oktaapi.OktaUserID, error) {
+			p := &query.Params{}
+			for _, par := range paramOpt {
+				par(p)
+			}
+			switch p.Filter {
+			case "":
+			case `status eq "DEPROVISIONED"`:
+				return nil, nil
+			default:
+				panic("unhandled filter: " + p.Filter)
+			}
+
+			m := make(map[oktaapi.UserName]oktaapi.OktaUserID, d.users.Len())
+			for k, u := range d.users.Range {
+				m[k] = oktaapi.OktaUserID(u.Id)
+			}
+			return m, nil
+		},
+
+		IterateUsersFunc: func(_ *testing.T, ctx context.Context, fn func(*okta.User) error, queryParams ...query.ParamOptions) error {
+			for _, u := range d.users.Range {
+				if err := fn(u); err != nil {
+					if errors.Is(err, oktaapi.ErrStopIteration) {
+						break
+					}
+					return trace.Wrap(err)
+				}
+			}
+			return nil
 		},
 
 		IterateAppsFunc: func(_ *testing.T, _ context.Context, fn func(okta.App) error, queryParams ...query.ParamOptions) error {
@@ -139,6 +185,17 @@ func (d *LocalData) newClientFuncs() ClientFuncs {
 				}
 			}
 			return nil
+		},
+
+		ListUserGroupsFunc: func(t *testing.T, ctx context.Context, userID string) ([]oktaapi.UserGroup, error) {
+			res := make([]oktaapi.UserGroup, 0, d.groups.Len())
+			for _, g := range d.groups.Range {
+				res = append(res, oktaapi.UserGroup{
+					ID:   g.Id,
+					Name: g.Profile.Name,
+				})
+			}
+			return res, nil
 		},
 
 		GetAppGroupsFunc: func(_ *testing.T, _ context.Context, appId oktaapi.OktaAppID) (groups []oktaapi.OktaGroupID, err error) {
@@ -230,4 +287,15 @@ func rmFromRelation[K comparable, V comparable](relation *utils.SyncMap[K, set.S
 			}
 		}
 	})
+}
+
+func getProfileLogin(profile *okta.UserProfile) string {
+	if profile == nil {
+		panic("profile is nil")
+	}
+	login, ok := (*profile)["login"]
+	if !ok {
+		panic("profile does not have 'login' key")
+	}
+	return login.(string)
 }

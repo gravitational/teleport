@@ -14,4 +14,4 @@ type oktaGroupID = oktaapi.OktaGroupID
 
 type testOktaClient = oktaapi.TestOktaClient
 
-var newTestClient = oktaapi.NewTestClient
+var newTestOktaClient = oktaapi.NewTestClient

@@ -29,23 +29,43 @@ func isAccessListMember(members []*accesslist.AccessListMember, user string) boo
 }
 
 func mustGetAccessListAndMembers(t require.TestingT, client services.AccessLists, name string) (*accesslist.AccessList, []*accesslist.AccessListMember) {
+	callHelper(t)
+
 	acl := mustGetAccessList(t, client, name)
-	members := mustGetAccessListMembers(t, client, name)
+	members := mustGetAllAccessListMembers(t, client, name)
 	return acl, members
 }
 
 func mustGetAccessList(t require.TestingT, client services.AccessLists, name string) *accesslist.AccessList {
-	out, err := client.GetAccessList(context.Background(), name)
+	callHelper(t)
+	ctx, cancel := getContext(t, 10*time.Second)
+	defer cancel()
+
+	out, err := client.GetAccessList(ctx, name)
 	require.NoError(t, err)
 	return out
 }
 
-func mustGetAccessListMembers(t require.TestingT, client services.AccessLists, name string) []*accesslist.AccessListMember {
+func mustGetAccessListMember(t require.TestingT, client services.AccessLists, accessList, member string) *accesslist.AccessListMember {
+	callHelper(t)
+	ctx, cancel := getContext(t, 10*time.Second)
+	defer cancel()
+
+	res, err := client.GetAccessListMember(ctx, accessList, member)
+	require.NoError(t, err)
+	return res
+}
+
+func mustGetAllAccessListMembers(t require.TestingT, client services.AccessLists, name string) []*accesslist.AccessListMember {
+	callHelper(t)
+	ctx, cancel := getContext(t, 30*time.Second)
+	defer cancel()
+
 	var out, members []*accesslist.AccessListMember
 	var err error
 	var token string
 	for {
-		members, token, err = client.ListAccessListMembers(context.Background(), name, 0, "")
+		members, token, err = client.ListAccessListMembers(ctx, name, 0, "")
 		require.NoError(t, err)
 		out = append(out, members...)
 		if token == "" {
@@ -56,6 +76,7 @@ func mustGetAccessListMembers(t require.TestingT, client services.AccessLists, n
 }
 
 func mustCreateMember(t *testing.T, aclName, memberName string) *accesslist.AccessListMember {
+	t.Helper()
 	clock := clockwork.NewRealClock()
 	member, err := accesslist.NewAccessListMember(
 		header.Metadata{
@@ -71,4 +92,19 @@ func mustCreateMember(t *testing.T, aclName, memberName string) *accesslist.Acce
 	)
 	require.NoError(t, err)
 	return member
+}
+
+func callHelper(t require.TestingT) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+}
+
+func getContext(t require.TestingT, timeout time.Duration) (ctx context.Context, cancel func()) {
+	if c, ok := t.(interface{ Context() context.Context }); ok {
+		ctx = c.Context()
+	} else {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(ctx, timeout)
 }

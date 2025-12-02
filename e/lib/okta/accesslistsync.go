@@ -362,7 +362,7 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 // if not already loaded. Caller requires a lock on oktaUsersMu.
 func (a *accessListSync) loadOktaUsers(ctx context.Context) error {
 	// Check if Okta users are already loaded.
-	if a.oktaUsers != nil && a.oktaUserMapping != nil {
+	if len(a.oktaUsers) > 0 && a.oktaUserMapping != nil {
 		return nil
 	}
 	a.logger.InfoContext(ctx, "Loading Okta users")
@@ -508,7 +508,7 @@ func (a *accessListSync) getAndProcessMembers(ctx context.Context, accessListNam
 // root Access List if this is a member of a nested Access List.
 func (a *accessListSync) processMember(member *accesslist.AccessListMember, accessListName string) {
 	// Check if the member exists in Okta users
-	if a.oktaUsers != nil {
+	if len(a.oktaUsers) > 0 {
 		// If the member exists in oktaUsers and has no origin set, artificially set it.
 		// This avoids upserting the member to the root access list on reconciliation.
 		if _, ok := a.oktaUsers[userName(member.Spec.Name)]; ok {

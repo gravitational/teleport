@@ -37,7 +37,8 @@ func TestSynchronizeGroups(t *testing.T) {
 
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
-	svc, client, emitter := newTestService(t, ap)
+	client := newTestOktaClient()
+	svc, emitter := newTestService(t, ap, client)
 	t.Cleanup(svc.stopAllHeartbeats)
 
 	// Add in one app to get a group to app mapping from
@@ -348,7 +349,10 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 
 			// GIVEN a running Okta sync service
 			ap := newTestAccessPoint(t, clockwork.NewRealClock())
-			svc, client, emitter := newTestService(t, ap)
+			client := newTestOktaClient()
+			// Increase the BackendTasksPerSecond so the test doesn't timeout with the
+			// flaky tests detector -count 100 flag.
+			svc, emitter := newTestService(t, ap, client, withBackendTasksPerSecond(10))
 			require.NoError(t, svc.seedGroupReconciler(ctx))
 			t.Cleanup(svc.stopAllHeartbeats)
 
@@ -420,7 +424,8 @@ func TestSynchronizeApplications(t *testing.T) {
 
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
-	svc, client, emitter := newTestService(t, ap)
+	client := newTestOktaClient()
+	svc, emitter := newTestService(t, ap, client)
 	require.NoError(t, svc.seedGroupReconciler(ctx))
 	t.Cleanup(svc.stopAllHeartbeats)
 
@@ -528,7 +533,7 @@ func TestSynchronizeApplications(t *testing.T) {
 func TestEmitSyncEventsInBatches(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
-	svc, _, emitter := newTestService(t, ap)
+	svc, emitter := newTestService(t, ap, newTestOktaClient())
 	require.NoError(t, svc.seedGroupReconciler(ctx))
 
 	added := genEventResources(50, "added")
@@ -574,7 +579,7 @@ func TestEmitSyncEventsInBatches(t *testing.T) {
 func TestTickerUpdates(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
-	svc, _, _ := newTestService(t, ap)
+	svc, _ := newTestService(t, ap, newTestOktaClient())
 	clock := clockwork.NewFakeClock()
 	svc.clock = clock
 	svc.timeBetweenSyncs = time.Second * 10
@@ -732,7 +737,8 @@ func TestSynchronizeUsers(t *testing.T) {
 		_, err = ap.CreateSAMLConnector(ctx, connector)
 		require.NoError(subtestT, err, "registering SAML connector")
 
-		svc, client, _ := newTestService(subtestT, ap,
+		client := newTestOktaClient()
+		svc, _ := newTestService(subtestT, ap, client,
 			withUserSyncEnabled(types.OktaUserSyncSourceSamlApp),
 			withOktaAppID(oktaSAMLAppID),
 			withSSOConnector(samlConnectorName),
@@ -979,7 +985,8 @@ func Test_fetchOktaUsers(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ap := newTestAccessPoint(t, clockwork.NewRealClock())
-			svc, client, _ := newTestService(t, ap,
+			client := newTestOktaClient()
+			svc, _ := newTestService(t, ap, client,
 				withUserSyncEnabled(tc.userSyncSource),
 				withOktaAppID("to-be-replaced-below-app-id"),
 				withSSOConnector("fetchOktaUsers-test-sso-connector"),

@@ -2,7 +2,6 @@ package okta
 
 import (
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
@@ -242,6 +241,12 @@ func withSSOConnector(c string) testServiceOpt {
 	}
 }
 
+func withBackendTasksPerSecond(backendTasksPerSecond int) testServiceOpt {
+	return func(cfg *Config) {
+		cfg.BackendTasksPerSecond = backendTasksPerSecond
+	}
+}
+
 func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt) (Config, *eventstest.ChannelEmitter) {
 	t.Helper()
 
@@ -289,13 +294,12 @@ func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt)
 }
 
 // newTestService creates a new test Okta service.
-func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
+func newTestService(t *testing.T, ap *testAccessPoint, oktaClient oktaapi.Interface, opts ...testServiceOpt) (*Service, *eventstest.ChannelEmitter) {
 	t.Helper()
 
 	ctx := context.Background()
 
-	client := newTestClient()
-	config, emitter := newTestConfig(t, ap, options...)
+	config, emitter := newTestConfig(t, ap, opts...)
 
 	if config.SyncSettings.SsoConnectorId != "" {
 		if conn, err := ap.GetSAMLConnector(ctx, config.SyncSettings.SsoConnectorId, false); err != nil || conn == nil {
@@ -304,7 +308,11 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 		}
 	}
 
-	svc, err := newWithClientCreator(ctx, config, oktaapi.CreatorFromTestClient(client))
+	oktaClientFn := func(_ context.Context, _ oktaapi.Config) (oktaapi.Interface, error) {
+		return oktaClient, nil
+	}
+
+	svc, err := newWithClientCreator(ctx, config, oktaClientFn)
 	require.NoError(t, err)
 
 	// Skip client cert verification for tests.
@@ -314,7 +322,7 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 	require.NoError(t, err)
 	require.NoError(t, ap.UpsertProxy(ctx, proxyServer))
 
-	return svc, client, emitter
+	return svc, emitter
 }
 
 func newLockWatcher(t *testing.T, ap *testAccessPoint) *services.LockWatcher {
@@ -394,7 +402,7 @@ func newApp(t testing.TB, metadata types.Metadata, appSpec types.AppSpecV3) *typ
 	return app
 }
 
-func application(t testing.TB, hash crypto.Hash, name, appLinkName, origin, orgURL, hostID string) types.AppServer {
+func application(t testing.TB, name, appLinkName, origin, orgURL, hostID string) types.AppServer {
 	t.Helper()
 
 	labels := map[string]string{

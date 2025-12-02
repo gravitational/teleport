@@ -345,6 +345,12 @@ func TestAccessListOwnerPermissions(t *testing.T) {
 	aliceTC := sut.GetClusterClientForUser(t, "alice")
 	aliceAccessListClient := aliceTC.AuthClient.AccessListClient()
 
+	// Wait for the cache to propagate.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_ = mustGetAccessList(t, aliceAccessListClient, testAccessList.GetName())
+		_ = mustGetAccessListMember(t, aliceAccessListClient, testAccessList.GetName(), "alice")
+	}, 10*time.Second, 100*time.Millisecond)
+
 	t.Run("owner should not be able to modify their membership properties", func(t *testing.T) {
 		acl, members := mustGetAccessListAndMembers(t, aliceAccessListClient, testAccessList.GetName())
 
@@ -354,7 +360,7 @@ func TestAccessListOwnerPermissions(t *testing.T) {
 		idx := slices.IndexFunc(members, func(v *accesslist.AccessListMember) bool {
 			return v.Spec.Name == "alice"
 		})
-		require.NotEqual(t, idx, -1)
+		require.NotEqual(t, -1, idx)
 		members[idx].Spec.Expires = sut.Clock.Now().Add(time.Hour * 24 * 10)
 
 		_, _, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, acl, members)

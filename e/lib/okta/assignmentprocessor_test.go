@@ -2,7 +2,6 @@ package okta
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"testing"
 	"time"
@@ -26,7 +25,6 @@ func TestProcessAssignments(t *testing.T) {
 	t.Parallel()
 
 	const link = "link"
-	hash := crypto.SHA256
 	appName := func(name string) string {
 		return mustAppName(t, name, link)
 	}
@@ -71,8 +69,8 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
-				application(t, hash, "app2", link, types.OriginOkta, "different-org-url", testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app2", link, types.OriginOkta, "different-org-url", testHostID),
 			},
 			deleteOktaAppIDs: map[string]bool{
 				mustAppName(t, "app1", link): true,
@@ -112,8 +110,8 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			groupsSkipAddToOkta: true,
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
-				application(t, hash, "app2", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app2", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -193,7 +191,7 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			groupsSkipAddToOkta: true,
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			appsSkipAddToOkta: true,
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusPending, startTime, false,
@@ -225,7 +223,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusPending, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -259,7 +257,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime, true,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -280,7 +278,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime, true,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -305,7 +303,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusProcessing, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -339,7 +337,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			// The cleanup time is 1 minute ahead of the last transition time, which puts it in the window of
 			// not immediately transitioning. However, assignments should be cleaned up immediately even if they're
@@ -378,7 +376,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusFailed, timeout.Add(1*time.Minute), false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -409,7 +407,7 @@ func TestProcessAssignments(t *testing.T) {
 		{
 			name: "still assigned because two assignments refer to the same target",
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignments: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime, false,
@@ -443,7 +441,7 @@ func TestProcessAssignments(t *testing.T) {
 		{
 			name: "still assigned because two assignments refer to the same target (reverse order)",
 			apps: types.AppServers{
-				application(t, hash, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
 			},
 			assignments: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime, false,
@@ -483,7 +481,8 @@ func TestProcessAssignments(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(startTime)
 			ctx := context.Background()
 			ap := newTestAccessPoint(t, clock)
-			svc, oktaClient, emitter := newTestService(t, ap)
+			oktaClient := newTestOktaClient()
+			svc, emitter := newTestService(t, ap, oktaClient)
 			svc.clock = clock
 			a := newAssignmentProcessor(svc, func() types.OktaAssignments {
 				return test.assignments

@@ -249,9 +249,9 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("Okta apps have assignments, groups have no assignments", func(t *testing.T) {
 		c := initAccessListSync(t, ctx)
 
-		c.oktaData.UpsertUser("user1", "1")
-		c.oktaData.UpsertUser("user2", "2")
-		c.oktaData.UpsertUser("user3", "3")
+		c.oktaData.UpsertUserForId("user1", "1")
+		c.oktaData.UpsertUserForId("user2", "2")
+		c.oktaData.UpsertUserForId("user3", "3")
 		c.oktaData.UpsertAppForId("app1-okta")
 		c.oktaData.UpsertAppForId("app2-okta")
 		c.oktaData.UpsertAppUserAssignments("app1-okta", "1", "2", "3")
@@ -313,8 +313,8 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("Okta apps have assignments, groups have assignments", func(t *testing.T) {
 		c := initAccessListSync(t, ctx)
 
-		c.oktaData.UpsertUser("user1", "1")
-		c.oktaData.UpsertUser("user2", "2")
+		c.oktaData.UpsertUserForId("user1", "1")
+		c.oktaData.UpsertUserForId("user2", "2")
 		c.oktaData.UpsertAppForId("app1-okta")
 		c.oktaData.UpsertAppForId("app2-okta")
 		c.oktaData.UpsertGroupForId("group1")
@@ -385,8 +385,8 @@ func TestAccessListSync(t *testing.T) {
 			regexp.MustCompile("^dev.*$"),
 		}
 
-		c.oktaData.UpsertUser("user1", "1")
-		c.oktaData.UpsertUser("user2", "2")
+		c.oktaData.UpsertUserForId("user1", "1")
+		c.oktaData.UpsertUserForId("user2", "2")
 		c.oktaData.UpsertAppForId("admin-app1-okta")
 		c.oktaData.UpsertAppForId("dev-app2-okta")
 		c.oktaData.UpsertAppForId("dev-app3-okta")
@@ -503,9 +503,9 @@ func TestAccessListSync(t *testing.T) {
 			"app4": newRole(t, "app4", nil, nil),
 		}, c.svc.importRoles.Clone(), cmpOpts...))
 
-		c.oktaData.UpsertUser("user1", "1")
-		c.oktaData.UpsertUser("user2", "2")
-		c.oktaData.UpsertUser("user-to-remove", "remove")
+		c.oktaData.UpsertUserForId("user1", "1")
+		c.oktaData.UpsertUserForId("user2", "2")
+		c.oktaData.UpsertUserForId("user-to-remove", "remove")
 		c.oktaData.UpsertAppForId("app1-okta")
 		c.oktaData.UpsertAppForId("app2-okta")
 		c.oktaData.UpsertGroupForId("group1")
@@ -716,8 +716,8 @@ func TestAccessListSync(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				// GIVEN an Okta integration with multiple synced users and apps
 				c := initAccessListSync(t, ctx)
-				c.oktaData.UpsertUser("user1", "1")
-				c.oktaData.UpsertUser("user2", "2")
+				c.oktaData.UpsertUserForId("user1", "1")
+				c.oktaData.UpsertUserForId("user2", "2")
 				for _, appName := range appNames {
 					app := c.addApp(newAccessListSyncApp(t, appName))
 					appID, _ := app.GetLabel(eteleport.OktaAppIDLabel)

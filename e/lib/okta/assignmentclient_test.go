@@ -47,7 +47,7 @@ func TestAssignmentClient(t *testing.T) {
 	// Factory for creating an assignment client backed by a test Okta client
 	// pre-configured with a user and some group and app memberships.
 	testClientWithAssignments := func() (*testOktaClient, *assignmentClient) {
-		oktaClient := newTestClient()
+		oktaClient := newTestOktaClient()
 
 		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
 		oktaClient.AppsToUsers.Store(testApp, set.New(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}))
@@ -62,7 +62,7 @@ func TestAssignmentClient(t *testing.T) {
 
 	t.Run("no such user is an error", func(t *testing.T) {
 		// Given an Okta system with no users or groups...
-		assignmentClient := newAssignmentClient(log, newTestClient())
+		assignmentClient := newAssignmentClient(log, newTestOktaClient())
 
 		// When I attempt to perform operations that require a given
 		// user to exist, those operations will fail
@@ -77,7 +77,7 @@ func TestAssignmentClient(t *testing.T) {
 	t.Run("user with no apps no groups", func(t *testing.T) {
 		// Given an assignmentClient backed by an Okta system with one user and
 		// no apps or groups configured...
-		oktaClient := newTestClient()
+		oktaClient := newTestOktaClient()
 		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
 		assignmentClient := newAssignmentClient(log, oktaClient)
 
@@ -94,7 +94,7 @@ func TestAssignmentClient(t *testing.T) {
 	t.Run("assignments and caching", func(t *testing.T) {
 		// Given an assignmentClient backed by an Okta system with one user, one
 		// group and one app configured, but the user is not assigned to either...
-		oktaClient := newTestClient()
+		oktaClient := newTestOktaClient()
 		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
 		oktaClient.AppsToUsers.Store(testApp, set.New[oktaapi.AppAssignment]())
 		oktaClient.GroupsToUsers.Store(testGroup, set.New[oktaapi.OktaUserID]())
