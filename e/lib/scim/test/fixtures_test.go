@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/scim/service"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
-	"github.com/gravitational/teleport/e/lib/scim/service/provider/resourcehandler"
+	"github.com/gravitational/teleport/e/lib/scim/service/provider/okta/oktahandler"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -116,12 +116,12 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *test
 	scimSvc.CreateHandlerForPlugin = func(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error) {
 		switch resourceType {
 		case "Users":
-			return &resourcehandler.UserHandler{
+			return &oktahandler.UserHandler{
 				Config:       config,
 				ProviderUser: fix.shim,
 			}, nil
 		case "Groups":
-			return &resourcehandler.GroupHandler{
+			return &oktahandler.GroupHandler{
 				Config:        config,
 				ProviderGroup: fix.shim,
 			}, nil

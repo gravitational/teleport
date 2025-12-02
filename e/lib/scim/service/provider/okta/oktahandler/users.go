@@ -1,4 +1,4 @@
-package resourcehandler
+package oktahandler
 
 import (
 	"context"

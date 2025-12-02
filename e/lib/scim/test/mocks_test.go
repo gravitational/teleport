@@ -12,7 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
-	"github.com/gravitational/teleport/e/lib/scim/service/provider/resourcehandler"
+	"github.com/gravitational/teleport/e/lib/scim/service/provider/okta/oktahandler"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
@@ -128,7 +128,7 @@ type mockProviderShim struct {
 	mock.Mock
 }
 
-var _ resourcehandler.Shim = (*mockProviderShim)(nil)
+var _ oktahandler.Shim = (*mockProviderShim)(nil)
 
 // AccessListPredicate checks if the access list is "owned" by this provider
 func (m *mockProviderShim) AccessListPredicate(ctx context.Context, acl *accesslist.AccessList) bool {

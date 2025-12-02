@@ -22,7 +22,7 @@ import (
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/lib/scim/conv"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
-	"github.com/gravitational/teleport/e/lib/scim/service/provider/resourcehandler"
+	"github.com/gravitational/teleport/e/lib/scim/service/provider/okta/oktahandler"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
@@ -47,7 +47,7 @@ func New(config common.Config, pluginV1 *types.PluginV1, resourceType string) (c
 	config.Logger = slog.With(teleport.ComponentKey, teleport.Component("scim", eteleport.ComponentOkta))
 	switch resourceType {
 	case "Users":
-		return &resourcehandler.UserHandler{
+		return &oktahandler.UserHandler{
 			Config: config,
 			ProviderUser: &oktaShim{
 				Config: config,
@@ -55,7 +55,7 @@ func New(config common.Config, pluginV1 *types.PluginV1, resourceType string) (c
 			},
 		}, nil
 	case "Groups":
-		return &resourcehandler.GroupHandler{
+		return &oktahandler.GroupHandler{
 			Config: config,
 			ProviderGroup: &oktaShim{
 				Config: config,
