@@ -142,10 +142,7 @@ export interface Action {
 }
 
 export interface AlertProps
-  extends Props<AlertKind>,
-    SpaceProps,
-    WidthProps,
-    ColorProps {
+  extends Props<AlertKind>, SpaceProps, WidthProps, ColorProps {
   linkColor?: string;
   /**
    * If specified, the alert's contents will wrap for narrower screens
