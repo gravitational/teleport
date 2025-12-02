@@ -9293,6 +9293,93 @@ func TestWithLimiterHandlerFunc(t *testing.T) {
 	require.True(t, trace.IsLimitExceeded(err), "WithLimiterHandlerFunc returned err = %T, want trace.LimitExceededError", err)
 }
 
+func TestWitWithAccessDeniedLimiter(t *testing.T) {
+	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{Period: time.Minute, Average: 2, Burst: 3},
+		},
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	h := &Handler{limiter: rateLimiter}
+
+	callCount := 0
+	shouldFail := false
+	handle := h.WithAccessDeniedLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		callCount++
+		if shouldFail {
+			return nil, trace.AccessDenied("invalid credentials")
+		}
+		return "success", nil
+	})
+
+	r := &http.Request{RemoteAddr: "192.168.1.1:1234"}
+
+	// Make some successful requests - these should not count toward rate limit
+	for i := 0; i < 5; i++ {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+
+	// Now make access denied requests - only these should count
+	shouldFail = true
+	for i := 0; i < 3; i++ {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusForbidden, w.Code)
+	}
+	require.Equal(t, 8, callCount)
+
+	// Next request should be rate limited (handler not called)
+	w := httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+
+	require.Equal(t, 8, callCount)
+}
+
+func TestWithUnauthenticatedLimiter(t *testing.T) {
+	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{Period: time.Minute, Average: 2, Burst: 3},
+		},
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	h := &Handler{limiter: rateLimiter}
+
+	callCount := 0
+	handle := h.WithUnauthenticatedLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		callCount++
+		return "success", nil
+	})
+
+	r := &http.Request{RemoteAddr: "192.168.1.1:1234"}
+
+	// Request should return the error from handler
+	w := httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, 1, callCount)
+
+	// Should be able to make more requests (they still count toward rate limit)
+	for range 2 {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+	require.Equal(t, 3, callCount)
+
+	// Next request should be rate limited
+	w = httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+	require.Equal(t, 3, callCount)
+}
+
 // kubeClusterConfig defines the cluster to be created
 type kubeClusterConfig struct {
 	name        string
