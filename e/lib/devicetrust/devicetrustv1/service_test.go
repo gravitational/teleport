@@ -2796,10 +2796,9 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 			wantErr:   "user agent required",
 		},
 		{
-			name:      "BrowserUserAgent invalid",
-			token:     makeToken(userLlama, "ceci n'est pas a user agent"),
-			assertErr: trace.IsBadParameter,
-			wantErr:   "user agent",
+			name:  "BrowserUserAgent invalid",
+			token: makeToken(userLlama, "ceci n'est pas a user agent"),
+			// want `nil, nil`
 		},
 		{
 			name:      "User empty",

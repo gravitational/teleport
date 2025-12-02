@@ -8,9 +8,10 @@ import (
 
 func TestGetOSFromUserAgent(t *testing.T) {
 	tests := []struct {
-		name string
-		uas  []string
-		want devicepb.OSType
+		name           string
+		uas            []string
+		maxTouchPoints uint32
+		want           devicepb.OSType
 	}{
 		{
 			name: "macOS desktops",
@@ -57,18 +58,12 @@ func TestGetOSFromUserAgent(t *testing.T) {
 		{
 			name: "Mobile",
 			uas: []string{
-				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 EdgiOS/121.2277.133 Mobile/15E148 Safari/605.1.15", // iPhone, Safari
-				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/122.0.6261.62 Mobile/15E148 Safari/604.1",                   // iPhone, Chrome
-				"Mozilla/5.0 (iPhone; CPU iPhone OS 14_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/123.0 Mobile/15E148 Safari/605.1.15",                      // iPhone, Firefox
-				"Mozilla/5.0 (iPod touch; CPU iPhone 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1",                     // iPod
-				"Mozilla/5.0 (iPod; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/122.0.6261.62 Mobile/15E148 Safari/604.1",                     // iPod
-				"Mozilla/5.0 (iPad; CPU OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1",                               // iPad
-				"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36",                                              // K
-				"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",                                                         // K
-				"Mozilla/5.0 (Linux; Android 10; HD1913) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36 EdgA/121.0.2277.105",                     // OnePlus
-				"Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36 EdgA/121.0.2277.105",                   // Samsung
-				"Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36 EdgA/121.0.2277.105",                 // Pixel
-				"Mozilla/5.0 (Android 14; Mobile; rv:123.0) Gecko/123.0 Firefox/123.0",                                                                                             // "generic" Android
+				"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36",                              // K
+				"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",                                         // K
+				"Mozilla/5.0 (Linux; Android 10; HD1913) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36 EdgA/121.0.2277.105",     // OnePlus
+				"Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36 EdgA/121.0.2277.105",   // Samsung
+				"Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.64 Mobile Safari/537.36 EdgA/121.0.2277.105", // Pixel
+				"Mozilla/5.0 (Android 14; Mobile; rv:123.0) Gecko/123.0 Firefox/123.0",                                                                             // "generic" Android
 			},
 			want: devicepb.OSType_OS_TYPE_UNSPECIFIED,
 		},
@@ -87,11 +82,30 @@ func TestGetOSFromUserAgent(t *testing.T) {
 			},
 			want: devicepb.OSType_OS_TYPE_UNSPECIFIED,
 		},
+		{
+			name: "iOS",
+			uas: []string{
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 EdgiOS/121.2277.133 Mobile/15E148 Safari/605.1.15", // iPhone, Safari
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/122.0.6261.62 Mobile/15E148 Safari/604.1",                   // iPhone, Chrome
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 14_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/123.0 Mobile/15E148 Safari/605.1.15",                      // iPhone, Firefox
+			},
+			// TODO(ravicious): Change to iOS once Device Trust for iOS is available.
+			want: devicepb.OSType_OS_TYPE_UNSPECIFIED,
+		},
+		{
+			name:           "iPadOS",
+			maxTouchPoints: 5,
+			uas: []string{
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15",
+			},
+			// TODO(ravicious): Change to iPadOS once Device Trust for iPadOS is available.
+			want: devicepb.OSType_OS_TYPE_UNSPECIFIED,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for _, ua := range test.uas {
-				got := getOSFromUserAgent(ua)
+				got := getOSFromUserAgent(ua, test.maxTouchPoints)
 				if got != test.want {
 					t.Errorf("getOSFromUserAgent(%q) = %s, want %s", ua, got, test.want)
 				}

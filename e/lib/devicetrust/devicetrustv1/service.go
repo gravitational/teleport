@@ -1230,9 +1230,10 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	}
 
 	// Parse user agent, determine OS.
-	expectedOS := loggedGetOSFromUserAgent(s.logger, token.BrowserUserAgent)
+	expectedOS := loggedGetOSFromUserAgent(s.logger, token.BrowserUserAgent, token.BrowserMaxTouchPoints)
 	if expectedOS == devicepb.OSType_OS_TYPE_UNSPECIFIED {
-		return nil, trace.BadParameter("cannot parse OS from user agent")
+		s.logger.WarnContext(ctx, "No supported OS type found in user agent, DeviceWebToken will not be created")
+		return nil, nil
 	}
 
 	// Fetch user devices.
