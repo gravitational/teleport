@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"text/template"
@@ -161,7 +162,7 @@ func generateExampleToken(params KeypairMessageParams, indent string) (string, e
 	return indented.String(), nil
 }
 
-func printKeypair(params KeypairMessageParams, format string) error {
+func printKeypair(w io.Writer, params KeypairMessageParams, format string) error {
 	example, err := generateExampleToken(params, "\t")
 	if err != nil {
 		return trace.Wrap(err)
@@ -171,7 +172,7 @@ func printKeypair(params KeypairMessageParams, format string) error {
 
 	switch format {
 	case teleport.Text:
-		if err := keypairMessageTemplate.Execute(os.Stdout, params); err != nil {
+		if err := keypairMessageTemplate.Execute(w, params); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:
@@ -183,7 +184,7 @@ func printKeypair(params KeypairMessageParams, format string) error {
 			return trace.Wrap(err, "generating json")
 		}
 
-		fmt.Printf("%s\n", string(bytes))
+		fmt.Fprintf(w, "%s\n", string(bytes))
 	default:
 		return trace.BadParameter("unsupported output format %s; keypair has not been generated", format)
 	}
@@ -193,16 +194,34 @@ func printKeypair(params KeypairMessageParams, format string) error {
 
 // printKeypairFromState prints the current keypair from the given client state using the
 // specified format.
-func printKeypairFromState(state *boundkeypair.FSClientState, format string) error {
+func printKeypairFromState(w io.Writer, state *boundkeypair.FSClientState, format string) error {
 	publicKeyBytes, err := state.ToPublicKeyBytes()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	keyString := strings.TrimSpace(string(publicKeyBytes))
-	return trace.Wrap(printKeypair(KeypairMessageParams{
+	return trace.Wrap(printKeypair(w, KeypairMessageParams{
 		PublicKey: keyString,
 	}, format))
+}
+
+func loadExistingStaticKeypair(path string) (crypto.Signer, error) {
+	bytes, err := os.ReadFile(path)
+	if trace.IsNotFound(err) {
+		// No existing keypair was found at the path, nothing to load.
+		return nil, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err, "could not read from static key path %s", path)
+	}
+
+	parsed, err := keys.ParsePrivateKey(bytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not parse existing key at static key path %s", path)
+	}
+
+	// MarshalPrivateKey expects an actual signer impl, so unpack it.
+	return parsed.Signer, nil
 }
 
 // generateStaticKeypair generates a static keypair, used when --static is set
@@ -211,18 +230,11 @@ func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cl
 	var err error
 
 	if cmd.StaticKeyPath != "" {
-		bytes, err := os.ReadFile(cmd.StaticKeyPath)
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err, "could not read from static key path %s", cmd.StaticKeyPath)
-		}
-
-		parsed, err := keys.ParsePrivateKey(bytes)
+		key, err = loadExistingStaticKeypair(cmd.StaticKeyPath)
 		if err != nil {
-			return trace.Wrap(err, "could not parse existing key at static key path %s", cmd.StaticKeyPath)
+			return trace.Wrap(err)
 		}
 
-		// MarshalPrivateKey expects an actual signer impl, so unpack it.
-		key = parsed.Signer
 		log.InfoContext(ctx, "Loaded existing static key from path", "path", cmd.StaticKeyPath)
 	}
 
@@ -235,9 +247,14 @@ func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cl
 			)
 		}
 
+		getSuite := cmd.GetSuite
+		if getSuite == nil {
+			getSuite = getSuiteFromProxy(cmd.ProxyServer, globals.Insecure)
+		}
+
 		key, err = cryptosuites.GenerateKey(
 			ctx,
-			getSuiteFromProxy(cmd.ProxyServer, globals.Insecure),
+			getSuite,
 			cryptosuites.BoundKeypairJoining,
 		)
 		if err != nil {
@@ -274,7 +291,12 @@ func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cl
 		)
 	}
 
-	return trace.Wrap(printKeypair(KeypairMessageParams{
+	w := cmd.Writer
+	if w == nil {
+		w = os.Stdout
+	}
+
+	return trace.Wrap(printKeypair(w, KeypairMessageParams{
 		PublicKey:         publicKeyString,
 		EnvName:           onboarding.BoundKeypairStaticKeyEnv,
 		EncodedPrivateKey: encodedPrivateKey,
@@ -302,23 +324,28 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 	}
 
 	fsAdapter := destination.NewBoundkeypairDestinationAdapter(dest)
+	w := cmd.Writer
+	if w == nil {
+		w = os.Stdout
+	}
 
 	// Check for existing client state.
 	state, err := boundkeypair.LoadClientState(ctx, fsAdapter)
 	if err == nil {
 		if !cmd.Overwrite {
 			log.InfoContext(ctx, "Existing client state found, printing existing public key. To generate a new key, pass --overwrite")
-			return trace.Wrap(printKeypairFromState(state, cmd.Format))
+			return trace.Wrap(printKeypairFromState(w, state, cmd.Format))
 		} else {
 			log.WarnContext(ctx, "Overwriting existing client state and generating a new keypair.")
 		}
 	}
 
-	state, err = boundkeypair.NewUnboundClientState(
-		ctx,
-		fsAdapter,
-		getSuiteFromProxy(cmd.ProxyServer, globals.Insecure),
-	)
+	getSuite := cmd.GetSuite
+	if getSuite == nil {
+		getSuite = getSuiteFromProxy(cmd.ProxyServer, globals.Insecure)
+	}
+
+	state, err = boundkeypair.NewUnboundClientState(ctx, fsAdapter, getSuite)
 	if err != nil {
 		return trace.Wrap(err, "initializing new client state")
 	}
@@ -333,5 +360,5 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 		"storage", dest.String(),
 	)
 
-	return trace.Wrap(printKeypairFromState(state, cmd.Format))
+	return trace.Wrap(printKeypairFromState(w, state, cmd.Format))
 }
