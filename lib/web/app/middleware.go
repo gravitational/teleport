@@ -31,7 +31,7 @@ import (
 // httprouter.Handler handler.
 func (h *Handler) withRouterAuth(handler routerAuthFunc) httprouter.Handle {
 	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
-		session, err := h.authenticate(r.Context(), r)
+		session, err := h.authenticate(r.Context(), r, nil /* appServer */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -47,11 +47,60 @@ func (h *Handler) withRouterAuth(handler routerAuthFunc) httprouter.Handle {
 func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 	return makeHandler(func(w http.ResponseWriter, r *http.Request) error {
 		// If the caller fails to authenticate, redirect the caller to Teleport.
-		session, err := h.authenticate(r.Context(), r)
+		session, err := h.authenticate(r.Context(), r, nil /* appServer */)
 		if err != nil {
 			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
 				return nil
 			}
+			return trace.Wrap(err)
+		}
+		if err := handler(w, r, session); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	})
+}
+
+// requestedAppParams contains information about the requested app.
+type requestedAppParams struct {
+	// appName is the application name.
+	appName string
+	// clusterName is the cluster name the application is part of.
+	clusterName string
+}
+
+// extracAppParamsFunc function used to extract the requested app params from
+// a request.
+type extracAppParamsFunc func(p httprouter.Params) requestedAppParams
+
+// withAuthAndAppResolver resolves app based on request then authenticate the
+// request before handling to a http.HandlerFunc.
+func (h *Handler) withAuthAndAppResolver(handler handlerAuthFunc, extractFunc extracAppParamsFunc) httprouter.Handle {
+	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+		params := extractFunc(p)
+		appName := params.appName
+		site := params.clusterName
+
+		if site == "" {
+			cluster, err := h.c.AccessPoint.GetClusterName(r.Context())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			site = cluster.GetClusterName()
+		}
+
+		clusterClient, err := h.c.ClusterGetter.Cluster(r.Context(), site)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		appServer, err := ResolveByName(r.Context(), clusterClient, site, appName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		session, err := h.authenticate(r.Context(), r, &withAppServer{clusterName: site, appServer: appServer})
+		if err != nil {
 			return trace.Wrap(err)
 		}
 		if err := handler(w, r, session); err != nil {

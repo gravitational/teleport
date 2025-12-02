@@ -178,6 +178,9 @@ type ReadProxyAccessPoint interface {
 	// resources.
 	services.HealthCheckConfigReader
 
+	// AppAuthConfigGetter defines methods for fetching app auth configs.
+	services.AppAuthConfigReader
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 

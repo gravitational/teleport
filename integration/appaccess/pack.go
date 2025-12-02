@@ -170,6 +170,8 @@ type Pack struct {
 	flushAppPublicAddr  string
 	flushAppClusterName string
 	flushAppURI         string
+
+	jwks *jwksIssuer
 }
 
 func (p *Pack) RootWebAddr() string {
@@ -904,6 +906,11 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 	servers, err := p.rootCluster.StartApps(configs)
 	require.NoError(t, err)
 	require.Len(t, configs, len(servers))
+
+	for _, config := range opts.RootAppAuthConfigs {
+		_, err := p.rootCluster.Process.GetAuthServer().CreateAppAuthConfig(t.Context(), config)
+		require.NoError(t, err, "failed to create app auth config")
+	}
 
 	for i, appServer := range servers {
 		srv := appServer

@@ -21,6 +21,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -38,12 +40,17 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/label"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -252,6 +259,38 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	return nil
 }
 
+// BindMCPEndpoints binds MCP HTTP endpoints to a router.
+func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(*http.Request) error) {
+	extractParams := func(p httprouter.Params) requestedAppParams {
+		return requestedAppParams{
+			appName:     p.ByName("app"),
+			clusterName: p.ByName("site"),
+		}
+	}
+
+	wrapWithLimiter := func(handler httprouter.Handle) httprouter.Handle {
+		if limiter == nil {
+			return handler
+		}
+
+		return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+			if err := limiter(r); err != nil {
+				writeError(w, err)
+				return
+			}
+			handler(w, r, p)
+		}
+	}
+
+	router.POST("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
+	router.DELETE("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
+	router.GET("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
+
+	router.POST("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
+	router.DELETE("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
+	router.GET("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
+}
+
 // handleHttp forwards the request to the application service or redirects
 // to the application directly.
 func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
@@ -292,6 +331,13 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 	}
 	session.fwd.ServeHTTP(w, r)
 	return nil
+}
+
+// handleHttpResetPath handles app access requests using [handleHttp] function,
+// but before, it resets the request path.
+func (h *Handler) handleHttpResetPath(w http.ResponseWriter, r *http.Request, session *session) error {
+	r.URL.Path = "/"
+	return h.handleHttp(w, r, session)
 }
 
 // handleForwardError when the forwarder has an error during the `ServeHTTP` it
@@ -337,8 +383,8 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 
 // authenticate will check if request carries a session cookie matching a
 // session in the backend.
-func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
-	ws, err := h.getAppSession(r)
+func (h *Handler) authenticate(ctx context.Context, r *http.Request, reqAppServer *withAppServer) (*session, error) {
+	ws, err := h.getAppSession(r, reqAppServer)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
@@ -359,7 +405,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 // and generates a new one using the `getSession` flow (same as in
 // `authenticate`).
 func (h *Handler) renewSession(r *http.Request) (*session, error) {
-	ws, err := h.getAppSession(r)
+	ws, err := h.getAppSession(r, nil /* appServer */)
 	if err != nil {
 		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
 		return nil, trace.AccessDenied("invalid session")
@@ -379,16 +425,24 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	return session, nil
 }
 
+// withAppServer holds information of the requested application.
+type withAppServer struct {
+	clusterName string
+	appServer   types.AppServer
+}
+
 // getAppSession retrieves the `types.WebSession` using the provided
 // `http.Request`.
-func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error) {
+func (h *Handler) getAppSession(r *http.Request, reqAppServer *withAppServer) (ws types.WebSession, err error) {
 	// We have a client certificate with encoded session id in application
 	// access CLI flow i.e. when users log in using "tsh apps login" and
 	// then connect to the apps with the issued certs.
 	if HasClientCert(r) {
 		ws, err = h.getAppSessionFromCert(r)
-	} else {
+	} else if HasSessionCookie(r) {
 		ws, err = h.getAppSessionFromCookie(r)
+	} else {
+		ws, err = h.getAppSessionUsingAuthConfig(r, reqAppServer)
 	}
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
@@ -493,6 +547,71 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 		return nil, err
 	}
 	return ws, nil
+}
+
+// getAppSessionUsingAuthConfig retrieves the app session using app auth config.
+func (h *Handler) getAppSessionUsingAuthConfig(r *http.Request, reqAppServer *withAppServer) (types.WebSession, error) {
+	if reqAppServer == nil {
+		return nil, trace.BadParameter("missing requested app")
+	}
+
+	config, err := h.selectAppAuthConfig(r.Context(), reqAppServer.appServer.GetApp())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch spec := config.Spec.SubKindSpec.(type) {
+	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
+		headerName := cmp.Or(spec.Jwt.AuthorizationHeader, appAuthConfigAuthorizationHeader)
+		jwtToken, found := strings.CutPrefix(r.Header.Get(headerName), "Bearer ")
+		if !found {
+			return nil, trace.BadParameter("expected request to include %q header with JWT", headerName)
+		}
+
+		sid := services.GenerateAppSessionIDFromJWT(jwtToken)
+		if ws, err := h.getAppSessionFromAccessPoint(r.Context(), sid); err == nil {
+			h.logger.DebugContext(r.Context(), "session was present, returning...", "sid", ws.GetName())
+			return ws, nil
+		}
+
+		ws, err := h.startAppAuthConfigJWTSession(r.Context(), startAppAuthConfigSessionOptions{
+			sessionID:   sid,
+			token:       jwtToken,
+			config:      config,
+			app:         reqAppServer.appServer.GetApp(),
+			clientAddr:  r.RemoteAddr,
+			clusterName: reqAppServer.clusterName,
+		})
+		return ws, trace.Wrap(err)
+	default:
+		return nil, trace.BadParameter("unsupported app auth config")
+	}
+}
+
+// selectAppAuthConfig returns an app auth config that matches the provided app.
+func (h *Handler) selectAppAuthConfig(ctx context.Context, app types.Application) (*appauthconfigv1.AppAuthConfig, error) {
+	for config, err := range clientutils.Resources(ctx, h.c.AccessPoint.ListAppAuthConfigs) {
+		if err != nil {
+			return nil, trace.Wrap(err, "unable to retrieve app auth configs")
+		}
+		convertedLabels := make(types.Labels)
+		for k, vs := range label.ToMap(config.Spec.AppLabels) {
+			convertedLabels[k] = apiutils.Strings(vs)
+		}
+
+		matched, message, err := services.MatchLabelGetter(convertedLabels, app)
+		if matched {
+			return config, nil
+		}
+
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		h.logger.DebugContext(ctx, "unmatched app auth config", "reason", message)
+	}
+
+	return nil, trace.NotFound("unable to find app auth config")
 }
 
 // getSession returns a request session used to proxy the request to the

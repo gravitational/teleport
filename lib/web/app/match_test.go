@@ -22,12 +22,19 @@ import (
 	"context"
 	"net"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
@@ -54,8 +61,97 @@ func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
 	}
 }
 
+func TestResolveByName(t *testing.T) {
+	for name, tc := range map[string]struct {
+		appName         string
+		appServers      []types.AppServer
+		assertError     require.ErrorAssertionFunc
+		assertAppServer require.ValueAssertionFunc
+	}{
+		"match": {
+			appName: "example-1",
+			appServers: []types.AppServer{
+				createMCPServer(t, "example-1", nil /* labels */),
+				createMCPServer(t, "example-2", nil /* labels */),
+				createMCPServer(t, "example-3", nil /* labels */),
+			},
+			assertError:     require.NoError,
+			assertAppServer: expectAppServerWithName("example-1"),
+		},
+		"no match": {
+			appName: "example-x",
+			appServers: []types.AppServer{
+				createMCPServer(t, "example-1", nil /* labels */),
+				createMCPServer(t, "example-2", nil /* labels */),
+				createMCPServer(t, "example-3", nil /* labels */),
+			},
+			assertError:     require.Error,
+			assertAppServer: require.Nil,
+		},
+		"no servers, no match": {
+			appName:         "example-1",
+			appServers:      []types.AppServer{},
+			assertError:     require.Error,
+			assertAppServer: require.Nil,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			clock := clockwork.NewFakeClock()
+
+			bk, err := memory.New(memory.Config{
+				Context: ctx,
+				Clock:   clock,
+			})
+			require.NoError(t, err)
+
+			type client struct {
+				types.Events
+			}
+
+			appService := local.NewAppService(bk)
+			for _, appSrv := range tc.appServers {
+				require.NoError(t, appService.CreateApp(t.Context(), appSrv.GetApp()))
+			}
+
+			w, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+				ResourceWatcherConfig: services.ResourceWatcherConfig{
+					Component:      "test",
+					MaxRetryPeriod: 200 * time.Millisecond,
+					Client: &client{
+						Events: local.NewEventsService(bk),
+					},
+				},
+				AppServersGetter: &mockAppServersGetter{servers: tc.appServers},
+			})
+			require.NoError(t, err)
+
+			res, err := ResolveByName(t.Context(), &mockCluster{watcher: w}, "example-name", tc.appName)
+			tc.assertError(t, err)
+			tc.assertAppServer(t, res)
+		})
+	}
+}
+
+func expectAppServerWithName(name string) require.ValueAssertionFunc {
+	return func(t require.TestingT, i1 any, i2 ...any) {
+		require.IsType(t, &types.AppServerV3{}, i1)
+		appServer, _ := i1.(types.AppServer)
+		require.Equal(t, name, appServer.GetName())
+	}
+}
+
+type mockAppServersGetter struct {
+	servers []types.AppServer
+}
+
+func (m *mockAppServersGetter) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	return m.servers, nil
+}
+
 type mockClusterGetter struct {
 	reversetunnelclient.ClusterGetter
+	ctx     context.Context
 	cluster *mockCluster
 }
 
@@ -65,19 +161,28 @@ func (p *mockClusterGetter) Cluster(context.Context, string) (reversetunnelclien
 
 type mockCluster struct {
 	reversetunnelclient.Cluster
-	dialErr error
+	watcher     *services.GenericWatcher[types.AppServer, readonly.AppServer]
+	dialErr     error
+	accessPoint *mockAuthClient
+}
+
+func (r *mockCluster) GetName() string {
+	return "mockCluster"
+}
+
+func (r *mockCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return r.watcher, nil
 }
 
 func (r *mockCluster) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
 	if r.dialErr != nil {
 		return nil, r.dialErr
 	}
-
 	return &mockDialConn{}, nil
 }
 
-func (r *mockCluster) GetName() string {
-	return "mockCluster"
+func (r *mockCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
+	return r.accessPoint, nil
 }
 
 type mockDialConn struct {

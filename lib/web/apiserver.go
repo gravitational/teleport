@@ -756,6 +756,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if h.healthCheckAppServer == nil {
 			h.healthCheckAppServer = appHandler.HealthCheckAppServer
 		}
+
+		appHandler.BindMCPEndpoints(&h.Router, func(r *http.Request) error {
+			return rateLimitRequest(r, h.limiter)
+		})
 	}
 
 	go h.startFeatureWatcher()
