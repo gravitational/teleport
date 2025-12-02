@@ -37,6 +37,14 @@ func CreateHandlerForPlugin(plugin types.Plugin, config common.Config, resourceT
 		return nil, trace.Wrap(err, "creating resource handler for plugin %q", plugin.GetName())
 	}
 
+	loggingMiddlewareConfig := middleware.LoggingMiddlewareConfig{
+		Log: config.Logger,
+	}
+	loggingMiddleware, err := middleware.NewLoggingMiddleware(loggingMiddlewareConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating logging middleware")
+	}
+
 	// Create a semaphore-based locker for distributed locking across auth servers
 	semLock, err := common.NewSemaphoreLocker(config.Semaphore, common.WithClock(config.Clock))
 	if err != nil {
@@ -54,6 +62,9 @@ func CreateHandlerForPlugin(plugin types.Plugin, config common.Config, resourceT
 	}
 
 	// Create middleware chain and wrap the handler
-	chain := middleware.NewMiddlewareChain(lockMiddleware)
+	chain := middleware.NewMiddlewareChain(
+		loggingMiddleware,
+		lockMiddleware,
+	)
 	return chain.Wrap(handler), nil
 }

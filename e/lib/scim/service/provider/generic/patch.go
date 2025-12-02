@@ -2,6 +2,7 @@ package generic
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -34,7 +35,7 @@ func (g groupHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	updated, err := applyPatchOperations(currentResource, req)
+	updated, err := applyPatchOperations(ctx, g.Logger, currentResource, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,7 +82,7 @@ func (h *userHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := applyPatchOperations(currentResource, req)
+	updated, err := applyPatchOperations(ctx, h.Logger, currentResource, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,7 +137,7 @@ func (h *userHandler) checkForUserNameChange(ctx context.Context, existingUser t
 // applyPatchOperations applies SCIM PATCH operations to a resource.
 // The resource is modified in place, with its Attributes field updated to reflect
 // the patched state.
-func applyPatchOperations(in *scimpb.Resource, req *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
+func applyPatchOperations(ctx context.Context, log *slog.Logger, in *scimpb.Resource, req *scimpb.PatchSCIMResourceRequest) (*scimpb.Resource, error) {
 	currentJSON, err := in.GetAttributes().MarshalJSON()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -145,8 +146,19 @@ func applyPatchOperations(in *scimpb.Resource, req *scimpb.PatchSCIMResourceRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	log = log.With(
+		slog.String("op", "SCIMHandler/applyPatchOperations"),
+		slog.Group("input",
+			slog.String("resource_id", in.GetId()),
+			slog.Any("current_attributes", json.RawMessage(currentJSON)),
+			slog.Any("patch_payload", json.RawMessage(patchJSON)),
+		),
+	)
+
 	patchedJSON, err := patch.Apply(currentJSON, patchJSON)
 	if err != nil {
+		log.ErrorContext(ctx, "SCIM Patch failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	out, ok := proto.Clone(in).(*scimpb.Resource)
@@ -156,5 +168,11 @@ func applyPatchOperations(in *scimpb.Resource, req *scimpb.PatchSCIMResourceRequ
 	if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(patchedJSON, out.Attributes); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	log.DebugContext(ctx, "SCIM PATCH applied successfully",
+		slog.Group("output",
+			slog.Any("patched_attributes", json.RawMessage(patchedJSON)),
+		),
+	)
 	return out, nil
 }
