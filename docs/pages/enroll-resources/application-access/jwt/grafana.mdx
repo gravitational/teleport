@@ -1,17 +1,22 @@
 ---
-title: Using JWT authentication with Grafana
-description: How to use JWT authentication with Grafana
+title: Using JWT Authentication with Grafana
+description: How to use JWT Authentication with Grafana
 tags:
  - how-to
  - zero-trust
  - infrastructure-identity
 ---
 
-{/* lint disable page-structure remark-lint */}
-
 This guide will help you configure Grafana [JWT
 authentication](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/jwt/)
 with Teleport.
+
+## How it works
+
+Teleport issues short-lived JWTs and injects them into each proxied request to
+Grafana. Grafana is configured to trust Teleport’s JWT signer, allowing it to
+verify the user’s identity and retrieve role information from the
+Teleport-signed token.
 
 ## Prerequisites
 
@@ -23,7 +28,8 @@ with Teleport.
 
 ## Step 1/3. Configure JWT authentication in Grafana
 
-Add an `auth.jwt` section in your main config:
+Add an `auth.jwt` section in your main config. Replace <Var
+name="teleport.example.com" /> with the domain name of your Teleport cluster:
 ```ini
 [auth.jwt]
 enabled = true
@@ -31,7 +37,7 @@ enabled = true
 # HTTP header to look into to get a JWT token.
 header_name = Authorization
 
-# Replace with your Teleport Proxy address.
+# JSON Web Key Set (JWKS) URL from your Teleport cluster.
 jwk_set_url = https://<Var name="teleport.example.com" />/.well-known/jwks.json
 
 # Teleport username can be found in "sub" or "username" claims.
@@ -56,28 +62,25 @@ Restart your Grafana instance after updating the config.
 
 ## Step 2/3. Register a Grafana application in Teleport
 
-In your Teleport App Service configuration file, `teleport.yaml`, register an
-entry for Grafana:
+In your Teleport Application Service configuration file, `teleport.yaml`,
+register an application entry for your Grafana instance. Assign <Var
+name="http://grafana.example.com:3000"/> to the domain of your Grafana instance:
 
 ```yaml
 app_service:
   enabled: true
   apps:
   - name: "grafana"
-    uri: https://<Var name="grafana.example.com:3000"/>
+    uri: <Var name="http://grafana.example.com:3000"/>
     rewrite:
       headers:
       - "Authorization: Bearer {{internal.jwt}}"
 ```
 
-<Admonition type="tip">
-  You can also use [dynamic registration](../guides/dynamic-registration.mdx).
-</Admonition>
-
 The header rewrite configuration above will replace the `{{internal.jwt}}`
 template variable with a Teleport-signed JWT token in each request.
 
-## Step 3/3. Connect to the Grafana
+## Step 3/3. Connect to Grafana
 
 Log in to your Teleport cluster in your browser at `https://<Var
 name="teleport.example.com" />`.
