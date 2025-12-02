@@ -21,10 +21,8 @@ package mysql
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
-	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -32,13 +30,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
-	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -85,7 +79,7 @@ func makeProxyConn(clientConn net.Conn) *server.Conn {
 // SendError sends an error to connected client in the MySQL understandable format.
 func (e *Engine) SendError(err error) {
 	if writeErr := e.proxyConn.WriteError(trace.Unwrap(err)); writeErr != nil {
-		e.Log.DebugContext(e.Context, "Failed to send error to MySQL client.", "client_error", err, "write_error", writeErr)
+		e.Log.DebugContext(e.Context, "Failed to send error to MySQL client", "client_error", err, "write_error", writeErr)
 	}
 }
 
@@ -112,7 +106,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer func() {
 		err := e.GetUserProvisioner(e).Teardown(ctx, sessionCtx)
 		if err != nil {
-			e.Log.ErrorContext(e.Context, "Failed to teardown the user.", "error", err)
+			e.Log.ErrorContext(e.Context, "Failed to teardown the user", "error", err)
 		}
 	}()
 
@@ -128,7 +122,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer func() {
 		err := serverConn.Quit()
 		if err != nil {
-			e.Log.ErrorContext(ctx, "Failed to close connection to MySQL server.", "error", err)
+			e.Log.ErrorContext(ctx, "Failed to close connection to MySQL server", "error", err)
 		}
 	}()
 
@@ -137,11 +131,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	// Internally, updateServerVersion() updates databases only when database version
 	// is not set, or it has changed since previous call.
-	if err := e.updateServerVersion(sessionCtx, serverConn); err != nil {
-		// Log but do not fail connection if the version update fails.
-		e.Log.WarnContext(ctx, "Failed to update the MySQL server version.", "error", err)
-
-	}
+	e.updateServerVersion(ctx, sessionCtx.Database, serverConn)
 
 	// notify proxy of auth/connect success. At this point the original client
 	// should consider the connection phase completed.
@@ -170,40 +160,24 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	go e.receiveFromServer(serverConn, e.proxyConn.Conn, serverErrCh, sessionCtx)
 	select {
 	case err := <-clientErrCh:
-		e.Log.DebugContext(e.Context, "Client done.", "error", err)
+		e.Log.DebugContext(e.Context, "Client done", "error", err)
 	case err := <-serverErrCh:
-		e.Log.DebugContext(e.Context, "Server done.", "error", err)
+		e.Log.DebugContext(e.Context, "Server done", "error", err)
 	case <-ctx.Done():
-		e.Log.DebugContext(e.Context, "Context canceled.")
+		e.Log.DebugContext(e.Context, "Context canceled")
 	}
 	return nil
 }
 
-// updateServerVersion updates the server runtime version if the version reported by the database is different from
-// the version in status configuration.
-func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *client.Conn) error {
-	serverVersion := serverConn.GetServerVersion()
-	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
-
-	// Update only when needed.
-	if serverVersion == "" || serverVersion == statusVersion {
-		return nil
+// updateServerVersion updates the server runtime version if the version
+// reported by the database is different from the version in status
+// configuration.
+func (e *Engine) updateServerVersion(ctx context.Context, db types.Database, serverConn *client.Conn) {
+	err := updateServerVersion(ctx, e.Log, db, serverConn.GetServerVersion(), e.UpdateProxiedDatabase)
+	if err != nil {
+		// Log but do not fail connection if the version update fails.
+		e.Log.WarnContext(ctx, "Failed to update the MySQL server version", "error", err)
 	}
-
-	// Note that sessionCtx.Database is a copy of the database cached by
-	// database service. Call e.UpdateProxiedDatabase to do the update instead of
-	// setting the copy.
-	doUpdate := func(db types.Database) error {
-		db.SetMySQLServerVersion(serverVersion)
-		return nil
-	}
-
-	if err := e.UpdateProxiedDatabase(sessionCtx.Database.GetName(), doUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	e.Log.DebugContext(e.Context, "Updated MySQL server version.", "version", serverVersion)
-	return nil
 }
 
 // checkAccess does authorization check for MySQL connection about to be established.
@@ -238,93 +212,29 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 // connect establishes connection to MySQL database.
 func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*client.Conn, error) {
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
+	connector, err := e.newConnector(sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	user := sessionCtx.DatabaseUser
-	connectOpt := func(conn *client.Conn) error {
-		conn.SetTLSConfig(tlsConfig)
-		return nil
-	}
-
-	var dialer client.Dialer
-	var password string
-	switch {
-	case sessionCtx.Database.IsRDS(), sessionCtx.Database.IsRDSProxy():
-		password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case sessionCtx.Database.IsCloudSQL():
-		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := e.GCPClients.GetGCPSQLAdminClient(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		user, password, err = e.getGCPUserAndPassword(ctx, sessionCtx, gcpClient)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Detect whether the instance is set to require SSL.
-		// Fallback to not requiring SSL for access denied errors.
-		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx.Database, gcpClient)
-		if err != nil && !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		}
-		// Create ephemeral certificate and append to TLS config when
-		// the instance requires SSL. Also use a TLS dialer instead of
-		// the default net dialer when GCP requires SSL.
-		if requireSSL {
-			err = cloud.AppendGCPClientCert(ctx, &cloud.AppendGCPClientCertRequest{
-				GCPClient:   gcpClient,
-				GenerateKey: e.Auth.GenerateDatabaseClientKey,
-				Expiry:      sessionCtx.GetExpiry(),
-				Database:    sessionCtx.Database,
-				TLSConfig:   tlsConfig,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			connectOpt = func(*client.Conn) error {
-				return nil
-			}
-			dialer = newGCPTLSDialer(tlsConfig)
-		}
-	case sessionCtx.Database.IsAzure():
-		password, err = e.Auth.GetAzureAccessToken(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		user = discoverycommon.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
-	}
-
-	// Use default net dialer unless it is already initialized.
-	if dialer == nil {
-		var nd net.Dialer
-		dialer = nd.DialContext
-	}
-
-	// TODO(r0mant): Set CLIENT_INTERACTIVE flag on the client?
-	conn, err := client.ConnectWithDialer(ctx, "tcp", sessionCtx.Database.GetURI(),
-		user,
-		password,
-		sessionCtx.DatabaseName,
-		dialer,
-		connectOpt,
-		// client-set capabilities only.
-		// TODO(smallinsky) Forward "real" capabilities from mysql client to mysql server.
-		withClientCapabilities(
-			mysql.CLIENT_MULTI_RESULTS,
-			mysql.CLIENT_MULTI_STATEMENTS,
-		),
-	)
+	conn, err := connector.connect(ctx, sessionCtx.GetExpiry())
 	if err != nil {
 		return nil, common.ConvertConnectError(err, sessionCtx)
 	}
 	return conn, nil
+}
+
+func (e *Engine) newConnector(sessionCtx *common.Session) (*connector, error) {
+	return newConnector(connectorConfig{
+		auth:       e.Auth,
+		authClient: e.AuthClient,
+		clock:      e.Clock,
+		gcpClients: e.GCPClients,
+		log:        e.Log,
+
+		database:     sessionCtx.Database,
+		databaseName: sessionCtx.DatabaseName,
+		databaseUser: sessionCtx.DatabaseUser,
+	})
 }
 
 func withClientCapabilities(caps ...uint32) func(conn *client.Conn) error {
@@ -345,7 +255,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		"server", serverConn.RemoteAddr(),
 	)
 	defer func() {
-		log.DebugContext(e.Context, "Stop receiving from client.")
+		log.DebugContext(e.Context, "Stop receiving from client")
 		close(clientErrCh)
 	}()
 
@@ -355,10 +265,10 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		packet, err := protocol.ParsePacket(clientConn)
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
-				log.DebugContext(e.Context, "Client connection closed.")
+				log.DebugContext(e.Context, "Client connection closed")
 				return
 			}
-			log.ErrorContext(e.Context, "Failed to read client packet.", "error", err)
+			log.ErrorContext(e.Context, "Failed to read client packet", "error", err)
 			clientErrCh <- err
 			return
 		}
@@ -377,7 +287,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			// We do not want to allow changing the connection user and instead
 			// force users to go through normal reconnect flow so log the
 			// attempt and close the client connection.
-			log.WarnContext(e.Context, "Rejecting attempt to change user.", "user", pkt.User(), "session", sessionCtx)
+			log.WarnContext(e.Context, "Rejecting attempt to change user", "user", pkt.User(), "session", sessionCtx)
 			return
 		case *protocol.Quit:
 			return
@@ -427,7 +337,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		}
 		_, err = protocol.WritePacket(packet.Bytes(), serverConn)
 		if err != nil {
-			log.ErrorContext(e.Context, "Failed to write server packet.", "error", err)
+			log.ErrorContext(e.Context, "Failed to write server packet", "error", err)
 			clientErrCh <- err
 			return
 		}
@@ -454,7 +364,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 
 		var count int64
 		defer func() {
-			log.DebugContext(e.Context, "Stopped parsing messages from server.", "parsed_total", count)
+			log.DebugContext(e.Context, "Stopped parsing messages from server", "parsed_total", count)
 		}()
 
 		for {
@@ -474,64 +384,14 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 	total, err := io.Copy(clientConn, io.TeeReader(serverConn, copyWriter))
 	if err != nil {
 		if utils.IsOKNetworkError(err) {
-			log.DebugContext(e.Context, "Server connection closed.")
+			log.DebugContext(e.Context, "Server connection closed")
 		} else {
-			log.WarnContext(e.Context, "Server -> Client copy finished with unexpected error.", "error", err)
+			log.WarnContext(e.Context, "Server -> Client copy finished with unexpected error", "error", err)
 		}
 	}
 
-	log.DebugContext(e.Context, "Stopped receiving from server.", "total_bytes", total)
+	log.DebugContext(e.Context, "Stopped receiving from server", "total_bytes", total)
 	serverErrCh <- trace.Wrap(err)
-}
-
-// makeAcquireSemaphoreConfig builds parameters for acquiring a semaphore
-// for connecting to a MySQL Cloud SQL instance for this session.
-func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services.AcquireSemaphoreWithRetryConfig {
-	return services.AcquireSemaphoreWithRetryConfig{
-		Service: e.AuthClient,
-		// The semaphore will serialize connections to the database as specific
-		// user. If we fail to release the lock for some reason, it will expire
-		// in a minute anyway.
-		Request: types.AcquireSemaphoreRequest{
-			SemaphoreKind: "gcp-mysql-token",
-			SemaphoreName: fmt.Sprintf("%v-%v", sessionCtx.Database.GetName(), sessionCtx.DatabaseUser),
-			MaxLeases:     1,
-		},
-		// If multiple connections are being established simultaneously to the
-		// same database as the same user, retry for a few seconds.
-		Retry: retryutils.LinearConfig{
-			Step:  time.Second,
-			Max:   time.Second,
-			Clock: e.Clock,
-		},
-		TTL: time.Minute,
-		Now: e.Clock.Now,
-	}
-}
-
-// newGCPTLSDialer returns a TLS dialer configured to connect to the Cloud Proxy
-// port rather than the default MySQL port.
-func newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
-	return func(ctx context.Context, network, address string) (net.Conn, error) {
-		// Workaround issue generating ephemeral certificates for secure connections
-		// by creating a TLS connection to the Cloud Proxy port overriding the
-		// MySQL client's connection. MySQL on the default port does not trust
-		// the ephemeral certificate's CA but Cloud Proxy does.
-		address = getGCPTLSAddress(address)
-		tlsDialer := tls.Dialer{Config: tlsConfig}
-		return tlsDialer.DialContext(ctx, network, address)
-	}
-}
-
-// getGCPTLSAddress returns the appropriate address for a Cloud SQL MySQL
-// instance, possibly overriding the default port to instead use the Cloud Proxy
-// port.
-func getGCPTLSAddress(address string) string {
-	host, port, err := net.SplitHostPort(address)
-	if err == nil && port == gcpSQLListenPort {
-		return net.JoinHostPort(host, gcpSQLProxyListenPort)
-	}
-	return address
 }
 
 // FetchMySQLVersion connects to MySQL database and tries to read the handshake packet and return the version.
@@ -548,10 +408,3 @@ func FetchMySQLVersion(ctx context.Context, database types.Database) (string, er
 
 	return protocol.FetchMySQLVersionInternal(ctx, dialer, database.GetURI())
 }
-
-const (
-	// gcpSQLListenPort is the port used by Cloud SQL MySQL instances.
-	gcpSQLListenPort = "3306"
-	// gcpSQLProxyListenPort is the port used by Cloud Proxy for MySQL instances.
-	gcpSQLProxyListenPort = "3307"
-)
