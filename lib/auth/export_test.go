@@ -191,18 +191,6 @@ func (a *Server) ResetPassword(ctx context.Context, username string) error {
 	return a.resetPassword(ctx, username)
 }
 
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
-	a.azureDevopsIDTokenValidator = validator
-}
-
-func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidator) {
-	a.spaceliftIDTokenValidator = validator
-}
-
-func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
-	a.terraformIDTokenValidator = validator
-}
-
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
 	a.createBoundKeypairValidator = validator
 }

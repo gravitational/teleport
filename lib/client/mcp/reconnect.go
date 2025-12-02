@@ -405,7 +405,7 @@ func (r *serverConnWithAutoReconnect) cacheMessageLocked(ctx context.Context, ms
 
 	switch m := msg.(type) {
 	case *mcputils.JSONRPCRequest:
-		if r.initRequest == nil && m.Method == mcp.MethodInitialize {
+		if r.initRequest == nil && m.Method == mcputils.MethodInitialize {
 			r.initRequest = m
 			r.Logger.DebugContext(ctx, "Cached initialize", "request", m)
 		}

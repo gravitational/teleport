@@ -101,6 +101,23 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 	return &limiter, nil
 }
 
+// IsRateLimited checks if the provided token is currently rate-limited without
+// consuming any tokens. Returns true if the token would be rate-limited, false otherwise.
+// This is useful for checking rate limit status before executing expensive operations.
+func (l *RateLimiter) IsRateLimited(token string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	bucketSet, ok := l.rateLimits.GetIfExists(token)
+	if !ok {
+		return false
+	}
+	bucket, ok := bucketSet.(*ratelimit.TokenBucketSet)
+	if !ok {
+		return false
+	}
+	return bucket.IsRateLimited()
+}
+
 // RegisterRequest increases number of requests for the provided token
 // Returns error if there are too many requests with the provided token.
 func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {

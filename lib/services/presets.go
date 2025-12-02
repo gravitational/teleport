@@ -804,6 +804,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindClusterNetworkingConfig, RW()),
 					types.NewRule(types.KindDatabase, RW()),
 					types.NewRule(types.KindDevice, RW()),
+					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindGithub, RW()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindNode, RW()),

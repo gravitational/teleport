@@ -193,7 +193,7 @@ On Windows and Linux, some of the default shortcuts conflicted with the default 
 (e.g. Ctrl + E, Ctrl + K).
 On those platforms, the default shortcuts have been changed to a combination of Ctrl + Shift + *.
 We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.
-See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
+See [configuration](docs/pages/connect-your-client/teleport-clients/teleport-connect.mdx#configuration)
 for the current list of shortcuts.
 
 ## 15.0.0 (xx/xx/24)
@@ -587,7 +587,7 @@ tsh on Windows now supports the `tsh puttyconfig` command, which can
 configure saved sessions inside the well-known PuTTY client to connect to
 Teleport-protected servers.
 
-For more information, see [docs](docs/pages/connect-your-client/putty-winscp.mdx).
+For more information, see [docs](docs/pages/connect-your-client/third-party/putty-winscp.mdx).
 
 #### Support for TLS routing in Terraform deployment examples
 
@@ -1772,8 +1772,8 @@ editing files on remote systems.
 The following guides explain how to use IDEs to connect to a remote machine via
 Teleport:
 
-- [VS Code](./docs/pages/enroll-resources/server-access/guides/vscode.mdx)
-- [JetBrains](./docs/pages/enroll-resources/server-access/guides/jetbrains-sftp.mdx)
+- [VS Code](docs/pages/connect-your-client/third-party/vscode.mdx)
+- [JetBrains](docs/pages/connect-your-client/third-party/jetbrains-sftp.mdx)
 
 In addition, Teleport 11 clients will use SFTP protocol for file transfer under
 the hood instead of the obsolete scp protocol. Server-side scp is still
@@ -2003,7 +2003,7 @@ to other supported database protocols.
 Teleport database access for SQL Server remains in Preview mode with more UX
 improvements coming in future releases.
 
-Refer to [the guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx) to set
+Refer to [the guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad.mdx) to set
 up access to a SQL Server with Active Directory authentication.
 
 ### Snowflake database access (Preview)
@@ -2523,7 +2523,7 @@ Directory authentication support for database access. Audit logging of query
 activity is not included in the preview release and will be implemented in a
 later 9.x release.
 
-[SQL Server guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx)
+[SQL Server guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad.mdx)
 
 #### RDS MariaDB
 
@@ -2531,7 +2531,7 @@ Teleport 9 updates MariaDB support with auto-discovery and connection to AWS RDS
 MariaDB databases using IAM authentication. The minimum MariaDB version that
 supports IAM authentication is 10.6.
 
-[Updated RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
+[Updated RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
 
 #### Other Improvements
 
@@ -2543,8 +2543,8 @@ Database Service when running on AWS.
 
 CLI commands reference:
 - [`teleport db configure
-  create`](docs/pages/reference/agent-services/database-access-reference/cli.mdx)
-- [`teleport db configure bootstrap`](docs/pages/reference/agent-services/database-access-reference/cli.mdx)
+  create`](docs/pages/enroll-resources/database-access/reference/cli.mdx)
+- [`teleport db configure bootstrap`](docs/pages/enroll-resources/database-access/reference/cli.mdx)
 
 ### Moderated Sessions
 
@@ -2637,7 +2637,7 @@ With RDS auto discovery Teleport database agents can automatically discover RDS
 instances and Aurora clusters in an AWS account.
 
 See updated
-[RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx) for
+[RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx) for
 more information.
 
 #### WebAuthn
@@ -2966,11 +2966,11 @@ Configure database access following the [Getting Started](./docs/pages/enroll-re
 ##### Guides
 
 * [AWS RDS/Aurora
-  PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
-* [AWS RDS/Aurora MySQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
+  PostgreSQL](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
+* [AWS RDS/Aurora MySQL](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
 * [Self-hosted PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx)
 * [Self-hosted MySQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted.mdx)
-* [GUI clients](docs/pages/connect-your-client/gui-clients.mdx)
+* [GUI clients](docs/pages/connect-your-client/third-party/gui-clients.mdx)
 
 ##### Resources
 
@@ -2978,7 +2978,7 @@ To learn more about configuring role-based access control for database access, c
 
 [Architecture](./docs/pages/enroll-resources/database-access/database-access.mdx) provides a more in-depth look at database access internals such as networking and security.
 
-See [Reference](docs/pages/reference/agent-services/database-access-reference/database-access-reference.mdx) for an overview of database access related configuration and CLI commands.
+See [Reference](docs/pages/enroll-resources/database-access/reference/reference.mdx) for an overview of database access related configuration and CLI commands.
 
 Finally, check out [Frequently Asked Questions](docs/pages/enroll-resources/database-access/faq.mdx).
 
@@ -3180,7 +3180,7 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
-You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/introduction.mdx).
+You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/application-access.mdx).
 
 ##### Teleport Kubernetes access
 

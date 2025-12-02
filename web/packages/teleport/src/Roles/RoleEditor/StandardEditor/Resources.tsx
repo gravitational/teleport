@@ -440,7 +440,7 @@ export function KubernetesAccessSection({
                   })
                 }
                 size="small"
-                inputAlignment
+                $inputAlignment
               >
                 <Add disabled={isProcessing} size="small" />
                 {value.resources.length > 0

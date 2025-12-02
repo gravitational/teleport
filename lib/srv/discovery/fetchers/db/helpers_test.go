@@ -19,14 +19,16 @@
 package db
 
 import (
+	"context"
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -75,10 +77,15 @@ func mustMakeAWSFetchers(t *testing.T, cfg AWSFetcherFactoryConfig, matchers []t
 	return fetchers
 }
 
-func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []types.AzureMatcher) []common.Fetcher {
+func mustMakeAzureFetchers(t *testing.T, clients azure.Clients, matchers []types.AzureMatcher) []common.Fetcher {
 	t.Helper()
 
-	fetchers, err := MakeAzureFetchers(clients, matchers, "" /* discovery config */)
+	fetchers, err := MakeAzureFetchers(t.Context(), func(ctx context.Context, integration string) (azure.Clients, error) {
+		if integration != "" {
+			return nil, trace.NotImplemented("expected empty integration, got %q", integration)
+		}
+		return clients, nil
+	}, matchers, "" /* discovery config */)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
