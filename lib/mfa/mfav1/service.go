@@ -16,7 +16,7 @@
 
 package mfav1
 
-import pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+import mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 
 // ServiceConfig holds creation parameters for [Service].
 type ServiceConfig struct{}
@@ -24,7 +24,7 @@ type ServiceConfig struct{}
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
 // TODO(cthach): implement the API methods.
 type Service struct {
-	pb.UnimplementedMFAServiceServer
+	mfav1.UnimplementedMFAServiceServer
 }
 
 // NewService creates a new [Service] instance.
