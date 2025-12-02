@@ -162,8 +162,17 @@ create-tbot-resources-aks:
 	sed "s/@@STATIC_JWKS@@/$${STATIC_JWKS}/g" helm/fixtures/tbot.yaml > tbot.rendered.yaml
 	kubectl --namespace teleport exec -i deploy/teleport-auth -- tctl create -f < tbot.rendered.yaml
 
+# ```yaml
+# extraEnv:
+#   - name: HTTPS_PROXY
+#     value: "http://username:password@my.proxy.host:3128"
+# TELEPORT_UNSTABLE_APP_MAX_SHARD
+# TELEPORT_UNSTABLE_APP_SHARD_INDEX
+# ```
 .PHONY: deploy-app-service
 deploy-app-service: COUNT ?= 1
+deploy-app-service: MAX_SHARD ?= 0
+deploy-app-service: SHARD_INDEX ?= 0
 deploy-app-service:
 	helm upgrade --install teleport-kube-agent ../../examples/chart/teleport-kube-agent \
 	--create-namespace \
@@ -174,6 +183,10 @@ deploy-app-service:
 	--set "appResources[0].labels.*=*" \
 	--set teleportVersionOverride="${TELEPORT_VERSION}" \
 	--set highAvailability.replicaCount=${COUNT} \
+	--set extraEnv[0].name=TELEPORT_UNSTABLE_APP_MAX_SHARD \
+	--set extraEnv[0].value=${TELEPORT_UNSTABLE_APP_MAX_SHARD} \
+	--set extraEnv[1].name=TELEPORT_UNSTABLE_APP_SHARD_INDEX \
+	--set extraEnv[1].value=${TELEPORT_UNSTABLE_APP_SHARD_INDEX} \
 	--values ./helm/values/app-service-agent.yaml
 
 .PHONY: delete-app-service
