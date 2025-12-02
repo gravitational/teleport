@@ -70,8 +70,6 @@ func DefaultPayload() Payloads {
 
 // Server defines fake server.
 type Server struct {
-	mu sync.RWMutex
-
 	TokenProvider TokenProvider
 	Payloads      Payloads
 	TLSServer     *httptest.Server
