@@ -1,0 +1,14 @@
+---
+title: Using Teleport with a Key Management Service"
+description: Provides information on managing Teleport private keys with a third-party service.
+---
+
+You can configure a third-party service to manage the private keys that the
+Teleport Auth Service uses for its internal Certificate Authorities. The Auth
+Service uses CAs are used to sign all certificates issued to clients and hosts
+in the Teleport cluster.
+
+Teleport supports key management services from the following cloud providers:
+
+- [AWS](./aws-kms.mdx)
+- [Google Cloud](./gcp-kms.mdx)
