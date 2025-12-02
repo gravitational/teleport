@@ -54,7 +54,7 @@
     "msw": "2.12.3",
     "msw-storybook-addon": "^2.0.6",
     "playwright": "^1.57.0",
-    "prettier": "^3.7.2",
+    "prettier": "^3.7.3",
     "react-select-event": "^5.5.1",
     "storybook": "^9.1.16",
     "svgo": "^4.0.0",
