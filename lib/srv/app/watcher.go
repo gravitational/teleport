@@ -93,9 +93,21 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 		for {
 			select {
 			case apps := <-watcher.ResourcesC:
-				appsWithAddr := make(types.Apps, 0, len(apps))
+				appsWithAddr := apps[:0]
 				for _, app := range apps {
-					appsWithAddr = append(appsWithAddr, s.guessPublicAddr(app))
+					if app.GetPublicAddr() == "" {
+						pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+						if err == nil {
+							app.SetPublicAddr(pubAddr)
+						} else {
+							s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
+								"app_name", app.GetName(),
+								"error", err,
+							)
+						}
+					}
+
+					appsWithAddr = append(appsWithAddr, app)
 				}
 				s.monitoredApps.setResources(appsWithAddr)
 				select {
@@ -110,24 +122,6 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 		}
 	}()
 	return watcher, nil
-}
-
-// guessPublicAddr will guess PublicAddr for given application if it is missing, based on proxy information and app name.
-func (s *Server) guessPublicAddr(app types.Application) types.Application {
-	if app.GetPublicAddr() != "" {
-		return app
-	}
-	appCopy := app.Copy()
-	pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
-	if err == nil {
-		appCopy.Spec.PublicAddr = pubAddr
-	} else {
-		s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
-			"app_name", app.GetName(),
-			"error", err,
-		)
-	}
-	return appCopy
 }
 
 // FindPublicAddrClient is a client used for finding public addresses.

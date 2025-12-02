@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -324,9 +325,9 @@ var noSenderErr = trace.Errorf("no control stream sender available")
 func (h *HeartbeatV2) run() {
 	// note: these errors are never actually displayed, but onHeartbeat expects an error,
 	// so we just allocate something reasonably descriptive once.
-	h.announceFailed = trace.Errorf("control stream heartbeat failed (variant=%T)", h.inner)
-	h.fallbackFailed = trace.Errorf("upsert fallback heartbeat failed (variant=%T)", h.inner)
-	h.icsUnavailable = trace.Errorf("ics unavailable for heartbeat (variant=%T)", h.inner)
+	h.announceFailed = fmt.Errorf("control stream heartbeat failed (variant=%T)", h.inner)
+	h.fallbackFailed = fmt.Errorf("upsert fallback heartbeat failed (variant=%T)", h.inner)
+	h.icsUnavailable = fmt.Errorf("ics unavailable for heartbeat (variant=%T)", h.inner)
 
 	// set up interval for forced announcement (i.e. heartbeat even if state is unchanged).
 	h.announce = interval.New(interval.Config{
