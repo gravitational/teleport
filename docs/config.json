@@ -702,7 +702,7 @@
     },
     {
       "source": "/enroll-resources/workload-identity/best-practices/",
-      "destination": "/machine-workload-identity/introduction-workload-id/best-practices/",
+      "destination": "/machine-workload-identity/best-practices/",
       "permanent": true
     },
     {
@@ -2502,7 +2502,7 @@
     },
     {
       "source": "/machine-workload-identity/workload-identity/best-practices/",
-      "destination": "/machine-workload-identity/introduction-workload-id/best-practices/",
+      "destination": "/machine-workload-identity/best-practices/",
       "permanent": true
     },
     {
