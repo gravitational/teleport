@@ -92,6 +92,7 @@ const (
 // Message is a Go representation of a desktop protocol message.
 type Message interface {
 	Encode() ([]byte, error)
+	WriteTo(io.Writer) (int64, error)
 }
 
 // Decode decodes the wire representation of a message.
@@ -99,22 +100,26 @@ func Decode(buf []byte) (Message, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("input desktop protocol message is empty")
 	}
-	return decode(bytes.NewReader(buf))
+	return DecodeFrom(bytes.NewReader(buf))
 }
 
 type byteReader interface {
 	io.Reader
-	io.ByteReader
 }
 
-func decode(in byteReader) (Message, error) {
-	// Peek at the first byte to figure out message type.
-	t, err := in.ReadByte()
+func readByte(r io.Reader) (byte, error) {
+	b := make([]byte, 1)
+	_, err := io.ReadFull(r, b)
+	return b[0], err
+}
+
+func DecodeFrom(in byteReader) (Message, error) {
+	mType, err := readByte(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return decodeMessage(t, in)
+	return decodeMessage(mType, in)
 }
 
 func decodeMessage(firstByte byte, in byteReader) (Message, error) {
@@ -201,6 +206,15 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 	}
 }
 
+func writeTo(msg Message, w io.Writer) (int64, error) {
+	data, err := msg.Encode()
+	if err != nil {
+		return 0, err
+	}
+	count, err := w.Write(data)
+	return int64(count), err
+}
+
 // PNGFrame is the PNG frame message
 // | message type (2) | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
 type PNGFrame struct {
@@ -209,7 +223,12 @@ type PNGFrame struct {
 	enc *png.Encoder // optionally override the PNG encoder
 }
 
+func (f PNGFrame) WriteTo(w io.Writer) (int64, error) {
+	return writeTo(f, w)
+}
+
 func (f PNGFrame) Encode() ([]byte, error) {
+
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypePNGFrame))
 	writeUint32(buf, uint32(f.Img.Bounds().Min.X))
@@ -285,6 +304,9 @@ func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
 
 	return png2frame, nil
 }
+func (f PNG2Frame) WriteTo(w io.Writer) (int64, error) {
+	return writeTo(f, w)
+}
 
 func (f PNG2Frame) Encode() ([]byte, error) {
 	// Encode gets called on the reusable buffer at
@@ -337,6 +359,10 @@ func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
 	return RDPFastPathPDU(data), nil
 }
 
+func (f RDPFastPathPDU) WriteTo(w io.Writer) (int64, error) {
+	return writeTo(f, w)
+}
+
 func (f RDPFastPathPDU) Encode() ([]byte, error) {
 	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
 	b := make([]byte, 1+4+len(f))                      // byte + uint32 + len(f)
@@ -371,7 +397,7 @@ func decodeRDPResponsePDU(in byteReader) (RDPResponsePDU, error) {
 
 	return resFrame, nil
 }
-
+func (r RDPResponsePDU) WriteTo(w io.Writer) (int64, error) { return writeTo(r, w) }
 func (r RDPResponsePDU) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeRDPResponsePDU))
@@ -397,6 +423,7 @@ type ConnectionActivated struct {
 	ScreenHeight  uint16
 }
 
+func (c ConnectionActivated) WriteTo(w io.Writer) (int64, error) { return writeTo(c, w) }
 func (c ConnectionActivated) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeRDPConnectionInitialized))
@@ -421,6 +448,7 @@ type SyncKeys struct {
 	KanaLockState   ButtonState
 }
 
+func (k SyncKeys) WriteTo(w io.Writer) (int64, error) { return writeTo(k, w) }
 func (k SyncKeys) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSyncKeys))
@@ -442,6 +470,8 @@ func decodeSyncKeys(in byteReader) (SyncKeys, error) {
 type MouseMove struct {
 	X, Y uint32
 }
+
+func (m MouseMove) WriteTo(w io.Writer) (int64, error) { return writeTo(m, w) }
 
 func (m MouseMove) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
@@ -481,6 +511,7 @@ type MouseButton struct {
 	State  ButtonState
 }
 
+func (m MouseButton) WriteTo(w io.Writer) (int64, error) { return writeTo(m, w) }
 func (m MouseButton) Encode() ([]byte, error) {
 	return []byte{byte(TypeMouseButton), byte(m.Button), byte(m.State)}, nil
 }
@@ -498,6 +529,7 @@ type KeyboardButton struct {
 	State   ButtonState
 }
 
+func (k KeyboardButton) WriteTo(w io.Writer) (int64, error) { return writeTo(k, w) }
 func (k KeyboardButton) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeKeyboardButton))
@@ -519,6 +551,7 @@ type ClientScreenSpec struct {
 	Height uint32
 }
 
+func (s ClientScreenSpec) WriteTo(w io.Writer) (int64, error) { return writeTo(s, w) }
 func (s ClientScreenSpec) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeClientScreenSpec))
@@ -543,6 +576,7 @@ type ClientUsername struct {
 // https://docs.microsoft.com/en-us/windows-hardware/customize/desktop/unattend/microsoft-windows-shell-setup-autologon-username
 const windowsMaxUsernameLength = 256
 
+func (r ClientUsername) WriteTo(w io.Writer) (int64, error) { return writeTo(r, w) }
 func (r ClientUsername) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeClientUsername))
@@ -575,6 +609,7 @@ type Error struct {
 	Message string
 }
 
+func (m Error) WriteTo(w io.Writer) (int64, error) { return writeTo(m, w) }
 func (m Error) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeError))
@@ -610,6 +645,7 @@ type Alert struct {
 	Severity Severity
 }
 
+func (m Alert) WriteTo(w io.Writer) (int64, error) { return writeTo(m, w) }
 func (m Alert) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeAlert))
@@ -625,7 +661,8 @@ func decodeAlert(in byteReader) (Alert, error) {
 	if err != nil {
 		return Alert{}, trace.Wrap(err)
 	}
-	severity, err := in.ReadByte()
+
+	severity, err := readByte(in)
 	if err != nil {
 		return Alert{}, trace.Wrap(err)
 	}
@@ -647,6 +684,7 @@ type MouseWheel struct {
 	Delta int16
 }
 
+func (w MouseWheel) WriteTo(wr io.Writer) (int64, error) { return 0, nil }
 func (w MouseWheel) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeMouseWheel))
@@ -666,6 +704,7 @@ func decodeMouseWheel(in io.Reader) (MouseWheel, error) {
 // | message type (6) | length uint32 | data []byte |
 type ClipboardData []byte
 
+func (c ClipboardData) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (c ClipboardData) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeClipboardData))
@@ -710,6 +749,10 @@ type MFA struct {
 	*authproto.MFAAuthenticateResponse
 }
 
+func (m MFA) WriteTo(w io.Writer) (int64, error) {
+	return 0, errors.New("unimplemented")
+}
+
 func (m MFA) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeMFA))
@@ -745,7 +788,7 @@ func (m MFA) Encode() ([]byte, error) {
 }
 
 func DecodeMFA(in byteReader) (*MFA, error) {
-	mt, err := in.ReadByte()
+	mt, err := readByte(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -788,7 +831,7 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 // DecodeMFAChallenge is a helper function used in test purpose to decode MFA challenge payload because in
 // real flow this logic is invoked by a fronted client.
 func DecodeMFAChallenge(in byteReader) (*MFA, error) {
-	mt, err := in.ReadByte()
+	mt, err := readByte(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -834,6 +877,7 @@ type SharedDirectoryAnnounce struct {
 	Name        string
 }
 
+func (s SharedDirectoryAnnounce) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAnnounce))
@@ -883,7 +927,7 @@ func decodeSharedDirectoryAcknowledge(in io.Reader) (SharedDirectoryAcknowledge,
 	err := binary.Read(in, binary.BigEndian, &s)
 	return s, trace.Wrap(err)
 }
-
+func (s SharedDirectoryAcknowledge) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAcknowledge))
@@ -900,6 +944,7 @@ type SharedDirectoryInfoRequest struct {
 	Path         string
 }
 
+func (s SharedDirectoryInfoRequest) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryInfoRequest) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryInfoRequest))
@@ -941,6 +986,7 @@ type SharedDirectoryInfoResponse struct {
 	Fso          FileSystemObject
 }
 
+func (s SharedDirectoryInfoResponse) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryInfoResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryInfoResponse))
@@ -986,6 +1032,7 @@ type FileSystemObject struct {
 	Path         string
 }
 
+func (f FileSystemObject) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (f FileSystemObject) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	writeUint64(buf, f.LastModified)
@@ -1014,7 +1061,7 @@ func decodeFileSystemObject(in byteReader) (FileSystemObject, error) {
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
-	isEmpty, err = in.ReadByte()
+	isEmpty, err = readByte(in)
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
@@ -1041,6 +1088,7 @@ type SharedDirectoryCreateRequest struct {
 	Path         string
 }
 
+func (s SharedDirectoryCreateRequest) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryCreateRequest) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryCreateRequest))
@@ -1089,6 +1137,7 @@ type SharedDirectoryCreateResponse struct {
 	Fso          FileSystemObject
 }
 
+func (s SharedDirectoryCreateResponse) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryCreateResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryCreateResponse))
@@ -1133,6 +1182,7 @@ type SharedDirectoryDeleteRequest struct {
 	Path         string
 }
 
+func (s SharedDirectoryDeleteRequest) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryDeleteRequest) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryDeleteRequest))
@@ -1174,6 +1224,7 @@ type SharedDirectoryDeleteResponse struct {
 	ErrCode      uint32
 }
 
+func (s SharedDirectoryDeleteResponse) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryDeleteResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryDeleteResponse))
@@ -1196,6 +1247,7 @@ type SharedDirectoryListRequest struct {
 	Path         string
 }
 
+func (s SharedDirectoryListRequest) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryListRequest) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryListRequest))
@@ -1238,6 +1290,7 @@ type SharedDirectoryListResponse struct {
 	FsoList      []FileSystemObject
 }
 
+func (s SharedDirectoryListResponse) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryListResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryListResponse))
@@ -1298,6 +1351,7 @@ type SharedDirectoryReadRequest struct {
 	Length       uint32
 }
 
+func (s SharedDirectoryReadRequest) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryReadRequest) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryReadRequest))
@@ -1359,6 +1413,7 @@ type SharedDirectoryReadResponse struct {
 	ReadData       []byte
 }
 
+func (s SharedDirectoryReadResponse) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryReadResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryReadResponse))
@@ -1417,6 +1472,7 @@ type SharedDirectoryWriteRequest struct {
 	WriteData       []byte
 }
 
+func (s SharedDirectoryWriteRequest) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryWriteRequest) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 
@@ -1490,6 +1546,7 @@ type SharedDirectoryWriteResponse struct {
 	BytesWritten uint32
 }
 
+func (s SharedDirectoryWriteResponse) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryWriteResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryWriteResponse))
@@ -1515,6 +1572,7 @@ type SharedDirectoryMoveRequest struct {
 	NewPath      string
 }
 
+func (s SharedDirectoryMoveRequest) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryMoveRequest) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryMoveRequest))
@@ -1563,6 +1621,7 @@ type SharedDirectoryMoveResponse struct {
 	ErrCode      uint32
 }
 
+func (s SharedDirectoryMoveResponse) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryMoveResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryMoveResponse))
@@ -1585,6 +1644,7 @@ type SharedDirectoryTruncateRequest struct {
 	EndOfFile    uint32
 }
 
+func (s SharedDirectoryTruncateRequest) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryTruncateRequest) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryTruncateRequest))
@@ -1631,6 +1691,7 @@ type SharedDirectoryTruncateResponse struct {
 	ErrCode      uint32
 }
 
+func (s SharedDirectoryTruncateResponse) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (s SharedDirectoryTruncateResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryTruncateResponse))
@@ -1651,6 +1712,7 @@ type LatencyStats struct {
 	ServerLatency uint32
 }
 
+func (l LatencyStats) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (l LatencyStats) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeLatencyStats))
@@ -1678,6 +1740,7 @@ type Ping struct {
 	UUID uuid.UUID
 }
 
+func (p Ping) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (p Ping) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypePing))
@@ -1700,6 +1763,7 @@ type ClientKeyboardLayout struct {
 	KeyboardLayout uint32
 }
 
+func (c ClientKeyboardLayout) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (c ClientKeyboardLayout) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeClientKeyboardLayout))
@@ -1729,6 +1793,7 @@ type TDPUpgrade struct {
 	Version uint8
 }
 
+func (t *TDPUpgrade) WriteTo(w io.Writer) (int64, error) { return 0, nil }
 func (t *TDPUpgrade) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeUpgrade))
