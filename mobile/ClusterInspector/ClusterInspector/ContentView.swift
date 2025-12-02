@@ -25,10 +25,8 @@
 import SwiftUI
 
 struct ContentView: View {
-  @State private var clusterAddress = ""
+  @State private var viewModel = FindViewModel()
   @FocusState private var isFocused: Bool
-  @State private var findAttempt: Attempt<PingFindResponse, FindError> = .idle
-  @State private var findTask: Task<Void, Never>?
 
   var body: some View {
     VStack(spacing: 16) {
@@ -37,7 +35,7 @@ struct ContentView: View {
           .frame(height: 60)
       }.padding(16)
 
-      switch findAttempt {
+      switch viewModel.findAttempt {
       case .idle:
         Spacer()
         Text("Enter the cluster address to inspect its properties.").padding(hPadding)
@@ -59,45 +57,64 @@ struct ContentView: View {
       }
 
       Spacer()
-      if findAttempt.isLoading, findTask != nil, !findTask!.isCancelled {
+      if viewModel.canCancel {
         Button("Cancel", role: .destructive) {
-          findTask?.cancel()
-          findAttempt = .idle
+          viewModel.cancelFind()
         }.buttonStyle(.bordered)
       }
-      TextField("Cluster Address", text: $clusterAddress).autocorrectionDisabled(true)
+      TextField("Cluster Address", text: $viewModel.clusterAddress).autocorrectionDisabled(true)
         .keyboardType(.URL).textInputAutocapitalization(.never).focused($isFocused)
         .submitLabel(.send).textFieldStyle(.roundedBorder).padding(16)
-        .modifier(ClearButton(text: $clusterAddress)).onSubmit {
-          // Retry an attempt on submit if previous one finished.
-          if findAttempt.didFinish {
-            findAttempt = .idle
-          }
-          if !findAttempt.isIdle {
-            findTask?.cancel()
-          }
-          findAttempt = .loading
-          let ctx = PingContext()!
-
-          findTask = Task {
-            defer { ctx.cancel() }
-            
-            await withTaskCancellationHandler {
-              let ping = PingFindActor()
-              do {
-                let response = try await ping.find(ctx, proxyServer: clusterAddress)
-                if Task.isCancelled { return }
-                findAttempt = .success(response)
-              } catch {
-                if Task.isCancelled { return }
-                findAttempt = .failure(.unknownError(error))
-              }
-            } onCancel: {
-              ctx.cancel()
-            }
-          }
+        .modifier(ClearButton(text: $viewModel.clusterAddress)).onSubmit {
+          viewModel.startFind()
         }
     }
+  }
+}
+
+@Observable
+class FindViewModel {
+  var clusterAddress = ""
+  var findAttempt: Attempt<PingFindResponse, FindError> = .idle
+  private var findTask: Task<Void, Never>?
+
+  func startFind() {
+    // Retry an attempt on submit if previous one finished.
+    if findAttempt.didFinish {
+      findAttempt = .idle
+    }
+    if !findAttempt.isIdle {
+      findTask?.cancel()
+    }
+    findAttempt = .loading
+    let ctx = PingContext()!
+
+    findTask = Task {
+      defer { ctx.cancel() }
+
+      await withTaskCancellationHandler {
+        let ping = PingFindActor()
+        do {
+          let response = try await ping.find(ctx, proxyServer: clusterAddress)
+          if Task.isCancelled { return }
+          findAttempt = .success(response)
+        } catch {
+          if Task.isCancelled { return }
+          findAttempt = .failure(.unknownError(error))
+        }
+      } onCancel: {
+        ctx.cancel()
+      }
+    }
+  }
+
+  func cancelFind() {
+    findTask?.cancel()
+    findAttempt = .idle
+  }
+
+  var canCancel: Bool {
+    findAttempt.isLoading && findTask != nil && !(findTask?.isCancelled ?? true)
   }
 }
 
