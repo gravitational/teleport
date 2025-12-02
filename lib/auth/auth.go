@@ -5975,7 +5975,8 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching identity center account assignment")
 		}
-		samlLabel, ok := asmt.GetMetadata().GetLabels()[types.KindSAMLIdPServiceProvider]
+		key := types.TeleportNamespace + "/" + types.KindSAMLIdPServiceProvider
+		samlLabel, ok := asmt.GetMetadata().GetLabels()[key]
 		if ok && !samlApp.Contains(samlLabel) {
 			// In a full integration mode (non-hybrid), user access
 			// AWS account by authenticating with the Identity Center SAML app.

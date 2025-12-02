@@ -4806,7 +4806,8 @@ func testCreateICAccountAssignment(t *testing.T, ctx context.Context, icService 
 		types.OriginLabel: common.OriginAWSIdentityCenter,
 	}
 	if withSamlAppLabel {
-		labels[types.KindSAMLIdPServiceProvider] = "aws-identity-center"
+		key := types.TeleportNamespace + "/" + types.KindSAMLIdPServiceProvider
+		labels[key] = "aws-identity-center"
 	}
 	for i := range 3 {
 		name := "assignment-" + strconv.Itoa(i)
