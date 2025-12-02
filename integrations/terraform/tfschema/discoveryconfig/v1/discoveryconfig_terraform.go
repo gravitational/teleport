@@ -383,11 +383,13 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								"azure": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"client_id": {
 										Description: "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
-										Optional:    true,
+										Required:    true,
 										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									}}),
-									Description: "Azure is the set of Azure-specific installation parameters.",
-									Optional:    true,
+									Computed:      true,
+									Description:   "Azure is the set of Azure-specific installation parameters.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 								},
 								"enroll_mode": {
 									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
@@ -422,12 +424,12 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								},
 								"join_method": {
 									Description: "JoinMethod is the method to use when joining the cluster",
-									Optional:    true,
+									Required:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"join_token": {
 									Description: "JoinToken is the token to use when joining the cluster",
-									Optional:    true,
+									Required:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"proxy_addr": {
@@ -436,9 +438,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"script_name": {
-									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sshd_config": {
 									Description: "SSHDConfig provides the path to write sshd configuration changes",
@@ -456,8 +460,10 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "Params sets the join method when installing on discovered Azure nodes.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "Params sets the join method when installing on discovered Azure nodes.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"integration": {
 							Description: "Integration is the integration name used to generate credentials to interact with Azure APIs. Environment credentials will not be used when this value is set.",

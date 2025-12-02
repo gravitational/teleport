@@ -210,14 +210,17 @@ Optional:
 
 ### Nested Schema for `spec.azure.install_params`
 
+Required:
+
+- `join_method` (String) JoinMethod is the method to use when joining the cluster
+- `join_token` (String) JoinToken is the token to use when joining the cluster
+
 Optional:
 
 - `azure` (Attributes) Azure is the set of Azure-specific installation parameters. (see [below for nested schema](#nested-schema-for-specazureinstall_paramsazure))
 - `enroll_mode` (Number) EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)
 - `http_proxy_settings` (Attributes) HTTPProxySettings defines HTTP proxy settings for making HTTP requests. When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation. (see [below for nested schema](#nested-schema-for-specazureinstall_paramshttp_proxy_settings))
 - `install_teleport` (Boolean) InstallTeleport disables agentless discovery
-- `join_method` (String) JoinMethod is the method to use when joining the cluster
-- `join_token` (String) JoinToken is the token to use when joining the cluster
 - `proxy_addr` (String) PublicProxyAddr is the address of the proxy the discovered node should use to connect to the cluster.
 - `script_name` (String) ScriptName is the name of the teleport installer script resource for the cloud instance to execute
 - `sshd_config` (String) SSHDConfig provides the path to write sshd configuration changes
@@ -226,7 +229,7 @@ Optional:
 
 ### Nested Schema for `spec.azure.install_params.azure`
 
-Optional:
+Required:
 
 - `client_id` (String) ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.
 
