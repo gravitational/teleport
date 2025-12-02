@@ -30,7 +30,7 @@ import (
 )
 
 // Note that this file is copied from the original lib:
-// https://github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/blob/main/sigv4/internal/crypt.go
+// https://github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/blob/3de2214b893e307a7447a754489e4d7dfdf6d0c0/sigv4/internal/crypt.go
 
 // extractNonce extracts the nonce from a request payload needed for calls from
 // payload returned by Amazon Keyspaces.

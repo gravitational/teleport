@@ -25,7 +25,7 @@ import (
 )
 
 // Note that all of these tests are copied from the original library:
-// https://github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/blob/main/sigv4/internal/crypt_test.go
+// https://github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/blob/3de2214b893e307a7447a754489e4d7dfdf6d0c0/sigv4/internal/crypt_test.go
 
 const (
 	nonce       = "91703fdc2ef562e19fbdab0f58e42fe5"

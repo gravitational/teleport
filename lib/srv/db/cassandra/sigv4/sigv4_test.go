@@ -24,7 +24,7 @@ import (
 )
 
 // Note that all of these tests are copied from the original library:
-// https://github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/blob/main/sigv4/sigv4_test.go
+// https://github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/blob/3de2214b893e307a7447a754489e4d7dfdf6d0c0/sigv4/sigv4_test.go
 
 // We should switch to sigv4 when initially challenged
 func TestShouldReturnSigV4iInitially(t *testing.T) {

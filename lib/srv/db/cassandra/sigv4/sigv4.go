@@ -25,7 +25,7 @@ import (
 
 // Note that this file is copied from the original lib with some minor
 // adjustments like removing unused AWS session and callback:
-// https://github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/blob/main/sigv4/sigv4.go
+// https://github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/blob/3de2214b893e307a7447a754489e4d7dfdf6d0c0/sigv4/sigv4.go
 
 // AwsAuthenticator implements gocql.Authenticator for AWS Keyspaces.
 type AwsAuthenticator struct {
