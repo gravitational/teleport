@@ -13,7 +13,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: teleport/mfa/v1/mfa_service.proto
+// source: teleport/mfa/v1/service.proto
 
 package mfav1
 
@@ -268,5 +268,5 @@ var MFAService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleport/mfa/v1/mfa_service.proto",
+	Metadata: "teleport/mfa/v1/service.proto",
 }

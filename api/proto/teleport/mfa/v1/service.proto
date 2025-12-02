@@ -15,7 +15,8 @@ package teleport.mfa.v1;
 
 import "gogoproto/gogo.proto";
 import "teleport/legacy/types/types.proto";
-import "teleport/legacy/types/webauthn/webauthn.proto";
+import "teleport/mfa/v1/challenge.proto";
+import "teleport/mfa/v1/validated_challenge.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
 option (gogoproto.marshaler_all) = true;
@@ -41,21 +42,11 @@ service MFAService {
   rpc VerifyValidatedMFAChallenge(VerifyValidatedMFAChallengeRequest) returns (VerifyValidatedMFAChallengeResponse);
 }
 
-// SessionIdentifyingPayload contains a value that uniquely identifies a user's session. It must be computed by the
-// client from session state and is used to bind MFA challenges to specific sessions.
-message SessionIdentifyingPayload {
-  oneof payload {
-    // session_id is the SSH session hash computed from SSH session state. For example, in Go this would be the value
-    // from crypto/ssh#ConnMetadata.SessionID().
-    bytes ssh_session_id = 1;
-  }
-}
-
 // CreateChallengeRequest is the request message for CreateChallenge.
 message CreateChallengeRequest {
   // payload is a value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the
   // server will verify it matches the payload supplied to CreateChallengeRequest.
-  SessionIdentifyingPayload payload = 1;
+  teleport.mfa.v1.SessionIdentifyingPayload payload = 1;
   // target_cluster is the name of the target cluster where the SSH session is being established. If unset, the server
   // assumes the challenge is for the local cluster. This is used to determine where the validated challenge should be
   // replicated to for leaf clusters. It is required when the SSH session is being established in a leaf cluster.
@@ -74,7 +65,7 @@ message CreateChallengeResponse {
   // an opaque identifier and used as-is in subsequent API calls.
   string name = 1;
   // mfa_challenge contains the MFA challenge that the user must respond to.
-  AuthenticateChallenge mfa_challenge = 2;
+  teleport.mfa.v1.AuthenticateChallenge mfa_challenge = 2;
 }
 
 // ValidateChallengeRequest is the request message for ValidateChallenge.
@@ -83,7 +74,7 @@ message ValidateChallengeRequest {
   // to tie the validation to the correct challenge.
   string name = 1;
   // mfa_response contains the MFA challenge response provided by the user.
-  AuthenticateResponse mfa_response = 2;
+  teleport.mfa.v1.AuthenticateResponse mfa_response = 2;
 }
 
 // ValidateChallengeResponse is the response message for ValidateChallenge.
@@ -108,7 +99,7 @@ message ReplicateValidatedMFAChallengeRequest {
 // ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
 message ReplicateValidatedMFAChallengeResponse {
   // replicated_challenge is the validated MFA challenge that was replicated.
-  ValidatedMFAChallenge replicated_challenge = 1;
+  teleport.mfa.v1.ValidatedMFAChallenge replicated_challenge = 1;
 }
 
 // VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
@@ -125,74 +116,4 @@ message VerifyValidatedMFAChallengeRequest {
 }
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
-message VerifyValidatedMFAChallengeResponse {
-  // device contains information about the user's MFA device used to authenticate.
-  types.MFADevice device = 1;
-}
-
-// AuthenticateChallenge is a challenge for all MFA devices registered for a user.
-message AuthenticateChallenge {
-  // webauthn_challenge contains a Webauthn credential assertion used for login/authentication ceremonies. Credential
-  // assertions hold, among other information, a list of allowed credentials for the ceremony (one for each U2F or
-  // Webauthn device registered by the user).
-  webauthn.CredentialAssertion webauthn_challenge = 1;
-  // sso_challenge is an SSO MFA challenge. If set, the client can go to the IdP redirect URL to perform an MFA check in
-  // the IdP and obtain an MFA token. This token paired with the request id can then be used as MFA verification.
-  SSOChallenge sso_challenge = 2;
-}
-
-// AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
-message AuthenticateResponse {
-  oneof response {
-    // webauthn is a response to a Webauthn challenge.
-    webauthn.CredentialAssertionResponse webauthn = 1;
-    // sso is a response to an SSO challenge.
-    SSOChallengeResponse sso = 2;
-  }
-}
-
-// SSOChallenge contains SSO auth request details to perform an SSO MFA check.
-message SSOChallenge {
-  // request_id is the ID of an SSO auth request.
-  string request_id = 1;
-  // redirect_url is an IdP redirect URL to initiate the SSO MFA flow.
-  string redirect_url = 2;
-  // device is the SSO device corresponding to the challenge.
-  types.SSOMFADevice device = 3;
-}
-
-// SSOChallengeResponse is a response to SSOChallenge.
-message SSOChallengeResponse {
-  // request_id is the ID of an SSO auth request.
-  string request_id = 1;
-  // token is a secret token used to verify the user's SSO MFA session.
-  string token = 2;
-}
-
-// ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
-message ValidatedMFAChallenge {
-  // The kind of resource represented.
-  string kind = 1;
-  // Differentiates variations of the same kind. All resources should contain one, even if it is never populated.
-  string sub_kind = 2;
-  // The version of the resource being represented.
-  string version = 3;
-  // Common metadata that all resources share.
-  types.Metadata metadata = 4;
-  // The validated challenge specification.
-  ValidatedMFAChallengeSpec spec = 5;
-}
-
-// ValidatedMFAChallengeSpec contains the validated challenge data that is set once during creation and never modified.
-message ValidatedMFAChallengeSpec {
-  // payload is a value that uniquely identifies the user's session. It is the value that was supplied in
-  // CreateChallengeRequest.
-  SessionIdentifyingPayload payload = 1;
-  // device contains information about the user's MFA device used to authenticate.
-  types.MFADevice device = 2;
-  // source_cluster is the name of the cluster where the validated challenge originated.
-  string source_cluster = 3;
-  // target_cluster is the name of the cluster where the SSH session is being established and this resource is intended
-  // for.
-  string target_cluster = 4;
-}
+message VerifyValidatedMFAChallengeResponse {}
