@@ -199,8 +199,7 @@ export interface OktaIntegrationLevelStep {
   shortName: string;
 }
 
-export interface OktaIntegrationStepWithEnabled
-  extends OktaIntegrationLevelStep {
+export interface OktaIntegrationStepWithEnabled extends OktaIntegrationLevelStep {
   enabled: boolean;
 }
 

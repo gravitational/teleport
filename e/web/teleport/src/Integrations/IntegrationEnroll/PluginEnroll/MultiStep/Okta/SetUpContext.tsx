@@ -21,8 +21,7 @@ interface OktaIntegrationSetUpContextProviderProps {
   startFrom: OktaIntegrationStepType | undefined;
 }
 
-interface OktaIntegrationSetUpContextValue
-  extends OktaIntegrationSetUpContextProviderProps {
+interface OktaIntegrationSetUpContextValue extends OktaIntegrationSetUpContextProviderProps {
   getNextStep: (
     currentStepType: OktaIntegrationStepType | undefined
   ) => OktaIntegrationLevelStep | undefined;
