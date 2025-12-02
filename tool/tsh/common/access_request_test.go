@@ -413,3 +413,233 @@ func TestRequestSearchRequestableRoles(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintRequestableResources(t *testing.T) {
+	rows := []kubeResourceRow{
+		{
+			Name:       "pod-1",
+			Namespace:  "default",
+			Labels:     "env=prod",
+			ResourceID: "id1",
+		},
+		{
+			Name:       "pod-2",
+			Namespace:  "dev",
+			Labels:     "env=dev",
+			ResourceID: "id2",
+		},
+	}
+	resourceIDs := []string{"id1", "id2"}
+
+	t.Run("text", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+		}
+
+		err := printRequestableResources(cf, rows, resourceIDs)
+		require.NoError(t, err)
+
+		// Build expected table using asciitable.
+		table := asciitable.MakeTable(
+			[]string{"Name", "Namespace", "Labels", "Resource ID"},
+			[][]string{
+				{"pod-1", "default", "env=prod", "id1"},
+				{"pod-2", "dev", "env=dev", "id2"},
+			}...,
+		)
+		expectedTable := table.AsBuffer().String()
+		out := buf.String()
+
+		require.Contains(t, out, expectedTable)
+		require.Contains(t, out, "To request access to these resources, run")
+	})
+
+	t.Run("json", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+			Format:         "json",
+		}
+
+		err := printRequestableResources(cf, rows, resourceIDs)
+		require.NoError(t, err)
+
+		got := buf.String()
+		wantJSON := `
+[
+{
+	"Name": "pod-1",
+	"Namespace": "default",
+	"Labels": "env=prod",
+	"ResourceID": "id1"
+},
+{
+	"Name": "pod-2",
+	"Namespace": "dev",
+	"Labels": "env=dev",
+	"ResourceID": "id2"
+}
+]
+`
+		require.JSONEq(t, wantJSON, got)
+	})
+
+	t.Run("yaml", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+			Format:         "yaml",
+		}
+
+		err := printRequestableResources(cf, rows, resourceIDs)
+		require.NoError(t, err)
+
+		got := buf.String()
+		wantYAML := `
+- Name: pod-1
+  Namespace: default
+  Labels: env=prod
+  ResourceID: id1
+- Name: pod-2
+  Namespace: dev
+  Labels: env=dev
+  ResourceID: id2
+`
+		require.YAMLEq(t, wantYAML, got)
+	})
+
+	t.Run("empty rows text", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+			Format:         "",
+			Verbose:        true,
+		}
+
+		err := printRequestableResources(cf, []kubeResourceRow{}, nil)
+		require.NoError(t, err)
+
+		out := buf.String()
+		table := asciitable.MakeTable(
+			[]string{"Name", "Namespace", "Labels", "Resource ID"},
+		)
+		expectedTable := table.AsBuffer().String()
+		require.Equal(t, expectedTable, out)
+	})
+
+	t.Run("unsupported format", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+			Format:         "random",
+		}
+
+		err := printRequestableResources(cf, rows, resourceIDs)
+		require.Error(t, err)
+	})
+}
+
+func TestPrintRequestableRoles(t *testing.T) {
+	rows := []requestableRoleRow{
+		{
+			Role:        "access",
+			Description: "base access role",
+		},
+		{
+			Role:        "db-admin",
+			Description: "database administrator role",
+		},
+	}
+
+	t.Run("text", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+		}
+
+		err := printRequestableRoles(cf, rows)
+		require.NoError(t, err)
+
+		table := asciitable.MakeTable(
+			[]string{"Role", "Description"},
+			[][]string{
+				{"access", "base access role"},
+				{"db-admin", "database administrator role"},
+			}...,
+		)
+		expectedTable := table.AsBuffer().String()
+		out := buf.String()
+
+		require.Equal(t, expectedTable, out)
+	})
+
+	t.Run("json", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+			Format:         "json",
+		}
+
+		err := printRequestableRoles(cf, rows)
+		require.NoError(t, err)
+
+		got := buf.String()
+		const wantJSON = `
+[
+  {
+    "Role": "access",
+    "Description": "base access role"
+  },
+  {
+    "Role": "db-admin",
+    "Description": "database administrator role"
+  }
+]
+`
+		require.JSONEq(t, wantJSON, got)
+	})
+
+	t.Run("yaml", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+			Format:         "yaml",
+		}
+
+		err := printRequestableRoles(cf, rows)
+		require.NoError(t, err)
+
+		got := buf.String()
+		const wantYAML = `
+- Role: access
+  Description: base access role
+- Role: db-admin
+  Description: database administrator role
+`
+		require.YAMLEq(t, wantYAML, got)
+	})
+
+	t.Run("empty roles text", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+		}
+
+		err := printRequestableRoles(cf, nil)
+		require.NoError(t, err)
+
+		require.Equal(t, "No requestable roles found.\n", buf.String())
+	})
+
+	t.Run("unsupported_format", func(t *testing.T) {
+		var buf bytes.Buffer
+		cf := &CLIConf{
+			OverrideStdout: &buf,
+			Format:         "random",
+		}
+
+		err := printRequestableRoles(cf, rows)
+		require.Error(t, err)
+	})
+}
