@@ -55,7 +55,8 @@ import {
 } from '../system';
 
 export interface BoxProps
-  extends MaxWidthProps,
+  extends
+    MaxWidthProps,
     MinWidthProps,
     SpaceProps,
     HeightProps,
