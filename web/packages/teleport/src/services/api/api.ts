@@ -99,9 +99,9 @@ const api = {
       headers: Record<string, string>;
       mfaResponse: MfaChallengeResponse;
       signal: AbortSignal;
-    }> &
-      (// Either data or formData.
-      | { data?: unknown; formData?: never }
+    }> & // Either data or formData.
+      (
+        | { data?: unknown; formData?: never }
         | { data?: never; formData?: FormData }
       ) = {}
   ) {
