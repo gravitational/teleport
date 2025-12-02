@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
@@ -207,6 +208,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
 		types.JoinMethodIAM,
+		types.JoinMethodKubernetes,
 		types.JoinMethodOracle,
 		types.JoinMethodTPM:
 		joinMethod := string(params.JoinMethod)
@@ -343,6 +345,15 @@ func joinWithMethod(
 			joinParams.IDToken, err = gitlab.NewIDTokenSource(gitlab.IDTokenSourceConfig{
 				EnvVarName: joinParams.GitlabParams.EnvVarName,
 			}).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodKubernetes:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = kubetoken.GetIDToken(os.Getenv, joinParams.KubernetesReadFileFunc)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
