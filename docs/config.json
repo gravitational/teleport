@@ -402,7 +402,7 @@
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/notification-routing-rules/",
-      "destination": "/identity-governance/access-requests/plugins/notification-routing-rules/",
+      "destination": "/identity-governance/access-requests/notification-routing-rules/",
       "permanent": true
     },
     {
@@ -1577,7 +1577,7 @@
     },
     {
       "source": "/admin-guides/api/access-plugin/",
-      "destination": "/identity-governance/access-requests/plugins/access-plugin/",
+      "destination": "/identity-governance/access-requests/plugins/how-to-build/",
       "permanent": true
     },
     {
@@ -2947,7 +2947,7 @@
     },
     {
       "source": "/identity-governance/access-request-plugins/access-plugin/",
-      "destination": "/identity-governance/access-requests/plugins/access-plugin/",
+      "destination": "/identity-governance/access-requests/plugins/how-to-build/",
       "permanent": true
     },
     {
@@ -2957,7 +2957,7 @@
     },
     {
       "source": "/identity-governance/access-request-plugins/notification-routing-rules/",
-      "destination": "/identity-governance/access-requests/plugins/notification-routing-rules/",
+      "destination": "/identity-governance/access-requests/notification-routing-rules/",
       "permanent": true
     },
     {
