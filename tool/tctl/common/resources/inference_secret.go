@@ -75,7 +75,7 @@ func inferenceSecretHandler() Handler {
 		deleteHandler: deleteInferenceSecret,
 		singleton:     false,
 		mfaRequired:   false,
-		description:   "Inference Secret",
+		description:   "Stores session summarization inference provider secrets",
 	}
 }
 
