@@ -73,8 +73,14 @@ type DeviceWebToken struct {
 	// Used internally by the Device Trust system.
 	// Transient.
 	ExpectedDeviceIds []string `protobuf:"bytes,7,rep,name=expected_device_ids,json=expectedDeviceIds,proto3" json:"expected_device_ids,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// BrowserMaxTouchPoints indicates whether the client device supports touch controls. It is sent
+	// by the frontend app to the proxy service and then forwarded to the auth service. It
+	// differentiates iPadOS from macOS since they both use the same user agent otherwise. This
+	// information is needed to decide whether to show the Device Trust prompt in the Web UI after a
+	// successful login.
+	BrowserMaxTouchPoints uint32 `protobuf:"varint,8,opt,name=browser_max_touch_points,json=browserMaxTouchPoints,proto3" json:"browser_max_touch_points,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *DeviceWebToken) Reset() {
@@ -151,6 +157,13 @@ func (x *DeviceWebToken) GetExpectedDeviceIds() []string {
 	return nil
 }
 
+func (x *DeviceWebToken) GetBrowserMaxTouchPoints() uint32 {
+	if x != nil {
+		return x.BrowserMaxTouchPoints
+	}
+	return 0
+}
+
 func (x *DeviceWebToken) SetId(v string) {
 	x.Id = v
 }
@@ -177,6 +190,10 @@ func (x *DeviceWebToken) SetUser(v string) {
 
 func (x *DeviceWebToken) SetExpectedDeviceIds(v []string) {
 	x.ExpectedDeviceIds = v
+}
+
+func (x *DeviceWebToken) SetBrowserMaxTouchPoints(v uint32) {
+	x.BrowserMaxTouchPoints = v
 }
 
 type DeviceWebToken_builder struct {
@@ -210,6 +227,12 @@ type DeviceWebToken_builder struct {
 	// Used internally by the Device Trust system.
 	// Transient.
 	ExpectedDeviceIds []string
+	// BrowserMaxTouchPoints indicates whether the client device supports touch controls. It is sent
+	// by the frontend app to the proxy service and then forwarded to the auth service. It
+	// differentiates iPadOS from macOS since they both use the same user agent otherwise. This
+	// information is needed to decide whether to show the Device Trust prompt in the Web UI after a
+	// successful login.
+	BrowserMaxTouchPoints uint32
 }
 
 func (b0 DeviceWebToken_builder) Build() *DeviceWebToken {
@@ -223,6 +246,7 @@ func (b0 DeviceWebToken_builder) Build() *DeviceWebToken {
 	x.BrowserIp = b.BrowserIp
 	x.User = b.User
 	x.ExpectedDeviceIds = b.ExpectedDeviceIds
+	x.BrowserMaxTouchPoints = b.BrowserMaxTouchPoints
 	return m0
 }
 
@@ -230,7 +254,7 @@ var File_teleport_devicetrust_v1_device_web_token_proto protoreflect.FileDescrip
 
 const file_teleport_devicetrust_v1_device_web_token_proto_rawDesc = "" +
 	"\n" +
-	".teleport/devicetrust/v1/device_web_token.proto\x12\x17teleport.devicetrust.v1\"\xed\x01\n" +
+	".teleport/devicetrust/v1/device_web_token.proto\x12\x17teleport.devicetrust.v1\"\xa6\x02\n" +
 	"\x0eDeviceWebToken\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05token\x12$\n" +
@@ -239,7 +263,8 @@ const file_teleport_devicetrust_v1_device_web_token_proto_rawDesc = "" +
 	"\n" +
 	"browser_ip\x18\x05 \x01(\tR\tbrowserIp\x12\x12\n" +
 	"\x04user\x18\x06 \x01(\tR\x04user\x12.\n" +
-	"\x13expected_device_ids\x18\a \x03(\tR\x11expectedDeviceIdsBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
+	"\x13expected_device_ids\x18\a \x03(\tR\x11expectedDeviceIds\x127\n" +
+	"\x18browser_max_touch_points\x18\b \x01(\rR\x15browserMaxTouchPointsBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
 
 var file_teleport_devicetrust_v1_device_web_token_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_devicetrust_v1_device_web_token_proto_goTypes = []any{

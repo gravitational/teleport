@@ -74,7 +74,7 @@ export function Story(props: StoryProps) {
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootCluster.uri, rootCluster);
   });
-  appContext.clustersService.authenticateWebDevice = async () => {
+  appContext.tshd.authenticateWebDevice = async () => {
     await wait(2_000);
     return new MockedUnaryCall({
       confirmationToken: {
