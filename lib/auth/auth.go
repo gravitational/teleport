@@ -122,6 +122,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
@@ -138,7 +139,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1276,7 +1276,7 @@ type Server struct {
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
-	spaceliftIDTokenValidator spaceliftIDTokenValidator
+	spaceliftIDTokenValidator spacelift.Validator
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -1298,11 +1298,11 @@ type Server struct {
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
 	// the purpose of tests.
-	k8sTokenReviewValidator k8sTokenReviewValidator
+	k8sTokenReviewValidator kubetoken.InClusterValidator
 	// k8sJWKSValidator allows tokens from Kubernetes to be validated
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
-	k8sJWKSValidator k8sJWKSValidator
+	k8sJWKSValidator kubetoken.JWKSValidator
 	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
 	// auth server using a known OIDC endpoint. It can be overridden in tests.
 	k8sOIDCValidator *kubetoken.KubernetesOIDCTokenValidator

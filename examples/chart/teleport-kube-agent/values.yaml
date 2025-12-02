@@ -32,6 +32,16 @@ roles: "kube"
 # | `teleport-cluster` Helm chart | `teleport.example.com:443`          |
 proxyAddr: ""
 
+# relayAddr(string) -- defines the optional address of the Teleport Relay
+# Service tunnel endpoint that this agent should use.
+#
+# If set, the agent will open reverse tunnels to the specified Relay in addition
+# to the tunnels to the control plane, for the protocols supported by the Relay.
+#
+# relayAddr is available starting from Teleport v18.5.0, taking effect for the
+# Kubernetes service.
+relayAddr: ""
+
 # enterprise(bool) -- controls if the `teleport-kube-agent` chart should deploy
 # the OSS version or the enterprise version of the container image.
 # This must be set to `true` when connecting to Teleport Cloud or self-hosted
@@ -119,7 +129,7 @@ kubeClusterName: ""
 ################################################################
 
 # apps(list) -- is a static list of applications that should be proxied by
-# the agent. See [the Teleport Application access documentation](../../reference/agent-services/application-access.mdx#configuration)
+# the agent. See [the Teleport Application access documentation](../../enroll-resources/application-access/reference.mdx#configuration)
 # for more details.
 #
 # Proxied applications can be defined statically (through this value) or dynamically
@@ -144,13 +154,13 @@ kubeClusterName: ""
 # <Admonition type="tip" title="Supported values">
 #   You can see a list of all the supported values that can be used in a Teleport
 #   Application Service configuration in the [Application Service Configuration
-#   Reference](../../reference/agent-services/application-access.mdx#configuration).
+#   Reference](../../enroll-resources/application-access/reference.mdx#configuration).
 # </Admonition>
 apps: []
 
 # appResources(list) -- is a set of labels the agent will monitor. Any application
 # matching those labels will be proxied by the agent. See [the Teleport
-# Application access documentation](../../enroll-resources/application-access/introduction.mdx)
+# Application access documentation](../../enroll-resources/application-access/application-access.mdx)
 # for more details.
 #
 # Proxied applications can be defined statically (through [`apps`](#apps)) or
@@ -330,7 +340,7 @@ azureDatabases: []
 # ```
 #
 # <Admonition type="tip" title="Supported values">
-#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../reference/agent-services/database-access-reference/configuration.mdx).
+#   You can see a list of all the supported [values which can be used in a Teleport Database Service configuration here](../../enroll-resources/database-access/reference/configuration.mdx).
 # </Admonition>
 #
 # <Admonition type="tip" title="Trusting Database CA">
@@ -903,7 +913,7 @@ adminClusterRoleBinding:
 # You can override this to use your own Teleport image rather than a
 # Teleport-published image.
 #
-# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater"> 
+# <Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
 # When using the Teleport Kube Agent Updater, you must ensure the
 # image is available before the updater version target gets updated and
 # Kubernetes tries to pull the image.

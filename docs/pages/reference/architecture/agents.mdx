@@ -220,7 +220,7 @@ In most cases, users will receive certificates from the Auth Service via a
 connection to the Teleport Proxy Service. The Auth Service and Proxy Service
 connect to each other using mutual TLS.
 
-[Teleport Connect](../../connect-your-client/teleport-connect.mdx) runs `tshd`, a
+[Teleport Connect](../../connect-your-client/teleport-clients/teleport-connect.mdx) runs `tshd`, a
 `tsh` daemon that manages user certificates and kubeconfigs for the graphical
 client.
 
@@ -229,9 +229,9 @@ client.
 Teleport makes several client tools available for accessing infrastructure
 resources through agents:
 
-- [The `tsh` CLI](../../connect-your-client/tsh.mdx)
-- [Teleport Connect](../../connect-your-client/teleport-connect.mdx)
-- [Teleport Web UI](../../connect-your-client/web-ui.mdx)
+- [The `tsh` CLI](../../connect-your-client/teleport-clients/tsh.mdx)
+- [Teleport Connect](../../connect-your-client/teleport-clients/teleport-connect.mdx)
+- [Teleport Web UI](../../connect-your-client/teleport-clients/web-ui.mdx)
 
 After retrieving [client credentials](#credentials-for-teleport-clients), these
 tools are authenticated to the Teleport Proxy Service and can send traffic
@@ -259,7 +259,7 @@ CLI:
 |`tsh proxy azure`|[Azure SDK applications](../../enroll-resources/application-access/cloud-apis/azure.mdx)|
 |`tsh proxy gcloud`|[Google Cloud SDK applications](../../enroll-resources/application-access/cloud-apis/google-cloud.mdx)|
 |`tsh proxy ssh`|[OpenSSH client traffic](../../enroll-resources/server-access/openssh/openssh-agentless.mdx)|
-|`tsh proxy db`|[Native database clients](../../connect-your-client/gui-clients.mdx)|
+|`tsh proxy db`|[Native database clients](../../connect-your-client/third-party/gui-clients.mdx)|
 |`tsh proxy kube`|[Kubernetes clusters behind L7 load balancers](tls-routing.mdx#kubernetes)|
 
 </details>

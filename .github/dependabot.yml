@@ -3,9 +3,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     cooldown:
       default-days: 2
     ignore:
@@ -33,9 +32,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/api'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     cooldown:
       default-days: 2
     open-pull-requests-limit: 20
@@ -52,9 +50,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/assets/aws'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     cooldown:
       default-days: 2
     ignore:
@@ -74,9 +71,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/assets/backport'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     cooldown:
       default-days: 2
     open-pull-requests-limit: 20
@@ -93,9 +89,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/build.assets/tooling'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     cooldown:
       default-days: 2
     ignore:
@@ -115,9 +110,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/terraform'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     cooldown:
       default-days: 2
     ignore:
@@ -139,9 +133,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/terraform-mwi'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     cooldown:
       default-days: 2
     open-pull-requests-limit: 20
@@ -158,9 +151,8 @@ updates:
   - package-ecosystem: gomod
     directory: '/integrations/event-handler'
     schedule:
-      interval: monthly
-      day: 'sunday'
-      time: '09:00' # 9am UTC
+      interval: cron
+      cronjob: '0 9 1 6,12 *' # On December 1 and June 1 at 9am UTC
     cooldown:
       default-days: 2
     open-pull-requests-limit: 20
@@ -275,6 +267,14 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+        # Contrary to what the docs say, if a dependency matches more than one rule, it is _not_
+        # included in the first group that it matches. Other groups must be explicitly included,
+        # otherwise Dependabot is going to perform minor Electron updates in the UI group.
+        # https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference#groups--
+        exclude-patterns:
+          - 'electron*'
+          - node-gyp
+          - node-pty
     open-pull-requests-limit: 20
   - package-ecosystem: github-actions
     directory: '/.github/workflows'

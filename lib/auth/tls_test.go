@@ -298,6 +298,14 @@ func TestRemoteRotation(t *testing.T) {
 		authtest.TestBuiltin(types.RoleAuth), testSrv.Addr(), certPool)
 	require.NoError(t, err)
 
+	remoteCA, err := remoteServer.AuthServer.Services.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: remoteServer.ClusterName,
+		Type:       types.HostCA,
+	}, false)
+	require.NoError(t, err)
+	// a CA that was never rotated has a blank state, which is equal to "standby"
+	require.Contains(t, []string{"", types.RotationStateStandby}, remoteCA.GetRotation().State)
+
 	// remote cluster starts rotation
 	gracePeriod := time.Hour
 	privateKey, ok := fixtures.PEMBytes["rsa"]
@@ -321,11 +329,13 @@ func TestRemoteRotation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	remoteCA, err := remoteServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+	remoteCA, err = remoteServer.AuthServer.Services.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: remoteServer.ClusterName,
 		Type:       types.HostCA,
 	}, false)
 	require.NoError(t, err)
+	require.Equal(t, types.RotationStateInProgress, remoteCA.GetRotation().State)
+	require.Equal(t, types.RotationPhaseUpdateClients, remoteCA.GetRotation().Phase)
 
 	// remote proxy should be rejected when trying to rotate ca
 	// that is not associated with the remote cluster
@@ -367,8 +377,12 @@ func TestRemoteRotation(t *testing.T) {
 		authtest.TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
 	require.NoError(t, err)
 
-	_, err = newRemoteProxy.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
+	// the testSrv listener needs to wait for a Put event on the CA that has
+	// just rotated to refresh its TLS config
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = newRemoteProxy.GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+	}, 30*time.Second, 100*time.Millisecond)
 
 	// old proxy client is still trusted
 	_, err = testSrv.CloneClient(t, remoteProxy).GetNodes(ctx, apidefaults.Namespace)

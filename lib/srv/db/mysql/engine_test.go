@@ -224,7 +224,7 @@ type fakeResolverClients struct {
 	client       *mocks.GCPSQLAdminClientMock
 }
 
-func (f fakeResolverClients) GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error) {
+func (f fakeResolverClients) GetSQLAdminClient(context.Context) (gcp.SQLAdminClient, error) {
 	return f.client, f.getClientErr
 }
 

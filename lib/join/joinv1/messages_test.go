@@ -89,6 +89,12 @@ func TestRequestToMessage(t *testing.T) {
 			},
 		},
 		{
+			desc: "empty AzureInit",
+			req: &joinv1.JoinRequest{
+				Payload: &joinv1.JoinRequest_AzureInit{},
+			},
+		},
+		{
 			desc: "empty HostParams",
 			req: &joinv1.JoinRequest{
 				Payload: &joinv1.JoinRequest_TokenInit{
@@ -164,6 +170,16 @@ func TestRequestToMessage(t *testing.T) {
 				Payload: &joinv1.JoinRequest_Solution{
 					Solution: &joinv1.ChallengeSolution{
 						Payload: &joinv1.ChallengeSolution_TpmSolution{},
+					},
+				},
+			},
+		},
+		{
+			desc: "empty AzureSolution",
+			req: &joinv1.JoinRequest{
+				Payload: &joinv1.JoinRequest_Solution{
+					Solution: &joinv1.ChallengeSolution{
+						Payload: &joinv1.ChallengeSolution_AzureChallengeSolution{},
 					},
 				},
 			},
