@@ -20,7 +20,12 @@ package app
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/binary"
 	"fmt"
+	"io"
+	"os"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
@@ -181,6 +186,39 @@ func (s *Server) onDelete(ctx context.Context, app types.Application) error {
 	return s.unregisterAndRemoveApp(ctx, app.GetName())
 }
 
+// hack: check if sharding is enabled, add a proper config option for this nonsense
+// hack: get the shard number and index
+
+// TODO(okraport): add me to the config of the app server on init
+func shardMaxCount() int {
+	maxCount, err := strconv.ParseInt(os.Getenv("TELEPORT_UNSTABLE_APP_MAX_SHARD"), 10, 32)
+	if err != nil {
+		return 0
+	}
+	return int(maxCount)
+}
+
+// TODO(okraport): add me to the config of the app server on init
+func shardIndex() int {
+	index, err := strconv.ParseInt(os.Getenv("TELEPORT_UNSTABLE_APP_SHARD_INDEX"), 10, 32)
+	if err != nil {
+		return 0
+	}
+	return int(index)
+}
+
 func (s *Server) matcher(app types.Application) bool {
+	// Check if sharding is enabled.
+	if shardMaxCount() > 0 && shardMaxCount() > shardIndex() {
+		// TODO(okraport): clean this awful mess up
+		h := md5.New()
+		io.WriteString(h, app.GetName())
+		tt := binary.LittleEndian.Uint32(h.Sum(nil)[0:4])
+
+		if tt%uint32(shardMaxCount()) != uint32(shardIndex()) {
+			return false
+		}
+	}
+
 	return services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
 }
