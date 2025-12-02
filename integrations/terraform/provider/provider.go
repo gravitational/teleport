@@ -534,6 +534,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   resourceTeleportDatabaseType{},
+		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    resourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
@@ -557,6 +558,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
 		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
+		"teleport_integration":                resourceTeleportIntegrationType{},
 	}, nil
 }
 
@@ -568,6 +570,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   dataSourceTeleportDatabaseType{},
+		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    dataSourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
@@ -589,6 +592,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
 		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
+		"teleport_integration":                dataSourceTeleportIntegrationType{},
 	}, nil
 }
 

@@ -44,8 +44,9 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/healthcheck"
@@ -170,9 +171,9 @@ type Config struct {
 	// CADownloader automatically downloads root certs for cloud hosted databases.
 	CADownloader CADownloader
 	// AzureClients provides Azure SDK clients.
-	AzureClients clients.AzureClients
+	AzureClients azure.Clients
 	// GCPClients provides GCP SDK clients.
-	GCPClients clients.GCPClients
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
@@ -230,14 +231,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		c.NewAudit = common.NewAudit
 	}
 	if c.AzureClients == nil {
-		azureClients, err := clients.NewAzureClients()
+		azureClients, err := azure.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		c.AzureClients = azureClients
 	}
 	if c.GCPClients == nil {
-		c.GCPClients = clients.NewGCPClients()
+		c.GCPClients = gcp.NewClients()
 	}
 	if c.AWSConfigProvider == nil {
 		provider, err := awsconfig.NewCache()

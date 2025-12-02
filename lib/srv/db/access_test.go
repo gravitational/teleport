@@ -63,9 +63,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	"github.com/gravitational/teleport/lib/cloud/cloudtest"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2453,9 +2455,9 @@ type agentParams struct {
 	// CADownloader defines the CA downloader.
 	CADownloader CADownloader
 	// AzureClients provides Azure SDK clients.
-	AzureClients clients.AzureClients
+	AzureClients azure.Clients
 	// GCPClients provides GCP SDK clients.
-	GCPClients clients.GCPClients
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
@@ -2497,13 +2499,13 @@ func (p *agentParams) setDefaults(c *testContext) {
 	}
 
 	if p.GCPClients == nil {
-		p.GCPClients = &cloudtest.GCPClients{
+		p.GCPClients = &gcptest.Clients{
 			GCPSQL: p.GCPSQL,
 		}
 	}
 
 	if p.AzureClients == nil {
-		p.AzureClients = &cloudtest.AzureClients{}
+		p.AzureClients = &azuretest.Clients{}
 	}
 
 	if p.AWSConfigProvider == nil {
@@ -2550,8 +2552,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient:        c.authClient,
 		AccessPoint:       c.authClient,
-		AzureClients:      &cloudtest.AzureClients{},
-		GCPClients:        &cloudtest.GCPClients{},
+		AzureClients:      &azuretest.Clients{},
+		GCPClients:        &gcptest.Clients{},
 		Clock:             c.clock,
 		AWSConfigProvider: p.AWSConfigProvider,
 	})

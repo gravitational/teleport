@@ -24,7 +24,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -60,9 +59,6 @@ type SessionCtx struct {
 	// Note that for stdio-based MCP server, a new session ID is generated per
 	// connection instead of using the web session ID from the app route.
 	sessionID session.ID
-
-	// mcpSessionID is the MCP session ID tracked by remote MCP server.
-	mcpSessionID atomicString
 
 	// jwt is the jwt token signed for this identity by Auth server.
 	jwt string
@@ -180,6 +176,11 @@ func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Always begins with session start event for single-connection sessions.
+	if cfg.sessionCtx.transport != types.MCPTransportHTTP {
+		cfg.sessionAuditor.appendStartEvent(cfg.parentCtx)
+	}
+
 	return &sessionHandler{
 		sessionHandlerConfig: cfg,
 		idTracker:            idTracker,
@@ -203,13 +204,23 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 	return trace.NewAggregate(authErr, err)
 }
 
-func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
-	s.emitNotificationEvent(ctx, notification)
-	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
+// NOTE: the onClientXXX/onServerXXX functions and the close function below
+// provides helper to single-connection sessions and handles audit events.
+// The streamable-HTTP server handler does not use these function but uses
+// processClientXXX/processServerXXX functions directly instead and handles
+// audit events outside the sessionHandler. Ideally we should do some
+// refactoring to separate handler types.
+
+func (s *sessionHandler) close() {
+	s.sessionAuditor.flush(s.parentCtx)
+	if s.sessionCtx.transport != types.MCPTransportHTTP {
+		s.sessionAuditor.emitEndEvent(s.parentCtx)
+	}
 }
 
 func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
 	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		s.emitNotificationEvent(ctx, notification)
 		s.processClientNotification(ctx, notification)
 		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, notification))
 	}
@@ -217,8 +228,9 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-		msg, replyDirection := s.processClientRequest(ctx, request)
-		if replyDirection == replyToClient {
+		msg, authErr := s.processClientRequest(ctx, request)
+		s.emitRequestEvent(ctx, request, eventWithError(authErr))
+		if authErr != nil {
 			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msg))
 		}
 		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, msg))
@@ -234,33 +246,19 @@ func (s *sessionHandler) onServerNotification(clientResponseWriter mcputils.Mess
 
 func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageWriter) mcputils.HandleResponseFunc {
 	return func(ctx context.Context, response *mcputils.JSONRPCResponse) error {
-		msgToClient := s.processServerResponse(ctx, response)
+		method, msgToClient := s.processServerResponse(ctx, response)
+		if method == mcputils.MethodInitialize {
+			s.sessionAuditor.updatePendingSessionStartEventWithInitializeResult(ctx, response)
+		}
 		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msgToClient))
 	}
 }
 
-type replyDirection bool
-
-const (
-	replyToClient replyDirection = true
-	replyToServer replyDirection = false
-)
-
-func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, replyDirection) {
-	s.idTracker.PushRequest(req)
-	reply, authErr := s.processClientRequestNoAudit(ctx, req)
-	s.emitRequestEvent(ctx, req, eventWithError(authErr))
-
-	// Not forwarding to server. Just send the auth error to client.
-	if authErr != nil {
-		return reply, replyToClient
-	}
-	return reply, replyToServer
-}
-
-func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
+func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
 	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
 
+	// TODO(greedy52) add checks to ensure that the initialize request is the
+	// first request coming in (with the exception of the ping).
 	s.idTracker.PushRequest(req)
 	switch req.Method {
 	case mcputils.MethodToolsCall:
@@ -272,15 +270,19 @@ func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *m
 	return req, nil
 }
 
-func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
+}
+
+func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) (string, mcp.JSONRPCMessage) {
 	method, _ := s.idTracker.PopByID(response.ID)
 	messagesFromServer.WithLabelValues(s.transport, "response", reportRequestMethod(method)).Inc()
 
 	switch method {
 	case mcputils.MethodToolsList:
-		return s.makeToolsCallResponse(ctx, response)
+		return method, s.makeToolsCallResponse(ctx, response)
 	}
-	return response
+	return method, response
 }
 
 func (s *sessionHandler) processServerNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
@@ -336,16 +338,4 @@ func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) m
 		"RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
 		authErr,
 	)
-}
-
-type atomicString struct {
-	atomic.Pointer[string]
-}
-
-// String loads the atomic string value. If the point is nil, empty is returned.
-func (s *atomicString) String() string {
-	if loaded := s.Load(); loaded != nil {
-		return *loaded
-	}
-	return ""
 }

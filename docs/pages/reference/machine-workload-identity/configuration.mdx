@@ -398,9 +398,21 @@ disable_exec_plugin: false
 #
 #   - {{.ClusterName}} - Name of the Teleport cluster
 #   - {{.KubeName}} - Name of the Kubernetes cluster resource
+#   - {{.Labels}} - Map of labels applied to the Kubernetes cluster
+# 	   resource that can be indexed using `{{index .Labels "key"}}`
 #
 # By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}"
 context_name_template: "{{.KubeName}}"
+
+# relay_server specifies the Relay service address that tbot should use to route
+# Kubernetes traffic to instead of the Teleport control plane. When set, all
+# Kubernetes API connections are sent via this Relay; only Kubernetes clusters
+# reachable through the specified Relay will be accessible and tbot will not fall
+# back to the control plane. Provide either a hostname or host:port (e.g.
+# relay.example.com or relay.example.com:443).
+#
+# Use of the relay_server option requires `tbot` 18.5.0 or later.
+relay_server: relay.example.com
 
 # name optionally overrides the name of the service used in logs and the `/readyz`
 # endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
@@ -475,8 +487,19 @@ secret_name_prefix: "argocd-cluster"
 # secret_labels is a set of labels that will be applied to the cluster secrets
 # in addition to the "argocd.argoproj.io/secret-type" label added for Argo CD
 # discovery.
+#
+# Label values can be Go template strings with the following variables:
+#
+#   - {{.ClusterName}} - Name of the Teleport cluster
+#   - {{.KubeName}} - Name of the Kubernetes cluster resource
+#   - {{.Labels}} - Map of labels applied to the Kubernetes cluster
+# 	   resource that can be indexed using `{{index .Labels "key"}}`
+#
+# If the label value is empty, the label will not be added to the secret.
 secret_labels:
   department: engineering
+  cluster-region: |-
+    {{index .Labels "region"}}
 
 # secret_annotations is a set of annotations that will be applied to the cluster
 # secrets in addition to `tbot`'s own annotations:

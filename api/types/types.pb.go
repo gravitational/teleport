@@ -23214,7 +23214,7 @@ type AWSOIDCIntegrationSpecV1 struct {
 	// This bucket/prefix/* files must be publicly accessible and contain the following:
 	// > .well-known/openid-configuration
 	// > .well-known/jwks
-	// Format: s3://<bucket>/<prefix>
+	// Format: `s3://<bucket>/<prefix>`
 	// Optional. The proxy's endpoint is used if it is not specified.
 	//
 	// DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
@@ -23222,9 +23222,9 @@ type AWSOIDCIntegrationSpecV1 struct {
 	// Amazon is now trusting all the root certificate authorities, and this workaround is no longer needed.
 	// DELETE IN 18.0.
 	IssuerS3URI string `protobuf:"bytes,2,opt,name=IssuerS3URI,proto3" json:"issuer_s3_uri,omitempty"` // Deprecated: Do not use.
-	// Audience is used to record a name of a plugin or a discover service in Teleport
-	// that depends on this integration.
-	// Audience value can be empty or configured with supported preset audience type.
+	// Audience is used to record a name of a plugin or a discover service in
+	// Teleport that depends on this integration.
+	// Audience value can either be empty or "aws-identity-center".
 	// Preset audience may impose specific behavior on the integration CRUD API,
 	// such as preventing integration from update or deletion. Empty audience value
 	// should be treated as a default and backward-compatible behavior of the integration.
@@ -24057,9 +24057,9 @@ type AWSMatcher struct {
 	// KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
 	// discovered clusters, currently only affects AWS EKS discovery in integration mode.
 	KubeAppDiscovery bool `protobuf:"varint,8,opt,name=KubeAppDiscovery,proto3" json:"kube_app_discovery,omitempty"`
-	// SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+	// SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for.
 	// This value should match the IAM identity that Teleport Kubernetes Service uses.
-	// If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+	// If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
 	SetupAccessForARN    string   `protobuf:"bytes,9,opt,name=SetupAccessForARN,proto3" json:"setup_access_for_arn,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

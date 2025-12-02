@@ -1633,6 +1633,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Types:          matcher.Types,
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
+			Integration:    matcher.Integration,
 			Params:         installParams,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
@@ -1835,6 +1836,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Types:          matcher.Types,
 				Regions:        matcher.Regions,
 				ResourceTags:   matcher.ResourceTags,
+				Integration:    matcher.Integration,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
