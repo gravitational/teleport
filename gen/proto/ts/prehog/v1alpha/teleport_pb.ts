@@ -2232,6 +2232,32 @@ export interface UIIntegrationEnrollCodeCopyEvent {
     type: IntegrationEnrollCodeType;
 }
 /**
+ * UIIntegrationEnrollLinkClickEvent is emitted when the user clicks a link to
+ * documentation, etc. in an integration setup wizard.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIIntegrationEnrollLinkClickEvent
+ */
+export interface UIIntegrationEnrollLinkClickEvent {
+    /**
+     * Metadata of the event.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollMetadata metadata = 1;
+     */
+    metadata?: IntegrationEnrollMetadata;
+    /**
+     * Step where the link was clicked.
+     *
+     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStep step = 2;
+     */
+    step: IntegrationEnrollStep;
+    /**
+     * Link that was clicked.
+     *
+     * @generated from protobuf field: string link = 3;
+     */
+    link: string;
+}
+/**
  * EditorChangeEvent is an event that is emitted when a user role set changes resulting in
  * a editor role being added on removed
  *
@@ -3646,6 +3672,12 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103;
          */
         uiIntegrationEnrollCodeCopyEvent: UIIntegrationEnrollCodeCopyEvent;
+    } | {
+        oneofKind: "uiIntegrationEnrollLinkClickEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 104;
+         */
+        uiIntegrationEnrollLinkClickEvent: UIIntegrationEnrollLinkClickEvent;
     } | {
         oneofKind: undefined;
     };
@@ -9740,6 +9772,68 @@ class UIIntegrationEnrollCodeCopyEvent$Type extends MessageType<UIIntegrationEnr
  */
 export const UIIntegrationEnrollCodeCopyEvent = new UIIntegrationEnrollCodeCopyEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UIIntegrationEnrollLinkClickEvent$Type extends MessageType<UIIntegrationEnrollLinkClickEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIIntegrationEnrollLinkClickEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => IntegrationEnrollMetadata },
+            { no: 2, name: "step", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStep", IntegrationEnrollStep, "INTEGRATION_ENROLL_STEP_"] },
+            { no: 3, name: "link", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UIIntegrationEnrollLinkClickEvent>): UIIntegrationEnrollLinkClickEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.step = 0;
+        message.link = "";
+        if (value !== undefined)
+            reflectionMergePartial<UIIntegrationEnrollLinkClickEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIIntegrationEnrollLinkClickEvent): UIIntegrationEnrollLinkClickEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.IntegrationEnrollMetadata metadata */ 1:
+                    message.metadata = IntegrationEnrollMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.IntegrationEnrollStep step */ 2:
+                    message.step = reader.int32();
+                    break;
+                case /* string link */ 3:
+                    message.link = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIIntegrationEnrollLinkClickEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.IntegrationEnrollMetadata metadata = 1; */
+        if (message.metadata)
+            IntegrationEnrollMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.IntegrationEnrollStep step = 2; */
+        if (message.step !== 0)
+            writer.tag(2, WireType.Varint).int32(message.step);
+        /* string link = 3; */
+        if (message.link !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.link);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIIntegrationEnrollLinkClickEvent
+ */
+export const UIIntegrationEnrollLinkClickEvent = new UIIntegrationEnrollLinkClickEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class EditorChangeEvent$Type extends MessageType<EditorChangeEvent> {
     constructor() {
         super("prehog.v1alpha.EditorChangeEvent", [
@@ -11466,7 +11560,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 100, name: "access_request_review", kind: "message", oneof: "event", T: () => AccessRequestReviewEvent },
             { no: 101, name: "ui_integration_enroll_section_open_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollSectionOpenEvent },
             { no: 102, name: "ui_integration_enroll_field_complete_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollFieldCompleteEvent },
-            { no: 103, name: "ui_integration_enroll_code_copy_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollCodeCopyEvent }
+            { no: 103, name: "ui_integration_enroll_code_copy_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollCodeCopyEvent },
+            { no: 104, name: "ui_integration_enroll_link_click_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollLinkClickEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -12074,6 +12169,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiIntegrationEnrollCodeCopyEvent: UIIntegrationEnrollCodeCopyEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollCodeCopyEvent)
                     };
                     break;
+                case /* prehog.v1alpha.UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event */ 104:
+                    message.event = {
+                        oneofKind: "uiIntegrationEnrollLinkClickEvent",
+                        uiIntegrationEnrollLinkClickEvent: UIIntegrationEnrollLinkClickEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollLinkClickEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -12386,6 +12487,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103; */
         if (message.event.oneofKind === "uiIntegrationEnrollCodeCopyEvent")
             UIIntegrationEnrollCodeCopyEvent.internalBinaryWrite(message.event.uiIntegrationEnrollCodeCopyEvent, writer.tag(103, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 104; */
+        if (message.event.oneofKind === "uiIntegrationEnrollLinkClickEvent")
+            UIIntegrationEnrollLinkClickEvent.internalBinaryWrite(message.event.uiIntegrationEnrollLinkClickEvent, writer.tag(104, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

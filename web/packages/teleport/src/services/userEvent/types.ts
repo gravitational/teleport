@@ -51,6 +51,7 @@ export enum IntegrationEnrollEvent {
   SectionOpen = 'tp.ui.integrationEnroll.sectionOpen',
   FieldComplete = 'tp.ui.integrationEnroll.fieldComplete',
   CodeCopy = 'tp.ui.integrationEnroll.codeCopy',
+  LinkClick = 'tp.ui.integrationEnroll.linkClick',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -202,7 +203,8 @@ export type IntegrationEnrollEventData = {
   status?: IntegrationEnrollStepStatus;
   section?: IntegrationEnrollSection;
   field?: IntegrationEnrollField;
-  codeType?: IntegrationEnrollCodeType
+  codeType?: IntegrationEnrollCodeType;
+  link?: string;
 };
 
 /**

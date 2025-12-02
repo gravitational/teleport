@@ -366,6 +366,29 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
+			name: "integration enroll link click event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollLinkClickEvent{
+				UiIntegrationEnrollLinkClickEvent: &usageeventsv1.UIIntegrationEnrollLinkClickEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES},
+					Step:     usageeventsv1.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW,
+					Link:     "https://link-to-docs",
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollLinkClickEvent{
+				UiIntegrationEnrollLinkClickEvent: &prehogv1a.UIIntegrationEnrollLinkClickEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES,
+					},
+					Step: prehogv1a.IntegrationEnrollStep_INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW,
+					Link: "https://link-to-docs",
+				},
+			}},
+		},
+		{
 			name: "discover deploy service event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{

@@ -1315,6 +1315,17 @@ enum IntegrationEnrollCodeType {
   INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML = 2;
 }
 
+// UIIntegrationEnrollLinkClickEvent is emitted when the user clicks a link to
+// documentation, etc. in an integration setup wizard.
+message UIIntegrationEnrollLinkClickEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the link was clicked.
+  IntegrationEnrollStep step = 2;
+  // Link that was clicked.
+  string link = 3;
+}
+
 // EditorChangeEvent is an event that is emitted when a user role set changes resulting in
 // a editor role being added on removed
 message EditorChangeEvent {
@@ -1931,6 +1942,7 @@ message SubmitEventRequest {
     UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101;
     UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 102;
     UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103;
+    UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 104;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
