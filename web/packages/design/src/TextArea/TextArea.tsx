@@ -38,10 +38,7 @@ import { Theme } from 'design/theme/themes/types';
 export type TextAreaSize = 'large' | 'medium' | 'small';
 
 export interface TextAreaProps
-  extends ColorProps,
-    SpaceProps,
-    WidthProps,
-    HeightProps {
+  extends ColorProps, SpaceProps, WidthProps, HeightProps {
   size?: TextAreaSize;
   hasError?: boolean;
   resizable?: boolean;
