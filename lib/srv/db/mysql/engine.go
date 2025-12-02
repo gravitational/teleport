@@ -216,7 +216,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conn, err := connector.connect(ctx, sessionCtx.GetExpiry())
+	conn, err := connector.connect(ctx, sessionCtx.GetExpiry(), nil)
 	if err != nil {
 		return nil, common.ConvertConnectError(err, sessionCtx)
 	}
