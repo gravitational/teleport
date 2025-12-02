@@ -97,7 +97,8 @@ func (g *gitlabFetcher) getProjects() (
 		}
 		out = append(out, prj)
 
-		members, err := g.client.getProjectMembers(project.ID)
+		// TODO(tigrato):  remove int64 conversion when gitlab client is updated
+		members, err := g.client.getProjectMembers(int64(project.ID))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -134,7 +135,8 @@ func (g *gitlabFetcher) getGroups() (
 		}
 		out = append(out, grp)
 
-		members, err := g.client.getGroupMembers(group.ID)
+		// TODO(tigrato):  remove int64 conversion when gitlab client is updated
+		members, err := g.client.getGroupMembers(int64(group.ID))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -270,7 +272,6 @@ func GitlabHumanReadableError(err error) string {
 	}
 
 	return "Failed to access GitLab. Please check the full response for more details."
-
 }
 
 func handleGitlabError(gitlabErr *gitlab.ErrorResponse) string {
@@ -294,7 +295,6 @@ func handleGitlabError(gitlabErr *gitlab.ErrorResponse) string {
 	default:
 		return "Failed to access GitLab. Please check the full response for more details."
 	}
-
 }
 
 func uniqueUsernames(projectMembers []*accessgraphv1alpha.GitlabProjectMember, groupMembers []*accessgraphv1alpha.GitlabGroupMember) []string {

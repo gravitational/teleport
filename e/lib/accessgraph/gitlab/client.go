@@ -92,13 +92,13 @@ func (g gitlabClient) testTokenPermissions() error {
 // getProjectMembers returns a list of Gitlab project members
 // it uses the Gitlab API to fetch the project members
 // across all pages.
-func (g gitlabClient) getProjectMembers(projectID int) ([]*gitlab.ProjectMember, error) {
+func (g gitlabClient) getProjectMembers(projectID int64) ([]*gitlab.ProjectMember, error) {
 	opt := &gitlab.ListProjectMembersOptions{
 		ListOptions: getListOptions(),
 	}
 	var members []*gitlab.ProjectMember
 	for {
-		out, rsp, err := g.client.ProjectMembers.ListProjectMembers(projectID, opt)
+		out, rsp, err := g.client.ProjectMembers.ListProjectMembers(int(projectID), opt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -115,13 +115,13 @@ func (g gitlabClient) getProjectMembers(projectID int) ([]*gitlab.ProjectMember,
 // getGroupMembers returns a list of Gitlab group members
 // it uses the Gitlab API to fetch the group members
 // across all pages.
-func (g gitlabClient) getGroupMembers(groupID int) ([]*gitlab.GroupMember, error) {
+func (g gitlabClient) getGroupMembers(groupID int64) ([]*gitlab.GroupMember, error) {
 	opt := &gitlab.ListGroupMembersOptions{
 		ListOptions: getListOptions(),
 	}
 	var members []*gitlab.GroupMember
 	for {
-		out, rsp, err := g.client.Groups.ListGroupMembers(groupID, opt)
+		out, rsp, err := g.client.Groups.ListGroupMembers(int(groupID), opt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
