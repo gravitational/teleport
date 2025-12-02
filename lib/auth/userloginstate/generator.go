@@ -442,6 +442,10 @@ func updatePreservedAttributes(ctx context.Context, uls *userloginstate.UserLogi
 	if len(uls.GetGithubIdentities()) == 0 {
 		uls.SetGithubIdentities(existingULS.GetGithubIdentities())
 	}
+	// We need to preserve SAML identity as user may log in using another auth connector and
+	// overwrite roles and traits mapped from the previous connector. The information about
+	// other connectors may be needed to calculate access to provider-specific resources like
+	// Okta. See https://github.com/gravitational/teleport.e/pull/7168.
 	preserveSAMLIdentities(uls, existingULS)
 	return nil
 }

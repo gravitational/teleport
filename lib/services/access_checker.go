@@ -1474,6 +1474,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 	}, nil
 }
 
+// UserAccessState is a representation of a user's current state required for calculating access.
 type UserAccessState interface {
 	// GetName returns the username associated with the user state.
 	GetName() string
