@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 )
@@ -89,8 +90,41 @@ type AzureClients interface {
 	GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error)
 }
 
+// AzureClientsOption is an option to pass to NewAzureClients
+type AzureClientsOption func(clients *azureClients)
+
+type azureOIDCCredentials interface {
+	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+}
+
+// WithAzureIntegrationCredentials configures Azure cloud clients to use integration credentials.
+func WithAzureIntegrationCredentials(integrationName string, auth azureOIDCCredentials) AzureClientsOption {
+	return func(clt *azureClients) {
+		clt.newAzureCredentialFunc = func() (azcore.TokenCredential, error) {
+			ctx := context.TODO()
+			integration, err := auth.GetIntegration(ctx, integrationName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			spec := integration.GetAzureOIDCIntegrationSpec()
+			if spec == nil {
+				return nil, trace.BadParameter("expected %q to be an %q integration, was %q instead", integration.GetName(), types.IntegrationSubKindAzureOIDC, integration.GetSubKind())
+			}
+			cred, err := azidentity.NewClientAssertionCredential(spec.TenantID, spec.ClientID, func(ctx context.Context) (string, error) {
+				return auth.GenerateAzureOIDCToken(ctx, integrationName)
+				// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+			}, nil)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cred, nil
+		}
+	}
+}
+
 // NewAzureClients returns a new instance of Azure SDK clients.
-func NewAzureClients() (AzureClients, error) {
+func NewAzureClients(opts ...AzureClientsOption) (AzureClients, error) {
 	azClients := &azureClients{
 		azureMySQLClients:     make(map[string]azure.DBServersClient),
 		azurePostgresClients:  make(map[string]azure.DBServersClient),
@@ -128,6 +162,15 @@ func NewAzureClients() (AzureClients, error) {
 	azClients.azureRunCommandClients, err = azure.NewClientMap(azure.NewRunCommandClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	azClients.newAzureCredentialFunc = func() (azcore.TokenCredential, error) {
+		// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+		return azidentity.NewDefaultAzureCredential(nil)
+	}
+
+	for _, opt := range opts {
+		opt(azClients)
 	}
 
 	return azClients, nil
@@ -168,8 +211,11 @@ type azureClients struct {
 	// mtx is used for locking.
 	mtx sync.RWMutex
 
+	// newAzureCredentialFunc creates new Azure credential.
+	newAzureCredentialFunc func() (azcore.TokenCredential, error)
 	// azureCredential is the cached Azure credential.
 	azureCredential azcore.TokenCredential
+
 	// azureMySQLClients is the cached Azure MySQL Server clients.
 	azureMySQLClients map[string]azure.DBServersClient
 	// azurePostgresClients is the cached Azure Postgres Server clients.
@@ -378,9 +424,8 @@ func (c *azureClients) initAzureCredential() (azcore.TokenCredential, error) {
 	if c.azureCredential != nil { // If some other thread already got here first.
 		return c.azureCredential, nil
 	}
-	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
-	options := &azidentity.DefaultAzureCredentialOptions{}
-	cred, err := azidentity.NewDefaultAzureCredential(options)
+
+	cred, err := c.newAzureCredentialFunc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
