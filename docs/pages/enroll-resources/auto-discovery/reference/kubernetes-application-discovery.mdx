@@ -16,7 +16,7 @@ Discovery in your Kubernetes cluster.
 ## Configuring Teleport Agent Helm chart
 
 You can configure scope of services discovery by setting value `kubernetesDiscovery` of the chart. For more information
-please see [helm chart documentation](../../helm-reference/teleport-kube-agent.mdx).
+please see [helm chart documentation](../../../reference/helm-reference/teleport-kube-agent.mdx).
 
 `values.yaml` example:
 
@@ -73,7 +73,7 @@ app_service:
 
 Label `teleport.dev/kubernetes-cluster` should match value of `discovery_group` field in the Discovery Service config.
 
-For more information you can take a look at [`discovery_service`](../../deployment/config.mdx) and [`app_service`](../../deployment/config.mdx) configuration references.
+For more information you can take a look at [`discovery_service`](../../../reference/deployment/config.mdx) and [`app_service`](../../../reference/deployment/config.mdx) configuration references.
 
 ## Annotations
 
