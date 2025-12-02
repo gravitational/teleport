@@ -114,6 +114,8 @@ type LastUpdate struct {
 	Time time.Time `yaml:"time"`
 	// Target revision for the update
 	Target Revision `yaml:"target"`
+	// ErrorCode is the error code of the last update.
+	ErrorCode ErrorCode `yaml:"error_code,omitempty"`
 }
 
 // Revision is a version and edition of Teleport.

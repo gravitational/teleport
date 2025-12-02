@@ -322,7 +322,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 		li.Log.WarnContext(ctx, "Content length missing from response, unable to verify Teleport download size.")
 		size = max
 	} else if size > max {
-		return nil, trace.Errorf("size of download (%d bytes) exceeds available disk space (%d bytes)", resp.ContentLength, max)
+		return nil, trace.Wrap(ErrNoSpaceLeft, "size of download (%d bytes) exceeds available disk space (%d bytes)", resp.ContentLength, max)
 	}
 	// Calculate checksum concurrently with download.
 	shaReader := sha256.New()
@@ -356,7 +356,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	// Bail if there's not enough free disk space at the target
 	if d := int64(free) - max; d < 0 {
-		return trace.Errorf("%s needs %d additional bytes of disk space for decompression", dstDir, -d)
+		return trace.Wrap(ErrNoSpaceLeft, "%s needs %d additional bytes of disk space for decompression", dstDir, -d)
 	}
 	zr, err := gzip.NewReader(src)
 	if err != nil {

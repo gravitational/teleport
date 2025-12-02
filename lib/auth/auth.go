@@ -1076,7 +1076,18 @@ var (
 		[]string{
 			teleport.TagUpgrader,
 			teleport.TagVersion,
+		},
+	)
+	binaryUpdaterCountsMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBinaryUpgraderCounts,
+			Help:      "Tracks the number of instances advertising binary upgrader and metainformation",
+		},
+		[]string{
+			teleport.TagVersion,
 			teleport.TagUpgraderStatus,
+			teleport.TagUpgraderErrorCode,
 		},
 	)
 
@@ -2247,10 +2258,17 @@ func (a *Server) updateAgentMetrics() {
 	upgraderCountsMetric.Reset()
 	for metadata, count := range imp.UpgraderCounts() {
 		upgraderCountsMetric.With(prometheus.Labels{
-			teleport.TagUpgrader:       metadata.upgraderType,
-			teleport.TagVersion:        metadata.version,
-			teleport.TagUpgraderStatus: metadata.status,
+			teleport.TagUpgrader: metadata.upgraderType,
+			teleport.TagVersion:  metadata.version,
 		}).Set(float64(count))
+
+		if metadata.upgraderType == types.UpgraderKindTeleportUpdate {
+			binaryUpdaterCountsMetric.With(prometheus.Labels{
+				teleport.TagVersion:           metadata.version,
+				teleport.TagUpgraderStatus:    metadata.status,
+				teleport.TagUpgraderErrorCode: metadata.errorCode,
+			}).Set(float64(count))
+		}
 	}
 }
 
