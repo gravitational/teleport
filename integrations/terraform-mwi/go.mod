@@ -96,6 +96,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34 // indirect
+	github.com/aws/aws-sdk-go-v2/service/account v1.29.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.36.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/athena v1.50.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.41.0 // indirect
