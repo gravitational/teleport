@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.4.2"
+const Version = "18.5.0-dev.timothyb89-kubernetes.1"
 
 const VersionMajor = 18
-const VersionMinor = 4
-const VersionPatch = 2
-const VersionPreRelease = ""
+const VersionMinor = 5
+const VersionPatch = 0
+const VersionPreRelease = "dev.timothyb89-kubernetes.1"
 const VersionMetadata = ""
