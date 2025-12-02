@@ -435,8 +435,8 @@ importers:
         specifier: ^3.0.4
         version: 3.0.4
       node-forge:
-        specifier: ^1.3.1
-        version: 1.3.1
+        specifier: ^1.3.2
+        version: 1.3.2
       node-pty:
         specifier: 1.1.0-beta34
         version: 1.1.0-beta34
@@ -5497,8 +5497,8 @@ packages:
   node-api-version@0.2.0:
     resolution: {integrity: sha512-fthTTsi8CxaBXMaBAD7ST2uylwvsnYxh2PfaScwpMhos6KlSFajXQPcM4ogNE1q2s3Lbz9GCGqeIHC+C6OZnKg==}
 
-  node-forge@1.3.1:
-    resolution: {integrity: sha512-dPEtOeMvF9VMcYV/1Wb8CPoVAXtp6MKMlcbAt4ddqmGqUJ6fQZFXkNZNkNlfevtNkGtaSoXf/vNNNSvgrdXwtA==}
+  node-forge@1.3.2:
+    resolution: {integrity: sha512-6xKiQ+cph9KImrRh0VsjH2d8/GXA4FIMlgU4B757iI1ApvcyA9VlouP0yZJha01V+huImO+kKMU7ih+2+E14fw==}
     engines: {node: '>= 6.13.0'}
 
   node-int64@0.4.0:
@@ -13065,7 +13065,7 @@ snapshots:
     dependencies:
       semver: 7.7.2
 
-  node-forge@1.3.1: {}
+  node-forge@1.3.2: {}
 
   node-int64@0.4.0: {}
 
