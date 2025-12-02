@@ -124,6 +124,7 @@ Optional:
 - `install` (Attributes) Params sets the join method when installing on discovered EC2 nodes (see [below for nested schema](#nested-schema-for-specawsinstall))
 - `integration` (String) Integration is the integration name used to generate credentials to interact with AWS APIs. Environment credentials will not be used when this value is set.
 - `kube_app_discovery` (Boolean) KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on discovered clusters, currently only affects AWS EKS discovery in integration mode.
+- `organization` (Attributes) Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization. (see [below for nested schema](#nested-schema-for-specawsorganization))
 - `regions` (List of String) Regions are AWS regions to query for databases.
 - `setup_access_for_arn` (String) SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for. This value should match the IAM identity that Teleport Kubernetes Service uses. If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
 - `ssm` (Attributes) SSM provides options to use when sending a document command to an EC2 node (see [below for nested schema](#nested-schema-for-specawsssm))
@@ -168,6 +169,22 @@ Optional:
 - `http_proxy` (String) HTTPProxy is the URL for the HTTP proxy to use when making requests. When applied, this will set the HTTP_PROXY environment variable.
 - `https_proxy` (String) HTTPSProxy is the URL for the HTTPS Proxy to use when making requests. When applied, this will set the HTTPS_PROXY environment variable.
 - `no_proxy` (String) NoProxy is a comma separated list of URLs that will be excluded from proxying. When applied, this will set the NO_PROXY environment variable.
+
+
+
+### Nested Schema for `spec.aws.organization`
+
+Optional:
+
+- `organization_id` (String) OrganizationID is the AWS Organization ID to match against. Required.
+- `organizational_units` (Attributes) OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units. (see [below for nested schema](#nested-schema-for-specawsorganizationorganizational_units))
+
+### Nested Schema for `spec.aws.organization.organizational_units`
+
+Optional:
+
+- `exclude` (List of String) Exclude is a list of AWS Organizational Unit IDs to exclude. Only exact matches or wildcard (*) are supported. If empty, no Organizational Units are excluded by default.
+- `include` (List of String) Include is a list of AWS Organizational Unit IDs to match. Only exact matches or wildcard (*) are supported. If empty, all Organizational Units are included by default.
 
 
 
