@@ -9046,30 +9046,32 @@ message AWSMatcher {
   // This value should match the IAM identity that Teleport Kubernetes Service uses.
   // If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
   string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
-  // OrganizationID is the AWS Organization ID to match when discovering accounts.
-  // Required when defining account matchers.
-  string OrganizationID = 10 [(gogoproto.jsontag) = "organization_id,omitempty"];
-  // Accounts contains filter rules for matching AWS accounts under the Organization.
-  // All accounts are matched if no rule is specified.
-  AWSAccountsMatcher Accounts = 11 [(gogoproto.jsontag) = "accounts,omitempty"];
+  // Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization.
+  AWSOrganizationMatcher Organization = 10 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
-// AWSAccountsMatcher contains include/exclude rules for AWS Organizational Units.
-// Accounts which belong to an Excluded Organizational Unit, and its children, will be excluded
-// from discovery, even if they match an Include rule.
-message AWSAccountsMatcher {
-  // Include contains rules for including AWS accounts.
-  AWSAccountsRule Include = 1 [(gogoproto.jsontag) = "include,omitempty"];
+// AWSOrganizationMatcher specifies an Organization and rules for discovering accounts under that organization.
+message AWSOrganizationMatcher {
+  // OrganizationID is the AWS Organization ID to match against.
+  // Required.
+  string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
 
-  // Exclude contains rules for excluding AWS accounts.
-  AWSAccountsRule Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
+  // OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
+  AWSOrganizationUnitsMatcher OrganizationalUnits = 2 [(gogoproto.jsontag) = "organizational_units,omitempty"];
 }
 
-// AWSAccountsRule is a rule for AWS accounts under specific Organizational Units.
-message AWSAccountsRule {
-  // OU is a list of AWS Organizational Unit IDs to match (includes the Root OU)
+// AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
+// Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+message AWSOrganizationUnitsMatcher {
+  // Include is a list of AWS Organizational Unit IDs to match.
   // Only exact matches or wildcard (*) are supported.
-  repeated string OU = 1 [(gogoproto.jsontag) = "ou,omitempty"];
+  // If empty, all Organizational Units are included by default.
+  repeated string Include = 1 [(gogoproto.jsontag) = "include,omitempty"];
+
+  // Exclude is a list of AWS Organizational Unit IDs to exclude.
+  // Only exact matches or wildcard (*) are supported.
+  // If empty, no Organizational Units are excluded by default.
+  repeated string Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role

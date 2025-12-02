@@ -154,8 +154,7 @@ func deriveTeleportEqual_8(this, that *types.AWSMatcher) bool {
 			this.Integration == that.Integration &&
 			this.KubeAppDiscovery == that.KubeAppDiscovery &&
 			this.SetupAccessForARN == that.SetupAccessForARN &&
-			this.OrganizationID == that.OrganizationID &&
-			deriveTeleportEqual_19(this.Accounts, that.Accounts)
+			deriveTeleportEqual_19(this.Organization, that.Organization)
 }
 
 // deriveTeleportEqual_9 returns whether this and that are equal.
@@ -294,11 +293,11 @@ func deriveTeleportEqual_18(this, that *types.AWSSSM) bool {
 }
 
 // deriveTeleportEqual_19 returns whether this and that are equal.
-func deriveTeleportEqual_19(this, that *types.AWSAccountsMatcher) bool {
+func deriveTeleportEqual_19(this, that *types.AWSOrganizationMatcher) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_24(this.Include, that.Include) &&
-			deriveTeleportEqual_24(this.Exclude, that.Exclude)
+			this.OrganizationID == that.OrganizationID &&
+			deriveTeleportEqual_24(this.OrganizationalUnits, that.OrganizationalUnits)
 }
 
 // deriveTeleportEqual_20 returns whether this and that are equal.
@@ -337,10 +336,11 @@ func deriveTeleportEqual_23(this, that *types.HTTPProxySettings) bool {
 }
 
 // deriveTeleportEqual_24 returns whether this and that are equal.
-func deriveTeleportEqual_24(this, that *types.AWSAccountsRule) bool {
+func deriveTeleportEqual_24(this, that *types.AWSOrganizationUnitsMatcher) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_14(this.OU, that.OU)
+			deriveTeleportEqual_14(this.Include, that.Include) &&
+			deriveTeleportEqual_14(this.Exclude, that.Exclude)
 }
 
 // deriveTeleportEqual_25 returns whether this and that are equal.
