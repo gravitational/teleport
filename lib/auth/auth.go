@@ -5977,6 +5977,13 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		}
 		samlLabel, ok := asmt.GetMetadata().GetLabels()[types.KindSAMLIdPServiceProvider]
 		if ok && !samlApp.Contains(samlLabel) {
+			// In a full integration mode (non-hybrid), user access
+			// AWS account by authenticating with the Identity Center SAML app.
+			// In Access Request flow, its possible for user to request
+			// access only to the account assignment resource and forget
+			// including SAML app. In such case, they would be denied access
+			// during Teleport -> AWS Console authentication phase.
+			// To improve UX, Identity Center SAML app is implicitly added.
 			resources = append(resources, types.ResourceID{
 				ClusterName: resource.ClusterName,
 				Kind:        types.KindSAMLIdPServiceProvider,
