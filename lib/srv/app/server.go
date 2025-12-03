@@ -39,9 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type appServerContextKey string
@@ -145,40 +143,9 @@ type Server struct {
 	// apps are all apps this server currently proxies. Proxied apps are
 	// reconciled against monitoredApps below.
 	apps map[string]types.Application
-	// monitoredApps contains all cluster apps the proxied apps are
-	// reconciled against.
-	monitoredApps monitoredApps
-	// reconcileCh triggers reconciliation of proxied apps.
-	reconcileCh chan struct{}
 
 	// watcher monitors changes to application resources.
-	watcher *services.GenericWatcher[types.Application, readonly.Application]
-}
-
-// monitoredApps is a collection of applications from different sources
-// like configuration file and dynamic resources.
-//
-// It's updated by respective watchers and is used for reconciling with the
-// currently proxied apps.
-type monitoredApps struct {
-	// static are apps from the agent's YAML configuration.
-	static types.Apps
-	// resources are apps created via CLI or API.
-	resources types.Apps
-	// mu protects access to the fields.
-	mu sync.Mutex
-}
-
-func (m *monitoredApps) setResources(apps types.Apps) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.resources = apps
-}
-
-func (m *monitoredApps) get() map[string]types.Application {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return utils.FromSlice(append(m.static, m.resources...), types.Application.GetName)
+	watcher *services.ResourceMonitor[types.Application]
 }
 
 // New returns a new application server.
@@ -203,12 +170,8 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
-		monitoredApps: monitoredApps{
-			static: c.Apps,
-		},
-		reconcileCh:  make(chan struct{}),
-		closeFunc:    closeFunc,
-		closeContext: closeContext,
+		closeFunc:     closeFunc,
+		closeContext:  closeContext,
 	}
 
 	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetAppByPublicAddress)
@@ -305,7 +268,11 @@ func (s *Server) startHeartbeat(ctx context.Context, app types.Application) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go heartbeat.Run()
+	go func() {
+		if err := heartbeat.Run(); err != nil {
+			slog.WarnContext(ctx, "App heartbeat terminated", "error", err, "app", app.GetName())
+		}
+	}()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.heartbeats[app.GetName()] = heartbeat
@@ -424,12 +391,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		}
 	}
 
-	// Start reconciler that will be reconciling proxied apps with
-	// application resources.
-	if err := s.startReconciler(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Initialize watcher that will be dynamically (un-)registering
 	// proxied apps based on the application resources.
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
@@ -531,7 +492,7 @@ func (s *Server) close(ctx context.Context) error {
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
 
-	// Stop the database resource watcher.
+	// Stop the application resource watcher.
 	if s.watcher != nil {
 		s.watcher.Close()
 	}

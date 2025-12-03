@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -575,9 +578,9 @@ func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesk
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindDynamicWindowsDesktop,
-		ResourceGetter: pagerFn[types.DynamicWindowsDesktop](
-			getter.ListDynamicWindowsDesktops,
-		).getAll,
+		ResourceGetter: func(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
+			return stream.Collect(clientutils.Resources(ctx, getter.ListDynamicWindowsDesktops))
+		},
 		ResourceKey: types.DynamicWindowsDesktop.GetName,
 		ResourcesC:  cfg.DynamicWindowsDesktopsC,
 		CloneFunc:   types.DynamicWindowsDesktop.Copy,
@@ -1766,9 +1769,9 @@ func NewGitServerWatcher(ctx context.Context, cfg GitServerWatcherConfig) (*Gene
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Server, readonly.Server]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindGitServer,
-		ResourceGetter: pagerFn[types.Server](
-			cfg.GitServerGetter.ListGitServers,
-		).getAll,
+		ResourceGetter: func(ctx context.Context) ([]types.Server, error) {
+			return stream.Collect(clientutils.Resources(ctx, cfg.GitServerGetter.ListGitServers))
+		},
 		ResourceKey:            types.Server.GetName,
 		DisableUpdateBroadcast: !cfg.EnableUpdateBroadcast,
 		CloneFunc:              types.Server.DeepCopy,
@@ -1812,9 +1815,9 @@ func NewHealthCheckConfigWatcher(
 	]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindHealthCheckConfig,
-		ResourceGetter: pagerFn[*healthcheckconfigv1.HealthCheckConfig](
-			cfg.Reader.ListHealthCheckConfigs,
-		).getAll,
+		ResourceGetter: func(ctx context.Context) ([]*healthcheckconfigv1.HealthCheckConfig, error) {
+			return stream.Collect(clientutils.Resources(ctx, cfg.Reader.ListHealthCheckConfigs))
+		},
 		ResourceKey: func(resource *healthcheckconfigv1.HealthCheckConfig) string {
 			return resource.GetMetadata().GetName()
 		},
@@ -1827,20 +1830,295 @@ func NewHealthCheckConfigWatcher(
 	return w, trace.Wrap(err)
 }
 
-type pagerFn[T any] func(ctx context.Context, limit int, startKey string) ([]T, string, error)
+type ResourceMonitorConfig[T any] struct {
+	Kind              string
+	Key               func(T) string
+	ResourceHeaderKey func(*types.ResourceHeader) string
+	CurrentResources  func(context.Context) iter.Seq2[T, error]
+	Events            types.Events
 
-func (fn pagerFn[T]) getAll(ctx context.Context) ([]T, error) {
-	var out []T
-	var token string
-	for {
-		page, nextToken, err := fn(ctx, apidefaults.DefaultChunkSize, token)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			return out, nil
-		}
-		token = nextToken
+	Matches            func(T) bool
+	CompareResources   func(T, T) int
+	AllowOriginChanges bool
+
+	DeleteResource func(context.Context, T) error
+	CreateResource func(context.Context, T) error
+	UpdateResource func(context.Context, T) error
+}
+
+type ResourceMonitor[T any] struct {
+	cfg       ResourceMonitorConfig[T]
+	logger    *slog.Logger
+	initChan  chan struct{}
+	initOnce  sync.Once
+	closed    chan struct{}
+	closeOnce sync.Once
+	mu        sync.Mutex
+	resources map[string]T
+}
+
+func NewResourceMonitor[T any](cfg ResourceMonitorConfig[T]) (*ResourceMonitor[T], error) {
+	switch {
+	case cfg.Kind == "":
+		return nil, trace.BadParameter("ResourceMonitor kind not provided")
+	case cfg.CurrentResources == nil:
+		return nil, trace.BadParameter("ResourceMonitor current resources not provided")
+	case cfg.Events == nil:
+		return nil, trace.BadParameter("ResourceMonitor events not provided")
+	case cfg.DeleteResource == nil:
+		return nil, trace.BadParameter("ResourceMonitor delete resource not provided")
+	case cfg.CreateResource == nil:
+		return nil, trace.BadParameter("ResourceMonitor create resource not provided")
+	case cfg.UpdateResource == nil:
+		return nil, trace.BadParameter("ResourceMonitor update resource not provided")
+	case cfg.Matches == nil:
+		return nil, trace.BadParameter("ResourceMonitor matches not provided")
+	case cfg.CompareResources == nil:
+		return nil, trace.BadParameter("ResourceMonitor compare resources not provided")
 	}
+
+	return &ResourceMonitor[T]{
+		cfg:      cfg,
+		initChan: make(chan struct{}),
+		closed:   make(chan struct{}),
+		logger:   slog.With(teleport.ComponentKey, "resourcemonitor", "kind", cfg.Kind),
+	}, nil
+}
+
+// WaitInitialization blocks until resource watcher is fully initialized with
+// the resources presented in auth server.
+func (p *ResourceMonitor[T]) WaitInitialization() error {
+	// wait for resourceWatcher to complete initialization.
+	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-p.initChan:
+			return nil
+		case <-p.closed:
+			return nil
+		case <-t.C:
+			p.logger.DebugContext(context.Background(), "ResourceMonitor is not yet initialized.")
+		}
+	}
+}
+
+func (p *ResourceMonitor[T]) Close() error {
+	p.closeOnce.Do(func() {
+		close(p.closed)
+	})
+
+	return nil
+}
+
+// Run monitors resources until the context is canceled.
+func (p *ResourceMonitor[T]) Run(ctx context.Context) {
+	for {
+		err := p.watch(ctx)
+
+		select {
+		case <-p.closed:
+			return
+		case <-ctx.Done():
+			return
+		// TODO(tross) add a real backoff
+		case <-time.After(10 * time.Second):
+			if err != nil {
+				p.logger.WarnContext(ctx, "Restart watch on error", "error", err)
+			}
+		}
+	}
+}
+
+// watch monitors new resource updates, maintains a local view and broadcasts
+// notifications to connected agents.
+func (p *ResourceMonitor[T]) watch(ctx context.Context) error {
+	watch := types.Watch{
+		Name:            "resource.monitor",
+		MetricComponent: "resource.monitor",
+		Kinds:           []types.WatchKind{{Kind: p.cfg.Kind}},
+	}
+
+	watcher, err := p.cfg.Events.NewWatcher(ctx, watch)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	// before fetch, make sure watcher is synced by receiving init event,
+	// to avoid the scenario:
+	// 1. Cache process:   w = NewWatcher()
+	// 2. Cache process:   c.fetch()
+	// 3. Backend process: addItem()
+	// 4. Cache process:   <- w.Events()
+	//
+	// If there is a way that NewWatcher() on line 1 could
+	// return without subscription established first,
+	// Code line 3 could execute and line 4 could miss event,
+	// wrapping up with out of sync replica.
+	// To avoid this, before doing fetch,
+	// cache process makes sure the connection is established
+	// by receiving init event first.
+	select {
+	case <-p.closed:
+		return nil
+	case <-watcher.Done():
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
+	case <-ctx.Done():
+		return trace.ConnectionProblem(ctx.Err(), "context is closing")
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	}
+
+	// Get the current set of resources and create or update
+	// them based on whether or not they have been seen before.
+	resources := map[string]T{}
+	p.mu.Lock()
+	for resource, err := range p.cfg.CurrentResources(ctx) {
+		if err != nil {
+			p.mu.Unlock()
+			return trace.Wrap(err)
+		}
+
+		key := p.cfg.Key(resource)
+		resources[key] = resource
+
+		if existing, ok := p.resources[key]; ok {
+			if err := p.updateResource(ctx, key, existing, resource); err != nil {
+				p.logger.Log(ctx, logutils.TraceLevel, "Failed to update resource", "name", key, "err", err)
+			}
+		} else {
+			if err := p.createResource(ctx, key, resource); err != nil {
+				p.logger.Log(ctx, logutils.TraceLevel, "Failed to create resource", "name", key, "err", err)
+			}
+		}
+	}
+
+	// Delete any resources which used to exist but no longer
+	// exist in the set of resources that were retrieved above.
+	for key, resource := range p.resources {
+		if _, ok := resources[key]; !ok {
+			p.logger.InfoContext(ctx, "Resource was removed, deleting", "name", key)
+			if err := p.cfg.DeleteResource(ctx, resource); err != nil {
+				level := slog.LevelWarn
+				if trace.IsNotFound(err) {
+					level = logutils.TraceLevel
+				}
+				p.logger.Log(ctx, level, "Failed to delete resource", "name", key, "err", err)
+			}
+		}
+	}
+
+	p.initOnce.Do(func() { close(p.initChan) })
+	p.resources = resources
+	p.mu.Unlock()
+
+	for {
+		select {
+		case <-p.closed:
+			return nil
+		case <-watcher.Done():
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context is closing")
+		case event := <-watcher.Events():
+			switch event.Type {
+			case types.OpDelete:
+				var key string
+				switch res := event.Resource.(type) {
+				case T:
+					key = p.cfg.Key(res)
+				case interface{ UnwrapT() T }:
+					key = p.cfg.Key(res.UnwrapT())
+				case *types.ResourceHeader:
+					key = p.cfg.ResourceHeaderKey(res)
+				}
+
+				p.mu.Lock()
+				deleted, ok := p.resources[key]
+				delete(p.resources, key)
+				p.mu.Unlock()
+				if !p.cfg.Matches(deleted) && !ok {
+					continue
+				}
+
+				p.logger.InfoContext(ctx, "Resource was removed, deleting", "name", key)
+				if err := p.cfg.DeleteResource(ctx, deleted); err != nil {
+					level := slog.LevelWarn
+					if trace.IsNotFound(err) {
+						level = logutils.TraceLevel
+					}
+					p.logger.Log(ctx, level, "Failed to delete resource", "name", key, "err", err)
+				}
+			case types.OpPut:
+				key := p.cfg.Key(event.Resource.(T))
+				p.mu.Lock()
+				existing, ok := p.resources[key]
+				p.resources[key] = event.Resource.(T)
+				p.mu.Unlock()
+
+				if ok {
+					if err := p.updateResource(ctx, key, existing, event.Resource.(T)); err != nil {
+						p.logger.Log(ctx, logutils.TraceLevel, "Failed to update resource", "name", key, "err", err)
+					}
+				} else {
+					if err := p.createResource(ctx, key, event.Resource.(T)); err != nil {
+						p.logger.Log(ctx, logutils.TraceLevel, "Failed to create resource", "name", key, "err", err)
+					}
+				}
+			}
+		}
+	}
+}
+
+func (p *ResourceMonitor[T]) createResource(ctx context.Context, key string, new T) error {
+	if !p.cfg.Matches(new) {
+		p.logger.DebugContext(ctx, "New resource doesn't match, not creating", "name", key)
+		return nil
+	}
+
+	p.logger.InfoContext(ctx, "New resource matches, creating", "name", key)
+
+	return trace.Wrap(p.cfg.CreateResource(ctx, new))
+}
+
+func (p *ResourceMonitor[T]) updateResource(ctx context.Context, key string, current, new T) error {
+	if !p.cfg.AllowOriginChanges {
+		currentOrigin, err := types.GetOrigin(current)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newOrigin, err := types.GetOrigin(new)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if currentOrigin != newOrigin {
+			p.logger.WarnContext(ctx, "New resource has different origin, not updating",
+				"name", key, "new_origin", newOrigin, "existing_origin", currentOrigin)
+			return nil
+		}
+	}
+
+	if p.cfg.CompareResources(new, current) == 0 {
+		p.logger.Log(ctx, logutils.TraceLevel, "Existing resource is already registered", "name", key)
+		return nil
+	}
+
+	if p.cfg.Matches(new) {
+		p.logger.InfoContext(ctx, "Existing resource updated, updating", "name", key)
+		return trace.Wrap(p.cfg.UpdateResource(ctx, new))
+	}
+
+	p.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "name", key)
+	if err := p.cfg.DeleteResource(ctx, current); err != nil {
+		p.logger.Log(ctx, logutils.TraceLevel, "Failed to delete resource", "name", key, "err", err)
+		if trace.IsNotFound(err) {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

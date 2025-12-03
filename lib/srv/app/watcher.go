@@ -21,102 +21,58 @@ package app
 import (
 	"context"
 	"fmt"
+	"iter"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// startReconciler starts reconciler that registers/unregisters proxied
-// apps according to the up-to-date list of application resources.
-func (s *Server) startReconciler(ctx context.Context) error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
-		Matcher:             s.matcher,
-		GetCurrentResources: s.getResources,
-		GetNewResources:     s.monitoredApps.get,
-		OnCreate:            s.onCreate,
-		OnUpdate:            s.onUpdate,
-		OnDelete:            s.onDelete,
-		Logger:              s.log.With("kind", types.KindApp),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	go func() {
-		for {
-			select {
-			case <-s.reconcileCh:
-				if err := reconciler.Reconcile(ctx); err != nil {
-					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
-				} else if s.c.OnReconcile != nil {
-					s.c.OnReconcile(s.getApps())
-				}
-			case <-ctx.Done():
-				s.log.DebugContext(ctx, "Reconciler done.")
-				return
-			}
-		}
-	}()
-	return nil
-}
-
 // startResourceWatcher starts watching changes to application resources and
 // registers/unregisters the proxied applications accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Application, readonly.Application], error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.ResourceMonitor[types.Application], error) {
 	if len(s.c.ResourceMatchers) == 0 {
 		s.log.DebugContext(ctx, "Not initializing application resource watcher.")
 		return nil, nil
 	}
 	s.log.DebugContext(ctx, "Initializing application resource watcher.")
-	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentApp,
-			Logger:    s.log,
-			Client:    s.c.AccessPoint,
+
+	monitor, err := services.NewResourceMonitor(services.ResourceMonitorConfig[types.Application]{
+		Kind: types.KindApp,
+		Key:  types.Application.GetName,
+		ResourceHeaderKey: func(rh *types.ResourceHeader) string {
+			return rh.GetMetadata().Name
 		},
-		AppGetter: s.c.AccessPoint,
+		CurrentResources: func(ctx context.Context) iter.Seq2[types.Application, error] {
+			return clientutils.Resources(ctx, s.c.AccessPoint.ListApps)
+		},
+		Events:  s.c.AccessPoint,
+		Matches: s.matcher,
+		CompareResources: func(a1, a2 types.Application) int {
+			if a1.IsEqual(a2) {
+				return services.Equal
+			}
+
+			return services.Different
+		},
+		DeleteResource: s.onDelete,
+		CreateResource: s.onCreate,
+		UpdateResource: s.onUpdate,
 	})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go func() {
-		defer watcher.Close()
-		for {
-			select {
-			case apps := <-watcher.ResourcesC:
-				appsWithAddr := apps[:0]
-				for _, app := range apps {
-					if app.GetPublicAddr() == "" {
-						pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
-						if err == nil {
-							app.SetPublicAddr(pubAddr)
-						} else {
-							s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
-								"app_name", app.GetName(),
-								"error", err,
-							)
-						}
-					}
 
-					appsWithAddr = append(appsWithAddr, app)
-				}
-				s.monitoredApps.setResources(appsWithAddr)
-				select {
-				case s.reconcileCh <- struct{}{}:
-				case <-ctx.Done():
-					return
-				}
-			case <-ctx.Done():
-				s.log.DebugContext(ctx, "Application resource watcher done.")
-				return
-			}
-		}
+	go func() {
+		monitor.Run(ctx)
+		s.log.DebugContext(ctx, "app server resource monitor completed")
 	}()
-	return watcher, nil
+
+	return monitor, nil
 }
 
 // FindPublicAddrClient is a client used for finding public addresses.
@@ -143,11 +99,16 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 	if len(servers) == 0 {
 		return "", trace.BadParameter("cluster has no proxy registered, at least one proxy must be registered for application access")
 	}
-	if servers[0].GetPublicAddr() != "" {
+	for _, server := range servers {
+		if server.GetPublicAddr() == "" {
+			continue
+		}
+
 		addr, err := utils.ParseAddr(servers[0].GetPublicAddr())
 		if err != nil {
-			return "", trace.Wrap(err)
+			continue
 		}
+
 		return utils.DefaultAppPublicAddr(appName, addr.Host()), nil
 	}
 
@@ -164,10 +125,33 @@ func (s *Server) getResources() map[string]types.Application {
 }
 
 func (s *Server) onCreate(ctx context.Context, app types.Application) error {
+	if app.GetPublicAddr() == "" {
+		pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+		if err == nil {
+			app.SetPublicAddr(pubAddr)
+		} else {
+			s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
+				"app_name", app.GetName(),
+				"error", err,
+			)
+		}
+	}
+
 	return s.registerApp(ctx, app)
 }
 
-func (s *Server) onUpdate(ctx context.Context, app, _ types.Application) error {
+func (s *Server) onUpdate(ctx context.Context, app types.Application) error {
+	if app.GetPublicAddr() == "" {
+		pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+		if err == nil {
+			app.SetPublicAddr(pubAddr)
+		} else {
+			s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
+				"app_name", app.GetName(),
+				"error", err,
+			)
+		}
+	}
 	return s.updateApp(ctx, app)
 }
 
