@@ -91,9 +91,15 @@ func TestIterateUsers_Empty(t *testing.T) {
 	))
 	t.Cleanup(func() { fakeServer.TLSServer.Close() })
 
+	httpClient := &http.Client{
+		Transport: &msgraphtest.RewriteTransport{
+			Base: fakeServer.TLSServer.Client().Transport,
+			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
+		},
+	}
 	client, err := NewClient(Config{
-		HTTPClient:    fakeServer.HTTPClient,
-		TokenProvider: &fakeServer.TokenProvider,
+		HTTPClient:    httpClient,
+		TokenProvider: &msgraphtest.TokenProvider{},
 		RetryConfig:   &retryConfig,
 	})
 	require.NoError(t, err)
@@ -110,9 +116,15 @@ func TestIterateUsers(t *testing.T) {
 	fakeServer := msgraphtest.NewServer()
 	t.Cleanup(func() { fakeServer.TLSServer.Close() })
 
+	httpClient := &http.Client{
+		Transport: &msgraphtest.RewriteTransport{
+			Base: fakeServer.TLSServer.Client().Transport,
+			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
+		},
+	}
 	client, err := NewClient(Config{
-		HTTPClient:    fakeServer.HTTPClient,
-		TokenProvider: &fakeServer.TokenProvider,
+		HTTPClient:    httpClient,
+		TokenProvider: &msgraphtest.TokenProvider{},
 		RetryConfig:   &retryConfig,
 		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
 	})
@@ -383,9 +395,14 @@ func TestIterateGroupMembers(t *testing.T) {
 	groupID := "group1"
 	fakeServer := msgraphtest.NewServer()
 	t.Cleanup(func() { fakeServer.TLSServer.Close() })
-
+	httpClient := &http.Client{
+		Transport: &msgraphtest.RewriteTransport{
+			Base: fakeServer.TLSServer.Client().Transport,
+			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
+		},
+	}
 	client, err := NewClient(Config{
-		HTTPClient:    fakeServer.HTTPClient,
+		HTTPClient:    httpClient,
 		TokenProvider: &msgraphtest.TokenProvider{},
 		RetryConfig:   &retryConfig,
 		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
@@ -423,9 +440,15 @@ func TestGetApplication(t *testing.T) {
 	))
 	t.Cleanup(func() { fakeServer.TLSServer.Close() })
 
+	httpClient := &http.Client{
+		Transport: &msgraphtest.RewriteTransport{
+			Base: fakeServer.TLSServer.Client().Transport,
+			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
+		},
+	}
 	client, err := NewClient(Config{
+		HTTPClient:    httpClient,
 		TokenProvider: &msgraphtest.TokenProvider{},
-		HTTPClient:    fakeServer.HTTPClient,
 		RetryConfig:   &retryConfig,
 		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
 	})
@@ -650,4 +673,11 @@ func newHTTPClient(server *httptest.Server) *http.Client {
 		},
 	}
 	return httpClient
+}
+
+func mustParseURL(t *testing.T, in string) *url.URL {
+	t.Helper()
+	url, err := url.Parse(in)
+	require.NoError(t, err)
+	return url
 }

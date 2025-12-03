@@ -1,13 +1,28 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package msgraphtest
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strconv"
 	"sync"
@@ -76,10 +91,8 @@ func DefaultPayload() Payloads {
 
 // Server defines fake server.
 type Server struct {
-	TokenProvider TokenProvider
-	Payloads      Payloads
-	TLSServer     *httptest.Server
-	HTTPClient    *http.Client
+	Payloads  Payloads
+	TLSServer *httptest.Server
 }
 
 // ServerOption is a custom opt for [NewServer].
@@ -95,30 +108,14 @@ func WithPayloads(p Payloads) ServerOption {
 // NewServer creates a new fake server.
 func NewServer(opts ...ServerOption) *Server {
 	s := &Server{
-		TokenProvider: TokenProvider{},
-		Payloads:      DefaultPayload(),
+		Payloads: DefaultPayload(),
 	}
 	// Apply options
 	for _, opt := range opts {
 		opt(s)
 	}
 
-	tlsServer := httptest.NewTLSServer(s.Handler())
-	s.TLSServer = tlsServer
-
-	httpClient := tlsServer.Client()
-	httpClient.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-		// Ignore the address and always direct all requests to the fake API server.
-		// This allows tests to connect to the fake API server despite the official
-		// client trying to reach the official endpoints.
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return net.Dial("tcp", tlsServer.Listener.Addr().String())
-		},
-	}
-	s.HTTPClient = httpClient
+	s.TLSServer = httptest.NewTLSServer(s.Handler())
 
 	return s
 }
@@ -247,4 +244,17 @@ func Paginator(w http.ResponseWriter, r *http.Request, values []json.RawMessage)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to unmarshal payload: %s", err.Error()), http.StatusInternalServerError)
 	}
+}
+
+// RewriteTransport configures custom transport.
+type RewriteTransport struct {
+	Base http.RoundTripper
+	URL  *url.URL
+}
+
+// RoundTrip swaps incoming URL with configured URL.
+func (rt *RewriteTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.URL.Scheme = rt.URL.Scheme
+	req.URL.Host = rt.URL.Host
+	return rt.Base.RoundTrip(req)
 }
