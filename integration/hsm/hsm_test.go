@@ -57,6 +57,9 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// Enable verbose logging for HSM tests.
+	logtest.InitLogger(func() bool { return true })
+
 	// Enable HSM feature.
 	// This is safe to do here, as all tests in this package require HSM to be
 	// enabled.
@@ -552,6 +555,12 @@ func TestHSMRevert(t *testing.T) {
 	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1, err = newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		auth1.process.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		assert.NoError(t, auth1.waitForShutdown(ctx), "waiting for auth process to shut down")
+	})
 
 	// Make sure a cluster alert is created.
 	var alert types.ClusterAlert

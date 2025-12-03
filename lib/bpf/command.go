@@ -21,9 +21,14 @@
 package bpf
 
 import (
-	_ "embed"
+	"context"
+	"io"
+	"sync"
 
-	"github.com/aquasecurity/libbpfgo"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -31,49 +36,56 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
-var (
-	lostCommandEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostCommandEvents,
-			Help: "Number of lost command events.",
-		},
-	)
+var lostCommandEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostCommandEvents,
+		Help: "Number of lost command events.",
+	},
 )
-
-const (
-	commandEventsBuffer = "execve_events"
-)
-
-// rawExecEvent is sent by the eBPF program that Teleport pulls off the perf
-// buffer.
-type rawExecEvent struct {
-	// PID is the ID of the process.
-	PID uint64
-
-	// PPID is the PID of the parent process.
-	PPID uint64
-
-	// Command is the executable.
-	Command [CommMax]byte
-
-	// Type is the type of event.
-	Type int32
-
-	// Argv is the list of arguments to the program.
-	Argv [ArgvMax]byte
-
-	// ReturnCode is the return code of execve.
-	ReturnCode int32
-
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint64
-}
 
 type exec struct {
-	session
+	// session
+	objs commandObjects
 
-	eventBuf *RingBuffer
-	lost     *Counter
+	eventBuf *ringbuf.Reader
+	lost     *ebpf.Map
+	toClose  []io.Closer
+
+	closed bool
+	mtx    sync.Mutex
+
+	bpfEvents   chan []byte
+	lostCounter *Counter
+}
+
+func (e *exec) startSession(cgroupID uint64) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if e.closed {
+		return trace.BadParameter("open session already closed")
+	}
+
+	if err := e.objs.MonitoredCgroups.Put(cgroupID, int64(0)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (e *exec) endSession(cgroupID uint64) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if e.closed {
+		return nil // Ignore. If the session is closed, the cgroup is no longer monitored.
+	}
+
+	if err := e.objs.MonitoredCgroups.Delete(&cgroupID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // startExec will load, start, and pull events off the ring buffer
@@ -84,59 +96,102 @@ func startExec(bufferSize int) (*exec, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	e := &exec{}
+	// Remove resource limits for kernels <5.11.
+	if err := rlimit.RemoveMemlock(); err != nil {
+		return nil, trace.WrapWithMessage(err, "Removing memlock")
+	}
 
-	commandBPF, err := embedFS.ReadFile("bytecode/command.bpf.o")
+	var objs commandObjects
+	if err := loadCommandObjects(&objs, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	e.session.module, err = libbpfgo.NewModuleFromBuffer(commandBPF, "command")
-	if err != nil {
-		return nil, trace.Wrap(err)
+	toClose := make([]io.Closer, 0)
+
+	tracePoints := []struct {
+		name       string
+		tracepoint *ebpf.Program
+	}{
+		{
+			name:       "sys_enter_execve",
+			tracepoint: objs.TracepointSyscallsSysEnterExecve,
+		},
+		{
+			name:       "sys_exit_execve",
+			tracepoint: objs.TracepointSyscallsSysExitExecve,
+		},
+		{
+			name:       "sys_enter_execveat",
+			tracepoint: objs.TracepointSyscallsSysEnterExecveat,
+		},
+		{
+			name:       "sys_exit_execveat",
+			tracepoint: objs.TracepointSyscallsSysExitExecveat,
+		},
 	}
 
-	// Resizing the ring buffer must be done here, after the module
-	// was created but before it's loaded into the kernel.
-	if err = ResizeMap(e.session.module, commandEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Load into the kernel
-	if err = e.session.module.BPFLoadObject(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	syscalls := []string{"execve", "execveat"}
-
-	for _, syscall := range syscalls {
-		if err = AttachSyscallTracepoint(e.session.module, syscall); err != nil {
+	for _, tp := range tracePoints {
+		tp, err := link.Tracepoint("syscalls", tp.name, tp.tracepoint, nil)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		toClose = append(toClose, tp)
 	}
 
-	e.eventBuf, err = NewRingBuffer(e.session.module, commandEventsBuffer)
+	eventBuf, err := ringbuf.NewReader(objs.ExecveEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	e.lost, err = NewCounter(e.session.module, "lost", lostCommandEvents)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	bpfEvents := make(chan []byte, bufferSize)
+	go sendEvents(bpfEvents, eventBuf)
 
-	return e, nil
+	return &exec{
+		objs:        objs,
+		eventBuf:    eventBuf,
+		lost:        objs.LostCounter,
+		toClose:     toClose,
+		bpfEvents:   bpfEvents,
+		lostCounter: lostCtr,
+	}, nil
 }
 
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (e *exec) close() {
-	e.lost.Close()
-	e.eventBuf.Close()
-	e.session.module.Close()
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	if e.closed {
+		return
+	}
+
+	e.closed = true
+
+	for _, link := range e.toClose {
+		if err := link.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close link", "error", err)
+		}
+	}
+
+	if err := e.objs.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close command objects", "error", err)
+	}
+
+	if err := e.lostCounter.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close command lost counter", "error", err)
+	}
+
+	logger.DebugContext(context.Background(), "Closed command BPF module")
 }
 
 // events contains raw events off the perf buffer.
 func (e *exec) events() <-chan []byte {
-	return e.eventBuf.EventCh
+	return e.bpfEvents
 }

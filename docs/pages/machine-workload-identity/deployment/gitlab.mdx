@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on GitLab CI
-description: How to install and configure Machine ID on GitLab CI
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on GitLab CI
 sidebar_label: GitLab CI
 tags:
  - ci-cd
@@ -11,12 +11,13 @@ tags:
 
 {/* lint disable page-structure remark-lint */}
 
-In this guide, you will use Teleport Machine ID to allow a GitLab pipeline to
-securely connect to a Teleport SSH node without the need for long-lived secrets.
+In this guide, you will use Teleport Machine & Workload Identity to allow a
+GitLab pipeline to securely connect to a Teleport SSH node without the need for
+long-lived secrets.
 
-Machine ID for GitLab works with GitLab's cloud-hosted option and with
-self-hosted GitLab installations. **The minimum supported GitLab version is
-15.7**.
+Machine & Workload Identity for GitLab works with GitLab's cloud-hosted option
+and with self-hosted GitLab installations. **The minimum supported GitLab
+version is 15.7**.
 
 This mitigates the risk of long-lived secrets such as passwords or SSH private
 keys being exfiltrated from your GitLab organization and provides many of

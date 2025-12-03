@@ -135,6 +135,8 @@ service TerminalService {
   // Optionally removes the profile.
   // This operation is idempotent and can be safely invoked multiple times.
   rpc Logout(LogoutRequest) returns (EmptyResponse);
+  // Closes root and leaf cluster clients that use outdated TLS certificates.
+  rpc ClearStaleClusterClients(ClearStaleClusterClientsRequest) returns (ClearStaleClusterClientsResponse);
   // TransferFile sends a request to download/upload a file
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
   // ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -203,6 +205,12 @@ message LogoutRequest {
   // Whether to remove the associated YAML profile after logout.
   bool remove_profile = 2;
 }
+
+message ClearStaleClusterClientsRequest {
+  string root_cluster_uri = 1;
+}
+
+message ClearStaleClusterClientsResponse {}
 
 message StartHeadlessWatcherRequest {
   string root_cluster_uri = 1;

@@ -21,7 +21,6 @@ package elasticsearch
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"io"
@@ -35,13 +34,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -310,18 +307,4 @@ func parseURI(uri string) (*url.URL, error) {
 	// force HTTPS
 	u.Scheme = "https"
 	return u, nil
-}
-
-// NewEndpointsResolver resolves an endpoint from DB URI.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	dbURL, err := parseURI(db.GetURI())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	host := dbURL.Hostname()
-	port := cmp.Or(dbURL.Port(), "443")
-	hostPort := net.JoinHostPort(host, port)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{hostPort}, nil
-	}), nil
 }

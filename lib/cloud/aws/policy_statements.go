@@ -507,6 +507,18 @@ func StatementKMSDecrypt(kmsKeysARNs []string) *Statement {
 	}
 }
 
+// StatementEnableEKSAuditLogs returns the statement that allows fetching EKS
+// API server audit logs from CloudWatch Logs.
+func StatementAccessGraphAWSSyncEKSAuditLogs() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"logs:FilterLogEvents",
+		},
+		Resources: []string{"arn:aws:logs:*:*:log-group:/aws/eks/*"},
+	}
+}
+
 // StatementForAWSIdentityCenterAccess returns AWS IAM policy statement that grants
 // permissions required for Teleport identity center client.
 // TODO(sshah): make the roles more granular by restricting resources scoped to

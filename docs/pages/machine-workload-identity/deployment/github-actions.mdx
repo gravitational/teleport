@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on GitHub Actions
-description: How to install and configure Machine ID on GitHub Actions
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on GitHub Actions
 sidebar_label: GitHub Actions
 tags:
  - ci-cd
@@ -12,8 +12,9 @@ tags:
 {/* lint disable page-structure remark-lint */}
 
 GitHub Actions is a popular CI/CD platform that works as a part of the larger
-GitHub ecosystem. Teleport Machine ID allows GitHub Actions to securely interact
-with Teleport protected resources without the need for long-lived credentials.
+GitHub ecosystem. Teleport Machine & Workload Identity allows GitHub Actions to
+securely interact with Teleport protected resources without the need for
+long-lived credentials.
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
 Actions runners as well as GitHub Enterprise Server.
@@ -186,8 +187,8 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be
-      # able to authenticate with the cluster.
+      # The "id-token: write" permission is required or tbot will not be able to
+      # authenticate with the cluster.
       id-token: write
       contents: read
     # The name of the workflow, and the Linux distro to be used to perform the
@@ -203,7 +204,7 @@ jobs:
         version: auto
         # Replace with the address of your Teleport Proxy Service.
         proxy: example.teleport.sh:443
-    - name: Fetch credentials using Machine ID
+    - name: Fetch credentials using Machine & Workload Identity
       id: auth
       uses: teleport-actions/auth@v2
       with:
@@ -254,7 +255,7 @@ to complete, and will resemble the following once successful.
 
 Expand the **List nodes** step of the action, and the output will
 list all nodes in the cluster, from the perspective of the
-Machine ID bot using the command `tsh ls`.
+Machine & Workload Identity bot using the command `tsh ls`.
 
 ### Example: `teleport-actions/auth-k8s`
 
@@ -306,8 +307,8 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be
-      # able to authenticate with the cluster.
+      # The "id-token: write" permission is required or tbot will not be able to
+      # authenticate with the cluster.
       id-token: write
       contents: read
     name: example
@@ -402,8 +403,8 @@ on:
 jobs:
   demo:
     permissions:
-      # The "id-token: write" permission is required or Machine ID will not be
-      # able to authenticate with the cluster.
+      # The "id-token: write" permission is required or tbot will not be able to
+      # authenticate with the cluster.
       id-token: write
       contents: read
     # The name of the workflow, and the Linux distro to be used to perform the

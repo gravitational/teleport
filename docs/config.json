@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.29.0"
+      "version": "1.29.5"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -276,18 +276,8 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/auto-discovery/reference/",
-      "destination": "/reference/agent-services/auto-discovery-reference/",
-      "permanent": true
-    },
-    {
-      "source": "/enroll-resources/auto-discovery/reference/aws-iam/",
-      "destination": "/reference/agent-services/auto-discovery-reference/aws-iam/",
-      "permanent": true
-    },
-    {
       "source": "/reference/agent-services/kubernetes-application-discovery/",
-      "destination": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
+      "destination": "/enroll-resources/auto-discovery/reference/kubernetes-application-discovery/",
       "permanent": true
     },
     {
@@ -2597,12 +2587,12 @@
     },
     {
       "source": "/identity-governance/entra-id/manual-installation/",
-      "destination": "/identity-governance/integrations/entra-id/manual-installation/",
+      "destination": "/identity-governance/integrations/entra-id/setup/manual-installation/",
       "permanent": true
     },
     {
       "source": "/identity-governance/entra-id/terraform/",
-      "destination": "/identity-governance/integrations/entra-id/terraform/",
+      "destination": "/identity-governance/integrations/entra-id/setup/terraform/",
       "permanent": true
     },
     {
@@ -2688,6 +2678,251 @@
     {
       "source": "/zero-trust-access/management/guides/oracle-tags/",
       "destination": "/enroll-resources/automatic-labels/oracle-tags/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/recording-proxy-mode/",
+      "destination": "/reference/architecture/session-recording/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-oracle/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/rds-oracle/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-mysql/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-postgres/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-sqlserver/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/",
+      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/sse/",
+      "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/sse/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/stdio/",
+      "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/stdio/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/mcp-access/streamable-http/",
+      "destination": "/enroll-resources/mcp-access/enrolling-mcp-servers/streamable-http/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/integrations/entra-id/manual-installation/",
+      "destination": "/identity-governance/integrations/entra-id/setup/manual-installation/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/integrations/entra-id/terraform/",
+      "destination": "/identity-governance/integrations/entra-id/setup/terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/amazon-athena/",
+      "destination": "/enroll-resources/application-access/protect-apps/amazon-athena/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/api-access/",
+      "destination": "/enroll-resources/application-access/protect-apps/api-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/connecting-apps/",
+      "destination": "/enroll-resources/application-access/protect-apps/connecting-apps/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/dynamodb/",
+      "destination": "/enroll-resources/application-access/protect-apps/dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/tcp/",
+      "destination": "/enroll-resources/application-access/protect-apps/tcp/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/",
+      "destination": "/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/application-access/",
+      "destination": "/enroll-resources/application-access/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/auto-discovery-reference/",
+      "destination": "/enroll-resources/auto-discovery/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/auto-discovery-reference/aws-iam/",
+      "destination": "/enroll-resources/auto-discovery/reference/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
+      "destination": "/enroll-resources/auto-discovery/reference/kubernetes-application-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/auto-discovery-reference/labels/",
+      "destination": "/enroll-resources/auto-discovery/reference/labels/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/database-access-reference/audit/",
+      "destination": "/enroll-resources/database-access/reference/audit/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/database-access-reference/aws/",
+      "destination": "/enroll-resources/database-access/reference/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/database-access-reference/cli/",
+      "destination": "/enroll-resources/database-access/reference/cli/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/database-access-reference/configuration/",
+      "destination": "/enroll-resources/database-access/reference/configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/database-access-reference/",
+      "destination": "/enroll-resources/database-access/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/database-access-reference/labels/",
+      "destination": "/enroll-resources/database-access/reference/labels/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/desktop-access-reference/audit/",
+      "destination": "/enroll-resources/desktop-access/reference/audit/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/desktop-access-reference/cli/",
+      "destination": "/enroll-resources/desktop-access/reference/cli/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/desktop-access-reference/clipboard/",
+      "destination": "/enroll-resources/desktop-access/reference/clipboard/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/desktop-access-reference/configuration/",
+      "destination": "/enroll-resources/desktop-access/reference/configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/desktop-access-reference/",
+      "destination": "/enroll-resources/desktop-access/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/desktop-access-reference/sessions/",
+      "destination": "/enroll-resources/desktop-access/reference/sessions/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/desktop-access-reference/user-creation/",
+      "destination": "/enroll-resources/desktop-access/reference/user-creation/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/mcp-access/",
+      "destination": "/enroll-resources/mcp-access/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/okta/",
+      "destination": "/identity-governance/integrations/okta/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/gui-clients/",
+      "destination": "/connect-your-client/third-party/gui-clients/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/introduction/",
+      "destination": "/connect-your-client/teleport-clients/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/notifications/",
+      "destination": "/connect-your-client/teleport-clients/notifications/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/putty-winscp/",
+      "destination": "/connect-your-client/third-party/putty-winscp/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/request-access/",
+      "destination": "/connect-your-client/teleport-clients/request-access/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/teleport-connect/",
+      "destination": "/connect-your-client/teleport-clients/teleport-connect/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/tsh/",
+      "destination": "/connect-your-client/teleport-clients/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/vnet/",
+      "destination": "/connect-your-client/teleport-clients/vnet/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/web-ui/",
+      "destination": "/connect-your-client/teleport-clients/web-ui/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/jetbrains-sftp/",
+      "destination": "/connect-your-client/third-party/jetbrains-sftp/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/vscode/",
+      "destination": "/connect-your-client/third-party/vscode/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/introduction/",
+      "destination": "/enroll-resources/application-access/",
       "permanent": true
     }
   ]

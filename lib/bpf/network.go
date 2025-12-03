@@ -21,9 +21,14 @@
 package bpf
 
 import (
-	_ "embed"
+	"context"
+	"io"
+	"sync"
 
-	"github.com/aquasecurity/libbpfgo"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -31,77 +36,24 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
-var (
-	lostNetworkEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostNetworkEvents,
-			Help: "Number of lost network events.",
-		},
-	)
+var lostNetworkEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostNetworkEvents,
+		Help: "Number of lost network events.",
+	},
 )
-
-const (
-	network4EventsBuffer = "ipv4_events"
-	network6EventsBuffer = "ipv6_events"
-)
-
-// rawConn4Event is sent by the eBPF program that Teleport pulls off the perf
-// buffer.
-type rawConn4Event struct {
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint64
-
-	// Version is the version of TCP (4 or 6).
-	Version uint64
-
-	// PID is the process ID.
-	PID uint32
-
-	// SrcAddr is the source IP address.
-	SrcAddr uint32
-
-	// DstAddr is the destination IP address.
-	DstAddr uint32
-
-	// DstPort is the port the connection is being made to.
-	DstPort uint16
-
-	// Command is name of the executable making the connection.
-	Command [CommMax]byte
-}
-
-// rawConn6Event is sent by the eBPF program that Teleport pulls off the perf
-// buffer.
-type rawConn6Event struct {
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint64
-
-	// Version is the version of TCP (4 or 6).
-	Version uint64
-
-	// PID is the process ID.
-	PID uint32
-
-	// SrcAddr is the source IP address.
-	SrcAddr [4]uint32
-
-	// DstAddr is the destination IP address.
-	DstAddr [4]uint32
-
-	// DstPort is the port the connection is being made to.
-	DstPort uint16
-
-	// Command is name of the executable making the connection.
-	Command [CommMax]byte
-}
 
 type conn struct {
-	session
+	objs *networkObjects
 
-	event4Buf *RingBuffer
-	event6Buf *RingBuffer
+	event4Chan chan []byte
+	event6Chan chan []byte
+	toClose    []io.Closer
 
-	lost *Counter
+	closed bool
+	mtx    sync.Mutex
+
+	lostCounter *Counter
 }
 
 func startConn(bufferSize int) (*conn, error) {
@@ -110,74 +62,158 @@ func startConn(bufferSize int) (*conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	c := &conn{}
+	// Remove resource limits for kernels <5.11.
+	if err := rlimit.RemoveMemlock(); err != nil {
+		return nil, trace.WrapWithMessage(err, "Removing memlock")
+	}
 
-	networkBPF, err := embedFS.ReadFile("bytecode/network.bpf.o")
+	var objs networkObjects
+	if err := loadNetworkObjects(&objs, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostNetworkEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	c.session.module, err = libbpfgo.NewModuleFromBuffer(networkBPF, "network")
+	kprobes := []struct {
+		symbol string
+		prog   *ebpf.Program
+	}{
+		{
+			symbol: "tcp_v4_connect",
+			prog:   objs.KprobeTcpV4Connect,
+		},
+		{
+			symbol: "tcp_v6_connect",
+			prog:   objs.KprobeTcpV6Connect,
+		},
+	}
+
+	kretProbes := []struct {
+		symbol string
+		prog   *ebpf.Program
+	}{
+		{
+			symbol: "tcp_v4_connect",
+			prog:   objs.KretprobeTcpV4Connect,
+		},
+		{
+			symbol: "tcp_v6_connect",
+			prog:   objs.KretprobeTcpV6Connect,
+		},
+	}
+
+	toClose := make([]io.Closer, 0)
+	for _, kprobe := range kprobes {
+		kp, err := link.Kprobe(kprobe.symbol, kprobe.prog, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		toClose = append(toClose, kp)
+	}
+
+	for _, kretprobe := range kretProbes {
+		kret, err := link.Kretprobe(kretprobe.symbol, kretprobe.prog, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		toClose = append(toClose, kret)
+	}
+
+	eventBufV4, err := ringbuf.NewReader(objs.Ipv4Events)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	eventBufV6, err := ringbuf.NewReader(objs.Ipv6Events)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Resizing the ring buffer must be done here, after the module
-	// was created but before it's loaded into the kernel.
-	if err = ResizeMap(c.session.module, network4EventsBuffer, uint32(bufferSize*pageSize)); err != nil {
-		return nil, trace.Wrap(err)
+	bpfv4Events := make(chan []byte, bufferSize)
+	go sendEvents(bpfv4Events, eventBufV4)
+
+	bpfv6Events := make(chan []byte, bufferSize)
+	go sendEvents(bpfv6Events, eventBufV6)
+
+	return &conn{
+		objs:        &objs,
+		event4Chan:  bpfv4Events,
+		event6Chan:  bpfv6Events,
+		toClose:     toClose,
+		lostCounter: lostCtr,
+	}, nil
+}
+
+func (c *conn) startSession(cgroupID uint64) error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if c.closed {
+		return trace.BadParameter("connection is closed")
 	}
 
-	if err = ResizeMap(c.session.module, network6EventsBuffer, uint32(bufferSize*pageSize)); err != nil {
-		return nil, trace.Wrap(err)
+	if err := c.objs.MonitoredCgroups.Put(cgroupID, int64(0)); err != nil {
+		return trace.Wrap(err)
 	}
 
-	// Load into the kernel
-	if err = c.session.module.BPFLoadObject(); err != nil {
-		return nil, trace.Wrap(err)
+	return nil
+}
+
+func (c *conn) endSession(cgroupID uint64) error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if c.closed {
+		return nil // Ignore. If the session is closed, the cgroup is no longer monitored.
 	}
 
-	if err = AttachKprobe(c.session.module, "tcp_v4_connect"); err != nil {
-		return nil, trace.Wrap(err)
+	if err := c.objs.MonitoredCgroups.Delete(&cgroupID); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if err = AttachKprobe(c.session.module, "tcp_v6_connect"); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.event4Buf, err = NewRingBuffer(c.session.module, network4EventsBuffer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.event6Buf, err = NewRingBuffer(c.session.module, network6EventsBuffer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.lost, err = NewCounter(c.session.module, "lost", lostNetworkEvents)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return c, nil
+	return nil
 }
 
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (c *conn) close() {
-	c.lost.Close()
-	c.event4Buf.Close()
-	c.event6Buf.Close()
-	c.session.module.Close()
+	// c.lost.Close()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if c.closed {
+		return
+	}
+
+	c.closed = true
+
+	for _, link := range c.toClose {
+		if err := link.Close(); err != nil {
+			logger.WarnContext(context.Background(), "failed to close link", "error", err)
+		}
+	}
+
+	if err := c.objs.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close network objects", "error", err)
+	}
+
+	if err := c.lostCounter.Close(); err != nil {
+		logger.WarnContext(context.Background(), "failed to close network lost counter", "error", err)
+	}
+
+	logger.DebugContext(context.Background(), "Closed network BPF module")
 }
 
 // v4Events contains raw events off the perf buffer.
 func (c *conn) v4Events() <-chan []byte {
-	return c.event4Buf.EventCh
+	return c.event4Chan
 }
 
 // v6Events contains raw events off the perf buffer.
 func (c *conn) v6Events() <-chan []byte {
-	return c.event6Buf.EventCh
+	return c.event6Chan
 }

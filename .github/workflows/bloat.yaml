@@ -16,7 +16,7 @@ on:
 jobs:
   bloat_check:
     name: Bloat Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-4core
     outputs:
       base_stats_file: ${{ steps.build_base.outputs.base_stats_file }}
       current_build_dir: ${{ steps.build_branch.outputs.build_dir }}

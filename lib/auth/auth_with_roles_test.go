@@ -926,6 +926,19 @@ func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
 	pub, err := keys.MarshalPublicKey(priv.Public())
 	require.NoError(t, err)
 
+	// Impersonating the requester name fails.
+	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       appName,
+			AWSRoleARN: roleARN,
+		},
+		RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
+	})
+	require.Error(t, err)
+
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: pub,
 		Username:     user.GetName(),

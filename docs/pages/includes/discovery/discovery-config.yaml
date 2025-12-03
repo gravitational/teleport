@@ -40,8 +40,7 @@ discovery_service:
       # Optional AWS external ID that the Discovery Service will use to assume
       # a role in an external AWS account.
       external_id: "example-external-id"
-      # Optional section: install is used to provide parameters to the AWS SSM document.
-      # If the install section isn't provided, the below defaults are used.
+      # Optional section: install is used to provide parameters to the installer script.
       # Only applicable for EC2 discovery.
       install:
         join_params:
@@ -51,13 +50,29 @@ discovery_service:
         # script_name is the name of the Teleport install script to use.
         # Optional, defaults to: "default-installer".
         script_name: "default-installer"
+        # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+        # Requires managed updates to be enabled.
+        # Supported characters are alphanumeric characters and `-`.
+        suffix: "<suffix>"
+        # Optional: when using managed updates, set the update group of the installation.
+        # Supported characters are alphanumeric characters and `-`.
+        update_group: "<update-group>"
+        # Optional: proxy settings for the install script.
+        # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+        # environment variables for the install script.
+        http_proxy_settings:
+          https_proxy: http://172.31.5.130:3128
+          http_proxy: http://172.31.5.130:3128
+          no_proxy: my-local-domain
       # Optional section: ssm is used to configure which AWS SSM document to use
       # If the ssm section isnt provided the below defaults are used.
       ssm:
         # document_name is the name of the SSM document that should be
         # executed when installing teleport on matching nodes
+        # Can be set to "AWS-RunShellScript" which is a pre-defined SSM Document,
+        # removing the need to create a custom SSM Document in each region.
         # Optional, defaults to: "TeleportDiscoveryInstaller".
-        document_name: "TeleportDiscoveryInstaller"
+        document_name: "AWS-RunShellScript"
       # Optional role for which the Discovery Service should create the EKS access entry.
       # If not set, the Discovery Service will attempt to create the access
       # entry using its own identity.
@@ -85,6 +100,30 @@ discovery_service:
       # '*' - discovers resources in all resource groups within configured subscription(s) (default).
       # Any resource_groups: `az group list -o table`
       resource_groups: ["group1", "group2"]
+      # Optional section: install is used to provide parameters to the Teleport installation in Azure VMs.
+      # Only applicable for VM discovery.
+      install:
+        join_params:
+          # token_name is the name of the Teleport invite token to use.
+          # Optional, defaults to: "azure-discovery-token".
+          token_name:  "azure-discovery-token"
+        # script_name is the name of the Teleport install script to use.
+        # Optional, defaults to: "default-installer".
+        script_name: "default-installer"
+        # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+        # Requires managed updates to be enabled.
+        # Supported characters are alphanumeric characters and `-`.
+        suffix: "<suffix>"
+        # Optional: when using managed updates, set the update group of the installation.
+        # Supported characters are alphanumeric characters and `-`.
+        update_group: "<update-group>"
+        # Optional proxy settings for the install script.
+        # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+        # environment variables for the install script.
+        http_proxy_settings:
+          https_proxy: http://172.31.5.130:3128
+          http_proxy: http://172.31.5.130:3128
+          no_proxy: my-local-domain
       # Azure resource tag filters used to match resources.
       tags:
         "*": "*"
@@ -104,6 +143,30 @@ discovery_service:
         # Email addresses of service accounts that instances can join with.
         # If empty, any service account is allowed.
         service_accounts: []
+        # Optional section: install is used to provide parameters to the Teleport installation in Google Cloud VMs.
+        # Only applicable for VM discovery.
+        install:
+          join_params:
+            # token_name is the name of the Teleport invite token to use.
+            # Optional, defaults to: "gcp-discovery-token".
+            token_name:  "gcp-discovery-token"
+          # script_name is the name of the Teleport install script to use.
+          # Optional, defaults to: "default-installer".
+          script_name: "default-installer"
+          # Optional: adds a suffix to teleport installation, allowing for multiple agent installations.
+          # Requires managed updates to be enabled.
+          # Supported characters are alphanumeric characters and `-`.
+          suffix: "<suffix>"
+          # Optional: when using managed updates, set the update group of the installation.
+          # Supported characters are alphanumeric characters and `-`.
+          update_group: "<update-group>"
+          # Optional proxy settings for the install script.
+          # Sets the http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY, no_proxy, and NO_PROXY
+          # environment variables for the install script.
+          http_proxy_settings:
+            https_proxy: http://172.31.5.130:3128
+            http_proxy: http://172.31.5.130:3128
+            no_proxy: my-local-domain
         # GCP resource label filters used to match resources.
         labels:
           "*": "*"

@@ -40,12 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -193,42 +191,6 @@ func (a *Server) ResetPassword(ctx context.Context, username string) error {
 	return a.resetPassword(ctx, username)
 }
 
-func (a *Server) SetJWKSValidator(clt JWKSValidator) {
-	a.k8sJWKSValidator = clt
-}
-
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
-	a.azureDevopsIDTokenValidator = validator
-}
-
-func (a *Server) SetCircleCITokenValidate(validator func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)) {
-	a.circleCITokenValidate = validator
-}
-
-func (a *Server) SetGCPIDTokenValidator(validator gcpIDTokenValidator) {
-	a.gcpIDTokenValidator = validator
-}
-
-func (a *Server) SetGitlabIDTokenValidator(validator gitlabIDTokenValidator) {
-	a.gitlabIDTokenValidator = validator
-}
-
-func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
-	a.k8sTokenReviewValidator = validator
-}
-
-func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidator) {
-	a.spaceliftIDTokenValidator = validator
-}
-
-func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
-	a.terraformIDTokenValidator = validator
-}
-
-func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
-	a.tpmValidator = validator
-}
-
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
 	a.createBoundKeypairValidator = validator
 }
@@ -365,14 +327,6 @@ func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diag
 	return validateGithubAuthCallbackHelper(ctx, m, diagCtx, q, emitter, logger)
 }
 
-func IsGCPZoneInLocation(rawLocation, rawZone string) bool {
-	return isGCPZoneInLocation(rawLocation, rawZone)
-}
-
-func JoinRuleGlobMatch(want string, got string) (bool, error) {
-	return joinRuleGlobMatch(want, got)
-}
-
 func FormatHeaderFromMap(m map[string]string) http.Header {
 	return formatHeaderFromMap(m)
 }
@@ -384,7 +338,6 @@ func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 type GitHubManager = githubManager
 type AttestedData = attestedData
 type SignedAttestedData = signedAttestedData
-type JWKSValidator = k8sJWKSValidator
 type AzureRegisterOption = azureRegisterOption
 type AzureRegisterConfig = azureRegisterConfig
 type AzureVMClientGetter = vmClientGetter

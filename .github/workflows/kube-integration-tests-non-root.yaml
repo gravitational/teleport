@@ -92,33 +92,13 @@ jobs:
 
       - name: Build Alpine image with webserver
         run: |
-
-          export SHORT_VERSION=${ALPINE_VERSION%.*}
-
-          # download the alpine image
-          # store the files in the fixtures/alpine directory
+          # create the alpine image in the fixtures/alpine directory
           # to avoid passing all the repository files to the docker build context.
           cd ./fixtures/alpine
-
-          # download alpine minirootfs and signature
-          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
-          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc
-          curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
-
-          # verify the checksum
-          sha256sum -c alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
-
-          # verify the signature
-          gpg --import  ./alpine-ncopa.at.alpinelinux.org.asc
-          gpg --verify ./alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc ./alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
-
-          # build the webserver
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./webserver ./webserver.go
-
-          docker build -t alpine-webserver:v1 --build-arg=ALPINE_VERSION=$ALPINE_VERSION -f ./Dockerfile .
+          make SHORT_VERSION=${ALPINE_VERSION%.*} ALPINE_VERSION=${ALPINE_VERSION} build-image
 
           # load the image into the kind cluster
-          kind load docker-image alpine-webserver:v1
+          make load-image
 
           cd - 
 

@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on Bitbucket Pipelines
-description: How to install and configure Machine ID on Bitbucket Pipelines
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on Bitbucket Pipelines
 sidebar_label: Bitbucket Pipelines
 tags:
  - how-to
@@ -8,16 +8,17 @@ tags:
  - infrastructure-identity
 ---
 
-In this guide, you will configure Machine ID's agent, `tbot`, to run within a
-Bitbucket Pipelines workflow. The bot will be configured to use the `bitbucket`
-delegated joining method to eliminate the need for long-lived secrets.
+In this guide, you will configure Machine & Workload Identity's agent, `tbot`,
+to run within a Bitbucket Pipelines workflow. The bot will be configured to use
+the `bitbucket` delegated joining method to eliminate the need for long-lived
+secrets.
 
 ## How it works
 
-The `bitbucket` join method is a secure way for Machine ID bots to authenticate
-with the Teleport Auth Service without using any shared secrets. Instead, it
-makes use of an OpenID Connect token that Bitbucket Pipelines injects into the
-job environment.
+The `bitbucket` join method is a secure way for Machine & Workload Identity bots
+to authenticate with the Teleport Auth Service without using any shared secrets.
+Instead, it makes use of an OpenID Connect token that Bitbucket Pipelines
+injects into the job environment.
 
 This token is sent to the Teleport Auth Service, and assuming it has been
 configured to trust Bitbucket's identity provider and all identity assertions
@@ -43,7 +44,7 @@ From this page, note the following values:
 - Workspace UUID, including the braces (<Var name="workspace-uuid" />)
 - Repository UUID, including the braces (<Var name="repository-uuid" />)
 
-## Step 2/4. Create the Machine ID bot
+## Step 2/4. Create a Bot
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
@@ -84,7 +85,8 @@ Let's go over the token resource's fields in more detail:
   access to. Note that this value will need to be used in other parts of the
   configuration later.
 - `spec.roles` defines which roles that this token will grant access to. The
-  value of `[Bot]` states that this token grants access to a Machine ID bot.
+  value of `[Bot]` states that this token grants access to a Machine & Workload
+  Identity bot.
 - `spec.join_method` defines the join method the token is applicable for. Since
   this guide only focuses on Bitbucket Pipelines, you will set this to to
   `bitbucket`.

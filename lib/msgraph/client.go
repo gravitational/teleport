@@ -37,13 +37,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -101,7 +101,7 @@ type Config struct {
 	Logger        *slog.Logger
 	// MetricsRegistry configures where metrics should be registered.
 	// When nil, metrics are created but not registered.
-	MetricsRegistry prometheus.Registerer
+	MetricsRegistry *metrics.Registry
 }
 
 // SetDefaults sets the default values for optional fields.
@@ -123,6 +123,9 @@ func (cfg *Config) SetDefaults() {
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, "msgraph")
+	}
+	if cfg.MetricsRegistry == nil {
+		cfg.MetricsRegistry = metrics.NoopRegistry()
 	}
 }
 
@@ -162,12 +165,10 @@ func NewClient(cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	metrics := newMetrics()
+	m := newMetrics(cfg.MetricsRegistry)
 	// gracefully handle not being given a metric registry
-	if cfg.MetricsRegistry != nil {
-		if err := metrics.register(cfg.MetricsRegistry); err != nil {
-			return nil, trace.Wrap(err, "registering metrics")
-		}
+	if err := m.register(cfg.MetricsRegistry); err != nil {
+		cfg.Logger.ErrorContext(context.Background(), "Failed to register metrics.", "error", err)
 	}
 
 	return &Client{
@@ -178,7 +179,7 @@ func NewClient(cfg Config) (*Client, error) {
 		baseURL:       base.JoinPath(graphVersion),
 		pageSize:      cfg.PageSize,
 		logger:        cfg.Logger,
-		metrics:       metrics,
+		metrics:       m,
 	}, nil
 }
 

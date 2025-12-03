@@ -40,11 +40,11 @@ receive commands from the Discovery Service. For a list of permissions included
 in the policy, see the [AWS
 documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
 
-## Step 1/7. Create an EC2 invite token
+## Step 1/6. Create an EC2 invite token
 
 (!docs/pages/includes/auto-discovery/ec2-invite-token.mdx!)
 
-## Step 2/7. Configure IAM policies
+## Step 2/6. Configure IAM policies
 
 The `teleport discovery bootstrap` command will automate the process of
 defining and implementing IAM policies required to make auto-discovery work. It
@@ -77,7 +77,7 @@ the command:
 
 Create this policy and apply it to the Node (EC2 instance) that will run the Discovery Service.
 
-## Step 3/7. Install Teleport on the Discovery Node
+## Step 3/6. Install Teleport on the Discovery Node
 
 <Admonition type="tip">
 
@@ -90,11 +90,11 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 4/7. Configure Teleport to discover EC2 instances
+## Step 4/6. Configure Teleport to discover EC2 instances
 
 (!docs/pages/includes/auto-discovery/ec2-config.mdx!)
 
-## Step 5/7. Bootstrap the Discovery Service AWS configuration
+## Step 5/6. Bootstrap the Discovery Service AWS configuration
 
 On the same Node as above, run `teleport discovery bootstrap`. This command
 will generate and display the additional IAM policies and AWS Systems Manager (SSM) documents
@@ -123,15 +123,11 @@ Review the policies and confirm:
 Confirm? [y/N]: y
 ✅[AWS] Create IAM Policy "TeleportEC2Discovery"... done.
 ✅[AWS] Create IAM Policy "TeleportEC2DiscoveryBoundary"... done.
-✅[AWS] Create IAM SSM Document "TeleportDiscoveryInstaller"... done.
+✅[AWS] Create IAM SSM Document "AWS-RunShellScript"... done.
 ✅[AWS] Attach IAM policies to "alex-discovery-role"... done.
 ```
 
-## Step 6/7. [Optional] Customize the default installer script
-
-(!docs/pages/includes/server-access/custom-installer.mdx cloud="AWS" matcher="aws" matchTypes="[\"ec2\"]" extraMatchField="regions: [\"us-east-1\",\"us-west-1\"]"!)
-
-## Step 7/7. Start Teleport
+## Step 6/6. Start Teleport
 
 (!docs/pages/includes/aws-credentials.mdx service="the Discovery Service"!)
 
@@ -243,6 +239,10 @@ and view its logs with `journalctl -fu teleport`.
 ## Auto-discovery labels
 
 (!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
+
+## Advanced configuration
+
+(!docs/pages/includes/auto-discovery/aws-ec2-advanced-config.mdx!)
 
 ## Troubleshooting
 

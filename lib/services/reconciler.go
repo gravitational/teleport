@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -105,7 +106,7 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 		var err error
 		// If we are not given metrics, we create our own so we don't
 		// panic when trying to increment/observe.
-		c.Metrics, err = NewReconcilerMetrics("unknown")
+		c.Metrics, err = NewReconcilerMetrics(metrics.NoopRegistry().Wrap("unknown"))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -136,20 +137,23 @@ const (
 // The caller is responsible for registering them into an appropriate registry.
 // The same ReconcilerMetrics can be used across different reconcilers.
 // The metrics subsystem cannot be empty.
-func NewReconcilerMetrics(subsystem string) (*ReconcilerMetrics, error) {
-	if subsystem == "" {
-		return nil, trace.BadParameter("missing reconciler metric subsystem (this is a bug)")
+func NewReconcilerMetrics(reg *metrics.Registry) (*ReconcilerMetrics, error) {
+	if reg == nil {
+		return nil, trace.BadParameter("missing metrics registry (this is a bug)")
+	}
+	if reg.Subsystem() == "" {
+		return nil, trace.BadParameter("missing metrics subsystem (this is a bug)")
 	}
 	return &ReconcilerMetrics{
 		reconciliationTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: subsystem,
+			Namespace: reg.Namespace(),
+			Subsystem: reg.Subsystem(),
 			Name:      "reconciliation_total",
 			Help:      "Total number of individual resource reconciliations.",
 		}, []string{metricLabelKind, metricLabelOperation, metricLabelResult}),
 		reconciliationDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: subsystem,
+			Namespace: reg.Namespace(),
+			Subsystem: reg.Subsystem(),
 			Name:      "reconciliation_duration_seconds",
 			Help:      "The duration of individual resource reconciliation in seconds.",
 		}, []string{metricLabelKind, metricLabelOperation}),

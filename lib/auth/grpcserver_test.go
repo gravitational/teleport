@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -1536,6 +1537,49 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
+	// Roles Anywhere set up.
+	srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
+	}
+	awsRAIntegration := "ra-integration"
+	ig, err := types.NewIntegrationAWSRA(types.Metadata{Name: awsRAIntegration}, &types.AWSRAIntegrationSpecV1{
+		TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/ExampleTrustAnchor",
+		ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+			ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
+			RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	awsAppUsingRolesAnywhere, err := types.NewAppServerV3(types.Metadata{
+		Name: "app-roles-anywhere",
+	}, types.AppServerSpecV3{
+		HostID: srv.Auth().ServerID,
+		App: &types.AppV3{Metadata: types.Metadata{
+			Name: "app-roles-anywhere",
+		}, Spec: types.AppSpecV3{
+			URI:         constants.AWSConsoleURL,
+			Integration: awsRAIntegration,
+			AWS: &types.AppAWS{
+				RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+					ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+				},
+			},
+			PublicAddr: "example.com",
+		}},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, awsAppUsingRolesAnywhere)
+	require.NoError(t, err)
+
 	leaf, err := types.NewRemoteCluster("leaf")
 	require.NoError(t, err)
 
@@ -2002,6 +2046,36 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
 					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotEmpty(t, identity.RouteToApp.SessionID)
+				},
+			},
+		},
+		{
+			desc: "aws app using roles anywhere should not limit ttl to 1m",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// Expiration should be adjusted to user cert ttl, but not to single user cert TTL (1min).
+					Expires: clock.Now().Add(1000 * time.Hour),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name:       "app-roles-anywhere",
+						AWSRoleARN: "arn:aws:iam::123456789012:role/MyRole",
+					},
+					RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
+				},
+				authnHandler: registered.webAuthHandler,
+				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					cert, err := tlsca.ParseCertificatePEM(c.TLS)
+					require.NoError(t, err)
+					require.Equal(t, userCertExpires, cert.NotAfter)
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
+					require.NotEmpty(t, identity.RouteToApp.AWSCredentialProcessCredentials)
 				},
 			},
 		},
@@ -3813,7 +3887,7 @@ func TestAppsCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		err = clt.CreateApp(ctx, misconfiguredApp)
-		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.`))
 	})
 
 	t.Run("Updating an app with a public address matching a proxy address should fail", func(t *testing.T) {
@@ -3827,7 +3901,7 @@ func TestAppsCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		err = clt.UpdateApp(ctx, misconfiguredApp)
-		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.`))
 	})
 }
 
@@ -3953,7 +4027,7 @@ func TestAppServersCRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = clt.UpsertApplicationServer(ctx, appServer)
-		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.`))
 	})
 }
 

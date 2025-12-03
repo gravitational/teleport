@@ -5642,6 +5642,9 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
   // pkce_verifier is used to verified a generated code challenge.
   string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
+  // LoginHint is an optional username/email provided by the client that will be passed
+  // to the IdP via the 'login_hint' query parameter.
+  string login_hint = 25 [(gogoproto.jsontag) = "login_hint,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -8688,7 +8691,7 @@ message AWSOIDCIntegrationSpecV1 {
   // This bucket/prefix/* files must be publicly accessible and contain the following:
   // > .well-known/openid-configuration
   // > .well-known/jwks
-  // Format: s3://<bucket>/<prefix>
+  // Format: `s3://<bucket>/<prefix>`
   // Optional. The proxy's endpoint is used if it is not specified.
   //
   // DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
@@ -8700,9 +8703,9 @@ message AWSOIDCIntegrationSpecV1 {
     deprecated = true
   ];
 
-  // Audience is used to record a name of a plugin or a discover service in Teleport
-  // that depends on this integration.
-  // Audience value can be empty or configured with supported preset audience type.
+  // Audience is used to record a name of a plugin or a discover service in
+  // Teleport that depends on this integration.
+  // Audience value can either be empty or "aws-identity-center".
   // Preset audience may impose specific behavior on the integration CRUD API,
   // such as preventing integration from update or deletion. Empty audience value
   // should be treated as a default and backward-compatible behavior of the integration.
@@ -9039,10 +9042,36 @@ message AWSMatcher {
   // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
   // discovered clusters, currently only affects AWS EKS discovery in integration mode.
   bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
-  // SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+  // SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for.
   // This value should match the IAM identity that Teleport Kubernetes Service uses.
-  // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+  // If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
   string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
+  // Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization.
+  AWSOrganizationMatcher Organization = 10 [(gogoproto.jsontag) = "organization,omitempty"];
+}
+
+// AWSOrganizationMatcher specifies an Organization and rules for discovering accounts under that organization.
+message AWSOrganizationMatcher {
+  // OrganizationID is the AWS Organization ID to match against.
+  // Required.
+  string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+
+  // OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
+  AWSOrganizationUnitsMatcher OrganizationalUnits = 2 [(gogoproto.jsontag) = "organizational_units,omitempty"];
+}
+
+// AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
+// Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+message AWSOrganizationUnitsMatcher {
+  // Include is a list of AWS Organizational Unit IDs to match.
+  // Only exact matches or wildcard (*) are supported.
+  // If empty, all Organizational Units are included by default.
+  repeated string Include = 1 [(gogoproto.jsontag) = "include,omitempty"];
+
+  // Exclude is a list of AWS Organizational Unit IDs to exclude.
+  // Only exact matches or wildcard (*) are supported.
+  // If empty, no Organizational Units are excluded by default.
+  repeated string Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -9161,6 +9190,9 @@ message AzureMatcher {
   // Params sets the join method when installing on
   // discovered Azure nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with Azure APIs.
+  // Environment credentials will not be used when this value is set.
+  string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // GCPMatcher matches GCP resources.

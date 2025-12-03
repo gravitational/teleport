@@ -242,7 +242,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	}
 }
 
-func fakeSigner(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
+func fakeSigner(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
 	return func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
 		return nil, nil
 	}
@@ -512,13 +512,13 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				ConnectionMonitor: fakeMonitor{},
 				Logger:            logtest.NewLogger(),
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
-				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
+				authzContextFn: func(info credentials.AuthInfo) (*authz.ScopedContext, error) {
 					checker, err := test.checkerFn(info)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
 
-					return &authz.Context{Checker: checker}, nil
+					return authz.ScopedContextFromUnscopedContext(&authz.Context{Checker: checker}), nil
 				},
 			})
 
@@ -588,8 +588,8 @@ func TestService_ProxySSH(t *testing.T) {
 				}, nil
 			}
 		},
-		authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
-			return &authz.Context{Checker: fakeChecker{}}, nil
+		authzContextFn: func(info credentials.AuthInfo) (*authz.ScopedContext, error) {
+			return authz.ScopedContextFromUnscopedContext(&authz.Context{Checker: fakeChecker{}}), nil
 		},
 	})
 
@@ -820,13 +820,13 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 				ConnectionMonitor: fakeMonitor{},
 				Logger:            logtest.NewLogger(),
 				LocalAddr:         utils.MustParseAddr("127.0.0.1:4243"),
-				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
+				authzContextFn: func(info credentials.AuthInfo) (*authz.ScopedContext, error) {
 					checker, err := test.checkerFn(info)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
 
-					return &authz.Context{Checker: checker}, nil
+					return authz.ScopedContextFromUnscopedContext(&authz.Context{Checker: checker}), nil
 				},
 			})
 

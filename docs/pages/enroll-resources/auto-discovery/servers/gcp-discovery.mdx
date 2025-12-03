@@ -28,7 +28,7 @@ Ubuntu/Debian/RHEL if making use of the default Teleport install script. (For
 other Linux distributions, you can install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Create a GCP invite token
+## Step 1/5. Create a GCP invite token
 
 When discovering GCP compute instances, Teleport makes use of GCP invite tokens for
 authenticating joining SSH Service instances.
@@ -69,7 +69,7 @@ Add the token to the Teleport cluster with:
 $ tctl create -f token.yaml
 ```
 
-## Step 2/6. Configure IAM permissions for Teleport
+## Step 2/5. Configure IAM permissions for Teleport
 
 Create a service account that will give Teleport IAM permissions needed to
 discover instances.
@@ -160,7 +160,7 @@ discover instances.
 </TabItem>
 </Tabs>
 
-## Step 3/6. Configure instances to be discovered
+## Step 3/5. Configure instances to be discovered
 
 Ensure that each instance to be discovered has a service account assigned to
 it. No permissions are required on the service account. To check if an instance
@@ -214,7 +214,7 @@ the host keys to the guest attributes below:
 </TabItem>
 </Tabs>
 
-## Step 4/6. Install the Teleport Discovery Service
+## Step 4/5. Install the Teleport Discovery Service
 
 <Admonition type="tip">
 
@@ -227,7 +227,7 @@ Install Teleport on the virtual machine that will run the Discovery Service.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 5/6. Configure Teleport to discover GCP compute instances
+## Step 5/5. Configure Teleport to discover GCP compute instances
 
 If you are running the Discovery Service on its own host, the service requires a
 valid invite token to connect to the cluster. Generate one by running the
@@ -275,13 +275,6 @@ discovery_service:
       labels:
         "env": "prod" # Match virtual machines where label:env=prod
       install:
-        # Optional: use a non-global teleport installation, allowing for multiple agent installations.
-        # Requires managed updates to be enabled.
-        # Supported characters are alphanumeric characters and `-`.
-        suffix: "<suffix>"
-        # Optional: when using managed updates, set the update group of the installation.
-        # Supported characters are alphanumeric characters and `-`.
-        update_group: "<update-group>"
         public_proxy_addr: "<Var name="teleport.example.com" />:443"
 ```
 
@@ -290,11 +283,6 @@ discovery_service:
 - Adjust the keys under `discovery_service.gcp` to match your GCP environment,
   specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
   Service.
-- Set the `install.suffix` key to install teleport in a non-global location, allowing
-  for multiple, simultaneously installations from different clusters.
-  Requires [agent managed updates](../../../upgrading/agent-managed-updates/agent-managed-updates.mdx).
-- When using [agent managed updates](../../../upgrading/agent-managed-updates/agent-managed-updates.mdx), you can
-  configure the update group by setting the `install.update_group` key.
 
 ### GCP credentials
 
@@ -307,13 +295,13 @@ instance and assign the service account to that instance. Refer to
 [Set Up Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
 for details on alternate methods.
 
-## Step 6/6. [Optional] Customize the default installer script
-
-(!docs/pages/includes/server-access/custom-installer.mdx matcher="gcp"!)
-
 ## Auto-discovery labels
 
 (!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
+
+## Advanced configuration
+
+(!docs/pages/includes/auto-discovery/gcp-vm-advanced-config.mdx!)
 
 ## Next steps
 

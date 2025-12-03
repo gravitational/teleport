@@ -243,6 +243,10 @@ message UserCertsRequest {
     // tunnel. Requests from this requester allows reuse of the MFA session
     // response but TTL is limited to single use TTL.
     TSH_DB_EXEC = 5;
+    // TSH_APP_AWS_CREDENTIALPROCESS is set when tsh provides access to an AWS App which uses client side credentials.
+    // When using per-session MFA, this ensures the TTL of the certificate (and thus the AWS session) is the same as the Teleport identity session.
+    // AWS credentials should not be written to disk when this requester is used, but may be exported as env variables through stdout.
+    TSH_APP_AWS_CREDENTIALPROCESS = 6;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];

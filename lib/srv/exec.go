@@ -39,10 +39,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -102,10 +100,8 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// If this is a registered OpenSSH node or proxy recoding mode is
-	// enabled, execute the command on a remote host. This is used by
-	// in-memory forwarding nodes.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	// If this is a forwarding node, execute the command on a remote host.
+	if ctx.srv.Component() == teleport.ComponentForwardingNode {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,

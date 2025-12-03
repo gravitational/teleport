@@ -254,6 +254,10 @@ message SessionStartEvent {
   // if session_type == "git" the git struct contains additional information
   // about git session.
   SessionStartGitMetadata git = 7;
+
+  // if session_type == "app_mcp" the mcp struct contains additional information
+  // about the MCP session.
+  SessionStartMCPMetadata mcp = 8;
 }
 
 // SessionStartDatabaseMetadata contains additional information about database session.
@@ -306,6 +310,22 @@ message SessionStartGitMetadata {
   // git_service is the type of the git request like git-upload-pack or
   // git-receive-pack.
   string git_service = 2;
+}
+
+// SessionStartMCPMetadata contains additional information about an MCP session.
+message SessionStartMCPMetadata {
+  // Transport type of the MCP server. Value from types.GetMCPServerTransportType.
+  string transport = 1;
+  // MCP protocol version like "2025-06-18".
+  string protocol_version = 2;
+  // Indicates the client used on the session, e.g "claude-ai".
+  string client_name = 3;
+  // Indicates the server used on the session, e.g "example-servers/everything".
+  string server_name = 4;
+  // Indicates how the MCP session is authorized between MCP client and Teleport.
+  string ingress_auth_type = 5;
+  // Indicates how the MCP session is authorized between Teleport and remote MCP server.
+  string egress_auth_type = 6;
 }
 
 // the issuance of a user certificate from the user CA

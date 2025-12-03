@@ -476,7 +476,7 @@ Usage: {{.App.Name}}{{template "FormatUsage" .App}}
 {{end -}}
 {{if .Context.Flags -}}
 Flags:
-{{.Context.Flags|FlagsToTwoColumnsCompact|FormatTwoColumns}}
+{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
 {{end -}}
 {{if .Context.Args -}}
 Args:

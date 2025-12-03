@@ -219,8 +219,8 @@ export function parseRepoAddress(repoAddr: string): {
   let url;
   try {
     url = new URL(repoAddr);
-  } catch {
-    throw new Error('Must be a valid URL');
+  } catch (error) {
+    throw new Error('Must be a valid URL', { cause: error });
   }
 
   const paths = url.pathname.split('/');

@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -74,6 +75,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	clusterName := "localhost"
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
+		newSessionID:           rsession.NewID(),
 		Logger:                 logtest.NewLogger(),
 		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
@@ -93,6 +95,9 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
+		// If proxy forwarding is being used (proxy recording, agentless), then remote session must be set.
+		// Otherwise, this field is ignored.
+		RemoteSession: mockSSHSession(t),
 	}
 
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
@@ -160,11 +165,13 @@ func newMockServer(t *testing.T) *mockServer {
 		datadir:             t.TempDir(),
 		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 		clock:               clock,
+		component:           teleport.ComponentNode,
 	}
 }
 
 type mockServer struct {
 	*eventstest.MockRecorderEmitter
+	info      types.Server
 	datadir   string
 	auth      *auth.Server
 	component string
@@ -227,8 +234,18 @@ func (m *mockServer) GetClock() clockwork.Clock {
 	return clockwork.NewRealClock()
 }
 
+// setInfo overrides the default result of [mockServer.GetInfo]. Necessary in order to
+// correctly test the behavior of local node rbac that expects specific server attributes.
+func (m *mockServer) setInfo(server types.Server) {
+	m.info = server
+}
+
 // GetInfo returns a services.Server that represents this server.
 func (m *mockServer) GetInfo() types.Server {
+	if m.info != nil {
+		return m.info
+	}
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"

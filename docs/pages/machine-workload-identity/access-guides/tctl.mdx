@@ -12,8 +12,9 @@ tags:
 
 `tctl` is the Teleport cluster management CLI tool. Whilst it usually uses the
 credentials from the locally logged in user, it is also possible to use
-Machine ID credentials. This allows `tctl` to be leveraged as part of a custom
-automation workflow deployed in a non-interactive environment (e.g CI/CD).
+credentials issued by Machine & Workload Identity. This allows `tctl` to be
+leveraged as part of a custom automation workflow deployed in a non-interactive
+environment (e.g CI/CD).
 
 In this guide, you will configure `tbot` to produce credentials for `tctl`, and
 then use `tctl` to deploy Teleport roles defined in files.

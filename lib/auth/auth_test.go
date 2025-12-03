@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 type testPack struct {
@@ -1075,6 +1076,19 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ws)
 
+	// First attempt to induce a user lock when there are issues with the backend.
+	// This should not result in a locked user.
+	for range defaults.MaxLoginAttempts {
+		s.a.WithUserLock(ctx, username, func() error {
+			return trace.ConnectionProblem(errors.New(""), "connection problem")
+		})
+	}
+	user, err := s.a.GetUser(ctx, username, false)
+	require.NoError(t, err)
+	require.False(t, user.GetStatus().IsLocked)
+
+	// Now attempt to induce a lock with invalid credentials.
+	// This should result in a locked user.
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
 		_, err = s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 			Username: username,
@@ -1082,14 +1096,12 @@ func TestUserLock(t *testing.T) {
 		})
 		require.Error(t, err)
 	}
-
-	user, err := s.a.GetUser(ctx, username, false)
+	user, err = s.a.GetUser(ctx, username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 
 	// advance time and make sure we can login again
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
-
 	_, err = s.a.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
 		Pass:     &authclient.PassCreds{Password: pass},
@@ -4711,22 +4723,29 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	// Run CreateAccessListReminderNotifications()
 	authServer.CreateAccessListReminderNotifications(ctx)
 
-	// Check notifications
-	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
-		PageSize: 50,
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 6)
+	reminderNotificationSubKind := func(n *notificationsv1.Notification) string { return n.GetSubKind() }
+	expectedSubKinds := []string{
+		"access-list-review-overdue-7d",
+		"access-list-review-overdue-3d",
+		"access-list-review-due-0d",
+		"access-list-review-due-3d",
+		"access-list-review-due-7d",
+		"access-list-review-due-14d",
+	}
 
-	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created if it's run again.
+	// Check notifications
+	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
+
+	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
 	authServer.CreateAccessListReminderNotifications(ctx)
 
 	// Check notifications again, counts should remain the same.
-	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
-		PageSize: 50,
-	})
+	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 6)
+	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
+		"notifications should not have changed after second reconciliation")
 }
 
 type createAccessListOptions struct {

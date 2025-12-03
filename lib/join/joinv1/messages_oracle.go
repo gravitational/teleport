@@ -24,7 +24,7 @@ import (
 )
 
 func oracleInitToMessage(req *joinv1.OracleInit) (*messages.OracleInit, error) {
-	clientParams, err := clientParamsToMessage(req.ClientParams)
+	clientParams, err := clientParamsToMessage(req.GetClientParams())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,7 +45,7 @@ func oracleInitFromMessage(msg *messages.OracleInit) (*joinv1.OracleInit, error)
 
 func oracleChallengeToMessage(req *joinv1.OracleChallenge) *messages.OracleChallenge {
 	return &messages.OracleChallenge{
-		Challenge: req.Challenge,
+		Challenge: req.GetChallenge(),
 	}
 }
 
@@ -57,10 +57,10 @@ func oracleChallengeFromMessage(msg *messages.OracleChallenge) *joinv1.OracleCha
 
 func oracleChallengeSolutionToMessage(req *joinv1.OracleChallengeSolution) *messages.OracleChallengeSolution {
 	return &messages.OracleChallengeSolution{
-		Cert:            req.Cert,
-		Intermediate:    req.Intermediate,
-		Signature:       req.Signature,
-		SignedRootCAReq: req.SignedRootCaReq,
+		Cert:            req.GetCert(),
+		Intermediate:    req.GetIntermediate(),
+		Signature:       req.GetSignature(),
+		SignedRootCAReq: req.GetSignedRootCaReq(),
 	}
 }
 

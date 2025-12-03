@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on GCP
-description: How to install and configure Machine ID on a GCP VM
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on a GCP VM
 sidebar_label: GCP VM
 tags:
  - how-to
@@ -9,26 +9,26 @@ tags:
  - google-cloud
 ---
 
-This guide explains how to deploy Machine ID on Google Cloud Platform (GCP) by
-running the `tbot` binary and joining it to your Teleport cluster.
+This guide explains how to deploy the Machine & Workload Identity agent, `tbot`,
+on a Google Cloud Platform GCE instance and connect it to your Teleport cluster.
 
 ## How it works
 
 On GCP, virtual machines can be assigned a service account. These machines can
 then request a signed JSON web token from GCP, which allows third parties to
 verify information about them, including their service accounts, using the GCP
-public key. The Teleport `gcp` join method instructs a Machine ID bot to use
-this service account JWT to prove its identity to the Teleport Auth Service and
-join your Teleport cluster without using long-lived secrets.
+public key. The Teleport `gcp` join method instructs `tbot` to use this service
+account JWT to prove its identity to the Teleport Auth Service and join your
+Teleport cluster without using long-lived secrets.
 
-Whilst the guide on this page focuses explicitly on deploying Machine ID on a
-GCP Virtual Machine, it is also possible to use the `gcp` join method with
-workloads  running on Google Kubernetes Engine. To do so, you must configure
+Whilst the guide on this page focuses explicitly on deploying `tbot` on a GCP
+Virtual Machine, it is also possible to use the `gcp` join method with workloads
+running on Google Kubernetes Engine. To do so, you must configure
 [GCP Workload
 Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
 for the cluster and the Kubernetes service account that will be used by the
 `tbot` pod. See the [Kubernetes platform guide](kubernetes.mdx) for further
-guidance on deploying Machine ID as a workload on Kubernetes.
+guidance on deploying `tbot` as a workload on Kubernetes.
 
 ## Prerequisites
 
@@ -37,15 +37,15 @@ guidance on deploying Machine ID as a workload on Kubernetes.
 - (!docs/pages/includes/tctl.mdx!)
 - A GCP service account you wish to grant access to your Teleport cluster that
   is not the GCP compute default service account.
-- A GCP Compute Engine VM that you wish to install Machine ID onto that has
-  been configured with the GCP service account.
+- A GCP Compute Engine VM that you wish to install `tbot` onto that has been
+  configured with the GCP service account.
 
 ## Step 1/5. Install `tbot`
 
 **This step is completed on the GCP VM.**
 
-First, `tbot` needs to be installed on the VM that you wish to use Machine ID
-on.
+First, `tbot` needs to be installed on the VM that you wish to use Machine &
+Workload Identity on.
 
 Download and install the appropriate Teleport package for your platform:
 

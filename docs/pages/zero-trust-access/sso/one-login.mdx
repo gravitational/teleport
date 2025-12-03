@@ -1,5 +1,6 @@
 ---
 title: Teleport Authentication with OneLogin as an SSO Provider
+sidebar_label: OneLogin
 description: How to configure Teleport access using OneLogin as an SSO provider
 tags:
  - sso
@@ -100,42 +101,17 @@ to define policies like:
    SAML metadata. We recommend copying the address so the Auth Service can use
    the most up-to-date information.
 
-## Step 2/3. Create a new Teleport role
+## Step 2/3. Connect OneLogin to Teleport
 
-We are going to create a new that'll use external username data from OneLogin
-to map to a host linux login.
+In this section, you will create an authentication connector that provides
+Teleport with the information it needs to exchange SAML messages with OneLogin
+and issue certificates to users.
 
-In the role described below, Devs are only allowed to login to nodes labelled with
-`access: relaxed` Teleport label. Developers can log in as either `ubuntu` to a
-username that arrives in their assertions. Developers also do not have any
-rules needed to obtain admin access to Teleport.
+### Assign a role mapping
 
-```yaml
-# dev.yaml
-kind: role
-version: v5
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: "24h"
-  allow:
-    logins: [ "{{external.username}}", ubuntu ]
-    node_labels:
-      access: relaxed
-```
+(!docs/pages/includes/sso/role-mapping.mdx fieldType="attribute"!)
 
-**Notice:** Replace `ubuntu` with linux login available on your servers!
-
-Create the role:
-
-```code
-$ tctl create -f dev.yaml
-```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
-
-## Step 3/3. Create a SAML connector
+### Configure a SAML connector
 
 Create a SAML connector using `tctl`. Update <Var name="xml-path"/> to the URL
 of the XML document that you copied in the previous step. If you downloaded the
@@ -144,8 +120,8 @@ XML document instead, use the path to the XML metadata file:
 ```code
 $ tctl sso configure saml --preset onelogin \
 --entity-descriptor <Var name="xml-path"/> \
---attributes-to-roles groups,admin,editor \
---attributes-to-roles groups,dev,access > onelogin.yaml
+--attributes-to-roles <Var name="mapping_1" /> \
+--attributes-to-roles <Var name="mapping_2" /> > onelogin.yaml
 ```
 
 This will create `onelogin.yaml`, describing the connector resource:
@@ -153,6 +129,8 @@ This will create `onelogin.yaml`, describing the connector resource:
 ```yaml
 (!examples/resources/onelogin-connector.yaml!)
 ```
+
+### Test the connector
 
 Test the newly created configuration:
 
@@ -165,23 +143,23 @@ If it succeeds the output will print what SAML attributes are received and mappe
 to Teleport roles. If the test fails, the output will help you troubleshoot your
 configuration.
 
-Create the connector using `tctl` tool:
+### Create the connector
+
+Create the connector using the `tctl` tool:
 
 ```code
 $ tctl create -f onelogin.yaml
 ```
 
-(!docs/pages/includes/enterprise/samlauthentication.mdx!)
+## Step 3/3. Configure authentication preferences
+
+(!docs/pages/includes/sso/cap.mdx type="saml"!)
+
+## Next steps
+
+(!docs/pages/includes/sso/next-step-traits.mdx!)
 
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
-
-## Next steps
-
-In the Teleport role we illustrated in this guide, `external` traits
-are replaced with values from the single sign-on provider that the user
-used to authenticate to Teleport. For full details on how traits
-work in Teleport roles, see the [Access Controls
-Reference](../../reference/access-controls/roles.mdx).
 
