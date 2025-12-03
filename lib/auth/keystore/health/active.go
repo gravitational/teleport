@@ -52,7 +52,7 @@ type ActiveHealthCheckConfig struct {
 // NewActiveHealthChecker constructs an [ActiveHealthChecker] instance.
 func NewActiveHealthChecker(c ActiveHealthCheckConfig) (*ActiveHealthChecker, error) {
 	if c.Callback == nil {
-		return nil, trace.BadParameter("signing monitor callback must be specified")
+		return nil, trace.BadParameter("health check callback must be specified")
 	}
 	if c.Interval == 0 {
 		c.Interval = time.Minute
