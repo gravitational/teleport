@@ -49,7 +49,7 @@ type ActiveHealthCheckConfig struct {
 	Logger *slog.Logger
 }
 
-// NewActiveHealthChecker construcst an [ActiveHealthChecker] instance.
+// NewActiveHealthChecker constructs an [ActiveHealthChecker] instance.
 func NewActiveHealthChecker(c ActiveHealthCheckConfig) (*ActiveHealthChecker, error) {
 	if c.Callback == nil {
 		return nil, trace.BadParameter("signing monitor callback must be specified")
@@ -78,8 +78,9 @@ func NewActiveHealthChecker(c ActiveHealthCheckConfig) (*ActiveHealthChecker, er
 	}, nil
 }
 
-// ActiveHealthChecker makes signing requests to CAs in the background and reports
-// errors back to a configured callback.
+// ActiveHealthChecker makes signing requests to CAs and reports errors back to
+// the configured callback. CAs are healthchecked one at a time at the given
+// interval.
 type ActiveHealthChecker struct {
 	interval        time.Duration
 	failureInterval time.Duration
@@ -101,6 +102,7 @@ type ActiveHealthChecker struct {
 	signers []*healthSigner
 }
 
+// Run
 func (c *ActiveHealthChecker) Run(ctx context.Context) error {
 	c.logger.DebugContext(ctx, "Starting active health checker")
 	ctx, cancel := context.WithCancel(ctx)
@@ -281,12 +283,14 @@ func (c *ActiveHealthChecker) watch(ctx context.Context) error {
 	}
 }
 
+// healthSigner wraps a crypto OR ssh signer with the CA ID.
 type healthSigner struct {
 	crypto crypto.Signer
 	ssh    ssh.Signer
 	caID   string
 }
 
+// sign performs a signing request given a healthSigner.
 func sign(s *healthSigner) error {
 	msg := []byte("healthcheck")
 	if s.crypto != nil {
@@ -324,14 +328,15 @@ type keycompare interface {
 	Equal(crypto.PublicKey) bool
 }
 
-func (s *healthSigner) Equal(o *healthSigner) bool {
-	if s.crypto != nil && o.crypto != nil {
-		puba := s.crypto.Public()
-		pubb := o.crypto.Public()
-		a, aok := puba.(keycompare)
-		return aok && a.Equal(pubb)
-	} else if s.ssh != nil && o.ssh != nil {
-		return bytes.Equal(s.ssh.PublicKey().Marshal(), o.ssh.PublicKey().Marshal())
+// Equal compares healthSigner a's public key to healthSigner b's public key.
+func (a *healthSigner) Equal(b *healthSigner) bool {
+	if a.crypto != nil && b.crypto != nil {
+		puba := a.crypto.Public()
+		pubb := b.crypto.Public()
+		acomp, aok := puba.(keycompare)
+		return aok && acomp.Equal(pubb)
+	} else if a.ssh != nil && b.ssh != nil {
+		return bytes.Equal(a.ssh.PublicKey().Marshal(), b.ssh.PublicKey().Marshal())
 	}
 	return false
 }
