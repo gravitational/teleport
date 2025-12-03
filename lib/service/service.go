@@ -4923,6 +4923,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
 	caWatcher, err := services.DeprecatedNewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,

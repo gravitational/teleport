@@ -842,6 +842,7 @@ func TestDeprecatedCertAuthorityWatcher(t *testing.T) {
 	}
 
 	caService := local.NewCAService(bk)
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
 	w, err := services.DeprecatedNewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:      "test",

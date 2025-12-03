@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 package health
 
 import (
@@ -30,11 +31,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // KeyManager allows getting a signer for each CA we expect to health check for.
@@ -54,7 +55,7 @@ type ActiveHealthCheckConfig struct {
 	FailureInterval time.Duration
 	// Callback should be a non-blocking call that is passed the result of
 	// each signing request made by the health checker.
-	// The first callback will occur only after recieving a cert authority event.
+	// The first callback will occur only after receiving a cert authority event.
 	Callback func(error)
 	// ResourceC is a channel for receiving cert authority events.
 	// It is expected that the full list of cert authorities is provided
@@ -181,19 +182,6 @@ func (c *ActiveHealthChecker) step(curr *healthSigner) (*healthSigner, error) {
 		return nil, trace.Wrap(err)
 	}
 	return next, nil
-}
-
-// retry calls the given function until it returns true.
-func (c *ActiveHealthChecker) retry(ctx context.Context, interval time.Duration, doneFn func() bool) {
-	tick := c.clock.NewTicker(interval)
-	defer tick.Stop()
-	for !doneFn() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick.Chan():
-		}
-	}
 }
 
 func (c *ActiveHealthChecker) exists(s *healthSigner) bool {

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 package health
 
 import (
@@ -24,10 +25,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 type mockKM struct {
@@ -85,6 +86,6 @@ func TestActiveHealthChecker(t *testing.T) {
 	clock.Advance(hc.interval)
 	wg.Wait()
 
-	require.Equal(t, len(calls), 1)
+	require.Len(t, calls, 1)
 	require.NoError(t, calls[0])
 }

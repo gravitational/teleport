@@ -1276,6 +1276,7 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
 	leafClusterWatcher, err := services.DeprecatedNewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,

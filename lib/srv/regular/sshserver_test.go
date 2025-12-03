@@ -3260,6 +3260,7 @@ func newGitServerWatcher(ctx context.Context, t *testing.T, client *authclient.C
 }
 
 func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
 	caWatcher, err := services.DeprecatedNewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
