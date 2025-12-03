@@ -42,6 +42,8 @@ const (
 	// the lowest OpenAI tier, which is 500 RPM. Assuming about 30s per request,
 	// this gives maximum concurrency of 250; we arbitrarily dial it down to 150.
 	concurrencyLimit = 150
+	// Number of workers in the worker pool for summarization.
+	workerCount = 10
 )
 
 // SummarizerConfig contains configuration for the SessionSummarizer.
@@ -106,6 +108,7 @@ type SessionSummarizer struct {
 	enableBedrock        bool
 	encrypter            events.EncryptionWrapper
 	cfgCache             *awsconfig.Cache
+	pool                 *workerPool
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -149,6 +152,7 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		enableBedrock:        cfg.EnableBedrock,
 		encrypter:            cfg.Encrypter,
 		cfgCache:             cfgCache,
+		pool:                 newWorkerPool(workerCount),
 	}, nil
 }
 

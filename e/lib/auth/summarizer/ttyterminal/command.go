@@ -1,6 +1,7 @@
 package ttyterminal
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"sort"
@@ -15,6 +16,101 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
+
+// ReconstructedCommand represents the reconstructed terminal input and output
+// for a single command execution.
+type ReconstructedCommand struct {
+	input  *reconstructedCommandData
+	output *reconstructedCommandData
+}
+
+// StartTime returns the start time of the command.
+func (r *ReconstructedCommand) StartTime() time.Duration {
+	return r.input.startTime
+}
+
+// EndTime returns the end time of the command.
+func (r *ReconstructedCommand) EndTime() time.Duration {
+	return r.output.endTime
+}
+
+// ChunkCount returns the number of output chunks for the command.
+func (r *ReconstructedCommand) ChunkCount() int {
+	return len(r.output.chunks)
+}
+
+// PromptForChunk generates a prompt string for the specified output chunk index,
+// including the reconstructed input and output for that chunk.
+func (r *ReconstructedCommand) PromptForChunk(chunkIndex int) string {
+	var sb strings.Builder
+
+	if len(r.output.chunks) > 1 {
+		fmt.Fprintf(&sb, " (Chunk %d of %d)", chunkIndex+1, len(r.output.chunks))
+	}
+
+	sb.WriteString("\n================\n\n")
+
+	sb.WriteString("INPUT:\n")
+	fmt.Fprintf(&sb, "Duration: %v\n\n", r.input.endTime-r.input.startTime)
+
+	if r.input.error != nil {
+		fmt.Fprintf(&sb, "[Error recreating input: %v]\n", r.input.error)
+	} else {
+		for _, chunk := range r.input.chunks {
+			for _, line := range chunk.lines {
+				sb.WriteString(line.content)
+				sb.WriteString("\n")
+			}
+		}
+	}
+
+	sb.WriteString("OUTPUT:\n")
+
+	fmt.Fprintf(&sb, "Duration: %v\n", r.output.endTime-r.output.startTime)
+
+	if r.output.error != nil {
+		fmt.Fprintf(&sb, "[Error recreating output: %v]\n", r.output.error)
+
+		return sb.String()
+	}
+
+	if chunkIndex >= len(r.output.chunks) {
+		return sb.String()
+	}
+
+	chunk := r.output.chunks[chunkIndex]
+
+	if r.output.isAlternateScreen {
+		sb.WriteString("[Note: This output is from alternate screen mode (e.g., vim, less, top)]\n")
+		sb.WriteString("[The following are complete terminal snapshots captured at intervals, not incremental updates]\n\n")
+
+		if chunk.initialState != nil {
+			sb.WriteString("[Previous Terminal Snapshot]:\n")
+			fmt.Fprintf(&sb, "%s\n", chunk.initialState.content)
+			sb.WriteString("\n")
+		}
+
+		sb.WriteString("[Terminal Snapshots During Session]:\n")
+		for i, line := range chunk.lines {
+			fmt.Fprintf(&sb, "\n[Snapshot %d at %v]:\n", i+1, line.timestamp)
+			fmt.Fprintf(&sb, "%s\n", line.content)
+		}
+
+		return sb.String()
+	}
+
+	if chunk.initialState != nil {
+		sb.WriteString("[Terminal State at Start of Chunk]:\n")
+		fmt.Fprintf(&sb, "%s\n", chunk.initialState.content)
+		sb.WriteString("\n[Incremental Changes]:\n")
+	}
+
+	for _, line := range chunk.lines {
+		fmt.Fprintf(&sb, "%s\n", line.content)
+	}
+
+	return sb.String()
+}
 
 type reconstructedCommandData struct {
 	chunks             []chunk
