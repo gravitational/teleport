@@ -5747,18 +5747,18 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation.
-	expandOpts := services.WithExpandVars(true)
-	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Look for user groups and associated applications to the request.
 	requestedResourceIDs, err := a.appendImplicitlyRequiredResources(ctx, req.GetRequestedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err, "adding additional implicitly required resources")
 	}
 	req.SetRequestedResourceIDs(requestedResourceIDs)
+
+	// Always perform variable expansion on creation.
+	expandOpts := services.WithExpandVars(true)
+	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if err := a.checkResourcesRequestable(ctx, requestedResourceIDs); err != nil {
 		return nil, trace.Wrap(err)
@@ -5930,6 +5930,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // any extra resources that are implicitly required by the request.
 func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
 	addedApps := set.New[string]()
+	samlApp := set.New[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
 
@@ -5941,6 +5942,8 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 			userGroups = append(userGroups, resource)
 		case types.KindIdentityCenterAccountAssignment:
 			accountAssignments = append(accountAssignments, resource)
+		case types.KindSAMLIdPServiceProvider:
+			samlApp.Add(resource.Name)
 		}
 	}
 
@@ -5971,6 +5974,23 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		asmt, err := a.GetIdentityCenterAccountAssignment(ctx, resource.Name)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching identity center account assignment")
+		}
+		key := types.TeleportNamespace + "/" + types.KindSAMLIdPServiceProvider
+		samlLabel, ok := asmt.GetMetadata().GetLabels()[key]
+		if ok && !samlApp.Contains(samlLabel) {
+			// In a full integration mode (non-hybrid), user access
+			// AWS account by authenticating with the Identity Center SAML app.
+			// In Access Request flow, its possible for user to request
+			// access only to the account assignment resource and forget
+			// including SAML app. In such case, they would be denied access
+			// during Teleport -> AWS Console authentication phase.
+			// To improve UX, Identity Center SAML app is implicitly added.
+			resources = append(resources, types.ResourceID{
+				ClusterName: resource.ClusterName,
+				Kind:        types.KindSAMLIdPServiceProvider,
+				Name:        samlLabel,
+			})
+			samlApp.Add(samlLabel)
 		}
 
 		if icAccounts.Contains(asmt.GetSpec().GetAccountId()) {

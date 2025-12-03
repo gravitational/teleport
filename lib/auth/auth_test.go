@@ -30,6 +30,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -53,10 +54,12 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -4510,6 +4513,343 @@ func TestAccessRequestDryRunEnrichment(t *testing.T) {
 		require.Equal(t, "B test prompt", resp.GetDryRunEnrichment().ReasonPrompts[1])
 		require.Equal(t, "C test prompt", resp.GetDryRunEnrichment().ReasonPrompts[2])
 	})
+}
+
+func TestAccessRequest_ImplicitAWSICSAMLApp(t *testing.T) {
+	ctx := t.Context()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	// Setup test auth server
+	s := newTestTLSServer(t)
+	a := s.Auth()
+	requesterRole := services.NewPresetRequesterRole()
+	_, err := a.UpsertRole(ctx, requesterRole)
+	require.NoError(t, err)
+	accessRole := services.NewPresetAccessRole()
+	_, err = a.UpsertRole(ctx, accessRole)
+	require.NoError(t, err)
+	awsicRole := services.NewSystemIdentityCenterAccessRole()
+	_, err = a.UpsertRole(ctx, awsicRole)
+	require.NoError(t, err)
+	oktaGroupAccess := services.NewPresetGroupAccessRole()
+	_, err = a.UpsertRole(ctx, oktaGroupAccess)
+	require.NoError(t, err)
+	samlRole := testCreateRole(t, s, "saml-role", func(spec *types.RoleSpecV6) {
+		spec.Allow.AppLabels = types.Labels{
+			types.OriginLabel: []string{common.OriginAWSIdentityCenter},
+		}
+	})
+	someRole := testCreateRole(t, s, "some-role", func(spec *types.RoleSpecV6) {})
+	awsicRequester := testCreateRole(t, s, "awsic-requester", func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.SearchAsRoles = []string{awsicRole.GetName()}
+	})
+	awsicRequesterWithSAML := testCreateRole(t, s, "awsic-requester-withsaml", func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.SearchAsRoles = []string{awsicRole.GetName(), samlRole.GetName()}
+	})
+
+	testCreateICAccount(t, ctx, a.IdentityCenter)
+	testCreateICAccountAssignment(t, ctx, a.IdentityCenter, true /*saml app label*/)
+	testCreateSAMLSP(t, ctx, a, "aws-identity-center")
+	testCreateSAMLSP(t, ctx, a, "another-service-provider")
+
+	testCases := []struct {
+		name              string
+		userRoles         []string
+		reqResources      []types.ResourceID
+		expectedResources []types.ResourceID
+		expectedRoles     []string
+		errAssertion      require.ErrorAssertionFunc
+	}{
+		{
+			name:      "has access",
+			userRoles: []string{requesterRole.GetName()},
+			reqResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+			},
+			expectedResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+			},
+			expectedRoles: []string{awsicRole.GetName()},
+			errAssertion:  require.NoError,
+		},
+		{
+			name:      "has access with roleV8",
+			userRoles: []string{requesterRole.GetName(), samlRole.GetName()},
+			reqResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+			},
+			expectedResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+			},
+			expectedRoles: []string{awsicRole.GetName()},
+			errAssertion:  require.NoError,
+		},
+		{
+			name:      "can search with rolev8",
+			userRoles: []string{awsicRequesterWithSAML.GetName()},
+			reqResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+			},
+			expectedResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+			},
+			expectedRoles: []string{awsicRole.GetName(), samlRole.GetName()},
+			errAssertion:  require.NoError,
+		},
+		{
+			name:      "no access and cannot search with roleV7 preset access",
+			userRoles: []string{requesterRole.GetName(), someRole.GetName()},
+			reqResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+			},
+			expectedResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "no roles configured")
+			},
+		},
+		{
+			name:      "no access but can search with roleV8",
+			userRoles: []string{awsicRequesterWithSAML.GetName(), someRole.GetName()},
+			reqResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+			},
+			expectedResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+			},
+			expectedRoles: []string{awsicRole.GetName(), samlRole.GetName()},
+			errAssertion:  require.NoError,
+		},
+		{
+			name:      "no access and cannot search",
+			userRoles: []string{awsicRequester.GetName(), someRole.GetName()},
+			reqResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+			},
+			expectedResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "no roles configured")
+			},
+		},
+		{
+			name:      "awsic saml app only added once",
+			userRoles: []string{awsicRequesterWithSAML.GetName(), someRole.GetName()},
+			reqResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-1"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-2"},
+				{Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+			},
+			expectedResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-1"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-2"},
+				{Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-1"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-2"},
+			},
+			expectedRoles: []string{awsicRole.GetName(), samlRole.GetName()},
+			errAssertion:  require.NoError,
+		},
+		{
+			name:      "awsic saml app does not block adding another saml app",
+			userRoles: []string{awsicRequesterWithSAML.GetName(), someRole.GetName()},
+			reqResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "another-service-provider"},
+			},
+			expectedResources: []types.ResourceID{
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "another-service-provider"},
+				{ClusterName: s.ClusterName(), Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+				{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+			},
+			expectedRoles: []string{awsicRole.GetName(), samlRole.GetName()},
+			errAssertion:  require.NoError,
+		},
+		{
+			name:      "no access and cannot search with unspecified cluster",
+			userRoles: []string{requesterRole.GetName(), someRole.GetName()},
+			reqResources: []types.ResourceID{
+				{Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+			},
+			expectedResources: []types.ResourceID{
+				{Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+				{Kind: types.KindSAMLIdPServiceProvider, Name: "aws-identity-center"},
+				{Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "no roles configured")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			user, userClient := testCreateUserWithRoles(t, s, "user", tc.userRoles...)
+			r, err := types.NewAccessRequestWithResources(uuid.NewString(), user.GetUsername(), []string{}, tc.reqResources)
+			require.NoError(t, err, "types.NewAccessRequest")
+
+			resp, err := userClient.CreateAccessRequestV2(ctx, r)
+			tc.errAssertion(t, err)
+			if len(tc.expectedRoles) > 0 {
+				gotIds, err := types.ResourceIDsToString(resp.GetRequestedResourceIDs())
+				require.NoError(t, err)
+				wantIds, err := types.ResourceIDsToString(tc.expectedResources)
+				require.NoError(t, err)
+				require.Equal(t, wantIds, gotIds)
+
+				require.ElementsMatch(t, tc.expectedRoles, resp.GetRoles())
+			} else {
+				require.Nil(t, resp)
+			}
+
+			require.NoError(t, a.DeleteUser(ctx, user.GetUsername()))
+		})
+	}
+}
+
+func TestAccessRequest_ImplicitAWSICSAMLApp_NoSAMLLabel(t *testing.T) {
+	ctx := t.Context()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	// Setup test auth server
+	s := newTestTLSServer(t)
+	a := s.Auth()
+	awsicRole := services.NewSystemIdentityCenterAccessRole()
+	_, err := a.UpsertRole(ctx, awsicRole)
+	require.NoError(t, err)
+	samlRole := testCreateRole(t, s, "saml-role", func(spec *types.RoleSpecV6) {
+		spec.Allow.AppLabels = types.Labels{
+			types.OriginLabel: []string{common.OriginAWSIdentityCenter},
+		}
+	})
+	awsicRequesterWithSAML := testCreateRole(t, s, "awsic-requester-withsaml", func(spec *types.RoleSpecV6) {
+		spec.Allow.Request.SearchAsRoles = []string{awsicRole.GetName(), samlRole.GetName()}
+	})
+
+	testCreateICAccount(t, ctx, a.IdentityCenter)
+	testCreateICAccountAssignment(t, ctx, a.IdentityCenter, false /*saml app label*/)
+	testCreateSAMLSP(t, ctx, a, "aws-identity-center")
+
+	user, userClient := testCreateUserWithRoles(t, s, "user", []string{awsicRequesterWithSAML.GetName()}...)
+	req := []types.ResourceID{{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"}}
+	r, err := types.NewAccessRequestWithResources(uuid.NewString(), user.GetUsername(), []string{}, req)
+	require.NoError(t, err, "types.NewAccessRequest")
+	resp, err := userClient.CreateAccessRequestV2(ctx, r)
+	require.NoError(t, err)
+
+	expected := []types.ResourceID{
+		{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccountAssignment, Name: "assignment-0"},
+		{ClusterName: s.ClusterName(), Kind: types.KindIdentityCenterAccount, Name: "account-0"},
+	}
+	gotIds, err := types.ResourceIDsToString(resp.GetRequestedResourceIDs())
+	require.NoError(t, err)
+	wantIds, err := types.ResourceIDsToString(expected)
+	require.NoError(t, err)
+	require.Equal(t, wantIds, gotIds)
+}
+
+func testCreateICAccount(t *testing.T, ctx context.Context, icService services.IdentityCenter) {
+	t.Helper()
+	for i := range 3 {
+		name := "account-" + strconv.Itoa(i)
+		_, err := icService.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+			Kind:     types.KindIdentityCenterAccount,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: name},
+			Spec: &identitycenterv1.AccountSpec{
+				Id:          "aws-account-id-" + name,
+				Arn:         fmt.Sprintf("arn:aws:sso::%s:", name),
+				Description: "Test account " + name,
+				PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+					{Arn: "arn:aws:iam::123456789012:role/ExampleRole", Name: "ExampleRole"},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+}
+
+func testCreateICAccountAssignment(t *testing.T, ctx context.Context, icService services.IdentityCenter, withSamlAppLabel bool) {
+	t.Helper()
+	labels := map[string]string{
+		types.OriginLabel: common.OriginAWSIdentityCenter,
+	}
+	if withSamlAppLabel {
+		key := types.TeleportNamespace + "/" + types.KindSAMLIdPServiceProvider
+		labels[key] = "aws-identity-center"
+	}
+	for i := range 3 {
+		name := "assignment-" + strconv.Itoa(i)
+		aName := "account-" + strconv.Itoa(i)
+		_, err := icService.CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+			Kind:    types.KindIdentityCenterAccountAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:   name,
+				Labels: labels,
+			},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				Display:     "Some-Permission-set on Some-AWS-account",
+				AccountName: aName,
+				AccountId:   aName,
+				PermissionSet: &identitycenterv1.PermissionSetInfo{
+					Arn:  "arn:aws:iam::123456789012:role/ExampleRole",
+					Name: "ExampleRole",
+					Role: "roleA",
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+}
+
+func testCreateSAMLSP(t *testing.T, ctx context.Context, a *auth.Server, name string) {
+	t.Helper()
+	ed := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?><md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://ca-central-1.signin.aws.amazon.com/platform/saml/d-%s"><md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat><md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://ca-central-1.signin.aws.amazon.com/platform/saml/acs/abc123" index="0" isDefault="true"/></md:SPSSODescriptor></md:EntityDescriptor>`, name)
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				types.OriginLabel: common.OriginAWSIdentityCenter,
+			},
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: ed,
+		})
+	require.NoError(t, err)
+	err = a.CreateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
 }
 
 func TestCleanupNotifications(t *testing.T) {
