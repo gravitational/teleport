@@ -16,19 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// Package decoder implements a RDP fast path decoder by calling into IronRDP via CGo.
+//
+// When used by Teleport, this package links its symbols from librdp (the Rust library
+// that Teleport already links).
+//
+// When used by other client tools (tsh), we link to a separate librdp_decoder library
+// to avoid linking in extra RDP code that we don't need.
 package decoder
 
 /*
-#cgo linux,386 LDFLAGS: -L${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release
-#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
-#cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
-#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
-#cgo linux LDFLAGS: -lrdp_decoder
-
-#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
-#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
-#cgo darwin LDFLAGS: -lrdp_decoder
-
 #cgo nocallback rdp_decoder_new
 #cgo noescape rdp_decoder_new
 #cgo nocallback rdp_decoder_free

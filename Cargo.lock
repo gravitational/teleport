@@ -2305,6 +2305,7 @@ dependencies = [
  "picky-asn1-der",
  "picky-asn1-x509",
  "rand 0.9.2",
+ "rdp-decoder",
  "reqwest",
  "rsa",
  "rustls",

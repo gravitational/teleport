@@ -30,6 +30,7 @@ iso7816 = "0.1.4"
 iso7816-tlv = "0.4.4"
 log = "0.4.28"
 rand = { version = "0.9.2", features = ["os_rng"] }
+rdp-decoder = { path = "../decoder" }
 rsa = "0.9.9"
 sspi = { version = "0.16.1", features = ["network_client"] }
 tokio = { version = "1.48", features = ["full"] }
