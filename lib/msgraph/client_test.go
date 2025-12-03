@@ -410,7 +410,7 @@ func TestIterateGroupMembers(t *testing.T) {
 		require.IsType(t, &Group{}, members[1])
 		group := members[1].(*Group)
 		require.Equal(t, "group2", *group.ID)
-		require.Equal(t, "Test Group 2", *group.DisplayName)
+		require.Equal(t, "group2", *group.DisplayName)
 	}
 }
 

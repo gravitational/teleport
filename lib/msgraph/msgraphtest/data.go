@@ -140,7 +140,7 @@ const PayloadListGroup1Members = `
 	{
 		"@odata.type": "#microsoft.graph.group",
 		"id": "group2",
-		"displayName": "Test Group 2"
+		"displayName": "group2"
 	}
 ]`
 

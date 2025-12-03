@@ -56,7 +56,8 @@ func (t *TokenProvider) InspectToken() string {
 
 // Payloads defines payload value to fake msgraph responses.
 type Payloads struct {
-	Users, Groups, GroupMembers, Applications string
+	Users, Groups, Applications string
+	GroupMembers                map[string]string
 }
 
 // DefaultPayload creates a default response payload.
@@ -65,6 +66,11 @@ func DefaultPayload() Payloads {
 		Users:        PayloadListUsers,
 		Groups:       PayloadListGroups,
 		Applications: PayloadGetApplication,
+		GroupMembers: map[string]string{
+			"group1": PayloadListGroup1Members,
+			"group2": PayloadListGroup2Members,
+			"group3": PayloadListGroup3Members,
+		},
 	}
 }
 
@@ -166,21 +172,13 @@ func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if s.Payloads.GroupMembers == "" {
-		switch r.PathValue("groupid") {
-		case "group1":
-			s.Payloads.GroupMembers = PayloadListGroup1Members
-		case "group2":
-			s.Payloads.GroupMembers = PayloadListGroup2Members
-		case "group3":
-			s.Payloads.GroupMembers = PayloadListGroup3Members
-		default:
-			w.Write([]byte(`{"value": []}`))
-			return
-		}
+	if len(s.Payloads.GroupMembers) == 0 {
+		w.Write([]byte(`{"value": []}`))
+		return
 	}
 
-	if err := json.Unmarshal([]byte(s.Payloads.GroupMembers), &source); err != nil {
+	groupID := r.PathValue("groupid")
+	if err := json.Unmarshal([]byte(s.Payloads.GroupMembers[groupID]), &source); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to unmarshal payload: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
