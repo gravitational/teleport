@@ -1608,6 +1608,7 @@ type ClientI interface {
 	services.Notifications
 	services.VnetConfigGetter
 	services.HealthCheckConfig
+	services.AppAuthConfig
 	types.Events
 
 	types.WebSessionsGetter
