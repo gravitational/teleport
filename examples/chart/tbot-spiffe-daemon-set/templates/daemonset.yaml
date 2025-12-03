@@ -27,6 +27,8 @@ spec:
       {{- end }}
     spec:
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      # Must be in host PID namespace for workload attestation to behave
+      # correctly.
       hostPID: true
       containers:
         - name: tbot

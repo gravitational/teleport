@@ -7,6 +7,12 @@
 {{ if not .Values.token }}
   {{- $_ := required "`token` must be provided" "" }}
 {{ end }}
+{{ if and (not .Values.workloadIdentitySelector.name) (not .Values.workloadIdentitySelector.labels) }}
+  {{- $_ := required "`workloadIdentitySelector.name` or `workloadIdentitySelector.labels` must be provided" "" }}
+{{ end }}
+{{ if and (.Values.workloadIdentitySelector.name) (.Values.workloadIdentitySelector.labels) }}
+  {{- $_ := required "Either `workloadIdentitySelector.name` or `workloadIdentitySelector.labels` can be provided, not both" "" }}
+{{ end }}
 {{- define "tbot-spiffe-daemon-set.config" -}}
 version: v2
 {{- if .Values.teleportProxyAddress }}
@@ -20,8 +26,7 @@ storage:
 services:
 - type: workload-identity-api
   listen: unix:///run/tbot/sockets/workload.sock
-  selector:
-    name: local-docker-k8s-ds
+  selector: {{ toYaml .Values.workloadIdentitySelector | nindent 4 }}
   attestors:
     kubernetes:
       enabled: true
