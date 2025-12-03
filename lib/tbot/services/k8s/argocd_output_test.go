@@ -120,7 +120,9 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 			SecretNamePrefix: "my-cluster",
 			SecretNamespace:  "argocd",
 			SecretLabels: map[string]string{
-				"team": "billing",
+				"team":               "billing",
+				"cluster-department": `{{ index .Labels "department" }}`,
+				"non-existent":       `{{ index .Labels "non-existent" }}`,
 			},
 			SecretAnnotations: map[string]string{
 				"managed-by": "ninjas",
@@ -174,6 +176,7 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 		map[string]string{
 			"argocd.argoproj.io/secret-type": "cluster",
 			"team":                           "billing",
+			"cluster-department":             "engineering",
 		},
 		secret.Labels,
 	)
