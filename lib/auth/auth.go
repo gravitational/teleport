@@ -122,6 +122,8 @@ import (
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/spacelift"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -137,10 +139,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -190,7 +190,9 @@ const (
 const (
 	notificationsPageReadInterval = 5 * time.Millisecond
 	notificationsWriteInterval    = 40 * time.Millisecond
-	accessListsPageReadInterval   = 5 * time.Millisecond
+
+	accessListsPageReadInterval = 5 * time.Millisecond
+	accessListsPageSize         = 20
 )
 
 const (
@@ -1285,7 +1287,7 @@ type Server struct {
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
-	spaceliftIDTokenValidator spaceliftIDTokenValidator
+	spaceliftIDTokenValidator spacelift.Validator
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -1307,11 +1309,11 @@ type Server struct {
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
 	// the purpose of tests.
-	k8sTokenReviewValidator k8sTokenReviewValidator
+	k8sTokenReviewValidator kubetoken.InClusterValidator
 	// k8sJWKSValidator allows tokens from Kubernetes to be validated
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
-	k8sJWKSValidator k8sJWKSValidator
+	k8sJWKSValidator kubetoken.JWKSValidator
 	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
 	// auth server using a known OIDC endpoint. It can be overridden in tests.
 	k8sOIDCValidator *kubetoken.KubernetesOIDCTokenValidator
@@ -1323,7 +1325,7 @@ type Server struct {
 	// terraformIDTokenValidator allows JWTs from Terraform Cloud to be
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
-	terraformIDTokenValidator terraformCloudIDTokenValidator
+	terraformIDTokenValidator terraformcloud.Validator
 
 	// bitbucketIDTokenValidator allows JWTs from Bitbucket to be validated by
 	// the auth server.
@@ -6903,7 +6905,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
-		response, nextKey, err := a.Cache.ListAccessLists(ctx, 20, accessListsPageKey)
+		response, nextKey, err := a.Cache.ListAccessLists(ctx, accessListsPageSize, accessListsPageKey)
 		if err != nil {
 			a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check", "error", err)
 		}
@@ -6912,9 +6914,9 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 			if !al.IsReviewable() {
 				continue
 			}
-			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
+
 			// Only keep access lists that fall within our thresholds in memory
-			if daysDiff <= 15 {
+			if al.Spec.Audit.NextAuditDate.Sub(now) <= 15*24*time.Hour {
 				accessLists = append(accessLists, al)
 			}
 		}
@@ -6945,16 +6947,12 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		for _, al := range accessLists {
 			dueDate := al.Spec.Audit.NextAuditDate
 			timeDiff := dueDate.Sub(now)
-			daysDiff := int(timeDiff.Hours() / 24)
+			threshold := time.Hour * 24 * time.Duration(threshold.days)
 
-			if threshold.days < 0 {
-				if daysDiff <= threshold.days {
-					relevantLists = append(relevantLists, al)
-				}
-			} else {
-				if daysDiff >= 0 && daysDiff <= threshold.days {
-					relevantLists = append(relevantLists, al)
-				}
+			if threshold < 0 && timeDiff <= threshold {
+				relevantLists = append(relevantLists, al)
+			} else if timeDiff >= 0 && timeDiff <= threshold {
+				relevantLists = append(relevantLists, al)
 			}
 		}
 
@@ -7876,6 +7874,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
 			ChallengeScope:      challengeExtensions.Scope.String(),
 			ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 		}); err != nil {
 			a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 		}
@@ -7938,6 +7937,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
 		ChallengeScope:      challengeExtensions.Scope.String(),
 		ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
@@ -8056,6 +8056,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		},
 		UserMetadata:   authz.ClientUserMetadataWithUser(ctx, user),
 		ChallengeScope: requiredExtensions.Scope.String(),
+		FlowType:       apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}
 	if validateErr != nil {
 		auditEvent.Code = events.ValidateMFAAuthResponseFailureCode

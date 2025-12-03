@@ -312,7 +312,7 @@ func newTestPack(t *testing.T, setupConfig SetupConfigFn, opts ...packOption) *t
 	return pack
 }
 
-func newTestPackWithoutCache(t *testing.T) *testPack {
+func NewTestPackWithoutCache(t *testing.T) *testPack {
 	pack, err := newPackWithoutCache(t.TempDir())
 	require.NoError(t, err)
 	return pack
@@ -797,7 +797,7 @@ func TestCompletenessInit(t *testing.T) {
 	ctx := context.Background()
 	const caCount = 100
 	const inits = 20
-	p := newTestPackWithoutCache(t)
+	p := NewTestPackWithoutCache(t)
 	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
@@ -890,7 +890,7 @@ func TestCompletenessReset(t *testing.T) {
 	ctx := context.Background()
 	const caCount = 100
 	const resets = 20
-	p := newTestPackWithoutCache(t)
+	p := NewTestPackWithoutCache(t)
 	t.Cleanup(p.Close)
 
 	// put lots of CAs in the backend
@@ -1156,7 +1156,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 
 func initStrategy(t *testing.T) {
 	ctx := context.Background()
-	p := newTestPackWithoutCache(t)
+	p := NewTestPackWithoutCache(t)
 	t.Cleanup(p.Close)
 
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))

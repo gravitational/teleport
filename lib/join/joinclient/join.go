@@ -42,6 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/join/spacelift"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
@@ -211,8 +214,11 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
 		types.JoinMethodIAM,
+		types.JoinMethodKubernetes,
 		types.JoinMethodOracle,
-		types.JoinMethodTPM:
+		types.JoinMethodSpacelift,
+		types.JoinMethodTPM,
+		types.JoinMethodTerraformCloud:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
@@ -370,8 +376,35 @@ func joinWithMethod(
 		}
 
 		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodKubernetes:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = kubetoken.GetIDToken(os.Getenv, joinParams.KubernetesReadFileFunc)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodSpacelift:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodTPM:
 		return tpmJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodTerraformCloud:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = terraformcloud.NewIDTokenSource(joinParams.TerraformCloudAudienceTag, os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return oidcJoin(stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{

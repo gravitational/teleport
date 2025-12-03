@@ -39,8 +39,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -83,9 +84,9 @@ type TLSServerConfig struct {
 	// OnReconcile is called after each kube_cluster resource reconciliation.
 	OnReconcile func(types.KubeClusters)
 	// azureClients provides Azure SDK clients
-	azureClients cloud.AzureClients
+	azureClients azure.Clients
 	// gcpClients provides GCP SDK clients
-	gcpClients cloud.GCPClients
+	gcpClients gcp.Clients
 	// awsCloudClients provides AWS SDK clients.
 	awsClients *awsClientsGetter
 	// StaticLabels is a map of static labels associated with this service.
@@ -173,14 +174,14 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 		c.Log = slog.Default()
 	}
 	if c.azureClients == nil {
-		azureClients, err := cloud.NewAzureClients()
+		azureClients, err := azure.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		c.azureClients = azureClients
 	}
 	if c.gcpClients == nil {
-		c.gcpClients = cloud.NewGCPClients()
+		c.gcpClients = gcp.NewClients()
 	}
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
@@ -452,7 +453,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster, true))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 

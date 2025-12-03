@@ -89,6 +89,7 @@
     "GHES",
     "GODEBUG",
     "GOMAXPROCS",
+    "GOMEMLIMIT",
     "GSLB",
     "Gbps",
     "Ghostunnel",
@@ -1128,9 +1129,10 @@
     "hte"
   ],
   "ignorePaths": [
+    "**/includes/access-monitoring-events.mdx",
+    "**/includes/reference/code-blocks-no-cspell/**",
     "**/reference/infrastructure-as-code/operator-resources/**",
-    "**/reference/infrastructure-as-code/terraform-provider/**",
     "**/reference/infrastructure-as-code/teleport-resources/**",
-    "**/includes/reference/code-blocks-no-cspell/**"
+    "**/reference/infrastructure-as-code/terraform-provider/**"
   ]
 }
