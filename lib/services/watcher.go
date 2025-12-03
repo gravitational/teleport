@@ -487,6 +487,36 @@ func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[t
 	return w, trace.Wrap(err)
 }
 
+type AppServersWatcherConfig struct {
+	AppServersGetter
+	AppServersC chan []types.AppServer
+	ResourceWatcherConfig
+}
+
+func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	if cfg.AppServersGetter == nil {
+		return nil, trace.BadParameter("AppServersGetter must be provided")
+	}
+
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.AppServer, readonly.AppServer]{
+		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
+		ResourceKind:          types.KindAppServer,
+		ResourceKey:           types.AppServer.GetName,
+		ResourceGetter: func(ctx context.Context) ([]types.AppServer, error) {
+			return cfg.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
+		},
+		ResourcesC: cfg.AppServersC,
+		CloneFunc: func(resource types.AppServer) types.AppServer {
+			return resource.Copy()
+		},
+		ReadOnlyFunc: func(resource types.AppServer) readonly.AppServer {
+			return resource
+		},
+	})
+
+	return w, trace.Wrap(err)
+}
+
 // KubeServerWatcherConfig is an KubeServerWatcher configuration.
 type KubeServerWatcherConfig struct {
 	// KubernetesServerGetter is responsible for fetching kube_server resources.
