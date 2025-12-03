@@ -266,16 +266,18 @@ var xxx_messageInfo_ValidateChallengeResponse proto.InternalMessageInfo
 
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
 type ReplicateValidatedMFAChallengeRequest struct {
-	// Resource name for the issued challenge. Must match the 'name' returned in CreateChallengeResponse to tie the upsert
-	// to the correct challenge.
+	// Resource name for the issued challenge. Must match the 'name' returned in CreateChallengeResponse to find the
+	// correct challenge.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Value that uniquely identifies the user's session. Should match the payload in CreateChallengeRequest.
+	// Value that uniquely identifies the user's session. Must match the payload in CreateChallengeRequest.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
-	// Identifying information about the user's MFA device used to authenticate. Used for audit purposes.
+	// Identifying information about the user's MFA device used to authenticate. Required for audit purposes.
 	Device *events.MFADeviceMetadata `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
-	// Name of the cluster where the validated challenge originated.
+	// Name of the source cluster where the validated challenge originated. Required in order to match the validated
+	// challenge to the correct session.
 	SourceCluster string `protobuf:"bytes,4,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
-	// Name of the destination cluster where the validated challenge should be replicated to.
+	// Name of the target cluster where the SSH session is being established. Required in order to match the validated
+	// challenge to the correct session.
 	TargetCluster        string   `protobuf:"bytes,5,opt,name=target_cluster,json=targetCluster,proto3" json:"target_cluster,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

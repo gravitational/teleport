@@ -86,16 +86,18 @@ message ValidateChallengeResponse {}
 
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
 message ReplicateValidatedMFAChallengeRequest {
-  // Resource name for the issued challenge. Must match the 'name' returned in CreateChallengeResponse to tie the upsert
-  // to the correct challenge.
+  // Resource name for the issued challenge. Must match the 'name' returned in CreateChallengeResponse to find the
+  // correct challenge.
   string name = 1;
-  // Value that uniquely identifies the user's session. Should match the payload in CreateChallengeRequest.
+  // Value that uniquely identifies the user's session. Must match the payload in CreateChallengeRequest.
   SessionIdentifyingPayload payload = 2;
-  // Identifying information about the user's MFA device used to authenticate. Used for audit purposes.
+  // Identifying information about the user's MFA device used to authenticate. Required for audit purposes.
   events.MFADeviceMetadata device = 3;
-  // Name of the cluster where the validated challenge originated.
+  // Name of the source cluster where the validated challenge originated. Required in order to match the validated
+  // challenge to the correct session.
   string source_cluster = 4;
-  // Name of the destination cluster where the validated challenge should be replicated to.
+  // Name of the target cluster where the SSH session is being established. Required in order to match the validated
+  // challenge to the correct session.
   string target_cluster = 5;
 }
 
