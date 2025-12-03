@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -20,6 +21,11 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
+)
+
+const (
+	testHostname = "test-host"
+	testHostID   = "test-host-id"
 )
 
 func TestService_CleanupOkta(t *testing.T) {
@@ -65,6 +71,26 @@ func TestService_CleanupOkta(t *testing.T) {
 		newAccessList(t, "al5", ""),
 		newAccessList(t, "al6", ""),
 	}
+	appServersToCleanup := []types.AppServer{
+		newAppServer(t, "app-server-1-cleanup", types.OriginOkta),
+		newAppServer(t, "app-server-2-cleanup", types.OriginOkta),
+		newAppServer(t, "app-server-3-cleanup", types.OriginOkta),
+	}
+	appServers := []types.AppServer{
+		newAppServer(t, "app-server-1", ""),
+		newAppServer(t, "app-server-2", ""),
+		newAppServer(t, "app-server-3", ""),
+	}
+	userGroupsToCleanup := []types.UserGroup{
+		newUserGroup(t, "user-group-1-cleanup", types.OriginOkta),
+		newUserGroup(t, "user-group-2-cleanup", types.OriginOkta),
+		newUserGroup(t, "user-group-3-cleanup", types.OriginOkta),
+	}
+	userGroups := []types.UserGroup{
+		newUserGroup(t, "user-group-1", ""),
+		newUserGroup(t, "user-group-2", ""),
+		newUserGroup(t, "user-group-3", ""),
+	}
 	rolesToCleanup := []types.Role{
 		newRole(t, "r1-cleanup", types.OriginOkta),
 		newRole(t, "r2-cleanup", types.OriginOkta),
@@ -103,6 +129,28 @@ func TestService_CleanupOkta(t *testing.T) {
 		&types.ResourceID{Kind: types.KindAccessList, Name: "al3-cleanup"},
 	)
 	deleteAccessLists(t, ctx, suite.svc.authServer, accessListsToCleanup)
+
+	// Make sure app servers can cause a needs cleanup.
+	upsertAppServers(t, suite.svc.authServer, appServers)
+	expectedNeedsCleanup(false)
+	upsertAppServers(t, suite.svc.authServer, appServersToCleanup)
+	expectedNeedsCleanup(false,
+		&types.ResourceID{Kind: types.KindAppServer, Name: testHostID + "/app-server-1-cleanup"},
+		&types.ResourceID{Kind: types.KindAppServer, Name: testHostID + "/app-server-2-cleanup"},
+		&types.ResourceID{Kind: types.KindAppServer, Name: testHostID + "/app-server-3-cleanup"},
+	)
+	deleteAppServers(t, suite.svc.authServer, appServersToCleanup)
+
+	// Make sure user groups can cause a needs cleanup.
+	upsertUserGroups(t, suite.svc.authServer, userGroups)
+	expectedNeedsCleanup(false)
+	upsertUserGroups(t, suite.svc.authServer, userGroupsToCleanup)
+	expectedNeedsCleanup(false,
+		&types.ResourceID{Kind: types.KindUserGroup, Name: "user-group-1-cleanup"},
+		&types.ResourceID{Kind: types.KindUserGroup, Name: "user-group-2-cleanup"},
+		&types.ResourceID{Kind: types.KindUserGroup, Name: "user-group-3-cleanup"},
+	)
+	deleteUserGroups(t, suite.svc.authServer, userGroupsToCleanup)
 
 	// Make sure roles can cause a needs cleanup.
 	upsertRoles(t, ctx, suite.svc.authServer, roles...)
@@ -164,23 +212,33 @@ func TestService_CleanupOkta(t *testing.T) {
 	// Put all of the resources that need a cleanup back in.
 	upsertOktaAssignments(t, ctx, suite.svc.authServer, oktaAssignments)
 	upsertAccessLists(t, ctx, suite.svc.authServer, accessListsToCleanup)
+	upsertAppServers(t, suite.svc.authServer, appServersToCleanup)
+	upsertUserGroups(t, suite.svc.authServer, userGroupsToCleanup)
 	upsertRoles(t, ctx, suite.svc.authServer, rolesToCleanup...)
 	oktaRequesterRole.SetSearchAsRoles(types.Allow, []string{"r1-cleanup", "r2-cleanup", "r3-cleanup"})
 	upsertRoles(t, ctx, suite.svc.authServer, oktaRequesterRole)
 
+	resourcesExpectedToCleanup := []*types.ResourceID{
+		{Kind: types.KindOktaAssignment, Name: "assignment1"},
+		{Kind: types.KindOktaAssignment, Name: "assignment2"},
+		{Kind: types.KindOktaAssignment, Name: "assignment3"},
+		{Kind: types.KindAccessList, Name: "al1-cleanup"},
+		{Kind: types.KindAccessList, Name: "al2-cleanup"},
+		{Kind: types.KindAccessList, Name: "al3-cleanup"},
+		{Kind: types.KindAppServer, Name: testHostID + "/app-server-1-cleanup"},
+		{Kind: types.KindAppServer, Name: testHostID + "/app-server-2-cleanup"},
+		{Kind: types.KindAppServer, Name: testHostID + "/app-server-3-cleanup"},
+		{Kind: types.KindUserGroup, Name: "user-group-1-cleanup"},
+		{Kind: types.KindUserGroup, Name: "user-group-2-cleanup"},
+		{Kind: types.KindUserGroup, Name: "user-group-3-cleanup"},
+		{Kind: types.KindRole, Name: "r1-cleanup"},
+		{Kind: types.KindRole, Name: "r2-cleanup"},
+		{Kind: types.KindRole, Name: "r3-cleanup"},
+		{Kind: types.KindRole, Name: teleport.SystemOktaRequesterRoleName},
+	}
+
 	// The plugin is active.
-	expectedNeedsCleanup(true,
-		&types.ResourceID{Kind: types.KindOktaAssignment, Name: "assignment1"},
-		&types.ResourceID{Kind: types.KindOktaAssignment, Name: "assignment2"},
-		&types.ResourceID{Kind: types.KindOktaAssignment, Name: "assignment3"},
-		&types.ResourceID{Kind: types.KindAccessList, Name: "al1-cleanup"},
-		&types.ResourceID{Kind: types.KindAccessList, Name: "al2-cleanup"},
-		&types.ResourceID{Kind: types.KindAccessList, Name: "al3-cleanup"},
-		&types.ResourceID{Kind: types.KindRole, Name: "r1-cleanup"},
-		&types.ResourceID{Kind: types.KindRole, Name: "r2-cleanup"},
-		&types.ResourceID{Kind: types.KindRole, Name: "r3-cleanup"},
-		&types.ResourceID{Kind: types.KindRole, Name: teleport.SystemOktaRequesterRoleName},
-	)
+	expectedNeedsCleanup(true, resourcesExpectedToCleanup...)
 
 	// Cleanup fails due to an active plugin.
 	_, err = suite.svc.Cleanup(ctx, &pluginspb.CleanupRequest{
@@ -194,18 +252,8 @@ func TestService_CleanupOkta(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	expectedNeedsCleanup(false,
-		&types.ResourceID{Kind: types.KindOktaAssignment, Name: "assignment1"},
-		&types.ResourceID{Kind: types.KindOktaAssignment, Name: "assignment2"},
-		&types.ResourceID{Kind: types.KindOktaAssignment, Name: "assignment3"},
-		&types.ResourceID{Kind: types.KindAccessList, Name: "al1-cleanup"},
-		&types.ResourceID{Kind: types.KindAccessList, Name: "al2-cleanup"},
-		&types.ResourceID{Kind: types.KindAccessList, Name: "al3-cleanup"},
-		&types.ResourceID{Kind: types.KindRole, Name: "r1-cleanup"},
-		&types.ResourceID{Kind: types.KindRole, Name: "r2-cleanup"},
-		&types.ResourceID{Kind: types.KindRole, Name: "r3-cleanup"},
-		&types.ResourceID{Kind: types.KindRole, Name: teleport.SystemOktaRequesterRoleName},
-	)
+	// The plugin is inactive.
+	expectedNeedsCleanup(false, resourcesExpectedToCleanup...)
 
 	// Cleanup should succeed.
 	_, err = suite.svc.Cleanup(ctx, &pluginspb.CleanupRequest{
@@ -216,6 +264,10 @@ func TestService_CleanupOkta(t *testing.T) {
 	backendOktaAssignments, _, err := suite.svc.authServer.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)
 	backendAccessLists, _, err := suite.svc.authServer.ListAccessLists(ctx, 0, "")
+	require.NoError(t, err)
+	backendAppServers, err := suite.svc.authServer.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	backendUserGroups, _, err := suite.svc.authServer.ListUserGroups(ctx, 0, "")
 	require.NoError(t, err)
 	backendRolesResp, err := suite.svc.authServer.ListRoles(ctx, &proto.ListRolesRequest{})
 	require.NoError(t, err)
@@ -237,6 +289,8 @@ func TestService_CleanupOkta(t *testing.T) {
 
 	require.Empty(t, backendOktaAssignments)
 	require.Empty(t, cmp.Diff(accessLists, backendAccessLists, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(appServers, backendAppServers, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(userGroups, backendUserGroups, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	require.Empty(t, cmp.Diff(roles, backendRoles, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
@@ -294,6 +348,60 @@ func newAccessList(t *testing.T, name, origin string) *accesslist.AccessList {
 	return accessList
 }
 
+func newAppServer(t *testing.T, name, origin string) types.AppServer {
+	t.Helper()
+
+	var labels map[string]string
+	if origin != "" {
+		labels = map[string]string{}
+		labels[types.OriginLabel] = origin
+	}
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppSpecV3{
+			URI: "https://www.link1.com",
+		},
+	)
+	require.NoError(t, err)
+
+	appServer, err := types.NewAppServerV3(
+		app.GetMetadata(),
+		types.AppServerSpecV3{
+			App:      app,
+			Hostname: testHostname,
+			HostID:   testHostID,
+		},
+	)
+	require.NoError(t, err)
+
+	return appServer
+}
+
+func newUserGroup(t *testing.T, name, origin string) types.UserGroup {
+	t.Helper()
+
+	var labels map[string]string
+	if origin != "" {
+		labels = map[string]string{}
+		labels[types.OriginLabel] = origin
+	}
+
+	group, err := types.NewUserGroup(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.UserGroupSpecV1{},
+	)
+	require.NoError(t, err)
+
+	return group
+}
+
 func upsertOktaAssignments(t *testing.T, ctx context.Context, ap services.Okta, oktaAssignments []types.OktaAssignment) {
 	t.Helper()
 
@@ -329,6 +437,53 @@ func deleteAccessLists(t *testing.T, ctx context.Context, ap services.AccessList
 		if !trace.IsNotFound(err) {
 			require.NoError(t, err)
 		}
+	}
+}
+
+func upsertAppServers(t *testing.T, ap services.Presence, appServers []types.AppServer) {
+	t.Helper()
+	ctx := t.Context()
+
+	for _, as := range appServers {
+		_, err := ap.UpsertApplicationServer(ctx, as)
+		require.NoError(t, err)
+	}
+}
+
+func deleteAppServers(t *testing.T, ap services.Presence, appServers []types.AppServer) {
+	t.Helper()
+	ctx := t.Context()
+
+	for _, as := range appServers {
+		err := ap.DeleteApplicationServer(ctx, defaults.Namespace, as.GetHostID(), as.GetName())
+		require.NoError(t, err)
+	}
+}
+
+func upsertUserGroups(t *testing.T, ap services.UserGroups, userGroups []types.UserGroup) {
+	t.Helper()
+	ctx := t.Context()
+
+	for _, g := range userGroups {
+		upsertErr := ap.CreateUserGroup(ctx, g)
+		if trace.IsAlreadyExists(upsertErr) {
+			current, err := ap.GetUserGroup(ctx, g.GetName())
+			require.NoError(t, err)
+
+			g.SetRevision(current.GetRevision())
+			upsertErr = ap.UpdateUserGroup(ctx, g)
+		}
+		require.NoError(t, upsertErr)
+	}
+}
+
+func deleteUserGroups(t *testing.T, ap services.UserGroups, userGroups []types.UserGroup) {
+	t.Helper()
+	ctx := t.Context()
+
+	for _, g := range userGroups {
+		err := ap.DeleteUserGroup(ctx, g.GetName())
+		require.NoError(t, err)
 	}
 }
 
