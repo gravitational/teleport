@@ -400,6 +400,17 @@ type MotD struct {
 	Text string
 }
 
+type LoadBalancingConfig struct{}
+
+type HealthCheckConfig struct {
+	ServiceName string `json:"serviceName"`
+}
+
+type GRPCClientLoadBalancerPolicy struct {
+	LoadBalancingConfig []map[string]LoadBalancingConfig `json:"loadBalancingConfig"`
+	HealthCheckConfig   HealthCheckConfig                `json:"healthCheckConfig"`
+}
+
 // PingResponse contains data about the Teleport server like supported
 // authentication types, server version, etc.
 type PingResponse struct {
@@ -415,6 +426,8 @@ type PingResponse struct {
 	AutoUpdate AutoUpdateSettings `json:"auto_update"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
+
+	GRPCClientLoadBalancerPolicy *GRPCClientLoadBalancerPolicy `json:"grpc_client_load_balancer_policy,omitempty"`
 
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
