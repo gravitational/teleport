@@ -25,7 +25,7 @@ jobs:
     steps:
       # Checkout main branch of shared-workflow repository.
       - name: Checkout shared-workflow
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows

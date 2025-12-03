@@ -40,7 +40,7 @@ jobs:
       options: --init
     steps:
       - name: Checkout OSS Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Print Node version
         run: |
