@@ -44,7 +44,7 @@ The scope of work proposed by this RFD is:
   in turn be assigned to new resources at provisioning time
 - Support for configuring a scoped token with a set of labels that are
   automatically assigned to SSH nodes at provisioning time
-- Support for defining a maximum number of uses a scoped token can support
+- Support for single use (oneshot) tokens
 - New `scoped` variants of the `tctl tokens *` family of sub commands
 
 Considered out of scope for this RFD:
@@ -56,19 +56,27 @@ Considered out of scope for this RFD:
 ### Scoped tokens
 
 The recently added `ScopedToken` resource will be modified to include fields
-necessary for assigning scopes, labels, and enforcing limited uses.
-Additionally, fields missing from the existing `types.ProvisionTokenV2` will be
-ported over to facilitate existing provisioning semantics.
+necessary for assigning scopes, labels, and enforcing single use. Additionally,
+fields missing from the existing `types.ProvisionTokenV2` will be ported over
+to facilitate existing provisioning semantics.
 
 ```diff
-index ed3f43847c1..813e50daf82 100644
 --- a/api/proto/teleport/scopes/joining/v1/token.proto
 +++ b/api/proto/teleport/scopes/joining/v1/token.proto
-@@ -42,12 +42,33 @@ message ScopedToken {
+@@ -16,6 +16,7 @@ syntax = "proto3";
+
+ package teleport.scopes.joining.v1;
+
++import "google/protobuf/timestamp.proto";
+ import "teleport/header/v1/metadata.proto";
+
+ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1";
+@@ -42,12 +43,48 @@ message ScopedToken {
 
    // Spec is the token specification.
    ScopedTokenSpec spec = 6;
-+  // The status of the token
++
++  // The status of the token.
 +  ScopedTokenStatus status = 7;
  }
 
@@ -88,19 +96,36 @@ index ed3f43847c1..813e50daf82 100644
 +  // Supported joining methods for scoped tokens only include 'token'.
 +  string join_method = 3;
 +
-+  // The set of labels to be automatically assigned to any provisioned SSH node.
-+  map<string, string> ssh_labels = 4;
++  // The usage mode of the token. Can be "oneshot" or "unlimited". Oneshot
++  // tokens can only be used to provision a single resource. Unlimited tokens
++  // can be be used to provision any number of resources until it expires.
++  string mode = 4;
++}
 +
-+  // The number of resources that can be provisioned using this token.
-+  int32 max_uses = 5;
++// The usage status of a oneshot token.
++message OneshotStatus {
++  // The timestamp representing when a oneshot token was successfully used for
++  // provisioning.
++  google.protobuf.Timestamp used_at = 1;
++  // The timestamp representing when a oneshot token should no longer be avaialable
++  // for idempotent retries.
++  google.protobuf.Timestamp reusable_until = 2;
++  // The public key of the host that used the token.
++  bytes used_by_public_key = 3;
 +}
 +
 +// The status of a scoped token.
 +message ScopedTokenStatus {
-+  // The number of successful provisioning attempts made using this token.
-+  int32 attempted_uses = 6;
- }
++  // The usage status of the token.
++  oneof usage {
++    // The usage status of a oneshot token.
++    OneshotStatus oneshot = 1;
++  }
 ```
+
+The `usage` field of the scoped token status is a `oneof` in order to more
+easily support other usage modes that may be added in the future (e.g. max
+usage limits).
 
 ### Provisioning
 
@@ -140,32 +165,72 @@ the `token_labels` will initially be limited to a total size of 2kb. This limit
 will only be enforced when generating the host certificates in order to allow
 future adjustments to sizing without requiring agent upgrades.
 
-### Limited use tokens
+### Oneshot tokens
 
-The simplest way to implement token usage limits is to keep a counter of
-successful provisioning attempts and fallback on the conditional update system
-to maintain consistency. A "successful provisioning attempt" means that the
-auth service generated host certificates, but it does not guarantee that the
-resource successfully joined the cluster. Whenever a resource is provisioned
-using a token, we increment the token's `attempted_uses` field with a
-conditional update. If the `attempted_uses` reaches the `max_uses`, the token
-will no longer be usable and should eventually be cleaned up. This is simple to
-reason about but requires that the final decision about whether or not the
-token can be used has to be deferred to the end of the provisioning process.
-Otherwise it would be possible for many concurrent join attempts to exceed the
-allowed `max_uses` for a token.
+Single use, or oneshot, tokens provide a simple way of enforcing that a given
+token can only be used to provision a single resource. A oneshot token can
+be created by setting the `mode` field of a scoped token's spec to `oneshot`.
+This will be implemented as first-come-first-served by recording the first
+joining host's public key in the `status.used_by_public_key` field of the
+scoped token used. Once a token has recorded a public key it will no longer be
+usable by any other hosts. This could also be controlled by a simple boolean,
+but using the public key allows for reuse of the oneshot token by the same
+host. This is useful in cases where the host fails to join after credentials
+have been issued due to some transient error receiving or storing those
+credentials.
 
-Configuring a token without defining `max_uses` would effectively disable usage
-limits and fallback to the typical expiration behavior tokens have today.
-Tokens that have exceeded their usage limits will remain in the backend, but
-will not be usable. This would allow the posibility of extending `max_uses` to
-effectively reenable a token that has been used up.
+In order to prevent tokens from being indefinitely reusable by a given public
+key, an optional final message should be added to the joining flow:
 
-Individual auth service instances should guard incrementing the
-`attempted_uses` field using a mutex in order to prevent excessive retries
-within a single server due to conditional update failures. This will not
-prevent conditional update failures from occurring across multiple auth service
-instances.
+```protobuf
+--- a/api/proto/teleport/join/v1/joinservice.proto
++++ b/api/proto/teleport/join/v1/joinservice.proto
+@@ -436,6 +436,7 @@ message JoinRequest {
+     OracleInit oracle_init = 9;
+     TPMInit tpm_init = 10;
+     AzureInit azure_init = 11;
++    Confirm confirm = 12;
+   }
+ }
+
+@@ -501,6 +502,10 @@ message BotResult {
+   optional BoundKeypairResult bound_keypair_result = 2;
+ }
+
++// The final message sent from the client to the cluster signaling that credentials have been
++// successfully received.
++message Confirm {}
++
+ // JoinResponse is the message type sent from the server to the joining client.
+ message JoinResponse {
+   oneof payload {
+@@ -515,6 +520,10 @@ message JoinResponse {
+     // the cluster when the join flow is successful.
+     // For the token join method, it is sent immediately in response to the ClientInit request.
+     Result result = 3;
++    // Confirm is the final message sent from the client back to the cluster after a successful join.
++    // It signals to the cluster that the client received their credentials and the token used can
++    // be consumed.
++    Confirm confirm = 4;
+   }
+ }
+```
+
+This new message will signal to the auth service that the host received and
+stored their credentials. At which point, the scoped token's `used_at` field
+should be updated with the current timestamp and future attempts to reuse the
+token will fail with a token exhausted error. This is added to the end of the
+join bidi stream in order to leverage auth's knowledge of which token was used
+to initiate a join attempt. Otherwise the token name would need to be encoded
+into the host certificate to prevent any sort of malicious consumption of other
+tokens. As an additional measure, a token should only be reusable for a limited
+time after the first public key has been recorded. Once this time has elapsed,
+the token will be considered exhausted even when using the same public key. The
+`reusable_until` field will be set with the current timestamp at the same time
+as `used_by_public_key` in support of this.
+
+By default, a new scoped token should be created with a `mode` of `unlimited`
+unless another mode is explicitly specified.
 
 ### `tctl` subcommands
 
@@ -188,16 +253,15 @@ $ tctl scoped tokens add --type=node --scope=/staging/west--assign-scope=/stagin
 ```
 
 ```bash
-# adding a scoped token that will assign provisioned resources to the
-# /staging/west scope, automatically assign labels, and limit provisioned
-# resources to 5
+# adding a oneshot scoped token that will assign a provisioned resource to the
+# /staging/west scope, automatically assign labels
 $ tctl scoped tokens add \
   --type=node \
   --scope=/staging/west \
   --assign-scope=/staging/west \
   # ssh_labels follows the same format as the common --labels flag
   --ssh-labels=env=staging,hello=world \
-  --max-uses 5
+  --mode oneshot
 ```
 
 ```bash
@@ -227,7 +291,11 @@ compatible for Teleport agents. Which means the existing mechanisms for
 joining, such as `join_params` in `teleport.yaml` or the
 `--token` flag of `teleport start`, will continue to work in the same way. The
 issued host certificate will be ammended with an `AgentScope` field which will
-be used by the Teleport Auth Service during access control decisions.
+be used by the Teleport Auth Service during access control decisions. Because
+joining can still be successful without issuing the new confirmation message,
+oneshot tokens will also be usable by agents on previous versions. With the
+caveat that token reuse will be possible until the `reusable_until` timestamp
+has been reached.
 
 ## Modifying provisioned resource scope
 
@@ -256,4 +324,4 @@ should still be accessible to unscoped identities using the `editor` role.
   - Assigned the correct scope
   - Assigned the token's `ssh_labels`
   - Assigned a certificate containing their assigned scope and token labels
-- Scoped tokens are nout usable after their `--max-uses` limit has been reached
+- Oneshot Scoped tokens are not usable more than once.
