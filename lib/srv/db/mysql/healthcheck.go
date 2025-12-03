@@ -44,8 +44,8 @@ func NewHealthChecker(_ context.Context, cfg healthchecks.HealthCheckerConfig) (
 
 // resolverClients are API clients needed to resolve MySQL endpoints.
 type resolverClients interface {
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	// GetSQLAdminClient returns GCP Cloud SQL Admin client.
+	GetSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 }
 
 func newEndpointsResolver(db types.Database, clients resolverClients) (endpoints.Resolver, error) {
@@ -66,7 +66,7 @@ func newCloudSQLEndpointResolver(db types.Database, clients resolverClients) end
 	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
 		var requireSSLErr error
 		sometimes.Do(func() {
-			clt, err := clients.GetGCPSQLAdminClient(ctx)
+			clt, err := clients.GetSQLAdminClient(ctx)
 			if err != nil {
 				requireSSLErr = trace.Wrap(err)
 				return

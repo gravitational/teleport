@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package cloudtest
+package gcptest
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 )
 
-type GCPClients struct {
+type Clients struct {
 	GCPSQL       gcp.SQLAdminClient
 	GCPAlloyDB   gcp.AlloyDBAdminClient
 	GCPGKE       gcp.GKEClient
@@ -35,37 +35,39 @@ type GCPClients struct {
 	GCPInstances gcp.InstancesClient
 }
 
-func (c *GCPClients) Close() error {
+var _ gcp.Clients = (*Clients)(nil)
+
+func (c *Clients) Close() error {
 	return nil
 }
 
-// GetGCPIAMClient returns GCP IAM client.
-func (c *GCPClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
+// GetIAMClient returns GCP IAM client.
+func (c *Clients) GetIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	return gcpcredentials.NewIamCredentialsClient(ctx,
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())), // Insecure must be set for unauth client.
 		option.WithoutAuthentication())
 }
 
-// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-func (c *GCPClients) GetGCPSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
+// GetSQLAdminClient returns GCP Cloud SQL Admin client.
+func (c *Clients) GetSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
 	return c.GCPSQL, nil
 }
 
-func (c *GCPClients) GetGCPAlloyDBClient(ctx context.Context) (gcp.AlloyDBAdminClient, error) {
+func (c *Clients) GetAlloyDBClient(ctx context.Context) (gcp.AlloyDBAdminClient, error) {
 	return c.GCPAlloyDB, nil
 }
 
-// GetGCPGKEClient returns GKE client.
-func (c *GCPClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
+// GetGKEClient returns GKE client.
+func (c *Clients) GetGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.GCPGKE, nil
 }
 
-// GetGCPProjectsClient returns GCP projects client.
-func (c *GCPClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
+// GetProjectsClient returns GCP projects client.
+func (c *Clients) GetProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
 	return c.GCPProjects, nil
 }
 
-// GetGCPInstancesClient returns instances client.
-func (c *GCPClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
+// GetInstancesClient returns instances client.
+func (c *Clients) GetInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
 	return c.GCPInstances, nil
 }

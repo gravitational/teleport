@@ -53,8 +53,9 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
@@ -192,9 +193,9 @@ type Config struct {
 	jitter retryutils.Jitter
 
 	// initAzureClients initializes an instance of Azure clients with particular options.
-	initAzureClients func(opts ...cloud.AzureClientsOption) (cloud.AzureClients, error)
+	initAzureClients func(opts ...azure.ClientsOption) (azure.Clients, error)
 	// gcpClients is a reference to GCP clients.
-	gcpClients cloud.GCPClients
+	gcpClients gcp.Clients
 }
 
 // AccessGraphConfig represents TAG server config.
@@ -246,11 +247,11 @@ kubernetes matchers are present.`)
 	}
 
 	if c.initAzureClients == nil {
-		c.initAzureClients = cloud.NewAzureClients
+		c.initAzureClients = azure.NewClients
 	}
 
 	if c.gcpClients == nil {
-		c.gcpClients = cloud.NewGCPClients()
+		c.gcpClients = gcp.NewClients()
 	}
 
 	if c.AWSConfigProvider == nil {
@@ -763,16 +764,16 @@ func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []t
 	})
 
 	if len(serverMatchers) == 0 {
-		// We have an early exit here because GetGCPInstancesClient returns an error
+		// We have an early exit here because GetInstancesClient returns an error
 		// when there are no credentials in the environment.
 		return nil, nil
 	}
 
-	client, err := s.gcpClients.GetGCPInstancesClient(ctx)
+	client, err := s.gcpClients.GetInstancesClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	projectsClient, err := s.gcpClients.GetGCPProjectsClient(ctx)
+	projectsClient, err := s.gcpClients.GetProjectsClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -834,7 +835,7 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers, discoveryConfigName
 // If integration argument is empty, ambient credentials will be used instead. This is the default mode.
 //
 // The returned instance is cached for a period of time, so subsequent calls may return the same object.
-func (s *Server) getAzureClients(ctx context.Context, integration string) (cloud.AzureClients, error) {
+func (s *Server) getAzureClients(ctx context.Context, integration string) (azure.Clients, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -854,10 +855,10 @@ func (s *Server) getAzureClients(ctx context.Context, integration string) (cloud
 		return nil, trace.BadParameter("cannot create Azure clients with ambient credentials due configuration (this is a bug)")
 	}
 
-	out, err := utils.FnCacheGet(ctx, s.azureClientCache, integration, func(ctx context.Context) (cloud.AzureClients, error) {
-		var opts []cloud.AzureClientsOption
+	out, err := utils.FnCacheGet(ctx, s.azureClientCache, integration, func(ctx context.Context) (azure.Clients, error) {
+		var opts []azure.ClientsOption
 		if integration != "" {
-			opts = append(opts, cloud.WithAzureIntegrationCredentials(integration, s.AccessPoint))
+			opts = append(opts, azure.WithIntegrationCredentials(integration, s.AccessPoint))
 		}
 		azureClients, err := s.initAzureClients(opts...)
 		if err != nil {
@@ -913,7 +914,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 					if err != nil {
 						return trace.Wrap(err)
 					}
-					kubeClient, err := azureClients.GetAzureKubernetesClient(subscription)
+					kubeClient, err := azureClients.GetKubernetesClient(ctx, subscription)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -967,7 +968,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 
 // initGCPWatchers starts GCP resource watchers based on types provided.
 func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatcher, discoveryConfigName string) error {
-	// return early if there are no matchers as GetGCPGKEClient causes
+	// return early if there are no matchers as GetGKEClient causes
 	// an error if there are no credentials present
 
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
@@ -985,11 +986,11 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		return nil
 	}
 
-	kubeClient, err := s.gcpClients.GetGCPGKEClient(ctx)
+	kubeClient, err := s.gcpClients.GetGKEClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	projectClient, err := s.gcpClients.GetGCPProjectsClient(ctx)
+	projectClient, err := s.gcpClients.GetProjectsClient(ctx)
 	if err != nil {
 		return trace.Wrap(err, "unable to create gcp project client")
 	}
@@ -1425,7 +1426,7 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		return trace.Wrap(err)
 	}
 
-	runClient, err := azureClients.GetAzureRunCommandClient(instances.SubscriptionID)
+	runClient, err := azureClients.GetRunCommandClient(s.ctx, instances.SubscriptionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1514,7 +1515,7 @@ outer:
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
-	client, err := s.gcpClients.GetGCPInstancesClient(s.ctx)
+	client, err := s.gcpClients.GetInstancesClient(s.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2021,7 +2022,7 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, integration string, 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		subsClient, err := azureClients.GetAzureSubscriptionClient()
+		subsClient, err := azureClients.GetSubscriptionClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

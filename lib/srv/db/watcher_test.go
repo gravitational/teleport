@@ -46,7 +46,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/cloud/cloudtest"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -415,7 +415,7 @@ func TestWatcherCloudFetchers(t *testing.T) {
 				ExternalID:    "external-id",
 			},
 		}},
-		AzureClients: &cloudtest.AzureClients{
+		AzureClients: &azuretest.Clients{
 			AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{
 				AllServers: []*armsql.Server{azSQLServer},
 			}),

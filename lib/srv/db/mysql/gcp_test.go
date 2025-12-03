@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/cloud/cloudtest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -157,7 +157,7 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 				Context:    ctx,
 				Clock:      clockwork.NewRealClock(),
 				Log:        slog.Default(),
-				GCPClients: &cloudtest.GCPClients{GCPSQL: test.mockGCPClient},
+				GCPClients: &gcptest.Clients{GCPSQL: test.mockGCPClient},
 			}).(*Engine)
 
 			connector, err := engine.newConnector(sessionCtx)
