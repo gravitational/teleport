@@ -167,6 +167,10 @@ func MakeEKSFetchersFromAWSMatchers(logger *slog.Logger, clients AWSClientGetter
 			for _, region := range matcher.Regions {
 				switch t {
 				case types.AWSMatcherEKS:
+					if region == types.Wildcard {
+						logger.WarnContext(context.Background(), "EKS discovery does not support region discovery, remove the '*' from the regions field", "discovery_config", discoveryConfigName)
+						continue
+					}
 					fetcher, err := NewEKSFetcher(
 						EKSFetcherConfig{
 							ClientGetter:        clients,

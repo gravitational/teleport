@@ -128,6 +128,11 @@ func isAlphanumericIncluding(s string, extraChars ...rune) bool {
 	return true
 }
 
+// IsRegionWildcard returns true if the matcher is configured to discover resources in all regions.
+func (m *AWSMatcher) IsRegionWildcard() bool {
+	return len(m.Regions) == 1 && m.Regions[0] == Wildcard
+}
+
 // CheckAndSetDefaults that the matcher is correct and adds default values.
 func (m *AWSMatcher) CheckAndSetDefaults() error {
 	for _, matcherType := range m.Types {
@@ -142,10 +147,17 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 	}
 
 	if len(m.Regions) == 0 {
-		return trace.BadParameter("discovery service requires at least one region")
+		return trace.BadParameter("discovery service requires at least one region, for EC2 you can also set the region to %q to iterate over all regions (requires account:ListRegions IAM permission)", Wildcard)
 	}
 
 	for _, region := range m.Regions {
+		if region == Wildcard {
+			if len(m.Regions) > 1 {
+				return trace.BadParameter("when using %q as region, no other regions can be specified", Wildcard)
+			}
+			break
+		}
+
 		if err := awsapiutils.IsValidRegion(region); err != nil {
 			return trace.BadParameter("discovery service does not support region %q", region)
 		}

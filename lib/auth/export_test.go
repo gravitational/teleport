@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
@@ -196,32 +195,12 @@ func (a *Server) SetJWKSValidator(clt JWKSValidator) {
 	a.k8sJWKSValidator = clt
 }
 
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
-	a.azureDevopsIDTokenValidator = validator
-}
-
 func (a *Server) SetBitbucketIDTokenValidator(validator bitbucketIDTokenValidator) {
 	a.bitbucketIDTokenValidator = validator
 }
 
-func (a *Server) SetCircleCITokenValidate(validator func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)) {
-	a.circleCITokenValidate = validator
-}
-
-func (a *Server) SetGCPIDTokenValidator(validator gcpIDTokenValidator) {
-	a.gcpIDTokenValidator = validator
-}
-
-func (a *Server) SetGitlabIDTokenValidator(validator gitlabIDTokenValidator) {
-	a.gitlabIDTokenValidator = validator
-}
-
 func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
 	a.k8sTokenReviewValidator = validator
-}
-
-func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidator) {
-	a.spaceliftIDTokenValidator = validator
 }
 
 func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
@@ -362,14 +341,6 @@ func PopulateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) 
 
 func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter, logger *slog.Logger) (*authclient.GithubAuthResponse, error) {
 	return validateGithubAuthCallbackHelper(ctx, m, diagCtx, q, emitter, logger)
-}
-
-func IsGCPZoneInLocation(rawLocation, rawZone string) bool {
-	return isGCPZoneInLocation(rawLocation, rawZone)
-}
-
-func JoinRuleGlobMatch(want string, got string) (bool, error) {
-	return joinRuleGlobMatch(want, got)
 }
 
 func FormatHeaderFromMap(m map[string]string) http.Header {
