@@ -2342,6 +2342,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Decrypter:                 encryptedIO,
 			SessionSummarizerProvider: sessionSummarizerProvider,
 			RecordingMetadataProvider: recordingMetadataProvider,
+			AlertHandler:              local.NewStatusService(b),
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
@@ -2464,9 +2465,6 @@ func (process *TeleportProcess) initAuthService() error {
 		})
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if localLog, ok := process.auditLog.(*events.AuditLog); ok {
-		localLog.AlertHandler = authServer
 	}
 	authServer.EncryptedIO = encryptedIO
 

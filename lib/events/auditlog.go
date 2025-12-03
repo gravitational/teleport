@@ -215,6 +215,7 @@ type AuditLog struct {
 	decrypter DecryptionWrapper
 }
 
+// AlertHandler handles creating cluster alerts.
 type AlertHandler interface {
 	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
 }
@@ -269,7 +270,7 @@ type AuditLogConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider provides recording metadata service
 	RecordingMetadataProvider *recordingmetadata.Provider
-
+	// AlertHandler handles creating cluster alerts.
 	AlertHandler AlertHandler
 }
 
@@ -813,7 +814,7 @@ func (l *AuditLog) periodicSpaceMonitor() {
 				if l.AlertHandler != nil {
 					alert, err := types.NewClusterAlert(
 						"audit-log-disk-usage/"+l.ServerID,
-						fmt.Sprintf("Free disk space for audit log is running low for node %q.", l.ServerID),
+						fmt.Sprintf("Free disk space for audit log is running low on node %q.", l.ServerID),
 						types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindNode, types.VerbRead)),
 						types.WithAlertLabel(types.AlertOnLogin, "yes"),
 						types.WithAlertExpires(l.Clock.Now().Add(DiskAlertInterval)),
@@ -824,8 +825,6 @@ func (l *AuditLog) periodicSpaceMonitor() {
 					}
 					if err := l.AlertHandler.UpsertClusterAlert(l.ctx, alert); err != nil {
 						l.log.WarnContext(l.ctx, "Error upserting cluster alert", "error", err)
-					} else {
-						fmt.Println("alert upserted")
 					}
 				}
 			}
