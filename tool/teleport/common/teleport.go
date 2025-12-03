@@ -628,22 +628,35 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	backendCmd.Flag("config", "Path to the config file.").
 		Short('c').
 		StringVar(&ccf.ConfigFile)
+
 	backendGetCmd := backendCmd.Command("get", "Retrieves a single item from the cluster state backend.")
 	backendGetCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
 		Short('f').
 		Default(teleport.Text).
 		EnumVar(&ccf.Format, defaults.DefaultFormats...)
 	backendGetCmd.Arg("key", "The backend key to retrieve.").Required().StringVar(&ccf.BackendKey)
+
 	backendDeleteCmd := backendCmd.Command("rm", "Removes a single item from the cluster state backend.")
 	backendDeleteCmd.Arg("key", "The backend key to remove.").Required().StringVar(&ccf.BackendKey)
+
 	backendListCmd := backendCmd.Command("ls", "Lists the keys in the cluster state backend.")
 	backendListCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
 		Short('f').
 		Default(teleport.Text).
 		EnumVar(&ccf.Format, defaults.DefaultFormats...)
 	backendListCmd.Arg("prefix", "An optional key prefix to limit listing to.").StringVar(&ccf.BackendPrefix)
+
+	backendWriteCmd := backendCmd.Command("write", "Write a single item into the cluster state backend.")
+	backendWriteCmd.Flag("expiry", "The expiry of the item, as a RFC3339 string with nanoseconds.").StringVar(&ccf.BackendExpiry)
+	backendWriteCmd.Flag("create", "Enable to do a Create operation rather than a Put.").BoolVar(&ccf.BackendCreate)
+	backendWriteCmd.Flag("unconditional-update", "Enable to do an Update operation rather than a Put.").BoolVar(&ccf.BackendUnconditionalUpdate)
+	backendWriteCmd.Flag("update", "Set to a revision to do a ConditionalUpdate operation rather than a Put.").StringVar(&ccf.BackendUpdateRevision)
+	backendWriteCmd.Arg("key", "The backend key to write.").Required().StringVar(&ccf.BackendKey)
+	backendWriteCmd.Arg("data", "The path to the data to write.").Required().FileVar(&ccf.BackendData)
+
 	backendEditCmd := backendCmd.Command("edit", "Modify a single item from the cluster state backend.")
 	backendEditCmd.Arg("key", "The backend key to retrieve.").Required().StringVar(&ccf.BackendKey)
+
 	backendCloneCmd := backendCmd.Command("clone", "Clones data from a source to a destination backend.")
 	backendCloneCmd.Alias(`
 Examples:
@@ -849,6 +862,13 @@ Examples:
 		}
 
 		err = onBackendList(ctx, conf.Auth.StorageConfig, ccf.BackendPrefix, ccf.Format)
+	case backendWriteCmd.FullCommand():
+		// configuration merge: defaults -> file-based conf -> CLI conf
+		if err = config.Configure(&ccf, conf, true); err != nil {
+			utils.FatalError(err)
+		}
+
+		err = onBackendWrite(ctx, conf.Auth.StorageConfig, ccf)
 	case backendEditCmd.FullCommand():
 		// configuration merge: defaults -> file-based conf -> CLI conf
 		if err = config.Configure(&ccf, conf, true); err != nil {

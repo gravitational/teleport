@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils"
@@ -188,6 +189,70 @@ func printBackendItems(format string, items iter.Seq2[backend.Item, error]) erro
 		return trace.BadParameter("unsupported format %q", format)
 	}
 
+	return nil
+}
+
+func onBackendWrite(ctx context.Context, config backend.Config, ccf config.CommandLineFlags) error {
+	defer ccf.BackendData.Close()
+
+	if (ccf.BackendCreate && ccf.BackendUnconditionalUpdate) ||
+		(ccf.BackendCreate && ccf.BackendUpdateRevision != "") ||
+		(ccf.BackendUnconditionalUpdate && ccf.BackendUpdateRevision != "") {
+		return trace.BadParameter("at most one of create, unconditional-update and update can be set")
+	}
+
+	var expiry time.Time
+	if ccf.BackendExpiry != "" {
+		e, err := time.Parse(time.RFC3339Nano, ccf.BackendExpiry)
+		if err != nil {
+			return trace.Wrap(err, "parsing expiry")
+		}
+		expiry = e
+	}
+
+	bk, err := backend.New(ctx, config.Type, config.Params)
+	if err != nil {
+		return trace.Wrap(err, "creating backend")
+	}
+
+	value, err := io.ReadAll(ccf.BackendData)
+	if err != nil {
+		return trace.Wrap(err, "reading data")
+	}
+
+	var lease *backend.Lease
+	switch {
+	case ccf.BackendCreate:
+		lease, err = bk.Create(ctx, backend.Item{
+			Key:     backend.KeyFromString(ccf.BackendKey),
+			Value:   value,
+			Expires: expiry,
+		})
+	case ccf.BackendUnconditionalUpdate:
+		lease, err = bk.Update(ctx, backend.Item{
+			Key:     backend.KeyFromString(ccf.BackendKey),
+			Value:   value,
+			Expires: expiry,
+		})
+	case ccf.BackendUpdateRevision != "":
+		lease, err = bk.ConditionalUpdate(ctx, backend.Item{
+			Key:      backend.KeyFromString(ccf.BackendKey),
+			Value:    value,
+			Expires:  expiry,
+			Revision: ccf.BackendUpdateRevision,
+		})
+	default:
+		lease, err = bk.Put(ctx, backend.Item{
+			Key:     backend.KeyFromString(ccf.BackendKey),
+			Value:   value,
+			Expires: expiry,
+		})
+	}
+	if err != nil {
+		return trace.Wrap(err, "writing backend item")
+	}
+
+	fmt.Printf("item %+q has been written with revision %+q\n", ccf.BackendKey, lease.Revision)
 	return nil
 }
 

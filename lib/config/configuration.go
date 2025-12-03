@@ -291,6 +291,25 @@ type CommandLineFlags struct {
 	BackendPrefix string
 	// Format is used to change the format of output.
 	Format string
+
+	// BackendExpiry is the string containing a [time.RFC3339Nano] timestamp to
+	// be used for the expiry of an item being written.
+	BackendExpiry string
+
+	// BackendCreate signifies that the backend write operation should be Create
+	// rather than Put.
+	BackendCreate bool
+	// BackendUnconditionalUpdate signifies that the backend write operation
+	// should be Update rather than Put.
+	BackendUnconditionalUpdate bool
+	// BackendUpdateRevision signifies, if nonempty, that the backend write
+	// operation should be ConditionalUpdate rather than Put, with the revision
+	// specified by BackendUpdateRevision.
+	BackendUpdateRevision string
+
+	// BackendData is a read-only file containing the data to be written to the
+	// backend.
+	BackendData *os.File
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
