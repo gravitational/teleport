@@ -229,15 +229,11 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessPoint, err := clusterClient.CachingAccessPoint()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// At least one AppServer needs to be present to serve the requests. Using
 	// MatchOne can reduce the amount of work required by the app matcher by not
 	// dialing every AppServer.
-	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ClusterGetter, publicAddr, clusterName))
+	_, err = MatchOne(ctx, clusterClient, appServerMatcher(h.c.ClusterGetter, publicAddr, clusterName))
 	if err != nil {
 		return trace.Wrap(err)
 	}

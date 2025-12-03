@@ -60,15 +60,10 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessPoint, err := clusterClient.CachingAccessPoint()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	// TODO(okraport): add app server watcher here.
 	servers, err := MatchUnshuffled(
 		ctx,
-		accessPoint,
+		clusterClient,
 		appServerMatcher(h.c.ClusterGetter, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
 	)
 	if err != nil {

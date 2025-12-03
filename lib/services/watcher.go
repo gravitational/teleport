@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"strings"
 	"sync"
@@ -761,6 +762,26 @@ func (g *GenericWatcher[T, R]) CurrentResourcesWithFilter(ctx context.Context, f
 	}
 
 	return out, nil
+}
+
+func (g *GenericWatcher[T, R]) RangeWithFilter(ctx context.Context, filter func(R) bool) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		if err := g.refreshStaleResources(ctx); err != nil {
+			yield(*new(T), trace.Wrap(err))
+			return
+		}
+
+		g.rw.RLock()
+		defer g.rw.RUnlock()
+
+		for _, resource := range g.current {
+			if filter(g.ReadOnlyFunc(resource)) {
+				if !yield(g.CloneFunc(resource), nil) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // genericCollector accompanies resourceWatcher when monitoring proxies. T is
