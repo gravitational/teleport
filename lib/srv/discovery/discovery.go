@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -319,8 +321,15 @@ kubernetes matchers are present.`)
 	if c.KubernetesClient == nil && len(c.Matchers.Kubernetes) > 0 {
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
-			return trace.Wrap(err,
-				"the Kubernetes App Discovery requires a Teleport Kube Agent running on a Kubernetes cluster")
+			// TODO(greedy52) just for quick local debugging, remove before review.
+			if os.Getenv("LOCAL_MINIKUBE") != "" {
+				cfg, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{}).ClientConfig()
+			}
+
+			if err != nil {
+				return trace.Wrap(err,
+					"the Kubernetes App Discovery requires a Teleport Kube Agent running on a Kubernetes cluster")
+			}
 		}
 		kubeClient, err := kubernetes.NewForConfig(cfg)
 		if err != nil {
@@ -708,10 +717,10 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 	}
 
 	for _, matcher := range matchers {
-		if !slices.Contains(matcher.Types, types.KubernetesMatchersApp) {
+		if !slices.Contains(matcher.Types, types.KubernetesMatchersApp) &&
+			!slices.Contains(matcher.Types, types.KubernetesMatchersMCP) {
 			continue
 		}
-
 		fetcher, err := fetchers.NewKubeAppsFetcher(fetchers.KubeAppsFetcherConfig{
 			KubernetesClient: kubeClient,
 			FilterLabels:     matcher.Labels,
@@ -719,6 +728,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 			Logger:           s.Log,
 			ClusterName:      s.DiscoveryGroup,
 			ProtocolChecker:  s.Config.protocolChecker,
+			MatcherTypes:     matcher.Types,
 		})
 		if err != nil {
 			return trace.Wrap(err)
