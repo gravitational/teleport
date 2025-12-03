@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -34,6 +35,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -41,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -173,28 +176,13 @@ func main() {
 	// Pre-fetch the ID if it already exists, so that we can use it to lookup versions.
 	// This logic could be moved into the reconciler, but it would require refactoring
 	// all version getter implementations to accept an ID dynamically in GetVersion.
-	var updateID uuid.UUID
-	var updateYAML v1.ConfigMap
-	err = mgr.GetAPIReader().Get(ctx, kclient.ObjectKey{
+	updateID, err := getUpdateID(ctx, mgr, kclient.ObjectKey{
 		Namespace: agentNamespace,
 		Name:      agentName + "-updater",
-	}, &updateYAML)
-	switch {
-	case apierrors.IsNotFound(err):
-		updateID, err = uuid.NewRandom()
-		if err != nil {
-			ctrl.Log.Error(err, "failed to generate updater ID, exiting")
-			os.Exit(1)
-		}
-		ctrl.Log.Info("generated new updater ID", "id", updateID)
-	case err != nil:
-		ctrl.Log.Error(err, "failed to generate updater ID, exiting")
+	})
+	if err != nil {
+		ctrl.Log.Error(err, "failed to get updater ID, exiting")
 		os.Exit(1)
-	default:
-		updateID, err = uuid.Parse(updateYAML.Data[agent.BinaryName+".id"])
-		if err != nil {
-			ctrl.Log.Error(err, "updater configmap is malformed, canary deployment may fail", "configmap", updateYAML)
-		}
 	}
 
 	// Craft the version getter and update triggers based on the configuration (use RFD-109 APIs, RFD-184, or both).
@@ -362,4 +350,48 @@ func main() {
 		ctrl.Log.Error(err, "failed to start manager, exiting")
 		os.Exit(1)
 	}
+}
+
+// getUpdateID returns the update ID from the updater configmap, creating it if it does not exist.
+func getUpdateID(ctx context.Context, mgr manager.Manager, ref kclient.ObjectKey) (uuid.UUID, error) {
+	// This should always succeed after two tries, as a conflict between read/create
+	// will always be resolved on the final read.
+	for range 2 {
+		var updateID uuid.UUID
+		var updateYAML v1.ConfigMap
+		err := mgr.GetAPIReader().Get(ctx, ref, &updateYAML)
+		if apierrors.IsNotFound(err) {
+			updateID, err = uuid.NewRandom()
+			if err != nil {
+				return uuid.Nil, trace.Wrap(err, "failed to generate updater ID")
+			}
+			updateYAML = v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: ref.Namespace,
+					Name:      ref.Name,
+				},
+				Data: map[string]string{
+					agent.BinaryName + ".id": updateID.String(),
+				},
+			}
+			if err = mgr.GetClient().Create(ctx, &updateYAML); err != nil {
+				if apierrors.IsAlreadyExists(err) {
+					ctrl.Log.Info("retrying updater configmap read due to conflict")
+					continue
+				}
+				return uuid.Nil, trace.Wrap(err, "failed to persist updater configmap")
+			}
+			ctrl.Log.Info("generated new updater ID", "id", updateID)
+			return updateID, nil
+		}
+		if err != nil {
+			return uuid.Nil, trace.Wrap(err, "failed to retrieve updater configmap")
+		}
+		updateID, err = uuid.Parse(updateYAML.Data[agent.BinaryName+".id"])
+		if err != nil {
+			ctrl.Log.Error(err, "updater configmap is malformed, canary deployment may fail", "configmap", updateYAML)
+		}
+		return uuid.Nil, nil // proceed with empty UUID instead of crashing or deleting user data
+	}
+	return uuid.Nil, trace.Errorf("failing due to multiple conflicts")
 }
