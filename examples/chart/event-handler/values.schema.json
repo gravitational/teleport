@@ -225,6 +225,28 @@
             "default": {},
             "additionalProperties": true
         },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "create": {
+                    "$id": "#properties/serviceAccount/create",
+                    "type": "boolean",
+                    "default": false
+                },
+                "name": {
+                    "$id": "#properties/serviceAccount/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "automount": {
+                    "$id": "#properties/serviceAccount/automount",
+                    "type": "boolean",
+                    "default": false
+                }
+            }
+        },
         "tls": {
             "$id": "#/properties/tls",
             "type": "object",
