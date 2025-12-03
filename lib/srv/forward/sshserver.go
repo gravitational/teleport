@@ -28,9 +28,9 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -82,8 +83,6 @@ import (
 //	}
 type Server struct {
 	logger *slog.Logger
-
-	id string
 
 	// targetConn is the TCP connection to the remote host.
 	targetConn net.Conn
@@ -155,9 +154,9 @@ type Server struct {
 
 	clock clockwork.Clock
 
-	// hostUUID is the UUID of the underlying proxy that the forwarding server
+	// proxyUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
-	hostUUID string
+	proxyUUID string
 
 	// closeContext and closeCancel are used to signal to the outside
 	// world that this server is closed
@@ -173,9 +172,6 @@ type Server struct {
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
-
-	// TODO(Joerger): Remove in favor of targetServer, which has more accurate values.
-	targetID, targetAddr, targetHostname string
 
 	// targetServer is the host that the connection is being established for.
 	targetServer types.Server
@@ -229,9 +225,9 @@ type ServerConfig struct {
 	// configuration.
 	FIPS bool
 
-	// HostUUID is the UUID of the underlying proxy that the forwarding server
+	// ProxyUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
-	HostUUID string
+	ProxyUUID string
 
 	// Emitter is audit events emitter
 	Emitter events.StreamEmitter
@@ -246,9 +242,6 @@ type ServerConfig struct {
 	// TracerProvider is used to create tracers capable
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
-
-	// TODO(Joerger): Remove in favor of TargetServer, which has more accurate values.
-	TargetID, TargetAddr, TargetHostname string
 
 	// TargetServer is the host that the connection is being established for.
 	TargetServer types.Server
@@ -331,7 +324,6 @@ func New(c ServerConfig) (*Server, error) {
 			"src_addr", c.SrcAddr.String(),
 			"dst_addr", c.DstAddr.String(),
 		),
-		id:              uuid.New().String(),
 		targetConn:      c.TargetConn,
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
@@ -344,14 +336,11 @@ func New(c ServerConfig) (*Server, error) {
 		authService:     c.LocalAuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
-		hostUUID:        c.HostUUID,
+		proxyUUID:       c.ProxyUUID,
 		StreamEmitter:   c.Emitter,
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
 		tracerProvider:  c.TracerProvider,
-		targetID:        c.TargetID,
-		targetAddr:      c.TargetAddr,
-		targetHostname:  c.TargetHostname,
 		targetServer:    c.TargetServer,
 	}
 
@@ -397,16 +386,18 @@ func New(c ServerConfig) (*Server, error) {
 	return s, nil
 }
 
-// TargetMetadata returns metadata about the forwarding target.
-func (s *Server) TargetMetadata() apievents.ServerMetadata {
+// EventMetadata returns metadata about the forwarding target.
+func (s *Server) EventMetadata() apievents.ServerMetadata {
+	serverInfo := s.GetInfo()
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
-		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.targetID,
-		ServerAddr:      s.targetAddr,
-		ServerHostname:  s.targetHostname,
-		ForwardedBy:     s.hostUUID,
-		ServerSubKind:   s.targetServer.GetSubKind(),
+		ServerNamespace: serverInfo.GetNamespace(),
+		ServerID:        serverInfo.GetName(),
+		ServerAddr:      serverInfo.GetAddr(),
+		ServerLabels:    serverInfo.GetAllLabels(),
+		ServerHostname:  serverInfo.GetHostname(),
+		ServerSubKind:   serverInfo.GetSubKind(),
+		ForwardedBy:     s.proxyUUID,
 	}
 }
 
@@ -421,15 +412,15 @@ func (s *Server) GetDataDir() string {
 	return s.dataDir
 }
 
-// ID returns the ID of the proxy that creates the in-memory forwarding server.
+// ID returns the UUID of the server targeted by the forwarding server.
 func (s *Server) ID() string {
-	return s.id
+	return s.targetServer.GetName()
 }
 
 // HostUUID is the UUID of the underlying proxy that the forwarding server
 // is running in.
 func (s *Server) HostUUID() string {
-	return s.hostUUID
+	return s.proxyUUID
 }
 
 // GetNamespace returns the namespace the forwarding server resides in.
@@ -502,19 +493,35 @@ func (s *Server) GetSELinuxEnabled() bool {
 	return false
 }
 
-// GetInfo returns a services.Server that represents this server.
+// GetInfo returns a services.Server that represents the target server.
 func (s *Server) GetInfo() types.Server {
-	return &types.ServerV2{
+	// Only set the address for non-tunnel nodes.
+	var addr string
+	if !s.targetServer.GetUseTunnel() {
+		addr = s.targetServer.GetAddr()
+	}
+
+	srv := &types.ServerV2{
 		Kind:    types.KindNode,
+		SubKind: s.targetServer.GetSubKind(),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      s.ID(),
-			Namespace: s.GetNamespace(),
+			Name:      s.targetServer.GetName(),
+			Namespace: s.targetServer.GetNamespace(),
+			Labels:    s.targetServer.GetLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			Addr: s.AdvertiseAddr(),
+			CmdLabels:   types.LabelsToV2(s.targetServer.GetCmdLabels()),
+			Addr:        addr,
+			Hostname:    s.targetServer.GetHostname(),
+			UseTunnel:   s.useTunnel,
+			Version:     teleport.Version,
+			ProxyIDs:    s.targetServer.GetProxyIDs(),
+			PublicAddrs: s.targetServer.GetPublicAddrs(),
 		},
 	}
+
+	return srv
 }
 
 // Dial returns the client connection created by pipeAddrConn.
@@ -556,6 +563,10 @@ func (s *Server) Serve() {
 	config.Ciphers = s.ciphers
 	config.KeyExchanges = s.kexAlgorithms
 	config.MACs = s.macAlgorithms
+
+	// Set the server version to Teleport to enable tracing and other Teleport
+	// specific features like joining.
+	config.ServerVersion = sshutils.SSHVersionPrefix
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
@@ -907,7 +918,7 @@ func (s *Server) handleForwardedTCPIPRequest(ctx context.Context, nch ssh.NewCha
 
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, nil)
 	if err != nil {
 		if err := nch.Reject(ssh.ConnectionFailed, "failed to open server context"); err != nil {
 			s.logger.ErrorContext(ctx, "Error rejecting forwarded-tcpip channel", "error", err)
@@ -978,8 +989,23 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 		}
 		// Pass request on unchanged.
 	case teleport.SessionIDQueryRequest:
+		// TODO(Joerger): DELETE IN v20.0.0
+		// All v17+ servers set the session ID. v19+ clients stop checking.
+
 		// Reply true to session ID query requests, we will set new
-		// session IDs for new sessions
+		// session IDs for new sessions during the shel/exec channel
+		// request.
+		if err := req.Reply(true, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
+		}
+		return
+	case teleport.SessionIDQueryRequestV2:
+		// TODO(Joerger): DELETE IN v21.0.0
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions directly after accepting the
+		// session channel request.
 		if err := req.Reply(true, nil); err != nil {
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
 		}
@@ -1017,7 +1043,7 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 
 	// RBAC checks are only necessary when connecting to an agentless node
 	if s.targetServer.IsOpenSSHNode() {
-		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
+		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext, nil)
 		if err != nil {
 			return err
 		}
@@ -1080,7 +1106,7 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, nil)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to create connection context", "error", err)
 		s.stderrWrite(ctx, ch, "Unable to create connection context.")
@@ -1132,12 +1158,22 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 // the remote host. Once the session channel has been established, this function's loop handles
 // all the "exec", "subsystem" and "shell" requests.
 func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+		}
+		return
+	}
+
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	// There is no need for the forwarding server to initiate disconnects,
 	// based on teleport business logic, because this logic is already
 	// done on the server's terminating side.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, sessionParams)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Server context setup failed", "error", err)
 		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("server context setup failed: %v", err)); err != nil {
@@ -1154,11 +1190,52 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	scx.SetAllowFileCopying(true)
 	defer scx.Close()
 
+	// If this is a Teleport node server, it should send the session ID
+	// right after the session channel is accepted. We should reuse this
+	// session ID and delegate session responsibilities (recordings, audit
+	// events, and session trackers) to avoid duplicates.
+	//
+	// Register handler to receive the current session ID before starting the session.
+	var newSessionIDFromServer chan string
+	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
+		// Check if the Teleport Node is outdated and won't actually send the session ID.
+		//
+		// TODO(Joerger): DELETE IN v20.0.0
+		// all v19+ servers set and share the session ID directly after accepting the session channel.
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+		reply, payload, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to send session ID query request", "error", err)
+		} else if !reply && payload != nil {
+			// If the target node replies with a payload, this means that the connection itself has been rejected,
+			// presumably due to an authz error, and the server is trying to communicate the error with the first
+			// req/chan received.
+			s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
+			if err := nch.Reject(ssh.Prohibited, fmt.Sprintf("remote session open failed: %v", string(payload))); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		}
+
+		if err == nil && reply {
+			newSessionIDFromServer = make(chan string, 1)
+			var receiveSessionIDOnce sync.Once
+			s.remoteClient.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+				// Only handle the first request - only one is expected.
+				receiveSessionIDOnce.Do(func() {
+					newSessionIDFromServer <- string(req.Payload)
+				})
+			})
+		} else {
+			s.logger.WarnContext(ctx, "Failed to query session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
+		}
+	}
+
 	// Create a "session" channel on the remote host. Note that we
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
-	remoteSession, err := s.remoteClient.NewSession(ctx)
+	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
@@ -1173,6 +1250,38 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	}
 	scx.RemoteSession = remoteSession
 
+	if newSessionIDFromServer != nil {
+		// Wait for the session ID to be reported by the target node.
+		select {
+		case sidString := <-newSessionIDFromServer:
+			sid, err := session.ParseID(sidString)
+			if err != nil {
+				s.logger.WarnContext(ctx, "Unable to parse session ID reported by target Teleport Node", "error", err)
+				if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+					s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+				}
+				return
+			}
+			scx.SetNewSessionID(ctx, *sid)
+		case <-time.After(10 * time.Second):
+			s.logger.WarnContext(ctx, "Failed to receive session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
+			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		case <-ctx.Done():
+			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		}
+	} else {
+		// The target node is not expected to report session ID, either because it's
+		// outdated or an agentless node. Continue with a random session ID and ensure
+		// we create a new session tracker.
+		scx.SetNewSessionID(ctx, session.NewID())
+	}
+
 	// Accept the session channel request
 	ch, in, err := nch.Accept()
 	if err != nil {
@@ -1183,8 +1292,18 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		return
 	}
 	scx.AddCloser(ch)
-
 	ch = scx.TrackActivity(ch)
+
+	// inform the client of the session ID that is going to be used in a new
+	// goroutine to reduce latency.
+	go func() {
+		sid := scx.GetNewSessionID()
+		s.logger.DebugContext(ctx, "Sending current session ID", "sid", sid)
+		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sid))
+		if err != nil {
+			s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+		}
+	}()
 
 	s.logger.DebugContext(ctx, "Opening session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 	defer s.logger.DebugContext(ctx, "Closing session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
@@ -1470,7 +1589,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServer().TargetMetadata(),
+				ServerMetadata: serverContext.GetServer().EventMetadata(),
 				Error:          err.Error(),
 			})
 			return trace.Wrap(err)
