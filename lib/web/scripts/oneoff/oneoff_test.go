@@ -53,6 +53,12 @@ func TestOneOffScript(t *testing.T) {
 		assert.NoError(t, unameMock.Close())
 	})
 
+	trMock, err := bintest.NewMock("tr")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, trMock.Close())
+	})
+
 	mktempMock, err := bintest.NewMock("mktemp")
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -68,6 +74,7 @@ func TestOneOffScript(t *testing.T) {
 	script, err := BuildScript(OneOffScriptParams{
 		BinUname:        unameMock.Path,
 		BinMktemp:       mktempMock.Path,
+		BinTR:           trMock.Path,
 		CDNBaseURL:      "dummyURL",
 		TeleportVersion: "v13.1.0",
 		EntrypointArgs:  "version",
@@ -86,7 +93,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -98,6 +105,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
 			EntrypointArgs:  "version",
@@ -106,6 +114,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
@@ -131,7 +140,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoDirExists(t, testWorkingDir)
 	})
 
-	t.Run("command can be executed on MacOS", func(t *testing.T) {
+	t.Run("command can be executed by teleport-update", func(t *testing.T) {
 		// set up
 		testWorkingDir := t.TempDir()
 		require.NoError(t, os.Mkdir(testWorkingDir+"/bin/", 0o755))
@@ -143,26 +152,28 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			assert.Equal(t, "/teleport-v13.1.0-darwin-universal-bin.tar.gz", req.URL.Path)
-			http.ServeContent(w, req, "teleport-v13.1.0-darwin-universal-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
+			assert.Equal(t, "/teleport-update-v19.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
+			http.ServeContent(w, req, "teleport-update-v19.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
 		}))
 		t.Cleanup(func() { testServer.Close() })
 
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
-			TeleportVersion: "v13.1.0",
+			TeleportVersion: "v19.1.0",
 			EntrypointArgs:  "version",
 			SuccessMessage:  "Test was a success.",
 		})
 		require.NoError(t, err)
 
-		unameMock.Expect("-s").AndWriteToStdout("Darwin")
+		unameMock.Expect("-s").AndWriteToStdout("Linux")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
@@ -186,6 +197,56 @@ func TestOneOffScript(t *testing.T) {
 
 		// Script should remove the temporary directory.
 		require.NoDirExists(t, testWorkingDir)
+	})
+
+	t.Run("command can not be executed on MacOS", func(t *testing.T) {
+		// set up
+		testWorkingDir := t.TempDir()
+		require.NoError(t, os.Mkdir(testWorkingDir+"/bin/", 0o755))
+		scriptLocation := testWorkingDir + "/" + scriptName
+
+		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			assert.NoError(t, teleportMock.Close())
+		})
+
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		require.NoError(t, err)
+
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			assert.Equal(t, "/teleport-v13.1.0-darwin-universal-bin.tar.gz", req.URL.Path)
+			http.ServeContent(w, req, "teleport-v13.1.0-darwin-universal-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
+		}))
+		t.Cleanup(func() { testServer.Close() })
+
+		script, err := BuildScript(OneOffScriptParams{
+			BinUname:        unameMock.Path,
+			BinMktemp:       mktempMock.Path,
+			BinTR:           trMock.Path,
+			CDNBaseURL:      testServer.URL,
+			TeleportVersion: "v13.1.0",
+			EntrypointArgs:  "version",
+			SuccessMessage:  "Test was a success.",
+			SupportedOSes:   []string{"linux"},
+		})
+		require.NoError(t, err)
+
+		unameMock.Expect("-s").AndWriteToStdout("Darwin")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("darwin")
+		unameMock.Expect("-m").AndWriteToStdout("x86_64")
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
+		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
+
+		err = os.WriteFile(scriptLocation, []byte(script), 0700)
+		require.NoError(t, err)
+
+		// execute script
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
+
+		// validate
+		require.Error(t, err, string(out))
+		require.Contains(t, string(out), "ERROR: This script works only for: linux")
 	})
 
 	t.Run("MacOS + fips fails", func(t *testing.T) {
@@ -208,6 +269,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
 			EntrypointArgs:  "version",
@@ -217,6 +279,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		unameMock.Expect("-s").AndWriteToStdout("Darwin")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("darwin")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		// no call expected to teleportMock
@@ -249,7 +312,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -261,6 +324,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:              unameMock.Path,
 			BinMktemp:             mktempMock.Path,
+			BinTR:                 trMock.Path,
 			CDNBaseURL:            testServer.URL,
 			TeleportVersion:       "v13.1.0",
 			EntrypointArgs:        "version",
@@ -271,6 +335,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		sudoMock.Expect("-E", teleportMock.Path, "version").AndWriteToStdout(teleportVersionOutput)
@@ -309,7 +374,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -321,6 +386,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			EntrypointArgs:  "help",
 			TeleportVersion: "v13.1.0",
@@ -329,6 +395,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		teleportMock.Expect("help", "start").AndWriteToStdout(teleportHelpStart)
@@ -360,6 +427,7 @@ func TestOneOffScript(t *testing.T) {
 		scriptLocation := testWorkingDir + "/" + scriptName
 
 		unameMock.Expect("-s").AndWriteToStdout("Windows")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("windows")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 
@@ -371,7 +439,7 @@ func TestOneOffScript(t *testing.T) {
 
 		// validate
 		require.Error(t, err, string(out))
-		require.Contains(t, string(out), "Only MacOS and Linux are supported.")
+		require.Contains(t, string(out), "ERROR: This script works only for:")
 	})
 
 	t.Run("invalid Arch", func(t *testing.T) {
@@ -380,6 +448,7 @@ func TestOneOffScript(t *testing.T) {
 		scriptLocation := testWorkingDir + "/" + scriptName
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("linux")
 		unameMock.Expect("-m").AndWriteToStdout("apple-silicon")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 
@@ -396,13 +465,13 @@ func TestOneOffScript(t *testing.T) {
 
 	t.Run("invalid flavor should return an error", func(t *testing.T) {
 		_, err := BuildScript(OneOffScriptParams{
-			BinUname:        unameMock.Path,
-			BinMktemp:       mktempMock.Path,
-			CDNBaseURL:      "dummyURL",
-			TeleportVersion: "v13.1.0",
-			EntrypointArgs:  "version",
-			SuccessMessage:  "Test was a success.",
-			TeleportFlavor:  "../not-teleport",
+			BinUname:         unameMock.Path,
+			BinMktemp:        mktempMock.Path,
+			CDNBaseURL:       "dummyURL",
+			TeleportVersion:  "v13.1.0",
+			EntrypointArgs:   "version",
+			SuccessMessage:   "Test was a success.",
+			TeleportArtifact: "../not-teleport",
 		})
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %+v", err)
 	})
@@ -415,7 +484,7 @@ func TestOneOffScript(t *testing.T) {
 			TeleportVersion:       "v13.1.0",
 			EntrypointArgs:        "version",
 			SuccessMessage:        "Test was a success.",
-			TeleportFlavor:        "teleport",
+			TeleportArtifact:      "teleport",
 			TeleportCommandPrefix: "rm -rf thing",
 		})
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %+v", err)
@@ -436,7 +505,7 @@ func TestOneOffScript(t *testing.T) {
 		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 		})
-		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport-ent/teleport"}, singleFileFS{file: teleportMock.Path})
+		teleportBinTarball, err := utils.CreateTarGzArchive([]string{"teleport-ent/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
 
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -448,6 +517,7 @@ func TestOneOffScript(t *testing.T) {
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
 			BinMktemp:       mktempMock.Path,
+			BinTR:           trMock.Path,
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
 			EntrypointArgs:  "version",
@@ -456,6 +526,7 @@ func TestOneOffScript(t *testing.T) {
 		require.NoError(t, err)
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
+		trMock.Expect("[:upper:]", "[:lower:]").AndWriteToStdout("linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
 		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
