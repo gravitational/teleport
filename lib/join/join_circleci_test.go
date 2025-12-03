@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2023-2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
-	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,15 +29,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/circleci"
+	"github.com/gravitational/teleport/lib/join/circleci"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 )
 
-var errMockInvalidToken = errors.New("invalid token")
-
-func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
+func TestJoinCircleCI(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	var (
@@ -48,24 +47,27 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 		validContextB = "valid-context-b"
 	)
 	// stand up auth server with mocked CircleCI token validator
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetCircleCITokenValidate(func(
-			ctx context.Context, organizationID, token string,
-		) (*circleci.IDTokenClaims, error) {
-			if organizationID == validOrg && token == validIDToken {
-				return &circleci.IDTokenClaims{
-					Sub:        "org/valid-org/project/valid-project/user/USER_ID",
-					ProjectID:  validProject,
-					ContextIDs: []string{validContextA, validContextB},
-				}, nil
-			}
-			return nil, errMockInvalidToken
-		})
-		return nil
-	}
-	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
 	require.NoError(t, err)
-	auth := p.a
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+	auth := authServer.Auth()
+
+	authServer.Auth().SetCircleCITokenValidator(func(
+		ctx context.Context, issuerURL, organizationID, token string,
+	) (*circleci.IDTokenClaims, error) {
+		if organizationID == validOrg && token == validIDToken {
+			return &circleci.IDTokenClaims{
+				Sub:        "org/valid-org/project/valid-project/user/USER_ID",
+				ProjectID:  validProject,
+				ContextIDs: []string{validContextA, validContextB},
+			}, nil
+		}
+		return nil, errMockInvalidToken
+	})
 
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -95,8 +97,8 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 		typeMatch := assert.True(t, trace.IsAccessDenied(err))
 		require.True(t, messageMatch && typeMatch)
 	})
-	tokenNotMatched := func(t require.TestingT, err error, i ...interface{}) {
-		require.ErrorIs(t, err, errMockInvalidToken)
+	tokenNotMatched := func(t require.TestingT, err error, i ...any) {
+		require.ErrorContains(t, err, "invalid token")
 	}
 	tests := []struct {
 		name        string
@@ -105,7 +107,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 		assertError require.ErrorAssertionFunc
 	}{
 		{
-			name:    "matching all",
+			name:    "matching-all",
 			request: newRequest(validIDToken),
 			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
 				OrganizationID: validOrg,
@@ -119,7 +121,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:    "matching second context",
+			name:    "matching-second-context",
 			request: newRequest(validIDToken),
 			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
 				OrganizationID: validOrg,
@@ -132,7 +134,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:    "invalid org",
+			name:    "invalid-org",
 			request: newRequest(validIDToken),
 			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
 				OrganizationID: "not-this-org",
@@ -145,7 +147,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 			assertError: tokenNotMatched,
 		},
 		{
-			name:    "invalid IDToken",
+			name:    "invalid-IDToken",
 			request: newRequest("not-this-token"),
 			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
 				OrganizationID: validOrg,
@@ -158,7 +160,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 			assertError: tokenNotMatched,
 		},
 		{
-			name:    "missing IDToken in request",
+			name:    "missing-IDToken-in-request",
 			request: newRequest(""),
 			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
 				OrganizationID: validOrg,
@@ -168,13 +170,18 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 					},
 				},
 			}),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "IDToken not provided")
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.Error(t, err)
+
+				msg := err.Error()
+				hasBackendError := strings.Contains(msg, "IDToken is required")
+				hasClientError := strings.Contains(msg, "'CIRCLE_OIDC_TOKEN' must be present")
+
+				require.True(t, hasBackendError || hasClientError, "matches at least one known error when IDToken is unset")
 			},
 		},
 		{
-			name:    "invalid context",
+			name:    "invalid-context",
 			request: newRequest(validIDToken),
 			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
 				OrganizationID: validOrg,
@@ -188,7 +195,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:    "invalid project",
+			name:    "invalid-project",
 			request: newRequest(validIDToken),
 			tokenSpec: provisionTokenSpec(&types.ProvisionTokenSpecV2CircleCI{
 				OrganizationID: validOrg,
@@ -213,8 +220,48 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.request.Token = token.GetName()
 
-			_, err = auth.RegisterUsingToken(ctx, tt.request)
-			tt.assertError(t, err)
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			t.Run("legacy", func(t *testing.T) {
+				_, err = auth.RegisterUsingToken(ctx, tt.request)
+				tt.assertError(t, err)
+			})
+
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodCircleCI,
+					ID: state.IdentityID{
+						Role:     tt.request.Role,
+						NodeName: "testnode",
+						HostUUID: tt.request.HostID,
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
+
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodCircleCI,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
 		})
 	}
 

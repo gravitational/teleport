@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
@@ -201,6 +202,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	case types.JoinMethodToken,
 		types.JoinMethodAzureDevops,
 		types.JoinMethodBoundKeypair,
+		types.JoinMethodCircleCI,
 		types.JoinMethodEC2,
 		types.JoinMethodEnv0,
 		types.JoinMethodGCP,
@@ -306,6 +308,14 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodBoundKeypair:
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodCircleCI:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = circleci.GetIDToken(os.Getenv)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodIAM:
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodEC2:

@@ -105,7 +105,6 @@ import (
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -118,6 +117,7 @@ import (
 	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/gcp"
@@ -777,13 +777,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.azureDevopsIDTokenValidator = azuredevops.NewIDTokenValidator()
 	}
 	if as.circleCITokenValidate == nil {
-		as.circleCITokenValidate = func(
-			ctx context.Context, organizationID, token string,
-		) (*circleci.IDTokenClaims, error) {
-			return circleci.ValidateToken(
-				ctx, circleci.IssuerURLTemplate, organizationID, token,
-			)
-		}
+		as.circleCITokenValidate = circleci.ValidateToken
 	}
 	if as.tpmValidator == nil {
 		as.tpmValidator = tpm.Validate
@@ -1300,7 +1294,7 @@ type Server struct {
 
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
-	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
+	circleCITokenValidate circleci.Validator
 
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
