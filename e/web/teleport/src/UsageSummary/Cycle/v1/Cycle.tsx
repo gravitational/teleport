@@ -11,7 +11,6 @@ import { UsageBar } from '../UsageBar';
 export type Section = {
   name: string;
   info: string;
-  blurb?: string;
   enabled: boolean;
   ctaUrl?: string;
   usage: {
@@ -23,12 +22,6 @@ export type Section = {
     customerPercentage: number;
   }[];
 };
-
-// MWI_PER_MAU is how many free MWI customers get for each MAU they acquire.
-// This value is used to tell if a customer has bought additional MWI and hence is
-// in the new price model, or not.
-// TODO(mcbattirola): This is temporary and will be removed in fall 2025.
-const MWI_PER_MAU = 0.5;
 
 export interface CycleProps {
   usageResponse: GetUsageResponse;
@@ -59,14 +52,6 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
     igmau: 0,
     mwi: 0,
   };
-
-  // hasExtraMwi is used to show or hide MWI's blurb, which contains additional info
-  // that only customers in the old price model should see.
-  // Ideally, this information should come from the Cloud backend, but since this is
-  // temporary and all products use the same MWI per MAU (0.5), we hardcoded it here.
-  // TODO(mcbattirola): remove this and MWI blurb completely on v19.
-  const hasExtraMwi =
-    usageLimits.mwi > Math.ceil(MWI_PER_MAU * usageLimits.ztamau);
 
   const sections: Section[] = [
     {
@@ -130,9 +115,6 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
           }),
         },
       ],
-      blurb: hasExtraMwi
-        ? null
-        : 'MWIs were previously counted as TPRs, but are now part of a new product. Billing will remain consistent with your current contract.',
     },
     {
       name: 'Identity Governance',
@@ -210,11 +192,6 @@ export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
                 aggregate={aggregate}
               />
             </Box>
-            {section.blurb && (
-              <Text color="text.muted" mt="4" fontWeight={400}>
-                {section.blurb}
-              </Text>
-            )}
           </CyclesContainer>
         ))}
       </Flex>

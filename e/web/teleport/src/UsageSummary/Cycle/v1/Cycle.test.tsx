@@ -162,28 +162,6 @@ describe('cycle', () => {
       within(sub).getByText("This feature isn't part of your current plan.")
     ).toBeInTheDocument();
   });
-
-  test('hide MWI info text if account has extra MWI', () => {
-    props.usageResponse.usageHistory[0].usageLimits.mwi =
-      Math.ceil(props.usageResponse.usageHistory[0].usageLimits.ztamau * 0.5) +
-      1;
-    render(<Cycle {...props} />);
-
-    expect(
-      screen.queryByText(/MWIs were previously counted as TPRs/)
-    ).not.toBeInTheDocument();
-  });
-
-  test("show MWI info text if account doesn't have extra MWI", () => {
-    props.usageResponse.usageHistory[0].usageLimits.mwi = Math.ceil(
-      props.usageResponse.usageHistory[0].usageLimits.ztamau * 0.5
-    );
-    render(<Cycle {...props} />);
-
-    expect(
-      screen.getByText(/MWIs were previously counted as TPRs/)
-    ).toBeInTheDocument();
-  });
 });
 
 test('calibration', () => {
