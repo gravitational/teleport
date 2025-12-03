@@ -1,4 +1,4 @@
-.version: &version "17.7.10"
+.version: &version "17.7.10-dev.aadcdev.1"
 
 apiVersion: v2
 name: teleport-plugin-mattermost
