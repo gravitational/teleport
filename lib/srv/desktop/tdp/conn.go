@@ -122,7 +122,7 @@ func (c *Conn) NextMessageType() (MessageType, error) {
 
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
-	m, err := DecodeFrom(c.bufr)
+	m, err := decode(c.bufr)
 	if c.OnRecv != nil {
 		c.OnRecv(m)
 	}
