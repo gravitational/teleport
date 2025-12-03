@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinclient"
 )
 
-func TestJoinCircleCI(t *testing.T) {
+func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	var (
