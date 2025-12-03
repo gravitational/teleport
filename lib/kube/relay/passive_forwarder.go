@@ -205,7 +205,7 @@ func (p *PassiveForwarder) Dispatch(serverName string, transcript *bytes.Buffer,
 	}
 	p.wg.Add(1)
 	go func() {
-		p.wg.Done()
+		defer p.wg.Done()
 		p.forward(sniPrefix, transcript, rawConn)
 	}()
 	p.mu.Unlock()
