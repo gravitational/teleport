@@ -2413,12 +2413,6 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
 }
 
-// SetStreamer sets the current audit event streamer. Note that this is only
-// safe to use before main server start.
-func (a *Server) SetStreamer(streamer events.Streamer) {
-	a.Streamer = streamer
-}
-
 // EmitAuditEvent implements [apievents.Emitter] by delegating to its dedicated
 // emitter rather than falling back to the implementation from [Services] (using
 // the audit log directly, which is almost never what you want).
