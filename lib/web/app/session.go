@@ -126,6 +126,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 // appServerMatcher returns a Matcher function used to find which AppServer can
 // handle the application requests.
+// TODO(okraport): delete me
 func appServerMatcher(clusterGetter reversetunnelclient.ClusterGetter, publicAddr string, clusterName string) Matcher {
 	// Match healthy and PublicAddr servers. Having a list of only healthy
 	// servers helps the transport fail before the request is forwarded to a
