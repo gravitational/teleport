@@ -169,29 +169,28 @@ create-tbot-resources-aks:
 # TELEPORT_UNSTABLE_APP_MAX_SHARD
 # TELEPORT_UNSTABLE_APP_SHARD_INDEX
 # ```
+# 032205338087.dkr.ecr.us-west-2.amazonaws.com/loadtest/luke:19.0.0-dev-luke-sharding-0-20251202-145800
+# 	--set extraEnv[0].name=TELEPORT_UNSTABLE_APP_MAX_SHARD \
+# 	--set extraEnv[0].value="2" \
+# 	--set extraEnv[1].name=TELEPORT_UNSTABLE_APP_SHARD_INDEX \
+# 	--set extraEnv[1].value="0" \
 .PHONY: deploy-app-service
 deploy-app-service: COUNT ?= 1
-deploy-app-service: MAX_SHARD ?= 0
-deploy-app-service: SHARD_INDEX ?= 0
 deploy-app-service:
-	helm upgrade --install teleport-kube-agent ../../examples/chart/teleport-kube-agent \
+	helm upgrade --install teleport-kube-agent1 ../../examples/chart/teleport-kube-agent \
 	--create-namespace \
-	--namespace teleport \
+	--namespace teleport1 \
 	--set roles=app \
 	--set proxyAddr=${PROXY_SERVER} \
 	--set authToken=${TOKEN} \
 	--set "appResources[0].labels.*=*" \
 	--set teleportVersionOverride="${TELEPORT_VERSION}" \
 	--set highAvailability.replicaCount=${COUNT} \
-	--set extraEnv[0].name=TELEPORT_UNSTABLE_APP_MAX_SHARD \
-	--set extraEnv[0].value=${TELEPORT_UNSTABLE_APP_MAX_SHARD} \
-	--set extraEnv[1].name=TELEPORT_UNSTABLE_APP_SHARD_INDEX \
-	--set extraEnv[1].value=${TELEPORT_UNSTABLE_APP_SHARD_INDEX} \
 	--values ./helm/values/app-service-agent.yaml
 
 .PHONY: delete-app-service
 delete-app-service:
-	helm delete -n teleport teleport-kube-agent
+	helm delete -n teleport teleport-kube-agent0
 
 .PHONY: create-app-resources
 create-app-resources: COUNT ?= 100

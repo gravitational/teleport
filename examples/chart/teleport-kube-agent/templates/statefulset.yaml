@@ -153,11 +153,15 @@ spec:
       {{- end }}
       containers:
       - name: "teleport"
-        image: {{ include "teleport-kube-agent.image" . | quote }}
+        image: "032205338087.dkr.ecr.us-west-2.amazonaws.com/loadtest/luke:19.0.0-dev-luke-sharding-0-20251202-145800"
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
         env:
+          - name: TELEPORT_UNSTABLE_APP_MAX_SHARD
+            value: "2"
+          - name: TELEPORT_UNSTABLE_APP_SHARD_INDEX
+            value: "1"
           # This variable is set for telemetry purposes.
           # Telemetry is opt-in and controlled at the auth level.
           - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
@@ -194,6 +198,7 @@ spec:
             value: /var/run/secrets/tokens/join-sa-token
           {{- end }}
         args:
+        - "--skip-version-check"
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
         - "--insecure"
