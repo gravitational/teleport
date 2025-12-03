@@ -81,12 +81,12 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// has a chance to close the connection from its side.
 	defer func() {
 		if r := recover(); r != nil {
-			p.Log.WarnContext(ctx, "Recovered in MySQL proxy while handling connection.", "from", clientConn.RemoteAddr(), "problem", r, "stack", debug.Stack())
+			p.Log.WarnContext(ctx, "Recovered in MySQL proxy while handling connection", "from", clientConn.RemoteAddr(), "problem", r, "stack", debug.Stack())
 			err = trace.BadParameter("failed to handle MySQL client connection")
 		}
 		if err != nil {
 			if writeErr := mysqlServer.WriteError(trace.Unwrap(err)); writeErr != nil {
-				p.Log.DebugContext(ctx, "Failed to send error to MySQL client.", "original_err", err.Error(), "error", writeErr)
+				p.Log.DebugContext(ctx, "Failed to send error to MySQL client", "original_err", err.Error(), "error", writeErr)
 			}
 		}
 	}()
@@ -256,7 +256,7 @@ func (p *Proxy) maybeReadProxyLine(ctx context.Context, conn *multiplexer.Conn) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	p.Log.DebugContext(ctx, "MySQL listener proxy-line.", "proxy_line", proxyLine)
+	p.Log.DebugContext(ctx, "MySQL listener proxy-line", "proxy_line", proxyLine)
 	return nil
 }
 

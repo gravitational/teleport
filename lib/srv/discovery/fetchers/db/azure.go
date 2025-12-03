@@ -93,6 +93,8 @@ type azureFetcherConfig struct {
 	regionSet map[string]struct{}
 	// DiscoveryConfigName is the name of the discovery config which originated the resource.
 	DiscoveryConfigName string
+	// Integration is the name of Azure integration used for auth.
+	Integration string
 }
 
 // regionMatches returns whether a given region matches the configured Regions selector
@@ -154,8 +156,7 @@ func (f *azureFetcher[DBType, ListClient]) FetcherType() string {
 
 // IntegrationName returns the integration name.
 func (f *azureFetcher[DBType, ListClient]) IntegrationName() string {
-	// There is currently no integration that supports Auto Discover for Azure resources.
-	return ""
+	return f.cfg.Integration
 }
 
 // GetDiscoveryConfigName is the name of the discovery config which originated the resource.
