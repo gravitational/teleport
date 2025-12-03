@@ -32,6 +32,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+var (
+	// ErrConfigNotFound is returned by HellorUpdaterInfo when the updater config file cannot be found.
+	ErrConfigNotFound = errors.New("updater config file not found")
+
+	// ErrUnstableExecutable is returned by StableExecutable when no stable path can be found.
+	ErrUnstableExecutable = errors.New("executable has unstable path")
+)
+
 const updateConfigFileEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
 
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
@@ -65,9 +73,6 @@ func IsManagedByUpdater() (bool, error) {
 	}
 	return true, nil
 }
-
-// ErrUnstableExecutable is returned by StableExecutable when no stable path can be found.
-var ErrUnstableExecutable = errors.New("executable has unstable path")
 
 // StableExecutable returns a stable path to Teleport binaries that may or may not be managed by Agent Managed Updates.
 // Note that StableExecutable is not guaranteed to return the same binary, as the binary may have been updated
@@ -150,7 +155,7 @@ func findConfigFile() (string, error) {
 	}
 	p := findParentMatching(teleportPath, versionsDirName, 4)
 	if p == "" {
-		return "", trace.Errorf("installation not managed by updater")
+		return "", trace.Wrap(ErrConfigNotFound)
 	}
 	return filepath.Join(p, UpdateConfigName), nil
 }
@@ -164,7 +169,7 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 
 	configPath, err := findConfigFile()
 	if err != nil {
-		return nil, trace.Wrap(err, "config file not specified")
+		return nil, trace.Wrap(err)
 	}
 	cfg, err := readConfig(configPath)
 	if err != nil {
