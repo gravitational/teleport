@@ -361,7 +361,7 @@ In this step, you will define a Teleport role that confers access to the
    spec:
      allow:
        app_labels:
-         '*': '*'
+         access: aws
        aws_role_arns:
        - arn:aws:iam::<Var name="AWS_ACCOUNT" />:role/ExampleReadOnlyAccess
    ```
@@ -369,6 +369,12 @@ In this step, you will define a Teleport role that confers access to the
    The Teleport role called `aws-ro-access` enables users to visit the AWS
    Management Console or make requests to AWS APIs with the `ExampleReadOnlyAccess`
    role.
+
+   <Admonition type="important" title="AWS roles and App labels">
+   Role needs permissions for `aws_role_arns` and `app_labels` for AWS access to work.
+
+   If a role has `aws_role_arns` defined but not `app_labels`, attempting to access the AWS Console will result in a `Not Found` error.
+   </Admonition>
 
 1. Create the role:
 
@@ -437,6 +443,8 @@ Application Service:
      - name: "awsconsole"
      # The public AWS Console is used after authenticating the user from Teleport
        uri: "https://console.aws.amazon.com/ec2/v2/home"
+       labels:
+         access: aws
    ```
 
 1. Edit `/etc/teleport.yaml` to replace <Var name="PROXY_ADDR" /> with the host
@@ -475,6 +483,9 @@ Application Service:
      - name: "awsconsole"
        # The public AWS Console is used after authenticating the user from Teleport
        uri: "https://console.aws.amazon.com/ec2/v2/home"
+       labels:
+         access: aws
+         env: test
    ```
 
 1. (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
@@ -521,16 +532,19 @@ app_service:
   - name: "awsconsole-test"
     uri: "https://console.aws.amazon.com/ec2/v2/home"
     labels:
+      access: aws
       aws_account_id: "1234567890"
       env: test
   - name: "awsconsole-prod"
     uri: "https://console.aws.amazon.com/ec2/v2/home"
     labels:
+      access: aws
       aws_account_id: "0987654321"
       env: prod
   - name: "awsconsole-third-party"
     uri: "https://console.aws.amazon.com/ec2/v2/home"
     labels:
+      access: aws
       aws_account_id: "1234554321"
     aws:
       external_id: "example-external-id"
