@@ -29,7 +29,7 @@ struct ContentView: View {
   @FocusState private var isFocused: Bool
 
   var body: some View {
-    VStack(spacing: 16) {
+    VStack(spacing: 4) {
       VStack {
         Image("logo").resizable().aspectRatio(contentMode: .fit)
           .frame(height: 60)
@@ -93,6 +93,26 @@ class FindViewModel {
   var findAttempt: Attempt<FindResponse, FindError> = .idle
   private var findTask: Task<Void, Never>?
 
+  /// proxyServer is a proxy hostname and port deduced from clusterAddress.
+  /// clusterAddress can be either a URL or just a hostname without a port and proxyServer is going
+  /// to clean it up.
+  /// If clusterAddress can't be cleaned up, proxyServer returns clusterAddress as is.
+  var proxyServer: String {
+    var proxyServer = clusterAddress
+    // Append a scheme, otherwise URL() will not parse the string.
+    if !(proxyServer.starts(with: "http://") || proxyServer.starts(with: "https://")) {
+      proxyServer = "https://\(proxyServer)"
+    }
+    // This handles all three situations:
+    // - the user entered a hostname without a port
+    // - the user prepended the hostname with https://
+    // - the user entered a URL from the Web UI with some path
+    if let url = try? URL(proxyServer, strategy: .url.host(.required).port(.defaultValue(443))) {
+      proxyServer = "\(url.host()!):\(url.port!)"
+    }
+    return proxyServer
+  }
+
   func startFind() {
     // Retry an attempt on submit if previous one finished.
     if findAttempt.didFinish {
@@ -110,7 +130,7 @@ class FindViewModel {
       await withTaskCancellationHandler {
         let ping = PingFindActor()
         do {
-          let response = try await ping.find(ctx, proxyServer: clusterAddress)
+          let response = try await ping.find(ctx, proxyServer: proxyServer)
           if Task.isCancelled { return }
 
           findAttempt = .success(.grpc(response))
@@ -129,7 +149,7 @@ class FindViewModel {
         // If find through gRPC failed because of PingService being unimplemented, fall back to
         // webapi.
         do {
-          let response = try await webapiFind(proxyServer: clusterAddress)
+          let response = try await webapiFind(proxyServer: proxyServer)
           if Task.isCancelled { return }
           findAttempt = .success(.webapi(response))
         } catch {

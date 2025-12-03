@@ -24,8 +24,43 @@
 @testable import ClusterInspector
 import Testing
 
-struct ClusterInspectorTests {
-  @Test func example() async throws {
-    // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+// @MainActor needs to be added, otherwise there are weird errors regarding actor isolation.
+// It might be because FindViewModel is @Observable or because it holds PingFindResponse in its
+// state.
+@MainActor struct FindViewModelTests {
+  @Test func proxyServerValid() {
+    let m = FindViewModel()
+    m.clusterAddress = "teleport.example.com:3080"
+    #expect(m.proxyServer == "teleport.example.com:3080")
+  }
+
+  @Test func proxyServerMissingPort() {
+    let m = FindViewModel()
+    m.clusterAddress = "teleport.example.com"
+    #expect(m.proxyServer == "teleport.example.com:443")
+  }
+
+  @Test func proxyServerWithScheme() {
+    let m = FindViewModel()
+    m.clusterAddress = "https://teleport.example.com:3080"
+    #expect(m.proxyServer == "teleport.example.com:3080")
+  }
+
+  @Test func proxyServerWithSchemeAndMissingPort() {
+    let m = FindViewModel()
+    m.clusterAddress = "https://teleport.example.com"
+    #expect(m.proxyServer == "teleport.example.com:443")
+  }
+
+  @Test func proxyServerWithPath() {
+    let m = FindViewModel()
+    m.clusterAddress = "https://teleport.example.com/web"
+    #expect(m.proxyServer == "teleport.example.com:443")
+  }
+
+  @Test func proxyServerWithPathAndPort() {
+    let m = FindViewModel()
+    m.clusterAddress = "https://teleport.example.com:3080/web"
+    #expect(m.proxyServer == "teleport.example.com:3080")
   }
 }
