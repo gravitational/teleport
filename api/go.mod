@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/api
 
-go 1.24.0
+go 1.24.11
 
 require (
 	github.com/charlievieth/strcase v0.0.5
