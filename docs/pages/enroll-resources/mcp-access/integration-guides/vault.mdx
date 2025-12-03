@@ -1,5 +1,6 @@
 ---
-title: HashiCorp Vault
+title: Connect a HashiCorp Vault MCP server to Teleport
+sidebar_label: HashiCorp Vault
 description: Set up a HashiCorp Vault MCP server for access through Teleport
 tags:
 - how-to
@@ -12,7 +13,10 @@ Teleport.
 
 ## How it works
 
-(!docs/pages/includes/mcp-access/integration-how-it-works-service-token.mdx serviceName="HashiCorp Vault" token="a service token"!)
+The [HashiCorp Vault MCP server](https://github.com/hashicorp/vault-mcp-server)
+uses a service token to access HashiCorp Vault and runs on a local endpoint
+reachable by Teleport. Teleport proxies all client requests to the server, which
+interacts with HashiCorp Vault using the permissions granted to the service.
 
 ## Prerequisites
 
@@ -54,8 +58,8 @@ Copy the result token for use in the next step.
 
 ## Step 2/3. Run the Vault MCP server
 
-The [Vault MCP Server](https://github.com/hashicorp/vault-mcp-server) can be run
-either as a compiled binary or via the official Docker image:
+The Vault MCP Server can be run either as a compiled binary or via the official
+Docker image:
 
 <Tabs>
 <TabItem label="vault-mcp-server binary">
@@ -93,7 +97,6 @@ After starting, the Vault MCP Server exposes a streamable-HTTP endpoint at
 
 (!docs/pages/includes/mcp-access/integration-teleport-app.mdx service="vault"  serviceName="Vault" port="8080" !)
 
-<Admonition type="tip" title="Limiting MCP Tools">
 (!docs/pages/includes/mcp-access/integration-limit-tools.mdx!)
 ```yaml
 kind: role
@@ -108,7 +111,6 @@ spec:
       tools:
       - ^(get|list)_.*$
 ```
-</Admonition>
 
 (!docs/pages/includes/mcp-access/integration-tsh.mdx service="vault" serviceName="Vault" !)
 
@@ -116,6 +118,7 @@ spec:
 
 ## Next Steps
 
-- Revisit [Enroll a Streamable-HTTP MCP Server](../enrolling-mcp-servers/streamable-http.mdx).
+- Review [Enroll a Streamable-HTTP MCP Server](../enrolling-mcp-servers/streamable-http.mdx).
+- See the [dynamic registration](../dynamic-registration.mdx) guide.
 - Learn more about [vault-mcp-server](https://github.com/hashicorp/vault-mcp-server).
 - Connect your [MCP clients](../../../connect-your-client/model-context-protocol/mcp-access.mdx).

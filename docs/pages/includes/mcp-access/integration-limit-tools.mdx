@@ -1,3 +1,5 @@
-You can restrict which MCP tools Teleport users can access by refining the
-`mcp.tools` list in their role. Only the tools you include will be available to
-that role. For example:
+To grant access to the MCP server and all its tools, assign the preset
+`mcp-user` role to your Teleport user.
+
+Optionally, you can limit which MCP tools the user can access by adjusting the
+`mcp.tools` list in their role. For example:

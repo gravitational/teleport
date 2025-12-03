@@ -1,7 +1,9 @@
-Once the MCP server is running, add the following resource to the Teleport
-Application Service:
+You can register an MCP application in Teleport by defining it in your Teleport
+Application Service configuration, or by using dynamic registration with `tctl`
+or Terraform:
+
 <Tabs>
-<TabItem label="YAML configuration">
+<TabItem label="Static configuration">
 Replace <Var name="MCP_HOST"/> with the host running the {{serviceName}} MCP server:
 ```yaml
 app_service:
@@ -14,12 +16,14 @@ app_service:
       service: {{service}}
 ```
 
-Restart the Application Service. Wait until the application appears in `tsh mcp ls`.
+Restart the Application Service.
 </TabItem>
 
-<TabItem label="Dynamic Registration">
-Replace <Var name="MCP_HOST" /> with the host running the {{serviceName}} MCP server:
+<TabItem label="tctl">
+Create an `app` resource definition file named `app-{{service}}-mcp.yaml`. Replace
+<Var name="MCP_HOST" /> with the host running the {{serviceName}} MCP server:
 ```yaml
+# app-{{service}}-mcp.yaml
 kind: app
 version: v3
 metadata:
@@ -30,6 +34,37 @@ metadata:
 spec:
   uri: "mcp+http://<Var name="MCP_HOST" />:{{port}}/mcp"
 ```
-Wait until the application appears in `tsh mcp ls`.
+
+Create the `app` resource with:
+```code
+$ tctl create -f app-{{service}}-app.yaml
+```
 </TabItem>
+
+<TabItem label="Terraform">
+Create a `teleport_app` resource in terraform. Replace <Var name="MCP_HOST" />
+with the host running the {{serviceName}} MCP server:
+```hcl
+resource "teleport_app" "grafana" {
+  version = "v3"
+  metadata = {
+    name = "grafana"
+    labels = {
+      "teleport.dev/origin" = "dynamic"
+      "env"                 = "dev"
+      "service"             = ""{{service}}""
+    }
+  }
+
+  spec = {
+    uri = "mcp+http://<Var name="MCP_HOST" />:{{port}}/mcp"
+  }
+}
+```
+Apply the configuration:
+```code
+$ terraform apply
+```
+</TabItem>
+
 </Tabs>

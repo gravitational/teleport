@@ -1,5 +1,6 @@
 ---
-title: GitHub
+title: Connect a GitHub MCP Server to Teleport
+sidebar_label: GitHub
 description: Set up a GitHub MCP server for access through Teleport
 tags:
 - how-to
@@ -12,7 +13,12 @@ Teleport.
 
 ## How it works
 
-(!docs/pages/includes/mcp-access/integration-how-it-works-service-token.mdx serviceName="GitHub" token="a personal access token of a service account"!)
+The [GitHub MCP server](https://github.com/github/github-mcp-server) uses a
+personal access token of a service account to access GitHub and
+[`mcp-proxy`](https://github.com/sparfenyuk/mcp-proxy) exposes it to Teleport
+over a streamable-HTTP endpoint by translating the original transport. Teleport
+proxies all client requests to the server, which interacts with GitHub using the
+permissions granted to the service account.
 
 ## Prerequisites
 
@@ -35,8 +41,7 @@ Once the token is created, save it for use in the next step.
 
 ## Step 2/3 Run the GitHub MCP server
 
-First, install [`mcp-proxy`](https://github.com/sparfenyuk/mcp-proxy) on the
-host that will run the MCP server:
+First, install `mcp-proxy` on the host that will run the MCP server:
 ```code
 # Option 1: With uv (recommended)
 $ uv tool install mcp-proxy
@@ -45,9 +50,8 @@ $ uv tool install mcp-proxy
 $ pipx install mcp-proxy
 ```
 
-Now start the [GitHub MCP server](https://github.com/github/github-mcp-server)
-behind `mcp-proxy`, using the personal access token <Var
-name="github_personal_access_token" />:
+Now start the GitHub MCP server behind `mcp-proxy`, using the personal access
+token <Var name="github_personal_access_token" />:
 ```code
 $ mcp-proxy \
   --host <Var name="MCP_HOST" initial_value="localhost"/>  --port 8000 \
@@ -66,7 +70,6 @@ name="MCP_HOST" initial="localhost" />:8000/mcp`.
 
 (!docs/pages/includes/mcp-access/integration-teleport-app.mdx service="github" serviceName="GitHub" port="8000"!)
 
-<Admonition type="tip" title="Limiting MCP Tools">
 (!docs/pages/includes/mcp-access/integration-limit-tools.mdx!)
 ```yaml
 kind: role
@@ -82,7 +85,6 @@ spec:
       - ^(get|search|list)_.*$
       - ^.*_read$
 ```
-</Admonition>
 
 (!docs/pages/includes/mcp-access/integration-tsh.mdx service="github" serviceName="GitHub" !)
 
@@ -113,6 +115,7 @@ $ tsh mcp config github-mcp --client-config claude --header "Authorization: Bear
 
 ## Next Steps
 
-- Revisit [Enroll a Streamable-HTTP MCP Server](../enrolling-mcp-servers/streamable-http.mdx).
+- Review [Enroll a Streamable-HTTP MCP Server](../enrolling-mcp-servers/streamable-http.mdx).
+- See the [dynamic registration](../dynamic-registration.mdx) guide.
 - Learn more about [github-mcp-server](https://github.com/github/github-mcp-server).
 - Connect your [MCP clients](../../../connect-your-client/model-context-protocol/mcp-access.mdx).
