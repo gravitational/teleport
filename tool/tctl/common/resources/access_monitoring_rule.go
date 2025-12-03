@@ -68,7 +68,7 @@ func accessMonitoringRuleHandler() Handler {
 		createHandler: createAccessMonitoringRule,
 		updateHandler: updateAccessMonitoringRule,
 		deleteHandler: deleteAccessMonitoringRule,
-		description:   "A dynamic resource used to configure access automation rules. Part of Identity Governance.",
+		description:   "Configures access request notification and automatic approval. Part of Identity Governance.",
 	}
 }
 
