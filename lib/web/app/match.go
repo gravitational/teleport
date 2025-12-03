@@ -21,6 +21,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"strings"
 
@@ -47,11 +48,15 @@ type Getter interface {
 // available.
 func MatchUnshuffled(ctx context.Context, cluster reversetunnelclient.Cluster, fn Matcher) ([]types.AppServer, error) {
 	watcher, err := cluster.AppServerWatcher()
+	slog.DebugContext(ctx, "MatchUnshuffled", "watcher", watcher, "error", err)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
+	slog.DebugContext(ctx, "MatchUnshuffled", "servers", servers, "error", err)
+
 	return servers, trace.Wrap(err)
 }
 
@@ -59,11 +64,14 @@ func MatchUnshuffled(ctx context.Context, cluster reversetunnelclient.Cluster, f
 // If no AppServer are matched, it will return an error.
 func MatchOne(ctx context.Context, cluster reversetunnelclient.Cluster, fn Matcher) (types.AppServer, error) {
 	watcher, err := cluster.AppServerWatcher()
+	slog.DebugContext(ctx, "MatchOne", "watcher", watcher, "error", err)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for server, err := range watcher.RangeWithFilter(ctx, fn) {
+		slog.DebugContext(ctx, "MatchOne", "server", server, "error", err)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -148,17 +156,20 @@ func MatchAll(matchers ...Matcher) Matcher {
 func ResolveFQDN(ctx context.Context, clt Getter, clusterGetter reversetunnelclient.ClusterGetter, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
 	// Try and match FQDN to public address of application within cluster.
 	clusterName, err := clt.GetClusterName(ctx)
+	slog.DebugContext(ctx, "ResolveFQDN", "clusterName", clusterName, "error", err)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	// local client first
 	clusterClient, err := clusterGetter.Cluster(ctx, clusterName.GetClusterName())
+	slog.DebugContext(ctx, "ResolveFQDN", "clusterClient", clusterClient, "error", err)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(fqdn))
+	slog.DebugContext(ctx, "ResolveFQDN", "servers", servers, "error", err)
 	if err == nil && len(servers) > 0 {
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -180,6 +191,7 @@ func ResolveFQDN(ctx context.Context, clt Getter, clusterGetter reversetunnelcli
 	}
 	for _, clusterClient := range clusterClients {
 		servers, err = MatchUnshuffled(ctx, clusterClient, MatchName(appName))
+		slog.DebugContext(ctx, "ResolveFQDN", "servers", servers, "error", err)
 		if err == nil && len(servers) > 0 {
 			return servers[rand.N(len(servers))], clusterClient.GetName(), nil
 		}

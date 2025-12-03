@@ -506,7 +506,9 @@ func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*Ge
 		ResourceGetter: func(ctx context.Context) ([]types.AppServer, error) {
 			return cfg.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
 		},
-		ResourcesC: cfg.AppServersC,
+		// ResourcesC: cfg.AppServersC,
+		DisableUpdateBroadcast: true,
+
 		CloneFunc: func(resource types.AppServer) types.AppServer {
 			return resource.Copy()
 		},
