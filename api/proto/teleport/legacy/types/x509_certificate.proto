@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package types;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types";
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// X.509 certificate marshaled in PEM form.
+// This is the gogo version, see the teleport.certificate package for the
+// protoc-gen-go version.
+message X509Certificate {
+  string pem = 1;
+}

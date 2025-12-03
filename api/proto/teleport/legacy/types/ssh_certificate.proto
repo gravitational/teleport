@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package types;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types";
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// SSH certificated marshaled as authorized key.
+// This is the gogo version, see the teleport.certificate package for the
+// protoc-gen-go version.
+message SSHCertificate {
+  string authorized_key = 1;
+}
