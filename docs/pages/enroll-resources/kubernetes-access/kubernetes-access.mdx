@@ -1,31 +1,129 @@
 ---
 title: Kubernetes Clusters
-description: Guides to protecting Kubernetes clusters with Teleport
+description: Protect Kubernetes clusters with granular role-based access controls, audit logging, and session recording.
+template: doc-page
 tags:
  - zero-trust
  - infrastructure-identity
 ---
 
-The guides in this section explain how to protect Kubernetes clusters with
-Teleport.
+import DocHero, { DocHeroProps } from "@site/src/components/Pages/Landing/DocHero";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
 
-## Getting started
+import noteSvg from "@site/src/components/Icon/svg/note2.svg";
+import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+import identificationBadgeSvg from "@site/src/components/Icon/svg/identification-badge.svg";
+import listChecksSvg from "@site/src/components/Icon/svg/list-checks.svg";
+import kubernetesClustersSvg from "@site/src/components/Icon/teleport-svg/kubernetes-clusters.svg";
+import iamSvg from "@site/src/components/Icon/svg/awsIdentity.svg";
+import kubernetesSvg from "@site/src/components/Icon/svg/kubernetes2.svg";
+import awsSvg from "@site/src/components/Icon/teleport-svg/aws.svg";
+import gcpSvg from "@site/src/components/Icon/teleport-svg/gcp.svg";
+import azureSvg from "@site/src/components/Icon/teleport-svg/azure.svg";
 
-- [Introduction to Enrolling Kubernetes Clusters](./introduction.mdx): Learn how Teleport can protect your Kubernetes clusters with RBAC, audit logging, and more.
-- [Enroll a Kubernetes Cluster](./getting-started.mdx): Demonstrates how to enroll a Kubernetes cluster as a resource protected by Teleport.
+{/*vale messaging.protocol-products = NO*/}
+<DocHero
+  title="Enroll your first Kubernetes cluster"
+  youtubeVideoId={
+    // cspell:disable-next-line
+    "rQiloHM2oRQ"
+  }
+  ctaLinks={[
+    {
+      title: "Get started with Kubernetes access",
+      href: "./getting-started/",
+      variant: "secondary",
+      arrow: true,
+    },
+  ]}
+  links={[
+    {
+      title: "Kubernetes Access overview",
+      description: "Securely access Kubernetes clusters with SSO, RBAC and audit logging.",
+      href: "./introduction/",
+      icon: noteSvg,
+    }, 
+    {
+      title: "Troubleshooting",
+      description: "Common Kubernetes access issues and their solutions.",
+      href: "./troubleshooting/",
+      icon: questionSvg,
+    },
+  ]}
+>
+{/*vale messaging.protocol-products = YES*/}
+Log in with SSO and securely access enrolled Kubernetes clusters. Manage access within clusters with granular RBAC down to specific cluster resources, and achieve compliance needs with session recordings and detailed audit logs.
+</DocHero>
 
-## Guides
+<Resources
+  title="Access controls"
+  variant="doc"
+  desktopColumnsCount={2}
+  resources={[
+    {
+      title: "RBAC for Kubernetes",
+      description: "Learn how Teleport's Kubernetes Service intercepts API requests and enforces access with Teleport roles.",
+      iconComponent: identificationBadgeSvg,
+      href: "./controls/"
+    },
+    {
+      title: "Configure and set up",
+      description: "Set up Teleport roles to manage Kubernetes access with a hands-on example using a local Kubernetes cluster.",
+      iconComponent: listChecksSvg,
+      href: "./manage-access/"
+    },
+  ]}
+/>
 
-- [Registering Kubernetes Clusters with Teleport (section)](./register-clusters/): How to manually add a Kubernetes cluster to Teleport after creating it.
-- [Setting Up Access Controls for Kubernetes](./manage-access.mdx): How to configure Teleport roles to access clusters, groups, users, and resources in Kubernetes.
+<Resources
+  title="Auto-discover Kubernetes clusters"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "AKS auto-discovery",
+      description: "Automatically discover any Azure Kubernetes Service (AKS) cluster and enroll it in Teleport.",
+      iconComponent: azureSvg,
+      href: "../auto-discovery/kubernetes/azure/"
+    },
+    {
+      title: "EKS auto-discovery",
+      description: "Automatically discover any Elastic Kubernetes Service (EKS) cluster and enroll it in Teleport",
+      iconComponent: awsSvg,
+      href: "../auto-discovery/kubernetes/aws/"
+    },
+    {
+      title: "GKE auto-discovery",
+      description: "Automatically register your Google Kubernetes Engine (GKE) clusters with Teleport",
+      iconComponent: gcpSvg,
+      href: "../auto-discovery/kubernetes/google-cloud/"
+    },
+  ]}
+/>
 
-## Configuration & management
-
-- [Access Controls](./controls.mdx): How the Teleport Kubernetes Service applies RBAC to manage access to Kubernetes
-
-## Troubleshooting & support
-
-- [FAQ](./faq.mdx): Frequently asked questions about
-  protecting Kubernetes clusters with Teleport.
-- [Troubleshooting](./troubleshooting.mdx): Troubleshooting
-  common issues with protecting Kubernetes clusters with Teleport.
+<Resources
+  title="Additional registration options"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Dynamic Kubernetes registration",
+      description: "Manage clusters without changing each service's configuration files.",
+      iconComponent: kubernetesClustersSvg,
+      href: "./register-clusters/dynamic-registration/"
+    },
+    {
+      title: "Using AWS IAM joining",
+      description: "Use an AWS IAM identity to automatically enroll a Kubernetes cluster with Teleport.",
+      iconComponent: iamSvg,
+      href: "./register-clusters/iam-joining/"
+    },
+    {
+      title: "Using a static kubeconfig",
+      description: "Run Teleport Kubernetes Service on a Linux host outside the cluster to manage access.",
+      iconComponent: kubernetesSvg,
+      href: "./register-clusters/static-kubeconfig/"
+    },
+  ]}
+/>
