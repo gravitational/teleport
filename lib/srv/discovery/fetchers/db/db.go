@@ -129,6 +129,9 @@ type AWSFetcherFactoryConfig struct {
 	AWSConfigProvider awsconfig.Provider
 	// AWSClients provides AWS SDK clients.
 	AWSClients AWSClientProvider
+
+	// Logger is the logger used by the factory and its fetchers.
+	Logger *slog.Logger
 }
 
 func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
@@ -137,6 +140,9 @@ func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
 	}
 	if c.AWSClients == nil {
 		c.AWSClients = defaultAWSClients{}
+	}
+	if c.Logger == nil {
+		c.Logger = slog.Default()
 	}
 	return nil
 }
@@ -175,6 +181,10 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
+					if region == types.Wildcard {
+						f.cfg.Logger.WarnContext(ctx, "AWS Database discovery does not support region discovery, remove the '*' from the regions field", "discovery_config", discoveryConfigName)
+						continue
+					}
 					fetcher, err := makeFetcher(awsFetcherConfig{
 						Type:                matcherType,
 						AssumeRole:          assumeRole,

@@ -203,6 +203,17 @@ func (o *options) checkIntegrationCredentials() error {
 // when getting an AWS config.
 type OptionsFn func(*options)
 
+// AssumedRoles extracts the assumed roles from the provided options.
+// Only used in testing.
+func AssumedRoles(opts ...OptionsFn) []AssumeRole {
+	var options options
+	for _, optFn := range opts {
+		optFn(&options)
+	}
+
+	return options.assumeRoles
+}
+
 // WithAssumeRole configures options needed for assuming an AWS role.
 func WithAssumeRole(roleARN, externalID string) OptionsFn {
 	return func(options *options) {
