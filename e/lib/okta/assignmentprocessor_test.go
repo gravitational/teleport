@@ -8,7 +8,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
@@ -16,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktaapitest "github.com/gravitational/teleport/e/lib/okta/api/apitest"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -555,4 +559,93 @@ func TestProcessAssignments(t *testing.T) {
 			}
 		})
 	}
+}
+
+// This test makes sure we don't skip Okta-side cleanup of okta_assignment resources that expired
+// during plugin restart. This may happen due to race conditions and/or proper reconcilers seeding.
+func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
+	// The test fails because heartbeats are used to create app_servers for Okta apps. This
+	// situation is aggravated by the fact that Service.Close deletes all app_servers in most
+	// cases (apart from graceful upgrades).
+	t.Skip("TODO(kopiczko): Fix the issue with app assignments cleanup after plugin restart")
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewRealClock()
+	ap := newTestAccessPoint(t, clock)
+	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
+	oktaClient.OrgURLFunc = func(t *testing.T) string { return oktaapitest.TestOrgURL }
+	svc, _ := newTestService(t, ap, oktaClient, withClock(clock))
+
+	const user1, uid1, user2, uid2 = "user1", "user_id_1", "user2", "user_id_2"
+	const application1, group1 = "application_id_1", "group_id_1"
+	oktaData.UpsertUserForId(user1, uid1)
+	oktaData.UpsertUserForId(user2, uid2)
+	oktaData.UpsertAppForId(application1)
+	oktaData.UpsertGroupForId(group1)
+
+	err := svc.Start(ctx)
+	require.NoError(t, err)
+
+	// Wait for sync.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		requireUsersExist(t, ap, user1, user2)
+		requireOktaApplicationServers(t, ap, []string{application1})
+		requireUserGroups(t, ap, []string{group1})
+	}, time.Second*10, time.Millisecond*50)
+
+	// Assert there are no Okta-side assignments before creating okta_assignment.
+	requireOktaSideApplicationAssignments(t, oktaClient, application1, nil)
+	requireOktaSideGroupAssignments(t, oktaClient, group1, nil)
+
+	cleanupTime := time.Time{} // never
+	finalized := false
+	lastTransitionTime := time.Time{}
+	assignment, err := ap.CreateOktaAssignment(ctx, assignment(t, "assignment1", user1, cleanupTime, constants.OktaAssignmentStatusPending, lastTransitionTime, finalized,
+		target(types.OktaAssignmentTargetV1_APPLICATION, testGetOktaApplicationServerName(t, ap, application1)),
+		target(types.OktaAssignmentTargetV1_GROUP, group1),
+	))
+	require.NoError(t, err)
+
+	// Assert the okta_assignment was reconciled and Okta-side assignments are created.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		requireOktaSideApplicationAssignments(t, oktaClient, application1, []string{uid1})
+		requireOktaSideGroupAssignments(t, oktaClient, group1, []string{uid1})
+	}, time.Second*10, time.Millisecond*50)
+
+	err = svc.Shutdown()
+	require.NoError(t, err)
+	err = svc.Close(ctx)
+	require.NoError(t, err)
+
+	// Let's now mark the assignment for cleanup before starting the Okta service again.
+	assignment, err = ap.GetOktaAssignment(ctx, assignment.GetName())
+	require.NoError(t, err)
+	// Also make sure it's successful when we are at it.
+	require.Equal(t, constants.OktaAssignmentStatusSuccessful, assignment.GetStatus())
+	assignment.SetCleanupTime(clock.Now().Add(-1))
+	assignment, err = ap.UpdateOktaAssignment(ctx, assignment)
+	require.NoError(t, err)
+
+	// Assert assignments before starting the service.
+	requireOktaSideApplicationAssignments(t, oktaClient, application1, []string{uid1})
+	requireOktaSideGroupAssignments(t, oktaClient, group1, []string{uid1})
+
+	svc, _ = newTestService(t, ap, oktaClient, withClock(clock))
+	err = svc.Start(ctx)
+	require.NoError(t, err)
+
+	// Wait for okta_assignment to be cleaned up.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// This will either trigger watcher and make the assignment being processed or
+		// return NotFoundError confirming that the assignment was cleaned up.
+		assignment.GetAllLabels()["test-trigger"] = uuid.NewString()
+		_, err := ap.UpdateOktaAssignment(ctx, assignment)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, but got: %s", err)
+	}, time.Second*10, time.Millisecond*50)
+
+	// After okta_assignment is cleaned up, assert targets are also cleaned up on the
+	// Okta-side.
+	requireOktaSideApplicationAssignments(t, oktaClient, application1, nil)
+	requireOktaSideGroupAssignments(t, oktaClient, group1, nil)
 }

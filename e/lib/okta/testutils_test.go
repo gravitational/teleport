@@ -13,8 +13,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
@@ -496,4 +498,96 @@ func requireAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter) 
 func expectAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter, fn func(T)) {
 	t.Helper()
 	fn(requireAuditEvent[T](t, emitter))
+}
+
+func requireOktaSideApplicationAssignments(t require.TestingT, oktaClient oktaapi.Interface, oktaApplicationID string, oktaUserIDs []string) {
+	testCallHelper(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	applicationAssignments, err := oktaClient.GetAppAssignments(ctx, oktaapi.OktaAppID(oktaApplicationID))
+	require.NoError(t, err)
+	var assignedUsers []string
+	for _, a := range applicationAssignments {
+		assignedUsers = append(assignedUsers, a.UserID)
+	}
+	require.ElementsMatch(t, oktaUserIDs, assignedUsers)
+}
+
+func requireOktaSideGroupAssignments(t require.TestingT, oktaClient oktaapi.Interface, oktaGroupID string, oktaUserIDs []string) {
+	testCallHelper(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	groupAssignments, err := oktaClient.GetGroupAssignments(ctx, oktaapi.OktaGroupID(oktaGroupID))
+	require.NoError(t, err)
+	var assignedUsers []string
+	for _, a := range groupAssignments {
+		assignedUsers = append(assignedUsers, string(a))
+	}
+	require.ElementsMatch(t, oktaUserIDs, assignedUsers)
+}
+
+func requireUsersExist(t require.TestingT, ap services.UserGetter, users ...string) {
+	testCallHelper(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, u := range users {
+		_, err := ap.GetUser(ctx, u, false)
+		require.NoError(t, err, "user = %q", u)
+	}
+}
+
+func requireOktaApplicationServers(t require.TestingT, ap services.Presence, oktaAppIDs []string) {
+	testCallHelper(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	appServers, err := ap.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	var existingAppIDs []string
+	for _, as := range appServers {
+		if oktaID, ok := as.GetApp().GetLabel(teleport.OktaAppIDLabel); ok {
+			existingAppIDs = append(existingAppIDs, oktaID)
+		}
+	}
+	require.ElementsMatch(t, oktaAppIDs, existingAppIDs)
+}
+
+func testGetOktaApplicationServerName(t *testing.T, ap services.Presence, oktaAppID string) string {
+	t.Helper()
+	ctx := t.Context()
+
+	appServers, err := ap.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	for _, as := range appServers {
+		if id, ok := as.GetApp().GetLabel(teleport.OktaAppIDLabel); ok && id == oktaAppID {
+			return as.GetName()
+		}
+	}
+	require.FailNowf(t, "no app_server for Okta ID %q", oktaAppID)
+	panic("unreachable")
+}
+
+func requireUserGroups(t require.TestingT, ap services.UserGroups, groupIDs []string) {
+	testCallHelper(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	userGroups, nextToken, err := ap.ListUserGroups(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	var existingIDs []string
+	for _, g := range userGroups {
+		existingIDs = append(existingIDs, g.GetName())
+	}
+	require.ElementsMatch(t, groupIDs, existingIDs)
+}
+
+func testCallHelper(t assert.TestingT) {
+	h, ok := t.(interface{ Helper() })
+	if ok {
+		h.Helper()
+	}
 }
