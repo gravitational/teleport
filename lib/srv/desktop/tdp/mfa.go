@@ -118,7 +118,7 @@ func NewTDPBMFAPrompt(rw MessageReadWriter, withheld *[]Message) func(string) mf
 		isResponse := func(msg Message) (*proto.MFAAuthenticateResponse, error) {
 			mfaMsg := &tdpbv1.MFA{}
 			// Is this an MFA message?
-			if err := As(msg, mfaMsg); err != nil {
+			if err := AsTDPB(msg, mfaMsg); err != nil {
 				if mfaMsg.AuthenticationResponse == nil {
 					return nil, trace.Errorf("MFA response is empty")
 				}

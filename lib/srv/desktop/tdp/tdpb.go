@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	MAX_MESSAGE_LENGTH = 1024 * 1024 /* 1MiB */
-	TDPB_HEADER_LENGTH = 8
+	MAX_MESSAGE_LENGTH        = 1024 * 1024 /* 1MiB */
+	DEFAULT_MESSAGE_RECV_SIZE = 4096
+	TDPB_HEADER_LENGTH        = 8
 )
 
 var (
@@ -41,15 +42,10 @@ func init() {
 	}
 }
 
-// DecodeTDPB decodes a TDPB message
-func DecodeTDPB(rdr io.Reader) (TdpbMessage, error) {
-	return globalDecoder.Decode(rdr)
-}
-
-// As is a convenience for working with TDP messages.
+// AsTDPB is a convenience for working with TDP messages.
 // It is not particularly performant.
-func As(msg Message, p proto.Message) error {
-	source, err := AsTDPBProto(msg)
+func AsTDPB(msg Message, p proto.Message) error {
+	source, err := ToTDPBProto(msg)
 	if err != nil {
 		return trace.Wrap(errors.Join(ErrInvalidMessage, err))
 	}
@@ -64,7 +60,9 @@ func As(msg Message, p proto.Message) error {
 	return ErrUnexpectedMessageType
 }
 
-func AsTDPBProto(msg Message) (proto.Message, error) {
+// ToTDPBProto attempts to extract the underlying proto.Message
+// representation of a TDPB message.
+func ToTDPBProto(msg Message) (proto.Message, error) {
 	var m *TdpbMessage
 	var ok bool
 	if m, ok = msg.(*TdpbMessage); !ok {
@@ -76,6 +74,11 @@ func AsTDPBProto(msg Message) (proto.Message, error) {
 		return nil, trace.Wrap(errors.Join(ErrInvalidMessage, err))
 	}
 	return source, nil
+}
+
+// DecodeTDPB decodes a TDPB message
+func DecodeTDPB(rdr io.Reader) (TdpbMessage, error) {
+	return globalDecoder.Decode(rdr)
 }
 
 func (m *messageDecoder) Decode(rdr io.Reader) (TdpbMessage, error) {
@@ -122,8 +125,6 @@ func newMessageDecoder() (*messageDecoder, error) {
 		key: key,
 	}, nil
 }
-
-const DEFAULT_MESSAGE_RECV_SIZE = 4096
 
 func readTDPBMessage(in io.Reader) (tdpb.MessageType, []byte, error) {
 	//
@@ -177,57 +178,15 @@ func (i *TdpbMessage) Encode() ([]byte, error) {
 	}
 }
 
-// WriteTo is a more optimal way to write a message out to
-// a writer. The typical Encode() ([]byte, error) API requires
-// us to:
-// -  marshal the proto
-// -  allocate a new buffer of len: len(msg) + 8,
-// -  copy the marshalled message into the new buffer and write the header bytes
-// Instead, WriteTo simply writes the header data and the marshalled protobuf
-// to the writer, avoiding re-allocation entirely.
-func (i *TdpbMessage) WriteTo(w io.Writer) (int64, error) {
-	switch {
-	case len(i.data) > 0:
-		count, err := w.Write(i.data)
-		return int64(count), err
-	case i.msg != nil:
-		data, messageType, err := encodeTDPBProto(i.msg)
-		if err != nil {
-			return 0, err
-		}
-		count := int64(0)
-		for _, operation := range []func() error{
-			func() error {
-				err := binary.Write(w, binary.BigEndian, uint32(messageType))
-				if err == nil {
-					count += 4
-				}
-				return err
-			},
-			func() error {
-				if len(data) > MAX_MESSAGE_LENGTH {
-					return trace.Errorf("Outbound message exceeds maximum allowed size")
-				}
-				err = binary.Write(w, binary.BigEndian, uint32(len(data)))
-				if err == nil {
-					count += 4
-				}
-				return err
-			},
-			func() error {
-				c, err := w.Write(data)
-				count += int64(c)
-				return err
-			},
-		} {
-			if err := operation(); err != nil {
-				return count, err
-			}
-		}
-		return count, nil
-	default:
-		return 0, errors.New("empty message")
+// EncodeTo is a convenience function that calls 'Encode' on
+// the message and writes the resulting data to the writer.
+func (i *TdpbMessage) EncodeTo(w io.Writer) error {
+	data, err := i.Encode()
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	_, err = w.Write(data)
+	return err
 }
 
 // Get the unmarshalled protobuf message.
@@ -245,54 +204,39 @@ func (i *TdpbMessage) Proto() (proto.Message, error) {
 }
 
 func (i *TdpbMessage) As(p proto.Message) error {
-	return As(i, p)
+	return AsTDPB(i, p)
 }
 
+// getMessageType uses protoreflection to determine the TDPB message type of
+// an arbitrary proto.Message
 func getMessageType(msg proto.Message) tdpb.MessageType {
-	if msg == nil {
-		return tdpb.MessageType_MESSAGE_TYPE_UNSPECIFIED
-	}
 	// Grab the TDPOptions extension on the message
 	options := msg.ProtoReflect().Descriptor().Options().(*descriptorpb.MessageOptions)
 	return proto.GetExtension(options, tdpb.E_TdpTypeOption).(tdpb.MessageType)
-}
-
-// encodeTDPB marshals the given protobuf message only.
-// It does not prepend any header info.
-func encodeTDPBProto(msg proto.Message) ([]byte, tdpb.MessageType, error) {
-	if msg == nil {
-		return nil, tdpb.MessageType_MESSAGE_TYPE_UNSPECIFIED, trace.Errorf("nil message is not wire capable")
-	}
-
-	// Grab the TDPOptions extension on the message
-	options := msg.ProtoReflect().Descriptor().Options().(*descriptorpb.MessageOptions)
-	typeOption := proto.GetExtension(options, tdpb.E_TdpTypeOption).(tdpb.MessageType)
-	if typeOption == tdpb.MessageType_MESSAGE_TYPE_UNSPECIFIED {
-		return nil, typeOption, trace.BadParameter("Cannot encode TDPB messages without a valid message type extension")
-	}
-
-	messageData, err := proto.Marshal(msg)
-	if err != nil {
-		return nil, typeOption, trace.Wrap(err, "Failed to marshal TDPB message")
-	}
-	return messageData, typeOption, nil
 }
 
 // encodeTDPB marshals the given protobuf message
 // and prepends a varint message length for framing purposes.
 // Returns an intermediary type that can be treated as an io.Reader or tdp.Message
 func encodeTDPB(msg proto.Message) ([]byte, error) {
-	messageData, mType, err := encodeTDPBProto(msg)
+	mType := getMessageType(msg)
+	if mType == tdpb.MessageType_MESSAGE_TYPE_UNSPECIFIED {
+		return nil, trace.BadParameter("Protocol buffer message is not a valid TDPB message")
+	}
+
+	messageData, err := proto.Marshal(msg)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	if len(messageData) > MAX_MESSAGE_LENGTH {
 		return nil, trace.LimitExceeded("Teleport Desktop Protocol message exceeds maximum allowed length")
 	}
 
+	// Messages follow the format:
+	// message_type varint | length varint | message_data []byte
+	// where 'length' is the length of the 'message_data'
 	out := make([]byte, len(messageData)+TDPB_HEADER_LENGTH)
-
 	binary.BigEndian.PutUint32(out[:4], uint32(mType))
 	binary.BigEndian.PutUint32(out[4:], uint32(len(messageData)))
 
@@ -300,14 +244,7 @@ func encodeTDPB(msg proto.Message) ([]byte, error) {
 		return nil, trace.Errorf("failed to copy message data to TDPB message buffer")
 	}
 
-	// Messages follow the format:
-	// message_type varint | length varint | message_data []byte
-	// where 'length' is the length of the 'message_data'
 	return out, nil
-	//return &tdpbMessage{
-	//	messageType: typeOption,
-	//	data:        out,
-	//}, nil
 }
 
 func translateFso(fso *tdpb.FileSystemObject) FileSystemObject {

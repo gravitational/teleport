@@ -341,3 +341,6 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 		})
 	}
 }
+
+// BenchmarkEncode-12    	    1001	       152.4 ns/op	     332 B/op	       3 allocs/op
+// BenchmarkWriteTo-12    	    1001	       112.4 ns/op	     232 B/op	       2 allocs/op
