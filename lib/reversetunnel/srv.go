@@ -223,6 +223,9 @@ type Config struct {
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
 
+	// AppServerWatcher is a app server watcher.
+	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// CircuitBreakerConfig configures the auth client circuit breaker
 	CircuitBreakerConfig breaker.Config
 
@@ -298,6 +301,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
+	}
+	if cfg.AppServerWatcher == nil {
+		return trace.BadParameter("missing parameter AppServerWatcher")
 	}
 
 	if cfg.EICEDialer == nil {

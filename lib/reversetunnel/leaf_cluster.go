@@ -89,6 +89,9 @@ type leafCluster struct {
 	// nodeWatcher provides access the node set for the leaf cluster.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// appServerWatcher is a app server watcher.
+	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
 	// state has been changed, the tunnel will reconnect to re-create the client
@@ -168,6 +171,10 @@ func (s *leafCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, e
 // NodeWatcher returns the services.NodeWatcher for the leaf cluster.
 func (s *leafCluster) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return s.nodeWatcher, nil
+}
+
+func (s *leafCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return s.appServerWatcher, nil
 }
 
 // GitServerWatcher returns the Git server watcher for the leaf cluster.

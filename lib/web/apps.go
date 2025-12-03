@@ -288,12 +288,7 @@ func (h *Handler) resolveAppByName(ctx context.Context, clusterGetter reversetun
 		return nil, "", trace.Wrap(err)
 	}
 
-	authClient, err := clusterClient.GetClient()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchName(appName))
+	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchName(appName))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -313,12 +308,7 @@ func (h *Handler) resolveDirect(ctx context.Context, clusterGetter reversetunnel
 		return nil, "", trace.Wrap(err)
 	}
 
-	authClient, err := clusterClient.GetClient()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
