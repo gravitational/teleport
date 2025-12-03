@@ -29,11 +29,11 @@ You can think of Teleport cluster components in three tiers:
 
 In Teleport Enterprise Cloud, we manage the Auth Service and Proxy Service for
 you. You can determine the current version of these services by running the
-following command, where `mytenant` is the name of your Teleport Enterprise
+following command, where <Var name="mytenant" /> is the name of your Teleport Enterprise
 Cloud tenant:
 
 ```code
-$ curl -s https://mytenant.teleport.sh/webapi/find | jq '.server_version'
+$ curl -s https://<Var name="mytenant" />.teleport.sh/webapi/find | jq '.server_version'
 ```
 
 ## Upgrading a self-hosted Teleport cluster
