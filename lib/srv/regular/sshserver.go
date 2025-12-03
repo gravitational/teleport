@@ -167,7 +167,7 @@ type Server struct {
 	// requesting connections to it come over a reverse tunnel.
 	useTunnel bool
 
-	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// fips means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	fips bool
 
