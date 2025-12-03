@@ -25,13 +25,13 @@ option (gogoproto.unmarshaler_all) = true;
 
 // ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
 message ValidatedMFAChallenge {
-  // Kind of resource represented.
+  // Resource kind, always 'validated_mfa_challenge'.
   string kind = 1;
-  // Differentiates variations of the same kind. All resources should contain one, even if never populated.
+  // No sub-kinds are currently defined and can be empty. Reserved for future use.
   string sub_kind = 2;
-  // Version of the resource being represented.
+  // Currently only 'v1' is supported.
   string version = 3;
-  // Common metadata shared by all resources.
+  // Common metadata for the resource.
   types.Metadata metadata = 4;
   // Validated challenge specification.
   ValidatedMFAChallengeSpec spec = 5;

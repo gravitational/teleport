@@ -26,13 +26,13 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
 type ValidatedMFAChallenge struct {
-	// Kind of resource represented.
+	// Resource kind, always 'validated_mfa_challenge'.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	// Differentiates variations of the same kind. All resources should contain one, even if never populated.
+	// No sub-kinds are currently defined and can be empty. Reserved for future use.
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	// Version of the resource being represented.
+	// Currently only 'v1' is supported.
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	// Common metadata shared by all resources.
+	// Common metadata for the resource.
 	Metadata *types.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// Validated challenge specification.
 	Spec                 *ValidatedMFAChallengeSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
