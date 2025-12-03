@@ -1064,7 +1064,6 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 		return nil, trace.Wrap(err)
 	}
 
-	rev := server.GetRevision()
 	value, err := services.MarshalAppServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1080,7 +1079,7 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 			server.GetName()),
 		Value:    value,
 		Expires:  server.Expiry(),
-		Revision: rev,
+		Revision: server.GetRevision(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1095,6 +1094,41 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 		HostID:    server.GetHostID(),
 		Expires:   server.Expiry(),
 	}, nil
+}
+
+// UnconditionalUpdateApplicationServer writes an app_server if one with the
+// same host ID and name exists in storage.
+func (s *PresenceService) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
+	if err := services.CheckAndSetDefaults(server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	value, err := services.MarshalAppServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Since an app server represents a single proxied application, there may
+	// be multiple database servers on a single host, so they are stored under
+	// the following path in the backend:
+	//   /appServers/<namespace>/<host-uuid>/<name>
+	lease, err := s.Update(ctx, backend.Item{
+		Key: backend.NewKey(appServersPrefix,
+			server.GetNamespace(),
+			server.GetHostID(),
+			server.GetName()),
+		Value:    value,
+		Expires:  server.Expiry(),
+		Revision: server.GetRevision(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server.SetRevision(lease.Revision)
+	return server, nil
 }
 
 // DeleteApplicationServer removes specified application server.
