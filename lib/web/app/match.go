@@ -29,10 +29,12 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Getter returns a list of registered apps and the local cluster name.
+// Delete this
 type Getter interface {
 	// GetApplicationServers returns registered application servers.
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
@@ -41,10 +43,28 @@ type Getter interface {
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
+// cluster is the minimum interface needed to match app servers
+// for a reversetunnelclient.Cluster.
+type cluster interface {
+	GetApplicationServers(ctx context.Context, fn func(n readonly.AppServer) bool) ([]types.AppServer, error)
+}
+
+// fakeCluster is a cluster implementation that wraps
+// a reversetunnelclient.Cluster
+type fakeCluster struct {
+	cluster reversetunnelclient.Cluster
+}
+
+// GetApplicationServers uses the wrapped cluster's AppServerWatcher to filter AppServers
+func (c fakeCluster) GetApplicationServers(ctx context.Context, fn func(n readonly.AppServer) bool) ([]types.AppServer, error) {
+	return nil, nil
+}
+
 // MatchUnshuffled will match a list of applications with the passed in matcher
 // function. Matcher functions that can match on public address and name are
 // available.
 func MatchUnshuffled(ctx context.Context, authClient Getter, fn Matcher) ([]types.AppServer, error) {
+	// TODO: switch to app server watcher
 	servers, err := authClient.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -52,7 +72,7 @@ func MatchUnshuffled(ctx context.Context, authClient Getter, fn Matcher) ([]type
 
 	var as []types.AppServer
 	for _, server := range servers {
-		if fn(ctx, server) {
+		if fn(server) {
 			as = append(as, server)
 		}
 	}
@@ -63,13 +83,14 @@ func MatchUnshuffled(ctx context.Context, authClient Getter, fn Matcher) ([]type
 // MatchOne will match a single AppServer with the provided matcher function.
 // If no AppServer are matched, it will return an error.
 func MatchOne(ctx context.Context, authClient Getter, fn Matcher) (types.AppServer, error) {
+	// TODO: switch to app server watcher
 	servers, err := authClient.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	for _, server := range servers {
-		if fn(ctx, server) {
+		if fn(server) {
 			return server, nil
 		}
 	}
@@ -77,19 +98,19 @@ func MatchOne(ctx context.Context, authClient Getter, fn Matcher) (types.AppServ
 	return nil, trace.NotFound("couldn't match any types.AppServer")
 }
 
-// Matcher allows matching on different properties of an application.
-type Matcher func(context.Context, types.AppServer) bool
+// Matcher allows matching on different properties of an app server .
+type Matcher func(readonly.AppServer) bool
 
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
-	return func(_ context.Context, appServer types.AppServer) bool {
+	return func(appServer readonly.AppServer) bool {
 		return appServer.GetApp().GetPublicAddr() == publicAddr
 	}
 }
 
 // MatchName matches on the name of an application.
 func MatchName(name string) Matcher {
-	return func(_ context.Context, appServer types.AppServer) bool {
+	return func(appServer readonly.AppServer) bool {
 		return appServer.GetApp().GetName() == name
 	}
 }
@@ -97,34 +118,41 @@ func MatchName(name string) Matcher {
 // MatchHealthy tries to establish a connection with the server using the
 // `dialAppServer` function. The app server is matched if the function call
 // doesn't return any error.
+// This should not be part of matching move to HealthCheckAppServer instead
+// func MatchHealthy(clusterGetter reversetunnelclient.ClusterGetter, clusterName string) Matcher {
+// 	return func(ctx context.Context, appServer readonly.AppServer) bool {
+// 		// Redirected apps don't need to be dialed, as the proxy will redirect to them.
+// 		if redirectInsteadOfForward(appServer) {
+// 			return true
+// 		}
+
+// 		// Apps that use the Integration should use its credentials which are obtained in Proxy.
+// 		// There's no need for an ApplicationService in this scenario.
+// 		if appServer.GetApp().GetIntegration() != "" {
+// 			return true
+// 		}
+
+// 		conn, err := dialAppServer(ctx, clusterGetter, clusterName, appServer)
+// 		if err != nil {
+// 			return false
+// 		}
+
+//			conn.Close()
+//			return true
+//		}
+//	}
 func MatchHealthy(clusterGetter reversetunnelclient.ClusterGetter, clusterName string) Matcher {
-	return func(ctx context.Context, appServer types.AppServer) bool {
-		// Redirected apps don't need to be dialed, as the proxy will redirect to them.
-		if redirectInsteadOfForward(appServer) {
-			return true
-		}
-
-		// Apps that use the Integration should use its credentials which are obtained in Proxy.
-		// There's no need for an ApplicationService in this scenario.
-		if appServer.GetApp().GetIntegration() != "" {
-			return true
-		}
-
-		conn, err := dialAppServer(ctx, clusterGetter, clusterName, appServer)
-		if err != nil {
-			return false
-		}
-
-		conn.Close()
+	return func(readonly.AppServer) bool {
+		// TODO: move healthcheck and remove stub
 		return true
 	}
 }
 
 // MatchAll matches if all the Matcher functions return true.
 func MatchAll(matchers ...Matcher) Matcher {
-	return func(ctx context.Context, appServer types.AppServer) bool {
+	return func(appServer readonly.AppServer) bool {
 		for _, fn := range matchers {
-			if !fn(ctx, appServer) {
+			if !fn(appServer) {
 				return false
 			}
 		}

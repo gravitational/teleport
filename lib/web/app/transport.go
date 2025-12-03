@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -434,7 +435,7 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 
 // dialAppServer dial and connect to the application service over the reverse
 // tunnel subsystem.
-func dialAppServer(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, clusterName string, server types.AppServer) (net.Conn, error) {
+func dialAppServer(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, clusterName string, server readonly.AppServer) (net.Conn, error) {
 	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)

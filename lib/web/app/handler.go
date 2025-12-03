@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -689,6 +690,6 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 
 // redirectInsteadOfForward returns true if an application shouldn't be forwarded, but
 // should be redirected directly to the public address instead.
-func redirectInsteadOfForward(appServer types.AppServer) bool {
+func redirectInsteadOfForward(appServer readonly.AppServer) bool {
 	return appServer.GetApp().Origin() == types.OriginOkta
 }

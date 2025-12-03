@@ -65,6 +65,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(okraport): add app server watcher here.
 	servers, err := MatchUnshuffled(
 		ctx,
 		accessPoint,

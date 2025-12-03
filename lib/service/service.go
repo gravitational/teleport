@@ -4907,6 +4907,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	// TODO(okraport): plumb this to the app server transport.
+	_, err = services.NewAppServersWatcher(process.ExitContext(), services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:    accessPoint,
+		},
+		AppServersGetter: accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	serverTLSConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5357,7 +5370,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			publicAddressMatches := webapp.MatchPublicAddr(publicAddr)
 			for _, a := range allAppServers {
-				if publicAddressMatches(ctx, a) {
+				if publicAddressMatches(a) {
 					return a.GetApp(), nil
 				}
 			}
