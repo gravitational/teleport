@@ -102,9 +102,9 @@ type ActiveHealthChecker struct {
 	signers []*healthSigner
 }
 
-// Run
+// Run executes the main health checking loop, iterating over CAs and making
+// signing requests.
 func (c *ActiveHealthChecker) Run(ctx context.Context) error {
-	c.logger.DebugContext(ctx, "Starting active health checker")
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go func() {
@@ -122,62 +122,48 @@ func (c *ActiveHealthChecker) Run(ctx context.Context) error {
 		return ctx.Err()
 	}
 
-	var (
-		signer  *healthSigner
-		failing bool
-		err     error
-	)
-	callback := func(err error) {
-		failing = err != nil
-		c.callback(err)
-	}
 	ticker := c.clock.NewTicker(c.interval)
 	defer ticker.Stop()
+	var (
+		signer *healthSigner
+		err    error
+	)
 	for {
-		c.logger.DebugContext(ctx, "Getting CA for health checking")
-		c.retry(ctx, c.failureInterval, func() bool {
-			signer, err = c.nextSigner(signer)
-			if err != nil {
-				callback(err)
-				c.logger.ErrorContext(ctx, "Failed to get next CA for health checking", "error", err)
-				return false
-			}
-			return true
-		})
-
-		c.retry(ctx, c.failureInterval, func() bool {
-			if !c.exists(signer) {
-				c.logger.DebugContext(ctx, "CA has been removed from cache", "ca_id", signer.caID)
-				return true
-			}
-			c.logger.DebugContext(ctx, "Executing health check", "ca_id", signer.caID)
-			err := c.healthFn(signer)
-			if err != nil {
-				c.logger.DebugContext(
-					ctx, "Received error from health check, waiting for next interval",
-					"ca_id", signer.caID,
-					"interval", c.failureInterval,
-					"error", err,
-				)
-				callback(err)
-				return false
-			}
-			callback(nil)
-			return true
-		})
-
-		if failing {
-			c.logger.DebugContext(ctx, "Last health check failed, skipping interval to get next CA")
-			continue
+		signer, err = c.step(signer)
+		c.callback(err)
+		if err != nil {
+			ticker.Reset(c.failureInterval)
+		} else {
+			ticker.Reset(c.interval)
 		}
-		c.logger.DebugContext(ctx, "Finished health check, waiting for next interval", "interval", c.interval)
-		ticker.Reset(c.interval)
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.Chan():
 		}
 	}
+}
+
+func (c *ActiveHealthChecker) step(curr *healthSigner) (*healthSigner, error) {
+	if !c.exists(curr) {
+		n, err := c.nextSigner(curr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		curr = n
+	}
+	if curr != nil {
+		err := c.healthFn(curr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	next, err := c.nextSigner(curr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return next, nil
 }
 
 // retry calls the given function until it returns true.
@@ -194,6 +180,10 @@ func (c *ActiveHealthChecker) retry(ctx context.Context, interval time.Duration,
 }
 
 func (c *ActiveHealthChecker) exists(s *healthSigner) bool {
+	if s == nil {
+		return false
+	}
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, signer := range c.signers {
@@ -207,15 +197,16 @@ func (c *ActiveHealthChecker) exists(s *healthSigner) bool {
 func (c *ActiveHealthChecker) nextSigner(last *healthSigner) (*healthSigner, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if len(c.signers) == 0 {
-		return nil, trace.Errorf("failed to health check keystore: no signers present")
+	n := len(c.signers)
+	if n == 0 {
+		return nil, trace.Errorf("no signers present")
 	}
-	for i, signer := range c.signers {
-		if last == nil {
-			return signer, nil
-		}
-		if signer.Equal(last) && len(c.signers) > i+1 {
-			return c.signers[i+1], nil
+	if last == nil {
+		return c.signers[0], nil
+	}
+	for i := range c.signers {
+		if c.signers[i].Equal(last) {
+			return c.signers[(i+1)%n], nil
 		}
 	}
 	return c.signers[0], nil
@@ -236,11 +227,8 @@ func (c *ActiveHealthChecker) watch(ctx context.Context) error {
 			var signers []*healthSigner
 			for _, ca := range cas {
 				if len(ca.GetActiveKeys().TLS) > 0 {
-					tlsKey := ca.GetActiveKeys().TLS[0]
-					c.logger.DebugContext(ctx, "trying get tls signer", "key", string(tlsKey.Key), "type", tlsKey.KeyType.String())
 					signer, err := c.m.GetTLSSigner(ctx, ca)
 					if err != nil {
-						c.logger.DebugContext(ctx, "failed to get tls signer", "ca_id", ca.GetID().String(), "error", err)
 						continue
 					}
 					signers = append(signers, &healthSigner{
@@ -251,7 +239,6 @@ func (c *ActiveHealthChecker) watch(ctx context.Context) error {
 				if len(ca.GetActiveKeys().SSH) > 0 {
 					signer, err := c.m.GetSSHSigner(ctx, ca)
 					if err != nil {
-						c.logger.DebugContext(ctx, "failed to get ssh signer", "ca_id", ca.GetID().String(), "error", err)
 						continue
 					}
 					signers = append(signers, &healthSigner{
@@ -262,7 +249,6 @@ func (c *ActiveHealthChecker) watch(ctx context.Context) error {
 				if len(ca.GetActiveKeys().JWT) > 0 {
 					signer, err := c.m.GetJWTSigner(ctx, ca)
 					if err != nil {
-						c.logger.DebugContext(ctx, "failed to get jwt signer", "ca_id", ca.GetID().String(), "error", err)
 						continue
 					}
 					signers = append(signers, &healthSigner{
@@ -273,7 +259,6 @@ func (c *ActiveHealthChecker) watch(ctx context.Context) error {
 
 			}
 			c.signers = signers
-			c.logger.DebugContext(ctx, "Received CA watch event, updating CAs")
 			c.mu.Unlock()
 			once.Do(func() {
 				c.firstEvent <- struct{}{}
@@ -331,10 +316,8 @@ type keycompare interface {
 // Equal compares healthSigner a's public key to healthSigner b's public key.
 func (a *healthSigner) Equal(b *healthSigner) bool {
 	if a.crypto != nil && b.crypto != nil {
-		puba := a.crypto.Public()
-		pubb := b.crypto.Public()
-		acomp, aok := puba.(keycompare)
-		return aok && acomp.Equal(pubb)
+		kc, ok := a.crypto.Public().(keycompare)
+		return ok && kc.Equal(b.crypto.Public())
 	} else if a.ssh != nil && b.ssh != nil {
 		return bytes.Equal(a.ssh.PublicKey().Marshal(), b.ssh.PublicKey().Marshal())
 	}
