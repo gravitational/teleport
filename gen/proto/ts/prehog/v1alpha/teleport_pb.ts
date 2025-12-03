@@ -4448,33 +4448,29 @@ export enum IntegrationEnrollField {
      */
     MWIGHAK8S_GITHUB_REF = 5,
     /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_HOST = 6;
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 6;
      */
-    MWIGHAK8S_GITHUB_ENTERPRISE_HOST = 6,
+    MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 6,
     /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 7;
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 7;
      */
-    MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 7,
+    MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 7,
     /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 8;
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS = 8;
      */
-    MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 8,
+    MWIGHAK8S_KUBERNETES_LABELS = 8,
     /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS = 9;
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS = 9;
      */
-    MWIGHAK8S_KUBERNETES_LABELS = 9,
+    MWIGHAK8S_KUBERNETES_GROUPS = 9,
     /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS = 10;
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS = 10;
      */
-    MWIGHAK8S_KUBERNETES_GROUPS = 10,
+    MWIGHAK8S_KUBERNETES_USERS = 10,
     /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS = 11;
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11;
      */
-    MWIGHAK8S_KUBERNETES_USERS = 11,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 12;
-     */
-    MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 12
+    MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11
 }
 /**
  * IntegrationEnrollCodeType identifies the type of code that was copied in an
