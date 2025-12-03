@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package teleport.certificate.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/certificate/v1;certificatev1";
+
+// SSH certificated marshaled as authorized key.
+message SSHCertificate {
+  string authorized_key = 1;
+}
