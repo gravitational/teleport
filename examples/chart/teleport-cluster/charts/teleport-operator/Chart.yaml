@@ -1,4 +1,4 @@
-.version: &version "18.4.0"
+.version: &version "18.4.0-dev.sclevine.13"
 
 name: teleport-operator
 apiVersion: v2

@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.4.0"
+const Version = "18.4.0-dev.sclevine.13"
 
 const VersionMajor = 18
 const VersionMinor = 4
 const VersionPatch = 0
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.sclevine.13"
 const VersionMetadata = ""
