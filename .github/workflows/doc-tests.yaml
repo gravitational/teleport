@@ -72,7 +72,7 @@ jobs:
           ref: 6f388765b8ce993721502083c74cb9af1fc5658f 
 
       - name: Install Go
-        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f # v6.0.0
         with:
           go-version: 'stable'
           cache-dependency-path: shared-workflows/bot/go.sum
