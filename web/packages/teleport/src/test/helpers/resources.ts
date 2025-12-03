@@ -81,6 +81,10 @@ export const fetchUnifiedResources = (opts?: {
             },
           ],
         },
+        {
+          kind: 'kube_cluster',
+          name: 'kube-temp-01.example.com',
+        },
       ],
     },
   } = opts ?? {};

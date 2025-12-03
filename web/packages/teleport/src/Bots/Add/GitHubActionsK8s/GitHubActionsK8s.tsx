@@ -16,30 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { ResourceIcon } from 'design/ResourceIcon';
 
 import { useNoMinWidth } from 'teleport/Main';
 
-import { FlowStepProps, GuidedFlow, View } from '../Shared/GuidedFlow';
+import { GuidedFlow, View } from '../Shared/GuidedFlow';
 import { ConfigureAccess } from './ConfigureAccess';
 import { ConnectGitHub } from './ConnectGitHub';
+import { Finish } from './Finish';
 import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
-
-function Placeholder(props: FlowStepProps) {
-  const { nextStep, prevStep } = props;
-  return (
-    <div>
-      placeholder<ButtonPrimary onClick={nextStep}>Next</ButtonPrimary>
-      <ButtonSecondary onClick={prevStep}>Back</ButtonSecondary>
-    </div>
-  );
-}
+import { Welcome } from './Welcome';
 
 const views: View[] = [
   {
     name: 'Welcome',
-    component: Placeholder,
+    component: Welcome,
   },
   {
     name: 'Connect GitHub',
@@ -51,7 +42,7 @@ const views: View[] = [
   },
   {
     name: 'Setup workflow',
-    component: Placeholder,
+    component: Finish,
   },
 ];
 

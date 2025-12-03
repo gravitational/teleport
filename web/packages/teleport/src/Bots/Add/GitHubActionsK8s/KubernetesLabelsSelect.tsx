@@ -37,9 +37,11 @@ import { Plus } from 'design/Icon/Icons/Plus';
 import { Indicator } from 'design/Indicator/Indicator';
 import { Primary, Secondary } from 'design/Label/Label';
 import { ResourceIcon } from 'design/ResourceIcon';
-import Text, { H2, H3 } from 'design/Text';
-import FieldInput from 'shared/components/FieldInput/FieldInput';
-import Validation, { Validator } from 'shared/components/Validation';
+import Text, { H3 } from 'design/Text';
+import FieldInput, {
+  HelperTextLine,
+} from 'shared/components/FieldInput/FieldInput';
+import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Rule } from 'shared/components/Validation/rules';
 
 import cfg from 'teleport/config';
@@ -57,6 +59,19 @@ export function KubernetesLabelsSelect(
   const [showPicker, setShowPicker] = useState(false);
   const { selected, onChange, ...styles } = props;
 
+  const { valid, message } = useRule(() => {
+    if (selected.length === 0) {
+      return {
+        valid: false,
+        message:
+          'At least one label must be selected. Use wildcard *:* to match any label.',
+      };
+    }
+    return {
+      valid: true,
+    };
+  });
+
   const handleChanged = (labels: Label[]) => {
     setShowPicker(false);
     onChange(labels);
@@ -67,34 +82,45 @@ export function KubernetesLabelsSelect(
   };
 
   return (
-    <Container {...styles}>
-      {selected.map(l => (
-        <Label key={l.name} label={formatLabel(l)} style="secondary" />
-      ))}
-
-      {selected.length === 0 && <span>No labels selected.</span>}
-
-      <ButtonIcon
-        onClick={() => {
-          setShowPicker(true);
-        }}
-        aria-label="edit"
+    <Box>
+      <LabelsContainer
+        {...styles}
+        aria-describedby={'labels-select-helper-text'}
       >
-        <Pencil size="medium" />
-      </ButtonIcon>
+        {selected.map(l => (
+          <Label key={l.name} label={formatLabel(l)} style="secondary" />
+        ))}
 
-      {showPicker && (
-        <Picker
-          selected={selected}
-          onChange={handleChanged}
-          onCancel={handleCancel}
-        />
-      )}
-    </Container>
+        {selected.length === 0 && <EmptyText>No labels selected.</EmptyText>}
+
+        <ButtonIcon
+          onClick={() => {
+            setShowPicker(true);
+          }}
+          aria-label="edit"
+        >
+          <Pencil size="medium" />
+        </ButtonIcon>
+
+        {showPicker && (
+          <Picker
+            selected={selected}
+            onChange={handleChanged}
+            onCancel={handleCancel}
+          />
+        )}
+      </LabelsContainer>
+
+      <HelperTextLine
+        hasError={!valid}
+        helperTextId={'labels-select-helper-text'}
+        errorMessage={message}
+      />
+    </Box>
   );
 }
 
-const Container = styled(Flex)`
+const LabelsContainer = styled(Flex)`
   flex-wrap: wrap;
   overflow: hidden;
   gap: ${props => props.theme.space[2]}px;
@@ -315,9 +341,10 @@ function Picker(props: {
                       size="small"
                       rule={requireValidManualLabel}
                       label={'Add custom label'}
-                      placeholder="label: value"
+                      placeholder="name: value"
                       value={manualInput}
                       onChange={e => setManualInput(e.target.value)}
+                      toolTipContent="e.g. env: prod, region: us-*, name: ^kube-(a|b).+$"
                     />
                     <ButtonSecondary type="submit">Add</ButtonSecondary>
                   </ManualInputContainer>
@@ -400,14 +427,24 @@ function ClusterItem(props: {
 }) {
   const { resource, selectedLabels, addLabel, removeLabel } = props;
 
-  const hasAccess = selectedLabels.reduce((access, cur) => {
-    if (!access) return false;
-    const label = resource.labels.find(l => l.name === cur.name);
-    if (!label) {
-      return false;
-    }
-    return cur.values.some(v => v === label.value);
-  }, true);
+  // const hasAccess = selectedLabels.reduce((access, cur) => {
+  //   if (!access) return false;
+  //   const label = resource.labels.find(l => l.name === cur.name);
+  //   if (!label) {
+  //     return false;
+  //   }
+  //   return cur.values.some(v => v === label.value);
+  // }, true);
+
+  const hasAccess =
+    selectedLabels.length > 0 &&
+    selectedLabels.every(s => {
+      const label = resource.labels.find(l => l.name === s.name);
+      if (!label) {
+        return false;
+      }
+      return s.values.some(v => v === label.value);
+    });
 
   return (
     <ClusterItemContainer>
@@ -454,6 +491,8 @@ function ClusterItem(props: {
               />
             );
           })}
+
+          {resource.labels.length === 0 && <EmptyText>No labels</EmptyText>}
         </ClusterItemLabelsContainer>
       </ClusterItemInnerContainer>
     </ClusterItemContainer>

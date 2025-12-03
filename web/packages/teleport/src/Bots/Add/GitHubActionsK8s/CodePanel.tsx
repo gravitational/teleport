@@ -21,7 +21,6 @@ import { useState } from 'react';
 import { Tabs } from 'shared/components/Editor/Tabs';
 import TextEditor from 'shared/components/TextEditor/TextEditor';
 
-import { GHA_WORKFLOW } from './templates';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
 
 export function CodePanel() {
@@ -48,7 +47,7 @@ export function CodePanel() {
             type: 'terraform',
           },
           {
-            content: GHA_WORKFLOW,
+            content: template.ghaWorkflow || '# Loading template...',
             type: 'yaml',
           },
           {
@@ -66,12 +65,12 @@ export function CodePanel() {
 function makeTerraformContent(
   template: ReturnType<typeof useGitHubK8sFlow>['template']
 ) {
-  if (template.error) {
-    return `# Failed to fetch template\n# ${template.error.message}`;
+  if (template.terraform.error) {
+    return `# Failed to fetch template\n# ${template.terraform.error.message}`;
   }
 
-  if (template.data) {
-    return template.data.terraform;
+  if (template.terraform.data) {
+    return template.terraform.data;
   }
 
   return '# Loading template...';

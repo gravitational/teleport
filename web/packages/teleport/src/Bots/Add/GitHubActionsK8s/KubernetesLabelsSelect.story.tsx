@@ -23,6 +23,7 @@ import styled from 'styled-components';
 
 import Flex from 'design/Flex';
 import Text from 'design/Text/Text';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -74,8 +75,9 @@ function Wrapper() {
     },
   ]);
 
-  const handleLabelsChanged = (labels: Labels) => {
+  const handleLabelsChanged = (labels: Labels, validator: Validator) => {
     setLabels(labels);
+    validator.validate();
   };
 
   const customAcl = makeAcl({
@@ -93,15 +95,19 @@ function Wrapper() {
   return (
     <QueryClientProvider client={queryClient}>
       <TeleportProviderBasic teleportCtx={ctx}>
-        <Container>
-          <Text>
-            <strong>Kubernetes Labels</strong>
-          </Text>
-          <KubernetesLabelsSelect
-            selected={labels}
-            onChange={handleLabelsChanged}
-          />
-        </Container>
+        <Validation>
+          {({ validator }) => (
+            <Container>
+              <Text>
+                <strong>Kubernetes Labels</strong>
+              </Text>
+              <KubernetesLabelsSelect
+                selected={labels}
+                onChange={labels => handleLabelsChanged(labels, validator)}
+              />
+            </Container>
+          )}
+        </Validation>
       </TeleportProviderBasic>
     </QueryClientProvider>
   );

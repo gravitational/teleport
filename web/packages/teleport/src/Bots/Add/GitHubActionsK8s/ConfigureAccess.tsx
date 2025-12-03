@@ -26,6 +26,8 @@ import Text, { H2 } from 'design/Text';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import Validator, { Validation } from 'shared/components/Validation/Validation';
 
+import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
+
 import { FlowStepProps } from '../Shared/GuidedFlow';
 import { CodePanel } from './CodePanel';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
@@ -63,13 +65,13 @@ export function ConfigureAccess(props: FlowStepProps) {
           {({ validator }) => (
             <>
               <Text>Labels</Text>
+              {/*TODO: does this field need vaidation? Is zero labels ok?*/}
               <KubernetesLabelsSelect
                 mt={2}
-                selected={[
-                  { name: 'env', values: ['dev', 'staging'] },
-                  { name: 'region', values: ['eu-west-1'] },
-                ]}
-                onChange={() => {}}
+                selected={state.kubernetesLabels}
+                onChange={labels =>
+                  dispatch({ type: 'kubernetes-labels-changed', value: labels })
+                }
               />
               <Text mt={3} mb={3}>
                 Your workflow will have access to Kubernetes clusters which
@@ -87,7 +89,6 @@ export function ConfigureAccess(props: FlowStepProps) {
               <FieldSelectCreatable
                 mt={2}
                 placeholder="e.g. system:masters"
-                isSearchable
                 isMulti
                 value={state.kubernetesGroups.map(g => ({
                   label: g,
@@ -112,6 +113,51 @@ export function ConfigureAccess(props: FlowStepProps) {
                 </Link>{' '}
                 docs for information about mapping groups to roles.
               </Text>
+
+              {/* TODO(nicholasmarais1158): Make SectionBox a component instead of reusing it from Roles */}
+              <SectionBox
+                titleSegments={['Advanced options']}
+                initiallyCollapsed={
+                  [
+                    'workflow',
+                    'environment',
+                    'enterpriseSlug',
+                    'enterpriseJwks',
+                  ].every(k => !state[k]) && state.refType === 'branch'
+                }
+                validation={{
+                  valid: true,
+                }}
+              >
+                <Text mt={3}>Kubernetes Users</Text>
+                <FieldSelectCreatable
+                  mt={2}
+                  isMulti
+                  placeholder={'e.g. user@example.com'}
+                  value={state.kubernetesUsers.map(g => ({
+                    label: g,
+                    value: g,
+                  }))}
+                  onChange={e => {
+                    dispatch({
+                      type: 'kubernetes-users-changed',
+                      value: e.map(g => g.value),
+                    });
+                  }}
+                  createOptionPosition="last"
+                />
+                <Text mb={3}>
+                  See the{' '}
+                  <Link
+                    target="_blank"
+                    href="https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/"
+                  >
+                    Teleport Kubernetes Access Controls
+                  </Link>{' '}
+                  docs for more information about using users and service
+                  accounts.
+                </Text>
+              </SectionBox>
 
               <Flex gap={2} pt={5}>
                 <ButtonPrimary onClick={() => handleNext(validator)}>

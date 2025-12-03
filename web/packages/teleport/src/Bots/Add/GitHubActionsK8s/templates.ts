@@ -1,18 +1,29 @@
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 export function makeGhaWorkflow(params: {
-  roleName: string;
-  botName: string;
-  repository: string;
-  owner: string;
+  tokenName: string;
   clusterPublicUrl: string;
 }) {
-  return GHA_WORKFLOW.replaceAll(':role_name', JSON.stringify(params.roleName))
-    .replaceAll(':bot_name', JSON.stringify(params.botName))
-    .replaceAll(':repository_owner', JSON.stringify(params.owner))
-    .replaceAll(
-      ':repository',
-      JSON.stringify(`${params.owner}/${params.repository}`)
-    )
-    .replaceAll(':cluster_public_url', JSON.stringify(params.clusterPublicUrl));
+  return GHA_WORKFLOW.replaceAll(
+    ':token_name',
+    JSON.stringify(params.tokenName)
+  ).replaceAll(':cluster_public_url', JSON.stringify(params.clusterPublicUrl));
 }
 
 export const GHA_WORKFLOW = `# This file contains a GitHub Actions workflow which enrolls with Teleport in
@@ -49,8 +60,8 @@ jobs:
     - name: Fetch credentials using Machine ID
       uses: teleport-actions/auth-k8s@v2
       with:
-        proxy: example.teleport.sh:443
-        token: github-gravitational-teleport
+        proxy: :cluster_public_url
+        token: :token_name
         # Provide the name of your Kubernetes cluster in Teleport
         kubernetes-cluster: my-kubernetes-cluster
         # Enable the submission of anonymous usage telemetry. This helps us

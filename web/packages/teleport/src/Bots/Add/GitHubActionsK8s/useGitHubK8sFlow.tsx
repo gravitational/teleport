@@ -28,8 +28,10 @@ import React, {
 import { debounce } from 'shared/utils/highbar';
 
 import { generateGhaK8sTemplates } from 'teleport/services/bot/bot';
+import useTeleport from 'teleport/useTeleport';
 
 import { GITHUB_HOST, parseRepoAddress, RefType } from '../Shared/github';
+import { makeGhaWorkflow } from './templates';
 
 export function useGitHubK8sFlow() {
   return useContext(context);
@@ -43,6 +45,9 @@ export function GitHubK8sFlowProvider(
   const { children, intitialState = defaultState } = props;
 
   const [state, dispatch] = useReducer(reducer, intitialState);
+
+  const ctx = useTeleport();
+  const cluster = ctx.storeUser.state.cluster;
 
   const { mutate, data, isPending, error } = useMutation({
     mutationFn: (vars: Parameters<typeof generateGhaK8sTemplates>[0]) =>
@@ -83,6 +88,18 @@ export function GitHubK8sFlowProvider(
       },
       kubernetes: {
         groups: state.kubernetesGroups,
+        labels: state.kubernetesLabels.reduce<Record<string, string[]>>(
+          (acc, cur) => {
+            const existing = acc[cur.name];
+            if (existing) {
+              existing.push(...cur.values);
+            } else {
+              acc[cur.name] = cur.values;
+            }
+            return acc;
+          },
+          {}
+        ),
       },
     });
   }, [
@@ -94,6 +111,7 @@ export function GitHubK8sFlowProvider(
     state.info?.owner,
     state.info?.repository,
     state.kubernetesGroups,
+    state.kubernetesLabels,
     state.ref,
     state.refType,
     state.workflow,
@@ -103,9 +121,15 @@ export function GitHubK8sFlowProvider(
     state,
     dispatch,
     template: {
-      data: data ?? prevData,
-      loading: isPending,
-      error,
+      terraform: {
+        data: (data ?? prevData)?.terraform,
+        loading: isPending,
+        error,
+      },
+      ghaWorkflow: makeGhaWorkflow({
+        clusterPublicUrl: cluster.publicURL,
+        tokenName: `gha-${state.info?.owner ?? 'owner'}-${state.info?.repository ?? 'repo'}`,
+      }),
     },
   };
 
@@ -183,6 +207,16 @@ function reducer(prev: State, action: Action): State {
         ...prev,
         kubernetesGroups: action.value,
       };
+    case 'kubernetes-labels-changed':
+      return {
+        ...prev,
+        kubernetesLabels: action.value,
+      };
+    case 'kubernetes-users-changed':
+      return {
+        ...prev,
+        kubernetesUsers: action.value,
+      };
     default:
       const exhaustiveCheck: never = action;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
@@ -210,8 +244,12 @@ type Action =
       value: RefType | '';
     }
   | {
-      type: 'kubernetes-groups-changed';
+      type: 'kubernetes-groups-changed' | 'kubernetes-users-changed';
       value: string[];
+    }
+  | {
+      type: 'kubernetes-labels-changed';
+      value: { name: string; values: string[] }[];
     };
 
 type State = {
@@ -231,6 +269,8 @@ type State = {
   enterpriseSlug: string;
   enterpriseJwks: string;
   kubernetesGroups: string[];
+  kubernetesLabels: { name: string; values: string[] }[];
+  kubernetesUsers: string[];
 };
 
 const defaultState: State = {
@@ -245,15 +285,20 @@ const defaultState: State = {
   enterpriseSlug: '',
   enterpriseJwks: '',
   kubernetesGroups: [],
+  kubernetesLabels: [{ name: '*', values: ['*'] }],
+  kubernetesUsers: [],
 };
 
 type Context = {
   state: State;
   dispatch: React.ActionDispatch<[Action]>;
   template: {
-    data?: Awaited<ReturnType<typeof generateGhaK8sTemplates>>;
-    loading: boolean;
-    error: Error | null;
+    terraform: {
+      data?: string;
+      loading: boolean;
+      error: Error | null;
+    };
+    ghaWorkflow?: string;
   };
 };
 const context = React.createContext<Context>({
@@ -262,8 +307,10 @@ const context = React.createContext<Context>({
   },
   state: defaultState,
   template: {
-    loading: false,
-    error: null,
+    terraform: {
+      loading: false,
+      error: null,
+    },
   },
 });
 
