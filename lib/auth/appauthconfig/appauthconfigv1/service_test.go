@@ -20,7 +20,6 @@ package appauthconfigv1
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -180,37 +179,37 @@ func (c *accessTest) setup(t *testing.T, specs ...types.RoleSpecV6) (context.Con
 }
 
 func (c *accessTest) run(t *testing.T) {
-	t.Run(fmt.Sprintf("%s is allowed", c.name), func(t *testing.T) {
-		spec := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: c.requiredAccessRules},
-		}
-		ctx, clt := c.setup(t, spec)
-		err := c.actionFn(t, ctx, clt)
-		require.NoError(t, err)
-		if c.requireEvent != nil {
-			got := clt.eventRecorder.LastEvent()
-			require.NotNil(t, got)
-			require.IsType(t, c.requireEvent, got)
-		}
-	})
-
-	t.Run(fmt.Sprintf("%s is not allowed", c.name), func(t *testing.T) {
-		spec := types.RoleSpecV6{}
-		ctx, clt := c.setup(t, spec)
-		err := c.actionFn(t, ctx, clt)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
-	})
-
-	t.Run(fmt.Sprintf("%s is denied", c.name), func(t *testing.T) {
-		spec := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: c.requiredAccessRules},
-			Deny:  types.RoleConditions{Rules: c.requiredAccessRules},
-		}
-		ctx, clt := c.setup(t, spec)
-		err := c.actionFn(t, ctx, clt)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err))
+	t.Run(c.name, func(t *testing.T) {
+		t.Run("allowed", func(t *testing.T) {
+			spec := types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: c.requiredAccessRules},
+			}
+			ctx, clt := c.setup(t, spec)
+			err := c.actionFn(t, ctx, clt)
+			require.NoError(t, err)
+			if c.requireEvent != nil {
+				got := clt.eventRecorder.LastEvent()
+				require.NotNil(t, got)
+				require.IsType(t, c.requireEvent, got)
+			}
+		})
+		t.Run("not allowed", func(t *testing.T) {
+			spec := types.RoleSpecV6{}
+			ctx, clt := c.setup(t, spec)
+			err := c.actionFn(t, ctx, clt)
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+		})
+		t.Run("denied", func(t *testing.T) {
+			spec := types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: c.requiredAccessRules},
+				Deny:  types.RoleConditions{Rules: c.requiredAccessRules},
+			}
+			ctx, clt := c.setup(t, spec)
+			err := c.actionFn(t, ctx, clt)
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+		})
 	})
 }
 

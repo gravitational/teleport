@@ -46,8 +46,8 @@ func NewAppAuthConfigService(b backend.Backend) (*AppAuthConfigService, error) {
 			Backend:       b,
 			ResourceKind:  types.KindAppAuthConfig,
 			BackendPrefix: backend.NewKey(appAuthConfigPrefix),
-			MarshalFunc:   services.MarshalAppAuthConfig,
-			UnmarshalFunc: services.UnmarshalAppAuthConfig,
+			MarshalFunc:   services.MarshalProtoResource[*appauthconfigv1.AppAuthConfig],
+			UnmarshalFunc: services.UnmarshalProtoResource[*appauthconfigv1.AppAuthConfig],
 			ValidateFunc:  services.ValidateAppAuthConfig,
 		})
 	if err != nil {

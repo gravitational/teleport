@@ -54,24 +54,24 @@ type AppAuthConfig interface {
 func ValidateAppAuthConfig(s *appauthconfigv1.AppAuthConfig) error {
 	switch {
 	case s == nil:
-		return trace.BadParameter("object must not be nil")
+		return trace.BadParameter("app auth config must not be empty")
 	case s.Version != types.V1:
-		return trace.BadParameter("only version %q is supported, got %q", types.V1, s.Version)
+		return trace.BadParameter("app auth config only supports version %q, got %q", types.V1, s.Version)
 	case s.Kind != types.KindAppAuthConfig:
-		return trace.BadParameter("kind must be %q, got %q", types.KindAppAuthConfig, s.Kind)
+		return trace.BadParameter("app auth config kind must be %q, got %q", types.KindAppAuthConfig, s.Kind)
 	case s.Metadata == nil:
-		return trace.BadParameter("metadata is missing")
+		return trace.BadParameter("app auth config metadata is missing")
 	case s.Metadata.Name == "":
-		return trace.BadParameter("metadata.name is missing")
+		return trace.BadParameter("app auth config metadata.name is missing")
 	case s.Spec == nil:
-		return trace.BadParameter("spec is missing")
+		return trace.BadParameter("app auth config spec is missing")
 	case len(s.Spec.AppLabels) == 0:
-		return trace.BadParameter("spec.app_labels must at least contain a single label, otherwise this config won't be effective")
+		return trace.BadParameter("app auth config spec.app_labels must at least contain a single label, otherwise this config won't be effective")
 	}
 
 	for _, label := range s.Spec.AppLabels {
 		if err := validateLabel(label); err != nil {
-			return trace.BadParameter("invalid spec.app_labels: %v", err)
+			return trace.BadParameter("invalid app auth config spec.app_labels: %v", err)
 		}
 	}
 
@@ -79,31 +79,21 @@ func ValidateAppAuthConfig(s *appauthconfigv1.AppAuthConfig) error {
 	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
 		return validateJWTAppAuthConfig(spec.Jwt)
 	default:
-		return trace.BadParameter("unsupported configuration type")
+		return trace.BadParameter("unsupported app auth config type")
 	}
 }
 
 func validateJWTAppAuthConfig(s *appauthconfigv1.AppAuthConfigJWTSpec) error {
 	switch {
 	case s == nil:
-		return trace.BadParameter("spec.jwt is required")
+		return trace.BadParameter("app auth config spec.jwt is required")
 	case s.Audience == "":
-		return trace.BadParameter("spec.jwt.audience cannot be empty")
+		return trace.BadParameter("app auth config spec.jwt.audience cannot be empty")
 	case s.Issuer == "":
-		return trace.BadParameter("spec.jwt.issuer cannot be empty")
+		return trace.BadParameter("app auth config spec.jwt.issuer cannot be empty")
 	case s.GetJwksUrl() == "" && s.GetStaticJwks() == "":
-		return trace.BadParameter("spec.jwt.jwks_url or spec.jwt.static_jwks must be provided")
+		return trace.BadParameter("app auth config spec.jwt.jwks_url or spec.jwt.static_jwks must be provided")
 	}
 
 	return nil
-}
-
-// MarshalAppAuthConfig marshals AppAuthConfig resource to JSON.
-func MarshalAppAuthConfig(cfg *appauthconfigv1.AppAuthConfig, opts ...MarshalOption) ([]byte, error) {
-	return MarshalProtoResource(cfg, opts...)
-}
-
-// UnmarshalAppAuthConfig unmarshals the AppAuthConfig resource.
-func UnmarshalAppAuthConfig(data []byte, opts ...MarshalOption) (*appauthconfigv1.AppAuthConfig, error) {
-	return UnmarshalProtoResource[*appauthconfigv1.AppAuthConfig](data, opts...)
 }
