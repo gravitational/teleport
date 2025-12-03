@@ -2199,10 +2199,11 @@ func TestGetRequestableRoles(t *testing.T) {
 	clusterName := "my-cluster"
 
 	g := &mockGetter{
-		roles:       make(map[string]types.Role),
-		userStates:  make(map[string]*userloginstate.UserLoginState),
-		nodes:       make(map[string]types.Server),
-		clusterName: clusterName,
+		roles:                   make(map[string]types.Role),
+		userStates:              make(map[string]*userloginstate.UserLoginState),
+		nodes:                   make(map[string]types.Server),
+		samlIdPServiceProviders: make(map[string]types.SAMLIdPServiceProvider),
+		clusterName:             clusterName,
 	}
 
 	for i := range 10 {
@@ -2214,6 +2215,33 @@ func TestGetRequestableRoles(t *testing.T) {
 		require.NoError(t, err)
 		g.nodes[node.GetName()] = node
 	}
+
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "samlapp1",
+			Labels: map[string]string{
+				"env": "dev",
+			},
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: NewSAMLTestSPMetadata("localhost", "https://localhost/acs"),
+		},
+	)
+	require.NoError(t, err)
+	sp2, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "samlapp2",
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: NewSAMLTestSPMetadata("localhost2", "https://localhost/2acs"),
+		},
+	)
+	require.NoError(t, err)
+	g.samlIdPServiceProviders[sp.GetName()] = sp
+	g.samlIdPServiceProviders[sp2.GetName()] = sp2
 
 	getResourceID := func(i int) types.ResourceID {
 		return types.ResourceID{
@@ -2241,6 +2269,9 @@ func TestGetRequestableRoles(t *testing.T) {
 				NodeLabels: types.Labels{
 					"index": {"*"},
 				},
+				AppLabels: types.Labels{
+					"*": {"*"},
+				},
 				Logins: []string{"{{internal.logins}}"},
 			},
 		},
@@ -2265,6 +2296,36 @@ func TestGetRequestableRoles(t *testing.T) {
 				Request: &types.AccessRequestConditions{
 					Roles:         []string{"partial-access"},
 					SearchAsRoles: []string{"full-access"},
+				},
+			},
+		},
+		"saml-dev-prod-search": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"saml-dev-access", "saml-prod-access"},
+					SearchAsRoles: []string{"saml-dev-access"},
+				},
+			},
+		},
+		"saml-prod-request": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"saml-dev-access"},
+					SearchAsRoles: []string{"saml-prod-access"},
+				},
+			},
+		},
+		"saml-dev-access": {
+			Allow: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env": {"dev"},
+				},
+			},
+		},
+		"saml-prod-access": {
+			Allow: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env": {"prod"},
 				},
 			},
 		},
@@ -2334,6 +2395,33 @@ func TestGetRequestableRoles(t *testing.T) {
 			requestedResources: []types.ResourceID{getResourceID(9)},
 			allowedResourceIDs: []types.ResourceID{getResourceID(0), getResourceID(1), getResourceID(2), getResourceID(3), getResourceID(4)},
 			expectedRoles:      []string{"full-access", "full-search"},
+		},
+		{
+			name:     "can request saml role",
+			userRole: "saml-dev-prod-search",
+			requestedResources: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp1",
+				},
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindSAMLIdPServiceProvider,
+					Name:        "samlapp2",
+				},
+			},
+			expectedRoles: []string{"saml-dev-access"}, // "saml-prod-access" is filtered because it's not allowed in search.
+		},
+		{
+			name:     "cannot request saml role",
+			userRole: "saml-prod-request", // allows to request role for samlapp1
+			requestedResources: []types.ResourceID{{
+				ClusterName: clusterName,
+				Kind:        types.KindSAMLIdPServiceProvider,
+				Name:        "samlapp2", // user is allowed to search this resource
+			}},
+			expectedRoles: []string{},
 		},
 	}
 

@@ -1679,7 +1679,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 	for _, resource := range resources {
 		switch resource.GetKind() {
 		case types.KindSAMLIdPServiceProvider:
-			if err = accessChecker.CheckAccessToSAMLIdP(resource, nil /*AuthPreference*/, AccessState{MFAVerified: true}); err != nil {
+			if err = accessChecker.CheckAccessToSAMLIdP(resource, nil /*AuthPreference*/, AccessState{MFAVerified: true}); err == nil {
 				filteredResources = append(filteredResources, resource)
 			}
 		default:
