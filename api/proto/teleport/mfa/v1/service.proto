@@ -17,7 +17,7 @@ syntax = "proto3";
 package teleport.mfa.v1;
 
 import "gogoproto/gogo.proto";
-import "teleport/legacy/types/types.proto";
+import "teleport/legacy/types/events/events.proto";
 import "teleport/mfa/v1/challenge.proto";
 import "teleport/mfa/v1/validated_challenge.proto";
 
@@ -54,8 +54,9 @@ message CreateChallengeRequest {
   // is for the local cluster. Used to determine where the validated challenge should be replicated for leaf clusters.
   // Required when the SSH session is being established in a leaf cluster.
   string target_cluster = 2;
-  // SSO client redirect URL, supplied if the client supports SSO MFA checks. If unset, the server will only return
-  // non-SSO challenges.
+  // Used to construct the IdP redirect URL in SSO MFA challenges. If the client does not support SSO MFA, this field
+  // may be left unset and no SSO challenge will be included in the response. If set, the server will include SSO
+  // challenges in the response.
   string sso_client_redirect_url = 3;
   // Proxy address the user is using to connect to the Proxy. Required for SSO MFA to determine which URL to redirect
   // the user to when there are multiple options.
@@ -90,8 +91,8 @@ message ReplicateValidatedMFAChallengeRequest {
   string name = 1;
   // Value that uniquely identifies the user's session. Should match the payload in CreateChallengeRequest.
   SessionIdentifyingPayload payload = 2;
-  // Information about the user's MFA device used to authenticate.
-  types.MFADevice device = 3;
+  // Identifying information about the user's MFA device used to authenticate. Used for audit purposes.
+  events.MFADeviceMetadata device = 3;
   // Name of the cluster where the validated challenge originated.
   string source_cluster = 4;
   // Name of the destination cluster where the validated challenge should be replicated to.
