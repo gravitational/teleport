@@ -31,7 +31,7 @@ jobs:
         run: sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
 
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Determine Toolchain Versions and cache paths
         run: |
