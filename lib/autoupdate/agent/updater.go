@@ -63,6 +63,8 @@ const (
 	SetupTbotEnvVar = "TELEPORT_UPDATE_SETUP_TBOT"
 	// SetupSELinuxSSHEnvVar is the environment variable that enables SELinux SSH support.
 	SetupSELinuxSSHEnvVar = "TELEPORT_UPDATE_SELINUX_SSH"
+	//SetupSELinuxSSHEnforcingEnvVar specifies that Teleport SSH should quit if SELinux is not in enforcing mode.
+	SetupSELinuxSSHEnforcingEnvVar = "TELEPORT_UPDATE_SELINUX_SSH_ENFORCING"
 )
 
 const (
@@ -211,6 +213,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 				SetupVersionEnvVar+"="+rev.Version,
 				SetupFlagsEnvVar+"="+strings.Join(rev.Flags.Strings(), "\n"),
 				SetupSELinuxSSHEnvVar+"="+strconv.FormatBool(f.SELinuxSSH),
+				SetupSELinuxSSHEnforcingEnvVar+"="+strconv.FormatBool(f.SELinuxCheckEnforcing),
 				SetupTbotEnvVar+"="+strconv.FormatBool(f.Tbot),
 			)
 			cfg.Log.InfoContext(ctx, "Executing new teleport-update binary to update configuration.")
@@ -275,7 +278,7 @@ type Updater struct {
 	TbotProcess Process
 	// WriteTeleportService writes the teleport systemd service for the version of Teleport
 	// matching the currently running updater.
-	WriteTeleportService func(ctx context.Context, path string, rev Revision) error
+	WriteTeleportService func(ctx context.Context, path string, rev Revision, f SetupFeatures) error
 	// WriteTbotService writes the tbot systemd service for the version of Teleport
 	// matching the currently running updater.
 	WriteTbotService func(ctx context.Context, path string, rev Revision) error
@@ -396,6 +399,9 @@ type OverrideConfig struct {
 	AllowProxyConflict bool
 	// SELinuxSSHChanged specifies whether the user explicitly toggled SELinux behavior.
 	SELinuxSSHChanged bool
+	// SELinuxSSHEnforcingChanged specifies whether the user explicitly toggled if
+	// Teleport should fail if SELinux is not in enforcing mode.
+	SELinuxSSHEnforcingChanged bool
 }
 
 func deref[T any](ptr *T) T {
@@ -1099,8 +1105,9 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 		}
 		// Note: this version may be inaccurate if the active installation was modified
 		if err := u.SetupNamespace(ctx, cfg.Spec.Path, cfg.Status.Active, SetupFeatures{
-			SELinuxSSH: cfg.Spec.SELinuxSSH,
-			Tbot:       !ignoreTbot,
+			SELinuxSSH:            cfg.Spec.SELinuxSSH,
+			SELinuxCheckEnforcing: cfg.Spec.SELinuxSSHEnforcing,
+			Tbot:                  !ignoreTbot,
 		}); err != nil {
 			u.Log.ErrorContext(ctx, "Failed to revert configuration after failed restart.", errorKey, err)
 			return false
@@ -1112,8 +1119,9 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 
 	if cfg.Status.Active == target {
 		err := u.ReexecSetup(ctx, cfg.Spec.Path, target, SetupFeatures{
-			SELinuxSSH: cfg.Spec.SELinuxSSH,
-			Tbot:       !ignoreTbot,
+			SELinuxSSH:            cfg.Spec.SELinuxSSH,
+			SELinuxCheckEnforcing: cfg.Spec.SELinuxSSHEnforcing,
+			Tbot:                  !ignoreTbot,
 		}, false)
 		if errors.Is(err, context.Canceled) {
 			return trace.Errorf("check canceled")
@@ -1136,8 +1144,9 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	// If a new version was linked, restart services (including on revert).
 
 	err = u.ReexecSetup(ctx, cfg.Spec.Path, target, SetupFeatures{
-		SELinuxSSH: cfg.Spec.SELinuxSSH,
-		Tbot:       !ignoreTbot,
+		SELinuxSSH:            cfg.Spec.SELinuxSSH,
+		SELinuxCheckEnforcing: cfg.Spec.SELinuxSSHEnforcing,
+		Tbot:                  !ignoreTbot,
 	}, true)
 	if errors.Is(err, context.Canceled) {
 		return trace.Errorf("check canceled")
@@ -1170,6 +1179,8 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 type SetupFeatures struct {
 	// SELinuxSSH controls whether SELinux is enabled for SSH service.
 	SELinuxSSH bool
+	// SELinuxCheckEnforcing controls whether to check SELinux is in enforcing mode.
+	SELinuxCheckEnforcing bool
 	// Tbot controls whether tbot service is installed.
 	Tbot bool
 }
@@ -1180,7 +1191,7 @@ type SetupFeatures struct {
 func (u *Updater) Setup(ctx context.Context, path string, rev Revision, f SetupFeatures, restart bool) error {
 
 	// Write teleport systemd service.
-	if err := u.WriteTeleportService(ctx, path, rev); err != nil {
+	if err := u.WriteTeleportService(ctx, path, rev, f); err != nil {
 		return trace.Wrap(err, "failed to write teleport systemd service")
 	}
 

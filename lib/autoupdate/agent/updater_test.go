@@ -2229,7 +2229,7 @@ func TestUpdater_Setup(t *testing.T) {
 				require.Equal(t, tt.installSELinux, f.SELinuxSSH)
 				return tt.setupErr
 			}
-			updater.WriteTeleportService = func(_ context.Context, path string, rev Revision) error {
+			updater.WriteTeleportService = func(_ context.Context, path string, rev Revision, f SetupFeatures) error {
 				require.Equal(t, "test", path)
 				require.Equal(t, "version", rev.Version)
 				return nil

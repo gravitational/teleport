@@ -47,7 +47,7 @@ Type=simple
 Restart=always
 RestartSec=5
 EnvironmentFile=-{{ .EnvironmentFile }}
-ExecStart={{ .TeleportInstallationFile }} start {{ if .FIPS }}--fips {{ end }}--config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
+ExecStart={{ .TeleportInstallationFile }} start {{ if .FIPS }}--fips {{ end }}--config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }} {{- if .SELinux }} --enable-selinux {{- end -}} {{- if and .SELinux .CheckSELinuxEnforcing }} --check-selinux-enforcing {{- end }}
 # systemd before 239 needs an absolute path
 ExecReload=/bin/sh -c "exec pkill -HUP -L -F {{ .PIDFile }}"
 PIDFile={{ .PIDFile }}
@@ -71,6 +71,10 @@ type Flags struct {
 	TeleportConfigPath string
 	// FIPS configures teleport to run in a FIPS compliant mode.
 	FIPS bool
+	// SELinux configures teleport to run with SELinux enabled.
+	SELinux bool
+	// CheckSELinuxEnforcing specifies whether to check if SELinux is in enforcing mode.
+	CheckSELinuxEnforcing bool
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
