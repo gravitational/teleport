@@ -391,7 +391,7 @@ func getUpdateID(ctx context.Context, mgr manager.Manager, ref kclient.ObjectKey
 		if err != nil {
 			ctrl.Log.Error(err, "updater configmap is malformed, canary deployment may fail", "configmap", updateYAML)
 		}
-		return uuid.Nil, nil // proceed with empty UUID instead of crashing or deleting user data
+		return updateID, nil // proceed with empty UUID instead of crashing or deleting user data
 	}
 	return uuid.Nil, trace.Errorf("failing due to multiple conflicts")
 }
