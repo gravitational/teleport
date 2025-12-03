@@ -27,12 +27,11 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // AuthenticateChallenge is a challenge for all MFA devices registered for a user.
 type AuthenticateChallenge struct {
-	// webauthn_challenge contains a Webauthn credential assertion used for login/authentication ceremonies. Credential
-	// assertions hold, among other information, a list of allowed credentials for the ceremony (one for each U2F or
-	// Webauthn device registered by the user).
+	// Webauthn credential assertion used for login/authentication ceremonies. Holds a list of allowed credentials (one
+	// for each U2F or Webauthn device registered by the user).
 	WebauthnChallenge *webauthn.CredentialAssertion `protobuf:"bytes,1,opt,name=webauthn_challenge,json=webauthnChallenge,proto3" json:"webauthn_challenge,omitempty"`
-	// sso_challenge is an SSO MFA challenge. If set, the client can go to the IdP redirect URL to perform an MFA check in
-	// the IdP and obtain an MFA token. This token paired with the request id can then be used as MFA verification.
+	// SSO MFA challenge. If set, the client can go to the IdP redirect URL to perform an MFA check and obtain an MFA
+	// token. This token paired with the request id can be used for verification.
 	SsoChallenge         *SSOChallenge `protobuf:"bytes,2,opt,name=sso_challenge,json=ssoChallenge,proto3" json:"sso_challenge,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
@@ -177,11 +176,11 @@ func (*AuthenticateResponse) XXX_OneofWrappers() []interface{} {
 
 // SSOChallenge contains SSO auth request details to perform an SSO MFA check.
 type SSOChallenge struct {
-	// request_id is the ID of an SSO auth request.
+	// ID of an SSO auth request.
 	RequestId string `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	// redirect_url is an IdP redirect URL to initiate the SSO MFA flow.
+	// IdP redirect URL to initiate the SSO MFA flow.
 	RedirectUrl string `protobuf:"bytes,2,opt,name=redirect_url,json=redirectUrl,proto3" json:"redirect_url,omitempty"`
-	// device is the SSO device corresponding to the challenge.
+	// SSO device corresponding to the challenge.
 	Device               *types.SSOMFADevice `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
 	XXX_unrecognized     []byte              `json:"-"`
@@ -244,9 +243,9 @@ func (m *SSOChallenge) GetDevice() *types.SSOMFADevice {
 
 // SSOChallengeResponse is a response to SSOChallenge.
 type SSOChallengeResponse struct {
-	// request_id is the ID of an SSO auth request.
+	// ID of an SSO auth request.
 	RequestId string `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	// token is a secret token used to verify the user's SSO MFA session.
+	// Secret token used to verify the user's SSO MFA session.
 	Token                string   `protobuf:"bytes,2,opt,name=token,proto3" json:"token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

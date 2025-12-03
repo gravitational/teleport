@@ -26,15 +26,15 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
 type ValidatedMFAChallenge struct {
-	// The kind of resource represented.
+	// Kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	// Differentiates variations of the same kind. All resources should contain one, even if it is never populated.
+	// Differentiates variations of the same kind. All resources should contain one, even if never populated.
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	// The version of the resource being represented.
+	// Version of the resource being represented.
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	// Common metadata that all resources share.
+	// Common metadata shared by all resources.
 	Metadata *types.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// The validated challenge specification.
+	// Validated challenge specification.
 	Spec                 *ValidatedMFAChallengeSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
 	XXX_unrecognized     []byte                     `json:"-"`
@@ -111,15 +111,13 @@ func (m *ValidatedMFAChallenge) GetSpec() *ValidatedMFAChallengeSpec {
 
 // ValidatedMFAChallengeSpec contains the validated challenge data that is set once during creation and never modified.
 type ValidatedMFAChallengeSpec struct {
-	// payload is a value that uniquely identifies the user's session. It is the value that was supplied in
-	// CreateChallengeRequest.
+	// Value that uniquely identifies the user's session. Supplied in CreateChallengeRequest.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
-	// device contains information about the user's MFA device used to authenticate.
+	// Information about the user's MFA device used to authenticate.
 	Device *types.MFADevice `protobuf:"bytes,2,opt,name=device,proto3" json:"device,omitempty"`
-	// source_cluster is the name of the cluster where the validated challenge originated.
+	// Name of the cluster where the validated challenge originated.
 	SourceCluster string `protobuf:"bytes,3,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
-	// target_cluster is the name of the cluster where the SSH session is being established and this resource is intended
-	// for.
+	// Name of the cluster where the SSH session is being established and this resource is intended for.
 	TargetCluster        string   `protobuf:"bytes,4,opt,name=target_cluster,json=targetCluster,proto3" json:"target_cluster,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
