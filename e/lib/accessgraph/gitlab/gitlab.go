@@ -97,8 +97,7 @@ func (g *gitlabFetcher) getProjects() (
 		}
 		out = append(out, prj)
 
-		// TODO(tigrato):  remove int64 conversion when gitlab client is updated
-		members, err := g.client.getProjectMembers(int64(project.ID))
+		members, err := g.client.getProjectMembers(project.ID)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -135,8 +134,7 @@ func (g *gitlabFetcher) getGroups() (
 		}
 		out = append(out, grp)
 
-		// TODO(tigrato):  remove int64 conversion when gitlab client is updated
-		members, err := g.client.getGroupMembers(int64(group.ID))
+		members, err := g.client.getGroupMembers(group.ID)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

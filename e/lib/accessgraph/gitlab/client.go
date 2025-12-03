@@ -98,7 +98,7 @@ func (g gitlabClient) getProjectMembers(projectID int64) ([]*gitlab.ProjectMembe
 	}
 	var members []*gitlab.ProjectMember
 	for {
-		out, rsp, err := g.client.ProjectMembers.ListProjectMembers(int(projectID), opt)
+		out, rsp, err := g.client.ProjectMembers.ListProjectMembers(projectID, opt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -121,7 +121,7 @@ func (g gitlabClient) getGroupMembers(groupID int64) ([]*gitlab.GroupMember, err
 	}
 	var members []*gitlab.GroupMember
 	for {
-		out, rsp, err := g.client.Groups.ListGroupMembers(int(groupID), opt)
+		out, rsp, err := g.client.Groups.ListGroupMembers(groupID, opt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
