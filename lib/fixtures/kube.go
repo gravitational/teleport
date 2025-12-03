@@ -64,3 +64,51 @@ subjects:
 - kind: Group
   name: group_name
   apiGroup: rbac.authorization.k8s.io`
+
+// KubePresetAccessClusterRoleBindingTemplate is a template for the kube-access preset role
+// ClusterRoleBinding that maps to the Kubernetes 'edit' ClusterRole.
+const KubePresetAccessClusterRoleBindingTemplate = `
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-access
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+- kind: Group
+  name: teleport:kube-access
+  apiGroup: rbac.authorization.k8s.io`
+
+// KubePresetEditorClusterRoleBindingTemplate is a template for the kube-editor preset role
+// ClusterRoleBinding that maps to the Kubernetes 'cluster-admin' ClusterRole.
+const KubePresetEditorClusterRoleBindingTemplate = `
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-editor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: Group
+  name: teleport:kube-editor
+  apiGroup: rbac.authorization.k8s.io`
+
+// KubePresetAuditorClusterRoleBindingTemplate is a template for the kube-auditor preset role
+// ClusterRoleBinding that maps to the Kubernetes 'view' ClusterRole.
+const KubePresetAuditorClusterRoleBindingTemplate = `
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport-preset-kube-auditor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- kind: Group
+  name: teleport:kube-auditor
+  apiGroup: rbac.authorization.k8s.io`

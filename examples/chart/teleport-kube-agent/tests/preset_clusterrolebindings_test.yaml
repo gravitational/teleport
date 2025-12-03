@@ -1,0 +1,126 @@
+suite: PresetClusterRoleBindings
+templates:
+  - preset_clusterrolebindings.yaml
+tests:
+  - it: should not create any ClusterRoleBindings when presetRoles.enabled is false
+    set:
+      presetRoles:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should create all three ClusterRoleBindings when presetRoles.enabled is true
+    set:
+      presetRoles:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - containsDocument:
+          kind: ClusterRoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-kube-agent-kube-access
+      - containsDocument:
+          kind: ClusterRoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-kube-agent-kube-editor
+      - containsDocument:
+          kind: ClusterRoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-kube-agent-kube-auditor
+
+  - it: should only create enabled ClusterRoleBindings
+    set:
+      presetRoles:
+        enabled: true
+        kubeAccess:
+          enabled: true
+        kubeEditor:
+          enabled: false
+        kubeAuditor:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: ClusterRoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-kube-agent-kube-access
+      - containsDocument:
+          kind: ClusterRoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-kube-agent-kube-auditor
+
+  - it: should use correct ClusterRoles for each preset
+    set:
+      presetRoles:
+        enabled: true
+    asserts:
+      - equal:
+          path: roleRef.name
+          value: edit
+        documentIndex: 0
+      - equal:
+          path: roleRef.name
+          value: cluster-admin
+        documentIndex: 1
+      - equal:
+          path: roleRef.name
+          value: view
+        documentIndex: 2
+
+  - it: should use default group names
+    set:
+      presetRoles:
+        enabled: true
+    asserts:
+      - equal:
+          path: subjects[0].name
+          value: "teleport:kube-access"
+        documentIndex: 0
+      - equal:
+          path: subjects[0].name
+          value: "teleport:kube-editor"
+        documentIndex: 1
+      - equal:
+          path: subjects[0].name
+          value: "teleport:kube-auditor"
+        documentIndex: 2
+
+  - it: should use custom group names when specified
+    set:
+      presetRoles:
+        enabled: true
+        kubeAccess:
+          groupName: "custom-access"
+        kubeEditor:
+          groupName: "custom-editor"
+        kubeAuditor:
+          groupName: "custom-auditor"
+    asserts:
+      - equal:
+          path: subjects[0].name
+          value: "custom-access"
+        documentIndex: 0
+      - equal:
+          path: subjects[0].name
+          value: "custom-editor"
+        documentIndex: 1
+      - equal:
+          path: subjects[0].name
+          value: "custom-auditor"
+        documentIndex: 2
+
+  - it: should set correct labels
+    set:
+      presetRoles:
+        enabled: true
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/name: teleport-kube-agent
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
+        documentIndex: 0

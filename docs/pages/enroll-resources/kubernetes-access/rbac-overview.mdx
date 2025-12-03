@@ -1,0 +1,285 @@
+---
+title: Understanding Kubernetes RBAC in Teleport
+description: How Teleport and Kubernetes RBAC work together and why kubernetes_groups is essential
+labels:
+ - conceptual
+ - kubernetes
+ - rbac
+---
+
+When you access Kubernetes through Teleport, you're dealing with two separate RBAC systems that need to work together. This guide explains how they interact and why `kubernetes_groups` is the key to making it all work.
+
+## Why kubernetes_groups is Essential
+
+Here's the fundamental challenge: Kubernetes has no idea what a Teleport role is. When you connect to a Kubernetes cluster through Teleport, Kubernetes needs to know who you are so it can decide what you're allowed to do.
+
+That's where `kubernetes_groups` comes in. It tells Teleport: "When this user connects to Kubernetes, make them a member of these groups." Kubernetes then uses its own RBAC system to decide what those groups can do.
+
+### How It Works
+
+Think of it like showing up at a conference with a badge that says which company you work for. Teleport gives you the badge (assigns you to groups), and Kubernetes checks what that badge allows you to access.
+
+Here's what happens when you run `kubectl get pods`:
+
+1. You authenticate to Teleport with your regular credentials
+2. Your Teleport role says you should be in the group `teleport:developers`
+3. Teleport forwards your request to Kubernetes, saying "this person is from the developers group"
+4. Kubernetes checks its ClusterRoleBindings to see what the developers group can do
+5. If the developers group has permission to list pods, you get your response
+
+### Why NOT kubernetes_users?
+
+You might wonder: "Why not just use individual usernames?" Here's why that's a bad idea:
+
+With `kubernetes_users`, you'd need to create a RoleBinding for every single user in every cluster. New hire? Update all your clusters. Someone changes teams? Update all your clusters again. It gets messy fast.
+
+With `kubernetes_groups`, you create one RoleBinding for "developers" and you're done. When someone joins the dev team, you just add them to the developer role in Teleport. No need to touch Kubernetes at all.
+
+Plus, Kubernetes itself was designed around groups. If you look at Kubernetes' own internal RBAC, it's all groups like `system:masters` and `system:authenticated`. Individual users are the exception, not the rule.
+
+## Who Controls What?
+
+This is where people often get confused. Both Teleport and Kubernetes have RBAC, so who's in charge of what?
+
+### What Teleport Controls
+
+Teleport acts as the gatekeeper. It decides:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: dev-team
+spec:
+  allow:
+    # Teleport controls: Which clusters can be accessed
+    kubernetes_labels:
+      environment: ["development", "staging"]
+      team: ["platform"]
+    
+    # Teleport controls: What identity to assume in those clusters
+    kubernetes_groups:
+    - "teleport:developers"
+    - "monitoring:viewers"
+    
+    # Teleport controls: Resource-level restrictions (optional)
+    kubernetes_resources:
+    - kind: pods
+      namespace: "*"
+      name: "*"
+      verbs: ["get", "list"]
+      api_group: ""  # core API group
+```
+
+In simple terms, Teleport decides:
+- Which clusters you can even connect to (using `kubernetes_labels`)
+- What groups you belong to when you get there (using `kubernetes_groups`)
+- Any hard limits on what you can access (using `kubernetes_resources` - though this is optional)
+
+### What Kubernetes Controls
+
+Once you're in the cluster, Kubernetes takes over. It uses its standard RBAC to decide what you can actually do:
+
+```yaml
+# Kubernetes ClusterRole - Defines permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: developer-permissions
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods", "services"]
+  verbs: ["get", "list", "watch"]
+---
+# Kubernetes ClusterRoleBinding - Grants permissions to groups
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: developer-access
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: developer-permissions
+subjects:
+- kind: Group
+  name: "teleport:developers"  # Matches kubernetes_groups in Teleport
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Kubernetes handles all the detailed permissions - what resources you can access, what verbs you can use, namespace restrictions, and so on. This is the same RBAC you'd use if you were accessing Kubernetes directly.
+
+## About kubernetes_resources
+
+You might have noticed the `kubernetes_resources` field in Teleport roles and wondered how it fits in. Think of it as an extra safety net:
+
+```yaml
+spec:
+  allow:
+    kubernetes_groups:
+    - "teleport:developers"
+    kubernetes_resources:
+    - kind: pods
+      namespace: "production"
+      name: "*"
+      verbs: ["get", "list"]  # Even if Kubernetes allows more
+      api_group: ""  # core API group
+```
+
+This acts as a restriction filter - even if Kubernetes would allow more operations through the group's ClusterRole, Teleport will restrict it to only these verbs. It's an additional layer of restriction, not a grant of permissions.
+
+Most of the time, you don't need `kubernetes_resources`. It's useful for things like:
+- Making absolutely sure no one can access secrets in production
+- Temporarily restricting access during an incident
+- Meeting compliance requirements that demand defense in depth
+
+But your main RBAC should happen in Kubernetes itself, using ClusterRoles and RoleBindings. That's what Kubernetes is good at.
+
+## Best Practices
+
+### Always Use Groups
+
+This cannot be stressed enough. Groups are how Kubernetes was meant to work:
+
+```yaml
+# Do this:
+kubernetes_groups:
+- "developers"
+- "staging-admins"
+
+# Not this:
+kubernetes_users:
+- "alice"
+- "bob"
+- "charlie"
+```
+
+### Use Meaningful Group Names
+
+Your group names should tell a story about what access they provide:
+
+```yaml
+kubernetes_groups:
+- "team:platform"        # Clear team ownership
+- "env:staging"          # Environment access
+- "oncall:primary"       # Temporary elevated access
+```
+
+### Create Your ClusterRoleBindings First
+
+Create ClusterRoleBindings that map your groups to appropriate permissions:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-team-production
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit  # Or your custom ClusterRole
+subjects:
+- kind: Group
+  name: "team:platform"
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### Start with Preset Roles
+
+Teleport comes with preset roles that already follow these patterns:
+
+- `kube-access` gives you standard developer access (edit permissions)
+- `kube-editor` gives you admin access (cluster-admin permissions)
+- `kube-auditor` gives you read-only access (view permissions)
+
+These automatically set up the right groups and work with ClusterRoleBindings that Teleport creates for you. Use them as a starting point, then create custom roles when you need something specific.
+
+### Don't Duplicate Logic
+
+Pick one place for each decision:
+- Teleport decides which clusters you can access
+- Kubernetes decides what you can do in those clusters
+
+Don't try to recreate Kubernetes RBAC in Teleport with complex `kubernetes_resources` rules. Let each system do what it's good at.
+
+## A Complete Example
+
+Let's walk through setting up access for a backend team:
+
+### Step 1: The Teleport Role
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: backend-developer
+spec:
+  allow:
+    # Which clusters they can access
+    kubernetes_labels:
+      environment: ["development", "staging"]
+    
+    # What groups they belong to in those clusters
+    kubernetes_groups:
+    - "team:backend"
+    - "env:dev"
+```
+
+### Step 2: The Kubernetes ClusterRole
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backend-team-permissions
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]  # Limited secret access
+```
+
+### Step 3: The ClusterRoleBinding
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backend-team-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backend-team-permissions
+subjects:
+- kind: Group
+  name: "team:backend"  # Matches kubernetes_groups in Teleport
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### What Happens
+
+When a backend developer runs `kubectl get pods`:
+
+1. They can only connect to dev and staging clusters (Teleport checks the labels)
+2. They're identified as part of the `team:backend` group
+3. Kubernetes grants them the permissions from `backend-team-permissions`
+4. They can perform all the operations allowed by the ClusterRole
+
+## The Bottom Line
+
+Remember: Kubernetes doesn't know what a Teleport role is. The `kubernetes_groups` field is how you tell Kubernetes who your users are. Without it, your users will just get "access denied" errors.
+
+Use groups, not individual users. Let Teleport manage identity and cluster access. Let Kubernetes manage the actual permissions. And when in doubt, start with the preset roles - they already do this right.
+
+## Next Steps
+
+- [Configure Kubernetes Preset Roles](./preset-roles.mdx)
+- [Set Up Custom Roles](./manage-access.mdx)
+- [Learn About Access Controls](./controls.mdx)
