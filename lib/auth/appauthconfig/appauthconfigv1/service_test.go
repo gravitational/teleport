@@ -174,7 +174,7 @@ type accessTest struct {
 
 func (c *accessTest) setup(t *testing.T, specs ...types.RoleSpecV6) (context.Context, testClient) {
 	t.Helper()
-	clt := newService(t, context.Background())
+	clt := newService(t, t.Context())
 	ctx := authorizerForDummyUser(t, clt, specs...)
 	return ctx, clt
 }
@@ -287,7 +287,7 @@ func newService(t *testing.T, ctx context.Context) testClient {
 }
 
 func authorizerForDummyUser(t *testing.T, clt testClient, roleSpecs ...types.RoleSpecV6) context.Context {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	user, err := types.NewUser("user-" + uuid.NewString())
 	require.NoError(t, err)
