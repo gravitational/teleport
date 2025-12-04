@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { Alert } from 'design';
+import Dialog from 'design/Dialog';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import { getErrMessage } from 'shared/utils/errorType';
@@ -21,7 +22,7 @@ import { EditStandard } from './EditStandard';
 import { EditYaml } from './EditYaml';
 import { RequiresEnrollingPlugin } from './RequiresEnrollingPlugin';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
-import { EditorWrapper, Sidebar } from './Shared';
+import { EditorWrapper } from './Shared';
 import {
   buildRuleFromStandardEditor,
   ConfigurableFieldsForStandardEditor,
@@ -249,8 +250,18 @@ export const RuleEditor = ({
     isCreating &&
     plugins.length === 0 &&
     editor === AccessMonitoringRuleType.Notification; // plugin is only required for notification rules.
+
   return (
-    <Sidebar p={4}>
+    <Dialog
+      dialogCss={() => ({
+        height: '80%',
+        width: '80%',
+        maxHeight: '1000px',
+        maxWidth: '1400px',
+      })}
+      onClose={onCancel}
+      open={true}
+    >
       <EditorHeader
         rule={selectedRule?.object}
         onDelete={onDelete}
@@ -300,6 +311,6 @@ export const RuleEditor = ({
           />
         )}
       </EditorWrapper>
-    </Sidebar>
+    </Dialog>
   );
 };

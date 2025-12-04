@@ -1,6 +1,5 @@
 import { act, waitFor } from '@testing-library/react';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
-import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 
@@ -10,16 +9,16 @@ import {
   AccessMonitoringRuleVersion,
 } from 'e-teleport/services/accessmonitoringrule/types';
 import { pluginsService } from 'e-teleport/services/plugins';
-import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { Plugin } from 'teleport/services/integrations';
 import { yamlService } from 'teleport/services/yaml';
 
-import { AccessMonitoringRulesDialog } from './AccessMonitoringRulesDialog';
+import { AccessAutomations } from './AccessAutomations';
 
 const mio = mockIntersectionObserver();
 
-describe('AccessMonitoringRulesDialog', () => {
+describe('AccessAutomations', () => {
   beforeEach(() => {
     jest.spyOn(pluginsService, 'fetchPlugins').mockResolvedValue(plugins);
 
@@ -87,7 +86,7 @@ describe('AccessMonitoringRulesDialog', () => {
     await screen.findAllByText(/plugin-name/i);
 
     await userEvent.click(
-      screen.getByRole('button', { name: /create new access automation rule/i })
+      screen.getByRole('button', { name: /create new access automation/i })
     );
 
     await userEvent.click(
@@ -135,7 +134,7 @@ describe('AccessMonitoringRulesDialog', () => {
     expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(2);
 
     await userEvent.click(
-      screen.getByRole('button', { name: /create new access automation rule/i })
+      screen.getByRole('button', { name: /create new access automation/i })
     );
 
     await userEvent.click(
@@ -157,7 +156,7 @@ describe('AccessMonitoringRulesDialog', () => {
     await waitForAllAsyncCalls();
 
     await userEvent.click(
-      screen.getByRole('button', { name: /create new access automation rule/i })
+      screen.getByRole('button', { name: /create new access automation/i })
     );
 
     await userEvent.click(
@@ -332,13 +331,8 @@ const Component = ({ noAccess = false }: { noAccess?: boolean }) => {
     .fn()
     .mockResolvedValue({ items: [{ name: 'role1' }] });
   return (
-    <MemoryRouter initialEntries={[{ pathname: '' }]}>
-      <ContextProvider ctx={ctx}>
-        <AccessMonitoringRulesDialog
-          onClose={() => null}
-          transitionState="entered"
-        />
-      </ContextProvider>
-    </MemoryRouter>
+    <TeleportProviderBasic teleportCtx={ctx}>
+      <AccessAutomations />
+    </TeleportProviderBasic>
   );
 };

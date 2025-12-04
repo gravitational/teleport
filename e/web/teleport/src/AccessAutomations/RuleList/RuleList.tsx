@@ -105,7 +105,7 @@ export function RuleList({
           },
         },
       ]}
-      emptyText="No Access Automation Rules Found"
+      emptyText="No Access Automations Found"
       isSearchable
     />
   );

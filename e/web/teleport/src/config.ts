@@ -31,6 +31,9 @@ const cfg = {
       report: '/web/accessmonitoring/report/:name/:days',
     },
 
+    accessAutomations: `/web/accessautomations`,
+    accessAutomationNew: `/web/accessautomations/new`,
+
     requests: '/web/requests/:requestId?',
     requestNew: '/web/cluster/:clusterId/requests/new',
 
@@ -241,6 +244,14 @@ const cfg = {
 
   getNewAccessRequestRoute(clusterId: string) {
     return generatePath(cfg.routes.requestNew, { clusterId });
+  },
+
+  getAccessAutomationRoute() {
+    return generatePath(cfg.routes.accessAutomations);
+  },
+
+  getNewAccessAutomationRoute() {
+    return generatePath(cfg.routes.accessAutomationNew);
   },
 
   getAccessManagementListUrl(accessListId?: string) {

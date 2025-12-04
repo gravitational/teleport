@@ -17,6 +17,7 @@ import {
   Table,
   UserList,
   Warning,
+  XCheck,
 } from 'design/Icon';
 
 import { AccessListManagement } from 'e-teleport/AccessListManagement';
@@ -50,6 +51,7 @@ import {
   type TeleportFeature,
 } from 'teleport/types';
 
+import { AccessAutomations } from './AccessAutomations/AccessAutomations';
 import { RolesE } from './Roles/RolesE';
 
 // ****************************
@@ -118,6 +120,29 @@ class FeatureAccessRequests implements TeleportFeature {
       return cfg.getAccessRequestRoute();
     },
     searchableTags: ['access requests', 'requests', 'review'],
+  };
+}
+
+class FeatureAccessAutomations implements TeleportFeature {
+  category = NavigationCategory.IdentityGovernance;
+
+  route = {
+    title: 'Access Automations',
+    path: cfg.routes.accessAutomations,
+    component: AccessAutomations,
+  };
+
+  hasAccess() {
+    return !cfg.oss.isDashboard;
+  }
+
+  navigationItem = {
+    title: NavTitle.AccessAutomations,
+    icon: XCheck,
+    getLink() {
+      return cfg.getAccessAutomationRoute();
+    },
+    searchableTags: ['access automations', 'automations'],
   };
 }
 
@@ -653,6 +678,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureAccessRequests(),
     new FeatureNewAccessRequest(),
     new FeatureAccessListManagement(),
+    new FeatureAccessAutomations(),
     new OSS.FeatureLocks(),
     new FeatureNewLock(),
     new FeatureDeviceTrust(),

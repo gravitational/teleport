@@ -1,13 +1,12 @@
 import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { MemoryRouter } from 'react-router';
 import { withoutQuery } from 'web/packages/build/storybook';
 
 import cfg from 'e-teleport/config';
-import { ContextProvider } from 'teleport';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 
-import { AccessMonitoringRulesDialog } from './AccessMonitoringRulesDialog';
+import { AccessAutomations } from './AccessAutomations';
 
 const defaultIsCloud = cfg.oss.isCloud;
 
@@ -16,7 +15,7 @@ const accessMonitoringRuleListWithoutQuery = withoutQuery(
 );
 
 export default {
-  title: 'TeleportE/AccessRequests/AccessMonitoringRules',
+  title: 'TeleportE/AccessAutomations',
   decorators: [
     Story => {
       useEffect(() => {
@@ -630,13 +629,8 @@ const Component = ({ noAccess = false }: { noAccess?: boolean }) => {
   const ctx = createTeleportContext();
   ctx.storeUser.state.acl = getAcl({ noAccess: noAccess });
   return (
-    <MemoryRouter initialEntries={[{ pathname: '' }]}>
-      <ContextProvider ctx={ctx}>
-        <AccessMonitoringRulesDialog
-          onClose={() => null}
-          transitionState="entered"
-        />
-      </ContextProvider>
-    </MemoryRouter>
+    <TeleportProviderBasic teleportCtx={ctx}>
+      <AccessAutomations />
+    </TeleportProviderBasic>
   );
 };

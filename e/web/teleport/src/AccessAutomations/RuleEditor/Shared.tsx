@@ -5,17 +5,6 @@ import { HoverTooltip } from 'design/Tooltip';
 
 import useTeleport from 'teleport/useTeleport';
 
-export const Sidebar = styled(Box)`
-  height: 100%;
-  width: 75%;
-  min-width: 500px;
-  overflow: auto;
-  position: relative;
-  border-left: 1px solid ${p => p.theme.colors.spotBackground[0]};
-  display: flex;
-  flex-direction: column;
-`;
-
 export const EditorSaveCancelButton = ({
   onSave,
   onCancel,

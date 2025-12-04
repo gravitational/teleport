@@ -1,14 +1,14 @@
-import { forwardRef, JSX, useEffect, useState } from 'react';
-import type { TransitionStatus } from 'react-transition-group';
-import { useTheme } from 'styled-components';
+import { JSX, useEffect, useState } from 'react';
 
-import { Alert, Box, ButtonIcon, Flex, Text } from 'design';
-import Dialog from 'design/Dialog';
-import { Cross } from 'design/Icon';
-import { Theme } from 'design/theme/themes/types';
+import { Alert, Box, Flex, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import {
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
@@ -17,6 +17,11 @@ import {
 } from 'e-teleport/services/accessmonitoringrule/types';
 import { pluginsService } from 'e-teleport/services/plugins';
 import { useServerSidePagination } from 'teleport/components/hooks';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 import { Plugin } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
 
@@ -24,13 +29,7 @@ import { RuleEditor } from './RuleEditor/RuleEditor';
 import { RuleList } from './RuleList/RuleList';
 import { useRules } from './useRules';
 
-export const AccessMonitoringRulesDialog = forwardRef<
-  HTMLDivElement,
-  {
-    onClose(): void;
-    transitionState: TransitionStatus;
-  }
->(({ onClose, transitionState }, ref) => {
+export function AccessAutomations() {
   const ctx = useTeleport();
   const { fetch, create, update, remove, rulesAcl } = useRules(ctx);
   const pluginAccess = ctx.storeUser.getPluginsAccess();
@@ -43,7 +42,6 @@ export const AccessMonitoringRulesDialog = forwardRef<
     .map(perm => perm.label);
   const hasAmRuleCreateAccess = missingPermissions.length === 0;
 
-  const theme = useTheme();
   const [editor, setEditor] = useState<AccessMonitoringRuleType>();
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [search, setSearch] = useState('');
@@ -171,93 +169,69 @@ export const AccessMonitoringRulesDialog = forwardRef<
   }
 
   return (
-    <Dialog
-      dialogCss={() => fullScreenDialogCss(theme)}
-      disableEscapeKeyDown={false}
-      open={true}
-      ref={ref}
-      className={transitionState}
-    >
-      <Flex css={{ flex: 1 }} width="100%">
-        <Box
-          p={4}
-          css={`
-            overflow: auto;
-            position: relative;
-            right: 0;
-            width: 100%;
-          `}
-        >
-          <Flex alignItems="center" mb={3} justifyContent="space-between">
-            <Flex alignItems="center" mr={3}>
-              <HoverTooltip
-                placement="bottom"
-                tipContent="Back to Access Requests"
-              >
-                <ButtonIcon onClick={onClose} mr={2} ml={'-8px'}>
-                  <Cross size="medium" />
-                </ButtonIcon>
-              </HoverTooltip>
-              <Text typography="h1">Access Automation Rules</Text>
-            </Flex>
-            {fetchPluginsAttempt.status === 'success' && (
-              <HoverTooltip
-                placement="bottom"
-                tipContent={
-                  hasAmRuleCreateAccess ? null : (
-                    <MissingPermissionsTooltip
-                      missingPermissions={missingPermissions}
-                    />
-                  )
+    <FeatureBox>
+      <FeatureHeader alignItems="center" justifyContent="space-between">
+        <Flex alignItems="center" mr={3}>
+          <FeatureHeaderTitle>Access Automations</FeatureHeaderTitle>
+        </Flex>
+        <InfoGuideButton config={{ guide: <InfoGuide /> }}>
+          <HoverTooltip
+            placement="bottom"
+            tipContent={
+              hasAmRuleCreateAccess ? null : (
+                <MissingPermissionsTooltip
+                  missingPermissions={missingPermissions}
+                />
+              )
+            }
+          >
+            <MenuButton
+              menuProps={{ menuListCss: () => 'width: 280px' }}
+              buttonText="Create New Access Automation"
+              buttonProps={{
+                width: 280,
+                padding: 0,
+                size: 'medium',
+                intent: 'primary',
+                color: 'inherit',
+                fill:
+                  serverSidePagination.attempt.status === 'success' &&
+                  serverSidePagination.fetchedData.agents.length === 0
+                    ? 'filled'
+                    : 'border',
+                disabled:
+                  (showEditor && !viewingRule) || !hasAmRuleCreateAccess,
+              }}
+            >
+              <MenuItem
+                margin={1}
+                px={3}
+                borderRadius={2}
+                onClick={() =>
+                  onCreateRule(AccessMonitoringRuleType.Notification)
                 }
               >
-                <MenuButton
-                  menuProps={{ menuListCss }}
-                  buttonText="Create New Access Automation Rule"
-                  buttonProps={{
-                    width: 280,
-                    padding: 0,
-                    size: 'medium',
-                    intent: 'primary',
-                    color: 'inherit',
-                    fill:
-                      serverSidePagination.attempt.status === 'success' &&
-                      serverSidePagination.fetchedData.agents.length === 0
-                        ? 'filled'
-                        : 'border',
-                    disabled:
-                      (showEditor && !viewingRule) || !hasAmRuleCreateAccess,
-                  }}
-                >
-                  <MenuItem
-                    margin={1}
-                    px={3}
-                    borderRadius={2}
-                    onClick={() =>
-                      onCreateRule(AccessMonitoringRuleType.Notification)
-                    }
-                  >
-                    Notification Routing Rule
-                  </MenuItem>
-                  <MenuItem
-                    margin={1}
-                    px={3}
-                    borderRadius={2}
-                    onClick={() =>
-                      onCreateRule(AccessMonitoringRuleType.Review)
-                    }
-                  >
-                    Automatic Review Rule
-                  </MenuItem>
-                </MenuButton>
-              </HoverTooltip>
-            )}
-          </Flex>
-          {renderAlert(
-            serverSidePagination.attempt,
-            fetchPluginsAttempt,
-            fetchResources
-          )}
+                Notification Routing Rule
+              </MenuItem>
+              <MenuItem
+                margin={1}
+                px={3}
+                borderRadius={2}
+                onClick={() => onCreateRule(AccessMonitoringRuleType.Review)}
+              >
+                Automatic Review Rule
+              </MenuItem>
+            </MenuButton>
+          </HoverTooltip>
+        </InfoGuideButton>
+      </FeatureHeader>
+      {renderAlert(
+        serverSidePagination.attempt,
+        fetchPluginsAttempt,
+        fetchResources
+      )}
+      <Flex flex="1">
+        <Box flex="1" mb="4">
           <RuleList
             serversidePagination={serverSidePagination}
             plugins={plugins}
@@ -282,9 +256,9 @@ export const AccessMonitoringRulesDialog = forwardRef<
           />
         )}
       </Flex>
-    </Dialog>
+    </FeatureBox>
   );
-});
+}
 
 function renderAlert(
   rulesAttempt: Attempt,
@@ -300,7 +274,7 @@ function renderAlert(
       <Box>
         {fetchRulesFailed && (
           <Text>
-            Failed to fetch Access Automation Rules: {rulesAttempt.statusText}
+            Failed to fetch Access Automations: {rulesAttempt.statusText}
           </Text>
         )}
         {fetchPluginsFailed && (
@@ -311,40 +285,26 @@ function renderAlert(
   );
 }
 
-const menuListCss = () => `
-  width: 280px;
-`;
-
-const fullScreenDialogCss = (theme: Theme) => {
-  return `
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  max-height: 100%;
-  right: 0;
-  border-radius: 0;
-  overflow-y: hidden;
-  flex-direction: row;
-  background: ${theme.colors.levels.sunken};
-  transition: width 300ms ease-out;
-
-
-  &.entering {
-    right: -100%;
-  }
-
-  &.entered {
-    right: 0px;
-    transition: right 300ms ease-out;
-  }
-
-  &.exiting {
-    right: -100%;
-    transition: right 300ms ease-out;
-  }
-
-  &.exited {
-    right: -100%;
-  }
-  `;
+const infoGuideReferenceLinks = {
+  NotificationRoutingRules: {
+    title: 'Teleport Notification Routing Rules',
+    href: 'https://goteleport.com/docs/identity-governance/access-request-plugins/notification-routing-rules/',
+  },
+  AutomaticReviewRules: {
+    title: 'Teleport Automatic Reivew Rules',
+    href: 'https://goteleport.com/docs/identity-governance/access-requests/automatic-reviews/',
+  },
 };
+
+function InfoGuide() {
+  return (
+    <Box>
+      <InfoParagraph>
+        Teleport Access Automations allow administrators to monitor access
+        requests and apply notification routing rules or automatic review rules
+        based on specific conditions.
+      </InfoParagraph>
+      <ReferenceLinks links={Object.values(infoGuideReferenceLinks)} />
+    </Box>
+  );
+}

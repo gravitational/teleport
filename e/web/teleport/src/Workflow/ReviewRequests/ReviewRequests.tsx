@@ -1,7 +1,5 @@
-import { useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { Link } from 'react-router-dom';
-import { Transition } from 'react-transition-group';
 
 import { Box, ButtonBorder, ButtonPrimary, Flex, Text } from 'design';
 import { ArrowBack } from 'design/Icon';
@@ -16,31 +14,54 @@ import {
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
-import { AccessMonitoringRulesDialog } from './AccessMonitoringRules/AccessMonitoringRulesDialog';
 import RequestList from './RequestList/RequestList';
 import { RequestView } from './RequestView/RequestView';
 
 const NewRequestButton = ({ clusterId }: { clusterId: string }) => {
   return (
-    <Link
-      to={{
-        pathname: `${cfg.getNewAccessRequestRoute(clusterId)}`,
-      }}
-      style={{ textDecoration: 'none', marginLeft: 'auto' }}
+    <ButtonPrimary
+      as={Link}
+      to={cfg.getNewAccessRequestRoute(clusterId)}
+      textTransform="none"
+      title="New Access Request"
+      width="240px"
     >
-      <ButtonPrimary
-        textTransform="none"
-        title="New Access Request"
-        width="240px"
-      >
-        New Access Request
-      </ButtonPrimary>
-    </Link>
+      New Access Request
+    </ButtonPrimary>
   );
 };
 
+const AccessAutomationButton = ({ disabled }: { disabled: boolean }) => {
+  const accessAutomationButton = (
+    <ButtonBorder
+      as={Link}
+      to={cfg.getAccessAutomationRoute()}
+      textTransform="none"
+      title="Set Up Access Automation"
+      width="240px"
+      disabled={disabled}
+    >
+      Set Up Access Automation
+    </ButtonBorder>
+  );
+
+  if (disabled) {
+    return (
+      <HoverTooltip
+        placement="bottom"
+        tipContent={
+          'You do not have access to read/list Access Monitoring Rules'
+        }
+      >
+        {accessAutomationButton}
+      </HoverTooltip>
+    );
+  }
+
+  return accessAutomationButton;
+};
+
 export default function Workflow() {
-  const [showRoutingRuleDialog, setShowRoutingRuleDialog] = useState(false);
   const { requestId } = useParams<{ requestId?: string }>();
   const { clusterId } = useStickyClusterId();
 
@@ -48,62 +69,23 @@ export default function Workflow() {
   const amRuleAccess = ctx.storeUser.getAccessMonitoringRuleAccess();
   const hasReadRulesAccess = amRuleAccess.list && amRuleAccess.read;
 
-  const ViewRulesButton = (
-    <ButtonBorder
-      onClick={() => setShowRoutingRuleDialog(true)}
-      disabled={!hasReadRulesAccess}
-    >
-      Set Up Access Automation
-    </ButtonBorder>
-  );
-  const transitionRef = useRef<HTMLDivElement>(null);
-
   if (!requestId) {
     return (
-      <>
-        <FeatureBox>
-          <FeatureHeader
-            css={`
-              border-bottom: none;
-            `}
-            gap={3}
-          >
-            <Box flex="1">
-              <FeatureHeaderTitle>Access Requests</FeatureHeaderTitle>
-            </Box>
-
-            {hasReadRulesAccess ? (
-              <>{ViewRulesButton}</>
-            ) : (
-              <HoverTooltip
-                position="bottom"
-                tipContent={
-                  'You do not have access to read/list Access Monitoring Rules'
-                }
-              >
-                {ViewRulesButton}
-              </HoverTooltip>
-            )}
-            <NewRequestButton clusterId={clusterId} />
-          </FeatureHeader>
-          <RequestList />
-        </FeatureBox>
-        <Transition
-          in={showRoutingRuleDialog}
-          nodeRef={transitionRef}
-          timeout={300}
-          mountOnEnter
-          unmountOnExit
+      <FeatureBox>
+        <FeatureHeader
+          css={`
+            border-bottom: none;
+          `}
+          gap={3}
         >
-          {transitionState => (
-            <AccessMonitoringRulesDialog
-              ref={transitionRef}
-              onClose={() => setShowRoutingRuleDialog(false)}
-              transitionState={transitionState}
-            />
-          )}
-        </Transition>
-      </>
+          <Box flex="1">
+            <FeatureHeaderTitle>Access Requests</FeatureHeaderTitle>
+          </Box>
+          <AccessAutomationButton disabled={!hasReadRulesAccess} />
+          <NewRequestButton clusterId={clusterId} />
+        </FeatureHeader>
+        <RequestList />
+      </FeatureBox>
     );
   }
 
