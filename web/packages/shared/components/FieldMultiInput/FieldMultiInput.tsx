@@ -194,7 +194,7 @@ export function FieldMultiInput({
           <ButtonSecondary
             alignSelf="start"
             size="small"
-            inputAlignment
+            $inputAlignment
             onClick={() => insertItem(value.length)}
             disabled={disabled}
           >

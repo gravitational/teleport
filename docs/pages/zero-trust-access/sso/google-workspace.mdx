@@ -1,5 +1,6 @@
 ---
 title: Teleport Authentication with Google Workspace (G Suite)
+sidebar_label: Google Workspace (G Suite)
 description: How to configure Teleport access with Google Workspace (formerly known as G Suite)
 videoBanner: WTLWc6nnPfk
 tags:
@@ -462,6 +463,8 @@ credentials for scopes [...]" in audit log messages, change the `client_id` sett
 resource configuration file. For more information about viewing audit logs, see 
 [Troubleshooting](#troubleshooting).
 
+(!docs/pages/includes/sso/username-claim.mdx!)
+
 ### Test the connector
 
 To test the connector, run the following command:
@@ -473,6 +476,8 @@ $ cat gworkspace-connector.yaml | tctl sso test
 This command opens the browser and attempts to sign you in to your Teleport cluster
 using Google. If it fails, review the command output for troubleshooting
 information.
+
+### Create the connector 
 
 To create the connector using the `tctl` tool, run the following command:
 

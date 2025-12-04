@@ -149,8 +149,8 @@ func TestIntegrations(t *testing.T) {
 	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
 	t.Run("ClientIdleConnection", suite.bind(testClientIdleConnection))
 	t.Run("CmdLabels", suite.bind(testCmdLabels))
+	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedClusters))
 	t.Run("ControlMaster", suite.bind(testControlMaster))
-	t.Run("X11Forwarding", suite.bind(testX11Forwarding))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
 	t.Run("DataTransfer", suite.bind(testDataTransfer))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
@@ -200,12 +200,12 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
 	t.Run("TrustedClustersSkipNameValidation", suite.bind(testTrustedClustersSkipNameValidation))
-	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedClusters))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("X11Forwarding", suite.bind(testX11Forwarding))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -522,6 +522,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				}
 			}
 
+			// Test streaming events and recording.
 			capturedStream, sessionEvents := streamSession(ctx, t, site, sessionID)
 
 			findByType := func(et string) apievents.AuditEvent {
@@ -532,19 +533,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				}
 				return nil
 			}
-			// helper that asserts that a session event is also included in the
-			// general audit log.
-			requireInAuditLog := func(t *testing.T, sessionEvent apievents.AuditEvent) {
-				t.Helper()
-				auditEvents, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
-					To:         time.Now(),
-					EventTypes: []string{sessionEvent.GetType()},
-				})
-				require.NoError(t, err)
-				require.True(t, slices.ContainsFunc(auditEvents, func(ae apievents.AuditEvent) bool {
-					return ae.GetID() == sessionEvent.GetID()
-				}))
-			}
 
 			// there should always be 'session.start' event (and it must be first)
 			first := sessionEvents[0].(*apievents.SessionStart)
@@ -552,19 +540,16 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, first, start)
 			require.Equal(t, sessionID, start.SessionID)
 			require.NotEmpty(t, start.TerminalSize)
-			requireInAuditLog(t, start)
 
 			// there should always be 'session.end' event
 			end := findByType(events.SessionEndEvent).(*apievents.SessionEnd)
 			require.NotNil(t, end)
 			require.Equal(t, sessionID, end.SessionID)
-			requireInAuditLog(t, end)
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent).(*apievents.SessionLeave)
 			require.NotNil(t, leave)
 			require.Equal(t, sessionID, leave.SessionID)
-			requireInAuditLog(t, leave)
 
 			// all of them should have a proper time
 			for _, e := range sessionEvents {
@@ -575,6 +560,31 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			recorded := replaceNewlines(capturedStream)
 			require.Regexp(t, ".*exit.*", recorded)
 			require.Regexp(t, ".*echo hi.*", recorded)
+
+			sessionEvents, _, err = site.SearchEvents(ctx, events.SearchEventsRequest{
+				From: time.Time{},
+				To:   time.Now(),
+				EventTypes: []string{
+					events.SessionStartEvent,
+					events.SessionLeaveEvent,
+					events.SessionEndEvent,
+				},
+			})
+			require.NoError(t, err)
+
+			// Check that the events found above in the session stream show up in the backend.
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == start.GetID()
+			}), "expected session events to contain session.start event")
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == end.GetID()
+			}), "expected session events to contain session.end event")
+			require.True(t, slices.ContainsFunc(sessionEvents, func(ae apievents.AuditEvent) bool {
+				return ae.GetID() == leave.GetID()
+			}), "expected session events to contain session.leave event")
+
+			// Ensure there are no duplicate events, e.g. from proxy recording mode.
+			require.Len(t, sessionEvents, 3, "%d unexpected duplicate events", len(sessionEvents)-4)
 		})
 	}
 }
@@ -1120,7 +1130,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, "", "", nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
@@ -7996,7 +8006,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 				isNilOrEOFErr(t, transferSess.Close())
 			})
 
-			err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+			err = transferSess.Setenv(ctx, string(telesftp.EnvModeratedSessionID), sessTracker.GetSessionID())
 			require.NoError(t, err)
 
 			err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
@@ -8058,7 +8068,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 				require.NoError(t, transferSess.Close())
 			})
 
-			err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+			err = transferSess.Setenv(ctx, string(telesftp.EnvModeratedSessionID), sessTracker.GetSessionID())
 			require.NoError(t, err)
 
 			// Test that only operations needed to complete the download

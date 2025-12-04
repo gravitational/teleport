@@ -26,6 +26,7 @@
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm prettier --log-level silent --write 'web/packages/design/src/Icon/**/*.tsx'",
+    "list-installed-versions": "./web/scripts/list-installed-versions.sh",
     "nop": "exit 0"
   },
   "private": true,
@@ -59,7 +60,7 @@
     "msw": "^2.7.6",
     "msw-storybook-addon": "^2.0.5",
     "playwright": "^1.55.1",
-    "prettier": "^3.5.3",
+    "prettier": "^3.7.3",
     "react-select-event": "^5.5.1",
     "storybook": "^9.0.17",
     "svgo": "^4.0.0",
@@ -106,7 +107,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.20.0+sha512.cf9998222162dd85864d0a8102e7892e7ba4ceadebbf5a31f9c2fce48dfce317a9c53b9f6464d1ef9042cba2e02ae02a9f7c143a2b438cd93c91840f0192b9dd",
+  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a",
   "engines": {
     "node": "^22"
   }

@@ -246,3 +246,45 @@ export const DisabledTab = () => {
     />
   );
 };
+
+export const NeutralTabs = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  return (
+    <SlideTabs
+      tabs={threeSimpleTabs}
+      onChange={setActiveIndex}
+      activeIndex={activeIndex}
+      intent="neutral"
+    />
+  );
+};
+
+export const NeutralTabsDisabled = () => {
+  const [activeIndex, setActiveIndex] = useState(1);
+  return (
+    <SlideTabs
+      tabs={threeSimpleTabs}
+      onChange={setActiveIndex}
+      activeIndex={activeIndex}
+      intent="neutral"
+      disabled={true}
+    />
+  );
+};
+
+export const NeutralWithDisabledTab = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const tabs = [
+    { key: 'aws', title: 'aws' },
+    { key: 'automatically', title: 'automatically', disabled: true },
+    { key: 'manually', title: 'manually' },
+  ];
+  return (
+    <SlideTabs
+      tabs={tabs}
+      activeIndex={activeIndex}
+      onChange={setActiveIndex}
+      intent="neutral"
+    />
+  );
+};

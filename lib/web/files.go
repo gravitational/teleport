@@ -68,6 +68,8 @@ type fileTransferRequest struct {
 }
 
 func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	ctx := r.Context()
+
 	query := r.URL.Query()
 	req := fileTransferRequest{
 		cluster:               cluster.GetName(),
@@ -137,9 +139,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	ctx := r.Context()
+	var moderatedSessionID string
 	if req.fileTransferRequestID != "" {
-		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
+		moderatedSessionID = req.moderatedSessionID
 	}
 
 	accessPoint, err := cluster.CachingAccessPoint()
@@ -236,17 +238,19 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	var sftpReq *sftp.FileTransferRequest
 	if r.Method == http.MethodPost {
 		sftpReq, err = sftp.CreateHTTPUploadRequest(sftp.HTTPTransferRequest{
-			Src:         webTarget,
-			Dst:         remoteTarget,
-			HTTPRequest: r,
-			DialHost:    dialHost,
+			Src:                webTarget,
+			Dst:                remoteTarget,
+			HTTPRequest:        r,
+			DialHost:           dialHost,
+			ModeratedSessionID: moderatedSessionID,
 		})
 	} else {
 		sftpReq, err = sftp.CreateHTTPDownloadRequest(sftp.HTTPTransferRequest{
-			Src:          remoteTarget,
-			Dst:          webTarget,
-			HTTPResponse: w,
-			DialHost:     dialHost,
+			Src:                remoteTarget,
+			Dst:                webTarget,
+			HTTPResponse:       w,
+			DialHost:           dialHost,
+			ModeratedSessionID: moderatedSessionID,
 		})
 	}
 	if err != nil {

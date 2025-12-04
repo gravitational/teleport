@@ -45,7 +45,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
+	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
@@ -54,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
@@ -82,12 +86,16 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetAzureDevopsIDTokenValidator() azuredevops.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
+	GetCircleCITokenValidator() circleci.Validator
 	GetEnv0IDTokenValidator() Env0TokenValidator
+	GetGCPIDTokenValidator() gcp.Validator
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
+	GetSpaceliftIDTokenValidator() spacelift.Validator
 	services.Presence
 }
 
@@ -288,8 +296,12 @@ func (s *Server) handleJoinMethod(
 	switch joinMethod {
 	case types.JoinMethodToken:
 		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodAzureDevops:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateAzureDevopsToken)
 	case types.JoinMethodBoundKeypair:
 		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodCircleCI:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateCircleCIToken)
 	case types.JoinMethodIAM:
 		return s.handleIAMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodEC2:
@@ -298,10 +310,14 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
 	case types.JoinMethodOracle:
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodGCP:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGCPToken)
 	case types.JoinMethodGitHub:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGitlabToken)
+	case types.JoinMethodSpacelift:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	default:
