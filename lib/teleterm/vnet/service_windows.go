@@ -24,11 +24,12 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
-func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, error) {
+func (s *Service) platformDiagChecks(ctx context.Context, ipv4CIDRRanges []string) ([]diag.DiagCheck, error) {
 	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
-		VnetIfaceName: s.networkStackInfo.InterfaceName,
-		Routing:       &diag.WindowsRouting{},
-		Interfaces:    &diag.NetInterfaces{},
+		VnetIfaceName:  s.networkStackInfo.InterfaceName,
+		Routing:        &diag.WindowsRouting{},
+		Interfaces:     &diag.NetInterfaces{},
+		IPv4CIDRRanges: ipv4CIDRRanges,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -24,6 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
-func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, error) {
+func (s *Service) platformDiagChecks(ctx context.Context, ipv4CIDRRanges []string) ([]diag.DiagCheck, error) {
 	return nil, nil
 }
