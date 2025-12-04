@@ -33,9 +33,9 @@ service MFAService {
   // ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
   // in the backend.
   rpc ValidateSessionChallenge(ValidateSessionChallengeRequest) returns (ValidateSessionChallengeResponse);
-  // ReplicateValidatedMFAChallenge replicates a validated MFA challenge to a leaf cluster for retrieval during SSH
-  // session establishment. It is a NOOP when used in the root cluster. It is called by the reverse tunnel server when a
-  // validated challenge is created for a leaf cluster.
+  // Replicates a validated MFA challenge from root cluster to leaf cluster for verification during SSH session
+  // establishment. The reverse tunnel server watches for validated challenges in the root cluster and invokes this RPC
+  // on the leaf cluster. This is a NOOP when invoked in the root cluster.
   rpc ReplicateValidatedMFAChallenge(ReplicateValidatedMFAChallengeRequest) returns (ReplicateValidatedMFAChallengeResponse);
   // VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session. If the
   // challenge does not yet exist, this method will block until the resource appears or until the timeout is reached.
