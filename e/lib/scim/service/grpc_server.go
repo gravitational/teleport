@@ -20,6 +20,8 @@ type Service struct {
 	pb.UnimplementedSCIMServiceServer
 	common.Config
 	CreatePluginHandler func(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error)
+
+	locker common.Locker
 }
 
 // NewService creates and configures a new SCIM service
@@ -27,9 +29,19 @@ func NewService(cfg *common.Config) (*Service, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	distributeLock, err := common.NewDistributedLocker(cfg.Semaphore, common.WithClock(cfg.Clock))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Service{
 		Config:              *cfg,
 		CreatePluginHandler: provider.CreatePluginHandler,
+		locker: common.NewLockerChain(
+			common.NewSingleProcessLocker(),
+			distributeLock,
+		),
 	}, nil
 }
 
@@ -42,12 +54,8 @@ func (s *Service) createMiddlewaresChain(plugin types.Plugin) (*middleware.Chain
 		return nil, trace.Wrap(err, "creating logging middleware")
 	}
 
-	semLock, err := common.NewSemaphoreLocker(s.Semaphore, common.WithClock(s.Clock))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	lockMiddleware, err := middleware.NewLockMiddleware(middleware.LockMiddlewareConfig{
-		Locker:     semLock,
+		Locker:     s.locker,
 		Log:        s.Logger,
 		PluginName: plugin.GetName(),
 	})

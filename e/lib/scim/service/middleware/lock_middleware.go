@@ -11,13 +11,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 )
 
-// locker defines the interface for acquiring and releasing distributed locks.
-type locker interface {
-	// Acquire obtains a lock for the given key.
-	// Returns an unlock function that must be called to release the lock.
-	Acquire(ctx context.Context, key string) (unlock func(context.Context) error, err error)
-}
-
 // LockMiddleware wraps a ResourceHandler to provide distributed locking
 // for PATCH operations on SCIM resources. This prevents race conditions
 // when multiple concurrent PATCH requests modify the same resource.
@@ -29,7 +22,7 @@ type LockMiddleware struct {
 // LockMiddlewareConfig contains the configuration for the lock middleware.
 type LockMiddlewareConfig struct {
 	// Locker provides distributed lock acquisition/release functionality.
-	Locker locker
+	Locker common.Locker
 	// Log is the logger for recording lock-related events and errors.
 	Log *slog.Logger
 	// PluginName is the name of the SCIM plugin, used as part of the lock key.
