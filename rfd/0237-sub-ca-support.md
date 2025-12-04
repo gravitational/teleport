@@ -303,6 +303,10 @@ type CAInfo struct {
 }
 ```
 
+Managed Subjects may have, at the system's discretion, the certificate serial
+number added to their Subject. Customized Subjects are not changed in this
+regard.
+
 ### The "windows" CA
 
 The "windows" CA is used to issue per-user RDP (Remote Desktop Protocol)
