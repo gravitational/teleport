@@ -1,49 +1,345 @@
 ---
 title: Databases
-description: Teleport database access introduction, demo and resources.
+description: Provide secure connections to database by improving access control and visibility
+template: doc-page
 tags:
  - zero-trust
  - infrastructure-identity
 ---
+import DocHero from "@site/src/components/Pages/Landing/DocHero";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
 
-Teleport can provide secure connections to your databases while improving both
-access control and visibility.
+import userCheckSvg from "@site/src/components/Icon/svg/user-check.svg";
+import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+import postgresSvg from '@site/src/components/Icon/svg/postgresql.svg';
+import mysqlSvg from '@site/src/components/Icon/svg/mysql.svg';
+import mariaDbSvg from '@site/src/components/Icon/svg/maria-db.svg';
+import redshiftSvg from '@site/src/components/Icon/svg/amazon-redshift.svg';
+import mongoDbSvg from '@site/src/components/Icon/svg/mongodb.svg';
 
-Some of the things you can do with database access:
+<DocHero
+  title="Enroll your first database"
+  youtubeVideoId="rPX_973PoW8"
+  ctaLinks={[
+    {
+      title: "Get started with database access",
+      href: "./getting-started/",
+      variant: "secondary",
+      arrow: true,
+    },
+  ]}
+  links={[
+    {
+      title: "Access control",
+      description: "Apply RBAC to databases for users to access required data.",
+      href: "./rbac/",
+      icon: userCheckSvg,
+    },
+    {
+      title: "Troubleshooting",
+      description: "Common Database access issues with Teleport and their solutions.",
+      href: "./troubleshooting/",
+      icon: questionSvg,
+    },
+  ]}
+>
+The Teleport Database Service provides secure database access with short-lived certificates via SSO, RBAC with Access Requests, and audit logs. Improve access control and visibility while centralizing management across infrastructure.
+</DocHero>
 
-- Enable users to retrieve short-lived database certificates using a Single Sign-On
-  flow, thus maintaining their organization-wide identity.
-- Configure role-based access controls for databases and implement custom
-  [Access Request](../../identity-governance/access-requests/access-requests.mdx) workflows.
-- Capture database activity in the Teleport audit log.
+<UseCasesList
+  title="Database guides"
+  desktopColumnsCount={1}
+  itemLayout="row"
+  useCases={[
+    {
+      title: "AWS databases",
+      description: "Enroll and protect AWS managed databases.",
+      href: "./enroll-aws-databases/",
+      tags: [
+        {
+          name: "DocumentDB",
+          href: "./enroll-aws-databases/aws-docdb/",
+          icon: "aws",
+        },
+        {
+          name: "DynamoDB",
+          href: "./enroll-aws-databases/aws-dynamodb/",
+          icon: "amazonDynamoDb",
+        },
+        {
+          name: "ElastiCache for Redis and Valkey",
+          href: "./enroll-aws-databases/redis-aws/",
+          icon: "amazonElastiCache",
+        },
+        {
+          name: "MemoryDB",
+          href: "./enroll-aws-databases/aws-memorydb/",
+          icon: "amazonMemoryDb",
+        },
+        {
+          name: "ElastiCache Serverless for Redis and Valkey",
+          href: "./enroll-aws-databases/elasticache-serverless/",
+          hidden: true,
+          icon: "amazonElastiCache",
+        },
+        {
+          name: "Keyspaces (Apache Cassandra)",
+          href: "./enroll-aws-databases/aws-cassandra-keyspaces/",
+          hidden: true,
+          icon: "amazonKeyspaces",
+        },
+        {
+          name: "OpenSearch",
+          href: "./enroll-aws-databases/aws-opensearch/",
+          hidden: true,
+          icon: "amazonOpenSearch",
+        },
+        {
+          name: "RDS Oracle",
+          href: "./enroll-aws-databases/rds-oracle/",
+          hidden: true,
+          icon: "amazonRds",
+        },
+        {
+          name: "RDS Proxy MySQL",
+          href: "./enroll-aws-databases/rds-proxy-mysql/",
+          hidden: true,
+          icon: "amazonRds",
+        },
+        {
+          name: "RDS Proxy for PostgreSQL",
+          href: "./enroll-aws-databases/rds-proxy-postgres/",
+          hidden: true,
+          icon: "amazonRds",
+        },
+        {
+          name: "RDS Proxy for Microsoft SQL Server",
+          href: "./enroll-aws-databases/sql-server-ad/",
+          hidden: true,
+          icon: "amazonRds",
+        },
+        {
+          name: "RDS and Aurora",
+          href: "./enroll-aws-databases/rds/",
+          hidden: true,
+          icon: "amazonRds",
+        },
+        {
+          name: "RDS for SQL Server",
+          href: "./enroll-aws-databases/rds-proxy-sqlserver/",
+          hidden: true,
+          icon: "amazonRds",
+        },
+        {
+          name: "Redshift Serverless",
+          href: "./enroll-aws-databases/redshift-serverless/",
+          hidden: true,
+          icon: "amazonRedshift",
+        },
+        {
+          name: "Redshift",
+          href: "./enroll-aws-databases/postgres-redshift/",
+          hidden: true,
+          icon: "amazonRedshift",
+        },
+      ]
+    },  
+    {
+      title: "Azure databases",
+      description: "Enroll and protect Azure managed databases.",
+      href: "./enroll-azure-databases/",
+      tags: [
+        {
+          name: "Azure SQL Server",
+          href: "./enroll-azure-databases/azure-sql-server-ad/",
+        },
+        {
+          name: "Azure Database for PostgreSQL",
+          href: "./enroll-azure-databases/azure-postgres-mysql/",
+        },
+        {
+          name: "Azure Redis",
+          href: "./enroll-azure-databases/azure-redis/",
+        },
+      ]
+    },
+    {
+      title: "Google Cloud databases",
+      description: "Protect and enroll databases hosted on Google Cloud.",
+      href: "./enroll-google-cloud-databases/",
+      tags: [
+        {
+          name: "PostgreSQL",
+          href: "./enroll-google-cloud-databases/postgres-cloudsql/",
+          icon: "postgresql"
+        },
+        {
+          name: "MySQL",
+          href: "./enroll-google-cloud-databases/mysql-cloudsql/",
+          icon: "mysql"
+        },
+        {
+          name: "Cloud Spanner",
+          href: "./enroll-google-cloud-databases/spanner/",
+        },
+        {
+          name: "AlloyDB",
+          href: "./enroll-google-cloud-databases/alloydb/",
+          icon: "gSuite"
+        },
+      ]
+    },
+    {
+      title: "Cloud-hosted database platforms",
+      description: "Protect and enroll databases managed as a dedicated cloud platform.",
+      href: "./enroll-managed-databases/",
+      tags: [
+        {
+          name: "MongoDB Atlas",
+          href: "./enroll-managed-databases/mongodb-atlas/",
+          icon: "mongoDb"
+        },
+        {
+          name: "Oracle Exadata",
+          href: "./enroll-managed-databases/oracle-exadata/",
+          icon: "oracle"
+        },
+        {
+          name: "Snowflake",
+          href: "./enroll-managed-databases/snowflake/",
+          icon: "snowflake"
+        },
+      ]
+    },
+    {
+      title: "Self-hosted databases",
+      description: "Protect and enroll self-hosted databases.",
+      href: "./enroll-self-hosted-databases/",
+      tags: [
+        {
+          name: "Cassandra and ScyllaDB",
+          href: "./enroll-self-hosted-databases/cassandra-self-hosted/",
+        },
+        {
+          name: "Clickhouse",
+          href: "./enroll-self-hosted-databases/clickhouse-self-hosted/",
+          icon: "clickhouse"
+        },
+        {
+          name: "CockroachDB",
+          href: "./enroll-self-hosted-databases/cockroachdb-self-hosted/",
+          icon: "cockroachDb"
+        },
+        {
+          name: "Elastic",
+          href: "./enroll-self-hosted-databases/elastic/",
+          icon: "elasticStack"
+        },
+        {
+          name: "MongoDB",
+          href: "./enroll-self-hosted-databases/mongodb-self-hosted/",
+          icon: "mongoDb"
+        },
+        {
+          name: "MySQL",
+          href: "./enroll-self-hosted-databases/mysql-self-hosted/",
+          icon: "mysql"
+        },
+        {
+          name: "Oracle",
+          href: "./enroll-self-hosted-databases/oracle-self-hosted/",
+          hidden: true,
+          icon: "oracle"
+        },
+        {
+          name: "PostgreSQL",
+          href: "./enroll-self-hosted-databases/postgres-self-hosted/",
+          hidden: true,
+          icon: "postgresql"
+        },
+        {
+          name: "Redis Cluster",
+          href: "./enroll-self-hosted-databases/redis-cluster/",
+          hidden: true,
+          icon: "redis"
+        },
+        {
+          name: "Redis",
+          href: "./enroll-self-hosted-databases/redis/",
+          hidden: true,
+          icon: "redis"
+        },
+        {
+          name: "SQL Server with PKINIT authentication",
+          href: "./enroll-self-hosted-databases/sql-server-ad-pkinit/",
+          hidden: true,
+        },
+        {
+          name: "Vitess",
+          href: "./enroll-self-hosted-databases/vitess/",
+          hidden: true,
+        },
+      ]
+    },
+  ]}
+/>
 
-Teleport protects databases through the Teleport Database Service, which is a
-Teleport Agent service. For more information on agent services, read [Teleport
-Agent Architecture](../../reference/architecture/agents.mdx). You can also learn how to
-deploy a [pool of Teleport Agents](../agents/agents.mdx) to run multiple
-agent services.
+<UseCasesList
+  title="Deployment configuration"
+  description="Configurations for deploying the Teleport Database Service"
+  desktopColumnsCount={3}
+  itemLayout="row"
+  variant="doc"
+  useCases={[
+    {
+      title: "High availability",
+      description: "Deploy multiple instances of the Teleport Database Service to proxy the same set of databases.",
+      href: "./guides/ha/",
+    },
+    {
+      title: "Dynamic registration",
+      description: "Add or remove databases without redeploying the Database Service.",
+      href: "./guides/dynamic-registration/",
+    },
+    {
+      title: "Health checks",
+      description: "Configure Teleport database health checks and quickly spot issues.",
+      href: "./guides/health-checks/",
+    },
+  ]}
+/>
 
-![Architecture diagram for enrolling databases with Teleport](../../../img/database-access/architecture.svg)
-
-## Getting started
-
-- [Getting Started Guide](./getting-started.mdx): Getting started with Teleport database access and AWS Aurora PostgreSQL.
-
-## Guides
-
-- [Enroll AWS Databases (section)](./enroll-aws-databases/): Provides instructions on protecting databases in your AWS-managed infrastructure with Teleport.
-- [Enroll Azure Databases (section)](./enroll-azure-databases/): Provides instructions on protecting databases in your Azure-managed infrastructure with Teleport.
-- [Enroll Google Cloud Databases (section)](./enroll-google-cloud-databases/): Provides instructions on protecting databases in your Google Cloud-managed infrastructure with Teleport.
-- [Enroll Cloud-Hosted Database Platforms (section)](./enroll-managed-databases/): Provides instructions on protecting managed databases in your infrastructure with Teleport.
-- [Enroll Self-Hosted Databases (section)](./enroll-self-hosted-databases/): Provides instructions on protecting self-hosted databases in your infrastructure with Teleport.
-- [Database Automatic User Provisioning (section)](./auto-user-provisioning/): Configure automatic user provisioning for databases.
-
-## Configuration & management
-
-- [Access Controls](./rbac.mdx): Role-based access control (RBAC) for Teleport database access.
-- [Using the Teleport Database Service (section)](./guides/): Guides to possibilities for running the Teleport Database Service.
-
-## Troubleshooting & support
-
-- [FAQ](./faq.mdx): Frequently asked questions about enrolling databases with Teleport.
-- [Troubleshooting](./troubleshooting.mdx): Common issues and resolutions for enrolling databases with Teleport.
+<Resources
+  title="Database automatic user provisioning"
+  description="Eliminate the need for shared accounts or manually creating individual ones."
+  variant="doc"
+  desktopColumnsCount={5}
+  resources={[
+    {
+      title: "PostgreSQL databases (self-hosted and Amazon RDS)",
+      iconComponent: postgresSvg,
+      href: "./auto-user-provisioning/postgres/"
+    },
+    {
+      title: "MySQL databases (self-hosted and Amazon RDS)",
+      iconComponent: mysqlSvg,
+      href: "./auto-user-provisioning/mysql/"
+    },
+    {
+      title: "MariaDB databases (self-hosted and Amazon RDS)",
+      iconComponent: mariaDbSvg,
+      href: "./auto-user-provisioning/mariadb/"
+    },
+    {
+      title: "Amazon Redshift databases",
+      iconComponent: redshiftSvg,
+      href: "./auto-user-provisioning/aws-redshift/"
+    },
+    {
+      title: "MongoDB databases (self-hosted)",
+      iconComponent: mongoDbSvg,
+      href: "./auto-user-provisioning/mongodb/"
+    },
+  ]}
+/>
