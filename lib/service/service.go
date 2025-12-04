@@ -5010,6 +5010,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxySSHAddr:              proxySSHAddr,
 			ProxyWebAddr:              utils.FromAddr(listeners.web.Addr()),
 			ProxyPublicAddrs:          cfg.Proxy.PublicAddrs,
+			ProxyGroupID:              cfg.Proxy.ProxyGroupID,
 			CipherSuites:              cfg.CipherSuites,
 			FIPS:                      cfg.FIPS,
 			AccessPoint:               accessPoint,
