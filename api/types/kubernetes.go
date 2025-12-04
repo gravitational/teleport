@@ -78,6 +78,8 @@ type KubeCluster interface {
 	// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
 	// isn't running on a cloud provider.
 	GetCloud() string
+	// IsEqual determines if two Kubernetes cluster resources are equivalent.
+	IsEqual(KubeCluster) bool
 }
 
 // DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
@@ -397,7 +399,7 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-// IsEqual determines if two user resources are equivalent to one another.
+// IsEqual determines if two Kubernetes cluster resources are equivalent.
 func (k *KubernetesClusterV3) IsEqual(i KubeCluster) bool {
 	if other, ok := i.(*KubernetesClusterV3); ok {
 		return deriveTeleportEqualKubernetesClusterV3(k, other)
