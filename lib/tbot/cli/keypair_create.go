@@ -18,7 +18,12 @@
 
 package cli
 
-import "github.com/gravitational/teleport"
+import (
+	"io"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+)
 
 // KeypairCreateCommand handles `tbot keypair create`
 type KeypairCreateCommand struct {
@@ -30,6 +35,14 @@ type KeypairCreateCommand struct {
 	Format        string
 	Static        bool
 	StaticKeyPath string
+
+	// GetSuite is an optional function to fetch crypto suites. Used to override
+	// in tests, may be nil.
+	GetSuite cryptosuites.GetSuiteFunc
+
+	// Writer is an optional writer to which output from this command should be
+	// written. If nil, stdout is used. Used in tests.
+	Writer io.Writer
 }
 
 // NewKeypairCreateCommand initializes the `keypair create` command and returns
@@ -44,7 +57,7 @@ func NewKeypairCreateCommand(parentCmd KingpinClause, action func(*KeypairCreate
 	cmd.Flag("proxy-server", "The proxy server, which will be pinged to determine the current cryptographic suite in use").Required().StringVar(&c.ProxyServer)
 	cmd.Flag("overwrite", "If set, overwrite any existing keypair. If unset and a keypair already exists, its key will be printed for use.").BoolVar(&c.Overwrite)
 	cmd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.Format, teleport.Text, teleport.JSON)
-	cmd.Flag("static", "If set, create a static private key instead of writing a mutable key into bot storage. If --static-path is unset, the key will be printed to the terminal.").BoolVar(&c.Static)
+	cmd.Flag("static", "If set, create a static private key instead of writing a mutable key into bot storage. If --static-key-path is unset, the key will be printed to the terminal.").BoolVar(&c.Static)
 	cmd.Flag("static-key-path", "If set, writes the static private key to a file.").StringVar(&c.StaticKeyPath)
 
 	return c
