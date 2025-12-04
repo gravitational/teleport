@@ -19,6 +19,7 @@ Teleport SCIM server now natively supports PATCH operations to improve reliabili
 * Fixed "SSH cert not found" errors in Teleport Connect. [#61846](https://github.com/gravitational/teleport/pull/61846)
 * Added support for authenticating Azure resource discovery using Azure OIDC integrations. [#61830](https://github.com/gravitational/teleport/pull/61830)
 * Fixed a bug in Proxy recording mode where Teleport Node sessions would result in duplicate audit events with a different session ID. [#61246](https://github.com/gravitational/teleport/pull/61246)
+* Tuned teleport-cluster, teleport-kube-agent, and teleport-relay Helm charts to reduce the probability of Teleport exceeding its memory limits and being OOM-Killed. GOMEMLIMIT defaults to 90% of the configured memory limits.
 
 Enterprise:
 * Added support for AWS Account name and ID labels (`teleport.dev/account-id`, `teleport.dev/account-name`) on AWS Identity Center resources (`aws_ic_account_assignment` and `aws_ic_account`). These labels improve compatibility with Access Monitoring Rules, allowing users to more easily target and audit AWS IC accounts.
