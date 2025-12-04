@@ -139,6 +139,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -182,6 +183,7 @@ import (
 	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
+	libwatcher "github.com/gravitational/teleport/lib/watcher"
 	"github.com/gravitational/teleport/lib/web"
 	webapp "github.com/gravitational/teleport/lib/web/app"
 )
@@ -2628,60 +2630,15 @@ func (process *TeleportProcess) initAuthService() error {
 		component := teleport.Component(teleport.ComponentAuth, "backend")
 		process.ExpectService(component)
 		process.RegisterFunc("auth.wait-for-event-stream", func() error {
-			start := process.Clock.Now()
-
-			retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-				First:  0,
-				Driver: retryutils.NewLinearDriver(5 * time.Second),
-				Max:    time.Minute,
-				Jitter: retryutils.DefaultJitter,
-				Clock:  process.Clock,
-			})
-			if err != nil {
-				return trace.Wrap(err, "creating the backend watch retry (this is a bug)")
+			if err := libwatcher.WaitForReady(process.ExitContext(), libwatcher.WaitForReadyConfig{
+				Watcher: authServer,
+				Logger:  process.logger.With(teleport.ComponentLabel, component),
+				Clock:   process.Clock,
+			}); err != nil {
+				return trace.Wrap(err)
 			}
-			log := process.logger.With(teleport.ComponentLabel, component)
-			var attempt int
-
-			// The wait logic is retried until it is successful or a termination is triggered.
-			for {
-				attempt++
-				select {
-				case <-process.GracefulExitContext().Done():
-					return trace.Wrap(err, "context canceled while backing off (attempt %d)", attempt)
-				case <-retry.After():
-					retry.Inc()
-				}
-
-				w, err := authServer.NewWatcher(process.ExitContext(), types.Watch{
-					Name: "auth.wait-for-backend",
-					Kinds: []types.WatchKind{
-						{Kind: types.KindClusterName},
-					},
-				})
-				if err != nil {
-					log.ErrorContext(process.ExitContext(), "Failed to create watcher", "kind", types.KindClusterName, "attempt", attempt, "error", err)
-					continue
-				}
-
-				select {
-				case evt := <-w.Events():
-					w.Close()
-					if evt.Type != types.OpInit {
-						log.ErrorContext(process.ExitContext(), "expected init event, got something else (this is a bug)", "kind", types.KindClusterName, "attempt", attempt, "error", err, "event_type", evt.Type)
-						continue
-					}
-					process.logger.With(teleport.ComponentLabel, component).InfoContext(process.ExitContext(), "auth backend initialized", "duration", process.Clock.Since(start).String())
-					process.OnHeartbeat(component)(nil)
-					return nil
-				case <-w.Done():
-					log.ErrorContext(process.ExitContext(), "watcher closed while waiting for backend init", "kind", types.KindClusterName, "attempt", attempt, "error", w.Error())
-					continue
-				case <-process.GracefulExitContext().Done():
-					w.Close()
-					return trace.Wrap(err, "context canceled while waiting for backendf init event")
-				}
-			}
+			process.OnHeartbeat(component)(nil)
+			return nil
 		})
 	}
 
@@ -3851,6 +3808,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		InitialScanDelay:                15 * time.Second,
 		EncryptedRecordingUploader:      uploaderClient,
 		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
+		ConcurrentUploads:               2,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4350,6 +4308,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 			utils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
+		if process.Config.RelayServer != "" {
+			dnsNames = append(dnsNames, "*"+kuberelay.SNISuffix)
+		}
 	case types.RoleApp, types.RoleOkta:
 		principals = append(principals, hostUUID)
 	case types.RoleWindowsDesktop:

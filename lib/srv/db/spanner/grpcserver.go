@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 )
 
 type upstream[T any] interface {
@@ -523,12 +522,4 @@ func (s *messageStatsHandler) HandleConn(_ context.Context, _ stats.ConnStats) {
 // resolver logic.
 func getEndpoint(db types.Database) string {
 	return db.GetURI()
-}
-
-// NewEndpointsResolver returns an endpoint resolver.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	uri := getEndpoint(db)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{uri}, nil
-	}), nil
 }

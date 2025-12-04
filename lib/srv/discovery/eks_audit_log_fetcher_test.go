@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -26,7 +24,6 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -35,6 +32,7 @@ import (
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/utils/testutils/grpctest"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 type eksAuditLogFetcherFixture struct {
@@ -93,7 +91,7 @@ func (f *eksAuditLogFetcherFixture) testInitializeNewStream(t *testing.T) {
 // is set up for a cluster, logs start being fetched from the cursor returned
 // by the grpc service.
 func TestEKSAuditLogFetcher_NewStream(t *testing.T) {
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		f := &eksAuditLogFetcherFixture{}
 		f.Start(t)
 		f.testInitializeNewStream(t)
@@ -102,7 +100,7 @@ func TestEKSAuditLogFetcher_NewStream(t *testing.T) {
 }
 
 func TestEKSAuditLogFetcher_Batching(t *testing.T) {
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		startTime := time.Now().UTC()
 		logEpoch := startTime.Add(-7 * 24 * time.Hour)
 		f := &eksAuditLogFetcherFixture{}
@@ -158,7 +156,7 @@ func TestEKSAuditLogFetcher_Batching(t *testing.T) {
 }
 
 func TestEKSAuditLogFetcher_ContinueOnError(t *testing.T) {
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		startTime := time.Now().UTC()
 		logEpoch := startTime.Add(-7 * 24 * time.Hour)
 		f := &eksAuditLogFetcherFixture{}

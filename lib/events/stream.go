@@ -1177,7 +1177,7 @@ func (p ProtoReaderStats) ToFields() map[string]any {
 
 // Close releases reader resources
 func (r *ProtoReader) Close() error {
-	if r.gzipReader != nil {
+	if r != nil && r.gzipReader != nil {
 		return r.gzipReader.Close()
 	}
 	return nil

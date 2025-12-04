@@ -186,6 +186,10 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
+        synctest:
+          deny:
+            - pkg: testing/synctest
+              desc: 'use "github.com/gravitational/teleport/lib/utils/testutils/synctest" instead'
         test_packages:
           files:
             - '!$test'

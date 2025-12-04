@@ -276,6 +276,8 @@ github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 h1:bIqFDwgGXXN1Kpp99pDOdKMTTb5d
 github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3/go.mod h1:H5O/EsxDWyU+LP/V8i5sm8cxoZgc2fdNR9bxlOFrQTo=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34 h1:ZNTqv4nIdE/DiBfUUfXcLZ/Spcuz+RjeziUtNJackkM=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34/go.mod h1:zf7Vcd1ViW7cPqYWEHLHJkS50X0JS2IKz9Cgaj6ugrs=
+github.com/aws/aws-sdk-go-v2/service/account v1.29.3 h1:EqpyKDfuTQZFL6Cr1dutmyUx+Z9eDN2oFR1hoMXbmCs=
+github.com/aws/aws-sdk-go-v2/service/account v1.29.3/go.mod h1:3LbGl+sLnaiyCVp2LJXj0gEoeV2Uw0QOsDpP1gDMBVA=
 github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.36.0 h1:xwcxrq16ND5W+QqsGVpNHcjqyVqX4TX7vp3ifI4aYjg=
 github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.36.0/go.mod h1:Ie/714qgv6ohupWHUxe/6oyAfiCdq9vVJrp+TnJrcqs=
 github.com/aws/aws-sdk-go-v2/service/athena v1.50.4 h1:QWhxjrA0r+FQnDAATdGqLXUvYW0MdUIvCBK89BN3OfU=

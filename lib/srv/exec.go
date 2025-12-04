@@ -39,10 +39,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -102,10 +100,8 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// If this is a registered OpenSSH node or proxy recoding mode is
-	// enabled, execute the command on a remote host. This is used by
-	// in-memory forwarding nodes.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	// If this is a forwarding node, execute the command on a remote host.
+	if ctx.srv.Component() == teleport.ComponentForwardingNode {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -264,7 +260,7 @@ func (e *localExec) transformSecureCopy() error {
 				Time: time.Now(),
 			},
 			UserMetadata:   e.Ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.Ctx.GetServer().TargetMetadata(),
+			ServerMetadata: e.Ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
 		return trace.Wrap(err)
@@ -369,7 +365,7 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 				Time: time.Now(),
 			},
 			UserMetadata:   e.ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.ctx.GetServer().TargetMetadata(),
+			ServerMetadata: e.ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
 		return nil, trace.Wrap(err)
@@ -435,7 +431,7 @@ func (e *remoteExec) PID() int {
 // instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
-	serverMeta := ctx.GetServer().TargetMetadata()
+	serverMeta := ctx.GetServer().EventMetadata()
 	sessionMeta := ctx.GetSessionMetadata()
 	userMeta := ctx.Identity.GetUserMetadata()
 

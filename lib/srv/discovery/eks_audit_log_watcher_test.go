@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -24,7 +22,6 @@ import (
 	"context"
 	"log/slog"
 	"testing"
-	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -32,6 +29,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/utils/testutils/grpctest"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 type (
@@ -42,7 +40,7 @@ type (
 )
 
 func TestEKSAuditLogWatcher_Init(t *testing.T) {
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 
 		client := newFakeKubeAuditLogClient(ctx)
@@ -66,7 +64,7 @@ func TestEKSAuditLogWatcher_Init(t *testing.T) {
 }
 
 func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 
 		fetcherTracker := newFakeFetcherTracker()

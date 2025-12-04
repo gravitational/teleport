@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import styled from 'styled-components';
+
 import { Button, Flex, Label, Text } from 'design';
 import * as Icons from 'design/Icon';
 
@@ -58,9 +60,9 @@ export function UserTraits({ user, onEdit }: UserDetailsSectionProps) {
         ) : (
           <Flex flexWrap="wrap" gap={2}>
             {traitsWithValues.map(key => (
-              <Label key={key} kind="secondary">
+              <StyledLabel key={key} kind="secondary">
                 {key}: {user.allTraits[key].join(', ')}
-              </Label>
+              </StyledLabel>
             ))}
           </Flex>
         )}
@@ -68,3 +70,9 @@ export function UserTraits({ user, onEdit }: UserDetailsSectionProps) {
     </>
   );
 }
+
+// border-radius matches label height (10px font-size + 2px margin)
+// otherwise, a label with many traits will look like an egg
+const StyledLabel = styled(Label)`
+  border-radius: 12px;
+`;

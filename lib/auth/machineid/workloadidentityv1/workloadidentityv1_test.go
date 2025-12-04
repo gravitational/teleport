@@ -22,15 +22,17 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 	"net"
 	"os"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -77,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/grpctest"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestMain(m *testing.M) {
@@ -750,6 +753,33 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 			},
 			requireErr: require.NoError,
 			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				// Checks for a bug where unix epoch timestamps (e.g. the `exp`
+				// and `iat` claims) were represented in scientific notation
+				// rather than as plain integers due to a conversion bug.
+				payloadSection := strings.Split(
+					res.GetCredential().GetJwtSvid().GetJwt(),
+					".",
+				)[1]
+				payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(payloadSection, "="))
+				require.NoError(t, err)
+
+				var numericClaims struct {
+					Exp json.Number `json:"exp"`
+					Iat json.Number `json:"iat"`
+				}
+				require.NoError(t, json.Unmarshal(payload, &numericClaims))
+
+				integerExpr, err := regexp.Compile(`^\d+$`)
+				require.NoError(t, err)
+				require.Truef(t,
+					integerExpr.MatchString(numericClaims.Exp.String()),
+					"unexpected number format: %s", numericClaims.Exp.String(),
+				)
+				require.Truef(t,
+					integerExpr.MatchString(numericClaims.Iat.String()),
+					"unexpected number format: %s", numericClaims.Iat.String(),
+				)
+
 				parsed, err := jwt.ParseSigned(res.GetCredential().GetJwtSvid().GetJwt())
 				require.NoError(t, err)
 
@@ -3459,7 +3489,7 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 func TestRevocationService_CRL(t *testing.T) {
 	t.Parallel()
 
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		// == Setup ==
 		//
 		// Because this test depends on the "testing/synctest" package we can't
