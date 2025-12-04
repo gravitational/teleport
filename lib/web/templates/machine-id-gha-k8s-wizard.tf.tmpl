@@ -11,11 +11,11 @@
 # All available options can be found in the Teleport Terraform Provider
 # reference:
 # https://goteleport.com/docs/reference/infrastructure-as-code/terraform-provider/
-%[1]s
+{{ .RoleConfig }}
 # A bot is a Machine & Workload ID user which is granted access to enrolled
 # Kubernetes clusters using the role above.
-%[2]s
+{{ .BotConfig }}
 # A provision token allows a GitHub Actions workflow to enroll with Teleport and
 # assume the identity of the bot defined above and its access.
-%[3]s
-%[4]s
+{{ .TokenConfig }}
+{{ template "terraform-provider.tf.tmpl" . }}

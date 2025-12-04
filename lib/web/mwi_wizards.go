@@ -19,10 +19,12 @@
 package web
 
 import (
-	_ "embed"
+	"bytes"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"text/template"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -142,47 +144,40 @@ func (h *Handler) machineIDWizardGenerateIaC(_ http.ResponseWriter, r *http.Requ
 		},
 	}
 
-	roleTF, err := tfgen.Generate(role, roleOpts...)
+	roleCfg, err := tfgen.Generate(role, roleOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	botTF, err := tfgen.Generate(bot, botOpts...)
+	botCfg, err := tfgen.Generate(bot, botOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tokenTF, err := tfgen.Generate(token, tfgen.WithResourceType("teleport_provision_token"))
+	tokenCfg, err := tfgen.Generate(token, tfgen.WithResourceType("teleport_provision_token"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return machineIDGHAK8sWizardGenerateIaCResponse{
-		Terraform: fmt.Sprintf(
-			machineIDGHAK8sWizardTerraformTemplate,
-			roleTF,
-			botTF,
-			tokenTF,
-			h.terraformProviderConfig(),
-		),
-	}, nil
+	var buf bytes.Buffer
+	err = templates.ExecuteTemplate(&buf, "machine-id-gha-k8s-wizard.tf.tmpl", struct {
+		RoleConfig   string
+		BotConfig    string
+		TokenConfig  string
+		MajorVersion int64
+		ProxyAddr    string
+	}{
+		RoleConfig:   string(roleCfg),
+		BotConfig:    string(botCfg),
+		TokenConfig:  string(tokenCfg),
+		MajorVersion: teleport.SemVer().Major,
+		ProxyAddr:    h.PublicProxyAddr(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return machineIDGHAK8sWizardGenerateIaCResponse{Terraform: buf.String()}, nil
 }
-
-//go:embed templates/terraform-provider.tf.tmpl
-var terraformProviderTemplate string
-
-// terraformProviderConfig returns base configuration for the Teleport terraform
-// provider.
-func (h *Handler) terraformProviderConfig() string {
-	return fmt.Sprintf(
-		terraformProviderTemplate,
-		teleport.SemVer().Major,
-		h.PublicProxyAddr(),
-	)
-}
-
-//go:embed templates/machine-id-gha-k8s-wizard.tf.tmpl
-var machineIDGHAK8sWizardTerraformTemplate string
 
 type machineIDWizardGenerateIaCRequest struct {
 	SourceType      string                            `json:"source_type"`
@@ -218,3 +213,9 @@ type machineIDWizardRequestKubernetes struct {
 type machineIDGHAK8sWizardGenerateIaCResponse struct {
 	Terraform string `json:"terraform"`
 }
+
+var (
+	//go:embed templates/*
+	templateDir embed.FS
+	templates   = template.Must(template.ParseFS(templateDir, "templates/*.tmpl"))
+)
