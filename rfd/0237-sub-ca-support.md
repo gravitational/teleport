@@ -175,6 +175,8 @@ A new Terraform-friendly resource is added to configure CA overrides. The new
 resource avoids direct changes to cert_authority, a sensitive Teleport-managed
 resource.
 
+Creating a new override automatically generates the corresponding empty CRL.
+
 ```proto
 package teleport.subca.v1;
 
@@ -222,7 +224,11 @@ message CertificateOverride {
 }
 
 message CertAuthorityOverrideStatus {
-  // TBD.
+  map<string, CertificateRevogationList> public_key_to_crls = 1;
+}
+
+message CertificateRevogationList {
+  string pem = 1;
 }
 ```
 
@@ -239,7 +245,8 @@ https://github.com/gravitational/teleport/blob/d7b212d617003992fab4420f87fbdb0b6
    PrivateKeyType KeyType = 3;
    bytes CRL = 4;
 +
-+  // If true "Cert" was overridden by an active cert_authority_override.
++  // If true a certificate override (via cert_authority_override) is active.
++  // "Cert" and "CRL" and replaced by the override.
 +  bool CertOverrideActive = 5;
 +
 +  // Certificate trust chain, in PEM form.
