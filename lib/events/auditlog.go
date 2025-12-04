@@ -815,7 +815,7 @@ func (l *AuditLog) periodicSpaceMonitor() {
 					alert, err := types.NewClusterAlert(
 						"audit-log-disk-usage",
 						"Free disk space for audit log is running low.",
-						types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindNode, types.VerbRead)),
+						types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindInstance, types.VerbRead)),
 						types.WithAlertLabel(types.AlertOnLogin, "yes"),
 						types.WithAlertExpires(l.Clock.Now().Add(DiskAlertInterval)),
 					)
