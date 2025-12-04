@@ -20,26 +20,73 @@
 package reexec
 
 import (
+	"errors"
+	"fmt"
 	"io"
+	"os/user"
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 )
 
 const maxRead = 4096
 
-// ReadChildError reads the child process's stderr pipe and returns it as a string.
+// ErrorContext contains context used to enrich child process launch errors.
+type ErrorContext struct {
+	// DecisionContext contains RBAC decision details used to clarify
+	// access related launch failures.
+	DecisionContext *decisionpb.SSHAccessPermitContext
+	// Login is the target OS login used by the child process.
+	Login string
+}
+
+// ReadChildError reads the child process's stderr pipe and returns it as a string,
+// potentially with additional error context gathered from the given ErrorContext.
 // If the stderr pipe is empty, an empty string and nil error is returned.
-func ReadChildError(stderr io.Reader) (string, error) {
+func ReadChildError(stderr io.Reader, context *ErrorContext) (string, error) {
 	// Read the error msg from stderr.
 	errMsg := new(strings.Builder)
 	if _, err := io.Copy(errMsg, io.LimitReader(stderr, maxRead)); err != nil {
 		return "", trace.Wrap(err, "failed to read error message from child process")
 	}
 
-	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
-	// the cause of the session failure to add to the error message.
-	// e.g. user unknown because host user creation denied.
+	if errMsg.Len() == 0 {
+		return "", nil
+	}
+
+	// If we don't have a decision context, we don't have any context to
+	// add to the error message. Return stderr as is.
+	if context == nil || context.DecisionContext == nil {
+		return errMsg.String(), nil
+	}
+
+	// If some roles allow host user creation while others deny it, this can be
+	// ambiguous to the end user and warrants clarification if it results in an
+	// unknown user error.
+	ambiguousHostUserDenial := len(context.DecisionContext.HostUserCreationDeniedBy) > 0 && len(context.DecisionContext.HostUserCreationAllowedBy) > 0
+	ambiguousHostUserError := func() string {
+		var deniedBy []string
+		for _, d := range context.DecisionContext.HostUserCreationDeniedBy {
+			deniedBy = append(deniedBy, fmt.Sprintf("%v: %q", d.Kind, d.Name))
+		}
+		return fmt.Sprintf("%s: host user creation denied by the following resources: [%s]\r\n", strings.TrimRight(errMsg.String(), ".\r\n"), strings.Join(deniedBy, ", "))
+	}
+
+	unknownUserError := user.UnknownUserError(context.Login)
+	switch {
+	case strings.Contains(errMsg.String(), "Authentication failure."): // opaque PAM auth error.
+		if _, err := user.Lookup(context.Login); errors.Is(err, unknownUserError) {
+			if ambiguousHostUserDenial {
+				return ambiguousHostUserError(), nil
+			}
+		}
+	case strings.Contains(errMsg.String(), unknownUserError.Error()):
+		if ambiguousHostUserDenial {
+			return ambiguousHostUserError(), nil
+		}
+	}
 
 	return errMsg.String(), nil
 }
