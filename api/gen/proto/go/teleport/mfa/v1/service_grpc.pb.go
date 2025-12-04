@@ -52,9 +52,9 @@ type MFAServiceClient interface {
 	// ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
 	// in the backend.
 	ValidateSessionChallenge(ctx context.Context, in *ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*ValidateSessionChallengeResponse, error)
-	// Replicates a validated MFA challenge from root cluster to leaf cluster for verification during SSH session
-	// establishment. The reverse tunnel server watches for validated challenges in the root cluster and invokes this RPC
-	// on the leaf cluster. This is a NOOP when invoked in the root cluster.
+	// ReplicateValidatedMFAChallenge replicates a validated MFA challenge from root cluster to leaf cluster for
+	// verification during SSH session establishment. The reverse tunnel server watches for validated challenges in the
+	// root cluster and invokes this RPC on the leaf cluster. This is a NOOP when invoked in the root cluster.
 	ReplicateValidatedMFAChallenge(ctx context.Context, in *ReplicateValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*ReplicateValidatedMFAChallengeResponse, error)
 	// VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session. If the
 	// challenge does not yet exist, this method will block until the resource appears or until the timeout is reached.
@@ -124,9 +124,9 @@ type MFAServiceServer interface {
 	// ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
 	// in the backend.
 	ValidateSessionChallenge(context.Context, *ValidateSessionChallengeRequest) (*ValidateSessionChallengeResponse, error)
-	// Replicates a validated MFA challenge from root cluster to leaf cluster for verification during SSH session
-	// establishment. The reverse tunnel server watches for validated challenges in the root cluster and invokes this RPC
-	// on the leaf cluster. This is a NOOP when invoked in the root cluster.
+	// ReplicateValidatedMFAChallenge replicates a validated MFA challenge from root cluster to leaf cluster for
+	// verification during SSH session establishment. The reverse tunnel server watches for validated challenges in the
+	// root cluster and invokes this RPC on the leaf cluster. This is a NOOP when invoked in the root cluster.
 	ReplicateValidatedMFAChallenge(context.Context, *ReplicateValidatedMFAChallengeRequest) (*ReplicateValidatedMFAChallengeResponse, error)
 	// VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session. If the
 	// challenge does not yet exist, this method will block until the resource appears or until the timeout is reached.
