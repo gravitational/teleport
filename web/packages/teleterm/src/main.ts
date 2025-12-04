@@ -29,7 +29,10 @@ import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import MainProcess from 'teleterm/mainProcess';
 import { registerNavigationHandlers } from 'teleterm/mainProcess/navigationHandler';
-import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
+import {
+  registerAppFileProtocol,
+  setUpProtocolHandlers,
+} from 'teleterm/mainProcess/protocolHandler';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { createConfigService } from 'teleterm/services/config';
@@ -69,6 +72,7 @@ if (app.requestSingleInstanceLock()) {
 
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
+  registerAppFileProtocol();
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
 
@@ -179,7 +183,7 @@ async function initializeApp(): Promise<void> {
   app
     .whenReady()
     .then(() => {
-      enableWebHandlersProtection();
+      setUpProtocolHandlers(settings.dev);
 
       windowsManager.createWindow();
 

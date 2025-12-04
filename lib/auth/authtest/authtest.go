@@ -583,6 +583,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
+		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1238,11 +1239,10 @@ func (t *TLSServer) Close() error {
 		errs = append(errs, err)
 	}
 
-	if t.AuthServer.Backend != nil {
-		if err := t.AuthServer.Backend.Close(); err != nil {
-			errs = append(errs, err)
-		}
+	if err := t.AuthServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
+
 	return trace.NewAggregate(errs...)
 }
 
@@ -1257,13 +1257,12 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			errs = append(errs, err)
 		}
+	}
 
+	if err := t.AuthServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	if t.AuthServer.Backend != nil {
-		if err := t.AuthServer.Backend.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
+
 	return trace.NewAggregate(errs...)
 }
 

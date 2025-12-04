@@ -216,6 +216,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
+		{Kind: types.KindAppAuthConfig},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -273,6 +274,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindGitServer},
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindAppAuthConfig},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -520,6 +522,10 @@ type Cache struct {
 	// fails.
 	initErr error
 
+	// firstTimeInitC is closed on the first successful initialization of the cache
+	firstTimeInitC    chan struct{}
+	firstTimeInitOnce sync.Once
+
 	// ctx is a cache exit context
 	ctx context.Context
 	// cancel triggers exit context closure
@@ -552,10 +558,18 @@ func (c *Cache) setInitError(err error) {
 	})
 
 	if err == nil {
+		c.firstTimeInitOnce.Do(func() {
+			close(c.firstTimeInitC)
+		})
 		cacheHealth.WithLabelValues(c.target).Set(1.0)
 	} else {
 		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+}
+
+// FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
+func (c *Cache) FirstInit() <-chan struct{} {
+	return c.firstTimeInitC
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -775,6 +789,8 @@ type Config struct {
 	RecordingEncryption services.RecordingEncryption
 	// Plugins is the plugin service used to retrieve plugin information.
 	Plugin services.Plugins
+	// AppAuthConfig is a app auth config service.
+	AppAuthConfig services.AppAuthConfigReader
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -902,6 +918,7 @@ func New(config Config) (*Cache, error) {
 		cancel:                cancel,
 		Config:                config,
 		initC:                 make(chan struct{}),
+		firstTimeInitC:        make(chan struct{}),
 		fnCache:               fnCache,
 		eventsFanout:          fanout,
 		collections:           collections,
@@ -1818,4 +1835,36 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 	}
 
 	return &resp, nil
+}
+
+// GetUnifiedResourcesAndBotsCount returns the combined total number of nodes, app servers, database servers, kube servers, desktops, and bot instances.
+func (c *Cache) GetUnifiedResourcesAndBotsCount() int {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
+
+	if !c.ok {
+		return -1
+	}
+
+	count := 0
+	if c.collections.nodes != nil {
+		count += c.collections.nodes.store.len()
+	}
+	if c.collections.appServers != nil {
+		count += c.collections.appServers.store.len()
+	}
+	if c.collections.dbServers != nil {
+		count += c.collections.dbServers.store.len()
+	}
+	if c.collections.kubeServers != nil {
+		count += c.collections.kubeServers.store.len()
+	}
+	if c.collections.windowsDesktops != nil {
+		count += c.collections.windowsDesktops.store.len()
+	}
+	if c.collections.botInstances != nil {
+		count += c.collections.botInstances.store.len()
+	}
+
+	return count
 }
