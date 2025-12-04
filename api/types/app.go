@@ -58,6 +58,8 @@ type Application interface {
 	SetURI(string)
 	// GetPublicAddr returns the app public address.
 	GetPublicAddr() string
+	// SetPublicAddr sets the app public address.
+	SetPublicAddr(s string)
 	// GetInsecureSkipVerify returns the app insecure setting.
 	GetInsecureSkipVerify() bool
 	// GetRewrite returns the app rewrite configuration.
@@ -238,6 +240,11 @@ func (a *AppV3) SetURI(uri string) {
 // GetPublicAddr returns the app public address.
 func (a *AppV3) GetPublicAddr() string {
 	return a.Spec.PublicAddr
+}
+
+// SetPublicAddr sets the app public address.
+func (a *AppV3) SetPublicAddr(addr string) {
+	a.Spec.PublicAddr = addr
 }
 
 // GetInsecureSkipVerify returns the app insecure setting.
