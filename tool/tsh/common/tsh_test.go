@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -6088,6 +6089,17 @@ func TestLogout(t *testing.T) {
 			},
 		},
 		{
+			name: "TLS cert is present but SSH cert is missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				tlsCertPath := keypaths.TLSCertPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
+				err := os.WriteFile(tlsCertPath, []byte(fixtures.TLSCACertPEM), 0o600)
+				require.NoError(t, err)
+				sshCertPath := keypaths.SSHCertPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username, clientKeyRing.ClusterName)
+				_, err = os.ReadFile(sshCertPath)
+				require.ErrorIs(t, err, os.ErrNotExist)
+			},
+		},
+		{
 			name: "TLS private key missing",
 			modifyKeyDir: func(t *testing.T, homePath string) {
 				privKeyPath := keypaths.UserTLSKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
@@ -6105,6 +6117,13 @@ func TestLogout(t *testing.T) {
 				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
 				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0o600)
 				require.NoError(t, err)
+			},
+		},
+		{
+			name: "current profile missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				currentProfileFilePath := keypaths.CurrentProfileFilePath(homePath)
+				require.NoError(t, os.Remove(currentProfileFilePath))
 			},
 		},
 	} {
@@ -6661,6 +6680,33 @@ func testListingResources[T any](t *testing.T, pack listPack[T], unmarshalFunc f
 			require.Empty(t, cmp.Diff(test.expected, out, cmpopts.SortSlices(lessFunc)))
 		})
 	}
+}
+
+func TestStatusPrintsProfilesIfNoActiveProfile(t *testing.T) {
+	t.Parallel()
+
+	buf := bytes.NewBuffer([]byte{})
+
+	err := Run(context.Background(), []string{
+		"status",
+	}, setHomePath(t.TempDir()), func(c *CLIConf) error {
+		c.OverrideStdout = buf
+		profile := &profile.Profile{
+			WebProxyAddr: "proxy:3080",
+			Username:     "testuser",
+		}
+		// setCurrent is false, so there is no active profile.
+		err := c.getClientStore().SaveProfile(profile, false)
+		require.NoError(t, err)
+		return nil
+	})
+
+	require.Contains(t, buf.String(),
+		` Profile URL:        https://proxy:3080
+  Logged in as:       testuser
+  Cluster:            proxy`)
+	require.True(t, trace.IsNotFound(err))
+	require.ErrorContains(t, err, "No active profile.")
 }
 
 // TestProxyTemplates verifies proxy templates apply properly to client config.

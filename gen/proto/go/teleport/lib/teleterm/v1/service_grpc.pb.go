@@ -54,7 +54,6 @@ const (
 	TerminalService_ListKubernetesResources_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources"
 	TerminalService_ListKubernetesServers_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesServers"
 	TerminalService_AddCluster_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
-	TerminalService_RemoveCluster_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
 	TerminalService_ListGateways_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
 	TerminalService_CreateGateway_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/CreateGateway"
 	TerminalService_RemoveGateway_FullMethodName                       = "/teleport.lib.teleterm.v1.TerminalService/RemoveGateway"
@@ -65,6 +64,7 @@ const (
 	TerminalService_Login_FullMethodName                               = "/teleport.lib.teleterm.v1.TerminalService/Login"
 	TerminalService_LoginPasswordless_FullMethodName                   = "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless"
 	TerminalService_Logout_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/Logout"
+	TerminalService_ClearStaleClusterClients_FullMethodName            = "/teleport.lib.teleterm.v1.TerminalService/ClearStaleClusterClients"
 	TerminalService_TransferFile_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
 	TerminalService_ReportUsageEvent_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
 	TerminalService_UpdateHeadlessAuthenticationState_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState"
@@ -137,8 +137,6 @@ type TerminalServiceClient interface {
 	ListKubernetesServers(ctx context.Context, in *ListKubernetesServersRequest, opts ...grpc.CallOption) (*ListKubernetesServersResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error)
-	// RemoveCluster removes a cluster from profile
-	RemoveCluster(ctx context.Context, in *RemoveClusterRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// ListGateways lists gateways
 	ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysResponse, error)
 	// CreateGateway creates a gateway
@@ -177,8 +175,12 @@ type TerminalServiceClient interface {
 	// -> Receive the index number associated with the selected credential in list
 	// <- End
 	LoginPasswordless(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[LoginPasswordlessRequest, LoginPasswordlessResponse], error)
-	// ClusterLogin logs out a user from cluster
+	// Logs the user out of the cluster and cleans up associated resources.
+	// Optionally removes the profile.
+	// This operation is idempotent and can be safely invoked multiple times.
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Closes root and leaf cluster clients that use outdated TLS certificates.
+	ClearStaleClusterClients(ctx context.Context, in *ClearStaleClusterClientsRequest, opts ...grpc.CallOption) (*ClearStaleClusterClientsResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FileTransferProgress], error)
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -418,16 +420,6 @@ func (c *terminalServiceClient) AddCluster(ctx context.Context, in *AddClusterRe
 	return out, nil
 }
 
-func (c *terminalServiceClient) RemoveCluster(ctx context.Context, in *RemoveClusterRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, TerminalService_RemoveCluster_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *terminalServiceClient) ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...grpc.CallOption) (*ListGatewaysResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListGatewaysResponse)
@@ -525,6 +517,16 @@ func (c *terminalServiceClient) Logout(ctx context.Context, in *LogoutRequest, o
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(EmptyResponse)
 	err := c.cc.Invoke(ctx, TerminalService_Logout_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) ClearStaleClusterClients(ctx context.Context, in *ClearStaleClusterClientsRequest, opts ...grpc.CallOption) (*ClearStaleClusterClientsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearStaleClusterClientsResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ClearStaleClusterClients_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -748,8 +750,6 @@ type TerminalServiceServer interface {
 	ListKubernetesServers(context.Context, *ListKubernetesServersRequest) (*ListKubernetesServersResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(context.Context, *AddClusterRequest) (*Cluster, error)
-	// RemoveCluster removes a cluster from profile
-	RemoveCluster(context.Context, *RemoveClusterRequest) (*EmptyResponse, error)
 	// ListGateways lists gateways
 	ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysResponse, error)
 	// CreateGateway creates a gateway
@@ -788,8 +788,12 @@ type TerminalServiceServer interface {
 	// -> Receive the index number associated with the selected credential in list
 	// <- End
 	LoginPasswordless(grpc.BidiStreamingServer[LoginPasswordlessRequest, LoginPasswordlessResponse]) error
-	// ClusterLogin logs out a user from cluster
+	// Logs the user out of the cluster and cleans up associated resources.
+	// Optionally removes the profile.
+	// This operation is idempotent and can be safely invoked multiple times.
 	Logout(context.Context, *LogoutRequest) (*EmptyResponse, error)
+	// Closes root and leaf cluster clients that use outdated TLS certificates.
+	ClearStaleClusterClients(context.Context, *ClearStaleClusterClientsRequest) (*ClearStaleClusterClientsResponse, error)
 	// TransferFile sends a request to download/upload a file
 	TransferFile(*FileTransferRequest, grpc.ServerStreamingServer[FileTransferProgress]) error
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -903,9 +907,6 @@ func (UnimplementedTerminalServiceServer) ListKubernetesServers(context.Context,
 func (UnimplementedTerminalServiceServer) AddCluster(context.Context, *AddClusterRequest) (*Cluster, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddCluster not implemented")
 }
-func (UnimplementedTerminalServiceServer) RemoveCluster(context.Context, *RemoveClusterRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RemoveCluster not implemented")
-}
 func (UnimplementedTerminalServiceServer) ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGateways not implemented")
 }
@@ -935,6 +936,9 @@ func (UnimplementedTerminalServiceServer) LoginPasswordless(grpc.BidiStreamingSe
 }
 func (UnimplementedTerminalServiceServer) Logout(context.Context, *LogoutRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Logout not implemented")
+}
+func (UnimplementedTerminalServiceServer) ClearStaleClusterClients(context.Context, *ClearStaleClusterClientsRequest) (*ClearStaleClusterClientsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearStaleClusterClients not implemented")
 }
 func (UnimplementedTerminalServiceServer) TransferFile(*FileTransferRequest, grpc.ServerStreamingServer[FileTransferProgress]) error {
 	return status.Errorf(codes.Unimplemented, "method TransferFile not implemented")
@@ -1326,24 +1330,6 @@ func _TerminalService_AddCluster_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_RemoveCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveClusterRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).RemoveCluster(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_RemoveCluster_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).RemoveCluster(ctx, req.(*RemoveClusterRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _TerminalService_ListGateways_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListGatewaysRequest)
 	if err := dec(in); err != nil {
@@ -1509,6 +1495,24 @@ func _TerminalService_Logout_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).Logout(ctx, req.(*LogoutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_ClearStaleClusterClients_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearStaleClusterClientsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ClearStaleClusterClients(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ClearStaleClusterClients_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ClearStaleClusterClients(ctx, req.(*ClearStaleClusterClientsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1845,10 +1849,6 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_AddCluster_Handler,
 		},
 		{
-			MethodName: "RemoveCluster",
-			Handler:    _TerminalService_RemoveCluster_Handler,
-		},
-		{
 			MethodName: "ListGateways",
 			Handler:    _TerminalService_ListGateways_Handler,
 		},
@@ -1883,6 +1883,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Logout",
 			Handler:    _TerminalService_Logout_Handler,
+		},
+		{
+			MethodName: "ClearStaleClusterClients",
+			Handler:    _TerminalService_ClearStaleClusterClients_Handler,
 		},
 		{
 			MethodName: "ReportUsageEvent",

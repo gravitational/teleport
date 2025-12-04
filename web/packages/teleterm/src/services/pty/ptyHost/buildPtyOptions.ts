@@ -44,6 +44,7 @@ type PtyOptions = {
   ssh: SshOptions;
   windowsPty: Pick<WindowsPty, 'useConpty'>;
   customShellPath: string;
+  tshHome: string;
 };
 
 const WSLENV_VAR = 'WSLENV';
@@ -101,7 +102,7 @@ export async function buildPtyOptions({
         ...shellEnv,
         TERM_PROGRAM: 'Teleport_Connect',
         TERM_PROGRAM_VERSION: settings.appVersion,
-        TELEPORT_HOME: settings.tshd.homeDir,
+        TELEPORT_HOME: options.tshHome,
         TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,
         [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,

@@ -57,17 +57,6 @@ import { AccessRequest } from "./access_request_pb";
 export interface EmptyResponse {
 }
 /**
- * RemoveClusterRequest describes RemoveClusterRequest
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.RemoveClusterRequest
- */
-export interface RemoveClusterRequest {
-    /**
-     * @generated from protobuf field: string cluster_uri = 1;
-     */
-    clusterUri: string;
-}
-/**
  * GetClusterRequest describes GetClusterRequest
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.GetClusterRequest
@@ -79,8 +68,6 @@ export interface GetClusterRequest {
     clusterUri: string;
 }
 /**
- * LogoutRequest describes LogoutRequest
- *
  * @generated from protobuf message teleport.lib.teleterm.v1.LogoutRequest
  */
 export interface LogoutRequest {
@@ -88,6 +75,26 @@ export interface LogoutRequest {
      * @generated from protobuf field: string cluster_uri = 1;
      */
     clusterUri: string;
+    /**
+     * Whether to remove the associated YAML profile after logout.
+     *
+     * @generated from protobuf field: bool remove_profile = 2;
+     */
+    removeProfile: boolean;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest
+ */
+export interface ClearStaleClusterClientsRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse
+ */
+export interface ClearStaleClusterClientsResponse {
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
@@ -1442,53 +1449,6 @@ class EmptyResponse$Type extends MessageType<EmptyResponse> {
  */
 export const EmptyResponse = new EmptyResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class RemoveClusterRequest$Type extends MessageType<RemoveClusterRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.RemoveClusterRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<RemoveClusterRequest>): RemoveClusterRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.clusterUri = "";
-        if (value !== undefined)
-            reflectionMergePartial<RemoveClusterRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RemoveClusterRequest): RemoveClusterRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string cluster_uri */ 1:
-                    message.clusterUri = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: RemoveClusterRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cluster_uri = 1; */
-        if (message.clusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.RemoveClusterRequest
- */
-export const RemoveClusterRequest = new RemoveClusterRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class GetClusterRequest$Type extends MessageType<GetClusterRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.GetClusterRequest", [
@@ -1539,12 +1499,14 @@ export const GetClusterRequest = new GetClusterRequest$Type();
 class LogoutRequest$Type extends MessageType<LogoutRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.LogoutRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "remove_profile", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<LogoutRequest>): LogoutRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clusterUri = "";
+        message.removeProfile = false;
         if (value !== undefined)
             reflectionMergePartial<LogoutRequest>(this, message, value);
         return message;
@@ -1556,6 +1518,9 @@ class LogoutRequest$Type extends MessageType<LogoutRequest> {
             switch (fieldNo) {
                 case /* string cluster_uri */ 1:
                     message.clusterUri = reader.string();
+                    break;
+                case /* bool remove_profile */ 2:
+                    message.removeProfile = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1572,6 +1537,9 @@ class LogoutRequest$Type extends MessageType<LogoutRequest> {
         /* string cluster_uri = 1; */
         if (message.clusterUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* bool remove_profile = 2; */
+        if (message.removeProfile !== false)
+            writer.tag(2, WireType.Varint).bool(message.removeProfile);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1582,6 +1550,78 @@ class LogoutRequest$Type extends MessageType<LogoutRequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.LogoutRequest
  */
 export const LogoutRequest = new LogoutRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ClearStaleClusterClientsRequest$Type extends MessageType<ClearStaleClusterClientsRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ClearStaleClusterClientsRequest>): ClearStaleClusterClientsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<ClearStaleClusterClientsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ClearStaleClusterClientsRequest): ClearStaleClusterClientsRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ClearStaleClusterClientsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest
+ */
+export const ClearStaleClusterClientsRequest = new ClearStaleClusterClientsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ClearStaleClusterClientsResponse$Type extends MessageType<ClearStaleClusterClientsResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse", []);
+    }
+    create(value?: PartialMessage<ClearStaleClusterClientsResponse>): ClearStaleClusterClientsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ClearStaleClusterClientsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ClearStaleClusterClientsResponse): ClearStaleClusterClientsResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: ClearStaleClusterClientsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse
+ */
+export const ClearStaleClusterClientsResponse = new ClearStaleClusterClientsResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class StartHeadlessWatcherRequest$Type extends MessageType<StartHeadlessWatcherRequest> {
     constructor() {
@@ -5915,7 +5955,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "ListKubernetesResources", options: {}, I: ListKubernetesResourcesRequest, O: ListKubernetesResourcesResponse },
     { name: "ListKubernetesServers", options: {}, I: ListKubernetesServersRequest, O: ListKubernetesServersResponse },
     { name: "AddCluster", options: {}, I: AddClusterRequest, O: Cluster },
-    { name: "RemoveCluster", options: {}, I: RemoveClusterRequest, O: EmptyResponse },
     { name: "ListGateways", options: {}, I: ListGatewaysRequest, O: ListGatewaysResponse },
     { name: "CreateGateway", options: {}, I: CreateGatewayRequest, O: Gateway },
     { name: "RemoveGateway", options: {}, I: RemoveGatewayRequest, O: EmptyResponse },
@@ -5926,6 +5965,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "Login", options: {}, I: LoginRequest, O: EmptyResponse },
     { name: "LoginPasswordless", serverStreaming: true, clientStreaming: true, options: {}, I: LoginPasswordlessRequest, O: LoginPasswordlessResponse },
     { name: "Logout", options: {}, I: LogoutRequest, O: EmptyResponse },
+    { name: "ClearStaleClusterClients", options: {}, I: ClearStaleClusterClientsRequest, O: ClearStaleClusterClientsResponse },
     { name: "TransferFile", serverStreaming: true, options: {}, I: FileTransferRequest, O: FileTransferProgress },
     { name: "ReportUsageEvent", options: {}, I: ReportUsageEventRequest, O: EmptyResponse },
     { name: "UpdateHeadlessAuthenticationState", options: {}, I: UpdateHeadlessAuthenticationStateRequest, O: UpdateHeadlessAuthenticationStateResponse },
