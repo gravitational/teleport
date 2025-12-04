@@ -274,6 +274,9 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
+      env:
+      - name: GOMEMLIMIT
+        value: "3865470567"
       image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:

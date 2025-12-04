@@ -401,3 +401,21 @@ type Server struct {
 
 	types.Server
 }
+
+// SaveProfileAndPreserveSiteName wraps [client.TeleportClient.SaveProfile]. It restores the original site name before
+// saving the profile.
+//
+// It's needed because teleterm/clusters.Storage.loadProfileStatusAndClusterKey overwrites the profile's site name so that
+// the cluster client is created for the cluster specified in the URI rather than the one stored in the profile.
+// This adjustment is only relevant for Connect and should not be persisted.
+func SaveProfileAndPreserveSiteName(clusterClient *client.TeleportClient, makeCurrent bool) error {
+	profile, err := clusterClient.GetProfile(clusterClient.WebProxyAddr)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if profile != nil {
+		clusterClient.SiteName = profile.SiteName
+	}
+	err = clusterClient.SaveProfile(makeCurrent)
+	return trace.Wrap(err)
+}

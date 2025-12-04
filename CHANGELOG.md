@@ -193,7 +193,7 @@ On Windows and Linux, some of the default shortcuts conflicted with the default 
 (e.g. Ctrl + E, Ctrl + K).
 On those platforms, the default shortcuts have been changed to a combination of Ctrl + Shift + *.
 We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.
-See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
+See [configuration](docs/pages/connect-your-client/teleport-clients/teleport-connect.mdx#configuration)
 for the current list of shortcuts.
 
 ## 15.0.0 (xx/xx/24)
@@ -587,7 +587,7 @@ tsh on Windows now supports the `tsh puttyconfig` command, which can
 configure saved sessions inside the well-known PuTTY client to connect to
 Teleport-protected servers.
 
-For more information, see [docs](docs/pages/connect-your-client/putty-winscp.mdx).
+For more information, see [docs](docs/pages/connect-your-client/third-party/putty-winscp.mdx).
 
 #### Support for TLS routing in Terraform deployment examples
 
@@ -1772,8 +1772,8 @@ editing files on remote systems.
 The following guides explain how to use IDEs to connect to a remote machine via
 Teleport:
 
-- [VS Code](./docs/pages/enroll-resources/server-access/guides/vscode.mdx)
-- [JetBrains](./docs/pages/enroll-resources/server-access/guides/jetbrains-sftp.mdx)
+- [VS Code](docs/pages/connect-your-client/third-party/vscode.mdx)
+- [JetBrains](docs/pages/connect-your-client/third-party/jetbrains-sftp.mdx)
 
 In addition, Teleport 11 clients will use SFTP protocol for file transfer under
 the hood instead of the obsolete scp protocol. Server-side scp is still
@@ -2543,8 +2543,8 @@ Database Service when running on AWS.
 
 CLI commands reference:
 - [`teleport db configure
-  create`](docs/pages/reference/agent-services/database-access-reference/cli.mdx)
-- [`teleport db configure bootstrap`](docs/pages/reference/agent-services/database-access-reference/cli.mdx)
+  create`](docs/pages/enroll-resources/database-access/reference/cli.mdx)
+- [`teleport db configure bootstrap`](docs/pages/enroll-resources/database-access/reference/cli.mdx)
 
 ### Moderated Sessions
 
@@ -2970,7 +2970,7 @@ Configure database access following the [Getting Started](./docs/pages/enroll-re
 * [AWS RDS/Aurora MySQL](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
 * [Self-hosted PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx)
 * [Self-hosted MySQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted.mdx)
-* [GUI clients](docs/pages/connect-your-client/gui-clients.mdx)
+* [GUI clients](docs/pages/connect-your-client/third-party/gui-clients.mdx)
 
 ##### Resources
 
@@ -2978,7 +2978,7 @@ To learn more about configuring role-based access control for database access, c
 
 [Architecture](./docs/pages/enroll-resources/database-access/database-access.mdx) provides a more in-depth look at database access internals such as networking and security.
 
-See [Reference](docs/pages/reference/agent-services/database-access-reference/database-access-reference.mdx) for an overview of database access related configuration and CLI commands.
+See [Reference](docs/pages/enroll-resources/database-access/reference/reference.mdx) for an overview of database access related configuration and CLI commands.
 
 Finally, check out [Frequently Asked Questions](docs/pages/enroll-resources/database-access/faq.mdx).
 
@@ -3180,7 +3180,7 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
-You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/introduction.mdx).
+You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/application-access.mdx).
 
 ##### Teleport Kubernetes access
 

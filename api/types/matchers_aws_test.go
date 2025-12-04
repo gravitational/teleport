@@ -136,12 +136,12 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "wildcard is invalid for regions",
+			name: "wildcard is valid for the ec2 type",
 			in: &AWSMatcher{
-				Types:   []string{"ec2", "rds"},
+				Types:   []string{"ec2"},
 				Regions: []string{"*"},
 			},
-			errCheck: isBadParameterErr,
+			errCheck: require.NoError,
 		},
 		{
 			name: "invalid type",
@@ -177,6 +177,14 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				Regions: []string{"eu-west-2"},
 			},
 			errCheck: isBadParameterErr,
+		},
+		{
+			name: "wildcard region is valid for ec2 type",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"*"},
+			},
+			errCheck: require.NoError,
 		},
 		{
 			name: "no region",

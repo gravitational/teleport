@@ -420,6 +420,10 @@ type InitConfig struct {
 
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
+
+	// AppAuthConfig is the service for storing and retrieving
+	// app auth config resources.
+	AppAuthConfig services.AppAuthConfig
 }
 
 // Init instantiates and configures an instance of AuthServer
