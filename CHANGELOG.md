@@ -1,5 +1,30 @@
 # Changelog
 
+## 18.5.0 (12/04/25)
+
+### Kubernetes support for Relay Service
+The relay service now facilitates Kubernetes connections.
+
+### Shared state between tsh and Teleport Connect
+Teleport Connect and tsh now share the same local state. Logins from one app will automatically be reflected in the other.
+
+### SCIM PATCH support in SailPoint integration
+Teleport SCIM server now natively supports PATCH operations to improve reliability of bulk SCIM operations in integrations like SailPoint.
+
+### Other changes and improvements
+
+* Updated Go to 1.24.11. [#61953](https://github.com/gravitational/teleport/pull/61953)
+* Added support for discovering EC2 instances in all regions, without enumerating them. Requires access to `account.ListRegions` in the IAM Role assumed by the Discovery Service. [#61924](https://github.com/gravitational/teleport/pull/61924)
+* Fixed a bug where JWT-SVID timestamp claims would be represented using scientific notation. [#61921](https://github.com/gravitational/teleport/pull/61921)
+* Fixed "SSH cert not found" errors in Teleport Connect. [#61846](https://github.com/gravitational/teleport/pull/61846)
+* Added support for authenticating Azure resource discovery using Azure OIDC integrations. [#61830](https://github.com/gravitational/teleport/pull/61830)
+* Fixed a bug in Proxy recording mode where Teleport Node sessions would result in duplicate audit events with a different session ID. [#61246](https://github.com/gravitational/teleport/pull/61246)
+* Tuned teleport-cluster, teleport-kube-agent, and teleport-relay Helm charts to reduce the probability of Teleport exceeding its memory limits and being OOM-Killed. GOMEMLIMIT defaults to 90% of the configured memory limits.
+
+Enterprise:
+* Added support for AWS Account name and ID labels (`teleport.dev/account-id`, `teleport.dev/account-name`) on AWS Identity Center resources (`aws_ic_account_assignment` and `aws_ic_account`). These labels improve compatibility with Access Monitoring Rules, allowing users to more easily target and audit AWS IC accounts.
+* Updated the Access Automation Rules dialog to display rules in a paginated view.
+
 ## 18.4.2 (12/01/25)
 
 * Fixed a bug causing high memory consumption in the Teleport Auth Service when clients were listing large resources. [#61849](https://github.com/gravitational/teleport/pull/61849)
