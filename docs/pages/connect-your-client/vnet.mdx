@@ -1,5 +1,6 @@
 ---
 title: Using VNet
+sidebar_label: VNet
 description: Using VNet
 tags:
  - how-to
@@ -118,7 +119,7 @@ Teleport Connect.
 
 <Admonition type="note" title="Support for multiple ports">
 Unless the application specifies [multiple
-ports](../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports),
+ports](../enroll-resources/application-access/protect-apps/tcp.mdx#configuring-access-to-multiple-ports),
 VNet proxies connections over any port used by the application client. For multi-port apps, the port
 number must match one of the target ports of the app. To see a list of target ports, click the
 three dot menu next to an application in Teleport Connect or execute `tsh apps ls`.
