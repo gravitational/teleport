@@ -111,7 +111,7 @@ func (m *ValidatedMFAChallenge) GetSpec() *ValidatedMFAChallengeSpec {
 
 // ValidatedMFAChallengeSpec contains the validated challenge data that is set once during creation and never modified.
 type ValidatedMFAChallengeSpec struct {
-	// Value that uniquely identifies the user's session. Supplied in CreateChallengeRequest.
+	// Value that uniquely identifies the user's session. Supplied in CreateSessionChallengeRequest.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Information about the user's MFA device used to authenticate.
 	Device *types.MFADevice `protobuf:"bytes,2,opt,name=device,proto3" json:"device,omitempty"`

@@ -39,7 +39,7 @@ message ValidatedMFAChallenge {
 
 // ValidatedMFAChallengeSpec contains the validated challenge data that is set once during creation and never modified.
 message ValidatedMFAChallengeSpec {
-  // Value that uniquely identifies the user's session. Supplied in CreateChallengeRequest.
+  // Value that uniquely identifies the user's session. Supplied in CreateSessionChallengeRequest.
   SessionIdentifyingPayload payload = 1;
   // Information about the user's MFA device used to authenticate.
   types.MFADevice device = 2;

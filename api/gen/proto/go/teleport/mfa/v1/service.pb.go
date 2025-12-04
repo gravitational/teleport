@@ -24,10 +24,10 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// CreateChallengeRequest is the request message for CreateChallenge.
-type CreateChallengeRequest struct {
+// CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
+type CreateSessionChallengeRequest struct {
 	// Value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server will
-	// verify it matches the payload supplied to CreateChallengeRequest.
+	// verify it matches the payload supplied to CreateSessionChallengeRequest.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Name of the target cluster where the SSH session is being established. If unset, the server assumes the challenge
 	// is for the local cluster. Used to determine where the validated challenge should be replicated for leaf clusters.
@@ -45,18 +45,18 @@ type CreateChallengeRequest struct {
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *CreateChallengeRequest) Reset()         { *m = CreateChallengeRequest{} }
-func (m *CreateChallengeRequest) String() string { return proto.CompactTextString(m) }
-func (*CreateChallengeRequest) ProtoMessage()    {}
-func (*CreateChallengeRequest) Descriptor() ([]byte, []int) {
+func (m *CreateSessionChallengeRequest) Reset()         { *m = CreateSessionChallengeRequest{} }
+func (m *CreateSessionChallengeRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateSessionChallengeRequest) ProtoMessage()    {}
+func (*CreateSessionChallengeRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_62d1ff43205b9484, []int{0}
 }
-func (m *CreateChallengeRequest) XXX_Unmarshal(b []byte) error {
+func (m *CreateSessionChallengeRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *CreateChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *CreateSessionChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_CreateChallengeRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_CreateSessionChallengeRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -66,48 +66,48 @@ func (m *CreateChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return b[:n], nil
 	}
 }
-func (m *CreateChallengeRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CreateChallengeRequest.Merge(m, src)
+func (m *CreateSessionChallengeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateSessionChallengeRequest.Merge(m, src)
 }
-func (m *CreateChallengeRequest) XXX_Size() int {
+func (m *CreateSessionChallengeRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *CreateChallengeRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_CreateChallengeRequest.DiscardUnknown(m)
+func (m *CreateSessionChallengeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateSessionChallengeRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_CreateChallengeRequest proto.InternalMessageInfo
+var xxx_messageInfo_CreateSessionChallengeRequest proto.InternalMessageInfo
 
-func (m *CreateChallengeRequest) GetPayload() *SessionIdentifyingPayload {
+func (m *CreateSessionChallengeRequest) GetPayload() *SessionIdentifyingPayload {
 	if m != nil {
 		return m.Payload
 	}
 	return nil
 }
 
-func (m *CreateChallengeRequest) GetTargetCluster() string {
+func (m *CreateSessionChallengeRequest) GetTargetCluster() string {
 	if m != nil {
 		return m.TargetCluster
 	}
 	return ""
 }
 
-func (m *CreateChallengeRequest) GetSsoClientRedirectUrl() string {
+func (m *CreateSessionChallengeRequest) GetSsoClientRedirectUrl() string {
 	if m != nil {
 		return m.SsoClientRedirectUrl
 	}
 	return ""
 }
 
-func (m *CreateChallengeRequest) GetProxyAddressForSso() string {
+func (m *CreateSessionChallengeRequest) GetProxyAddressForSso() string {
 	if m != nil {
 		return m.ProxyAddressForSso
 	}
 	return ""
 }
 
-// CreateChallengeResponse is the response message for CreateChallenge.
-type CreateChallengeResponse struct {
+// CreateSessionChallengeResponse is the response message for CreateSessionChallenge.
+type CreateSessionChallengeResponse struct {
 	// MFA challenge that the user must respond to.
 	MfaChallenge         *AuthenticateChallenge `protobuf:"bytes,1,opt,name=mfa_challenge,json=mfaChallenge,proto3" json:"mfa_challenge,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
@@ -115,18 +115,18 @@ type CreateChallengeResponse struct {
 	XXX_sizecache        int32                  `json:"-"`
 }
 
-func (m *CreateChallengeResponse) Reset()         { *m = CreateChallengeResponse{} }
-func (m *CreateChallengeResponse) String() string { return proto.CompactTextString(m) }
-func (*CreateChallengeResponse) ProtoMessage()    {}
-func (*CreateChallengeResponse) Descriptor() ([]byte, []int) {
+func (m *CreateSessionChallengeResponse) Reset()         { *m = CreateSessionChallengeResponse{} }
+func (m *CreateSessionChallengeResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateSessionChallengeResponse) ProtoMessage()    {}
+func (*CreateSessionChallengeResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_62d1ff43205b9484, []int{1}
 }
-func (m *CreateChallengeResponse) XXX_Unmarshal(b []byte) error {
+func (m *CreateSessionChallengeResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *CreateChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *CreateSessionChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_CreateChallengeResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_CreateSessionChallengeResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -136,27 +136,27 @@ func (m *CreateChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return b[:n], nil
 	}
 }
-func (m *CreateChallengeResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CreateChallengeResponse.Merge(m, src)
+func (m *CreateSessionChallengeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateSessionChallengeResponse.Merge(m, src)
 }
-func (m *CreateChallengeResponse) XXX_Size() int {
+func (m *CreateSessionChallengeResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *CreateChallengeResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_CreateChallengeResponse.DiscardUnknown(m)
+func (m *CreateSessionChallengeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateSessionChallengeResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_CreateChallengeResponse proto.InternalMessageInfo
+var xxx_messageInfo_CreateSessionChallengeResponse proto.InternalMessageInfo
 
-func (m *CreateChallengeResponse) GetMfaChallenge() *AuthenticateChallenge {
+func (m *CreateSessionChallengeResponse) GetMfaChallenge() *AuthenticateChallenge {
 	if m != nil {
 		return m.MfaChallenge
 	}
 	return nil
 }
 
-// ValidateChallengeRequest is the request message for ValidateChallenge.
-type ValidateChallengeRequest struct {
+// ValidateSessionChallengeRequest is the request message for ValidateSessionChallenge.
+type ValidateSessionChallengeRequest struct {
 	// MFA challenge response provided by the user.
 	MfaResponse          *AuthenticateResponse `protobuf:"bytes,1,opt,name=mfa_response,json=mfaResponse,proto3" json:"mfa_response,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
@@ -164,18 +164,18 @@ type ValidateChallengeRequest struct {
 	XXX_sizecache        int32                 `json:"-"`
 }
 
-func (m *ValidateChallengeRequest) Reset()         { *m = ValidateChallengeRequest{} }
-func (m *ValidateChallengeRequest) String() string { return proto.CompactTextString(m) }
-func (*ValidateChallengeRequest) ProtoMessage()    {}
-func (*ValidateChallengeRequest) Descriptor() ([]byte, []int) {
+func (m *ValidateSessionChallengeRequest) Reset()         { *m = ValidateSessionChallengeRequest{} }
+func (m *ValidateSessionChallengeRequest) String() string { return proto.CompactTextString(m) }
+func (*ValidateSessionChallengeRequest) ProtoMessage()    {}
+func (*ValidateSessionChallengeRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_62d1ff43205b9484, []int{2}
 }
-func (m *ValidateChallengeRequest) XXX_Unmarshal(b []byte) error {
+func (m *ValidateSessionChallengeRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *ValidateChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *ValidateSessionChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_ValidateChallengeRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_ValidateSessionChallengeRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -185,44 +185,44 @@ func (m *ValidateChallengeRequest) XXX_Marshal(b []byte, deterministic bool) ([]
 		return b[:n], nil
 	}
 }
-func (m *ValidateChallengeRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ValidateChallengeRequest.Merge(m, src)
+func (m *ValidateSessionChallengeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ValidateSessionChallengeRequest.Merge(m, src)
 }
-func (m *ValidateChallengeRequest) XXX_Size() int {
+func (m *ValidateSessionChallengeRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *ValidateChallengeRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_ValidateChallengeRequest.DiscardUnknown(m)
+func (m *ValidateSessionChallengeRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ValidateSessionChallengeRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ValidateChallengeRequest proto.InternalMessageInfo
+var xxx_messageInfo_ValidateSessionChallengeRequest proto.InternalMessageInfo
 
-func (m *ValidateChallengeRequest) GetMfaResponse() *AuthenticateResponse {
+func (m *ValidateSessionChallengeRequest) GetMfaResponse() *AuthenticateResponse {
 	if m != nil {
 		return m.MfaResponse
 	}
 	return nil
 }
 
-// ValidateChallengeResponse is the response message for ValidateChallenge.
-type ValidateChallengeResponse struct {
+// ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
+type ValidateSessionChallengeResponse struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *ValidateChallengeResponse) Reset()         { *m = ValidateChallengeResponse{} }
-func (m *ValidateChallengeResponse) String() string { return proto.CompactTextString(m) }
-func (*ValidateChallengeResponse) ProtoMessage()    {}
-func (*ValidateChallengeResponse) Descriptor() ([]byte, []int) {
+func (m *ValidateSessionChallengeResponse) Reset()         { *m = ValidateSessionChallengeResponse{} }
+func (m *ValidateSessionChallengeResponse) String() string { return proto.CompactTextString(m) }
+func (*ValidateSessionChallengeResponse) ProtoMessage()    {}
+func (*ValidateSessionChallengeResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_62d1ff43205b9484, []int{3}
 }
-func (m *ValidateChallengeResponse) XXX_Unmarshal(b []byte) error {
+func (m *ValidateSessionChallengeResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *ValidateChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *ValidateSessionChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_ValidateChallengeResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_ValidateSessionChallengeResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -232,24 +232,24 @@ func (m *ValidateChallengeResponse) XXX_Marshal(b []byte, deterministic bool) ([
 		return b[:n], nil
 	}
 }
-func (m *ValidateChallengeResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ValidateChallengeResponse.Merge(m, src)
+func (m *ValidateSessionChallengeResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ValidateSessionChallengeResponse.Merge(m, src)
 }
-func (m *ValidateChallengeResponse) XXX_Size() int {
+func (m *ValidateSessionChallengeResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *ValidateChallengeResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_ValidateChallengeResponse.DiscardUnknown(m)
+func (m *ValidateSessionChallengeResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ValidateSessionChallengeResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_ValidateChallengeResponse proto.InternalMessageInfo
+var xxx_messageInfo_ValidateSessionChallengeResponse proto.InternalMessageInfo
 
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
 type ReplicateValidatedMFAChallengeRequest struct {
 	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
 	// challenge.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Value that uniquely identifies the user's session. Must match the payload in CreateChallengeRequest.
+	// Value that uniquely identifies the user's session. Must match the payload in CreateSessionChallengeRequest.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Identifying information about the user's MFA device used to authenticate. Required for audit purposes.
 	Device *events.MFADeviceMetadata `protobuf:"bytes,3,opt,name=device,proto3" json:"device,omitempty"`
@@ -390,7 +390,7 @@ type VerifyValidatedMFAChallengeRequest struct {
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Value that uniquely identifies the user's session. The client calling VerifyValidatedMFAChallenge MUST
 	// independently compute this value from session state. The server will verify it matches the payload supplied in
-	// CreateChallengeRequest to ensure the challenge is tied to the correct session.
+	// CreateSessionChallengeRequest to ensure the challenge is tied to the correct session.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Name of the cluster where the validated challenge originated.
 	SourceCluster        string   `protobuf:"bytes,3,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
@@ -494,10 +494,10 @@ func (m *VerifyValidatedMFAChallengeResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_VerifyValidatedMFAChallengeResponse proto.InternalMessageInfo
 
 func init() {
-	proto.RegisterType((*CreateChallengeRequest)(nil), "teleport.mfa.v1.CreateChallengeRequest")
-	proto.RegisterType((*CreateChallengeResponse)(nil), "teleport.mfa.v1.CreateChallengeResponse")
-	proto.RegisterType((*ValidateChallengeRequest)(nil), "teleport.mfa.v1.ValidateChallengeRequest")
-	proto.RegisterType((*ValidateChallengeResponse)(nil), "teleport.mfa.v1.ValidateChallengeResponse")
+	proto.RegisterType((*CreateSessionChallengeRequest)(nil), "teleport.mfa.v1.CreateSessionChallengeRequest")
+	proto.RegisterType((*CreateSessionChallengeResponse)(nil), "teleport.mfa.v1.CreateSessionChallengeResponse")
+	proto.RegisterType((*ValidateSessionChallengeRequest)(nil), "teleport.mfa.v1.ValidateSessionChallengeRequest")
+	proto.RegisterType((*ValidateSessionChallengeResponse)(nil), "teleport.mfa.v1.ValidateSessionChallengeResponse")
 	proto.RegisterType((*ReplicateValidatedMFAChallengeRequest)(nil), "teleport.mfa.v1.ReplicateValidatedMFAChallengeRequest")
 	proto.RegisterType((*ReplicateValidatedMFAChallengeResponse)(nil), "teleport.mfa.v1.ReplicateValidatedMFAChallengeResponse")
 	proto.RegisterType((*VerifyValidatedMFAChallengeRequest)(nil), "teleport.mfa.v1.VerifyValidatedMFAChallengeRequest")
@@ -507,52 +507,52 @@ func init() {
 func init() { proto.RegisterFile("teleport/mfa/v1/service.proto", fileDescriptor_62d1ff43205b9484) }
 
 var fileDescriptor_62d1ff43205b9484 = []byte{
-	// 661 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x55, 0xcd, 0x6e, 0xd3, 0x4c,
-	0x14, 0x95, 0xdb, 0x7e, 0xfd, 0xd4, 0x5b, 0x4a, 0xc5, 0x50, 0x68, 0x9a, 0x8a, 0x50, 0x19, 0xa5,
-	0xb4, 0x5d, 0xd8, 0x4a, 0xcb, 0xcf, 0x82, 0x55, 0x48, 0x15, 0x15, 0xa1, 0x48, 0xc8, 0x15, 0x95,
-	0x60, 0x63, 0x4d, 0x3d, 0xd7, 0xae, 0x91, 0xed, 0x31, 0x33, 0x13, 0x8b, 0x6c, 0x61, 0xc3, 0x96,
-	0x87, 0xe0, 0x5d, 0x58, 0xf2, 0x08, 0xa8, 0x2f, 0xc0, 0x13, 0x20, 0xa1, 0xd8, 0xe3, 0x14, 0xe2,
-	0x90, 0xa6, 0x6c, 0x58, 0xd9, 0x33, 0xe7, 0xdc, 0xff, 0x33, 0x33, 0x70, 0x47, 0x61, 0x84, 0x29,
-	0x17, 0xca, 0x8e, 0x7d, 0x6a, 0x67, 0x2d, 0x5b, 0xa2, 0xc8, 0x42, 0x0f, 0xad, 0x54, 0x70, 0xc5,
-	0xc9, 0x6a, 0x09, 0x5b, 0xb1, 0x4f, 0xad, 0xac, 0x55, 0x5f, 0x0b, 0x78, 0xc0, 0x73, 0xcc, 0x1e,
-	0xfe, 0x15, 0xb4, 0xfa, 0xee, 0xc8, 0x4b, 0x84, 0x01, 0xf5, 0x06, 0xb6, 0x1a, 0xa4, 0x28, 0x6d,
-	0xcc, 0x30, 0x51, 0xe5, 0x47, 0x53, 0xef, 0x8e, 0x07, 0xf4, 0xce, 0x68, 0x14, 0x61, 0x12, 0x60,
-	0xc5, 0x97, 0x26, 0x64, 0x34, 0x0a, 0x19, 0x55, 0xc8, 0xdc, 0x31, 0xaa, 0xf9, 0xdd, 0x80, 0xdb,
-	0x1d, 0x81, 0x54, 0x61, 0xa7, 0x44, 0x1c, 0x7c, 0xdb, 0x47, 0xa9, 0xc8, 0x21, 0xfc, 0x9f, 0xd2,
-	0x41, 0xc4, 0x29, 0xab, 0x19, 0x5b, 0xc6, 0xce, 0xf2, 0xfe, 0x9e, 0x35, 0x56, 0x8a, 0x75, 0x8c,
-	0x52, 0x86, 0x3c, 0x79, 0xc6, 0x30, 0x51, 0xa1, 0x3f, 0x08, 0x93, 0xe0, 0x45, 0x61, 0xe1, 0x94,
-	0xa6, 0xa4, 0x09, 0xd7, 0x15, 0x15, 0x01, 0x2a, 0xd7, 0x8b, 0xfa, 0x52, 0xa1, 0xa8, 0xcd, 0x6d,
-	0x19, 0x3b, 0x4b, 0xce, 0x4a, 0xb1, 0xdb, 0x29, 0x36, 0xc9, 0x43, 0x58, 0x97, 0x92, 0xbb, 0x5e,
-	0x14, 0x62, 0xa2, 0x5c, 0x81, 0x2c, 0x14, 0xe8, 0x29, 0xb7, 0x2f, 0xa2, 0xda, 0x7c, 0xce, 0x5f,
-	0x93, 0x92, 0x77, 0x72, 0xd4, 0xd1, 0xe0, 0x4b, 0x11, 0x91, 0x16, 0xdc, 0x4a, 0x05, 0x7f, 0x37,
-	0x70, 0x29, 0x63, 0x02, 0xa5, 0x74, 0x7d, 0x2e, 0x5c, 0x29, 0x79, 0x6d, 0x21, 0x37, 0x22, 0x39,
-	0xd8, 0x2e, 0xb0, 0x2e, 0x17, 0xc7, 0x92, 0x9b, 0x3e, 0xac, 0x57, 0x0a, 0x96, 0x29, 0x4f, 0x24,
-	0x92, 0xe7, 0xb0, 0x12, 0xfb, 0xf4, 0xa2, 0x47, 0xba, 0xee, 0xed, 0x4a, 0xdd, 0xed, 0xbe, 0x3a,
-	0x1b, 0x96, 0xec, 0xfd, 0xe6, 0xe6, 0x5a, 0xec, 0xd3, 0xd1, 0xca, 0x64, 0x50, 0x3b, 0xd1, 0x6d,
-	0xaf, 0xb4, 0xf6, 0x08, 0x86, 0x5c, 0x57, 0xe8, 0xc0, 0x3a, 0x4e, 0x73, 0x6a, 0x9c, 0x32, 0x4b,
-	0x67, 0x39, 0xf6, 0x69, 0xb9, 0x30, 0x37, 0x61, 0x63, 0x42, 0x14, 0x0d, 0xbe, 0x9f, 0x83, 0xa6,
-	0x83, 0x69, 0x94, 0xdb, 0x97, 0x34, 0xd6, 0xeb, 0xb6, 0x2b, 0x09, 0x11, 0x58, 0x48, 0x68, 0x5c,
-	0x24, 0xb2, 0xe4, 0xe4, 0xff, 0xbf, 0xce, 0x7f, 0xee, 0xef, 0xe7, 0xdf, 0x82, 0x45, 0x86, 0xc3,
-	0xe3, 0x90, 0xcf, 0x71, 0x79, 0x7f, 0xc3, 0xd2, 0x5a, 0xee, 0x75, 0xdb, 0x87, 0x39, 0xd0, 0x43,
-	0x45, 0x19, 0x55, 0xd4, 0xd1, 0xc4, 0xa1, 0x64, 0x24, 0xef, 0x0b, 0x0f, 0x47, 0x92, 0x29, 0xa6,
-	0xb9, 0x52, 0xec, 0x96, 0x92, 0xa9, 0x2a, 0xeb, 0xbf, 0x09, 0xca, 0x32, 0x3f, 0x18, 0xb0, 0x7d,
-	0x59, 0x13, 0xf4, 0xfc, 0x5f, 0xc1, 0x9a, 0x28, 0x99, 0x6c, 0x06, 0x19, 0x4c, 0xf6, 0x76, 0xf3,
-	0xc2, 0xc7, 0x85, 0x1a, 0x3e, 0x1b, 0x60, 0x9e, 0xa0, 0x08, 0xfd, 0xc1, 0x3f, 0x9a, 0x43, 0xb5,
-	0xa9, 0xf3, 0x13, 0x9a, 0x6a, 0x36, 0xe1, 0xde, 0xd4, 0x34, 0x8b, 0x4e, 0xed, 0xff, 0x98, 0x07,
-	0xe8, 0x75, 0xdb, 0xc7, 0xc5, 0x4d, 0x47, 0x18, 0xac, 0x8e, 0x9d, 0x29, 0x72, 0xbf, 0x92, 0xe4,
-	0xe4, 0x6b, 0xa6, 0xbe, 0x73, 0x39, 0x51, 0x8f, 0xe7, 0x0d, 0xdc, 0xa8, 0x68, 0x9d, 0xec, 0xfe,
-	0x71, 0x2a, 0x95, 0x48, 0x7b, 0xb3, 0x50, 0x75, 0xac, 0x4f, 0x06, 0x34, 0xa6, 0xab, 0x86, 0x3c,
-	0xaa, 0xb8, 0x9b, 0xe9, 0xac, 0xd5, 0x1f, 0x5f, 0xd9, 0x4e, 0xe7, 0xf4, 0xd1, 0x80, 0xcd, 0x29,
-	0xc3, 0x21, 0x07, 0xd5, 0xfa, 0x2e, 0x55, 0x5c, 0xfd, 0xc1, 0xd5, 0x8c, 0x8a, 0x54, 0x9e, 0x9e,
-	0x7c, 0x39, 0x6f, 0x18, 0x5f, 0xcf, 0x1b, 0xc6, 0xb7, 0xf3, 0x86, 0xf1, 0xfa, 0x28, 0x08, 0xd5,
-	0x59, 0xff, 0xd4, 0xf2, 0x78, 0x6c, 0x07, 0x82, 0x66, 0xa1, 0xa2, 0x2a, 0xe4, 0x09, 0x8d, 0xec,
-	0xd1, 0x43, 0x44, 0xd3, 0xd0, 0x0e, 0x30, 0xb1, 0xcb, 0x77, 0xcf, 0x1e, 0x7b, 0xa2, 0x9e, 0xc4,
-	0x3e, 0xcd, 0x5a, 0xa7, 0x8b, 0x39, 0x7e, 0xf0, 0x33, 0x00, 0x00, 0xff, 0xff, 0xd3, 0xf3, 0x68,
-	0x8c, 0x54, 0x07, 0x00, 0x00,
+	// 668 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x55, 0xcf, 0x6e, 0xd3, 0x4e,
+	0x10, 0x96, 0xdb, 0xfe, 0xfa, 0x53, 0xb7, 0x14, 0xa4, 0xa5, 0x40, 0x08, 0x6a, 0x5a, 0x19, 0xa5,
+	0x2a, 0x1c, 0x6c, 0xd2, 0xf2, 0xe7, 0xc0, 0x29, 0xa4, 0x8a, 0x8a, 0x50, 0x24, 0xe4, 0x8a, 0x4a,
+	0x70, 0xb1, 0xa6, 0xf6, 0xd8, 0xb5, 0xb0, 0xbd, 0x66, 0x77, 0x63, 0xe1, 0x13, 0x12, 0x5c, 0xb8,
+	0xf2, 0x10, 0x88, 0x57, 0xe1, 0xc8, 0x23, 0xa0, 0x3e, 0x04, 0x67, 0x14, 0x7b, 0x9d, 0xa0, 0x38,
+	0x4e, 0x1b, 0x2e, 0x9c, 0x6c, 0xef, 0x7c, 0x33, 0xf3, 0xcd, 0xcc, 0x37, 0x5e, 0xb2, 0x25, 0x31,
+	0xc4, 0x84, 0x71, 0x69, 0x46, 0x1e, 0x98, 0x69, 0xc7, 0x14, 0xc8, 0xd3, 0xc0, 0x41, 0x23, 0xe1,
+	0x4c, 0x32, 0x7a, 0xad, 0x34, 0x1b, 0x91, 0x07, 0x46, 0xda, 0x69, 0x6e, 0xfa, 0xcc, 0x67, 0xb9,
+	0xcd, 0x1c, 0xbd, 0x15, 0xb0, 0xe6, 0xbd, 0x71, 0x94, 0x10, 0x7d, 0x70, 0x32, 0x53, 0x66, 0x09,
+	0x0a, 0x13, 0x53, 0x8c, 0x65, 0xf9, 0x50, 0xd0, 0xed, 0xe9, 0x84, 0xce, 0x19, 0x84, 0x21, 0xc6,
+	0x3e, 0x56, 0x62, 0x29, 0x40, 0x0a, 0x61, 0xe0, 0x82, 0x44, 0xd7, 0x9e, 0x82, 0xea, 0xbf, 0x34,
+	0xb2, 0xd5, 0xe3, 0x08, 0x12, 0x8f, 0x51, 0x88, 0x80, 0xc5, 0xbd, 0x12, 0x60, 0xe1, 0xbb, 0x21,
+	0x0a, 0x49, 0x0f, 0xc9, 0xff, 0x09, 0x64, 0x21, 0x03, 0xb7, 0xa1, 0xed, 0x68, 0x7b, 0xeb, 0xfb,
+	0xf7, 0x8d, 0xa9, 0x8a, 0x0c, 0xe5, 0xfa, 0xdc, 0xc5, 0x58, 0x06, 0x5e, 0x16, 0xc4, 0xfe, 0xcb,
+	0xc2, 0xc3, 0x2a, 0x5d, 0x69, 0x9b, 0x5c, 0x95, 0xc0, 0x7d, 0x94, 0xb6, 0x13, 0x0e, 0x85, 0x44,
+	0xde, 0x58, 0xda, 0xd1, 0xf6, 0xd6, 0xac, 0x8d, 0xe2, 0xb4, 0x57, 0x1c, 0xd2, 0x47, 0xe4, 0x96,
+	0x10, 0xcc, 0x76, 0xc2, 0x00, 0x63, 0x69, 0x73, 0x74, 0x03, 0x8e, 0x8e, 0xb4, 0x87, 0x3c, 0x6c,
+	0x2c, 0xe7, 0xf8, 0x4d, 0x21, 0x58, 0x2f, 0xb7, 0x5a, 0xca, 0xf8, 0x8a, 0x87, 0xb4, 0x43, 0x6e,
+	0x24, 0x9c, 0xbd, 0xcf, 0x6c, 0x70, 0x5d, 0x8e, 0x42, 0xd8, 0x1e, 0xe3, 0xb6, 0x10, 0xac, 0xb1,
+	0x92, 0x3b, 0xd1, 0xdc, 0xd8, 0x2d, 0x6c, 0x7d, 0xc6, 0x8f, 0x05, 0xd3, 0x23, 0xd2, 0xaa, 0xab,
+	0x5b, 0x24, 0x2c, 0x16, 0x48, 0x5f, 0x90, 0x8d, 0xc8, 0x83, 0x49, 0xc7, 0x54, 0xf9, 0xbb, 0x95,
+	0xf2, 0xbb, 0x43, 0x79, 0x36, 0xaa, 0xdc, 0x01, 0x89, 0x93, 0x30, 0x57, 0x22, 0x0f, 0xc6, 0x5f,
+	0xfa, 0x5b, 0xb2, 0x7d, 0xa2, 0x86, 0x50, 0xd7, 0xe8, 0x23, 0x32, 0x72, 0xb1, 0xb9, 0xca, 0xaf,
+	0xd2, 0xb5, 0xe7, 0xa6, 0x2b, 0xc9, 0x5a, 0xeb, 0x91, 0x07, 0xe5, 0x87, 0xae, 0x93, 0x9d, 0xfa,
+	0x64, 0x0a, 0xf3, 0x71, 0x89, 0xb4, 0x2d, 0x4c, 0xc2, 0x3c, 0x4c, 0x89, 0x76, 0x07, 0xfd, 0x6e,
+	0x85, 0x17, 0x25, 0x2b, 0x31, 0x44, 0x05, 0x9f, 0x35, 0x2b, 0x7f, 0xff, 0x53, 0x14, 0x4b, 0x7f,
+	0x2f, 0x8a, 0x0e, 0x59, 0x75, 0x71, 0xb4, 0x2a, 0xf9, 0x70, 0xd7, 0xf7, 0x6f, 0x1b, 0x4a, 0xe7,
+	0x83, 0x7e, 0xf7, 0x30, 0x37, 0x0c, 0x50, 0x82, 0x0b, 0x12, 0x2c, 0x05, 0x1c, 0xe9, 0x48, 0xb0,
+	0x21, 0x77, 0x70, 0xac, 0xa3, 0x62, 0xc4, 0x1b, 0xc5, 0x69, 0xa9, 0xa3, 0xaa, 0xdc, 0xfe, 0x9b,
+	0x21, 0x37, 0xfd, 0x93, 0x46, 0x76, 0x2f, 0x6a, 0x82, 0x52, 0xc3, 0x6b, 0xb2, 0xc9, 0x4b, 0xa4,
+	0x7b, 0x09, 0x51, 0xcc, 0x8e, 0x76, 0x7d, 0x12, 0x63, 0xa2, 0x8d, 0xaf, 0x1a, 0xd1, 0x4f, 0x90,
+	0x07, 0x5e, 0xf6, 0x8f, 0xe6, 0x50, 0x6d, 0xea, 0xf2, 0x8c, 0xa6, 0xea, 0x6d, 0x72, 0x77, 0x2e,
+	0xcd, 0xa2, 0x53, 0xfb, 0xdf, 0x56, 0x08, 0x19, 0xf4, 0xbb, 0xc7, 0xc5, 0x5f, 0x90, 0x66, 0xe4,
+	0xe6, 0xec, 0x45, 0xa3, 0x46, 0x85, 0xeb, 0xdc, 0x3f, 0x51, 0xd3, 0xbc, 0x34, 0x5e, 0xcd, 0xec,
+	0x03, 0x69, 0xd4, 0xed, 0x01, 0x7d, 0x50, 0x3b, 0xb1, 0xba, 0xf4, 0x9d, 0x05, 0x3c, 0x14, 0x81,
+	0x2f, 0x1a, 0x69, 0xcd, 0xd7, 0x17, 0x7d, 0x5c, 0x89, 0x7a, 0xa9, 0xad, 0x6c, 0x3e, 0x59, 0xd8,
+	0x4f, 0x71, 0xfa, 0xac, 0x91, 0x3b, 0x73, 0xc6, 0x48, 0x0f, 0xaa, 0x65, 0x5e, 0xa8, 0xcd, 0xe6,
+	0xc3, 0xc5, 0x9c, 0x0a, 0x2a, 0xcf, 0x4e, 0xbe, 0x9f, 0xb7, 0xb4, 0x1f, 0xe7, 0x2d, 0xed, 0xe7,
+	0x79, 0x4b, 0x7b, 0x73, 0xe4, 0x07, 0xf2, 0x6c, 0x78, 0x6a, 0x38, 0x2c, 0x32, 0x7d, 0x0e, 0x69,
+	0x20, 0x41, 0x06, 0x2c, 0x86, 0xd0, 0x1c, 0x5f, 0x67, 0x90, 0x04, 0xa6, 0x8f, 0xb1, 0x59, 0xde,
+	0x9e, 0xe6, 0xd4, 0x45, 0xf7, 0x34, 0xf2, 0x20, 0xed, 0x9c, 0xae, 0xe6, 0xf6, 0x83, 0xdf, 0x01,
+	0x00, 0x00, 0xff, 0xff, 0xc6, 0x7b, 0xd0, 0x08, 0x9a, 0x07, 0x00, 0x00,
 }
 
-func (m *CreateChallengeRequest) Marshal() (dAtA []byte, err error) {
+func (m *CreateSessionChallengeRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -562,12 +562,12 @@ func (m *CreateChallengeRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *CreateChallengeRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *CreateSessionChallengeRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *CreateChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *CreateSessionChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -612,7 +612,7 @@ func (m *CreateChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 	return len(dAtA) - i, nil
 }
 
-func (m *CreateChallengeResponse) Marshal() (dAtA []byte, err error) {
+func (m *CreateSessionChallengeResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -622,12 +622,12 @@ func (m *CreateChallengeResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *CreateChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *CreateSessionChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *CreateChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *CreateSessionChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -651,7 +651,7 @@ func (m *CreateChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error)
 	return len(dAtA) - i, nil
 }
 
-func (m *ValidateChallengeRequest) Marshal() (dAtA []byte, err error) {
+func (m *ValidateSessionChallengeRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -661,12 +661,12 @@ func (m *ValidateChallengeRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *ValidateChallengeRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *ValidateSessionChallengeRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *ValidateChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *ValidateSessionChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -690,7 +690,7 @@ func (m *ValidateChallengeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error
 	return len(dAtA) - i, nil
 }
 
-func (m *ValidateChallengeResponse) Marshal() (dAtA []byte, err error) {
+func (m *ValidateSessionChallengeResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -700,12 +700,12 @@ func (m *ValidateChallengeResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *ValidateChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *ValidateSessionChallengeResponse) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *ValidateChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *ValidateSessionChallengeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -919,7 +919,7 @@ func encodeVarintService(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *CreateChallengeRequest) Size() (n int) {
+func (m *CreateSessionChallengeRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -947,7 +947,7 @@ func (m *CreateChallengeRequest) Size() (n int) {
 	return n
 }
 
-func (m *CreateChallengeResponse) Size() (n int) {
+func (m *CreateSessionChallengeResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -963,7 +963,7 @@ func (m *CreateChallengeResponse) Size() (n int) {
 	return n
 }
 
-func (m *ValidateChallengeRequest) Size() (n int) {
+func (m *ValidateSessionChallengeRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -979,7 +979,7 @@ func (m *ValidateChallengeRequest) Size() (n int) {
 	return n
 }
 
-func (m *ValidateChallengeResponse) Size() (n int) {
+func (m *ValidateSessionChallengeResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1081,7 +1081,7 @@ func sovService(x uint64) (n int) {
 func sozService(x uint64) (n int) {
 	return sovService(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *CreateChallengeRequest) Unmarshal(dAtA []byte) error {
+func (m *CreateSessionChallengeRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1104,10 +1104,10 @@ func (m *CreateChallengeRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: CreateChallengeRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: CreateSessionChallengeRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: CreateChallengeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: CreateSessionChallengeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1264,7 +1264,7 @@ func (m *CreateChallengeRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *CreateChallengeResponse) Unmarshal(dAtA []byte) error {
+func (m *CreateSessionChallengeResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1287,10 +1287,10 @@ func (m *CreateChallengeResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: CreateChallengeResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: CreateSessionChallengeResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: CreateChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: CreateSessionChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1351,7 +1351,7 @@ func (m *CreateChallengeResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *ValidateChallengeRequest) Unmarshal(dAtA []byte) error {
+func (m *ValidateSessionChallengeRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1374,10 +1374,10 @@ func (m *ValidateChallengeRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: ValidateChallengeRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: ValidateSessionChallengeRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ValidateChallengeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: ValidateSessionChallengeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1438,7 +1438,7 @@ func (m *ValidateChallengeRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *ValidateChallengeResponse) Unmarshal(dAtA []byte) error {
+func (m *ValidateSessionChallengeResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1461,10 +1461,10 @@ func (m *ValidateChallengeResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: ValidateChallengeResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: ValidateSessionChallengeResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ValidateChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: ValidateSessionChallengeResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:

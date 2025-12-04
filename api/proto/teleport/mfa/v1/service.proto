@@ -29,11 +29,11 @@ option (gogoproto.unmarshaler_all) = true;
 // sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of
 // concerns instead of further bloating the AuthService.
 service MFAService {
-  // CreateChallenge creates an MFA challenge that is tied to a user session.
-  rpc CreateChallenge(CreateChallengeRequest) returns (CreateChallengeResponse);
-  // ValidateChallenge validates the MFA challenge response for a user session and stores the validated response in the
-  // backend.
-  rpc ValidateChallenge(ValidateChallengeRequest) returns (ValidateChallengeResponse);
+  // CreateSessionChallenge creates an MFA challenge that is tied to a user session.
+  rpc CreateSessionChallenge(CreateSessionChallengeRequest) returns (CreateSessionChallengeResponse);
+  // ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
+  // in the backend.
+  rpc ValidateSessionChallenge(ValidateSessionChallengeRequest) returns (ValidateSessionChallengeResponse);
   // ReplicateValidatedMFAChallenge replicates a validated MFA challenge to a leaf cluster for retrieval during SSH
   // session establishment. It is a NOOP when used in the root cluster. It is called by the reverse tunnel server when a
   // validated challenge is created for a leaf cluster.
@@ -45,11 +45,11 @@ service MFAService {
   rpc VerifyValidatedMFAChallenge(VerifyValidatedMFAChallengeRequest) returns (VerifyValidatedMFAChallengeResponse);
 }
 
-// CreateChallengeRequest is the request message for CreateChallenge.
-message CreateChallengeRequest {
+// CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
+message CreateSessionChallengeRequest {
   // Value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server will
-  // verify it matches the payload supplied to CreateChallengeRequest.
-  teleport.mfa.v1.SessionIdentifyingPayload payload = 1;
+  // verify it matches the payload supplied to CreateSessionChallengeRequest.
+  SessionIdentifyingPayload payload = 1;
   // Name of the target cluster where the SSH session is being established. If unset, the server assumes the challenge
   // is for the local cluster. Used to determine where the validated challenge should be replicated for leaf clusters.
   // Required when the SSH session is being established in a leaf cluster.
@@ -63,27 +63,27 @@ message CreateChallengeRequest {
   string proxy_address_for_sso = 4;
 }
 
-// CreateChallengeResponse is the response message for CreateChallenge.
-message CreateChallengeResponse {
+// CreateSessionChallengeResponse is the response message for CreateSessionChallenge.
+message CreateSessionChallengeResponse {
   // MFA challenge that the user must respond to.
-  teleport.mfa.v1.AuthenticateChallenge mfa_challenge = 1;
+  AuthenticateChallenge mfa_challenge = 1;
 }
 
-// ValidateChallengeRequest is the request message for ValidateChallenge.
-message ValidateChallengeRequest {
+// ValidateSessionChallengeRequest is the request message for ValidateSessionChallenge.
+message ValidateSessionChallengeRequest {
   // MFA challenge response provided by the user.
-  teleport.mfa.v1.AuthenticateResponse mfa_response = 1;
+  AuthenticateResponse mfa_response = 1;
 }
 
-// ValidateChallengeResponse is the response message for ValidateChallenge.
-message ValidateChallengeResponse {}
+// ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
+message ValidateSessionChallengeResponse {}
 
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
 message ReplicateValidatedMFAChallengeRequest {
   // Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
   // challenge.
   string name = 1;
-  // Value that uniquely identifies the user's session. Must match the payload in CreateChallengeRequest.
+  // Value that uniquely identifies the user's session. Must match the payload in CreateSessionChallengeRequest.
   SessionIdentifyingPayload payload = 2;
   // Identifying information about the user's MFA device used to authenticate. Required for audit purposes.
   events.MFADeviceMetadata device = 3;
@@ -98,7 +98,7 @@ message ReplicateValidatedMFAChallengeRequest {
 // ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
 message ReplicateValidatedMFAChallengeResponse {
   // Validated MFA challenge that was replicated.
-  teleport.mfa.v1.ValidatedMFAChallenge replicated_challenge = 1;
+  ValidatedMFAChallenge replicated_challenge = 1;
 }
 
 // VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
@@ -108,7 +108,7 @@ message VerifyValidatedMFAChallengeRequest {
   string name = 1;
   // Value that uniquely identifies the user's session. The client calling VerifyValidatedMFAChallenge MUST
   // independently compute this value from session state. The server will verify it matches the payload supplied in
-  // CreateChallengeRequest to ensure the challenge is tied to the correct session.
+  // CreateSessionChallengeRequest to ensure the challenge is tied to the correct session.
   SessionIdentifyingPayload payload = 2;
   // Name of the cluster where the validated challenge originated.
   string source_cluster = 3;
