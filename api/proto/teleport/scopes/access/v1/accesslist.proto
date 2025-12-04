@@ -1,0 +1,70 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.scopes.access.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1";
+
+// ScopedAccessList defines a set of grants that will be applied to all members of the list.
+message ScopedAccessList {
+  // Kind is the resource kind.
+  string kind = 1;
+
+  // SubKind is the resource sub-kind.
+  string sub_kind = 2;
+
+  // Version is the resource version.
+  string version = 3;
+
+  // Metadata contains the resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // Scope is the scope of the access list resource.
+  string scope = 5;
+
+  // Spec is the access list specification.
+  ScopedAccessListSpec spec = 6;
+}
+
+// ScopedRoleAssignmentSpec is the specification of a scoped access list.
+message ScopedAccessListSpec {
+  // title is a plaintext short description of the Access List.
+  string title = 1;
+  // description is an optional plaintext description of the Access List.
+  string description = 2;
+  // grants describes the access granted by membership to this Access List.
+  ScopedAccessListGrants grants = 3;
+}
+
+// ScopedAccessListGrants describes what access is granted by membership to the Access
+// List.
+message ScopedAccessListGrants {
+  // scoped_roles are the scoped roles that are granted to users who are
+  // members of the Access List.
+  repeated ScopedRoleGrant scoped_roles = 1;
+}
+
+// ScopedRoleGrant describes a scoped role granted at a specific scope.
+message ScopedRoleGrant {
+  // role is the name of the granted role. The scope of the role must be the
+  // scope of the access list or an ancestor scope.
+  string role = 1;
+  // scope is the scope the role will be assigned at. It must be the scope of
+  // the access list or a descendant scope.
+  string scope = 2;
+}

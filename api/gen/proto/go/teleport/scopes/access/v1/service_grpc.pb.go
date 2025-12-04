@@ -33,15 +33,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ScopedAccessService_GetScopedRole_FullMethodName              = "/teleport.scopes.access.v1.ScopedAccessService/GetScopedRole"
-	ScopedAccessService_ListScopedRoles_FullMethodName            = "/teleport.scopes.access.v1.ScopedAccessService/ListScopedRoles"
-	ScopedAccessService_CreateScopedRole_FullMethodName           = "/teleport.scopes.access.v1.ScopedAccessService/CreateScopedRole"
-	ScopedAccessService_UpdateScopedRole_FullMethodName           = "/teleport.scopes.access.v1.ScopedAccessService/UpdateScopedRole"
-	ScopedAccessService_DeleteScopedRole_FullMethodName           = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedRole"
-	ScopedAccessService_GetScopedRoleAssignment_FullMethodName    = "/teleport.scopes.access.v1.ScopedAccessService/GetScopedRoleAssignment"
-	ScopedAccessService_ListScopedRoleAssignments_FullMethodName  = "/teleport.scopes.access.v1.ScopedAccessService/ListScopedRoleAssignments"
-	ScopedAccessService_CreateScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/CreateScopedRoleAssignment"
-	ScopedAccessService_DeleteScopedRoleAssignment_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedRoleAssignment"
+	ScopedAccessService_GetScopedRole_FullMethodName                = "/teleport.scopes.access.v1.ScopedAccessService/GetScopedRole"
+	ScopedAccessService_ListScopedRoles_FullMethodName              = "/teleport.scopes.access.v1.ScopedAccessService/ListScopedRoles"
+	ScopedAccessService_CreateScopedRole_FullMethodName             = "/teleport.scopes.access.v1.ScopedAccessService/CreateScopedRole"
+	ScopedAccessService_UpdateScopedRole_FullMethodName             = "/teleport.scopes.access.v1.ScopedAccessService/UpdateScopedRole"
+	ScopedAccessService_DeleteScopedRole_FullMethodName             = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedRole"
+	ScopedAccessService_GetScopedRoleAssignment_FullMethodName      = "/teleport.scopes.access.v1.ScopedAccessService/GetScopedRoleAssignment"
+	ScopedAccessService_ListScopedRoleAssignments_FullMethodName    = "/teleport.scopes.access.v1.ScopedAccessService/ListScopedRoleAssignments"
+	ScopedAccessService_CreateScopedRoleAssignment_FullMethodName   = "/teleport.scopes.access.v1.ScopedAccessService/CreateScopedRoleAssignment"
+	ScopedAccessService_DeleteScopedRoleAssignment_FullMethodName   = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedRoleAssignment"
+	ScopedAccessService_GetScopedAccessList_FullMethodName          = "/teleport.scopes.access.v1.ScopedAccessService/GetScopedAccessList"
+	ScopedAccessService_ListScopedAccessLists_FullMethodName        = "/teleport.scopes.access.v1.ScopedAccessService/ListScopedAccessLists"
+	ScopedAccessService_CreateScopedAccessList_FullMethodName       = "/teleport.scopes.access.v1.ScopedAccessService/CreateScopedAccessList"
+	ScopedAccessService_UpdateScopedAccessList_FullMethodName       = "/teleport.scopes.access.v1.ScopedAccessService/UpdateScopedAccessList"
+	ScopedAccessService_DeleteScopedAccessList_FullMethodName       = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedAccessList"
+	ScopedAccessService_GetScopedAccessListMember_FullMethodName    = "/teleport.scopes.access.v1.ScopedAccessService/GetScopedAccessListMember"
+	ScopedAccessService_ListScopedAccessListMembers_FullMethodName  = "/teleport.scopes.access.v1.ScopedAccessService/ListScopedAccessListMembers"
+	ScopedAccessService_CreateScopedAccessListMember_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/CreateScopedAccessListMember"
+	ScopedAccessService_DeleteScopedAccessListMember_FullMethodName = "/teleport.scopes.access.v1.ScopedAccessService/DeleteScopedAccessListMember"
 )
 
 // ScopedAccessServiceClient is the client API for ScopedAccessService service.
@@ -70,6 +79,24 @@ type ScopedAccessServiceClient interface {
 	CreateScopedRoleAssignment(ctx context.Context, in *CreateScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*CreateScopedRoleAssignmentResponse, error)
 	// DeleteScopedRoleAssignment deletes a scoped role assignment.
 	DeleteScopedRoleAssignment(ctx context.Context, in *DeleteScopedRoleAssignmentRequest, opts ...grpc.CallOption) (*DeleteScopedRoleAssignmentResponse, error)
+	// GetScopedAccessList gets a scoped access list by name.
+	GetScopedAccessList(ctx context.Context, in *GetScopedAccessListRequest, opts ...grpc.CallOption) (*GetScopedAccessListResponse, error)
+	// ListScopedAccessLists returns a paginated list of scoped access lists.
+	ListScopedAccessLists(ctx context.Context, in *ListScopedAccessListsRequest, opts ...grpc.CallOption) (*ListScopedAccessListsResponse, error)
+	// CreateScopedAccessList creates a scoped access list.
+	CreateScopedAccessList(ctx context.Context, in *CreateScopedAccessListRequest, opts ...grpc.CallOption) (*CreateScopedAccessListResponse, error)
+	// UpdateScopedAccessList updates a scoped access list.
+	UpdateScopedAccessList(ctx context.Context, in *UpdateScopedAccessListRequest, opts ...grpc.CallOption) (*UpdateScopedAccessListResponse, error)
+	// DeleteScopedAccessList deletes a scoped access list.
+	DeleteScopedAccessList(ctx context.Context, in *DeleteScopedAccessListRequest, opts ...grpc.CallOption) (*DeleteScopedAccessListResponse, error)
+	// GetScopedAccessListMember gets a scoped access list member by name.
+	GetScopedAccessListMember(ctx context.Context, in *GetScopedAccessListMemberRequest, opts ...grpc.CallOption) (*GetScopedAccessListMemberResponse, error)
+	// ListScopedAccessListMembers returns a paginated list of scoped access list members.
+	ListScopedAccessListMembers(ctx context.Context, in *ListScopedAccessListMembersRequest, opts ...grpc.CallOption) (*ListScopedAccessListMembersResponse, error)
+	// CreateScopedAccessListMember creates a scoped access list member.
+	CreateScopedAccessListMember(ctx context.Context, in *CreateScopedAccessListMemberRequest, opts ...grpc.CallOption) (*CreateScopedAccessListMemberResponse, error)
+	// DeleteScopedAccessListMember deletes a scoped access list member.
+	DeleteScopedAccessListMember(ctx context.Context, in *DeleteScopedAccessListMemberRequest, opts ...grpc.CallOption) (*DeleteScopedAccessListMemberResponse, error)
 }
 
 type scopedAccessServiceClient struct {
@@ -170,6 +197,96 @@ func (c *scopedAccessServiceClient) DeleteScopedRoleAssignment(ctx context.Conte
 	return out, nil
 }
 
+func (c *scopedAccessServiceClient) GetScopedAccessList(ctx context.Context, in *GetScopedAccessListRequest, opts ...grpc.CallOption) (*GetScopedAccessListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetScopedAccessListResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_GetScopedAccessList_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) ListScopedAccessLists(ctx context.Context, in *ListScopedAccessListsRequest, opts ...grpc.CallOption) (*ListScopedAccessListsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListScopedAccessListsResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_ListScopedAccessLists_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) CreateScopedAccessList(ctx context.Context, in *CreateScopedAccessListRequest, opts ...grpc.CallOption) (*CreateScopedAccessListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateScopedAccessListResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_CreateScopedAccessList_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) UpdateScopedAccessList(ctx context.Context, in *UpdateScopedAccessListRequest, opts ...grpc.CallOption) (*UpdateScopedAccessListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateScopedAccessListResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_UpdateScopedAccessList_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) DeleteScopedAccessList(ctx context.Context, in *DeleteScopedAccessListRequest, opts ...grpc.CallOption) (*DeleteScopedAccessListResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteScopedAccessListResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_DeleteScopedAccessList_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) GetScopedAccessListMember(ctx context.Context, in *GetScopedAccessListMemberRequest, opts ...grpc.CallOption) (*GetScopedAccessListMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetScopedAccessListMemberResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_GetScopedAccessListMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) ListScopedAccessListMembers(ctx context.Context, in *ListScopedAccessListMembersRequest, opts ...grpc.CallOption) (*ListScopedAccessListMembersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListScopedAccessListMembersResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_ListScopedAccessListMembers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) CreateScopedAccessListMember(ctx context.Context, in *CreateScopedAccessListMemberRequest, opts ...grpc.CallOption) (*CreateScopedAccessListMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateScopedAccessListMemberResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_CreateScopedAccessListMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *scopedAccessServiceClient) DeleteScopedAccessListMember(ctx context.Context, in *DeleteScopedAccessListMemberRequest, opts ...grpc.CallOption) (*DeleteScopedAccessListMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteScopedAccessListMemberResponse)
+	err := c.cc.Invoke(ctx, ScopedAccessService_DeleteScopedAccessListMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ScopedAccessServiceServer is the server API for ScopedAccessService service.
 // All implementations must embed UnimplementedScopedAccessServiceServer
 // for forward compatibility.
@@ -196,6 +313,24 @@ type ScopedAccessServiceServer interface {
 	CreateScopedRoleAssignment(context.Context, *CreateScopedRoleAssignmentRequest) (*CreateScopedRoleAssignmentResponse, error)
 	// DeleteScopedRoleAssignment deletes a scoped role assignment.
 	DeleteScopedRoleAssignment(context.Context, *DeleteScopedRoleAssignmentRequest) (*DeleteScopedRoleAssignmentResponse, error)
+	// GetScopedAccessList gets a scoped access list by name.
+	GetScopedAccessList(context.Context, *GetScopedAccessListRequest) (*GetScopedAccessListResponse, error)
+	// ListScopedAccessLists returns a paginated list of scoped access lists.
+	ListScopedAccessLists(context.Context, *ListScopedAccessListsRequest) (*ListScopedAccessListsResponse, error)
+	// CreateScopedAccessList creates a scoped access list.
+	CreateScopedAccessList(context.Context, *CreateScopedAccessListRequest) (*CreateScopedAccessListResponse, error)
+	// UpdateScopedAccessList updates a scoped access list.
+	UpdateScopedAccessList(context.Context, *UpdateScopedAccessListRequest) (*UpdateScopedAccessListResponse, error)
+	// DeleteScopedAccessList deletes a scoped access list.
+	DeleteScopedAccessList(context.Context, *DeleteScopedAccessListRequest) (*DeleteScopedAccessListResponse, error)
+	// GetScopedAccessListMember gets a scoped access list member by name.
+	GetScopedAccessListMember(context.Context, *GetScopedAccessListMemberRequest) (*GetScopedAccessListMemberResponse, error)
+	// ListScopedAccessListMembers returns a paginated list of scoped access list members.
+	ListScopedAccessListMembers(context.Context, *ListScopedAccessListMembersRequest) (*ListScopedAccessListMembersResponse, error)
+	// CreateScopedAccessListMember creates a scoped access list member.
+	CreateScopedAccessListMember(context.Context, *CreateScopedAccessListMemberRequest) (*CreateScopedAccessListMemberResponse, error)
+	// DeleteScopedAccessListMember deletes a scoped access list member.
+	DeleteScopedAccessListMember(context.Context, *DeleteScopedAccessListMemberRequest) (*DeleteScopedAccessListMemberResponse, error)
 	mustEmbedUnimplementedScopedAccessServiceServer()
 }
 
@@ -232,6 +367,33 @@ func (UnimplementedScopedAccessServiceServer) CreateScopedRoleAssignment(context
 }
 func (UnimplementedScopedAccessServiceServer) DeleteScopedRoleAssignment(context.Context, *DeleteScopedRoleAssignmentRequest) (*DeleteScopedRoleAssignmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteScopedRoleAssignment not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) GetScopedAccessList(context.Context, *GetScopedAccessListRequest) (*GetScopedAccessListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetScopedAccessList not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) ListScopedAccessLists(context.Context, *ListScopedAccessListsRequest) (*ListScopedAccessListsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListScopedAccessLists not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) CreateScopedAccessList(context.Context, *CreateScopedAccessListRequest) (*CreateScopedAccessListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateScopedAccessList not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) UpdateScopedAccessList(context.Context, *UpdateScopedAccessListRequest) (*UpdateScopedAccessListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateScopedAccessList not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) DeleteScopedAccessList(context.Context, *DeleteScopedAccessListRequest) (*DeleteScopedAccessListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteScopedAccessList not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) GetScopedAccessListMember(context.Context, *GetScopedAccessListMemberRequest) (*GetScopedAccessListMemberResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetScopedAccessListMember not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) ListScopedAccessListMembers(context.Context, *ListScopedAccessListMembersRequest) (*ListScopedAccessListMembersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListScopedAccessListMembers not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) CreateScopedAccessListMember(context.Context, *CreateScopedAccessListMemberRequest) (*CreateScopedAccessListMemberResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateScopedAccessListMember not implemented")
+}
+func (UnimplementedScopedAccessServiceServer) DeleteScopedAccessListMember(context.Context, *DeleteScopedAccessListMemberRequest) (*DeleteScopedAccessListMemberResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteScopedAccessListMember not implemented")
 }
 func (UnimplementedScopedAccessServiceServer) mustEmbedUnimplementedScopedAccessServiceServer() {}
 func (UnimplementedScopedAccessServiceServer) testEmbeddedByValue()                             {}
@@ -416,6 +578,168 @@ func _ScopedAccessService_DeleteScopedRoleAssignment_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ScopedAccessService_GetScopedAccessList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetScopedAccessListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).GetScopedAccessList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_GetScopedAccessList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).GetScopedAccessList(ctx, req.(*GetScopedAccessListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_ListScopedAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListScopedAccessListsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).ListScopedAccessLists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_ListScopedAccessLists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).ListScopedAccessLists(ctx, req.(*ListScopedAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_CreateScopedAccessList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateScopedAccessListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).CreateScopedAccessList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_CreateScopedAccessList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).CreateScopedAccessList(ctx, req.(*CreateScopedAccessListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_UpdateScopedAccessList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateScopedAccessListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).UpdateScopedAccessList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_UpdateScopedAccessList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).UpdateScopedAccessList(ctx, req.(*UpdateScopedAccessListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_DeleteScopedAccessList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteScopedAccessListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).DeleteScopedAccessList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_DeleteScopedAccessList_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).DeleteScopedAccessList(ctx, req.(*DeleteScopedAccessListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_GetScopedAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetScopedAccessListMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).GetScopedAccessListMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_GetScopedAccessListMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).GetScopedAccessListMember(ctx, req.(*GetScopedAccessListMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_ListScopedAccessListMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListScopedAccessListMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).ListScopedAccessListMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_ListScopedAccessListMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).ListScopedAccessListMembers(ctx, req.(*ListScopedAccessListMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_CreateScopedAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateScopedAccessListMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).CreateScopedAccessListMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_CreateScopedAccessListMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).CreateScopedAccessListMember(ctx, req.(*CreateScopedAccessListMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ScopedAccessService_DeleteScopedAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteScopedAccessListMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ScopedAccessServiceServer).DeleteScopedAccessListMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ScopedAccessService_DeleteScopedAccessListMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ScopedAccessServiceServer).DeleteScopedAccessListMember(ctx, req.(*DeleteScopedAccessListMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ScopedAccessService_ServiceDesc is the grpc.ServiceDesc for ScopedAccessService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -458,6 +782,42 @@ var ScopedAccessService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteScopedRoleAssignment",
 			Handler:    _ScopedAccessService_DeleteScopedRoleAssignment_Handler,
+		},
+		{
+			MethodName: "GetScopedAccessList",
+			Handler:    _ScopedAccessService_GetScopedAccessList_Handler,
+		},
+		{
+			MethodName: "ListScopedAccessLists",
+			Handler:    _ScopedAccessService_ListScopedAccessLists_Handler,
+		},
+		{
+			MethodName: "CreateScopedAccessList",
+			Handler:    _ScopedAccessService_CreateScopedAccessList_Handler,
+		},
+		{
+			MethodName: "UpdateScopedAccessList",
+			Handler:    _ScopedAccessService_UpdateScopedAccessList_Handler,
+		},
+		{
+			MethodName: "DeleteScopedAccessList",
+			Handler:    _ScopedAccessService_DeleteScopedAccessList_Handler,
+		},
+		{
+			MethodName: "GetScopedAccessListMember",
+			Handler:    _ScopedAccessService_GetScopedAccessListMember_Handler,
+		},
+		{
+			MethodName: "ListScopedAccessListMembers",
+			Handler:    _ScopedAccessService_ListScopedAccessListMembers_Handler,
+		},
+		{
+			MethodName: "CreateScopedAccessListMember",
+			Handler:    _ScopedAccessService_CreateScopedAccessListMember_Handler,
+		},
+		{
+			MethodName: "DeleteScopedAccessListMember",
+			Handler:    _ScopedAccessService_DeleteScopedAccessListMember_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

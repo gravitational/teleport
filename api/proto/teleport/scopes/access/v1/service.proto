@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.scopes.access.v1;
 
+import "teleport/scopes/access/v1/accesslist.proto";
+import "teleport/scopes/access/v1/accesslistmember.proto";
 import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/scopes/v1/scopes.proto";
@@ -52,6 +54,33 @@ service ScopedAccessService {
 
   // DeleteScopedRoleAssignment deletes a scoped role assignment.
   rpc DeleteScopedRoleAssignment(DeleteScopedRoleAssignmentRequest) returns (DeleteScopedRoleAssignmentResponse);
+
+  // GetScopedAccessList gets a scoped access list by name.
+  rpc GetScopedAccessList(GetScopedAccessListRequest) returns (GetScopedAccessListResponse);
+
+  // ListScopedAccessLists returns a paginated list of scoped access lists.
+  rpc ListScopedAccessLists(ListScopedAccessListsRequest) returns (ListScopedAccessListsResponse);
+
+  // CreateScopedAccessList creates a scoped access list.
+  rpc CreateScopedAccessList(CreateScopedAccessListRequest) returns (CreateScopedAccessListResponse);
+
+  // UpdateScopedAccessList updates a scoped access list.
+  rpc UpdateScopedAccessList(UpdateScopedAccessListRequest) returns (UpdateScopedAccessListResponse);
+
+  // DeleteScopedAccessList deletes a scoped access list.
+  rpc DeleteScopedAccessList(DeleteScopedAccessListRequest) returns (DeleteScopedAccessListResponse);
+
+  // GetScopedAccessListMember gets a scoped access list member by name.
+  rpc GetScopedAccessListMember(GetScopedAccessListMemberRequest) returns (GetScopedAccessListMemberResponse);
+
+  // ListScopedAccessListMembers returns a paginated list of scoped access list members.
+  rpc ListScopedAccessListMembers(ListScopedAccessListMembersRequest) returns (ListScopedAccessListMembersResponse);
+
+  // CreateScopedAccessListMember creates a scoped access list member.
+  rpc CreateScopedAccessListMember(CreateScopedAccessListMemberRequest) returns (CreateScopedAccessListMemberResponse);
+
+  // DeleteScopedAccessListMember deletes a scoped access list member.
+  rpc DeleteScopedAccessListMember(DeleteScopedAccessListMemberRequest) returns (DeleteScopedAccessListMemberResponse);
 }
 
 // GetScopedRoleRequest is the request to get a scoped role.
@@ -201,3 +230,122 @@ message DeleteScopedRoleAssignmentRequest {
 
 // DeleteScopedRoleAssignmentResponse is the response to delete a scoped role assignment.
 message DeleteScopedRoleAssignmentResponse {}
+
+// GetScopedAccessListRequest is a request for a scoped access list.
+message GetScopedAccessListRequest {
+  // Name is the name of the scoped access list.
+  string name = 1;
+}
+
+// GetScopedAccessListResponse is a response for a scoped access list.
+message GetScopedAccessListResponse {
+  // list is the scoped access list.
+  ScopedAccessList list = 1;
+}
+
+// ListScopedAccessListsRequest is a request to list scoped access lists.
+message ListScopedAccessListsRequest {
+  // PageSize is the maximum number of results to return.
+  int32 page_size = 1;
+
+  // PageToken is the pagination cursor used to start from where a previous request left off.
+  string page_token = 2;
+}
+
+// ListScopedAccessListsResponse is a response listing scoped access lists.
+message ListScopedAccessListsResponse {
+  repeated ScopedAccessList lists = 1;
+  string next_page_token = 2;
+}
+
+// CreateScopedAccessListRequest is a request to create a scoped access list.
+message CreateScopedAccessListRequest {
+  ScopedAccessList list = 1;
+}
+
+// CreateScopedAccessListResponse is a response to creating a scoped access list.
+message CreateScopedAccessListResponse {
+  ScopedAccessList list = 1;
+}
+
+// UpdateScopedAccessListRequest is a request to update a scoped access list.
+message UpdateScopedAccessListRequest {
+  ScopedAccessList list = 1;
+}
+
+// UpdateScopedAccessListResponse is a response to updating a scoped access list.
+message UpdateScopedAccessListResponse {
+  ScopedAccessList list = 1;
+}
+
+// DeleteScopedAccessListRequest is a request to delete a scoped access list.
+message DeleteScopedAccessListRequest {
+  string name = 1;
+
+  // Revision asserts the revision of the scoped access list to delete (optional).
+  string revision = 2;
+}
+
+// DeleteScopedAccessListResponse is a response to deleting a scoped access list.
+message DeleteScopedAccessListResponse {}
+
+// GetScopedAccessListMemberRequest is a request for a scoped access list member.
+message GetScopedAccessListMemberRequest {
+  // scoped_access_list is the name of the scoped access list that the member belongs to.
+  string scoped_access_list = 1;
+  // member_name is the name of the member (user or scoped access list) that belongs to the scoped access list.
+  string member_name = 2;
+}
+
+// GetScopedAccessListMemberResponse is a response for a scoped access list.
+message GetScopedAccessListMemberResponse {
+  // member is the scoped access list.
+  ScopedAccessListMember member = 1;
+}
+
+// ListScopedAccessListMembersRequest is a request to list all scoped access list members.
+message ListScopedAccessListMembersRequest {
+  // PageSize is the maximum number of results to return.
+  int32 page_size = 1;
+
+  // PageToken is the pagination cursor used to start from where a previous request left off.
+  string page_token = 2;
+}
+
+// ListScopedAccessListMembersResponse is a response listing scoped access list members.
+message ListScopedAccessListMembersResponse {
+  repeated ScopedAccessListMember members = 1;
+  string next_page_token = 2;
+}
+
+// CreateScopedAccessListMemberRequest is a request to create a scoped access list member.
+message CreateScopedAccessListMemberRequest {
+  ScopedAccessListMember member = 1;
+}
+
+// CreateScopedAccessListMemberResponse is a response to creating a scoped access list member.
+message CreateScopedAccessListMemberResponse {
+  ScopedAccessListMember member = 1;
+}
+
+// UpdateScopedAccessListMemberRequest is a request to update a scoped access list member.
+message UpdateScopedAccessListMemberRequest {
+  ScopedAccessListMember member = 1;
+}
+
+// UpdateScopedAccessListMemberResponse is a response to updating a scoped access list member.
+message UpdateScopedAccessListMemberResponse {
+  ScopedAccessListMember member = 1;
+}
+
+// DeleteScopedAccessListMemberRequest is a request to delete a scoped access list member.
+message DeleteScopedAccessListMemberRequest {
+  string scoped_access_list = 1;
+  string member_name = 2;
+
+  // Revision asserts the revision of the scoped access list member to delete (optional).
+  string revision = 3;
+}
+
+// DeleteScopedAccessListMemberResponse is a response to deleting a scoped access list member.
+message DeleteScopedAccessListMemberResponse {}

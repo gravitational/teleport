@@ -976,11 +976,970 @@ func (*DeleteScopedRoleAssignmentResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{17}
 }
 
+// GetScopedAccessListRequest is a request for a scoped access list.
+type GetScopedAccessListRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name is the name of the scoped access list.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScopedAccessListRequest) Reset() {
+	*x = GetScopedAccessListRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScopedAccessListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScopedAccessListRequest) ProtoMessage() {}
+
+func (x *GetScopedAccessListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScopedAccessListRequest.ProtoReflect.Descriptor instead.
+func (*GetScopedAccessListRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *GetScopedAccessListRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// GetScopedAccessListResponse is a response for a scoped access list.
+type GetScopedAccessListResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// list is the scoped access list.
+	List          *ScopedAccessList `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScopedAccessListResponse) Reset() {
+	*x = GetScopedAccessListResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScopedAccessListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScopedAccessListResponse) ProtoMessage() {}
+
+func (x *GetScopedAccessListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScopedAccessListResponse.ProtoReflect.Descriptor instead.
+func (*GetScopedAccessListResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *GetScopedAccessListResponse) GetList() *ScopedAccessList {
+	if x != nil {
+		return x.List
+	}
+	return nil
+}
+
+// ListScopedAccessListsRequest is a request to list scoped access lists.
+type ListScopedAccessListsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PageSize is the maximum number of results to return.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// PageToken is the pagination cursor used to start from where a previous request left off.
+	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScopedAccessListsRequest) Reset() {
+	*x = ListScopedAccessListsRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScopedAccessListsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScopedAccessListsRequest) ProtoMessage() {}
+
+func (x *ListScopedAccessListsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScopedAccessListsRequest.ProtoReflect.Descriptor instead.
+func (*ListScopedAccessListsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListScopedAccessListsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListScopedAccessListsRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// ListScopedAccessListsResponse is a response listing scoped access lists.
+type ListScopedAccessListsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Lists         []*ScopedAccessList    `protobuf:"bytes,1,rep,name=lists,proto3" json:"lists,omitempty"`
+	NextPageToken string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScopedAccessListsResponse) Reset() {
+	*x = ListScopedAccessListsResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScopedAccessListsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScopedAccessListsResponse) ProtoMessage() {}
+
+func (x *ListScopedAccessListsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScopedAccessListsResponse.ProtoReflect.Descriptor instead.
+func (*ListScopedAccessListsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ListScopedAccessListsResponse) GetLists() []*ScopedAccessList {
+	if x != nil {
+		return x.Lists
+	}
+	return nil
+}
+
+func (x *ListScopedAccessListsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+// CreateScopedAccessListRequest is a request to create a scoped access list.
+type CreateScopedAccessListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	List          *ScopedAccessList      `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScopedAccessListRequest) Reset() {
+	*x = CreateScopedAccessListRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScopedAccessListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScopedAccessListRequest) ProtoMessage() {}
+
+func (x *CreateScopedAccessListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScopedAccessListRequest.ProtoReflect.Descriptor instead.
+func (*CreateScopedAccessListRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *CreateScopedAccessListRequest) GetList() *ScopedAccessList {
+	if x != nil {
+		return x.List
+	}
+	return nil
+}
+
+// CreateScopedAccessListResponse is a response to creating a scoped access list.
+type CreateScopedAccessListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	List          *ScopedAccessList      `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScopedAccessListResponse) Reset() {
+	*x = CreateScopedAccessListResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScopedAccessListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScopedAccessListResponse) ProtoMessage() {}
+
+func (x *CreateScopedAccessListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScopedAccessListResponse.ProtoReflect.Descriptor instead.
+func (*CreateScopedAccessListResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *CreateScopedAccessListResponse) GetList() *ScopedAccessList {
+	if x != nil {
+		return x.List
+	}
+	return nil
+}
+
+// UpdateScopedAccessListRequest is a request to update a scoped access list.
+type UpdateScopedAccessListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	List          *ScopedAccessList      `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateScopedAccessListRequest) Reset() {
+	*x = UpdateScopedAccessListRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateScopedAccessListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateScopedAccessListRequest) ProtoMessage() {}
+
+func (x *UpdateScopedAccessListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateScopedAccessListRequest.ProtoReflect.Descriptor instead.
+func (*UpdateScopedAccessListRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *UpdateScopedAccessListRequest) GetList() *ScopedAccessList {
+	if x != nil {
+		return x.List
+	}
+	return nil
+}
+
+// UpdateScopedAccessListResponse is a response to updating a scoped access list.
+type UpdateScopedAccessListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	List          *ScopedAccessList      `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateScopedAccessListResponse) Reset() {
+	*x = UpdateScopedAccessListResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateScopedAccessListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateScopedAccessListResponse) ProtoMessage() {}
+
+func (x *UpdateScopedAccessListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateScopedAccessListResponse.ProtoReflect.Descriptor instead.
+func (*UpdateScopedAccessListResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *UpdateScopedAccessListResponse) GetList() *ScopedAccessList {
+	if x != nil {
+		return x.List
+	}
+	return nil
+}
+
+// DeleteScopedAccessListRequest is a request to delete a scoped access list.
+type DeleteScopedAccessListRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Revision asserts the revision of the scoped access list to delete (optional).
+	Revision      string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScopedAccessListRequest) Reset() {
+	*x = DeleteScopedAccessListRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScopedAccessListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScopedAccessListRequest) ProtoMessage() {}
+
+func (x *DeleteScopedAccessListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScopedAccessListRequest.ProtoReflect.Descriptor instead.
+func (*DeleteScopedAccessListRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *DeleteScopedAccessListRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteScopedAccessListRequest) GetRevision() string {
+	if x != nil {
+		return x.Revision
+	}
+	return ""
+}
+
+// DeleteScopedAccessListResponse is a response to deleting a scoped access list.
+type DeleteScopedAccessListResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScopedAccessListResponse) Reset() {
+	*x = DeleteScopedAccessListResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScopedAccessListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScopedAccessListResponse) ProtoMessage() {}
+
+func (x *DeleteScopedAccessListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScopedAccessListResponse.ProtoReflect.Descriptor instead.
+func (*DeleteScopedAccessListResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{27}
+}
+
+// GetScopedAccessListMemberRequest is a request for a scoped access list member.
+type GetScopedAccessListMemberRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// scoped_access_list is the name of the scoped access list that the member belongs to.
+	ScopedAccessList string `protobuf:"bytes,1,opt,name=scoped_access_list,json=scopedAccessList,proto3" json:"scoped_access_list,omitempty"`
+	// member_name is the name of the member (user or scoped access list) that belongs to the scoped access list.
+	MemberName    string `protobuf:"bytes,2,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScopedAccessListMemberRequest) Reset() {
+	*x = GetScopedAccessListMemberRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScopedAccessListMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScopedAccessListMemberRequest) ProtoMessage() {}
+
+func (x *GetScopedAccessListMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScopedAccessListMemberRequest.ProtoReflect.Descriptor instead.
+func (*GetScopedAccessListMemberRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *GetScopedAccessListMemberRequest) GetScopedAccessList() string {
+	if x != nil {
+		return x.ScopedAccessList
+	}
+	return ""
+}
+
+func (x *GetScopedAccessListMemberRequest) GetMemberName() string {
+	if x != nil {
+		return x.MemberName
+	}
+	return ""
+}
+
+// GetScopedAccessListMemberResponse is a response for a scoped access list.
+type GetScopedAccessListMemberResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// member is the scoped access list.
+	Member        *ScopedAccessListMember `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScopedAccessListMemberResponse) Reset() {
+	*x = GetScopedAccessListMemberResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScopedAccessListMemberResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScopedAccessListMemberResponse) ProtoMessage() {}
+
+func (x *GetScopedAccessListMemberResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScopedAccessListMemberResponse.ProtoReflect.Descriptor instead.
+func (*GetScopedAccessListMemberResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *GetScopedAccessListMemberResponse) GetMember() *ScopedAccessListMember {
+	if x != nil {
+		return x.Member
+	}
+	return nil
+}
+
+// ListScopedAccessListMembersRequest is a request to list all scoped access list members.
+type ListScopedAccessListMembersRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PageSize is the maximum number of results to return.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// PageToken is the pagination cursor used to start from where a previous request left off.
+	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScopedAccessListMembersRequest) Reset() {
+	*x = ListScopedAccessListMembersRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScopedAccessListMembersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScopedAccessListMembersRequest) ProtoMessage() {}
+
+func (x *ListScopedAccessListMembersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScopedAccessListMembersRequest.ProtoReflect.Descriptor instead.
+func (*ListScopedAccessListMembersRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ListScopedAccessListMembersRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListScopedAccessListMembersRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// ListScopedAccessListMembersResponse is a response listing scoped access list members.
+type ListScopedAccessListMembersResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Members       []*ScopedAccessListMember `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
+	NextPageToken string                    `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListScopedAccessListMembersResponse) Reset() {
+	*x = ListScopedAccessListMembersResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListScopedAccessListMembersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListScopedAccessListMembersResponse) ProtoMessage() {}
+
+func (x *ListScopedAccessListMembersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListScopedAccessListMembersResponse.ProtoReflect.Descriptor instead.
+func (*ListScopedAccessListMembersResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *ListScopedAccessListMembersResponse) GetMembers() []*ScopedAccessListMember {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+func (x *ListScopedAccessListMembersResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+// CreateScopedAccessListMemberRequest is a request to create a scoped access list member.
+type CreateScopedAccessListMemberRequest struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Member        *ScopedAccessListMember `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScopedAccessListMemberRequest) Reset() {
+	*x = CreateScopedAccessListMemberRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScopedAccessListMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScopedAccessListMemberRequest) ProtoMessage() {}
+
+func (x *CreateScopedAccessListMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScopedAccessListMemberRequest.ProtoReflect.Descriptor instead.
+func (*CreateScopedAccessListMemberRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *CreateScopedAccessListMemberRequest) GetMember() *ScopedAccessListMember {
+	if x != nil {
+		return x.Member
+	}
+	return nil
+}
+
+// CreateScopedAccessListMemberResponse is a response to creating a scoped access list member.
+type CreateScopedAccessListMemberResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Member        *ScopedAccessListMember `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateScopedAccessListMemberResponse) Reset() {
+	*x = CreateScopedAccessListMemberResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateScopedAccessListMemberResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateScopedAccessListMemberResponse) ProtoMessage() {}
+
+func (x *CreateScopedAccessListMemberResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateScopedAccessListMemberResponse.ProtoReflect.Descriptor instead.
+func (*CreateScopedAccessListMemberResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *CreateScopedAccessListMemberResponse) GetMember() *ScopedAccessListMember {
+	if x != nil {
+		return x.Member
+	}
+	return nil
+}
+
+// UpdateScopedAccessListMemberRequest is a request to update a scoped access list member.
+type UpdateScopedAccessListMemberRequest struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Member        *ScopedAccessListMember `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateScopedAccessListMemberRequest) Reset() {
+	*x = UpdateScopedAccessListMemberRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateScopedAccessListMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateScopedAccessListMemberRequest) ProtoMessage() {}
+
+func (x *UpdateScopedAccessListMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateScopedAccessListMemberRequest.ProtoReflect.Descriptor instead.
+func (*UpdateScopedAccessListMemberRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *UpdateScopedAccessListMemberRequest) GetMember() *ScopedAccessListMember {
+	if x != nil {
+		return x.Member
+	}
+	return nil
+}
+
+// UpdateScopedAccessListMemberResponse is a response to updating a scoped access list member.
+type UpdateScopedAccessListMemberResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Member        *ScopedAccessListMember `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateScopedAccessListMemberResponse) Reset() {
+	*x = UpdateScopedAccessListMemberResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateScopedAccessListMemberResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateScopedAccessListMemberResponse) ProtoMessage() {}
+
+func (x *UpdateScopedAccessListMemberResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateScopedAccessListMemberResponse.ProtoReflect.Descriptor instead.
+func (*UpdateScopedAccessListMemberResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *UpdateScopedAccessListMemberResponse) GetMember() *ScopedAccessListMember {
+	if x != nil {
+		return x.Member
+	}
+	return nil
+}
+
+// DeleteScopedAccessListMemberRequest is a request to delete a scoped access list member.
+type DeleteScopedAccessListMemberRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ScopedAccessList string                 `protobuf:"bytes,1,opt,name=scoped_access_list,json=scopedAccessList,proto3" json:"scoped_access_list,omitempty"`
+	MemberName       string                 `protobuf:"bytes,2,opt,name=member_name,json=memberName,proto3" json:"member_name,omitempty"`
+	// Revision asserts the revision of the scoped access list member to delete (optional).
+	Revision      string `protobuf:"bytes,3,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScopedAccessListMemberRequest) Reset() {
+	*x = DeleteScopedAccessListMemberRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScopedAccessListMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScopedAccessListMemberRequest) ProtoMessage() {}
+
+func (x *DeleteScopedAccessListMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScopedAccessListMemberRequest.ProtoReflect.Descriptor instead.
+func (*DeleteScopedAccessListMemberRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *DeleteScopedAccessListMemberRequest) GetScopedAccessList() string {
+	if x != nil {
+		return x.ScopedAccessList
+	}
+	return ""
+}
+
+func (x *DeleteScopedAccessListMemberRequest) GetMemberName() string {
+	if x != nil {
+		return x.MemberName
+	}
+	return ""
+}
+
+func (x *DeleteScopedAccessListMemberRequest) GetRevision() string {
+	if x != nil {
+		return x.Revision
+	}
+	return ""
+}
+
+// DeleteScopedAccessListMemberResponse is a response to deleting a scoped access list member.
+type DeleteScopedAccessListMemberResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScopedAccessListMemberResponse) Reset() {
+	*x = DeleteScopedAccessListMemberResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScopedAccessListMemberResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScopedAccessListMemberResponse) ProtoMessage() {}
+
+func (x *DeleteScopedAccessListMemberResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteScopedAccessListMemberResponse.ProtoReflect.Descriptor instead.
+func (*DeleteScopedAccessListMemberResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{37}
+}
+
 var File_teleport_scopes_access_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/scopes/access/v1/service.proto\x12\x19teleport.scopes.access.v1\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"*\n" +
+	"'teleport/scopes/access/v1/service.proto\x12\x19teleport.scopes.access.v1\x1a*teleport/scopes/access/v1/accesslist.proto\x1a0teleport/scopes/access/v1/accesslistmember.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"*\n" +
 	"\x14GetScopedRoleRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"R\n" +
 	"\x15GetScopedRoleResponse\x129\n" +
@@ -1039,7 +1998,57 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"!DeleteScopedRoleAssignmentRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\"$\n" +
-	"\"DeleteScopedRoleAssignmentResponse2\xde\t\n" +
+	"\"DeleteScopedRoleAssignmentResponse\"0\n" +
+	"\x1aGetScopedAccessListRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"^\n" +
+	"\x1bGetScopedAccessListResponse\x12?\n" +
+	"\x04list\x18\x01 \x01(\v2+.teleport.scopes.access.v1.ScopedAccessListR\x04list\"Z\n" +
+	"\x1cListScopedAccessListsRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\x8a\x01\n" +
+	"\x1dListScopedAccessListsResponse\x12A\n" +
+	"\x05lists\x18\x01 \x03(\v2+.teleport.scopes.access.v1.ScopedAccessListR\x05lists\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"`\n" +
+	"\x1dCreateScopedAccessListRequest\x12?\n" +
+	"\x04list\x18\x01 \x01(\v2+.teleport.scopes.access.v1.ScopedAccessListR\x04list\"a\n" +
+	"\x1eCreateScopedAccessListResponse\x12?\n" +
+	"\x04list\x18\x01 \x01(\v2+.teleport.scopes.access.v1.ScopedAccessListR\x04list\"`\n" +
+	"\x1dUpdateScopedAccessListRequest\x12?\n" +
+	"\x04list\x18\x01 \x01(\v2+.teleport.scopes.access.v1.ScopedAccessListR\x04list\"a\n" +
+	"\x1eUpdateScopedAccessListResponse\x12?\n" +
+	"\x04list\x18\x01 \x01(\v2+.teleport.scopes.access.v1.ScopedAccessListR\x04list\"O\n" +
+	"\x1dDeleteScopedAccessListRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\" \n" +
+	"\x1eDeleteScopedAccessListResponse\"q\n" +
+	" GetScopedAccessListMemberRequest\x12,\n" +
+	"\x12scoped_access_list\x18\x01 \x01(\tR\x10scopedAccessList\x12\x1f\n" +
+	"\vmember_name\x18\x02 \x01(\tR\n" +
+	"memberName\"n\n" +
+	"!GetScopedAccessListMemberResponse\x12I\n" +
+	"\x06member\x18\x01 \x01(\v21.teleport.scopes.access.v1.ScopedAccessListMemberR\x06member\"`\n" +
+	"\"ListScopedAccessListMembersRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\x9a\x01\n" +
+	"#ListScopedAccessListMembersResponse\x12K\n" +
+	"\amembers\x18\x01 \x03(\v21.teleport.scopes.access.v1.ScopedAccessListMemberR\amembers\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"p\n" +
+	"#CreateScopedAccessListMemberRequest\x12I\n" +
+	"\x06member\x18\x01 \x01(\v21.teleport.scopes.access.v1.ScopedAccessListMemberR\x06member\"q\n" +
+	"$CreateScopedAccessListMemberResponse\x12I\n" +
+	"\x06member\x18\x01 \x01(\v21.teleport.scopes.access.v1.ScopedAccessListMemberR\x06member\"p\n" +
+	"#UpdateScopedAccessListMemberRequest\x12I\n" +
+	"\x06member\x18\x01 \x01(\v21.teleport.scopes.access.v1.ScopedAccessListMemberR\x06member\"q\n" +
+	"$UpdateScopedAccessListMemberResponse\x12I\n" +
+	"\x06member\x18\x01 \x01(\v21.teleport.scopes.access.v1.ScopedAccessListMemberR\x06member\"\x90\x01\n" +
+	"#DeleteScopedAccessListMemberRequest\x12,\n" +
+	"\x12scoped_access_list\x18\x01 \x01(\tR\x10scopedAccessList\x12\x1f\n" +
+	"\vmember_name\x18\x02 \x01(\tR\n" +
+	"memberName\x12\x1a\n" +
+	"\brevision\x18\x03 \x01(\tR\brevision\"&\n" +
+	"$DeleteScopedAccessListMemberResponse2\x9e\x14\n" +
 	"\x13ScopedAccessService\x12r\n" +
 	"\rGetScopedRole\x12/.teleport.scopes.access.v1.GetScopedRoleRequest\x1a0.teleport.scopes.access.v1.GetScopedRoleResponse\x12x\n" +
 	"\x0fListScopedRoles\x121.teleport.scopes.access.v1.ListScopedRolesRequest\x1a2.teleport.scopes.access.v1.ListScopedRolesResponse\x12{\n" +
@@ -1049,7 +2058,16 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x17GetScopedRoleAssignment\x129.teleport.scopes.access.v1.GetScopedRoleAssignmentRequest\x1a:.teleport.scopes.access.v1.GetScopedRoleAssignmentResponse\x12\x96\x01\n" +
 	"\x19ListScopedRoleAssignments\x12;.teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest\x1a<.teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse\x12\x99\x01\n" +
 	"\x1aCreateScopedRoleAssignment\x12<.teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest\x1a=.teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse\x12\x99\x01\n" +
-	"\x1aDeleteScopedRoleAssignment\x12<.teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest\x1a=.teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponseBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\x1aDeleteScopedRoleAssignment\x12<.teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest\x1a=.teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse\x12\x84\x01\n" +
+	"\x13GetScopedAccessList\x125.teleport.scopes.access.v1.GetScopedAccessListRequest\x1a6.teleport.scopes.access.v1.GetScopedAccessListResponse\x12\x8a\x01\n" +
+	"\x15ListScopedAccessLists\x127.teleport.scopes.access.v1.ListScopedAccessListsRequest\x1a8.teleport.scopes.access.v1.ListScopedAccessListsResponse\x12\x8d\x01\n" +
+	"\x16CreateScopedAccessList\x128.teleport.scopes.access.v1.CreateScopedAccessListRequest\x1a9.teleport.scopes.access.v1.CreateScopedAccessListResponse\x12\x8d\x01\n" +
+	"\x16UpdateScopedAccessList\x128.teleport.scopes.access.v1.UpdateScopedAccessListRequest\x1a9.teleport.scopes.access.v1.UpdateScopedAccessListResponse\x12\x8d\x01\n" +
+	"\x16DeleteScopedAccessList\x128.teleport.scopes.access.v1.DeleteScopedAccessListRequest\x1a9.teleport.scopes.access.v1.DeleteScopedAccessListResponse\x12\x96\x01\n" +
+	"\x19GetScopedAccessListMember\x12;.teleport.scopes.access.v1.GetScopedAccessListMemberRequest\x1a<.teleport.scopes.access.v1.GetScopedAccessListMemberResponse\x12\x9c\x01\n" +
+	"\x1bListScopedAccessListMembers\x12=.teleport.scopes.access.v1.ListScopedAccessListMembersRequest\x1a>.teleport.scopes.access.v1.ListScopedAccessListMembersResponse\x12\x9f\x01\n" +
+	"\x1cCreateScopedAccessListMember\x12>.teleport.scopes.access.v1.CreateScopedAccessListMemberRequest\x1a?.teleport.scopes.access.v1.CreateScopedAccessListMemberResponse\x12\x9f\x01\n" +
+	"\x1cDeleteScopedAccessListMember\x12>.teleport.scopes.access.v1.DeleteScopedAccessListMemberRequest\x1a?.teleport.scopes.access.v1.DeleteScopedAccessListMemberResponseBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
 var (
 	file_teleport_scopes_access_v1_service_proto_rawDescOnce sync.Once
@@ -1063,70 +2081,122 @@ func file_teleport_scopes_access_v1_service_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_service_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_teleport_scopes_access_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_teleport_scopes_access_v1_service_proto_goTypes = []any{
-	(*GetScopedRoleRequest)(nil),               // 0: teleport.scopes.access.v1.GetScopedRoleRequest
-	(*GetScopedRoleResponse)(nil),              // 1: teleport.scopes.access.v1.GetScopedRoleResponse
-	(*ListScopedRolesRequest)(nil),             // 2: teleport.scopes.access.v1.ListScopedRolesRequest
-	(*ListScopedRolesResponse)(nil),            // 3: teleport.scopes.access.v1.ListScopedRolesResponse
-	(*CreateScopedRoleRequest)(nil),            // 4: teleport.scopes.access.v1.CreateScopedRoleRequest
-	(*CreateScopedRoleResponse)(nil),           // 5: teleport.scopes.access.v1.CreateScopedRoleResponse
-	(*UpdateScopedRoleRequest)(nil),            // 6: teleport.scopes.access.v1.UpdateScopedRoleRequest
-	(*UpdateScopedRoleResponse)(nil),           // 7: teleport.scopes.access.v1.UpdateScopedRoleResponse
-	(*DeleteScopedRoleRequest)(nil),            // 8: teleport.scopes.access.v1.DeleteScopedRoleRequest
-	(*DeleteScopedRoleResponse)(nil),           // 9: teleport.scopes.access.v1.DeleteScopedRoleResponse
-	(*GetScopedRoleAssignmentRequest)(nil),     // 10: teleport.scopes.access.v1.GetScopedRoleAssignmentRequest
-	(*GetScopedRoleAssignmentResponse)(nil),    // 11: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse
-	(*ListScopedRoleAssignmentsRequest)(nil),   // 12: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest
-	(*ListScopedRoleAssignmentsResponse)(nil),  // 13: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse
-	(*CreateScopedRoleAssignmentRequest)(nil),  // 14: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest
-	(*CreateScopedRoleAssignmentResponse)(nil), // 15: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse
-	(*DeleteScopedRoleAssignmentRequest)(nil),  // 16: teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest
-	(*DeleteScopedRoleAssignmentResponse)(nil), // 17: teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse
-	nil,                          // 18: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.RoleRevisionsEntry
-	(*ScopedRole)(nil),           // 19: teleport.scopes.access.v1.ScopedRole
-	(*v1.Filter)(nil),            // 20: teleport.scopes.v1.Filter
-	(*ScopedRoleAssignment)(nil), // 21: teleport.scopes.access.v1.ScopedRoleAssignment
+	(*GetScopedRoleRequest)(nil),                 // 0: teleport.scopes.access.v1.GetScopedRoleRequest
+	(*GetScopedRoleResponse)(nil),                // 1: teleport.scopes.access.v1.GetScopedRoleResponse
+	(*ListScopedRolesRequest)(nil),               // 2: teleport.scopes.access.v1.ListScopedRolesRequest
+	(*ListScopedRolesResponse)(nil),              // 3: teleport.scopes.access.v1.ListScopedRolesResponse
+	(*CreateScopedRoleRequest)(nil),              // 4: teleport.scopes.access.v1.CreateScopedRoleRequest
+	(*CreateScopedRoleResponse)(nil),             // 5: teleport.scopes.access.v1.CreateScopedRoleResponse
+	(*UpdateScopedRoleRequest)(nil),              // 6: teleport.scopes.access.v1.UpdateScopedRoleRequest
+	(*UpdateScopedRoleResponse)(nil),             // 7: teleport.scopes.access.v1.UpdateScopedRoleResponse
+	(*DeleteScopedRoleRequest)(nil),              // 8: teleport.scopes.access.v1.DeleteScopedRoleRequest
+	(*DeleteScopedRoleResponse)(nil),             // 9: teleport.scopes.access.v1.DeleteScopedRoleResponse
+	(*GetScopedRoleAssignmentRequest)(nil),       // 10: teleport.scopes.access.v1.GetScopedRoleAssignmentRequest
+	(*GetScopedRoleAssignmentResponse)(nil),      // 11: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse
+	(*ListScopedRoleAssignmentsRequest)(nil),     // 12: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest
+	(*ListScopedRoleAssignmentsResponse)(nil),    // 13: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse
+	(*CreateScopedRoleAssignmentRequest)(nil),    // 14: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest
+	(*CreateScopedRoleAssignmentResponse)(nil),   // 15: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse
+	(*DeleteScopedRoleAssignmentRequest)(nil),    // 16: teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest
+	(*DeleteScopedRoleAssignmentResponse)(nil),   // 17: teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse
+	(*GetScopedAccessListRequest)(nil),           // 18: teleport.scopes.access.v1.GetScopedAccessListRequest
+	(*GetScopedAccessListResponse)(nil),          // 19: teleport.scopes.access.v1.GetScopedAccessListResponse
+	(*ListScopedAccessListsRequest)(nil),         // 20: teleport.scopes.access.v1.ListScopedAccessListsRequest
+	(*ListScopedAccessListsResponse)(nil),        // 21: teleport.scopes.access.v1.ListScopedAccessListsResponse
+	(*CreateScopedAccessListRequest)(nil),        // 22: teleport.scopes.access.v1.CreateScopedAccessListRequest
+	(*CreateScopedAccessListResponse)(nil),       // 23: teleport.scopes.access.v1.CreateScopedAccessListResponse
+	(*UpdateScopedAccessListRequest)(nil),        // 24: teleport.scopes.access.v1.UpdateScopedAccessListRequest
+	(*UpdateScopedAccessListResponse)(nil),       // 25: teleport.scopes.access.v1.UpdateScopedAccessListResponse
+	(*DeleteScopedAccessListRequest)(nil),        // 26: teleport.scopes.access.v1.DeleteScopedAccessListRequest
+	(*DeleteScopedAccessListResponse)(nil),       // 27: teleport.scopes.access.v1.DeleteScopedAccessListResponse
+	(*GetScopedAccessListMemberRequest)(nil),     // 28: teleport.scopes.access.v1.GetScopedAccessListMemberRequest
+	(*GetScopedAccessListMemberResponse)(nil),    // 29: teleport.scopes.access.v1.GetScopedAccessListMemberResponse
+	(*ListScopedAccessListMembersRequest)(nil),   // 30: teleport.scopes.access.v1.ListScopedAccessListMembersRequest
+	(*ListScopedAccessListMembersResponse)(nil),  // 31: teleport.scopes.access.v1.ListScopedAccessListMembersResponse
+	(*CreateScopedAccessListMemberRequest)(nil),  // 32: teleport.scopes.access.v1.CreateScopedAccessListMemberRequest
+	(*CreateScopedAccessListMemberResponse)(nil), // 33: teleport.scopes.access.v1.CreateScopedAccessListMemberResponse
+	(*UpdateScopedAccessListMemberRequest)(nil),  // 34: teleport.scopes.access.v1.UpdateScopedAccessListMemberRequest
+	(*UpdateScopedAccessListMemberResponse)(nil), // 35: teleport.scopes.access.v1.UpdateScopedAccessListMemberResponse
+	(*DeleteScopedAccessListMemberRequest)(nil),  // 36: teleport.scopes.access.v1.DeleteScopedAccessListMemberRequest
+	(*DeleteScopedAccessListMemberResponse)(nil), // 37: teleport.scopes.access.v1.DeleteScopedAccessListMemberResponse
+	nil,                            // 38: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.RoleRevisionsEntry
+	(*ScopedRole)(nil),             // 39: teleport.scopes.access.v1.ScopedRole
+	(*v1.Filter)(nil),              // 40: teleport.scopes.v1.Filter
+	(*ScopedRoleAssignment)(nil),   // 41: teleport.scopes.access.v1.ScopedRoleAssignment
+	(*ScopedAccessList)(nil),       // 42: teleport.scopes.access.v1.ScopedAccessList
+	(*ScopedAccessListMember)(nil), // 43: teleport.scopes.access.v1.ScopedAccessListMember
 }
 var file_teleport_scopes_access_v1_service_proto_depIdxs = []int32{
-	19, // 0: teleport.scopes.access.v1.GetScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	20, // 1: teleport.scopes.access.v1.ListScopedRolesRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
-	20, // 2: teleport.scopes.access.v1.ListScopedRolesRequest.assignable_scope:type_name -> teleport.scopes.v1.Filter
-	19, // 3: teleport.scopes.access.v1.ListScopedRolesResponse.roles:type_name -> teleport.scopes.access.v1.ScopedRole
-	19, // 4: teleport.scopes.access.v1.CreateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	19, // 5: teleport.scopes.access.v1.CreateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	19, // 6: teleport.scopes.access.v1.UpdateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	19, // 7: teleport.scopes.access.v1.UpdateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	21, // 8: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	20, // 9: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
-	20, // 10: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.assigned_scope:type_name -> teleport.scopes.v1.Filter
-	21, // 11: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse.assignments:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	21, // 12: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	18, // 13: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.role_revisions:type_name -> teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.RoleRevisionsEntry
-	21, // 14: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	0,  // 15: teleport.scopes.access.v1.ScopedAccessService.GetScopedRole:input_type -> teleport.scopes.access.v1.GetScopedRoleRequest
-	2,  // 16: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoles:input_type -> teleport.scopes.access.v1.ListScopedRolesRequest
-	4,  // 17: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRole:input_type -> teleport.scopes.access.v1.CreateScopedRoleRequest
-	6,  // 18: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRole:input_type -> teleport.scopes.access.v1.UpdateScopedRoleRequest
-	8,  // 19: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRole:input_type -> teleport.scopes.access.v1.DeleteScopedRoleRequest
-	10, // 20: teleport.scopes.access.v1.ScopedAccessService.GetScopedRoleAssignment:input_type -> teleport.scopes.access.v1.GetScopedRoleAssignmentRequest
-	12, // 21: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoleAssignments:input_type -> teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest
-	14, // 22: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRoleAssignment:input_type -> teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest
-	16, // 23: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRoleAssignment:input_type -> teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest
-	1,  // 24: teleport.scopes.access.v1.ScopedAccessService.GetScopedRole:output_type -> teleport.scopes.access.v1.GetScopedRoleResponse
-	3,  // 25: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoles:output_type -> teleport.scopes.access.v1.ListScopedRolesResponse
-	5,  // 26: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRole:output_type -> teleport.scopes.access.v1.CreateScopedRoleResponse
-	7,  // 27: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRole:output_type -> teleport.scopes.access.v1.UpdateScopedRoleResponse
-	9,  // 28: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRole:output_type -> teleport.scopes.access.v1.DeleteScopedRoleResponse
-	11, // 29: teleport.scopes.access.v1.ScopedAccessService.GetScopedRoleAssignment:output_type -> teleport.scopes.access.v1.GetScopedRoleAssignmentResponse
-	13, // 30: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoleAssignments:output_type -> teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse
-	15, // 31: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRoleAssignment:output_type -> teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse
-	17, // 32: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRoleAssignment:output_type -> teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse
-	24, // [24:33] is the sub-list for method output_type
-	15, // [15:24] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	39, // 0: teleport.scopes.access.v1.GetScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	40, // 1: teleport.scopes.access.v1.ListScopedRolesRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
+	40, // 2: teleport.scopes.access.v1.ListScopedRolesRequest.assignable_scope:type_name -> teleport.scopes.v1.Filter
+	39, // 3: teleport.scopes.access.v1.ListScopedRolesResponse.roles:type_name -> teleport.scopes.access.v1.ScopedRole
+	39, // 4: teleport.scopes.access.v1.CreateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	39, // 5: teleport.scopes.access.v1.CreateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	39, // 6: teleport.scopes.access.v1.UpdateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	39, // 7: teleport.scopes.access.v1.UpdateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	41, // 8: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	40, // 9: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
+	40, // 10: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.assigned_scope:type_name -> teleport.scopes.v1.Filter
+	41, // 11: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse.assignments:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	41, // 12: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	38, // 13: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.role_revisions:type_name -> teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.RoleRevisionsEntry
+	41, // 14: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	42, // 15: teleport.scopes.access.v1.GetScopedAccessListResponse.list:type_name -> teleport.scopes.access.v1.ScopedAccessList
+	42, // 16: teleport.scopes.access.v1.ListScopedAccessListsResponse.lists:type_name -> teleport.scopes.access.v1.ScopedAccessList
+	42, // 17: teleport.scopes.access.v1.CreateScopedAccessListRequest.list:type_name -> teleport.scopes.access.v1.ScopedAccessList
+	42, // 18: teleport.scopes.access.v1.CreateScopedAccessListResponse.list:type_name -> teleport.scopes.access.v1.ScopedAccessList
+	42, // 19: teleport.scopes.access.v1.UpdateScopedAccessListRequest.list:type_name -> teleport.scopes.access.v1.ScopedAccessList
+	42, // 20: teleport.scopes.access.v1.UpdateScopedAccessListResponse.list:type_name -> teleport.scopes.access.v1.ScopedAccessList
+	43, // 21: teleport.scopes.access.v1.GetScopedAccessListMemberResponse.member:type_name -> teleport.scopes.access.v1.ScopedAccessListMember
+	43, // 22: teleport.scopes.access.v1.ListScopedAccessListMembersResponse.members:type_name -> teleport.scopes.access.v1.ScopedAccessListMember
+	43, // 23: teleport.scopes.access.v1.CreateScopedAccessListMemberRequest.member:type_name -> teleport.scopes.access.v1.ScopedAccessListMember
+	43, // 24: teleport.scopes.access.v1.CreateScopedAccessListMemberResponse.member:type_name -> teleport.scopes.access.v1.ScopedAccessListMember
+	43, // 25: teleport.scopes.access.v1.UpdateScopedAccessListMemberRequest.member:type_name -> teleport.scopes.access.v1.ScopedAccessListMember
+	43, // 26: teleport.scopes.access.v1.UpdateScopedAccessListMemberResponse.member:type_name -> teleport.scopes.access.v1.ScopedAccessListMember
+	0,  // 27: teleport.scopes.access.v1.ScopedAccessService.GetScopedRole:input_type -> teleport.scopes.access.v1.GetScopedRoleRequest
+	2,  // 28: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoles:input_type -> teleport.scopes.access.v1.ListScopedRolesRequest
+	4,  // 29: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRole:input_type -> teleport.scopes.access.v1.CreateScopedRoleRequest
+	6,  // 30: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRole:input_type -> teleport.scopes.access.v1.UpdateScopedRoleRequest
+	8,  // 31: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRole:input_type -> teleport.scopes.access.v1.DeleteScopedRoleRequest
+	10, // 32: teleport.scopes.access.v1.ScopedAccessService.GetScopedRoleAssignment:input_type -> teleport.scopes.access.v1.GetScopedRoleAssignmentRequest
+	12, // 33: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoleAssignments:input_type -> teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest
+	14, // 34: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRoleAssignment:input_type -> teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest
+	16, // 35: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRoleAssignment:input_type -> teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest
+	18, // 36: teleport.scopes.access.v1.ScopedAccessService.GetScopedAccessList:input_type -> teleport.scopes.access.v1.GetScopedAccessListRequest
+	20, // 37: teleport.scopes.access.v1.ScopedAccessService.ListScopedAccessLists:input_type -> teleport.scopes.access.v1.ListScopedAccessListsRequest
+	22, // 38: teleport.scopes.access.v1.ScopedAccessService.CreateScopedAccessList:input_type -> teleport.scopes.access.v1.CreateScopedAccessListRequest
+	24, // 39: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedAccessList:input_type -> teleport.scopes.access.v1.UpdateScopedAccessListRequest
+	26, // 40: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedAccessList:input_type -> teleport.scopes.access.v1.DeleteScopedAccessListRequest
+	28, // 41: teleport.scopes.access.v1.ScopedAccessService.GetScopedAccessListMember:input_type -> teleport.scopes.access.v1.GetScopedAccessListMemberRequest
+	30, // 42: teleport.scopes.access.v1.ScopedAccessService.ListScopedAccessListMembers:input_type -> teleport.scopes.access.v1.ListScopedAccessListMembersRequest
+	32, // 43: teleport.scopes.access.v1.ScopedAccessService.CreateScopedAccessListMember:input_type -> teleport.scopes.access.v1.CreateScopedAccessListMemberRequest
+	36, // 44: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedAccessListMember:input_type -> teleport.scopes.access.v1.DeleteScopedAccessListMemberRequest
+	1,  // 45: teleport.scopes.access.v1.ScopedAccessService.GetScopedRole:output_type -> teleport.scopes.access.v1.GetScopedRoleResponse
+	3,  // 46: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoles:output_type -> teleport.scopes.access.v1.ListScopedRolesResponse
+	5,  // 47: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRole:output_type -> teleport.scopes.access.v1.CreateScopedRoleResponse
+	7,  // 48: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRole:output_type -> teleport.scopes.access.v1.UpdateScopedRoleResponse
+	9,  // 49: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRole:output_type -> teleport.scopes.access.v1.DeleteScopedRoleResponse
+	11, // 50: teleport.scopes.access.v1.ScopedAccessService.GetScopedRoleAssignment:output_type -> teleport.scopes.access.v1.GetScopedRoleAssignmentResponse
+	13, // 51: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoleAssignments:output_type -> teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse
+	15, // 52: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRoleAssignment:output_type -> teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse
+	17, // 53: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRoleAssignment:output_type -> teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse
+	19, // 54: teleport.scopes.access.v1.ScopedAccessService.GetScopedAccessList:output_type -> teleport.scopes.access.v1.GetScopedAccessListResponse
+	21, // 55: teleport.scopes.access.v1.ScopedAccessService.ListScopedAccessLists:output_type -> teleport.scopes.access.v1.ListScopedAccessListsResponse
+	23, // 56: teleport.scopes.access.v1.ScopedAccessService.CreateScopedAccessList:output_type -> teleport.scopes.access.v1.CreateScopedAccessListResponse
+	25, // 57: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedAccessList:output_type -> teleport.scopes.access.v1.UpdateScopedAccessListResponse
+	27, // 58: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedAccessList:output_type -> teleport.scopes.access.v1.DeleteScopedAccessListResponse
+	29, // 59: teleport.scopes.access.v1.ScopedAccessService.GetScopedAccessListMember:output_type -> teleport.scopes.access.v1.GetScopedAccessListMemberResponse
+	31, // 60: teleport.scopes.access.v1.ScopedAccessService.ListScopedAccessListMembers:output_type -> teleport.scopes.access.v1.ListScopedAccessListMembersResponse
+	33, // 61: teleport.scopes.access.v1.ScopedAccessService.CreateScopedAccessListMember:output_type -> teleport.scopes.access.v1.CreateScopedAccessListMemberResponse
+	37, // 62: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedAccessListMember:output_type -> teleport.scopes.access.v1.DeleteScopedAccessListMemberResponse
+	45, // [45:63] is the sub-list for method output_type
+	27, // [27:45] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_service_proto_init() }
@@ -1134,6 +2204,8 @@ func file_teleport_scopes_access_v1_service_proto_init() {
 	if File_teleport_scopes_access_v1_service_proto != nil {
 		return
 	}
+	file_teleport_scopes_access_v1_accesslist_proto_init()
+	file_teleport_scopes_access_v1_accesslistmember_proto_init()
 	file_teleport_scopes_access_v1_assignment_proto_init()
 	file_teleport_scopes_access_v1_role_proto_init()
 	type x struct{}
@@ -1142,7 +2214,7 @@ func file_teleport_scopes_access_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_service_proto_rawDesc), len(file_teleport_scopes_access_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
