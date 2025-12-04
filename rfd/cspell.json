@@ -462,6 +462,7 @@
     "mvnw",
     "myauth",
     "myaws",
+    "mycluster",
     "mycommand",
     "mycompany",
     "mydatabase",
@@ -791,6 +792,7 @@
     "structpb",
     "structs",
     "stscreds",
+    "subca",
     "subcases",
     "subcondition",
     "Subconditions",
@@ -973,6 +975,7 @@
     "Zdunek",
     "zdvik",
     "Zilla",
+    "zarquon",
     "ZLMR"
   ]
 }
