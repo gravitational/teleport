@@ -71,6 +71,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 						Name:      "1",
 					},
 					Spec: types.AppServerSpecV3{
+						App:      &types.AppV3{},
 						Hostname: "2",
 					},
 				}

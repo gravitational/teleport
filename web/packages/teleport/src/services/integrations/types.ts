@@ -301,9 +301,13 @@ export type PluginStatus<D = any> = {
    */
   lastRun: Date;
   /**
-   * the last error message from the plugin
+   * the friendly error message from the plugin
    */
   errorMessage: string;
+  /**
+   * the last raw error message from the plugin
+   */
+  lastRawError?: string;
   /**
    * contains provider-specific status information
    */

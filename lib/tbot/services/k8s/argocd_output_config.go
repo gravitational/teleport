@@ -62,6 +62,15 @@ type ArgoCDOutputConfig struct {
 
 	// SecretLabels is a set of labels that will be applied to the created
 	// Kubernetes secrets (in addition to the labels added for Argo's benefit).
+	//
+	// Label values can be "text/template" strings with the following variables:
+	//
+	//   - {{.ClusterName}} - Name of the Teleport cluster
+	//   - {{.KubeName}} - Name of the Kubernetes cluster resource
+	//   - {{.Labels}} - Map of labels applied to the Kubernetes cluster
+	// 	   resource that can be indexed using `{{index .Labels "key"}}`
+	//
+	// If the label value is empty, the label will not be added to the secret.
 	SecretLabels map[string]string `yaml:"secret_labels,omitempty"`
 
 	// SecretLabels is a set of annotations that will be applied to the created
@@ -86,6 +95,8 @@ type ArgoCDOutputConfig struct {
 	//
 	//   - {{.ClusterName}} - Name of the Teleport cluster
 	//   - {{.KubeName}} - Name of the Kubernetes cluster resource
+	//   - {{.Labels}} - Map of labels applied to the Kubernetes cluster
+	// 	   resource that can be indexed using {{index .Labels "key"}}
 	//
 	// By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}".
 	ClusterNameTemplate string `yaml:"cluster_name_template,omitempty"`
@@ -143,8 +154,14 @@ func (o *ArgoCDOutputConfig) CheckAndSetDefaults() error {
 	if o.ClusterNameTemplate == "" {
 		o.ClusterNameTemplate = defaultContextNameTemplate
 	} else {
-		if _, err := kubeconfig.ContextNameFromTemplate(o.ClusterNameTemplate, "", ""); err != nil {
+		if _, err := renderTemplate(o.ClusterNameTemplate, &argoClusterCredentials{}); err != nil {
 			return trace.BadParameter("cluster_name_template is invalid: %v", err)
+		}
+	}
+
+	for k, v := range o.SecretLabels {
+		if _, err := renderTemplate(v, &argoClusterCredentials{}); err != nil {
+			return trace.BadParameter("secret_labels[%q] is invalid: %v", k, err)
 		}
 	}
 

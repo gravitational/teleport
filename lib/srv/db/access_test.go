@@ -63,9 +63,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	"github.com/gravitational/teleport/lib/cloud/cloudtest"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -385,16 +387,24 @@ func TestAccessMySQL(t *testing.T) {
 
 func TestMySQLServerVersionUpdateOnConnection(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(
-		ctx,
-		t,
-		withSelfHostedMySQL("mysql",
-			// Set an older version in DB spec.
-			withMySQLServerVersionInDBSpec("6.6.6-before"),
-			// Set a newer version in TestServer.
-			withMySQLServerVersion("8.8.8-after"),
-		),
-	)
+	testCtx := setupTestContext(ctx, t)
+	// disable default health check, because health checks will extract and
+	// update the server version before we connect
+	hcc, err := testCtx.authServer.GetHealthCheckConfig(ctx, teleport.VirtualDefaultHealthCheckConfigDBName)
+	require.NoError(t, err)
+	hcc.Spec.Match.Disabled = true
+	_, err = testCtx.authServer.UpsertHealthCheckConfig(ctx, hcc)
+	require.NoError(t, err)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: types.Databases{
+			withSelfHostedMySQL("mysql",
+				// Set an older version in DB spec.
+				withMySQLServerVersionInDBSpec("6.6.6-before"),
+				// Set a newer version in TestServer.
+				withMySQLServerVersion("8.8.8-after"),
+			)(t, ctx, testCtx),
+		},
+	})
 	go testCtx.startHandlingConnections()
 
 	// Confirm the server version configured in the spec.
@@ -2453,9 +2463,9 @@ type agentParams struct {
 	// CADownloader defines the CA downloader.
 	CADownloader CADownloader
 	// AzureClients provides Azure SDK clients.
-	AzureClients clients.AzureClients
+	AzureClients azure.Clients
 	// GCPClients provides GCP SDK clients.
-	GCPClients clients.GCPClients
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
@@ -2497,13 +2507,13 @@ func (p *agentParams) setDefaults(c *testContext) {
 	}
 
 	if p.GCPClients == nil {
-		p.GCPClients = &cloudtest.GCPClients{
+		p.GCPClients = &gcptest.Clients{
 			GCPSQL: p.GCPSQL,
 		}
 	}
 
 	if p.AzureClients == nil {
-		p.AzureClients = &cloudtest.AzureClients{}
+		p.AzureClients = &azuretest.Clients{}
 	}
 
 	if p.AWSConfigProvider == nil {
@@ -2550,8 +2560,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	testAuth, err := newTestAuth(common.AuthConfig{
 		AuthClient:        c.authClient,
 		AccessPoint:       c.authClient,
-		AzureClients:      &cloudtest.AzureClients{},
-		GCPClients:        &cloudtest.GCPClients{},
+		AzureClients:      &azuretest.Clients{},
+		GCPClients:        &gcptest.Clients{},
 		Clock:             c.clock,
 		AWSConfigProvider: p.AWSConfigProvider,
 	})

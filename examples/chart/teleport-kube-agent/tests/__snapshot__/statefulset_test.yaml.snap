@@ -1795,6 +1795,8 @@ should provision initContainer correctly when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: GOMEMLIMIT
+        value: "3865470567"
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
       - name: TELEPORT_REPLICA_NAME
@@ -2750,6 +2752,8 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: GOMEMLIMIT
+        value: "3865470567"
       - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
         value: "true"
       - name: TELEPORT_REPLICA_NAME

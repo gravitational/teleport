@@ -176,8 +176,13 @@ spec:
       - name: "teleport"
         image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $proxy.imagePullPolicy }}
-        {{- if or $proxy.extraEnv $proxy.tls.existingCASecretName }}
+        {{- $gomemlimit := include "teleport-cluster.gomemlimit" $proxy }}
+        {{- if or $proxy.extraEnv $proxy.tls.existingCASecretName $gomemlimit }}
         env:
+        {{- if $gomemlimit }}
+        - name: GOMEMLIMIT
+          value: {{ $gomemlimit | quote }}
+        {{- end }}
         {{- if (gt (len $proxy.extraEnv) 0) }}
           {{- toYaml $proxy.extraEnv | nindent 8 }}
         {{- end }}

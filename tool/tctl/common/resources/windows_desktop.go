@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/common"
@@ -219,4 +220,115 @@ func deleteWindowsDesktopService(ctx context.Context, client *authclient.Client,
 	}
 	fmt.Printf("windows desktop service %q has been deleted\n", ref.Name)
 	return nil
+}
+
+type dynamicWindowsDesktopCollection struct {
+	desktops []types.DynamicWindowsDesktop
+}
+
+func NewDynamicDesktopCollection(desktops []types.DynamicWindowsDesktop) Collection {
+	return &dynamicWindowsDesktopCollection{
+		desktops: desktops,
+	}
+}
+
+func (c *dynamicWindowsDesktopCollection) Resources() (r []types.Resource) {
+	for _, resource := range c.desktops {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, d := range c.desktops {
+		labels := common.FormatLabels(d.GetAllLabels(), verbose)
+		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
+	}
+	headers := []string{"Name", "Address", "AD Domain", "Labels"}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func createDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if _, err := dynamicDesktopClient.CreateDynamicWindowsDesktop(ctx, wd); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !opts.Force {
+				return trace.AlreadyExists("dynamic windows desktop %q already exists", wd.GetName())
+			}
+			if _, err := dynamicDesktopClient.UpsertDynamicWindowsDesktop(ctx, wd); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func updateDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if _, err := dynamicDesktopClient.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func getDynamicWindowsDesktops(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if ref.Name != "" {
+		desktop, err := dynamicDesktopClient.GetDynamicWindowsDesktop(ctx, ref.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &dynamicWindowsDesktopCollection{
+			desktops: []types.DynamicWindowsDesktop{desktop},
+		}, nil
+	}
+
+	desktops, err := stream.Collect(clientutils.Resources(ctx, dynamicDesktopClient.ListDynamicWindowsDesktops))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &dynamicWindowsDesktopCollection{desktops}, nil
+}
+
+func deleteDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	if err := client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, ref.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("dynamic windows desktop %q has been deleted\n", ref.Name)
+	return nil
+}
+
+func dynamicWindowsDesktopHandler() Handler {
+	return Handler{
+		getHandler:    getDynamicWindowsDesktops,
+		createHandler: createDynamicWindowsDesktop,
+		updateHandler: updateDynamicWindowsDesktop,
+		deleteHandler: deleteDynamicWindowsDesktop,
+		description:   "A dynamically registered Windows desktop host.",
+	}
 }

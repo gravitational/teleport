@@ -162,6 +162,11 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 			)
 		}
 
+		// Create directory if it does not exist.
+		if err := os.MkdirAll(c.outputDirectory, teleport.PrivateDirMode); err != nil {
+			return trace.Wrap(err, "creating output directory")
+		}
+
 		// Write private key
 		privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 		if err != nil {

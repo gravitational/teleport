@@ -146,6 +146,11 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           env:
+            {{- $gomemlimit := include "teleport-relay.gomemlimit" . }}
+            {{- if $gomemlimit }}
+            - name: GOMEMLIMIT
+              value: {{ $gomemlimit | quote }}
+            {{- end }}
             {{- /* This variable is set for telemetry purposes.
               Telemetry is opt-in and controlled at the auth level. */}}
             - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT

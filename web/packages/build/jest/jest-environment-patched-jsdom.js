@@ -1,4 +1,4 @@
-import { TransformStream } from 'node:stream/web';
+import { TransformStream, WritableStream } from 'node:stream/web';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { BroadcastChannel } from 'node:worker_threads';
 
@@ -82,6 +82,10 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
           onchange: () => {},
         }),
       };
+    }
+
+    if (!global.WritableStream) {
+      global.WritableStream = WritableStream;
     }
   }
 }

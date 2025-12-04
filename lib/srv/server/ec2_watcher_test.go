@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/account"
+	accounttypes "github.com/aws/aws-sdk-go-v2/service/account/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/google/go-cmp/cmp"
@@ -56,16 +58,17 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 	return &output, nil
 }
 
-func makeMockClients(m map[string]*ec2.DescribeInstancesOutput) matcherEC2ClientGetter {
-	return func(ctx context.Context, region string, matcher *types.AWSMatcher, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
-		var roleARN string
-		if matcher.AssumeRole != nil {
-			roleARN = matcher.AssumeRole.RoleARN
-		}
-		return &mockEC2Client{
-			output: m[roleARN],
-		}, nil
+type mockAWSAccountClient struct {
+	output        *account.ListRegionsOutput
+	responseError error
+}
+
+func (m *mockAWSAccountClient) ListRegions(ctx context.Context, input *account.ListRegionsInput, opts ...func(*account.Options)) (*account.ListRegionsOutput, error) {
+	if m.responseError != nil {
+		return nil, m.responseError
 	}
+
+	return m.output, nil
 }
 
 func instanceMatches(inst ec2types.Instance, filters []ec2types.Filter) bool {
@@ -97,9 +100,11 @@ func TestNewEC2InstanceFetcherTags(t *testing.T) {
 		{
 			name: "with glob key",
 			config: ec2FetcherConfig{
-				Labels: types.Labels{
-					"*":     []string{},
-					"hello": []string{"other"},
+				Matcher: types.AWSMatcher{
+					Tags: types.Labels{
+						"*":     []string{},
+						"hello": []string{"other"},
+					},
 				},
 			},
 			expectedFilters: []ec2types.Filter{
@@ -112,8 +117,10 @@ func TestNewEC2InstanceFetcherTags(t *testing.T) {
 		{
 			name: "with no glob key",
 			config: ec2FetcherConfig{
-				Labels: types.Labels{
-					"hello": []string{"other"},
+				Matcher: types.AWSMatcher{
+					Tags: types.Labels{
+						"hello": []string{"other"},
+					},
 				},
 			},
 			expectedFilters: []ec2types.Filter{
@@ -174,6 +181,16 @@ func TestEC2Watcher(t *testing.T) {
 				RoleARN: "alternate-role-arn",
 			},
 		},
+		{
+			Params:  &types.InstallerParams{},
+			Types:   []string{"EC2"},
+			Regions: []string{"*"},
+			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+			SSM:     &types.AWSSSM{},
+			AssumeRole: &types.AssumeRole{
+				RoleARN: "implicit-region",
+			},
+		},
 	}
 
 	present := ec2types.Instance{
@@ -223,7 +240,18 @@ func TestEC2Watcher(t *testing.T) {
 		},
 	}
 
-	output := ec2.DescribeInstancesOutput{
+	instanceImplicitRegion := ec2types.Instance{
+		InstanceId: aws.String("instance-implicit-region"),
+		Tags: []ec2types.Tag{{
+			Key:   aws.String("teleport"),
+			Value: aws.String("yes"),
+		}},
+		State: &ec2types.InstanceState{
+			Name: ec2types.InstanceStateNameRunning,
+		},
+	}
+
+	ec2DescribeInstancesOutNoAssumeRole := ec2.DescribeInstancesOutput{
 		Reservations: []ec2types.Reservation{{
 			Instances: []ec2types.Instance{
 				present,
@@ -255,7 +283,7 @@ func TestEC2Watcher(t *testing.T) {
 			},
 		}},
 	}
-	altAccountOutput := ec2.DescribeInstancesOutput{
+	ec2DescribeInstancesOutAlternateAssumeRole := ec2.DescribeInstancesOutput{
 		Reservations: []ec2types.Reservation{{
 			Instances: []ec2types.Instance{
 				altAccountPresent,
@@ -272,18 +300,51 @@ func TestEC2Watcher(t *testing.T) {
 			},
 		}},
 	}
-	getClient := makeMockClients(map[string]*ec2.DescribeInstancesOutput{
-		"":                   &output,
-		"alternate-role-arn": &altAccountOutput,
-	})
+	ec2DescribeInstancesOutOnlyImplicitRegions := ec2.DescribeInstancesOutput{
+		Reservations: []ec2types.Reservation{{
+			Instances: []ec2types.Instance{instanceImplicitRegion},
+		}},
+	}
+
+	ec2ClientOutputsByRole := map[string]*ec2.DescribeInstancesOutput{
+		"":                   &ec2DescribeInstancesOutNoAssumeRole,
+		"alternate-role-arn": &ec2DescribeInstancesOutAlternateAssumeRole,
+		"implicit-region":    &ec2DescribeInstancesOutOnlyImplicitRegions,
+	}
+
+	ec2ClientGetter := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		assumedRoles := awsconfig.AssumedRoles(opts...)
+		var roleARN string
+
+		for _, assumedRole := range assumedRoles {
+			roleARN = assumedRole.RoleARN
+		}
+
+		return &mockEC2Client{
+			output: ec2ClientOutputsByRole[roleARN],
+		}, nil
+	}
+
+	regionsListerGetter := func(ctx context.Context, opts ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error) {
+		return &mockAWSAccountClient{
+			output: &account.ListRegionsOutput{
+				Regions: []accounttypes.Region{
+					{RegionName: aws.String("eu-south-1")},
+					{RegionName: aws.String("eu-south-2")},
+				},
+			},
+		}, nil
+	}
 
 	fetchersFn := func() []Fetcher {
-		fetchers, err := matchersToEC2InstanceFetchers(MatcherToEC2FetcherParams{
+		fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
 			Matchers: matchers,
 			PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
 				return "proxy.example.com:3080", nil
 			},
-		}, getClient)
+			EC2ClientGetter:     ec2ClientGetter,
+			RegionsListerGetter: regionsListerGetter,
+		})
 		require.NoError(t, err)
 
 		return fetchers
@@ -315,6 +376,18 @@ func TestEC2Watcher(t *testing.T) {
 			Instances:     []EC2Instance{toEC2Instance(altAccountPresent)},
 			Parameters:    map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
 			AssumeRoleARN: "alternate-role-arn",
+		},
+		{
+			Region:        "eu-south-1",
+			Instances:     []EC2Instance{toEC2Instance(instanceImplicitRegion)},
+			Parameters:    map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+			AssumeRoleARN: "implicit-region",
+		},
+		{
+			Region:        "eu-south-2",
+			Instances:     []EC2Instance{toEC2Instance(instanceImplicitRegion)},
+			Parameters:    map[string]string{"token": "", "scriptName": "", "sshdConfigPath": ""},
+			AssumeRoleARN: "implicit-region",
 		},
 	}
 
@@ -531,8 +604,10 @@ func TestSSMRunCommandParameters(t *testing.T) {
 						JoinToken:       "my-token",
 						ScriptName:      "default-installer",
 					},
+					SSM: &types.AWSSSM{
+						DocumentName: "TeleportDiscoveryInstaller",
+					},
 				},
-				Document: "TeleportDiscoveryInstaller",
 			},
 			errCheck: require.NoError,
 			expectedParams: map[string]string{
@@ -550,8 +625,10 @@ func TestSSMRunCommandParameters(t *testing.T) {
 						ScriptName:      "default-agentless-installer",
 						SSHDConfig:      "/etc/ssh/sshd_config",
 					},
+					SSM: &types.AWSSSM{
+						DocumentName: "TeleportDiscoveryInstaller",
+					},
 				},
-				Document: "TeleportDiscoveryInstaller",
 			},
 			errCheck: require.NoError,
 			expectedParams: map[string]string{
@@ -569,8 +646,10 @@ func TestSSMRunCommandParameters(t *testing.T) {
 						JoinToken:       "my-token",
 						ScriptName:      "default-installer",
 					},
+					SSM: &types.AWSSSM{
+						DocumentName: "AWS-RunShellScript",
+					},
 				},
-				Document: "AWS-RunShellScript",
 				ProxyPublicAddrGetter: func(ctx context.Context) (string, error) {
 					return "proxy.example.com", nil
 				},
@@ -590,8 +669,10 @@ func TestSSMRunCommandParameters(t *testing.T) {
 						ScriptName:      "default-installer",
 						Suffix:          "cluster-green",
 					},
+					SSM: &types.AWSSSM{
+						DocumentName: "AWS-RunShellScript",
+					},
 				},
-				Document: "AWS-RunShellScript",
 				ProxyPublicAddrGetter: func(ctx context.Context) (string, error) {
 					return "proxy.example.com", nil
 				},
@@ -611,8 +692,10 @@ func TestSSMRunCommandParameters(t *testing.T) {
 						ScriptName:      "default-installer",
 						Suffix:          "cluster-green",
 					},
+					SSM: &types.AWSSSM{
+						DocumentName: "AWS-RunShellScript",
+					},
 				},
-				Document: "AWS-RunShellScript",
 				ProxyPublicAddrGetter: func(ctx context.Context) (string, error) {
 					return "", trace.NotFound("proxy is not yet available")
 				},

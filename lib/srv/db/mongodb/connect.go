@@ -41,7 +41,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -235,27 +234,6 @@ func makeClientOptionsFromDatabaseURI(uri string) (*options.ClientOptions, error
 		return nil, trace.Wrap(err)
 	}
 	return clientCfg, nil
-}
-
-// NewEndpointsResolver returns a health check target endpoint resolver.
-// SRV URI (mongodb+srv://) is resolved to a seed list from DNS SRV record
-// https://www.mongodb.com/docs/manual/reference/connection-string/#srv-connection-format
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	return newEndpointsResolver(db.GetURI()), nil
-}
-
-func newEndpointsResolver(uri string) endpoints.Resolver {
-	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-		clientCfg, err := makeClientOptionsFromDatabaseURI(uri)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		endpoints := make([]string, 0, len(clientCfg.Hosts))
-		for _, host := range clientCfg.Hosts {
-			endpoints = append(endpoints, address.Address(host).String())
-		}
-		return endpoints, nil
-	})
 }
 
 // getServerSelector returns selector for picking the server to connect to,

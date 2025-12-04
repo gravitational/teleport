@@ -1215,6 +1215,18 @@
               "update",
               "delete"
             ]
+          },
+          {
+            "resources": [
+              "app_auth_config"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
           }
         ]
       },

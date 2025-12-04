@@ -21,6 +21,7 @@ package auth_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -40,6 +41,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -1232,6 +1234,8 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	mfa := configureForMFA(t, svr)
 	username := mfa.User
 	password := mfa.Password
+	emitter := &eventstest.MockRecorderEmitter{}
+	authServer.SetEmitter(emitter)
 
 	tests := []struct {
 		name           string
@@ -1245,6 +1249,8 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		// authenticate function.
 		makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
+				emitter.Reset()
+
 				// 1st step: acquire challenge
 				challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
@@ -1277,6 +1283,35 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 
 				// 2nd step: finish login - either SSH or Web
 				require.NoError(t, authenticate(authServer, authReq))
+
+				require.True(
+					t,
+					slices.ContainsFunc(emitter.Events(), func(event apievents.AuditEvent) bool {
+						e, ok := event.(*apievents.CreateMFAAuthChallenge)
+						if !ok {
+							return false
+						}
+						return e.FlowType == apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE
+					}),
+					"expected create MFA audit event with flow type %s to be emitted but was not found",
+					apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
+				)
+
+				// The TOTP device does not emit the validate event so only check for Webauthn.
+				if resp.GetWebauthn() != nil {
+					require.True(
+						t,
+						slices.ContainsFunc(emitter.Events(), func(event apievents.AuditEvent) bool {
+							e, ok := event.(*apievents.ValidateMFAAuthResponse)
+							if !ok {
+								return false
+							}
+							return e.FlowType == apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE
+						}),
+						"expected validate MFA audit event with flow type %s to be emitted but was not found",
+						apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
+					)
+				}
 			}
 		}
 		t.Run(test.name+"/ssh", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {

@@ -21,27 +21,23 @@ package clickhouse
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"compress/flate"
 	"compress/gzip"
 	"context"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/andybalholm/brotli"
 	"github.com/gravitational/trace"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -230,33 +226,4 @@ func getURL(db types.Database) (*url.URL, error) {
 	}
 	u.Scheme = "https"
 	return u, nil
-}
-
-// NewHTTPEndpointsResolver resolves a ClickHouse HTTP endpoint from DB URI.
-func NewHTTPEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	dbURL, err := getURL(db)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Not all of our DB engines respect http proxy env vars, but this one does.
-	// The endpoint resolved for TCP health checks should be the one that the
-	// agent will actually connect to, since often proxy env vars are set to
-	// accommodate self-imposed network restrictions that force external traffic
-	// to go through a proxy.
-	proxyFunc := httpproxy.FromEnvironment().ProxyFunc()
-	proxyURL, err := proxyFunc(dbURL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if proxyURL != nil {
-		dbURL = proxyURL
-	}
-	host := dbURL.Hostname()
-	port := cmp.Or(dbURL.Port(), "443")
-	hostPort := net.JoinHostPort(host, port)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{hostPort}, nil
-	}), nil
 }

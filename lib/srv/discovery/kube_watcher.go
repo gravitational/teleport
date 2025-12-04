@@ -80,6 +80,7 @@ func (s *Server) startKubeWatchers() error {
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
+		Clock:          s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -58,8 +58,10 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -97,6 +99,10 @@ type AuthService interface {
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
+	GetK8sTokenReviewValidator() kubetoken.InClusterValidator
+	GetK8sJWKSValidator() kubetoken.JWKSValidator
+	GetK8sOIDCValidator() *kubetoken.KubernetesOIDCTokenValidator
+	GetSpaceliftIDTokenValidator() spacelift.Validator
 	GetTerraformIDTokenValidator() terraformcloud.Validator
 	services.Presence
 }
@@ -290,8 +296,6 @@ func (s *Server) handleJoinMethod(
 	joinMethod types.JoinMethod,
 ) (messages.Response, error) {
 	switch joinMethod {
-	case types.JoinMethodToken:
-		return s.handleTokenJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodAzureDevops:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateAzureDevopsToken)
 	case types.JoinMethodBitbucket:
@@ -300,24 +304,30 @@ func (s *Server) handleJoinMethod(
 		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodCircleCI:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateCircleCIToken)
-	case types.JoinMethodIAM:
-		return s.handleIAMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodEC2:
 		return s.handleEC2Join(stream, authCtx, clientInit, token)
 	case types.JoinMethodEnv0:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
-	case types.JoinMethodOracle:
-		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodGCP:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGCPToken)
 	case types.JoinMethodGitHub:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGitlabToken)
+	case types.JoinMethodIAM:
+		return s.handleIAMJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodKubernetes:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateKubernetesToken)
+	case types.JoinMethodOracle:
+		return s.handleOracleJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodSpacelift:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTerraformCloud:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
+	case types.JoinMethodToken:
+		return s.handleTokenJoin(stream, authCtx, clientInit, token)
 	default:
 		// TODO(nklaassen): implement checks for all join methods.
 		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)

@@ -21,7 +21,6 @@ package snowflake
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"compress/gzip"
 	"context"
 	"crypto/tls"
@@ -42,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -684,18 +682,4 @@ func parseURI(uri string) (*url.URL, error) {
 	}
 	snowflakeURL, err := url.Parse(uri)
 	return snowflakeURL, trace.Wrap(err)
-}
-
-// NewEndpointsResolver resolves an endpoint from DB URI.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	dbURL, err := parseURI(db.GetURI())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	host := dbURL.Hostname()
-	port := cmp.Or(dbURL.Port(), "443")
-	hostPort := net.JoinHostPort(host, port)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{hostPort}, nil
-	}), nil
 }

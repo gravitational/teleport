@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -155,9 +156,12 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 				Context:    ctx,
 				Clock:      clockwork.NewRealClock(),
 				Log:        slog.Default(),
+				GCPClients: &gcptest.Clients{GCPSQL: test.mockGCPClient},
 			}).(*Engine)
 
-			databaseUser, password, err := engine.getGCPUserAndPassword(ctx, sessionCtx, test.mockGCPClient)
+			connector, err := engine.newConnector(sessionCtx)
+			require.NoError(t, err)
+			databaseUser, password, err := connector.gcpAuth.getGCPUserAndPassword(ctx)
 			if test.wantError {
 				require.Error(t, err)
 			} else {

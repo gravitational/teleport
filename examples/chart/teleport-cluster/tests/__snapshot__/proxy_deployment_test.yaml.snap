@@ -349,6 +349,9 @@ should set resources for wait-auth-update initContainer when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: GOMEMLIMIT
+        value: "3865470567"
       image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
@@ -475,6 +478,9 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: GOMEMLIMIT
+        value: "3865470567"
       image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:

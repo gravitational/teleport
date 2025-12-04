@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -5919,4 +5920,64 @@ func (c *Client) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedT
 		Token: token,
 	})
 	return res.GetToken(), trace.Wrap(err)
+}
+
+// AppAuthConfigClient returns an [appauthconfigv1.AppAuthConfigServiceClient].
+func (c *Client) AppAuthConfigClient() appauthconfigv1.AppAuthConfigServiceClient {
+	return appauthconfigv1.NewAppAuthConfigServiceClient(c.conn)
+}
+
+// GetAppAuthConfig fetches an app auth config by name.
+func (c *Client) GetAppAuthConfig(ctx context.Context, name string) (*appauthconfigv1.AppAuthConfig, error) {
+	clt := c.AppAuthConfigClient()
+	res, err := clt.GetAppAuthConfig(ctx, &appauthconfigv1.GetAppAuthConfigRequest{
+		Name: name,
+	})
+	return res, trace.Wrap(err)
+}
+
+// GetAppAuthConfig lists app auth configs with pagination.
+func (c *Client) ListAppAuthConfigs(ctx context.Context, limit int, startKey string) ([]*appauthconfigv1.AppAuthConfig, string, error) {
+	clt := c.AppAuthConfigClient()
+	res, err := clt.ListAppAuthConfigs(ctx, &appauthconfigv1.ListAppAuthConfigsRequest{
+		PageSize:  int32(limit),
+		PageToken: startKey,
+	})
+	return res.GetConfigs(), res.GetNextPageToken(), trace.Wrap(err)
+}
+
+// CreateAppAuthConfig creates a new app auth config.
+func (c *Client) CreateAppAuthConfig(ctx context.Context, config *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
+	clt := c.AppAuthConfigClient()
+	res, err := clt.CreateAppAuthConfig(ctx, &appauthconfigv1.CreateAppAuthConfigRequest{
+		Config: config,
+	})
+	return res, trace.Wrap(err)
+}
+
+// UpdateAppAuthConfig updates an existent app auth config.
+func (c *Client) UpdateAppAuthConfig(ctx context.Context, config *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
+	clt := c.AppAuthConfigClient()
+	res, err := clt.UpdateAppAuthConfig(ctx, &appauthconfigv1.UpdateAppAuthConfigRequest{
+		Config: config,
+	})
+	return res, trace.Wrap(err)
+}
+
+// UpsertAppAuthConfig creates or updates an app auth config.
+func (c *Client) UpsertAppAuthConfig(ctx context.Context, config *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error) {
+	clt := c.AppAuthConfigClient()
+	res, err := clt.UpsertAppAuthConfig(ctx, &appauthconfigv1.UpsertAppAuthConfigRequest{
+		Config: config,
+	})
+	return res, trace.Wrap(err)
+}
+
+// DeleteAppAuthConfig deletes an app auth config.
+func (c *Client) DeleteAppAuthConfig(ctx context.Context, name string) error {
+	clt := c.AppAuthConfigClient()
+	_, err := clt.DeleteAppAuthConfig(ctx, &appauthconfigv1.DeleteAppAuthConfigRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
 }

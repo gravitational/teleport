@@ -27,6 +27,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -77,6 +78,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+var errMockInvalidToken = errors.New("invalid token")
 
 func renewBotCerts(
 	ctx context.Context,
@@ -989,7 +992,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	k8sReadFileFunc := func(name string) ([]byte, error) {
 		return []byte(k8sTokenName), nil
 	}
-	a.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+	a.SetK8sJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
 		if tkn == k8sTokenName {
 			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
@@ -1144,7 +1147,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 
 	botName := "bot"
 	k8sTokenName := "jwks-matching-service-account"
-	a.SetJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+	a.SetK8sJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
 		if tkn == k8sTokenName {
 			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}

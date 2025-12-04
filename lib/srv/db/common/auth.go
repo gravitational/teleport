@@ -51,10 +51,9 @@ import (
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
-	libazure "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
@@ -180,9 +179,9 @@ type AuthConfig struct {
 	Logger *slog.Logger
 
 	// AzureClients provides Azure SDK clients.
-	AzureClients cloud.AzureClients
+	AzureClients azure.Clients
 	// GCPClients provides GCP SDK clients.
-	GCPClients cloud.GCPClients
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// awsClients is an SDK client provider.
@@ -532,7 +531,7 @@ func (a *dbAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string)
 }
 
 func (a *dbAuth) getCloudTokenSource(ctx context.Context, databaseUser string, scopes []string) (*cloudTokenSource, error) {
-	gcpIAM, err := a.cfg.GCPClients.GetGCPIAMClient(ctx)
+	gcpIAM, err := a.cfg.GCPClients.GetIAMClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -600,7 +599,7 @@ or "iam.serviceAccounts.getAccessToken" IAM permission.
 // It is used to generate a one-time password when connecting to GCP MySQL
 // databases which don't support IAM authentication.
 func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
-	gcpCloudSQL, err := a.cfg.GCPClients.GetGCPSQLAdminClient(ctx)
+	gcpCloudSQL, err := a.cfg.GCPClients.GetSQLAdminClient(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -661,7 +660,7 @@ SQL Admin" GCP IAM role, or "cloudsql.users.update" IAM permission.
 // GetAzureAccessToken generates Azure database access token.
 func (a *dbAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
 	a.cfg.Logger.DebugContext(ctx, "Generating Azure access token")
-	cred, err := a.cfg.AzureClients.GetAzureCredential()
+	cred, err := a.cfg.AzureClients.GetCredential(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -742,15 +741,15 @@ func (a *dbAuth) GetAzureCacheForRedisToken(ctx context.Context, database types.
 		return "", trace.Wrap(err)
 	}
 
-	var client libazure.CacheForRedisClient
+	var client azure.CacheForRedisClient
 	switch resourceID.ResourceType.String() {
 	case "Microsoft.Cache/Redis":
-		client, err = a.cfg.AzureClients.GetAzureRedisClient(resourceID.SubscriptionID)
+		client, err = a.cfg.AzureClients.GetRedisClient(ctx, resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
 	case "Microsoft.Cache/redisEnterprise", "Microsoft.Cache/redisEnterprise/databases":
-		client, err = a.cfg.AzureClients.GetAzureRedisEnterpriseClient(resourceID.SubscriptionID)
+		client, err = a.cfg.AzureClients.GetRedisEnterpriseClient(ctx, resourceID.SubscriptionID)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -1153,7 +1152,7 @@ func (a *dbAuth) GetAzureIdentityResourceID(ctx context.Context, identityName st
 
 // getCurrentAzureVM fetches current Azure Virtual Machine struct. If Teleport
 // is not running on Azure, returns an error.
-func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachine, error) {
+func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*azure.VirtualMachine, error) {
 	instanceID, err := a.cfg.azureIMDSClient.GetID(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1164,7 +1163,7 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 		return nil, trace.Wrap(err)
 	}
 
-	vmClient, err := a.cfg.AzureClients.GetAzureVirtualMachinesClient(parsedInstanceID.SubscriptionID)
+	vmClient, err := a.cfg.AzureClients.GetVirtualMachinesClient(ctx, parsedInstanceID.SubscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

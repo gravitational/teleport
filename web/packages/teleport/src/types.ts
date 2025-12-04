@@ -76,6 +76,7 @@ export enum NavTitle {
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
   WorkloadIdentity = 'Workload Identity',
+  AccessAutomations = 'Access Automations',
 
   // Resources Requests
   NewRequest = 'New Request',

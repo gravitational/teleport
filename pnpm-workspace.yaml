@@ -37,9 +37,29 @@ shellEmulator: true
 # https://github.com/gravitational/teleport/issues/46019
 packageImportMethod: clone-or-copy
 patchedDependencies:
-  # Needed after the upgrade to TypeScript 5.9.2.
-  '@types/wicg-file-system-access@2023.10.6': web/patches/@types__wicg-file-system-access@2023.10.6.patch
   # Needed for roundRect support which was merged to jest-canvas-mock but not released.
   jest-canvas-mock@2.5.2: web/patches/jest-canvas-mock@2.5.2.patch
 # Do not install packages released less than 2 days (2880 minutes) ago
 minimumReleaseAge: 2880
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  # semver v6 and v5 is published with no provenance.
+  - semver@6.3.1 || 5.7.2
+  # Subpackages of swc have no provenance. https://github.com/swc-project/swc/issues/11342
+  - "@swc/core-darwin-x64@1.15.3"
+  - "@swc/core-darwin-arm64@1.15.3"
+  - "@swc/core-linux-x64-musl@1.15.3"
+  - "@swc/core-linux-x64-gnu@1.15.3"
+  - "@swc/core-linux-arm64-gnu@1.15.3"
+  - "@swc/core-linux-arm64-musl@1.15.3"
+  - "@swc/core-win32-x64-msvc@1.15.3"
+  - "@swc/core-linux-arm-gnueabihf@1.15.3"
+  - "@swc/core-win32-ia32-msvc@1.15.3"
+  - "@swc/core-win32-arm64-msvc@1.15.3"
+  # undici-types v6 is published with no provenance. https://github.com/nodejs/undici/issues/4666
+  - undici-types@6.21.0
+overrides:
+  # styled-components hardcodes specific version of csstype. Our design package also pulls in
+  # csstype. Unfortunately, it looks like types from 3.1.3 are incompatible with 3.2.3. Since this
+  # is a types-only package, we override it to 3.2.3 so that it matches the version from design.
+  "styled-components@6.1.19>csstype@3.1.3": "^3.2.3"

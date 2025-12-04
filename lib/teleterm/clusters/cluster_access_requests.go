@@ -234,7 +234,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, rootClient *client.ClusterClie
 		return trace.Wrap(err)
 	}
 
-	err = c.clusterClient.SaveProfile(true)
+	err = SaveProfileAndPreserveSiteName(c.clusterClient, true)
 	return trace.Wrap(err)
 }
 

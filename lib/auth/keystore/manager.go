@@ -587,7 +587,9 @@ func (m *Manager) FindDecryptersByLabels(ctx context.Context, labels ...*types.K
 		for _, label := range labels {
 			decs, err := backend.findDecryptersByLabel(ctx, label)
 			if err != nil {
-				m.logger.DebugContext(ctx, "could not find key for label", "backend", backend.name(), "label_type", label.Type, "label", label.Label, "error", err)
+				if !trace.IsNotImplemented(err) {
+					m.logger.DebugContext(ctx, "could not find key for label", "backend", backend.name(), "label_type", label.Type, "label", label.Label, "error", err)
+				}
 				continue
 			}
 

@@ -387,6 +387,7 @@ func TestConfigReading(t *testing.T) {
 					},
 					ResourceGroups: []string{"group1"},
 					Subscriptions:  []string{"sub1"},
+					Integration:    "integration1",
 				},
 			},
 			GCPMatchers: []GCPMatcher{
@@ -520,6 +521,7 @@ func TestConfigReading(t *testing.T) {
 					ResourceGroups: []string{"rg1", "rg2"},
 					Types:          []string{"mysql"},
 					Regions:        []string{"eastus", "westus"},
+					Integration:    "integration1",
 					ResourceTags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
@@ -878,6 +880,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				ResourceGroups: []string{"group1", "group2"},
 				Types:          []string{"postgres", "mysql"},
 				Regions:        []string{"eastus", "centralus"},
+				Integration:    "integration123",
 				ResourceTags: map[string]apiutils.Strings{
 					"a": {"b"},
 				},
@@ -1602,6 +1605,7 @@ func makeConfigFixture() string {
 			},
 			ResourceGroups: []string{"group1"},
 			Subscriptions:  []string{"sub1"},
+			Integration:    "integration1",
 		},
 	}
 
@@ -1721,6 +1725,7 @@ func makeConfigFixture() string {
 			ResourceTags: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
+			Integration: "integration1",
 		},
 		{
 			Subscriptions:  []string{"sub3", "sub4"},
@@ -3900,6 +3905,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							},
 							Suffix: "blue",
 						},
+						Integration: "integration123",
 					},
 				},
 			},
@@ -3921,6 +3927,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 						},
 						Regions:        []string{"*"},
 						ResourceTags:   types.Labels{"*": []string{"*"}},
+						Integration:    "integration123",
 						ResourceGroups: []string{"*"},
 					},
 				},
@@ -4628,8 +4635,9 @@ func TestDiscoveryConfig(t *testing.T) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
 					{
-						"types":   []string{"aks"},
-						"regions": []string{"eucentral1"},
+						"types":       []string{"aks"},
+						"regions":     []string{"eucentral1"},
+						"integration": "integration1",
 						"tags": cfgMap{
 							"discover_teleport": "yes",
 						},
@@ -4639,8 +4647,9 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedAzureMatchers: []types.AzureMatcher{{
-				Types:   []string{"aks"},
-				Regions: []string{"eucentral1"},
+				Types:       []string{"aks"},
+				Regions:     []string{"eucentral1"},
+				Integration: "integration1",
 				ResourceTags: map[string]apiutils.Strings{
 					"discover_teleport": []string{"yes"},
 				},
@@ -4841,6 +4850,23 @@ func TestDiscoveryConfig(t *testing.T) {
 				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
 					{
 						"types":   []string{"ec2"},
+						"regions": []string{"invalid-region"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+		},
+		{
+			desc:          "for EC2 discovery, region can be set to wildcard",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
 						"regions": []string{"*"},
 						"tags": cfgMap{
 							"discover_teleport": "yes",
@@ -4848,6 +4874,22 @@ func TestDiscoveryConfig(t *testing.T) {
 					},
 				}
 			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"*"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "aws-discovery-iam-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "default-installer",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+			}},
 		},
 		{
 			desc:          "AWS section is filled with invalid join method",

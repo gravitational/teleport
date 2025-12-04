@@ -247,6 +247,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Wifi} text="Wifi" />
     <IconBox IconCmpt={Icon.Windows} text="Windows" />
     <IconBox IconCmpt={Icon.Wrench} text="Wrench" />
+    <IconBox IconCmpt={Icon.XCheck} text="XCheck" />
     <IconBox IconCmpt={Icon.Youtube} text="Youtube" />
   </Flex>
 );

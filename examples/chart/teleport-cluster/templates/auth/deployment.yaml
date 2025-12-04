@@ -157,8 +157,13 @@ spec:
       - name: "teleport"
         image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $auth.imagePullPolicy }}
-        {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
+        {{- $gomemlimit := include "teleport-cluster.gomemlimit" $auth }}
+        {{- if or $auth.extraEnv $auth.tls.existingCASecretName $gomemlimit }}
         env:
+        {{- if $gomemlimit }}
+        - name: GOMEMLIMIT
+          value: {{ $gomemlimit | quote }}
+        {{- end }}
         {{- if (gt (len $auth.extraEnv) 0) }}
           {{- toYaml $auth.extraEnv | nindent 8 }}
         {{- end }}

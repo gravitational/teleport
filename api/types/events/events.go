@@ -757,6 +757,10 @@ func (m *AppSessionChunk) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *AppSessionChunk) GetSessionChunkID() string {
+	return m.SessionChunkID
+}
+
 func (m *AppSessionRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {

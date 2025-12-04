@@ -25,6 +25,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -41,12 +42,18 @@ func FetchMySQLVersionInternal(ctx context.Context, dialer client.Dialer, databa
 		return "", trace.ConnectionProblem(err, "failed to connect to MySQL")
 	}
 	defer conn.Close()
+	return ReadMySQLVersion(ctx, conn)
+}
 
+// ReadMySQLVersion tries to read the server version from initial handshake message.
+// Error is returned if MySQL returns ERR package.
+func ReadMySQLVersion(ctx context.Context, conn net.Conn) (string, error) {
 	// Set connection deadline if passed context has it.
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetReadDeadline(deadline); err != nil {
 			return "", trace.Wrap(err)
 		}
+		defer conn.SetReadDeadline(time.Time{})
 	}
 
 	connBuf := NewBufferedConn(ctx, conn)
@@ -115,9 +122,10 @@ func IsHandshakeV10Packet(conn BufferedConn) (bool, error) {
 
 // BufferedConn is a net.Conn wrapper with additional Peek() method.
 type BufferedConn struct {
+	net.Conn
+
 	ctx    context.Context
 	reader *bufio.Reader
-	net.Conn
 }
 
 // NewBufferedConn wraps a [net.Conn] in a new [BufferedConn].
