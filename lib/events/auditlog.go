@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"iter"
@@ -39,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
@@ -213,6 +215,11 @@ type AuditLog struct {
 	decrypter DecryptionWrapper
 }
 
+// AlertHandler handles creating cluster alerts.
+type AlertHandler interface {
+	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+}
+
 // AuditLogConfig specifies configuration for AuditLog server
 type AuditLogConfig struct {
 	// DataDir is the directory where audit log stores the data
@@ -263,6 +270,8 @@ type AuditLogConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider provides recording metadata service
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// AlertHandler handles creating cluster alerts.
+	AlertHandler AlertHandler
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -802,6 +811,22 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			// If used percentage goes above the alerting level, write to logs as well.
 			if usedPercent > float64(DiskAlertThreshold) {
 				l.log.WarnContext(l.ctx, "Free disk space for audit log is running low", "percentage_used", usedPercent)
+				if l.AlertHandler != nil {
+					alert, err := types.NewClusterAlert(
+						"audit-log-disk-usage",
+						"Free disk space for audit log is running low.",
+						types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindInstance, types.VerbRead)),
+						types.WithAlertLabel(types.AlertOnLogin, "yes"),
+						types.WithAlertExpires(l.Clock.Now().Add(DiskAlertInterval)),
+					)
+					if err != nil {
+						l.log.WarnContext(l.ctx, "Error creating disk usage alert", "error", err)
+						continue
+					}
+					if err := l.AlertHandler.UpsertClusterAlert(l.ctx, alert); err != nil {
+						l.log.WarnContext(l.ctx, "Error upserting cluster alert", "error", err)
+					}
+				}
 			}
 		case <-l.ctx.Done():
 			return

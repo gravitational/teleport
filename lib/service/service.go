@@ -2342,6 +2342,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Decrypter:                 encryptedIO,
 			SessionSummarizerProvider: sessionSummarizerProvider,
 			RecordingMetadataProvider: recordingMetadataProvider,
+			AlertHandler:              local.NewStatusService(b),
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
