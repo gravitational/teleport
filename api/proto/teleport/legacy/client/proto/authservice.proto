@@ -28,6 +28,7 @@ import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/linuxdesktop/v1/linux_desktop.proto";
 import "teleport/mfa/v1/mfa.proto";
 import "teleport/usageevents/v1/usageevents.proto";
 
@@ -2208,6 +2209,8 @@ message PaginatedResource {
     // IdentityCenterAccountAssignment represents a requestable Identity Center
     // Account Assignment
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
+    // LinuxDesktop represents LinuxDesktopResource
+    teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 17 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.

@@ -1217,6 +1217,13 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		}
 
 		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}, RequiresRequest: requiresRequest}
+	case types.KindLinuxDesktop:
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccount])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedReso{WindowsDesktop: desktop}, Logins: logins, RequiresRequest: requiresRequest}
 	case types.KindWindowsDesktop:
 		desktop, ok := resource.(*types.WindowsDesktopV3)
 		if !ok {
