@@ -1,3 +1,5 @@
+//go:build go1.25
+
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.
 //
@@ -14,15 +16,23 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !go1.25 && !goexperiment.synctest
+package synctest
 
-package inventory
+import (
+	"testing"
+	"testing/synctest" //nolint:depguard // this package wraps synctest
+)
 
-import "testing"
+// Test runs the provided function in a synctest bubble if synctest is
+// supported, otherwise skips the test. To support older versions of Go, the
+// function might be called in a subtest of the provided test.
+func Test(t *testing.T, f func(*testing.T)) {
+	// this version of Go (1.25+) is recent enough
+	synctest.Test(t, f)
+}
 
-// TODO(espadolini): DELETE IN v21 or after the oldest supported Teleport
-// version is on go 1.25
-
-func maybeSynctest(t *testing.T, fn func(*testing.T)) {
-	fn(t)
+// Wait blocks until every goroutine in the bubble is durably blocked. See
+// [synctest.Wait] for details. Wait will panic if called from outside a bubble.
+func Wait() {
+	synctest.Wait()
 }

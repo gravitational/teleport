@@ -156,6 +156,10 @@ linters:
                 google.golang.org/protobuf/protoadapt instead, or, better yet,
                 see if you can move the code generation for that message to the
                 modern protoc-gen-go.
+        synctest:
+          deny:
+            - pkg: testing/synctest
+              desc: 'use "github.com/gravitational/teleport/lib/utils/testutils/synctest" instead'
         test_packages:
           files:
             - '!$test'

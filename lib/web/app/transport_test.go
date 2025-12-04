@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -493,12 +494,19 @@ func Test_transport_with_integration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	conn, err := tr.DialContext(context.Background(), "", "")
+	ctxWithClientSrcAddr := authz.ContextWithClientSrcAddr(t.Context(), &utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        net.JoinHostPort("127.0.0.1", "55555"),
+	})
+
+	conn, err := tr.DialContext(ctxWithClientSrcAddr, "", "")
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		return integrationAppHandler.getConnection() != nil
 	}, 100*time.Millisecond, 10*time.Millisecond)
+
+	require.Equal(t, "127.0.0.1:55555", integrationAppHandler.getConnection().RemoteAddr().String())
 
 	message := "hello world"
 	messageSize := len(message)

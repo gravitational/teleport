@@ -80,9 +80,18 @@ Create the bot and save the access token.
 
 ### Set up RBAC for the plugin
 
-(!docs/pages/includes/plugins/rbac-with-friendly-name.mdx!)
+The required permissions for the plugin are configured in the preset `access-plugin`
+role. To generate credentials for the plugin, define either a Machine ID bot user
+or a regular Teleport user.
 
-(!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
+<Tabs>
+<TabItem label="Machine & Workload Identity">
+(!docs/pages/includes/plugins/rbac-impersonate-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/rbac-impersonate.mdx!)
+</TabItem>
+</Tabs>
 
 ### Export the access-plugin identity files
 

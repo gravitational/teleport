@@ -80,7 +80,7 @@ func (h *Handler) listUsersHandle(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	users, nextToken, err := clientutils.Page(
+	users, nextToken, _, err := clientutils.Page(
 		r.Context(),
 		int(limit),
 		values.Get("startKey"),

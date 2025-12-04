@@ -42,7 +42,8 @@ import {
 import Box, { BoxProps } from '../Box';
 
 export interface FlexProps
-  extends BoxProps,
+  extends
+    BoxProps,
     AlignItemsProps,
     JustifyContentProps,
     FlexWrapProps,

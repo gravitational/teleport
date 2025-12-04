@@ -141,7 +141,7 @@ func (s *TLSServer) onUpdate(ctx context.Context, cluster, _ types.KubeCluster) 
 }
 
 func (s *TLSServer) onDelete(ctx context.Context, cluster types.KubeCluster) error {
-	return s.unregisterKubeCluster(ctx, cluster.GetName())
+	return s.unregisterKubeCluster(ctx, cluster.GetName(), false)
 }
 
 func (s *TLSServer) matcher(cluster types.KubeCluster) bool {
@@ -213,29 +213,29 @@ func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeClu
 // unregisterKubeCluster unregisters the proxied Kube Cluster from the agent.
 // This function is called when the dynamic cluster is deleted/no longer match
 // the agent's resource matcher or when the agent is shutting down.
-func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) error {
+func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string, isShutdown bool) error {
 	var errs []error
 
 	errs = append(errs, s.stopHeartbeat(name))
 	s.fwd.removeKubeDetails(name)
 
-	shouldDeleteCluster := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
+	// A child process can be forked to upgrade the Teleport binary. The child
+	// will take over the heartbeats so do NOT delete them in that case.
+	shouldDeleteOnShutdown := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
 	sender, ok := s.TLSServerConfig.InventoryHandle.GetSender()
 	if ok {
 		// Manual deletion per cluster is only required if the auth server
 		// doesn't support actively cleaning up database resources when the
 		// inventory control stream is terminated during shutdown.
 		if capabilities := sender.Hello().Capabilities; capabilities != nil {
-			shouldDeleteCluster = shouldDeleteCluster && !capabilities.KubernetesCleanup
+			shouldDeleteOnShutdown = shouldDeleteOnShutdown && !capabilities.KubernetesCleanup
 		}
 	}
 
-	// A child process can be forked to upgrade the Teleport binary. The child
-	// will take over the heartbeats so do NOT delete them in that case.
-	// When unregistering a dynamic cluster, the context is empty and the
-	// decision will be to delete the kubernetes server.
-	if shouldDeleteCluster {
-		errs = append(errs, s.deleteKubernetesServer(ctx, name))
+	if !isShutdown || shouldDeleteOnShutdown {
+		if err := s.deleteKubernetesServer(ctx, name); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	// close active sessions before returning.

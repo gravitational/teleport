@@ -24,7 +24,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 type fakeHeartbeatSubmitter struct {
@@ -56,7 +56,7 @@ func (f *fakeHeartbeatSubmitter) SubmitHeartbeat(
 func TestHeartbeatService(t *testing.T) {
 	t.Parallel()
 
-	synctest.Run(func() {
+	synctest.Test(t, func(t *testing.T) {
 		log := utils.NewSlogLoggerForTests()
 		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
