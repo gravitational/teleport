@@ -589,5 +589,8 @@ automated issuance of overridden certificates. An Auth node with adequate access
 can mint the certificates and create/update the corresponding
 cert_authority_override resource as needed.
 
+tbot could be used as the integration point, monitoring CA rotation and
+interacting with a local script to issue new certificates.
+
 PKCS#11, while convenient, is not desirable when interacting with offline CAs,
 and is therefore considered out of scope.
