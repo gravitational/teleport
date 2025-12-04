@@ -203,15 +203,29 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 					return t.After(other), nil
 				}),
 			"between": typical.BinaryVariadicFunction[evaluationEnv](
-				func(t time.Time, interval ...time.Time) (bool, error) {
-					if len(interval) != 2 {
-						return false, trace.BadParameter("between expected 2 parameters: got %v", len(interval))
+				func(value any, args ...any) (bool, error) {
+					if len(args) != 2 {
+						return false, trace.BadParameter("between expected 2 parameters: got %v", len(args))
 					}
-					first, second := interval[0], interval[1]
-					if first.After(second) {
-						first, second = second, first
+
+					first, second := args[0], args[1]
+
+					// If the value provided is a time, do a time comparison
+					if t, ok := value.(time.Time); ok {
+						firstTime, ok1 := first.(time.Time)
+						secondTime, ok2 := second.(time.Time)
+						if !ok1 || !ok2 {
+							return false, trace.BadParameter("the time parameters provided are invalid time values")
+						}
+
+						if firstTime.After(secondTime) {
+							firstTime, secondTime = secondTime, firstTime
+						}
+						return t.After(firstTime) && t.Before(secondTime), nil
 					}
-					return t.After(first) && t.Before(second), nil
+
+					// If it's not a time, try semver comparison
+					return SemverBetween(value, first, second)
 				}),
 			"contains_any": typical.BinaryFunction[evaluationEnv](
 				func(s1, s2 Set) (bool, error) {
