@@ -92,6 +92,7 @@
     "GOAWAY",
     "GODEBUG",
     "GOMAXPROCS",
+    "GOMEMLIMIT",
     "GSLB",
     "Gbps",
     "Ghostunnel",
