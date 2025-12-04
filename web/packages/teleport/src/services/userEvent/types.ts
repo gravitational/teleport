@@ -181,15 +181,15 @@ export enum IntegrationEnrollCodeType {
  */
 export type IntegrationEnrollStepStatus =
   | {
-    code: Exclude<
-      IntegrationEnrollStatusCode,
-      IntegrationEnrollStatusCode.Error
-    >;
-  }
+      code: Exclude<
+        IntegrationEnrollStatusCode,
+        IntegrationEnrollStatusCode.Error
+      >;
+    }
   | {
-    code: IntegrationEnrollStatusCode.Error;
-    error: string;
-  };
+      code: IntegrationEnrollStatusCode.Error;
+      error: string;
+    };
 
 /**
  * IntegrationEnrollEventData defines integration
