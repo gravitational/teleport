@@ -21,6 +21,7 @@ import (
 	"net"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -87,6 +89,11 @@ func TestJoinToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	authService := newFakeAuthService(t)
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
+	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
+
+	// generate scoped tokens
 	scopedToken1 := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
@@ -101,30 +108,23 @@ func TestJoinToken(t *testing.T) {
 		},
 	}
 	scopedToken2 := proto.CloneOf(scopedToken1)
-	scopedToken2.Metadata.Name = "scoped2"
 	scopedToken2.Spec.AssignedScope = "/aa/cc"
+	scopedToken2.Metadata.Name = "scoped2"
 
 	scopedToken3 := proto.CloneOf(scopedToken1)
 	scopedToken3.Metadata.Name = "scoped3"
 
-	authService := newFakeAuthService(t)
-	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
-	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
+	maxUses := int32(5)
+	scopedTokenWithUsageLimit := proto.CloneOf(scopedToken1)
+	scopedTokenWithUsageLimit.Spec.MaxUses = &maxUses
+	scopedTokenWithUsageLimit.Metadata.Name = "scoped-with-limit"
 
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken1,
-	})
-	require.NoError(t, err)
-
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken2,
-	})
-	require.NoError(t, err)
-
-	_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
-		Token: scopedToken3,
-	})
-	require.NoError(t, err)
+	for _, tok := range []*joiningv1.ScopedToken{scopedToken1, scopedToken2, scopedToken3, scopedTokenWithUsageLimit} {
+		_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			Token: tok,
+		})
+		require.NoError(t, err)
+	}
 
 	proxy := newFakeProxy(authService)
 	proxy.join(t)
@@ -344,6 +344,40 @@ func TestJoinToken(t *testing.T) {
 				}),
 			))
 		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
+	})
+
+	t.Run("join with limited use scoped token", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			for range int(maxUses) {
+				go func() {
+					identity, err := joinViaProxy(
+						t.Context(),
+						scopedTokenWithUsageLimit.GetMetadata().GetName(),
+						proxyListener.Addr(),
+					)
+					require.NoError(t, err)
+					// Make sure the result contains a host ID and expected certificate roles.
+					require.NotEmpty(t, identity.ID.HostUUID)
+					require.Equal(t, types.RoleInstance, identity.ID.Role)
+					expectedSystemRoles := slices.DeleteFunc(
+						scopedTokenWithUsageLimit.GetSpec().GetRoles(),
+						func(s string) bool { return s == types.RoleInstance.String() },
+					)
+					require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
+
+					require.Equal(t, scopedTokenWithUsageLimit.GetSpec().GetAssignedScope(), identity.AgentScope)
+				}()
+			}
+			synctest.Wait()
+
+			// once max uses is reached, join attempts should fail
+			_, err := joinViaProxy(
+				t.Context(),
+				scopedTokenWithUsageLimit.GetMetadata().GetName(),
+				proxyListener.Addr(),
+			)
+			require.ErrorContains(t, err, joining.ErrTokenExhausted.Error())
+		})
 	})
 }
 

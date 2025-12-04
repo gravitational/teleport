@@ -42,6 +42,9 @@ message ScopedToken {
 
   // Spec is the token specification.
   ScopedTokenSpec spec = 6;
+
+  // The token's status including how many usage attempts have been made.
+  ScopedTokenStatus status = 7;
 }
 
 // ScopedTokenSpec is the specification of a scoped token.
@@ -57,4 +60,16 @@ message ScopedTokenSpec {
   // The joining method required in order to use this token.
   // Supported joining methods for scoped tokens only include 'token'.
   string join_method = 3;
+
+  // The number of resources that can be provisioned using this token.
+  optional int32 max_uses = 5;
+}
+
+// The token's status including how many usage attempts have been made.
+message ScopedTokenStatus {
+  // The number of successful provisioning attempts made using this token.
+  int32 attempted_uses = 1;
+
+  // The public keys associated with successful provisioning attempts.
+  repeated bytes public_keys_provisioned = 2;
 }

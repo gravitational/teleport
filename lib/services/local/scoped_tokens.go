@@ -18,17 +18,22 @@ package local
 
 import (
 	"context"
+	"errors"
+	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils/lockmap"
 )
 
 const (
@@ -37,7 +42,8 @@ const (
 
 // ScopedTokenService exposes backend functionality for working with scoped token resources.
 type ScopedTokenService struct {
-	svc *generic.ServiceWrapper[*joiningv1.ScopedToken]
+	svc        *generic.ServiceWrapper[*joiningv1.ScopedToken]
+	tokenLocks lockmap.LockMap[string]
 }
 
 // NewScopedTokenService creates a new ScopedTokenService.
@@ -66,6 +72,9 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 		return nil, trace.Wrap(err)
 	}
 
+	// status can not be explicitly assigned during creation
+	req.Token.Status = &joiningv1.ScopedTokenStatus{}
+
 	created, err := s.svc.CreateResource(ctx, req.GetToken())
 	return &joiningv1.CreateScopedTokenResponse{
 		Token: created,
@@ -92,14 +101,135 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, name string) (*
 		return nil, trace.Wrap(err)
 	}
 	if err := joining.ValidateTokenForUse(token); err != nil {
-		if trace.IsLimitExceeded(err) {
+		// unscoped tokens are automatically deleted on use after expiration,
+		// so we do the same here for parity
+		if errors.Is(err, joining.ErrTokenExpired) {
 			if err := s.svc.DeleteResource(ctx, name); err != nil {
-				return nil, trace.LimitExceeded("cleaning up expired token: %v", err)
+				return nil, trace.Wrap(err, "cleaning up expired token")
 			}
 		}
 		return nil, trace.Wrap(err)
 	}
 	return token, nil
+}
+
+// refetchToken will refetch the given scoped token from the backend and ensure
+// that it has not materially changed.
+func (s *ScopedTokenService) refetchToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+	tok, err := s.svc.GetResource(ctx, token.GetMetadata().GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if tok.GetSpec().GetAssignedScope() != token.GetSpec().GetAssignedScope() {
+		return nil, trace.BadParameter("re-fetched scoped token does not assign to the expected scope")
+	}
+
+	if tok.GetSpec().GetJoinMethod() != token.GetSpec().GetJoinMethod() {
+		return nil, trace.BadParameter("re-fetched scoped token does not use the expected join method")
+	}
+
+	roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fetchedRoles, err := types.NewTeleportRoles(tok.GetSpec().GetRoles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !roles.Equals(fetchedRoles) {
+		return nil, trace.BadParameter("re-fetched scoped token does not assign the expected roles")
+	}
+
+	return tok, nil
+}
+
+// ConsumeScopedToken consumes a usage of a scoped token. A
+// [*trace.LimitExceededError] is returned if the token is expired or has no
+// remaining uses, which should be treated as a failure to provision.
+func (s *ScopedTokenService) ConsumeScopedToken(ctx context.Context, token *joiningv1.ScopedToken, publicKey []byte) (*joiningv1.ScopedToken, error) {
+	token, err := s.refetchToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := joining.ValidateTokenForUse(token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// we can short circuit here if this token has no limits
+	if token.GetSpec().MaxUses == nil {
+		return token, nil
+	}
+
+	name := token.GetMetadata().GetName()
+	s.tokenLocks.Lock(name)
+	defer s.tokenLocks.Unlock(name)
+
+	if token.Status == nil {
+		token.Status = &joiningv1.ScopedTokenStatus{}
+	}
+
+	// retrying from a previously successful attempt doesn't count against the
+	// total, so we can short circuit without writing anything to the backend
+	if len(publicKey) > 0 {
+		for _, key := range token.GetStatus().GetPublicKeysProvisioned() {
+			// no need to check usage count if this is a retry of a
+			if slices.Equal(key, publicKey) {
+				return token, nil
+			}
+		}
+	}
+
+	// the max number of attempts to consume a scoped token before failing a
+	// join attempt
+	const maxConsumeAttempts = 7
+
+	// The max number of public keys that can be cached to support idempotent retries
+	// using the same scoped token. As of writing, a scoped token can not set a limit
+	// greater than 32. This limit is defined separately to prevent unintentionally
+	// exploding cached public keys by increasing scoped token usage limits alone.
+	const idempotencyLimit = 32
+
+	// retry jitter to spread out attempts to consume scoped token
+	jitter := func() time.Duration {
+		return retryutils.HalfJitter(time.Second * 1)
+	}
+
+	// updates may fail due to revision changes from other auth instances, so we run
+	// any required updates in a retry loop
+	for range maxConsumeAttempts {
+		if token.Status.AttemptedUses >= token.GetSpec().GetMaxUses() {
+			return nil, trace.Wrap(joining.ErrTokenExhausted)
+		}
+
+		token.Status.AttemptedUses++
+		if token.GetSpec().GetMaxUses() < idempotencyLimit {
+			token.Status.PublicKeysProvisioned = append(token.Status.PublicKeysProvisioned, publicKey)
+		}
+
+		updated, err := s.svc.ConditionalUpdateResource(ctx, token)
+		if err == nil {
+			return updated, nil
+		}
+		if !errors.Is(err, backend.ErrIncorrectRevision) {
+			return nil, trace.Wrap(err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case <-time.After(jitter()):
+		}
+
+		token, err = s.refetchToken(ctx, token)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return nil, trace.LimitExceeded("too many failed attempts to consume scoped token")
 }
 
 func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {

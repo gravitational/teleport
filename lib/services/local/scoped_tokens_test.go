@@ -19,7 +19,9 @@ package local_test
 import (
 	"cmp"
 	"slices"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -47,8 +50,7 @@ func TestScopedTokenService(t *testing.T) {
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	// service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -347,4 +349,70 @@ func TestScopedTokenList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScopedTokenConsumption(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		bk, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+		require.NoError(t, err)
+
+		ctx := t.Context()
+
+		maxUses := int32(3)
+		token := &joiningv1.ScopedToken{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:    "testtoken",
+				Expires: timestamppb.New(time.Now().Add(time.Hour * 30)),
+			},
+			Scope: "/test",
+			Spec: &joiningv1.ScopedTokenSpec{
+				AssignedScope: "/test/one",
+				JoinMethod:    "token",
+				Roles:         []string{types.RoleNode.String()},
+				MaxUses:       &maxUses,
+			},
+		}
+
+		created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+			Token: token,
+		})
+		require.NoError(t, err)
+
+		publicKey := []byte("public key")
+		wg := sync.WaitGroup{}
+		// maxUses - 1 to account for retrying with the same public key
+		for range int(maxUses - 1) {
+			wg.Go(func() {
+				tok, err := service.UseScopedToken(ctx, created.Token.Metadata.Name)
+				require.NoError(t, err)
+
+				// should only consume a usage the first time
+				tok, err = service.ConsumeScopedToken(ctx, tok, publicKey)
+				require.NoError(t, err)
+
+				// should always consume a usage
+				_, err = service.ConsumeScopedToken(ctx, tok, nil)
+				require.NoError(t, err)
+			})
+		}
+
+		wg.Wait()
+		synctest.Wait()
+		// using a scoped token should still succeed even after exhausting uses because
+		// the token could still be used with a previously authenticated public key
+		tok, err := service.UseScopedToken(ctx, created.Token.Metadata.Name)
+		require.NoError(t, err)
+
+		// attempting to consume again should fail
+		_, err = service.ConsumeScopedToken(ctx, tok, nil)
+		require.ErrorIs(t, err, joining.ErrTokenExhausted)
+
+		// attempting to consume with a previously successful public key should succeed
+		_, err = service.ConsumeScopedToken(ctx, tok, publicKey)
+		require.NoError(t, err)
+	})
 }

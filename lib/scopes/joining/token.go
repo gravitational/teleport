@@ -35,6 +35,9 @@ var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodToken): {},
 }
 
+// maxTokenUsageLimit is the upper limit of any scoped token's configured max uses.
+const maxTokenUsageLimit = 32
+
 // StrongValidateToken checks if the scoped token is well-formed according to
 // all scoped token rules. This function *must* be used to validate any scoped
 // token being created from scratch. When validating existing scoped token
@@ -94,6 +97,16 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		}
 	}
 
+	if spec.MaxUses != nil {
+		if *spec.MaxUses < 0 {
+			return trace.BadParameter("max uses must not be negative")
+		}
+
+		if *spec.MaxUses > maxTokenUsageLimit {
+			return trace.BadParameter("max uses must not be greater than %d", maxTokenUsageLimit)
+		}
+	}
+
 	return nil
 }
 
@@ -127,8 +140,12 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
+var ErrTokenExpired = &trace.LimitExceededError{Message: "scoped token is expired"}
+
+var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token has met its max allowed uses"}
+
 // ValidateTokenForUse checks if a given scoped token can be used for
-// provisioning.
+// provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	if err := WeakValidateToken(token); err != nil {
 		return trace.Wrap(err)
@@ -139,9 +156,8 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 		return nil
 	}
 
-	now := time.Now().UTC()
-	if ttl.AsTime().Before(now) {
-		return trace.LimitExceeded("scoped token is expired")
+	if ttl.AsTime().Before(time.Now()) {
+		return trace.Wrap(ErrTokenExpired)
 	}
 
 	return nil
@@ -262,4 +278,9 @@ func (t *Token) GetAllowRules() []*types.TokenRule {
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
 	return types.NewDuration(0)
+}
+
+// Scoped returns the wrapped scoped token.
+func (t *Token) Scoped() *joiningv1.ScopedToken {
+	return t.scoped
 }
