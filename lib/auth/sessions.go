@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -535,6 +537,56 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// some check here to see if device is checked..
+	// check if anyrole requires device trust
+	deviceTrustRequired := false
+	for _, role := range checker.Roles() {
+		mode := role.GetOptions().DeviceTrustMode
+
+		if mode == constants.DeviceTrustModeRequired ||
+			mode == constants.DeviceTrustModeRequiredForHumans {
+			deviceTrustRequired = true
+			break
+		}
+	}
+
+	// if required, validate the request has the device ID extension; assume value means user authenticated with that device by CA
+	if deviceTrustRequired {
+		if req.DeviceExtensions.DeviceID == "" {
+			errMsg := fmt.Sprintf("access to application %s requires a trusted device", req.AppName)
+			a.emitter.EmitAuditEvent(ctx, &apievents.AuthAttempt{
+				Metadata: apievents.Metadata{
+					Type:        events.AuthAttemptEvent,
+					Code:        events.AuthAttemptFailureCode,
+					ClusterName: req.ClusterName,
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerVersion:   teleport.Version,
+					ServerID:        a.ServerID,
+					ServerNamespace: apidefaults.Namespace,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: req.User,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: req.ClientAddr,
+				},
+				Status: apievents.Status{
+					Success:     false,
+					Error:       errMsg,
+					UserMessage: errMsg,
+				},
+				AppMetadata: apievents.AppMetadata{
+					AppURI:        req.AppURI,
+					AppPublicAddr: req.PublicAddr,
+					AppName:       req.AppName,
+					AppTargetPort: uint32(req.AppTargetPort),
+				},
+			})
+			return nil, trace.AccessDenied("%s", errMsg)
+		}
 	}
 
 	// Create services.WebSession for this session.
