@@ -128,6 +128,7 @@ func (s *Server) Handler() http.Handler {
 	r.HandleFunc("GET /v1.0/groups", s.handleListGroups)
 	r.HandleFunc("GET /v1.0/groups/{groupid}/members", s.handleListGroupMembers)
 	r.HandleFunc("/v1.0/", s.handleCatchAll)
+	r.HandleFunc("/metadata/identity/oauth2/token", s.handleGetToken)
 
 	return r
 }
@@ -207,6 +208,21 @@ func (s *Server) handleCatchAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.NotFound(w, r)
+}
+
+// handleGetToken handles token request.
+func (s *Server) handleGetToken(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	// credential detail is irrelevant.
+	const token = `{
+		"token_type": "Bearer",
+		"scope": "Mail.Read User.Read",
+		"expires_in": 3600,
+		"ext_expires_in": 3600,
+		"access_token": "abc-access-token",
+		"refresh_token": "abc-refresh-token"
+	}`
+	w.Write([]byte(token))
 }
 
 // Paginator emulates the Graph API's pagination with the given static set of objects.

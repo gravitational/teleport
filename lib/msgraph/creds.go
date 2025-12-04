@@ -23,11 +23,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 )
 
@@ -90,24 +86,4 @@ func (c *Client) VerifyCredentials(ctx context.Context, getResourcesFunc func(ct
 	default:
 		return trace.Wrap(err, "verifying Graph API credentials")
 	}
-}
-
-// NoopTokenProvider should only be used in test.
-type NoopTokenProvider struct {
-	mu    sync.Mutex
-	Token string
-}
-
-// GetToken returns a fake token.
-func (t *NoopTokenProvider) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if t.Token == "" {
-		t.Token = uuid.NewString()
-	}
-
-	return azcore.AccessToken{
-		Token: t.Token,
-	}, nil
 }
