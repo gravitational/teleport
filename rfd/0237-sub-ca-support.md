@@ -259,10 +259,11 @@ downstream systems to only know about/trust the external root CA.
 
 The exception to the above is Windows PKI / smart card authentication, which
 requires the issuing CA to be directly known by the NTAuth store (see
-[Guidelines for smart card logon with third-party CAs](
-https://learn.microsoft.com/en-us/troubleshoot/windows-server/certificates-and-public-key-infrastructure-pki/enabling-smart-card-logon-third-party-certification-authorities),
+[Guidelines for smart card logon with third-party CAs][windows-smartcard-logon],
 _"must be issued from a CA that is in the NTAuth store"_). Therefore, the chain
-is not provided for the "windows" CA, as the Sub CA must be known.
+is not provided for the "windows" CA, as the Sub CA must be known. (Note: a
+similar restriction likely applies to DB access for MSSQL Server with PKINT
+authn - [public docs][mssql-pub] and [sources][mssql-sources].)
 
 ```diff
  package proto // api/proto/teleport/legacy/client/proto
@@ -276,6 +277,10 @@ is not provided for the "windows" CA, as the Sub CA must be known.
 +  repeated types.X509Certificate TrustChain = 3;
  }
 ```
+
+[windows-smartcard-logon]: https://learn.microsoft.com/en-us/troubleshoot/windows-server/certificates-and-public-key-infrastructure-pki/enabling-smart-card-logon-third-party-certification-authorities
+[mssql-pub]: https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/sql-server-ad-pkinit/
+[mssql-sources]: https://github.com/gravitational/teleport/blob/99843ebb0ed5ddc4f4e9e34d1cb23e008afac0f8/lib/auth/db.go#L160
 
 ### Subject customization and CA restrictions
 
