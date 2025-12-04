@@ -39,10 +39,6 @@ spec:
       - name: "teleport"
         image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $proxy.imagePullPolicy }}
-{{- if $proxy.resources }}
-        resources:
-  {{- toYaml $proxy.resources | nindent 10 }}
-{{- end }}
 {{- if or $proxy.extraEnv $proxy.tls.existingCASecretName }}
         env:
   {{- if (gt (len $proxy.extraEnv) 0) }}
