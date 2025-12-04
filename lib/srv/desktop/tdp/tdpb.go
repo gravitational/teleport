@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
-	"reflect"
 
 	"github.com/google/uuid"
 	tdpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -18,9 +20,8 @@ import (
 )
 
 const (
-	MAX_MESSAGE_LENGTH        = 1024 * 1024 /* 1MiB */
-	DEFAULT_MESSAGE_RECV_SIZE = 4096
-	TDPB_HEADER_LENGTH        = 8
+	maxMessageLength = 10 * 1024 * 1024 /* 10MiB */
+	tdpbHeaderLength = 8
 )
 
 var (
@@ -43,21 +44,13 @@ func init() {
 }
 
 // AsTDPB is a convenience for working with TDP messages.
-// It is not particularly performant.
+// Uses reflection to populate the .
 func AsTDPB(msg Message, p proto.Message) error {
-	source, err := ToTDPBProto(msg)
-	if err != nil {
-		return trace.Wrap(errors.Join(ErrInvalidMessage, err))
+	if m, ok := msg.(*TdpbMessage); !ok {
+		return ErrInvalidMessage
+	} else {
+		return m.As(p)
 	}
-
-	if p.ProtoReflect().Type() == source.ProtoReflect().Type() {
-		reflect.ValueOf(p).Elem().Set(reflect.ValueOf(source).Elem())
-		return nil
-	}
-
-	// No errors parsing the message, but it doesn't match
-	// what the caller is expecting
-	return ErrUnexpectedMessageType
 }
 
 // ToTDPBProto attempts to extract the underlying proto.Message
@@ -71,7 +64,7 @@ func ToTDPBProto(msg Message) (proto.Message, error) {
 
 	source, err := m.Proto()
 	if err != nil {
-		return nil, trace.Wrap(errors.Join(ErrInvalidMessage, err))
+		return nil, trace.Wrap(fmt.Errorf("%w: %v", ErrInvalidMessage, err))
 	}
 	return source, nil
 }
@@ -98,6 +91,10 @@ func (m *messageDecoder) decode(mType tdpb.MessageType, data []byte) (proto.Mess
 	return nil, trace.Errorf("unknown TDPB message type")
 }
 
+// Reads file descriptor for TDPB protobufs to build a mapping
+// of message types to their corresponding protoreflect.MessageType instances.
+// Think of these as blueprints used to dynamically decode protobuf messages.
+// Ideally we do this once at during initialization.
 func newMessageDecoder() (*messageDecoder, error) {
 	// Maintain a mapping of our message type enum to
 	// the protoreflect.MessageType corresponding to that message type
@@ -127,10 +124,9 @@ func newMessageDecoder() (*messageDecoder, error) {
 }
 
 func readTDPBMessage(in io.Reader) (tdpb.MessageType, []byte, error) {
-	//
 	msgBuffer := bytes.NewBuffer(make([]byte, 0, 1024))
 
-	_, err := io.CopyN(msgBuffer, in, TDPB_HEADER_LENGTH)
+	_, err := io.CopyN(msgBuffer, in, tdpbHeaderLength)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -143,21 +139,24 @@ func readTDPBMessage(in io.Reader) (tdpb.MessageType, []byte, error) {
 }
 
 // Scenarios for creating a tdpbMessage
-// 1. Have a "raw" message that the caller wishes to wrap, ie. msg := tdpb.ServerHello{}
-//    - We'll probably just want to efficiently write to a stream
-// 2. Receive message from the wire with intent to inspect and *maybe* unmarshal
-//    - We *may* want to inspect the type, optionally unmarshal the message, and/or pass it on
-//      to another stream, ideally without having to unmarshal/re-marshal
-// 3. Receive message frome the wire with intent to handle. We *will* be unmarshalling it
-//    - Ideally, we could marshal *into* an existing buffer
+// 1. Construct a "raw" message that the caller wishes to encode, ie. msg := tdpb.ServerHello{}
+//    - We'll probably just want to marshal the message and write it to a stream
+// 2. Receive message from the wire with intent to inspect and *maybe* unmarshal it.
+//    - We *may* want to inspect the type and then *may* decide to inspect the message. Inspection
+//      requires unmarshalling the proto. Alternatively, we may wish to simply pass the message
+//      along without inspection, in which case we should not need to unmarshal/re-marshal the message.
+// 3. Receive message frome the wire with intent to handle. We *will* be unmarshalling it.
 
 // TdpbMessage represents a partially decoded TDPB message
 // It allows for lazy decoding of protobufs only when inspection is needed.
 type TdpbMessage struct {
 	messageType tdpb.MessageType
-	// The full message including the TDPB wire header
+	// The full message including the TDPB wire header.
+	// Populated when read from the wire
 	data []byte
-	// The underlying proto message
+	// The underlying proto message. Populated either when explicitly wrapped
+	// using 'NewTDPBMessage' or when inspecting a 'TdpbMessage' that was decoded
+	// from a stream (using TdpbMessage.Proto, or TdpbMessage.As)
 	msg proto.Message
 }
 
@@ -196,20 +195,34 @@ func (i *TdpbMessage) Proto() (proto.Message, error) {
 		return i.msg, nil
 	case len(i.data) > 0:
 		var err error
-		i.msg, err = globalDecoder.decode(i.messageType, i.data[TDPB_HEADER_LENGTH:])
-		return i.msg, err
+		msg, err := globalDecoder.decode(i.messageType, i.data[tdpbHeaderLength:])
+		return msg, err
 	default:
 		return nil, errors.New("empty message")
 	}
 }
 
 func (i *TdpbMessage) As(p proto.Message) error {
-	return AsTDPB(i, p)
+	switch {
+	case i.msg != nil:
+		if i.msg.ProtoReflect().Type() != p.ProtoReflect().Type() {
+			return ErrUnexpectedMessageType
+		}
+		proto.Merge(p, i.msg)
+		return nil
+	case len(i.data) > 0:
+		return proto.Unmarshal(i.data[tdpbHeaderLength:], p)
+	default:
+		return errors.New("empty message")
+	}
 }
 
 // getMessageType uses protoreflection to determine the TDPB message type of
 // an arbitrary proto.Message
 func getMessageType(msg proto.Message) tdpb.MessageType {
+	if msg == nil {
+		return tdpbv1.MessageType_MESSAGE_TYPE_UNSPECIFIED
+	}
 	// Grab the TDPOptions extension on the message
 	options := msg.ProtoReflect().Descriptor().Options().(*descriptorpb.MessageOptions)
 	return proto.GetExtension(options, tdpb.E_TdpTypeOption).(tdpb.MessageType)
@@ -229,18 +242,18 @@ func encodeTDPB(msg proto.Message) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(messageData) > MAX_MESSAGE_LENGTH {
+	if len(messageData) > maxMessageLength {
 		return nil, trace.LimitExceeded("Teleport Desktop Protocol message exceeds maximum allowed length")
 	}
 
 	// Messages follow the format:
 	// message_type varint | length varint | message_data []byte
 	// where 'length' is the length of the 'message_data'
-	out := make([]byte, len(messageData)+TDPB_HEADER_LENGTH)
+	out := make([]byte, len(messageData)+tdpbHeaderLength)
 	binary.BigEndian.PutUint32(out[:4], uint32(mType))
 	binary.BigEndian.PutUint32(out[4:], uint32(len(messageData)))
 
-	if count := copy(out[TDPB_HEADER_LENGTH:], messageData); count != len(messageData) {
+	if count := copy(out[tdpbHeaderLength:], messageData); count != len(messageData) {
 		return nil, trace.Errorf("failed to copy message data to TDPB message buffer")
 	}
 
@@ -261,6 +274,24 @@ func translateFso(fso *tdpb.FileSystemObject) FileSystemObject {
 	}
 }
 
+func translateFsoList(fso []*tdpb.FileSystemObject) []FileSystemObject {
+	return slices.Map(fso, translateFso)
+}
+
+func translateFsoToModern(fso FileSystemObject) *tdpbv1.FileSystemObject {
+	return &tdpbv1.FileSystemObject{
+		LastModified: fso.LastModified,
+		Size:         fso.Size,
+		FileType:     fso.FileType,
+		IsEmpty:      fso.IsEmpty == 1,
+		Path:         fso.Path,
+	}
+}
+
+func translateFsoListToModern(fso []FileSystemObject) []*tdpbv1.FileSystemObject {
+	return slices.Map(fso, translateFsoToModern)
+}
+
 func boolToButtonState(b bool) ButtonState {
 	if b {
 		return ButtonPressed
@@ -277,25 +308,25 @@ func TranslateToLegacy(msg proto.Message) []Message {
 		messages = append(messages, PNG2Frame(m.Data))
 	case *tdpb.FastPathPDU:
 		messages = append(messages, RDPFastPathPDU(m.Pdu))
-	case *tdpb.RDPResponsePDU: //MessageType_MESSAGE_RDP_RESPONSE_PDU:
+	case *tdpb.RDPResponsePDU:
 		messages = append(messages, RDPResponsePDU(m.Response))
-	case *tdpb.ConnectionActivated: //MessageType_MESSAGE_CONNECTION_ACTIVATED:
+	case *tdpb.ConnectionActivated:
 		messages = append(messages, ConnectionActivated{
 			IOChannelID:   uint16(m.IoChannelId),
 			UserChannelID: uint16(m.UserChannelId),
 			ScreenWidth:   uint16(m.ScreenWidth),
 			ScreenHeight:  uint16(m.ScreenHeight),
 		})
-	case *tdpb.SyncKeys: //MessageType_MESSAGE_SYNC_KEYS
+	case *tdpb.SyncKeys:
 		messages = append(messages, SyncKeys{
 			ScrollLockState: boolToButtonState(m.ScrollLockPressed),
 			NumLockState:    boolToButtonState(m.NumLockState),
 			CapsLockState:   boolToButtonState(m.CapsLockState),
 			KanaLockState:   boolToButtonState(m.KanaLockState),
 		})
-	case *tdpb.MouseMove: //MessageType_MESSAGE_MOUSE_MOVE
+	case *tdpb.MouseMove:
 		messages = append(messages, MouseMove{X: m.X, Y: m.Y})
-	case *tdpb.MouseButton: //MessageType_MESSAGE_MOUSE_BUTTON:
+	case *tdpb.MouseButton:
 		button := MouseButtonType(m.Button - 1)
 		state := ButtonNotPressed
 		if m.Pressed {
@@ -306,7 +337,7 @@ func TranslateToLegacy(msg proto.Message) []Message {
 			Button: button,
 			State:  state,
 		})
-	case *tdpb.KeyboardButton: //MessageType_MESSAGE_KEYBOARD_BUTTON:
+	case *tdpb.KeyboardButton:
 		state := ButtonNotPressed
 		if m.Pressed {
 			state = ButtonPressed
@@ -315,12 +346,12 @@ func TranslateToLegacy(msg proto.Message) []Message {
 			KeyCode: m.KeyCode,
 			State:   state,
 		})
-	case *tdpb.ClientScreenSpec: //MessageType_MESSAGE_CLIENT_SCREEN_SPEC:
+	case *tdpb.ClientScreenSpec:
 		messages = append(messages, ClientScreenSpec{
 			Width:  m.Width,
 			Height: m.Height,
 		})
-	case *tdpb.Alert: //MessageType_MESSAGE_ALERT:
+	case *tdpb.Alert:
 		var severity Severity
 		switch m.Severity {
 		case tdpb.AlertSeverity_ALERT_SEVERITY_WARNING:
@@ -334,16 +365,16 @@ func TranslateToLegacy(msg proto.Message) []Message {
 			Message:  m.Message,
 			Severity: severity,
 		})
-	case *tdpb.MouseWheel: //MessageType_MESSAGE_MOUSE_WHEEL:
+	case *tdpb.MouseWheel:
 		messages = append(messages, MouseWheel{
 			// TODO: Fix this hack
 			Axis: MouseWheelAxis(m.Axis - 1),
 			// TODO: validate size
 			Delta: int16(m.Delta),
 		})
-	case *tdpb.ClipboardData: //MessageType_MESSAGE_CLIPBOARD_DATA:
+	case *tdpb.ClipboardData:
 		messages = append(messages, ClipboardData(m.Data))
-	case *tdpb.MFA: //MessageType_MESSAGE_MFA:
+	case *tdpb.MFA:
 		var mfaType byte
 		switch m.Type {
 		case tdpb.MFAType_MFA_TYPE_U2F:
@@ -366,126 +397,142 @@ func TranslateToLegacy(msg proto.Message) []Message {
 			DirectoryID: m.DirectoryId,
 			ErrCode:     m.ErrorCode,
 		})
-	//case *tdpb.SharedDirectoryInfoRequest:
-	//	messages = append(messages, SharedDirectoryInfoRequest{
-	//		DirectoryID:  m.DirectoryId,
-	//		CompletionID: m.CompletionId,
-	//		Path:         m.Path,
-	//	})
-	//case *tdpb.SharedDirectoryInfoResponse:
-	//	messages = append(messages, SharedDirectoryInfoResponse{
-	//		CompletionID: m.CompletionId,
-	//		ErrCode:      m.ErrorCode,
-	//		Fso:          translateFso(m.Fso),
-	//	})
-	//case *tdpb.SharedDirectoryCreateRequest:
-	//	messages = append(messages, SharedDirectoryCreateRequest{
-	//		CompletionID: m.CompletionId,
-	//		DirectoryID:  m.DirectoryId,
-	//		FileType:     m.FileType,
-	//		Path:         m.Path,
-	//	})
-	//case *tdpb.SharedDirectoryCreateResponse: //MessageType_MESSAGE_SHARED_DIRECTORY_CREATE_RESPONSE:
-	//	messages = append(messages, SharedDirectoryCreateResponse{
-	//		CompletionID: m.CompletionId,
-	//		Fso:          translateFso(m.Fso),
-	//		ErrCode:      m.ErrorCode,
-	//	})
-	//case *tdpb.SharedDirectoryDeleteRequest: //MessageType_MESSAGE_SHARED_DIRECTORY_DELETE_REQUEST:
-	//	messages = append(messages, SharedDirectoryDeleteRequest{
-	//		DirectoryID:  m.DirectoryId,
-	//		CompletionID: m.CompletionId,
-	//		Path:         m.Path,
-	//	})
-	//case *tdpb.SharedDirectoryDeleteResponse: //MessageType_MESSAGE_SHARED_DIRECTORY_DELETE_RESPONSE:
-	//	messages = append(messages, SharedDirectoryDeleteResponse{
-	//		CompletionID: m.CompletionId,
-	//		ErrCode:      m.ErrorCode,
-	//	})
-	//case *tdpb.SharedDirectoryListRequest: //MessageType_MESSAGE_SHARED_DIRECTORY_LIST_REQUEST:
-	//	messages = append(messages, SharedDirectoryListRequest{
-	//		CompletionID: m.CompletionId,
-	//		DirectoryID:  m.DirectoryId,
-	//		Path:         m.Path,
-	//	})
-	//case *tdpb.SharedDirectoryListResponse: //MessageType_MESSAGE_SHARED_DIRECTORY_LIST_RESPONSE:
-	//	messages = append(messages, SharedDirectoryListResponse{
-	//		CompletionID: m.CompletionId,
-	//		ErrCode:      m.ErrorCode,
-	//		FsoList: func() (out []FileSystemObject) {
-	//			for _, item := range m.FsoList {
-	//				out = append(out, translateFso(item))
-	//			}
-	//			return
-	//		}(),
-	//	})
-	//case *tdpb.SharedDirectoryReadRequest: //MessageType_MESSAGE_SHARED_DIRECTORY_READ_REQUEST:
-	//	messages = append(messages, SharedDirectoryReadRequest{
-	//		CompletionID: m.CompletionId,
-	//		DirectoryID:  m.DirectoryId,
-	//		Path:         m.Path,
-	//		Offset:       m.Offset,
-	//		Length:       m.Length,
-	//	})
-	//case *tdpb.SharedDirectoryReadResponse: //MessageType_MESSAGE_SHARED_DIRECTORY_READ_RESPONSE:
-	//	messages = append(messages, SharedDirectoryReadResponse{
-	//		CompletionID:   m.CompletionId,
-	//		ErrCode:        m.ErrorCode,
-	//		ReadDataLength: m.ReadDataLength,
-	//		ReadData:       m.ReadData,
-	//	})
-	//case *tdpb.SharedDirectoryWriteRequest: //MessageType_MESSAGE_SHARED_DIRECTORY_WRITE_REQUEST:
-	//	messages = append(messages, SharedDirectoryWriteRequest{
-	//		CompletionID:    m.CompletionId,
-	//		DirectoryID:     m.DirectoryId,
-	//		Offset:          m.Offset,
-	//		Path:            m.Path,
-	//		WriteDataLength: m.WriteDataLength,
-	//		WriteData:       m.WriteData,
-	//	})
-	//case *tdpb.SharedDirectoryWriteResponse: //MessageType_MESSAGE_SHARED_DIRECTORY_WRITE_RESPONSE:
-	//	messages = append(messages, SharedDirectoryWriteResponse{
-	//		CompletionID: m.CompletionId,
-	//		ErrCode:      m.ErrorCode,
-	//		BytesWritten: m.BytesWritten,
-	//	})
-	//case *tdpb.SharedDirectoryMoveRequest: //MessageType_MESSAGE_SHARED_DIRECTORY_MOVE_REQUEST:
-	//	messages = append(messages, SharedDirectoryMoveRequest{
-	//		CompletionID: m.CompletionId,
-	//		DirectoryID:  m.DirectoryId,
-	//		OriginalPath: m.OriginalPath,
-	//		NewPath:      m.NewPath,
-	//	})
-	//case *tdpb.SharedDirectoryMoveResponse: //MessageType_MESSAGE_SHARED_DIRECTORY_MOVE_RESPONSE:
-	//	messages = append(messages, SharedDirectoryMoveResponse{
-	//		CompletionID: m.CompletionId,
-	//		ErrCode:      m.ErrorCode,
-	//	})
-	//case *tdpb.SharedDirectoryTruncateRequest: //MessageType_MESSAGE_SHARED_DIRECTORY_TRUNCATE_REQUEST:
-	//	messages = append(messages, SharedDirectoryTruncateRequest{
-	//		CompletionID: m.CompletionId,
-	//		DirectoryID:  m.DirectoryId,
-	//		Path:         m.Path,
-	//		EndOfFile:    m.EndOfFile,
-	//	})
-	//case *tdpb.SharedDirectoryTruncateResponse: //MessageType_MESSAGE_SHARED_DIRECTORY_TRUNCATE_RESPONSE:
-	//	messages = append(messages, SharedDirectoryTruncateResponse{
-	//		CompletionID: m.CompletionId,
-	//		ErrCode:      m.ErrorCode,
-	//	})
-	case *tdpb.LatencyStats: //MessageType_MESSAGE_LATENCY_STATS:
+	case *tdpb.SharedDirectoryRequest:
+		switch m.OperationCode {
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_INFO:
+			messages = append(messages, SharedDirectoryInfoRequest{
+				CompletionID: m.CompletionId,
+				DirectoryID:  m.DirectoryId,
+				Path:         m.Path,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_CREATE:
+			messages = append(messages, SharedDirectoryCreateRequest{
+				CompletionID: m.CompletionId,
+				DirectoryID:  m.DirectoryId,
+				FileType:     m.FileType,
+				Path:         m.Path,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_DELETE:
+			messages = append(messages, SharedDirectoryDeleteRequest{
+				CompletionID: m.CompletionId,
+				DirectoryID:  m.DirectoryId,
+				Path:         m.Path,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_LIST:
+			messages = append(messages, SharedDirectoryListRequest{
+				CompletionID: m.CompletionId,
+				DirectoryID:  m.DirectoryId,
+				Path:         m.Path,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_READ:
+			messages = append(messages, SharedDirectoryReadRequest{
+				CompletionID: m.CompletionId,
+				DirectoryID:  m.DirectoryId,
+				Path:         m.Path,
+				Offset:       m.Offset,
+				Length:       m.Length,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_WRITE:
+			messages = append(messages, SharedDirectoryWriteRequest{
+				CompletionID:    m.CompletionId,
+				DirectoryID:     m.DirectoryId,
+				Path:            m.Path,
+				Offset:          m.Offset,
+				WriteDataLength: uint32(len(m.Data)),
+				WriteData:       m.Data,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_MOVE:
+			messages = append(messages, SharedDirectoryMoveRequest{
+				CompletionID: m.CompletionId,
+				DirectoryID:  m.DirectoryId,
+				NewPath:      m.NewPath,
+				OriginalPath: m.Path,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_TRUNCATE:
+			messages = append(messages, SharedDirectoryTruncateRequest{
+				CompletionID: m.CompletionId,
+				DirectoryID:  m.DirectoryId,
+				Path:         m.NewPath,
+				EndOfFile:    m.EndOfFile,
+			})
+		default:
+			slog.Error("Dropping Shared Directory Request with unknown operation code", "code", m.OperationCode)
+			return nil
+		}
+	case *tdpb.SharedDirectoryResponse:
+		switch m.OperationCode {
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_INFO:
+			var fso FileSystemObject
+			if len(m.FsoList) > 0 {
+				fso = translateFso(m.FsoList[0])
+			}
+			messages = append(messages, SharedDirectoryInfoResponse{
+				CompletionID: m.CompletionId,
+				ErrCode:      m.ErrorCode,
+				Fso:          fso,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_CREATE:
+			var fso FileSystemObject
+			if len(m.FsoList) > 0 {
+				fso = translateFso(m.FsoList[0])
+			}
+			messages = append(messages, SharedDirectoryCreateResponse{
+				CompletionID: m.CompletionId,
+				ErrCode:      m.ErrorCode,
+				Fso:          fso,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_DELETE:
+			messages = append(messages, SharedDirectoryDeleteResponse{
+				CompletionID: m.CompletionId,
+				ErrCode:      m.ErrorCode,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_LIST:
+			messages = append(messages, SharedDirectoryListResponse{
+				CompletionID: m.CompletionId,
+				ErrCode:      m.ErrorCode,
+				FsoList:      translateFsoList(m.FsoList),
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_READ:
+			messages = append(messages, SharedDirectoryReadResponse{
+				CompletionID:   m.CompletionId,
+				ErrCode:        m.ErrorCode,
+				ReadData:       m.Data,
+				ReadDataLength: uint32(len(m.Data)),
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_WRITE:
+			messages = append(messages, SharedDirectoryWriteResponse{
+				CompletionID: m.CompletionId,
+				ErrCode:      m.ErrorCode,
+				BytesWritten: m.BytesWritten,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_MOVE:
+			messages = append(messages, SharedDirectoryWriteResponse{
+				CompletionID: m.CompletionId,
+				ErrCode:      m.ErrorCode,
+				BytesWritten: m.BytesWritten,
+			})
+		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_TRUNCATE:
+			messages = append(messages, SharedDirectoryTruncateResponse{
+				CompletionID: m.CompletionId,
+				ErrCode:      m.ErrorCode,
+			})
+		default:
+			slog.Error("Dropping Shared Directory Response with unknown operation code", "code", m.OperationCode)
+			return nil
+		}
+	case *tdpb.LatencyStats:
 		messages = append(messages, LatencyStats{
 			ClientLatency: m.ClientLatency,
 			ServerLatency: m.ServerLatency,
 		})
-	case *tdpb.Ping: //MessageType_MESSAGE_PING:
+	case *tdpb.Ping:
 		id, err := uuid.FromBytes(m.Uuid)
 		if err != nil {
 			slog.Warn("Cannot parse uuid bytes from ping", "error", err)
 		} else {
 			messages = append(messages, Ping{UUID: id})
 		}
-	//case *tdpb.ClientKeyboardLayout: //MessageType_MESSAGE_CLIENT_KEYBOARD_LAYOUT:
+	//case *tdpb.ClientKeyboardLayout:
 	//	messages = append(messages, ClientKeyboardLayout{
 	//		KeyboardLayout: m.KeyboardLayout,
 	//	})
@@ -612,34 +659,135 @@ func TranslateToModern(msg Message) []Message {
 		messages = append(messages, &tdpb.Ping{
 			Uuid: m.UUID[:],
 		})
-		//case ClientKeyboardLayout:
-		//	messages = append(messages, &tdpb.ClientKeyboardLayout{
-		//		KeyboardLayout: m.KeyboardLayout,
-		//	})
+	case SharedDirectoryAnnounce:
+		messages = append(messages, &tdpb.SharedDirectoryAnnounce{
+			DirectoryId: m.DirectoryID,
+			Name:        m.Name,
+		})
+	case SharedDirectoryAcknowledge:
+		messages = append(messages, &tdpb.SharedDirectoryAcknowledge{
+			DirectoryId: m.DirectoryID,
+			ErrorCode:   m.ErrCode,
+		})
+	case SharedDirectoryInfoRequest:
+		messages = append(messages, &tdpb.SharedDirectoryRequest{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_INFO,
+			DirectoryId:   m.DirectoryID,
+			CompletionId:  m.CompletionID,
+			Path:          m.Path,
+		})
+	case SharedDirectoryInfoResponse:
+		messages = append(messages, &tdpb.SharedDirectoryResponse{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_INFO,
+			ErrorCode:     m.ErrCode,
+			CompletionId:  m.CompletionID,
+			FsoList:       []*tdpb.FileSystemObject{translateFsoToModern(m.Fso)},
+		})
+	case SharedDirectoryCreateRequest:
+		messages = append(messages, &tdpb.SharedDirectoryRequest{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_CREATE,
+			DirectoryId:   m.DirectoryID,
+			CompletionId:  m.CompletionID,
+			Path:          m.Path,
+		})
+	case SharedDirectoryCreateResponse:
+		messages = append(messages, &tdpb.SharedDirectoryResponse{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_CREATE,
+			ErrorCode:     m.ErrCode,
+			CompletionId:  m.CompletionID,
+			FsoList:       []*tdpb.FileSystemObject{translateFsoToModern(m.Fso)},
+		})
+	case SharedDirectoryDeleteRequest:
+		messages = append(messages, &tdpb.SharedDirectoryRequest{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_DELETE,
+			DirectoryId:   m.DirectoryID,
+			CompletionId:  m.CompletionID,
+			Path:          m.Path,
+		})
+	case SharedDirectoryDeleteResponse:
+		messages = append(messages, &tdpb.SharedDirectoryResponse{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_DELETE,
+			ErrorCode:     m.ErrCode,
+			CompletionId:  m.CompletionID,
+		})
+	case SharedDirectoryReadRequest:
+		messages = append(messages, &tdpb.SharedDirectoryRequest{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_READ,
+			CompletionId:  m.CompletionID,
+			DirectoryId:   m.DirectoryID,
+			Path:          m.Path,
+			Offset:        m.Offset,
+			Length:        m.Length,
+		})
+	case SharedDirectoryReadResponse:
+		messages = append(messages, &tdpb.SharedDirectoryResponse{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_READ,
+			CompletionId:  m.CompletionID,
+			ErrorCode:     m.ErrCode,
+			Data:          m.ReadData,
+		})
+	case SharedDirectoryWriteRequest:
+		messages = append(messages, &tdpb.SharedDirectoryRequest{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_WRITE,
+			CompletionId:  m.CompletionID,
+			DirectoryId:   m.DirectoryID,
+			Offset:        m.Offset,
+			Path:          m.Path,
+			Data:          m.WriteData,
+		})
+	case SharedDirectoryWriteResponse:
+		messages = append(messages, &tdpb.SharedDirectoryResponse{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_WRITE,
+			CompletionId:  m.CompletionID,
+			ErrorCode:     m.ErrCode,
+			BytesWritten:  m.BytesWritten,
+		})
+	case SharedDirectoryMoveRequest:
+		messages = append(messages, &tdpb.SharedDirectoryRequest{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_MOVE,
+			CompletionId:  m.CompletionID,
+			DirectoryId:   m.DirectoryID,
+			Path:          m.OriginalPath,
+			NewPath:       m.NewPath,
+		})
+	case SharedDirectoryMoveResponse:
+		messages = append(messages, &tdpb.SharedDirectoryResponse{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_MOVE,
+			CompletionId:  m.CompletionID,
+			ErrorCode:     m.ErrCode,
+		})
+	case SharedDirectoryListRequest:
+		messages = append(messages, &tdpb.SharedDirectoryRequest{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_LIST,
+			CompletionId:  m.CompletionID,
+			Path:          m.Path,
+		})
+	case SharedDirectoryListResponse:
+		messages = append(messages, &tdpb.SharedDirectoryResponse{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_LIST,
+			CompletionId:  m.CompletionID,
+			ErrorCode:     m.ErrCode,
+			FsoList:       translateFsoListToModern(m.FsoList),
+		})
+	case SharedDirectoryTruncateRequest:
+		messages = append(messages, &tdpb.SharedDirectoryRequest{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_TRUNCATE,
+			DirectoryId:   m.DirectoryID,
+			CompletionId:  m.CompletionID,
+			Path:          m.Path,
+			EndOfFile:     m.EndOfFile,
+		})
+	case SharedDirectoryTruncateResponse:
+		messages = append(messages, &tdpb.SharedDirectoryResponse{
+			OperationCode: tdpbv1.DirectoryOperation_DIRECTORY_OPERATION_TRUNCATE,
+			CompletionId:  m.CompletionID,
+			ErrorCode:     m.ErrCode,
+		})
 	}
 
-	// TODO: Translate shared directory messages
-	//case TypeSharedDirectoryAnnounce:
-	//case TypeSharedDirectoryAcknowledge:
-	//case TypeSharedDirectoryInfoRequest:
-	//case TypeSharedDirectoryInfoResponse:
-	//case TypeSharedDirectoryCreateRequest:
-	//case TypeSharedDirectoryCreateResponse:
-	//case TypeSharedDirectoryDeleteRequest:
-	//case TypeSharedDirectoryDeleteResponse:
-	//case TypeSharedDirectoryReadRequest:
-	//case TypeSharedDirectoryReadResponse:
-	//case TypeSharedDirectoryWriteRequest:
-	//case TypeSharedDirectoryWriteResponse:
-	//case TypeSharedDirectoryMoveRequest:
-	//case TypeSharedDirectoryMoveResponse:
-	//case TypeSharedDirectoryListRequest:
-	//case TypeSharedDirectoryListResponse:
-	//case TypeSharedDirectoryTruncateRequest:
-	//case TypeSharedDirectoryTruncateResponse:
-	out := []Message{}
+	wrapped := []Message{}
 	for _, msg := range messages {
-		out = append(out, NewTDPBMessage(msg))
+		wrapped = append(wrapped, NewTDPBMessage(msg))
 	}
-	return out
+	return wrapped
 }
