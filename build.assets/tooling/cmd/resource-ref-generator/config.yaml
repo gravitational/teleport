@@ -1,6 +1,10 @@
 source: "../../../../api"
 destination: "../../../../docs/pages/reference/infrastructure-as-code/teleport-resources"
 resources:
+  - type: "InstallerV1"
+    package: types
+    yaml_kind: "installer"
+    yaml_version: "v1"
   - type: OIDCConnectorV3
     package: types
     yaml_kind: "oidc"
@@ -9,3 +13,4 @@ resources:
     package: types
     yaml_kind: "saml"
     yaml_version: "v2"
+
