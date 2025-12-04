@@ -43,38 +43,42 @@ func init() {
 	}
 }
 
+// TDPBMessageType determines the TDPB message type of the message.
+func TDPBMessageType(msg Message) tdpbv1.MessageType {
+	if m, ok := msg.(*TdpbMessage); ok {
+		return m.messageType
+	}
+	return tdpbv1.MessageType_MESSAGE_TYPE_UNSPECIFIED
+}
+
 // AsTDPB is a convenience for working with TDP messages.
 // Uses reflection to populate the .
 func AsTDPB(msg Message, p proto.Message) error {
-	if m, ok := msg.(*TdpbMessage); !ok {
-		return ErrInvalidMessage
-	} else {
+	if m, ok := msg.(*TdpbMessage); ok {
 		return m.As(p)
 	}
+	return ErrInvalidMessage
 }
 
 // ToTDPBProto attempts to extract the underlying proto.Message
 // representation of a TDPB message.
 func ToTDPBProto(msg Message) (proto.Message, error) {
-	var m *TdpbMessage
-	var ok bool
-	if m, ok = msg.(*TdpbMessage); !ok {
-		return nil, ErrInvalidMessage
+	if m, ok := msg.(*TdpbMessage); ok {
+		source, err := m.Proto()
+		if err != nil {
+			return nil, trace.Wrap(fmt.Errorf("%w: %v", ErrInvalidMessage, err))
+		}
+		return source, nil
 	}
-
-	source, err := m.Proto()
-	if err != nil {
-		return nil, trace.Wrap(fmt.Errorf("%w: %v", ErrInvalidMessage, err))
-	}
-	return source, nil
+	return nil, ErrInvalidMessage
 }
 
 // DecodeTDPB decodes a TDPB message
 func DecodeTDPB(rdr io.Reader) (TdpbMessage, error) {
-	return globalDecoder.Decode(rdr)
+	return globalDecoder.decodeFrom(rdr)
 }
 
-func (m *messageDecoder) Decode(rdr io.Reader) (TdpbMessage, error) {
+func (m *messageDecoder) decodeFrom(rdr io.Reader) (TdpbMessage, error) {
 	mType, mBytes, err := readTDPBMessage(rdr)
 	if err != nil {
 		return TdpbMessage{}, err
@@ -211,6 +215,9 @@ func (i *TdpbMessage) As(p proto.Message) error {
 		proto.Merge(p, i.msg)
 		return nil
 	case len(i.data) > 0:
+		if getMessageType(p) != i.messageType {
+			return ErrUnexpectedMessageType
+		}
 		return proto.Unmarshal(i.data[tdpbHeaderLength:], p)
 	default:
 		return errors.New("empty message")
@@ -230,7 +237,7 @@ func getMessageType(msg proto.Message) tdpb.MessageType {
 
 // encodeTDPB marshals the given protobuf message
 // and prepends a varint message length for framing purposes.
-// Returns an intermediary type that can be treated as an io.Reader or tdp.Message
+// Returns an intermediary type that can be treated as an io.Reader or Message
 func encodeTDPB(msg proto.Message) ([]byte, error) {
 	mType := getMessageType(msg)
 	if mType == tdpb.MessageType_MESSAGE_TYPE_UNSPECIFIED {
@@ -300,10 +307,13 @@ func boolToButtonState(b bool) ButtonState {
 }
 
 // Converts a TDPB (Modern) message to one or more TDP (Legacy) messages
-func TranslateToLegacy(msg proto.Message) []Message {
-	slog.Warn("translating TDPB to TDP")
+func TranslateToLegacy(msg Message) ([]Message, error) {
+	tdpbMsg, err := ToTDPBProto(msg)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "Error unmarshalling TDPB message for translation to TDP")
+	}
 	messages := make([]Message, 0, 1)
-	switch m := msg.(type) {
+	switch m := tdpbMsg.(type) {
 	case *tdpb.PNGFrame:
 		messages = append(messages, PNG2Frame(m.Data))
 	case *tdpb.FastPathPDU:
@@ -456,8 +466,7 @@ func TranslateToLegacy(msg proto.Message) []Message {
 				EndOfFile:    m.EndOfFile,
 			})
 		default:
-			slog.Error("Dropping Shared Directory Request with unknown operation code", "code", m.OperationCode)
-			return nil
+			return nil, trace.Errorf("Unknown shared directory operation code: %d", m.OperationCode)
 		}
 	case *tdpb.SharedDirectoryResponse:
 		switch m.OperationCode {
@@ -517,8 +526,7 @@ func TranslateToLegacy(msg proto.Message) []Message {
 				ErrCode:      m.ErrorCode,
 			})
 		default:
-			slog.Error("Dropping Shared Directory Response with unknown operation code", "code", m.OperationCode)
-			return nil
+			return nil, trace.Errorf("Unknown shared directory operation code: %d", m.OperationCode)
 		}
 	case *tdpb.LatencyStats:
 		messages = append(messages, LatencyStats{
@@ -540,11 +548,11 @@ func TranslateToLegacy(msg proto.Message) []Message {
 		slog.Warn("Encountered unknown TDPB message!")
 	}
 
-	return messages
+	return messages, nil
 }
 
 // Converts a TDP (Legacy) message to one or more TDPB (Modern) messages
-func TranslateToModern(msg Message) []Message {
+func TranslateToModern(msg Message) ([]Message, error) {
 	slog.Warn("translating TDP to TDPB")
 	messages := make([]proto.Message, 0, 1)
 	switch m := msg.(type) {
@@ -566,8 +574,7 @@ func TranslateToModern(msg Message) []Message {
 	case PNGFrame:
 		buf := new(bytes.Buffer)
 		if err := m.enc.Encode(buf, m.Img); err != nil {
-			slog.Warn("Erroring converting TDP PNGFrame to TDPB - dropping message!")
-			return nil
+			return nil, trace.Errorf("Erroring converting TDP PNGFrame to TDPB - dropping message!: %w", err)
 		}
 		messages = append(messages, &tdpb.PNGFrame{
 			Coordinates: &tdpb.Rectangle{
@@ -789,5 +796,5 @@ func TranslateToModern(msg Message) []Message {
 	for _, msg := range messages {
 		wrapped = append(wrapped, NewTDPBMessage(msg))
 	}
-	return wrapped
+	return wrapped, nil
 }

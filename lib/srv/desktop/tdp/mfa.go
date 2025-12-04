@@ -14,11 +14,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type MessageReadWriter interface {
-	ReadMessage() (Message, error)
-	WriteMessage(Message) error
-}
-
 // convertChallenge converts an MFA challenge to a Message. Returns
 // a non-nil error if the conversion fails
 type convertChallenge func(*proto.MFAAuthenticateChallenge) (Message, error)
