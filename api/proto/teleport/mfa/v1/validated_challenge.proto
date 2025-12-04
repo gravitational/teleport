@@ -41,12 +41,10 @@ message ValidatedMFAChallenge {
 message ValidatedMFAChallengeSpec {
   // Value that uniquely identifies the user's session. Supplied in CreateSessionChallengeRequest.
   SessionIdentifyingPayload payload = 1;
-  // Information about the user's MFA device used to authenticate.
-  types.MFADevice device = 2;
   // Name of the cluster where the validated challenge originated.
-  string source_cluster = 3;
+  string source_cluster = 2;
   // Name of the cluster where the SSH session is being established and this resource is intended for.
-  string target_cluster = 4;
+  string target_cluster = 3;
 }
 
 // SessionIdentifyingPayload contains a value that uniquely identifies a user's session. It must be computed by the

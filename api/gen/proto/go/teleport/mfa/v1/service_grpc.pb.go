@@ -58,8 +58,8 @@ type MFAServiceClient interface {
 	ReplicateValidatedMFAChallenge(ctx context.Context, in *ReplicateValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*ReplicateValidatedMFAChallengeResponse, error)
 	// VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session. If the
 	// challenge does not yet exist, this method will block until the resource appears or until the timeout is reached.
-	// The payload is used to verify the challenge is tied to the correct user session. If the verification is successful,
-	// the MFA device used for authentication is returned. If the verification fails, an error is returned.
+	// The payload is used to verify the challenge is tied to the correct user session. If the verification fails, an
+	// error is returned.
 	VerifyValidatedMFAChallenge(ctx context.Context, in *VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*VerifyValidatedMFAChallengeResponse, error)
 }
 
@@ -130,8 +130,8 @@ type MFAServiceServer interface {
 	ReplicateValidatedMFAChallenge(context.Context, *ReplicateValidatedMFAChallengeRequest) (*ReplicateValidatedMFAChallengeResponse, error)
 	// VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session. If the
 	// challenge does not yet exist, this method will block until the resource appears or until the timeout is reached.
-	// The payload is used to verify the challenge is tied to the correct user session. If the verification is successful,
-	// the MFA device used for authentication is returned. If the verification fails, an error is returned.
+	// The payload is used to verify the challenge is tied to the correct user session. If the verification fails, an
+	// error is returned.
 	VerifyValidatedMFAChallenge(context.Context, *VerifyValidatedMFAChallengeRequest) (*VerifyValidatedMFAChallengeResponse, error)
 }
 
