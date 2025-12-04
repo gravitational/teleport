@@ -100,6 +100,10 @@ to facilitate existing provisioning semantics.
 +  // tokens can only be used to provision a single resource. Unlimited tokens
 +  // can be be used to provision any number of resources until it expires.
 +  string mode = 4;
++
++  // Immutable labels that should be encoded into the certificate of an
++  // SSH node provisioned using this token.
++  map<string, string> ssh_labels = 5;
 +}
 +
 +// The usage status of a oneshot token.
@@ -145,20 +149,21 @@ than just restricting clients' access to the agent itself.
 
 ### Automatic labels for SSH nodes
 
-Scoped tokens should also support automatic assignment of labels to any SSH
-node provisioned. This document only proposes support for SSH nodes as solving
-for all scoped node types introduces more significant complexity. The
-`ssh_labels` field of a `ScopedToken` will be added encoded into the resulting
-host certificate in much the same way as the `assigned_scope`. These labels
-will be extracted while registering the inventory control stream and applied as
-a new `token_labels` field stored in `ServerSpecV2`. Future heartbeats will
-verify `token_labels` just as they do for static labels and command labels.
+Scoped tokens should also support automatic assignment of immutable labels to
+any provisioned Teleport SSH agents. This document only proposes support for
+Teleport SSH agents as applying them to other scoped Teleport services (i.e.
+Application, Database, etc.) introduces significant complexity. The
+`ssh_labels` field of a `ScopedToken` will be encoded into the resulting host
+certificate in much the same way as the `assigned_scope`. These labels will be
+extracted while registering the inventory control stream and applied as a new
+`token_labels` field stored in `ServerSpecV2`. Future heartbeats will verify
+`token_labels` just as they do for static labels and command labels.
 
 Merging token-assigned labels with static labels was also considered as a way
 to more easily integrate with existing flows surrounding labels, but ultimately
 decided against. Adding a new set of labels eliminates any ambiguity around
 conflict resolution and allows for future security controls that select on
-labels that cannot be maliciously escape.
+labels that cannot be maliciously escaped.
 
 In order to prevent inflating the weight of the resulting host certificates,
 the `token_labels` will initially be limited to a total size of 2kb. This limit
