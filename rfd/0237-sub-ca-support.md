@@ -224,10 +224,10 @@ message CertificateOverride {
 }
 
 message CertAuthorityOverrideStatus {
-  map<string, CertificateRevogationList> public_key_to_crls = 1;
+  map<string, CertificateRevocationList> public_key_to_crls = 1;
 }
 
-message CertificateRevogationList {
+message CertificateRevocationList {
   string pem = 1;
 }
 ```
@@ -269,7 +269,7 @@ requires the issuing CA to be directly known by the NTAuth store (see
 [Guidelines for smart card logon with third-party CAs][windows-smartcard-logon],
 _"must be issued from a CA that is in the NTAuth store"_). Therefore, the chain
 is not provided for the "windows" CA, as the Sub CA must be known. (Note: a
-similar restriction likely applies to DB access for MSSQL Server with PKINT
+similar restriction likely applies to DB access for MSSQL Server with PKINIT
 authn - [public docs][mssql-pub] and [sources][mssql-sources].)
 
 ```diff
