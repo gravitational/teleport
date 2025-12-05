@@ -122,6 +122,7 @@ func (j *EventsJob) runPolling(ctx context.Context) error {
 		if err := stream.Drain(chunks); err != nil {
 			if trace.IsNotImplemented(err) {
 				// fallback to legacy behavior
+				j.app.log.DebugContext(ctx, "Bulk event export API is not implemented on this server, reverting to legacy watcher")
 				return j.runLegacyPolling(ctx)
 			}
 			return trace.Wrap(err)
@@ -264,10 +265,13 @@ func (j *EventsJob) runLegacyPolling(ctx context.Context) error {
 
 // handleEventV2 processes an event from the newer export API.
 func (j *EventsJob) handleEventV2(ctx context.Context, evt *auditlogpb.ExportEventUnstructured) error {
-
 	// filter out unwanted event types (in the v1 event export logic this was an internal behavior
 	// of the event processing helper since it would perform conversion prior to storing the event
 	// in its internal buffer).
+	if _, ok := j.app.Config.Types[evt.Event.Type]; len(j.app.Config.Types) > 0 && !ok {
+		return nil
+	}
+
 	if _, ok := j.app.Config.SkipEventTypes[evt.Event.Type]; ok {
 		return nil
 	}
@@ -292,6 +296,7 @@ func (j *EventsJob) handleEvent(ctx context.Context, evt *TeleportEvent) error {
 
 	// Start session ingestion if needed
 	if evt.IsSessionEnd {
+		j.app.log.DebugContext(ctx, "Registering session", "sid", evt.SessionID)
 		j.app.RegisterSession(ctx, evt)
 	}
 
