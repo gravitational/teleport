@@ -519,6 +519,10 @@ type Cache struct {
 	// fails.
 	initErr error
 
+	// firstTimeInitC is closed on the first successful initialization of the cache
+	firstTimeInitC    chan struct{}
+	firstTimeInitOnce sync.Once
+
 	// ctx is a cache exit context
 	ctx context.Context
 	// cancel triggers exit context closure
@@ -551,10 +555,18 @@ func (c *Cache) setInitError(err error) {
 	})
 
 	if err == nil {
+		c.firstTimeInitOnce.Do(func() {
+			close(c.firstTimeInitC)
+		})
 		cacheHealth.WithLabelValues(c.target).Set(1.0)
 	} else {
 		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+}
+
+// FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
+func (c *Cache) FirstInit() <-chan struct{} {
+	return c.firstTimeInitC
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -900,6 +912,7 @@ func New(config Config) (*Cache, error) {
 		cancel:                cancel,
 		Config:                config,
 		initC:                 make(chan struct{}),
+		firstTimeInitC:        make(chan struct{}),
 		fnCache:               fnCache,
 		eventsFanout:          fanout,
 		collections:           collections,
@@ -1816,4 +1829,36 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 	}
 
 	return &resp, nil
+}
+
+// GetUnifiedResourcesAndBotsCount returns the combined total number of nodes, app servers, database servers, kube servers, desktops, and bot instances.
+func (c *Cache) GetUnifiedResourcesAndBotsCount() int {
+	c.rw.RLock()
+	defer c.rw.RUnlock()
+
+	if !c.ok {
+		return -1
+	}
+
+	count := 0
+	if c.collections.nodes != nil {
+		count += c.collections.nodes.store.len()
+	}
+	if c.collections.appServers != nil {
+		count += c.collections.appServers.store.len()
+	}
+	if c.collections.dbServers != nil {
+		count += c.collections.dbServers.store.len()
+	}
+	if c.collections.kubeServers != nil {
+		count += c.collections.kubeServers.store.len()
+	}
+	if c.collections.windowsDesktops != nil {
+		count += c.collections.windowsDesktops.store.len()
+	}
+	if c.collections.botInstances != nil {
+		count += c.collections.botInstances.store.len()
+	}
+
+	return count
 }
