@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router-dom';
+import { JSX } from 'react';
+import { Link as InternalLink } from 'react-router-dom';
 
 import {
   Box,
@@ -27,11 +28,26 @@ import {
   ResourceIcon,
   Text,
 } from 'design';
+import { ResourceIconName } from 'design/ResourceIcon';
+import { pluralize } from 'shared/utils/text';
 
 import cfg from 'teleport/config';
+import { ResourceAccessKind } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
 
-export default function Empty(props: Props) {
-  const { canCreate, clusterId, emptyStateInfo } = props;
+import { EmptyStateInfo } from '.';
+import { Custom, EmptyResourceKind, SingleResource } from './type';
+
+export default function Empty(props: Custom | SingleResource) {
+  const { canCreate, clusterId } = props;
+
+  let emptyStateInfo: EmptyStateInfo;
+  let resourceKind: EmptyResourceKind;
+  if (isCustomType(props)) {
+    emptyStateInfo = props.emptyStateInfo;
+  } else {
+    emptyStateInfo = getEmptyStateInfo(props.kind);
+    resourceKind = props.kind;
+  }
 
   const { byline, docsURL, readOnly, title } = emptyStateInfo;
 
@@ -48,13 +64,57 @@ export default function Empty(props: Props) {
       >
         <H1 mb="3">{readOnly.title}</H1>
         <Text>
-          Either there are no {readOnly.resource} in the "
+          Either there are no {readOnly.resource} in the &quot;
           <Text as="span" bold>
             {clusterId}
           </Text>
-          " cluster, or your roles don't grant you access.
+          &quot; cluster, or your roles don&apos;t grant you access.
         </Text>
       </Box>
+    );
+  }
+
+  const sharedProps = {
+    as: InternalLink,
+    width: '224px',
+  };
+
+  let button: JSX.Element;
+  if (resourceKind === 'awsIcApp') {
+    button = (
+      <ButtonPrimary
+        {...sharedProps}
+        to={{
+          pathname: cfg.getIntegrationEnrollRoute('aws-identity-center'),
+        }}
+      >
+        Add Integration
+      </ButtonPrimary>
+    );
+  } else if (resourceKind === 'git_server') {
+    button = (
+      <ButtonPrimary
+        {...sharedProps}
+        to={{
+          pathname: cfg.getIntegrationEnrollRoute('github'),
+        }}
+      >
+        Add Integration
+      </ButtonPrimary>
+    );
+  } else {
+    button = (
+      <ButtonPrimary
+        {...sharedProps}
+        to={{
+          pathname: cfg.routes.discover,
+          state: {
+            searchKeywords: getResourceSearchKeywords(resourceKind),
+          },
+        }}
+      >
+        Add Resource
+      </ButtonPrimary>
     );
   }
 
@@ -70,26 +130,19 @@ export default function Empty(props: Props) {
     >
       <Box maxWidth={600}>
         <Box mb={4} textAlign="center">
-          <ResourceIcon name="server" mx="auto" mb={4} height="160px" />
+          <ResourceIcon
+            name={getResourceIcon(resourceKind)}
+            mx="auto"
+            mb={4}
+            height="160px"
+          />
           <H1 mb={2}>{title}</H1>
           <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
             {byline}
           </Text>
         </Box>
         <Box textAlign="center">
-          <Link
-            to={{
-              pathname: `${cfg.routes.root}/discover`,
-              state: {
-                entity: 'unified_resource',
-              },
-            }}
-            style={{ textDecoration: 'none' }}
-          >
-            <ButtonPrimary width="224px" textTransform="none">
-              Add Resource
-            </ButtonPrimary>
-          </Link>
+          {button}
           {docsURL && (
             <ButtonBorder
               textTransform="none"
@@ -110,18 +163,89 @@ export default function Empty(props: Props) {
   );
 }
 
-export type EmptyStateInfo = {
-  byline: string;
-  docsURL?: string;
-  readOnly: {
-    title: string;
-    resource: string;
-  };
-  title: string;
-};
+function getResourceIcon(kind: EmptyResourceKind): ResourceIconName {
+  switch (kind) {
+    case 'node':
+      return 'server';
+    case 'windows_desktop':
+      return 'desktop';
+    case 'kube_cluster':
+      return 'kube';
+    case 'app':
+      return 'application';
+    case 'db':
+      return 'database';
+    case 'awsIcApp':
+      return 'awsiamidentitycenter';
+    case 'git_server':
+      return 'git';
+    default:
+      return 'server';
+  }
+}
 
-export type Props = {
-  canCreate: boolean;
-  clusterId: string;
-  emptyStateInfo: EmptyStateInfo;
-};
+function isCustomType(prop: Custom | SingleResource): prop is Custom {
+  return (prop as Custom).emptyStateInfo !== undefined;
+}
+
+function getEmptyStateTitleAndByline(resource: string) {
+  const baseInfo: EmptyStateInfo = {
+    title: '',
+    byline: '',
+    readOnly: {
+      title: 'No Resources Found',
+      resource: 'resources',
+    },
+  };
+
+  return {
+    ...baseInfo,
+    title: `Add your first ${resource} to Teleport`,
+    byline: `Connect ${pluralize(0, resource)} from our integrations catalog.`,
+  };
+}
+
+function getEmptyStateInfo(kind: EmptyResourceKind): EmptyStateInfo {
+  switch (kind) {
+    case 'awsIcApp':
+      return {
+        title: 'Integrate with AWS IAM Identity Center',
+        byline: `Connect your AWS IAM Identity Center to Teleport`,
+        readOnly: {
+          title: 'No Resources Found',
+          resource: 'resources',
+        },
+      };
+    case 'app':
+      return getEmptyStateTitleAndByline('application');
+    case 'db':
+      return getEmptyStateTitleAndByline('database');
+    case 'git_server':
+      return getEmptyStateTitleAndByline('Git server');
+    case 'kube_cluster':
+      return getEmptyStateTitleAndByline('Kubernetes cluster');
+    case 'node':
+      return getEmptyStateTitleAndByline('SSH server');
+    case 'windows_desktop':
+      return getEmptyStateTitleAndByline('Windows desktop');
+    default:
+      kind satisfies never;
+  }
+}
+
+function getResourceSearchKeywords(kind: ResourceAccessKind) {
+  switch (kind) {
+    case 'app':
+      return 'application';
+    case 'db':
+      return 'database';
+    case 'git_server':
+      return 'git';
+    case 'kube_cluster':
+      return 'kube';
+    case 'node':
+      return 'server';
+    case 'windows_desktop':
+      return 'windows desktop';
+  }
+}
