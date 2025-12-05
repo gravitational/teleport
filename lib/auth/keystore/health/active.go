@@ -231,37 +231,7 @@ func (c *ActiveHealthChecker) watch(ctx context.Context) error {
 			c.mu.Lock()
 			var signers []*healthSigner
 			for _, ca := range cas {
-				if len(ca.GetActiveKeys().TLS) > 0 {
-					signer, err := c.m.GetTLSSigner(ctx, ca)
-					if err != nil {
-						continue
-					}
-					signers = append(signers, &healthSigner{
-						crypto: signer,
-						caID:   ca.GetID().String(),
-					})
-				}
-				if len(ca.GetActiveKeys().SSH) > 0 {
-					signer, err := c.m.GetSSHSigner(ctx, ca)
-					if err != nil {
-						continue
-					}
-					signers = append(signers, &healthSigner{
-						ssh:  signer,
-						caID: ca.GetID().String(),
-					})
-				}
-				if len(ca.GetActiveKeys().JWT) > 0 {
-					signer, err := c.m.GetJWTSigner(ctx, ca)
-					if err != nil {
-						continue
-					}
-					signers = append(signers, &healthSigner{
-						crypto: signer,
-						caID:   ca.GetID().String(),
-					})
-				}
-
+				signers = append(signers, c.getHealthSigners(ctx, ca)...)
 			}
 			c.signers = signers
 			c.mu.Unlock()
@@ -271,6 +241,39 @@ func (c *ActiveHealthChecker) watch(ctx context.Context) error {
 			})
 		}
 	}
+}
+
+func (c *ActiveHealthChecker) getHealthSigners(ctx context.Context, ca types.CertAuthority) []*healthSigner {
+	var signers []*healthSigner
+	ks := ca.GetActiveKeys()
+	if len(ks.TLS) > 0 {
+		signer, err := c.m.GetTLSSigner(ctx, ca)
+		if err == nil {
+			signers = append(signers, &healthSigner{
+				crypto: signer,
+				caID:   ca.GetID().String(),
+			})
+		}
+	}
+	if len(ks.SSH) > 0 {
+		signer, err := c.m.GetSSHSigner(ctx, ca)
+		if err == nil {
+			signers = append(signers, &healthSigner{
+				ssh:  signer,
+				caID: ca.GetID().String(),
+			})
+		}
+	}
+	if len(ks.JWT) > 0 {
+		signer, err := c.m.GetJWTSigner(ctx, ca)
+		if err == nil {
+			signers = append(signers, &healthSigner{
+				crypto: signer,
+				caID:   ca.GetID().String(),
+			})
+		}
+	}
+	return signers
 }
 
 // healthSigner wraps a crypto OR ssh signer with the CA ID.
