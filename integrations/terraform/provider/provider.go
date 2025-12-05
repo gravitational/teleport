@@ -512,7 +512,7 @@ func (p *Provider) configureLog() {
 		level = logutils.TraceLevel
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
+	_, _, _, err := logutils.Initialize(logutils.Config{
 		Severity: level.String(),
 		Format:   "text",
 	})

@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -175,6 +176,20 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *u
 	return client
 }
 
+func setChildLogConfigForTest() ServerOption {
+	return func(s *Server) error {
+		level := new(slog.LevelVar)
+		level.Set(slog.LevelDebug)
+		s.childLogConfig = &srv.ChildLogConfig{
+			ExecLogConfig: srv.ExecLogConfig{
+				Level: level,
+			},
+			Writer: os.Stderr,
+		}
+		return nil
+	}
+}
+
 func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshOpts ...ServerOption) *sshTestFixture {
 	ctx := context.Background()
 
@@ -241,6 +256,7 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 		SetSessionController(sessionController),
 		SetStoragePresenceService(testServer.AuthServer.AuthServer.PresenceInternal),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		setChildLogConfigForTest(),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -1841,6 +1857,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		setChildLogConfigForTest(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -1987,6 +2004,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		setChildLogConfigForTest(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -2203,6 +2221,7 @@ func TestLimiter(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		setChildLogConfigForTest(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
@@ -2685,6 +2704,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			SetLockWatcher(lockWatcher),
 			SetSessionController(sessionController),
 			SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+			setChildLogConfigForTest(),
 		)
 		require.NoError(t, err)
 		require.NoError(t, proxy.Start())
@@ -2951,6 +2971,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		setChildLogConfigForTest(),
 	)
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
@@ -3105,6 +3126,7 @@ func TestEventMetadata(t *testing.T) {
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		setChildLogConfigForTest(),
 	}
 
 	sshSrv, err := New(
@@ -3393,6 +3415,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		setChildLogConfigForTest(),
 	)
 	require.NoError(t, err)
 

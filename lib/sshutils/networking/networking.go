@@ -123,9 +123,6 @@ func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
 	defer remoteFD.Close()
 	cmd.ExtraFiles = append(cmd.ExtraFiles, remoteFD)
 
-	// Propagate stderr from the spawned Teleport process to log any errors.
-	cmd.Stderr = os.Stderr
-
 	proc := &Process{
 		cmd:  cmd,
 		conn: localConn,
