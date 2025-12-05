@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -417,6 +418,9 @@ type InitConfig struct {
 
 	// RecordingMetadataProvider provides recording metadata for session recordings.
 	RecordingMetadataProvider *recordingmetadata.Provider
+
+	// AWSCachedProvider provides cached AWS configuration and credentials.
+	AWSCachedProvider awsconfig.Provider
 
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
