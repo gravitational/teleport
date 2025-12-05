@@ -669,7 +669,6 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 func (s *ForwardServer) Context() context.Context {
 	return s.cfg.ParentContext
 }
-
 func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
@@ -680,79 +679,60 @@ func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 		ServerSubKind:   s.cfg.TargetServer.GetSubKind(),
 	}
 }
-
 func (s *ForwardServer) GetInfo() types.Server {
 	return s.cfg.TargetServer
 }
-
 func (s *ForwardServer) ID() string {
 	return s.id
 }
-
 func (s *ForwardServer) HostUUID() string {
 	return s.cfg.HostUUID
 }
-
 func (s *ForwardServer) GetNamespace() string {
 	return s.cfg.TargetServer.GetNamespace()
 }
-
 func (s *ForwardServer) AdvertiseAddr() string {
 	return s.clientConn.RemoteAddr().String()
 }
-
 func (s *ForwardServer) Component() string {
 	return teleport.ComponentForwardingGit
 }
-
 func (s *ForwardServer) PermitUserEnvironment() bool {
 	return false
 }
-
 func (s *ForwardServer) GetAccessPoint() srv.AccessPoint {
 	return s.cfg.AccessPoint
 }
-
 func (s *ForwardServer) GetDataDir() string {
 	return ""
 }
-
 func (s *ForwardServer) GetPAM() (*servicecfg.PAMConfig, error) {
 	return &servicecfg.PAMConfig{Enabled: false}, nil
 }
-
 func (s *ForwardServer) GetClock() clockwork.Clock {
 	return s.cfg.Clock
 }
-
 func (s *ForwardServer) UseTunnel() bool {
 	return false
 }
-
 func (s *ForwardServer) GetBPF() bpf.BPF {
 	return nil
 }
-
 func (s *ForwardServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
 	return
 }
-
 func (s *ForwardServer) GetLockWatcher() *services.LockWatcher {
 	return s.cfg.LockWatcher
 }
-
 func (s *ForwardServer) GetCreateHostUser() bool {
 	return false
 }
-
 func (s *ForwardServer) GetHostUsers() srv.HostUsers {
 	return nil
 }
-
 func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 	return nil
 }
-
 func (s *ForwardServer) GetSELinuxEnabled() bool {
 	return false
 }
