@@ -67,8 +67,11 @@ example](#ux1).
 
 ```shell
 tctl auth sub-ca create-csr --type=db-client --cluster=mycluster \
-    --subject 'O=mycluster OU="Llama Unit" CN="Llama Teleport DB client CA"'
+    --subject 'O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA'
 ```
+
+The Subject string is an RFC 2253-like string. The specifics will be documented
+in public docs.
 
 ### Alice configures the cert_authority_override resource directly
 
@@ -399,13 +402,25 @@ message CreateCSRRequest {
   string public_key = 3;
 
   // Customized certificate Subject.
-  // Eg: `O=mycluster OU="Llama Unit" CN="Llama Teleport DB client CA"`
+  // Eg: `O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA`.
   //
   // Teleport CA Subject restrictions still apply. The system may modify the
   // Subject or reject the request if restrictions cannot be fulfilled.
   //
   // Optional. If present the request must target a single cluster.
-  string custom_subject = 4;
+  DistinguishedName custom_subject = 4;
+}
+
+message DistinguishedName {
+  repeated AttributeTypeAndValue names = 1;
+}
+
+message AttributeTypeAndValue {
+  repeated int oid = 1;
+  oneof value {
+    string text = 2;
+    bytes binary = 3;
+  }
 }
 
 message CreateCSRResponse {
