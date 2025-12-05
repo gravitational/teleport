@@ -37,7 +37,7 @@ import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { SingleLineBox } from '../shared/SingleLineBox';
 import { shouldWarnResourceStatus } from '../shared/StatusInfo';
-import { ResourceItemProps, VisibleResourceItemFields } from '../types';
+import { ResourceItemProps } from '../types';
 import { WarningRightEdgeBadgeSvg } from './WarningRightEdgeBadgeSvg';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
@@ -66,14 +66,8 @@ export function ResourceCard({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
-  visibleInputFields,
+  visibleInputFields = { pin: true, checkbox: true },
 }: Omit<ResourceItemProps, 'expandAllLabels'>) {
-  // Conditionally render input fields.
-  const show: VisibleResourceItemFields = visibleInputFields ?? {
-    pin: true,
-    checkbox: true,
-  };
-
   const {
     name,
     primaryIconName,
@@ -193,7 +187,7 @@ export function ResourceCard({
           p={3}
           // we set padding left a bit larger so we can have space to absolutely
           // position the pin/checkbox buttons
-          pl={show.pin || show.checkbox ? 6 : 2}
+          pl={visibleInputFields.pin || visibleInputFields.checkbox ? 6 : 2}
           alignItems="start"
           onMouseLeave={onMouseLeave}
           pinned={pinned}
@@ -206,14 +200,14 @@ export function ResourceCard({
           {...(shouldDisplayStatusWarning && !showAllLabels && { pr: '35px' })}
           {...(shouldDisplayStatusWarning && showAllLabels && { pr: '7px' })}
         >
-          {show.checkbox && (
+          {visibleInputFields.checkbox && (
             <CheckboxInput
               checked={selected}
               onChange={selectResource}
               style={{ position: 'absolute', top: '16px', left: '16px' }}
             />
           )}
-          {show.pin && (
+          {visibleInputFields.pin && (
             <Box
               css={`
                 position: absolute;

@@ -88,24 +88,24 @@ const additionalResources = [
 ];
 
 type StoryProps = {
-  withoutCheckbox: boolean;
-  withoutPin: boolean;
+  withCheckbox: boolean;
+  withPin: boolean;
 };
 
 const meta: Meta<StoryProps> = {
   title: 'Shared/UnifiedResources/Items',
   argTypes: {
-    withoutCheckbox: {
+    withCheckbox: {
       control: { type: 'boolean' },
     },
-    withoutPin: {
+    withPin: {
       control: { type: 'boolean' },
     },
   },
   // default
   args: {
-    withoutCheckbox: false,
-    withoutPin: false,
+    withCheckbox: true,
+    withPin: true,
   },
 };
 export default meta;
@@ -160,8 +160,8 @@ export function Cards(props: StoryProps) {
               showingStatusInfo={false}
               viewItem={res}
               visibleInputFields={{
-                checkbox: !props.withoutCheckbox,
-                pin: !props.withoutPin,
+                checkbox: props.withCheckbox,
+                pin: props.withPin,
               }}
             />
           ))}

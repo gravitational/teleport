@@ -26,7 +26,7 @@ import React, {
   useState,
   type JSX,
 } from 'react';
-import styled, { CSSProp } from 'styled-components';
+import styled from 'styled-components';
 
 import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
@@ -57,7 +57,7 @@ import {
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
-import { ResourceLabel, ResourcesResponse } from 'teleport/services/agents';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
 import { CardsView } from './CardsView/CardsView';
@@ -119,6 +119,11 @@ export type BulkAction = {
    */
   tooltip?: string;
   action: (selectedResources: SelectedResource[]) => void;
+};
+
+export type ResourceLabel = {
+  name: string;
+  value: string;
 };
 
 export type SelectedResource = {
@@ -184,9 +189,9 @@ export interface UnifiedResourcesProps {
   NoResources: React.ReactElement;
   /**
    * If true, it will render the "NoResources" component
-   * without doing other internal "no result" checks.
+   * regardless of internal "no result" checks.
    */
-  overrideNoResultsCheck?: boolean;
+  forceNoResources?: boolean;
   /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
@@ -228,9 +233,9 @@ export interface UnifiedResourcesProps {
    */
   onLabelClick?(label: ResourceLabel): void;
   /**
-   * Provide custom CSS to this components container.
+   *  className support so that UnifiedResources works with the css prop.
    */
-  cssStyle?: CSSProp;
+  className?: string;
   /**
    * Defaults to showing all fields.
    * When specified, only fields with `true` value are shown.
@@ -266,8 +271,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     visibleFilterPanelFields,
     visibleResourceItemFields,
     onLabelClick,
-    cssStyle,
-    overrideNoResultsCheck,
+    className,
+    forceNoResources,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -511,7 +516,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       : ListView;
 
   let footerElement: JSX.Element;
-  if (overrideNoResultsCheck) {
+  if (forceNoResources) {
     footerElement = props.NoResources;
   } else if (noResults) {
     if (isSearchEmpty && !params.pinnedOnly) {
@@ -537,7 +542,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   }
 
   return (
-    <Container className="ContainerContext" ref={containerRef} css={cssStyle}>
+    <Container className={`ContainerContext ${className}`} ref={containerRef}>
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
           <Danger
@@ -587,7 +592,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
       {props.Header}
       <FilterPanel
-        visibleInputFields={visibleFilterPanelFields}
+        visibleFilterPanelFields={visibleFilterPanelFields}
         availabilityFilter={availabilityFilter}
         changeAvailableResourceMode={changeAvailableResourceMode}
         params={params}

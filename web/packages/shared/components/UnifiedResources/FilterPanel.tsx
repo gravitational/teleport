@@ -42,11 +42,10 @@ import {
   ResourceAvailabilityFilter,
 } from './UnifiedResources';
 
-const sortByNameOption = [{ label: 'Name', value: 'name' }];
 const sortFieldOptions = [
-  ...sortByNameOption,
+  { label: 'Name', value: 'name' },
   { label: 'Type', value: 'kind' },
-];
+] as const;
 
 const resourceStatusOptions: { label: string; value: ResourceHealthStatus }[] =
   [
@@ -79,7 +78,7 @@ interface FilterPanelProps {
    * Defaults to showing all fields.
    * When specified, only fields with `true` value are shown.
    */
-  visibleInputFields?: VisibleFilterPanelFields;
+  visibleFilterPanelFields?: VisibleFilterPanelFields;
 }
 
 export function FilterPanel({
@@ -98,17 +97,14 @@ export function FilterPanel({
   changeAvailableResourceMode,
   ClusterDropdown = null,
   onRefresh,
-  visibleInputFields,
-}: FilterPanelProps) {
-  // Flags to conditionally render input fields.
-  let show: VisibleFilterPanelFields = visibleInputFields ?? {
+  visibleFilterPanelFields = {
     checkbox: true,
     clusterOpts: true,
     healthStatusOpts: true,
     resourceTypeOpts: true,
     resourceAvailabilityOpts: true,
-  };
-
+  },
+}: FilterPanelProps) {
   const { sort, kinds, statuses } = params;
 
   const activeSortFieldOption = sortFieldOptions.find(
@@ -146,7 +142,7 @@ export function FilterPanel({
       alignItems="center"
     >
       <Flex gap={2}>
-        {show.checkbox && (
+        {visibleFilterPanelFields.checkbox && (
           <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
             <CheckboxInput
               css={`
@@ -159,34 +155,36 @@ export function FilterPanel({
             />
           </HoverTooltip>
         )}
-        {show.resourceTypeOpts && availableKinds.length > 0 && (
-          <MultiselectMenu
-            options={availableKinds
-              .toSorted((a, b) =>
-                getFilterKindName(a.kind).localeCompare(
-                  getFilterKindName(b.kind)
+        {visibleFilterPanelFields.resourceTypeOpts &&
+          availableKinds.length > 0 && (
+            <MultiselectMenu
+              options={availableKinds
+                .toSorted((a, b) =>
+                  getFilterKindName(a.kind).localeCompare(
+                    getFilterKindName(b.kind)
+                  )
                 )
-              )
-              .map(({ kind, disabled }) => ({
-                value: kind as string,
-                label: getFilterKindName(kind),
-                disabled,
-              }))}
-            selected={kinds || []}
-            onChange={onKindsChanged}
-            label="Types"
-            tooltip="Filter by resource type"
-            buffered
-          />
-        )}
-        {show.clusterOpts && ClusterDropdown}
-        {show.resourceAvailabilityOpts && availabilityFilter && (
-          <IncludedResourcesSelector
-            availabilityFilter={availabilityFilter}
-            onChange={changeAvailableResourceMode}
-          />
-        )}
-        {show.healthStatusOpts && (
+                .map(({ kind, disabled }) => ({
+                  value: kind as string,
+                  label: getFilterKindName(kind),
+                  disabled,
+                }))}
+              selected={kinds || []}
+              onChange={onKindsChanged}
+              label="Types"
+              tooltip="Filter by resource type"
+              buffered
+            />
+          )}
+        {visibleFilterPanelFields.clusterOpts && ClusterDropdown}
+        {visibleFilterPanelFields.resourceAvailabilityOpts &&
+          availabilityFilter && (
+            <IncludedResourcesSelector
+              availabilityFilter={availabilityFilter}
+              onChange={changeAvailableResourceMode}
+            />
+          )}
+        {visibleFilterPanelFields.healthStatusOpts && (
           <MultiselectMenu
             options={resourceStatusOptions.map(({ label, value }) => ({
               value,
@@ -254,9 +252,12 @@ export function FilterPanel({
             fieldName: activeSortFieldOption.value,
             dir: sort.dir,
           }}
-          fields={
-            availableKinds.length > 0 ? sortFieldOptions : sortByNameOption
-          }
+          fields={sortFieldOptions.filter(opt => {
+            if (opt.value === 'kind' && availableKinds.length === 0) {
+              return false;
+            }
+            return true;
+          })}
           onChange={newSort => {
             if (newSort.dir !== sort.dir) {
               onSortOrderButtonClicked();

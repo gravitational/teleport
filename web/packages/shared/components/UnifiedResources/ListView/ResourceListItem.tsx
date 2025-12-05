@@ -37,7 +37,7 @@ import {
 import { PinButton } from '../shared/PinButton';
 import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { shouldWarnResourceStatus } from '../shared/StatusInfo';
-import { ResourceItemProps, VisibleResourceItemFields } from '../types';
+import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
   onLabelClick,
@@ -50,14 +50,8 @@ export function ResourceListItem({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
-  visibleInputFields,
+  visibleInputFields = { pin: true, checkbox: true },
 }: ResourceItemProps) {
-  // Conditionally render input fields.
-  const show: VisibleResourceItemFields = visibleInputFields ?? {
-    checkbox: true,
-    pin: true,
-  };
-
   const {
     name,
     primaryIconName,
@@ -109,11 +103,11 @@ export function ResourceListItem({
         selected={selected}
         shouldDisplayWarning={shouldDisplayStatusWarning}
         showingStatusInfo={showingStatusInfo}
-        hideCheckbox={!show.checkbox}
-        hidePin={!show.pin}
+        hideCheckbox={!visibleInputFields.checkbox}
+        hidePin={!visibleInputFields.pin}
       >
         {/* checkbox */}
-        {show.checkbox && (
+        {visibleInputFields.checkbox && (
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
             <CheckboxInput
               checked={selected}
@@ -126,7 +120,7 @@ export function ResourceListItem({
         )}
 
         {/* pin button */}
-        {show.pin && (
+        {visibleInputFields.pin && (
           <PinButton
             setPinned={pinResource}
             pinned={pinned}
