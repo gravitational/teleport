@@ -3,7 +3,6 @@ package oracle
 import (
 	"context"
 	"net"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/db/oracle/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -197,22 +195,4 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// getURIs is a simple helper that returns the endpoint to dial.
-// It exists to intentionally couple the engine dialing logic with the endpoint
-// resolver logic.
-func getURIs(db types.Database) []string {
-	return strings.Split(db.GetURI(), ",")
-}
-
-// NewEndpointsResolver returns an endpoint resolver.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		uris := getURIs(db)
-		if len(uris) == 0 {
-			return nil, trace.BadParameter("no URIs found")
-		}
-		return uris, nil
-	}), nil
 }
