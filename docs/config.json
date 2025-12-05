@@ -982,7 +982,7 @@
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/import-existing-resources/",
-      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/import-existing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/import-existing-resources/",
       "permanent": true
     },
     {
@@ -1187,7 +1187,7 @@
     },
     {
       "source": "/admin-guides/access-controls/guides/webauthn/",
-      "destination": "/zero-trust-access/authentication/webauthn/",
+      "destination": "/zero-trust-access/management/security/idp-compromise/",
       "permanent": true
     },
     {
@@ -1267,7 +1267,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/helm-deployments/argocd-helm/",
-      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
+      "destination": "/enroll-resources/agents/argocd-helm/",
       "permanent": true
     },
     {
@@ -1322,7 +1322,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/high-availability/",
-      "destination": "/zero-trust-access/deploy-a-cluster/high-availability/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/high-availability/",
       "permanent": true
     },
     {
@@ -1337,12 +1337,12 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/multi-region-blueprint/",
-      "destination": "/zero-trust-access/deploy-a-cluster/multi-region-blueprint/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/multi-region-blueprint/",
       "permanent": true
     },
     {
       "source": "/admin-guides/deploy-a-cluster/separate-proxy-service-endpoints/",
-      "destination": "/zero-trust-access/deploy-a-cluster/separate-proxy-service-endpoints/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/separate-proxy-service-endpoints/",
       "permanent": true
     },
     {
@@ -1677,7 +1677,7 @@
     },
     {
       "source": "/zero-trust-access/access-controls/guides/webauthn/",
-      "destination": "/zero-trust-access/authentication/webauthn/",
+      "destination": "/zero-trust-access/management/security/idp-compromise/",
       "permanent": true
     },
     {
@@ -2983,6 +2983,36 @@
     {
       "source": "/identity-governance/idps/saml-microsoft-entra-external-id/",
       "destination": "/identity-governance/idps/usage/saml-microsoft-entra-external-id/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/managing-resources/import-existing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/import-existing-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/authentication/webauthn/",
+      "destination": "/zero-trust-access/management/security/idp-compromise/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/high-availability/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/high-availability/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/multi-region-blueprint/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/multi-region-blueprint/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/separate-proxy-service-endpoints/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/separate-proxy-service-endpoints/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
+      "destination": "/enroll-resources/agents/argocd-helm/",
       "permanent": true
     }
   ]
