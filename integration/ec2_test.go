@@ -29,6 +29,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -260,7 +262,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	// sanity check there are no proxies to start with
-	proxies, err := authServer.GetProxies()
+	proxies, err := stream.Collect(clientutils.Resources(ctx, authServer.ListProxies))
 	require.NoError(t, err)
 	require.Empty(t, proxies)
 
@@ -274,7 +276,7 @@ func TestIAMNodeJoin(t *testing.T) {
 
 	// the proxy should eventually join the cluster and heartbeat
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		proxies, err := authServer.GetProxies()
+		proxies, err := stream.Collect(clientutils.Resources(ctx, authServer.ListProxies))
 		require.NoError(t, err)
 		require.NotEmpty(t, proxies)
 	}, 10*time.Second, 50*time.Millisecond, "waiting for proxy to join cluster")

@@ -31,7 +31,11 @@ import (
 // ProxyGetter is a service that gets proxies.
 type ProxyGetter interface {
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+	// ListProxies returns a paginated list of registered proxies.
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // NodesGetter is a service that gets nodes.
@@ -83,7 +87,12 @@ type Presence interface {
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
 	// GetAuthServers returns a list of registered servers
+	//
+	// Deprecated: Prefer paginated variant [ListAuthServers].
 	GetAuthServers() ([]types.Server, error)
+
+	// ListAuthServers returns a paginated list of registered auth servers.
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second

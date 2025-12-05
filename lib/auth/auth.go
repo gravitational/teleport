@@ -8423,7 +8423,9 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
 // finds, or empty otherwise.
 func (a *Server) getProxyPublicAddr() string {
-	if proxies, err := a.GetProxies(); err == nil {
+	if proxies, err := iterstream.Collect(
+		clientutils.Resources(context.TODO(), a.ListProxies),
+	); err == nil {
 		for _, p := range proxies {
 			addr := p.GetPublicAddr()
 			if addr == "" {

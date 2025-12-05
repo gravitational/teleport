@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -186,7 +187,9 @@ type AuthRequestInfo struct {
 type SSOLoginConsoleRequestFn func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error)
 
 func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c *authclient.Client, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.SSHLoginResponse, error) {
-	proxies, err := c.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, c.ListProxies, func(context.Context) ([]types.Server, error) {
+		return c.GetProxies()
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

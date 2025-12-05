@@ -44,11 +44,11 @@ func TestProxies(t *testing.T) {
 			}, nil
 		},
 		create:    p.presenceS.UpsertProxy,
-		list:      getAllAdapter(func(_ context.Context) ([]types.Server, error) { return p.presenceS.GetProxies() }),
-		cacheList: getAllAdapter(func(_ context.Context) ([]types.Server, error) { return p.cache.GetProxies() }),
+		list:      p.presenceS.ListProxies,
+		cacheList: p.cache.ListProxies,
 		update:    p.presenceS.UpsertProxy,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllProxies()
 		},
-	}, withSkipPaginationTest())
+	})
 }

@@ -424,6 +424,8 @@ func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error
 }
 
 // GetAuthServers returns the list of auth servers registered in the cluster.
+//
+// Deprecated: Prefer paginated variant [APIClient.ListAuthServers].
 func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
 	if err != nil {
@@ -459,6 +461,8 @@ func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 }
 
 // GetProxies returns the list of auth servers registered in the cluster.
+//
+// Deprecated: Prefer paginated variant [APIClient.ListProxies].
 func (c *HTTPClient) GetProxies() ([]types.Server, error) {
 	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
 	if err != nil {

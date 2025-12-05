@@ -521,6 +521,11 @@ func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+// ListProxies returns a paginated list of registered proxies.
+func (m *mockIntegrationsTokenGenerator) ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return m.proxies, "", nil
+}
+
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return uuid.NewString(), nil

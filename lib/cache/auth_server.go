@@ -18,6 +18,7 @@ package cache
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -41,8 +42,10 @@ func newAuthServerCollection(p services.Presence, w types.WatchKind) (*collectio
 				authServerNameIndex: types.Server.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
-			servers, err := p.GetAuthServers()
-			return servers, trace.Wrap(err)
+			out, err := clientutils.CollectWithFallback(ctx, p.ListAuthServers, func(context.Context) ([]types.Server, error) {
+				return p.GetAuthServers()
+			})
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{
@@ -58,6 +61,8 @@ func newAuthServerCollection(p services.Presence, w types.WatchKind) (*collectio
 }
 
 // GetAuthServers returns a list of registered servers
+//
+// Deprecated: Prefer paginated gRPC variant [ListAuthServers].
 func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetAuthServers")
 	defer span.End()
@@ -79,4 +84,22 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	}
 
 	return servers, nil
+}
+
+// ListAuthServers returns a paginated list of registered auth servers.
+func (c *Cache) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAuthServers")
+	defer span.End()
+
+	lister := genericLister[types.Server, authServerIndex]{
+		cache:        c,
+		collection:   c.collections.authServers,
+		index:        authServerNameIndex,
+		upstreamList: c.Config.Presence.ListAuthServers,
+		nextToken: func(t types.Server) string {
+			return t.GetMetadata().Name
+		},
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
 }

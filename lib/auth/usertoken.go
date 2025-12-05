@@ -126,7 +126,9 @@ func (a *Server) resetMFA(ctx context.Context, user string) error {
 
 // proxyDomainGetter is a reduced subset of the Auth API for formatAccountName.
 type proxyDomainGetter interface {
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+	ListProxies(context.Context, int, string) ([]types.Server, string, error)
 	GetDomainName() (string, error)
 }
 
@@ -138,7 +140,7 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	var proxyHost string
 
 	// Get a list of proxies.
-	proxies, err := s.GetProxies()
+	proxies, err := stream.Collect(clientutils.Resources(context.TODO(), s.ListProxies))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -235,7 +237,7 @@ func (a *Server) newUserToken(req authclient.CreateUserTokenRequest) (types.User
 
 	// Get the list of proxies and try and guess the address of the proxy. If
 	// failed to guess public address, use "<proxyhost>:3080" as a fallback.
-	proxies, err := a.GetProxies()
+	proxies, err := stream.Collect(clientutils.Resources(context.TODO(), a.ListProxies))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

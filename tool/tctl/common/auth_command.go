@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -474,7 +475,11 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 
 // ListAuthServers prints a list of connected auth servers
 func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authCommandClient) error {
-	servers, err := clusterAPI.GetAuthServers()
+	servers, err := clientutils.CollectWithFallback(
+		ctx,
+		clusterAPI.ListAuthServers,
+		func(context.Context) ([]types.Server, error) { return clusterAPI.GetAuthServers() },
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

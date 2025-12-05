@@ -32,6 +32,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/idna"
 	corev1 "k8s.io/api/core/v1"
@@ -92,7 +93,9 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		return trace.Wrap(err, "app %q has an invalid IDN hostname %q", app.GetName(), appAddr.Host())
 	}
 
-	proxyServers, err := proxyGetter.GetProxies()
+	proxyServers, err := clientutils.CollectWithFallback(context.TODO(), proxyGetter.ListProxies, func(context.Context) ([]types.Server, error) {
+		return proxyGetter.GetProxies()
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

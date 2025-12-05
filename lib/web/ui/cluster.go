@@ -23,6 +23,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -104,7 +105,11 @@ func GetClusterDetails(ctx context.Context, cluster reversetunnelclient.Cluster,
 		return nil, trace.Wrap(err)
 	}
 
-	authServers, err := clt.GetAuthServers()
+	authServers, err := clientutils.CollectWithFallback(
+		ctx,
+		clt.ListAuthServers,
+		func(context.Context) ([]types.Server, error) { return clt.GetAuthServers() },
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

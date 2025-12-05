@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -186,7 +187,11 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 		return trace.Wrap(err)
 	}
 
-	authServers, err := client.GetAuthServers()
+	authServers, err := clientutils.CollectWithFallback(
+		ctx,
+		client.ListAuthServers,
+		func(context.Context) ([]types.Server, error) { return client.GetAuthServers() },
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -207,7 +212,9 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 			}
 
 			if err == nil && pingResponse.GetServerFeatures().Cloud {
-				proxies, err := client.GetProxies()
+				proxies, err := clientutils.CollectWithFallback(ctx, client.ListProxies, func(context.Context) ([]types.Server, error) {
+					return client.GetProxies()
+				})
 				if err != nil {
 					return trace.Wrap(err)
 				}

@@ -36,6 +36,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/term"
 
@@ -774,9 +775,26 @@ func newWaitForReadyModel(client *authclient.Client, caID types.CertAuthID, targ
 	}
 	m.kindReadyModels = []*waitForKindReadyModel{
 		newWaitForKindReadyModel(
-			targetPhase, "auth_servers", adaptServerGetter(client.GetAuthServers)).withMinReady(1),
+			targetPhase, "auth_servers", adaptServerGetter(func() ([]types.Server, error) {
+				return clientutils.CollectWithFallback(
+					context.TODO(),
+					client.ListAuthServers,
+					func(context.Context) ([]types.Server, error) {
+						return client.GetAuthServers()
+					},
+				)
+			}),
+		).withMinReady(1),
 		newWaitForKindReadyModel(
-			targetPhase, "proxies", adaptServerGetter(client.GetProxies)),
+			targetPhase, "proxies", adaptServerGetter(func() ([]types.Server, error) {
+				return clientutils.CollectWithFallback(
+					context.TODO(),
+					client.ListProxies,
+					func(context.Context) ([]types.Server, error) {
+						return client.GetProxies()
+					},
+				)
+			})),
 		newWaitForKindReadyModel(
 			targetPhase, "nodes", adaptServerGetter(func() ([]types.Server, error) {
 				return apiclient.GetAllResources[types.Server](context.TODO(), client, &proto.ListResourcesRequest{

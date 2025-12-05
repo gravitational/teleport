@@ -23,6 +23,8 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -53,7 +55,9 @@ func (p *ProxyCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 
 // ListProxies prints currently connected proxies
 func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.Client) error {
-	proxies, err := clusterAPI.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, clusterAPI.ListProxies, func(context.Context) ([]types.Server, error) {
+		return clusterAPI.GetProxies()
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

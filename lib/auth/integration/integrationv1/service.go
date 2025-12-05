@@ -54,7 +54,12 @@ type Cache interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
 
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxies].
 	GetProxies() ([]types.Server, error)
+
+	// ListProxies returns a paginated list of registered proxies.
+	ListProxies(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// IntegrationsGetter defines methods to access Integration resources.
 	services.IntegrationsGetter

@@ -311,6 +311,8 @@ const (
 	AuthService_UpdateClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/UpdateClusterMaintenanceConfig"
 	AuthService_DeleteClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/DeleteClusterMaintenanceConfig"
 	AuthService_ValidateTrustedCluster_FullMethodName              = "/proto.AuthService/ValidateTrustedCluster"
+	AuthService_ListAuthServers_FullMethodName                     = "/proto.AuthService/ListAuthServers"
+	AuthService_ListProxies_FullMethodName                         = "/proto.AuthService/ListProxies"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -1074,6 +1076,10 @@ type AuthServiceClient interface {
 	// by the proxy on behalf of a cluster that wishes to join to this one as a
 	// leaf cluster.
 	ValidateTrustedCluster(ctx context.Context, in *ValidateTrustedClusterRequest, opts ...grpc.CallOption) (*ValidateTrustedClusterResponse, error)
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster.
+	ListAuthServers(ctx context.Context, in *ListAuthServersRequest, opts ...grpc.CallOption) (*ListAuthServersResponse, error)
+	// ListProxies returns a paginated list of proxy servers registered in the cluster.
+	ListProxies(ctx context.Context, in *ListProxiesRequest, opts ...grpc.CallOption) (*ListProxiesResponse, error)
 }
 
 type authServiceClient struct {
@@ -3997,6 +4003,26 @@ func (c *authServiceClient) ValidateTrustedCluster(ctx context.Context, in *Vali
 	return out, nil
 }
 
+func (c *authServiceClient) ListAuthServers(ctx context.Context, in *ListAuthServersRequest, opts ...grpc.CallOption) (*ListAuthServersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAuthServersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListAuthServers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListProxies(ctx context.Context, in *ListProxiesRequest, opts ...grpc.CallOption) (*ListProxiesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProxiesResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListProxies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations should embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -4758,6 +4784,10 @@ type AuthServiceServer interface {
 	// by the proxy on behalf of a cluster that wishes to join to this one as a
 	// leaf cluster.
 	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+	// ListAuthServers returns a paginated list of auth servers registered in the cluster.
+	ListAuthServers(context.Context, *ListAuthServersRequest) (*ListAuthServersResponse, error)
+	// ListProxies returns a paginated list of proxy servers registered in the cluster.
+	ListProxies(context.Context, *ListProxiesRequest) (*ListProxiesResponse, error)
 }
 
 // UnimplementedAuthServiceServer should be embedded to have
@@ -5591,6 +5621,12 @@ func (UnimplementedAuthServiceServer) DeleteClusterMaintenanceConfig(context.Con
 }
 func (UnimplementedAuthServiceServer) ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateTrustedCluster not implemented")
+}
+func (UnimplementedAuthServiceServer) ListAuthServers(context.Context, *ListAuthServersRequest) (*ListAuthServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAuthServers not implemented")
+}
+func (UnimplementedAuthServiceServer) ListProxies(context.Context, *ListProxiesRequest) (*ListProxiesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListProxies not implemented")
 }
 func (UnimplementedAuthServiceServer) testEmbeddedByValue() {}
 
@@ -10408,6 +10444,42 @@ func _AuthService_ValidateTrustedCluster_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListAuthServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAuthServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListAuthServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListAuthServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListAuthServers(ctx, req.(*ListAuthServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListProxies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProxiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListProxies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListProxies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListProxies(ctx, req.(*ListProxiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -11442,6 +11514,14 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateTrustedCluster",
 			Handler:    _AuthService_ValidateTrustedCluster_Handler,
+		},
+		{
+			MethodName: "ListAuthServers",
+			Handler:    _AuthService_ListAuthServers_Handler,
+		},
+		{
+			MethodName: "ListProxies",
+			Handler:    _AuthService_ListProxies_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
