@@ -597,8 +597,10 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceDiffer func(old, new T) bool
 	// ResourceKey defines how the resources should be keyed.
 	ResourceKey func(resource T) string
-	// DeleteKey defines how a deleted resource should be keyed.
-	// This defaults to the resource.Description + resource.GetName
+	// DeleteKey defines how a deleted resource key is derived. A delete event
+	// typically sends a stripped down resource representation with an underlying
+	// type of [types.ResourceHeader].
+	// If unspecified the key will be derived from the resource.Description + resource.GetName
 	DeleteKey func(types.Resource) string
 	// ResourcesC is a channel used to report the current resource set. It receives
 	// a fresh list at startup and subsequently a list of all known resources
