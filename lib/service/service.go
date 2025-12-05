@@ -2819,7 +2819,6 @@ func (process *TeleportProcess) initAuthService() error {
 		cfg.Auth.KeyStore.HealthCheck.Active != nil &&
 		cfg.Auth.KeyStore.HealthCheck.Active.Enabled {
 
-		// TODO(dboslee): only enable this when configured to do so.
 		cawatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: teleport.ComponentAuth,

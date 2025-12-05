@@ -8495,7 +8495,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyLockWatcher.Close)
 
-	//nolint:staticcheck // SA1019
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
 	proxyCAWatcher, err := services.DeprecatedNewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
