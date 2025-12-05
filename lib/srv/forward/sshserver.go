@@ -226,7 +226,7 @@ type ServerConfig struct {
 	// Clock is an optoinal clock to override default real time clock
 	Clock clockwork.Clock
 
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 

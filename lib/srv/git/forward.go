@@ -121,7 +121,7 @@ type ForwardServerConfig struct {
 	// MACAlgorithms is a list of message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 

@@ -63,7 +63,7 @@ $ teleport db start \
 | `--ca-pin` | CA pin to validate the Auth Service. |
 | `-c/--config` | Path to a configuration file (default `/etc/teleport.yaml`). |
 | `--labels` | Comma-separated list of labels for this node, for example `env=dev,app=web`. |
-| `--fips` | Start Teleport in FedRAMP/FIPS 140-2 mode. |
+| `--fips` | Start Teleport in FedRAMP/FIPS mode. |
 | `--name` | Name of the proxied database. |
 | `--description` | Description of the proxied database. |
 | `--protocol` | Proxied database protocol. Supported are: `postgres` and `mysql`. |
@@ -435,4 +435,3 @@ $ tsh db config --format=cmd example
 | Flag | Description |
 | - | - |
 | `--format` | Output format: `text` is default, `cmd` to print native database client connect command. |
-
