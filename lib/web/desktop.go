@@ -54,7 +54,8 @@ import (
 
 const (
 	tdpbQueryParameter = "tdpb"
-	tdpbVersionOne     = "teleport-tdpb-1.0"
+	protocolTDPB       = "teleport-tdpb-1.0"
+	protocolTDP        = "tdp"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>
@@ -302,20 +303,24 @@ func (h *Handler) createDesktopConnection(
 	ctx := r.Context()
 
 	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter
-	// - if 'tdpb' query param is present, then we'll need to send an upgrade message to the client,
+	// - If 'tdpb' query param is present, then we'll need to send an upgrade message to the client,
 	//   then listen for a "CLIENT_HELLO" message (while discarding any TDP messages received).
 	// - Otherwise fall back to the "legacy" behavior
 	//
 	// After either receiving a CLIENT_HELLO or our initial TDP messages, we can dial the server which
 	// ALSO might speak TDP or TDPB. Unlike the client, the agent only speaks on or the other, so we'll
 	// translate on its behalf.
-	isTDPB := r.URL.Query().Get(tdpbQueryParameter) == tdpbQueryParameter
+	clientProtocol, err := readClientProtocol(r)
+	if err != nil {
+		log.ErrorContext(ctx, "Error reading client desktop protocol", "error", err)
+		return trace.Wrap(err)
+	}
 	withheld := []tdp.Message{}
 
 	var init handshakeInitializer
 	var adapter wsAdapter
 	var sendError func(MessageReadWriter, error) error
-	if isTDPB {
+	if clientProtocol == protocolTDPB {
 		log.DebugContext(ctx, "Creating Desktop connection for TDPB capable client")
 		adapter = wsAdapter{Conn: ws, Decoder: func(r *websocket.Conn) (tdp.Message, error) {
 			for {
@@ -425,9 +430,11 @@ func (h *Handler) createDesktopConnection(
 	// forward the client_hello message (TDPB) or username and screen spec (TDP)
 	// to the service, and any withheld messages that were received before the MFA
 	// ceremony was completed.
-	if alpnResult == tdpbVersionOne {
+	if alpnResult == protocolTDPB {
+		log.InfoContext(ctx, "Desktop Service negotiated TDPB")
 		err = handshakeData.ForwardTDPB(serviceConnTLS, username)
 	} else {
+		log.InfoContext(ctx, "Desktop Service negotiated TDP")
 		sendKeyboardLayout, _ := utils.MinVerWithoutPreRelease(version, "18.0.0")
 		err = handshakeData.ForwardTDP(serviceConnTLS, username, sendKeyboardLayout)
 	}
@@ -435,7 +442,7 @@ func (h *Handler) createDesktopConnection(
 	// this blocks until the connection is closed
 	handleProxyWebsocketConnErr(
 		ctx,
-		proxyWebsocketConn(ctx, ws, serviceConnTLS, version),
+		proxyWebsocketConn(ctx, ws, serviceConnTLS, version, clientProtocol, alpnResult),
 		log,
 	)
 
@@ -623,6 +630,19 @@ func readUsername(r *http.Request) (string, error) {
 	return username, nil
 }
 
+func readClientProtocol(r *http.Request) (string, error) {
+	q := r.URL.Query()
+	tdpbVersion := q.Get(tdpbQueryParameter)
+	switch tdpbVersion {
+	case "":
+		return protocolTDP, nil
+	case protocolTDPB:
+		return tdpbVersion, nil
+	default:
+		return "", trace.Errorf("unknown TDPB version '%s'", tdpbVersion)
+	}
+}
+
 // desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
 // Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
 type desktopPinger struct {
@@ -703,12 +723,14 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 		return nil, nil
 	}
 
-	// Always run the ping interceptor in the read path of the server connection.
+	// Run the ping interceptor in the read path of the server connection.
+	// Translation interceptors will be (optionally) installed in the write paths.
 	serverConn := tdp.NewReadWriteInterceptor(tdp.NewConn(wds), tdpbPingInterceptor, nil)
 	clientConn := tdp.MessageReadWriteCloser(tdp.NewConn(&WebsocketIO{Conn: ws}))
 
 	if clientProtocol != serverProtocol {
-		if serverProtocol == tdpbVersionOne {
+		if serverProtocol == protocolTDPB {
+			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", "TDPB", "client_dialect", "TDP")
 			// Server speaks TDPB
 			// Translate to TDPB when writing to the server. Intercept pings when reading from the server.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdp.TranslateToModern)
@@ -716,6 +738,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 			// Translate to TDP (legacy) when writing to this connection
 			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdp.TranslateToLegacy)
 		} else {
+			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", "TDP", "client_dialect", "TDPB")
 			// Server speaks TDP
 			// Translate to TDPB when reading from this connection.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdp.TranslateToLegacy)
