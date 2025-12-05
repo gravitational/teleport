@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/e/tests/common/tctl"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -106,7 +105,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 	}
 
 	if options.samlConnector != "" {
-		_, err := sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(context.Background(), mustUnmarshalSAMLConnector(t, idp.SAMLConnector))
+		_, err := sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(context.Background(), mustUnmarshalSAMLConnector(t, options.samlConnector))
 		require.NoError(t, err)
 	}
 	return &sut

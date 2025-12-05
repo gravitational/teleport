@@ -3,8 +3,10 @@ package services
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/url"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 
@@ -58,30 +60,7 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 		return trace.BadParameter("failed to acquire AccessGraphPlugin credentials from Auth")
 	}
 
-	var credential msgraph.AzureTokenProvider
-	// Construct MS Graph Client
-	if usesSystemCredentials(spec) {
-		credential, err = azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return trace.Wrap(err, "failed to create Azure default credential")
-		}
-	} else if integrationSpec != nil {
-		getAssertion := func(ctx context.Context) (string, error) {
-			token, err := azureoidc.GenerateEntraOIDCToken(ctx, authServer, authServer.GetKeyStore(), process.Clock)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-			return token, nil
-		}
-		credential, err = azidentity.NewClientAssertionCredential(integrationSpec.TenantID, integrationSpec.ClientID, getAssertion, nil)
-		if err != nil {
-			return trace.Wrap(err, "failed to create Azure client assertion credential")
-		}
-	} else {
-		return trace.BadParameter("Azure OIDC integration spec is required for Entra ID service when system credentials are not used")
-	}
-
-	graphClient, err := constructGraphClient(credential, reg.Wrap("msgraph"))
+	graphClient, err := constructGraphClient(spec, integrationSpec, process, reg.Wrap("msgraph"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -209,14 +188,27 @@ func EntraIDPluginInit(ctx context.Context, reg *metrics.Registry, process *serv
 }
 
 // constructGraphClient returns a new MS Graph API client using the given function to retrieve the client assertion.
-func constructGraphClient(credential msgraph.AzureTokenProvider, reg *metrics.Registry) (*msgraph.Client, error) {
+func constructGraphClient(pluginSpec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1, process *service.TeleportProcess, reg *metrics.Registry) (*msgraph.Client, error) {
 	if reg != nil {
 		reg = reg.Wrap("msclient")
+	}
+
+	var httpClient *http.Client
+	if process.Config.Testing.HTTPTransport != nil {
+		clt := http.DefaultClient
+		clt.Transport = process.Config.Testing.HTTPTransport
+		httpClient = clt
+	}
+
+	credential, err := makeCredentialProvider(pluginSpec, integrationSpec, process, httpClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	graphClient, err := msgraph.NewClient(msgraph.Config{
 		TokenProvider:   credential,
 		MetricsRegistry: reg,
+		HTTPClient:      httpClient,
 	})
 
 	return graphClient, trace.Wrap(err)
@@ -258,4 +250,45 @@ func getAppID(ctx context.Context, spec *types.PluginEntraIDSettings, authServer
 	appID = u.Query().Get("appid")
 
 	return appID, nil
+}
+
+func makeCredentialProvider(
+	pluginSpec *types.PluginEntraIDSettings,
+	integrationSpec *types.AzureOIDCIntegrationSpecV1,
+	process *service.TeleportProcess,
+	client *http.Client,
+) (msgraph.AzureTokenProvider, error) {
+	if usesSystemCredentials(pluginSpec) {
+		opts := &azidentity.DefaultAzureCredentialOptions{}
+		if client != nil {
+			// client only expected in tests.
+			opts.ClientOptions = azcore.ClientOptions{
+				Transport: client,
+			}
+		}
+		credential, err := azidentity.NewDefaultAzureCredential(opts)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to create Azure default credential")
+		}
+		return credential, nil
+	}
+
+	if integrationSpec == nil {
+		return nil, trace.BadParameter("Azure OIDC integration spec is required for Entra ID service when system credentials are not used")
+	}
+
+	authServer := process.GetAuthServer()
+	getAssertion := func(ctx context.Context) (string, error) {
+		token, err := azureoidc.GenerateEntraOIDCToken(ctx, authServer, authServer.GetKeyStore(), process.Clock)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return token, nil
+	}
+	credential, err := azidentity.NewClientAssertionCredential(integrationSpec.TenantID, integrationSpec.ClientID, getAssertion, nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create Azure client assertion credential")
+	}
+
+	return credential, nil
 }

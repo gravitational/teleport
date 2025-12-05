@@ -24,7 +24,7 @@ type AccessGraphConfig struct {
 	ConnectionConfig servicecfg.AccessGraphConfig
 	Credentials      accessgraph.ClientCredentialsGetter
 	SyncSettings     *types.PluginEntraIDAccessGraphSettings
-	GraphClient      *msgraph.Client
+	GraphClient      GraphClient
 
 	TenantID string
 }
