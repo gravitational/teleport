@@ -967,7 +967,7 @@ func RunAndExit(commandType string) {
 	if err != nil {
 		// Write the error to stderr, where it can be seen by the parent teleport process and the client.
 		if code == teleport.RemoteCommandFailure {
-			fmt.Fprintf(os.Stderr, "Failed to launch: %v.\r\n", err)
+			fmt.Fprintf(os.Stderr, "Failed to launch: %v", err)
 		}
 
 		// The "operation not permitted" error is expected from a variety of operations if the
@@ -1457,33 +1457,6 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	return nil
 }
 
-// waitForSignal will wait for the other side of the pipe to signal, if not
-// received, it will stop waiting and exit.
-func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
-	waitCh := make(chan error, 1)
-	go func() {
-		// Reading from the file descriptor will block until it's closed.
-		_, err := fd.Read(make([]byte, 1))
-		if errors.Is(err, io.EOF) {
-			err = nil
-		}
-		waitCh <- err
-	}()
-
-	// Timeout if no signal has been sent within the provided duration.
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "got context error while waiting for continue signal")
-	case <-timer.C:
-		return trace.LimitExceeded("timed out waiting for continue signal")
-	case err := <-waitCh:
-		return trace.Wrap(err)
-	}
-}
-
 func initLogger(name string, cfg ExecLogConfig) {
 	logWriter := os.NewFile(LogFile, fdName(LogFile))
 	if logWriter == nil {
@@ -1513,4 +1486,59 @@ func initLogger(name string, cfg ExecLogConfig) {
 	default:
 		return
 	}
+}
+
+// waitForSignal will wait for the other side of the pipe to signal, if not
+// received, it will stop waiting and exit.
+func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
+	waitCh := make(chan error, 1)
+	go func() {
+		// Reading from the file descriptor will block until it's closed.
+		_, err := fd.Read(make([]byte, 1))
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		waitCh <- err
+	}()
+
+	// Timeout if no signal has been sent within the provided duration.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "got context error while waiting for continue signal")
+	case <-timer.C:
+		return trace.LimitExceeded("timed out waiting for continue signal")
+	case err := <-waitCh:
+		return trace.Wrap(err)
+	}
+}
+
+// ErrorMessageFromStderr reads the child process's stderr pipe for an error.
+// If stderr is empty, an empty string is returned. If stderr is non-empty and
+// looks like "Failed to launch: <internal-error-message>", the error message
+// is returned, potentially with additional error context gathered from the given
+// server context. This must only be called after the child process has exited.
+func ErrorMessageFromStderr(scx *ServerContext) (string, error) {
+	// Close stderr writer. The child process has exited and doesn't
+	// have a way to close this pipe itself.
+	scx.stderrW.Close()
+
+	// Copy stderr to the start of the error message. It should be empty or include
+	// an error message like "Failed to launch: ..."
+	errMsg := new(strings.Builder)
+	if _, err := io.Copy(errMsg, scx.stderrR); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
+		return "", trace.BadParameter("unexpected error message from child process: %v", errMsg.String())
+	}
+
+	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
+	// the cause of the session failure to add to the error message.
+	// e.g. user unknown because host user creation denied.
+
+	return errMsg.String(), nil
 }

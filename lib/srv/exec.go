@@ -219,7 +219,7 @@ func (e *localExec) Wait() *ExecResult {
 	// Emit the result of execution to the Audit Log.
 	emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
 
-	errMsg, err := errorMessageFromStderr(e.Ctx)
+	errMsg, err := ErrorMessageFromStderr(e.Ctx)
 	if err != nil {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Failed to read stderr", "err", err)
 	}
