@@ -56,7 +56,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		case r.URL.Path != "/mcp":
 			// Unhappy scenario.
 			w.WriteHeader(http.StatusNotFound)
-		case r.Header.Get("Authorization") != "Bearer app-token-for-ai":
+		case r.Header.Get("Authorization") != "Bearer app-token-for-ai-by-oidc_idp":
 			// Verify rewrite headers.
 			w.WriteHeader(http.StatusUnauthorized)
 		default:
@@ -72,7 +72,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		Rewrite: &types.Rewrite{
 			Headers: []*types.Header{{
 				Name:  "Authorization",
-				Value: "Bearer {{internal.jwt}}",
+				Value: "Bearer {{internal.id_token}}",
 			}},
 		},
 	})
@@ -143,7 +143,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		checkSessionStartAndInitializeEvents(t, emitter.Events(),
 			checkSessionStartWithServerInfo("test-server", "1.0.0"),
 			checkSessionStartHasExternalSessionID(),
-			checkSessionStartWithEgressAuthType("app-jwt"),
+			checkSessionStartWithEgressAuthType("app-oidc"),
 		)
 
 		// Close client and wait for end event.
