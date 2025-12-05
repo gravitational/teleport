@@ -675,6 +675,8 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	channelType := nch.ChannelType()
 	switch channelType {
 	// Heartbeats can come from nodes or proxies.
+	case chanHeartbeatV2:
+		s.rejectRequest(nch, RejectFeatureSupported, chanHeartbeatV2+" supported")
 	case chanHeartbeat:
 		s.handleHeartbeat(ctx, conn, sconn, nch)
 	// Transport requests come from nodes requesting a connection to the Auth
@@ -1357,4 +1359,11 @@ const (
 	extCertRole  = "role"
 
 	versionRequest = "x-teleport-version"
+)
+
+// Use a private range rejection reason for local channels as per https://datatracker.ietf.org/doc/html/rfc4250#section-4.3.4
+const (
+	// RejectFeatureSupported indicates that a requested feature is supported by the server but no channel is required.
+	// This allows the client to probe features without opening a channel.
+	RejectFeatureSupported ssh.RejectionReason = 0xFE000000
 )

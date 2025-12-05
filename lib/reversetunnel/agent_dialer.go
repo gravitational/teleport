@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -69,6 +70,9 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 		return nil, trace.Wrap(err)
 	}
 
+	// Wrap the connection to support optional idle timeouts, this is optionally enabled by the agent via callback.
+	pconn, enableWatchdog := utils.ObeyDelayedIdleTimeout(pconn)
+
 	var principals []string
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
@@ -113,10 +117,11 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	client := tracessh.NewClient(conn, chans, emptyRequests)
 
 	return &sshClient{
-		Client:      client,
-		requests:    reqs,
-		newChannels: chans,
-		principals:  principals,
+		Client:         client,
+		requests:       reqs,
+		newChannels:    chans,
+		principals:     principals,
+		enableWatchdog: enableWatchdog,
 	}, nil
 }
 
@@ -142,9 +147,10 @@ func (d *agentDialer) hostCheckerFunc(ctx context.Context) apisshutils.CheckersG
 // sshClient implements the SSHClient interface.
 type sshClient struct {
 	*tracessh.Client
-	requests    <-chan *ssh.Request
-	newChannels <-chan ssh.NewChannel
-	principals  []string
+	requests       <-chan *ssh.Request
+	newChannels    <-chan ssh.NewChannel
+	principals     []string
+	enableWatchdog func(timeout time.Duration)
 }
 
 // NewChannels is a channel that receieves ssh new channel requests.
@@ -165,4 +171,10 @@ func (c *sshClient) Principals() []string {
 // Reply handles replying to a request.
 func (c *sshClient) Reply(request *ssh.Request, ok bool, payload []byte) error {
 	return request.Reply(ok, payload)
+}
+
+func (c *sshClient) EnableWatchdog(timeout time.Duration) {
+	if c.enableWatchdog != nil {
+		c.enableWatchdog(timeout)
+	}
 }

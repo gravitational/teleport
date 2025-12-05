@@ -845,6 +845,9 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 			}
 			log.DebugContext(ctx, "Received ping request", "remote_addr", logutils.StringerAttr(rconn.conn.RemoteAddr()))
 
+			if err := req.Reply(false, nil); err != nil {
+				log.DebugContext(ctx, "Failed to respond to ping request", "remote_addr", logutils.StringerAttr(rconn.conn.RemoteAddr()), "error", err)
+			}
 			rconn.setLastHeartbeat(s.clock.Now().UTC())
 			rconn.markValid()
 		case t := <-offlineThresholdTimer.Chan():

@@ -47,6 +47,34 @@ func obeyIdleTimeoutClock(conn net.Conn, timeout time.Duration, clock clockwork.
 	}
 }
 
+func ObeyDelayedIdleTimeout(conn net.Conn) (net.Conn, func(time.Duration)) {
+	return obeyDelayedIdleTimeout(conn, clockwork.NewRealClock())
+}
+
+func obeyDelayedIdleTimeout(conn net.Conn, clock clockwork.Clock) (net.Conn, func(time.Duration)) {
+	timeout := time.Hour // long timeout to avoid the watchdog firing too early
+
+	tc := &timeoutConn{
+		Conn:    conn,
+		timeout: timeout,
+		watchdog: clock.AfterFunc(timeout, func() {
+			conn.Close()
+		}),
+	}
+
+	// Prevent from firing until explicitly enabled
+	tc.watchdog.Stop()
+
+	enableCallback := func(timeout time.Duration) {
+		tc.mu.Lock()
+		defer tc.mu.Unlock()
+		tc.timeout = timeout
+		tc.watchdog.Reset(tc.timeout)
+	}
+
+	return tc, enableCallback
+}
+
 type timeoutConn struct {
 	net.Conn
 
