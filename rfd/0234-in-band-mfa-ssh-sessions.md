@@ -155,6 +155,22 @@ sequenceDiagram
   Host-->>SSH: SSH connection established
   SSH-->>Proxy: SSH connection established
   Proxy-->>Client: SSH session established
+```
+
+```mermaid
+---
+title: SSH MFA Connection Flow (Leaf Cluster)
+---
+sequenceDiagram
+  autoNumber
+
+  participant Client
+  participant Proxy as Proxy Service
+  participant rMFA as Root MFA Service
+  participant lMFA as Leaf MFA Service
+  participant SSH as SSH Service
+  participant Dec as Decision Service
+  participant Host as Target SSH Host
 
   Client->>Proxy: Dial SSH
   Proxy->>Dec: EvaluateSSHAccess
