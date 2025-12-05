@@ -1,19 +1,16 @@
 Teleport provides connectivity, authentication, access controls and audit for infrastructure.
 
-Here is why you might use Teleport:
+You might use Teleport to:
 
-* Set up SSO for all of your cloud infrastructure [1].
-* Protect access to cloud and on-prem services using mTLS endpoints and short-lived certificates.
-* Establish tunnels to access services behind NATs and firewalls.
-* Provide an audit log with session recording and replay for various protocols.
-* Unify Role-Based Access Control (RBAC) and enforce the principle of least privilege with  [access requests](https://goteleport.com/features/access-requests/).
+* Set up single sign-on (SSO) for all of your cloud and on-prem infrastructure.
+* Protect access to servers, Kubernetes clusters, databases, Windows desktops, web applications, and cloud APIs without long-lived keys or passwords.
+* Establish secure tunnels to reach resources behind NATs and firewalls without VPNs or bastion hosts.
+* Record and audit activity across SSH, Kubernetes, database, RDP, and web sessions.
+* Apply consistent Role-Based and Attribute-Based Access Control (RBAC/ABAC) across users, machines, workloads, and resource types.
+* Enforce least privilege and Just-in-Time (JIT) access requests for elevated roles or sensitive systems.
+* Maintain a single identity and access layer for both human users and workloads.
 
-[1] The open source version supports only GitHub SSO.
-
-Teleport works with SSH, Kubernetes, databases, RDP, and web services.
-
-* Architecture: https://goteleport.com/docs/reference/architecture/
-* Getting Started: https://goteleport.com/docs/get-started/
+Teleport works with SSH, Kubernetes, databases, RDP, cloud consoles, internal web services, Git repositories, and Model Context Protocol (MCP) servers.
 
 <div align="center">
    <a href="https://goteleport.com/download">
@@ -36,70 +33,87 @@ Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 </div>
 </br>
 
+## More Information
+[Teleport Getting Started](https://goteleport.com/docs/get-started/)  
+[Teleport Architecture](https://goteleport.com/docs/reference/architecture/)  
+[Reference Guides](https://goteleport.com/docs/reference/)  
+[FAQ](https://goteleport.com/docs/faq)
+
+
 ## Table of Contents
 
 1. [Introduction](#introduction)
+1. [Why We Built Teleport?](#why-did-we-build-teleport)
+1. [Support and Contributing](#support-and-contributing)
 1. [Installing and Running](#installing-and-running)
 1. [Docker](#docker)
 1. [Building Teleport](#building-teleport)
-1. [Why Did We Build Teleport?](#why-did-we-build-teleport)
-1. [More Information](#more-information)
-1. [Support and Contributing](#support-and-contributing)
-1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
-1. [Who Built Teleport?](#who-built-teleport)
+1. [Teleport Editions & Features](#teleport-editions--features)
 1. [License](#license)
+1. [FAQ](#faq)
 
 ## Introduction
 
-Teleport includes an identity-aware access proxy, a CA that issues short-lived certificates, a unified access control system and a tunneling system to access resources behind the firewall.
+Teleport includes an identity-aware access proxy, a CA that issues short-lived certificates, a unified access control system, and a tunneling system to access resources behind the firewall.
 
-We have implemented Teleport as a single Go binary that integrates with multiple protocols and cloud services:
+Teleport is a single Go binary that integrates with multiple protocols and cloud services, including
 
 * [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 * [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
 * [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/).
+* [Model Context Protocol](https://goteleport.com/docs/connect-your-client/model-context-protocol/)
 * [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
 * [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
 * [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 
 You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/).
 
-Teleport focuses on best practices for infrastructure security:
+Teleport focuses on best practices for infrastructure security, including:
 
-- No need to manage shared secrets such as SSH keys or Kubernetes tokens: it uses certificate-based auth with certificate expiration for all protocols.
-- Two-factor authentication (2FA) for everything.
-- Collaboratively troubleshoot issues through session sharing.
+- No shared secrets such as SSH keys or Kubernetes tokens; Teleport uses certificate-based auth with automatic expiration for all protocols.
+- Multi-factor authentication (MFA) for everything.
 - Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Microsoft Entra ID.
-- Infrastructure introspection: Use Teleport via the CLI or Web UI to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app.
+- Session sharing for collaborative troubleshooting for issues.
+- Infrastructure introspection to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app through the Teleport CLI or Web UI.
 
 Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully compatible with OpenSSH_, `sshd` servers, and `ssh` clients, Kubernetes clusters and more.
 
-|Project Links| Description
-|---|----
-| [Teleport Website](https://goteleport.com/) | The official website of the project. |
-| [Documentation](https://goteleport.com/docs/) | Admin guide, user manual and more. |
-| [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
-| [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
-| [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
-| [Cloud-hosted](https://goteleport.com/pricing) | We offer Enterprise with a Cloud-hosted option. For teams that require easy and secure access to their computing environments. |
+| Project Links                                                  | Description                                                                                                                 |
+|----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| [Teleport Website](https://goteleport.com/)                    | The official website of the project.                                                                                        |
+| [Documentation](https://goteleport.com/docs/)                  | Admin guide, user manual and more.                                                                                          |
+| [Blog](https://goteleport.com/blog/)                           | Our blog where we publish Teleport news and helpful articles.                                                               |
+| [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question or post tutorials, feedback, or ideas.                                                              |
+| [Developer Tools](https://goteleport.com/resources/tools/)     | Dozens of free browser-based tools for code processing, cryptography, data transformation, and more.                        |
+| [Teleport Academy](https://goteleport.com/learn/)              | How-to guides, best practices, and deep dives into topics like SSH, Kubernetes, MCP, and more.                              |
+| [Slack](https://goteleport.com/slack)                          | Need help with your setup? Ping us in our Slack channel.                                                                    |
+| [Cloud  & Self-Hosted](https://goteleport.com/pricing/)        | Teleport Enterprise is a cloud-hosted option for teams that require easy and secure access to their computing environments. |
 
+## Why We Built Teleport
+
+While working together at Rackspace, the creators of Teleport noticed that most cloud users struggle with setting up and configuring infrastructure security. Many popular tools designed for this are complex to understand and expensive to maintain across modern, distributed computing infrastructure.
+
+We decided to build a solution that's easy to use, understand, and scale. A real-time representation of all your servers in the same room as you, as if they were magically **teleported**. And thus, Teleport was born! 
+
+Today, Teleport is trusted by everyone from hobbyists to hyperscalers to simplify security across cloud CLIs and consoles, Kubernetes clusters, SSH servers, databases, internal web apps, and Model Context Protocol (MCP) used by AI agents.
+
+[Learn more about Teleport and our history](https://goteleport.com/about/)
+
+## Supporting & Contributing
+
+We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in GitHub, so feel free to create a PR or file an issue if you have ideas for improvements. If you still have questions after reviewing our docs, you can also:
+
+- Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
+- If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in GitHub.
+- If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/contact-sales/) to arrange for a POC.
 
 ## Installing and Running
 
-To set up a single-instance Teleport cluster, follow our [getting started
-guide](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo/). You can then register your
-servers, Kubernetes clusters, and other infrastructure with your Teleport
-cluster.
+To set up a single-instance Teleport cluster, follow our [getting started guide](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo/). You can then register your servers, Kubernetes clusters, and other infrastructure with your Teleport cluster.
 
-You can also get started with Teleport Enterprise Cloud, a managed Teleport
-deployment that makes it easier to enable secure access to your infrastructure.
+You can also get started with Teleport Enterprise Cloud, a managed Teleport deployment that makes it easier to enable secure access to your infrastructure.
 
-[Sign up for a free trial](https://goteleport.com/signup) of Teleport Enterprise
-Cloud.
-
-Follow our guide to [registering your first
-server](https://goteleport.com/docs/get-started/)
-with Teleport Enterprise Cloud.
+[Sign up for a free trial](https://goteleport.com/signup/) of Teleport Enterprise Cloud, and follow this guide to [register your first server](https://goteleport.com/docs/get-started/).
 
 ## Docker
 
@@ -121,7 +135,7 @@ If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
 development branch for an upcoming major version.  Get the latest release tags
 listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
-For example `git clone https://github.com/gravitational/teleport.git -b v18.0.0` gets release v18.0.0.
+For example `git clone https://github.com/gravitational/teleport.git -b v18.5.0` gets release v18.5.0.
 
 ### Dockerized Build
 
@@ -147,7 +161,7 @@ versions listed in [`build.assets/versions.mk`](/build.assets/versions.mk):
 1. [`libfido2`](https://github.com/Yubico/libfido2)
 1. [`pkg-config`](https://www.freedesktop.org/wiki/Software/pkg-config/)
 
-For an example of Dev Environment setup on a Mac, see [these
+For an example of dev environment setup on macOS, see [these
 instructions](/BUILD_macos.md).
 
 #### Perform a build
@@ -160,7 +174,7 @@ instructions](/BUILD_macos.md).
 >* This will build the latest version of Teleport, **regardless** of whether it
    is stable. If you want to build the latest stable release, run `git checkout`
    and `git submodule update --recursive` to the corresponding tag (for example,
->* run `git checkout v8.0.0`) **before** performing a build.
+>* run `git checkout v18.5.0`) **before** performing a build.
 
 Get the source
 
@@ -321,47 +335,45 @@ Why is a specific version of a module imported?
 
 `go mod graph | grep $modname`
 
-## Why did We Build Teleport?
+## Teleport Editions & Features
 
-The Teleport creators used to work together at Rackspace. We noticed that most cloud computing users struggle with setting up and configuring infrastructure security because popular tools, while flexible, are complex to understand and expensive to maintain. Additionally, most organizations use multiple infrastructure form factors such as several cloud providers, multiple cloud accounts, servers in colocation, and even smart devices. Some of those devices run on untrusted networks, behind third-party firewalls. This only magnifies complexity and increases operational overhead.
-
-We had a choice, either start a security consulting business or build a solution that's dead-easy to use and understand. A real-time representation of all of your servers in the same room as you, as if they were magically _teleported_. Thus, Teleport was born!
-
-## More Information
-
-* [Teleport Getting Started](https://goteleport.com/docs/get-started/)
-* [Teleport
-  Architecture](https://goteleport.com/docs/reference/architecture/)
-* [Reference](https://goteleport.com/docs/reference/)
-* [FAQ](https://goteleport.com/docs/faq)
-
-## Support and Contributing
-
-We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. The docs are also in GitHub, so feel free to create a PR or file an issue if you have ideas for improvements. If you still have questions after reviewing our docs, you can also:
-
-* Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions) to ask questions. Our engineers are available there to help you.
-* If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in GitHub.
-* If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/pricing/) to arrange for a POC.
-
-## Is Teleport Secure and Production-Ready?
-
-Yes -- Teleport is production-ready and designed to protect and facilitate
-access to the most precious and mission-critical applications.
-
-Teleport has completed several security audits from nationally and
-internationally recognized technology security companies.
-
-We publicize some of our audit results, security philosophy and related
-information on our [trust page](https://trust.goteleport.com/).
-
-You can see the list of companies that use Teleport in production on the Teleport
-[product page](https://goteleport.com/case-study/).
-
-## Who Built Teleport?
-
-Teleport was created by [Gravitational, Inc.](https://goteleport.com). We have
-built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
-about Teleport and our history](https://goteleport.com/about/).
+| Features                                                                                                                                                                                                                                   | Enterprise (Cloud)                                                                  | Enterprise (Self-Hosted)                                                            | Community Edition                  |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|------------------------------------|
+| **Zero Trust Access**                                                                                                                                                                                                                          |                                                                                     |                                                                                     |                                    |
+| Secretless authentication                                                                                                                                                                                                                  | GitHub, Google Workspace, Microsoft Entra ID, Okta, SailPoint, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, SailPoint, OIDC, SAML, Teleport | GitHub                             |
+| Secure remote access to infrastructure                                                                                                                                                                                                     | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Per-session MFA                                                                                                                                                                                                                            | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Role-Based Access Control                                                                                                                                                                                                                  | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Cryptographic identity for all protected resources:  MCP servers Applications Databases Kubernetes clusters Linux servers Windows Servers,  Windows Desktops AWS (CLI + resources)  Azure (CLI + resources)  GCP (CLI + resources)  GitHub | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Self-updating resource inventory                                                                                                                                                                                                           | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Agentless integration with OpenSSH servers                                                                                                                                                                                                 | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Session recording and interactive moderation controls.                                                                                                                                                                                     | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Align with compliance requirements: ISO 27001, NIS2, PCI DSS, SOC 2, HIPAA, DORA, SOX, NIST, and more.                                                                                                                                     | ✔                                                                                   | ✔  FedRAMP (Low, Moderate, High)                                                    | Limited                            |
+| **Machine & Workload Identity**                                                                                                                                                                                                                |                                                                                     |                                                                                     |                                    |
+| Secretless workload authentication with short-lived certificates.                                                                                                                                                                          | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Live inventory of machine and workload identities for CI/CD jobs, microservices, and others.                                                                                                                                               | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Cryptographic identities for machines and workloads and automated certificate rotation.                                                                                                                                                    | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Granular ABAC/RBAC for workload interactions.                                                                                                                                                                                              | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Audit data, exportable to SIEMs, for compliance reporting & reviews.                                                                                                                                                                       | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Supports: Open-source policy agents Dev tool APIs Cloud IAM Jenkins Github actions Terraform Cloud AWS Roles Anywhere And more                                                                                                             | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| Supports open standards including JWT, SPIFFE, x509 and others.                                                                                                                                                                            | ✔                                                                                   | ✔                                                                                   | ✔                                  |
+| **Teleport Identity Governance**                                                                                                                                                                                                               |                                                                                     |                                                                                     |                                    |
+| Just-in-Time (JIT) access requests for all resource types                                                                                                                                                                                  | ✔                                                                                   | ✔                                                                                   | Only can request roles through CLI |
+| Automate access requests and approvals based on RBAC, ABAC, or context-based authorization.                                                                                                                                                | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Automate custom review logic. Review access requests using Slack, PagerDuty, Microsoft Teams, Jira, and ServiceNow.                                                                                                                        | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Lock suspicious or compromised identities across all protocols and services.                                                                                                                                                               | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Require an up-to-date, registered device for each authentication.                                                                                                                                                                          | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| User & group provisioning & deprovisioning with SCIM & custom protocols for Okta, Entra ID, and SailPoint.                                                                                                                                 | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Detect overly broad privileges, alert on access violations, and purge unused permissions with automated access rules.                                                                                                                      | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Okta integration to import and grant access to Okta applications and user groups.                                                                                                                                                          | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Microsoft Entra ID directory synchronization and SSO integration                                                                                                                                                                           | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| **Teleport Identity Security**                                                                                                                                                                                                                 |                                                                                     |                                                                                     |                                    |
+| Access Graph for analysis of AWS, Azure, Okta, Microsoft Entra, GitLab and AWS IAM roles.                                                                                                                                                  | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Automatically scan for secrets & SSH keys                                                                                                                                                                                                  | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Identify identity vulnerabilities and potential exposures                                                                                                                                                                                  | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Monitor critical assets with Crown Jewel alerting                                                                                                                                                                                          | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Session Recording Summaries                                                                                                                                                                                                                | ✔                                                                                   | ✔                                                                                   | ✖                                  |
+| Cross-system identity traceability with Identity Activity Center                                                                                                                                                                           | ✖                                                                                   | ✔                                                                                   | ✖                                  |
 
 ## License
 
@@ -376,3 +388,41 @@ from source must comply with the terms of this license.
 
 Teleport Community Edition builds distributed on http://goteleport.com/download
 are available under a [modified Apache 2.0 license](./build.assets/LICENSE-community).
+
+## FAQ
+
+**Is Teleport production-ready?**
+> Yes, Teleport is production-ready and used to protect and facilitate access to the most precious and mission-critical applications at many of today’s leading companies. You can learn more about the companies using Teleport in production [on our website](https://goteleport.com/case-study/).
+
+**Is Teleport secure?**
+> Yes, Teleport has completed several security audits from nationally and internationally recognized technology security companies. We publicize audit results, our security philosophy, and related information on our [trust page](https://trust.goteleport.com/).
+
+**What resources does Teleport support?**
+> Teleport secures access to a [broad set of infrastructure resources](https://goteleport.com/docs/enroll-resources), including Linux servers, Windows desktops, Kubernetes clusters, databases, internal web applications, cloud provider APIs and consoles (such as AWS, Azure, and GCP), and Model Context Protocol (MCP) servers used by AI agents.
+
+**How is Teleport deployed?**
+> Teleport can be [deployed to fit most environments](https://goteleport.com/docs/feature-matrix/#platform-integrations-management-licensing-and-deployment), either as a self-hosted cluster on Linux or Kubernetes or using Teleport Enterprise Cloud. In all cases, Teleport agents run close to your resources and connect through an Auth Service and Proxy Service that enforces identity, access control, and audit.
+
+**Is Teleport an identity provider (IdP)?**
+> Teleport uses existing IdPs (Okta, Google Workspace, Microsoft Entra ID, or GitHub) to issue short-lived certificates and apply access policies. Teleport can also be [configured to act as a SAML IdP](https://goteleport.com/docs/identity-governance/idps/) to authenticate users into applications when needed.
+
+**Does Teleport require credential handling or secrets management?**
+> Teleport eliminates long-lived passwords, SSH keys, database credentials, credential rotations, and vault processes by issuing [short-lived, auto-expiring mTLS and SSH certificates](https://goteleport.com/docs/reference/architecture/authentication/#short-lived-certificates) bound to human or non-human identity.
+
+**Is Teleport a Privileged Access Management (PAM) solution?**
+> Teleport provides modern PAM software capabilities like strong authentication, session recording, policy-based access, and JIT elevation without secrets, credential rotation, or vault dependencies. This enables controlled, audited access to servers, Kubernetes, databases, cloud consoles, and other privileged environments using short-lived certificates and role-based policies.
+
+**Is Teleport a Just-in-Time (JIT) access solution?**
+> Teleport enables [JIT access through time-bound Access Requests](https://goteleport.com/docs/identity-governance/access-requests/). Users request the roles or resources they temporarily need, policies decide whether approval is required, and privileges automatically expire. This approach maintains least privilege while keeping access workflows efficient and predictable.
+
+**Does Teleport secure access to Kubernetes?**
+> Teleport can [proxy and secure Kubernetes access](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/) with identity-based authentication, role-based access controls, and detailed auditing of kubectl activity.
+
+**Does Teleport support SPIFFE?**
+> Teleport supports [SPIFFE-compatible identities for workloads](https://goteleport.com/docs/machine-workload-identity/workload-identity/spiffe/), allowing it to participate in SPIFFE ecosystems and federation. Teleport issues short-lived SVIDs and can integrate with external PKI hierarchies.
+
+**Is Teleport an alternative for VPNs or bastion hosts?**
+> Yes. Teleport is frequently used as an alternative to traditional VPNs and bastion hosts, enabling [direct, identity-based access to resources](https://goteleport.com/docs/core-concepts/#teleport-proxy-service) instead of broad network access.
+
+**Does Teleport secure the Model Context Protocol (MCP) and AI agents?**
+> Teleport [secures MCP connections](https://goteleport.com/docs/connect-your-client/model-context-protocol/) by placing identity-aware policy enforcement between MCP clients and servers. This ensures all tool invocations are authenticated, authorized, and audited without custom authorization code and that sensitive systems are protected from overly broad access.
