@@ -26,12 +26,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func TestCreateWebSession(t *testing.T) {
@@ -195,4 +199,80 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 			require.Equal(t, test.loginMaxTouchPoints, int(storedWebToken.BrowserMaxTouchPoints))
 		})
 	}
+}
+
+func TestCreateAppSession_DeviceTrust(t *testing.T) {
+	t.Parallel()
+
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testAuthServer.Close() })
+
+	authServer := testAuthServer.AuthServer
+	ctx := context.Background()
+
+	const username = "example-user"
+	roleName := "example-role"
+
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
+		Options: types.RoleOptions{
+			DeviceTrustMode: constants.DeviceTrustModeRequired,
+		},
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{"*": []string{"*"}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.AddRole(roleName)
+
+	_, err = authServer.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	_, err = authServer.CreateAppSessionFromReq(ctx, auth.NewAppSessionRequest{
+		NewWebSessionRequest: auth.NewWebSessionRequest{
+			User:       username,
+			SessionTTL: 1 * time.Hour,
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+		},
+		AppName:    "example-app",
+		AppURI:     "http://example.com",
+		PublicAddr: "www.example.com",
+	})
+
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err), "Expected AccessDenied error, got %v", err)
+	require.Contains(t, err.Error(), "requires a trusted device")
+
+	logEntries, _, err := testAuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:  time.Now().Add(-1 * time.Minute),
+		To:    time.Now().Add(1 * time.Minute),
+		Limit: 10,
+	})
+	foundSuccess := false
+	foundFailure := false
+
+	for _, event := range logEntries {
+		if event.GetType() == events.AppSessionStartEvent {
+			foundSuccess = true
+		}
+
+		if event.GetType() == events.AuthAttemptEvent && event.GetCode() == events.AuthAttemptFailureCode {
+			if authEvent, ok := event.(*apievents.AuthAttempt); ok {
+				if authEvent.AppMetadata.AppPublicAddr == "www.example.com" {
+					foundFailure = true
+				}
+			}
+		}
+	}
+
+	require.False(t, foundSuccess, "BUG: 'app.session.start' was emitted.")
+	require.True(t, foundFailure, "Missing 'auth.fail' (AuthAttempt) event for device trust rejection.")
 }

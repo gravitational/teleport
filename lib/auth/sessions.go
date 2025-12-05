@@ -556,8 +556,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	// some check here to see if device is checked..
-	// check if anyrole requires device trust
+	// Check if any role requires device trust
 	deviceTrustRequired := false
 	for _, role := range checker.Roles() {
 		mode := role.GetOptions().DeviceTrustMode
@@ -569,7 +568,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		}
 	}
 
-	// if required, validate the request has the device ID extension; assume value means user authenticated with that device by CA
+	// Validate that the request has the deviceID extension; non-empty value means user authenticated with that device with CA
 	if deviceTrustRequired {
 		if req.DeviceExtensions.DeviceID == "" {
 			errMsg := fmt.Sprintf("access to application %s requires a trusted device", req.AppName)
