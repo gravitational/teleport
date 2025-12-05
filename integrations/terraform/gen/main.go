@@ -665,6 +665,23 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindHealthCheckConfig",
 	}
+
+	integration = payload{
+		Name:                   "Integration",
+		VarName:                "integration",
+		TypeName:               "IntegrationV1",
+		IfaceName:              "Integration",
+		GetMethod:              "GetIntegration",
+		CreateMethod:           "CreateIntegration",
+		UpdateMethod:           "UpdateIntegration",
+		UpsertMethodArity:      2,
+		DeleteMethod:           "DeleteIntegration",
+		ID:                     "integration.Metadata.Name",
+		Kind:                   "integration",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_integration",
+		HasCheckAndSetDefaults: true,
+	}
 )
 
 func main() {
@@ -726,6 +743,8 @@ func genTFSchema() {
 	generateDataSource(autoUpdateConfig, singularDataSource)
 	generateResource(healthCheckConfig, pluralResource)
 	generateDataSource(healthCheckConfig, pluralDataSource)
+	generateResource(integration, pluralResource)
+	generateDataSource(integration, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
