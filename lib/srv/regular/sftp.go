@@ -228,7 +228,7 @@ func (s *sftpSubsys) Wait() error {
 	waitErr := s.sftpCmd.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
-	errMsg, err := srv.ErrorMessageFromStderr(s.serverCtx)
+	errMsg, err := s.serverCtx.GetChildError()
 	if err != nil {
 		return trace.Wrap(err)
 	}
