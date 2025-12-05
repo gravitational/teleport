@@ -17,7 +17,9 @@
  */
 
 import Flex from './Flex';
+import { Cross, Plus } from './Icon';
 import Label from './Label';
+import { LabelButtonWithIcon } from './Label/LabelButtonWithIcon';
 import LabelState from './LabelState';
 
 export default {
@@ -33,11 +35,11 @@ export const Labels = () => (
       alignItems="center"
       gap={4}
     >
-      <Label kind="primary">Primary</Label>
-      <Label kind="secondary">Secondary</Label>
-      <Label kind="warning">Warning</Label>
-      <Label kind="danger">Danger</Label>
-      <Label kind="success">Success</Label>
+      <Label kind="primary">primary</Label>
+      <Label kind="secondary">secondary</Label>
+      <Label kind="warning">warning</Label>
+      <Label kind="danger">danger</Label>
+      <Label kind="success">success</Label>
     </Flex>
     <Flex
       height="100px"
@@ -49,9 +51,10 @@ export const Labels = () => (
       <Label kind="primary" css={{ visibility: 'hidden' }}>
         Primary
       </Label>
-      <Label kind="outline-secondary">Secondary</Label>
-      <Label kind="outline-warning">Warning</Label>
-      <Label kind="outline-danger">Danger</Label>
+      <Label kind="outline-primary">outline-primary</Label>
+      <Label kind="outline-secondary">outline-secondary</Label>
+      <Label kind="outline-warning">outline-warning</Label>
+      <Label kind="outline-danger">outline-danger</Label>
       <Label kind="success" css={{ visibility: 'hidden' }}>
         Success
       </Label>
@@ -87,6 +90,56 @@ export const Labels = () => (
       <LabelState shadow kind="danger">
         Danger
       </LabelState>
+    </Flex>
+
+    <Flex
+      height="100px"
+      bg="levels.surface"
+      justifyContent="center"
+      alignItems="center"
+      gap={4}
+    >
+      <LabelButtonWithIcon kind="outline-primary" Icon={Plus} placement="left">
+        LabelButtonWithIcon: outline-primary
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon
+        kind="outline-secondary"
+        Icon={Cross}
+        placement="right"
+      >
+        LabelButtonWithIcon: outline-secondary
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon
+        kind="outline-warning"
+        Icon={Cross}
+        placement="right"
+      >
+        LabelButtonWithIcon: outline-warning
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon kind="outline-danger" Icon={Cross} placement="right">
+        LabelButtonWithIcon: outline-danger
+      </LabelButtonWithIcon>
+    </Flex>
+
+    <Flex
+      height="100px"
+      bg="levels.surface"
+      justifyContent="center"
+      alignItems="center"
+      gap={4}
+    >
+      <LabelButtonWithIcon kind="primary" Icon={Plus} placement="left">
+        LabelButtonWithIcon: primary
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon kind="secondary" Icon={Cross} placement="right">
+        LabelButtonWithIcon: secondary
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon kind="warning" Icon={Cross} placement="right">
+        LabelButtonWithIcon: warning
+      </LabelButtonWithIcon>
+      <LabelButtonWithIcon kind="danger" Icon={Cross} placement="right">
+        LabelButtonWithIcon: danger
+      </LabelButtonWithIcon>
     </Flex>
   </>
 );
