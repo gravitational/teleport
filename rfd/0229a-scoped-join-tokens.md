@@ -38,20 +38,21 @@ scoped tokens.
 The scope of work proposed by this RFD is:
 
 - A `ScopedToken` resource type and API that is itself guarded by the new
-  scoped access rules
-- Support for static tokens and provisioning using the "token" join method.
+  scoped access rules.
+- Support for provisioning using the "token" join method.
+- Support for static and ephemeral tokens.
 - Support for configuring an `assigned_scope` on a scoped token which will
-  in turn be assigned to new resources at provisioning time
+  in turn be assigned to joining nodes at provisioning time.
 - Support for configuring a scoped token with a set of labels that are
-  automatically assigned to SSH nodes at provisioning time
-- Support for single use (oneshot) tokens
-- New `scoped` variants of the `tctl tokens *` family of sub commands
+  automatically assigned to SSH nodes at provisioning time.
+- Support for single use (oneshot) tokens.
+- New `scoped` variants of the `tctl tokens *` family of sub commands.
 
 Considered out of scope for this RFD:
 
-- Token types other than static tokens or join methods other than "token".
-  These will almost certainly be implemented in the future but are not part
-  of the immediately planned work.
+- Token types other than static and ephemeral tokens or join methods other than
+  "token". Other join methods will almost certainly be implemented in the
+  future but are not part of the immediately planned work.
 
 ### Scoped tokens
 
@@ -111,7 +112,7 @@ to facilitate existing provisioning semantics.
 +  // The timestamp representing when a oneshot token was successfully used for
 +  // provisioning.
 +  google.protobuf.Timestamp used_at = 1;
-+  // The timestamp representing when a oneshot token should no longer be avaialable
++  // The timestamp representing when a oneshot token should no longer be available
 +  // for idempotent retries.
 +  google.protobuf.Timestamp reusable_until = 2;
 +  // The public key of the host that used the token.
@@ -125,11 +126,20 @@ to facilitate existing provisioning semantics.
 +    // The usage status of a oneshot token.
 +    OneshotStatus oneshot = 1;
 +  }
++  // The secret that must be provided along with the token's name in order to
++  // be used.
++  string secret = 2;
 ```
 
 The `usage` field of the scoped token status is a `oneof` in order to more
 easily support other usage modes that may be added in the future (e.g. max
 usage limits).
+
+The `secret` field represents a departure from the existing token flow in that
+the token's name is no longer the secret. This is similar to how the bounded
+keypair join method manages the registration secret. The `token` join method
+will require specifying both the token's name and secret when using scoped
+tokens.
 
 ### Provisioning
 
@@ -139,13 +149,17 @@ query both the existing `ProvisionTokenV2` and the new `ScopedToken` resources
 using the provided token name. Conflicting token names between scoped and
 unscoped tokens will result in an error and it will be up to the administrator
 to resolve the ambiguity. Either by deleting one of the conflicting tokens or
-creating a new token with a different name. This approach allows for backwards
-compatible provisioning where agents can be scoped without any knowledge of
-scopes themselves. The `assigned_scope` of the `ScopedToken` will be assigned
-as the scope of the resulting resource. It will also be attached as metadata to
-the resulting host certificate under the `AgentScope` field so that scope
-related access controls can be performed against the agent's identity rather
-than just restricting clients' access to the agent itself.
+creating a new token with a different name.
+
+A new `token_secret` field will be included in the `TokenInit` message when
+joining with a scoped token. This secret must match the secret found in the
+retrieved token in order to proceed.
+
+The `assigned_scope` of the `ScopedToken` will be assigned as the scope of the
+resulting node. It will also be attached as metadata to the node's host
+certificates under the `AgentScope` field so that scope related access controls
+can be performed against the agent's identity rather than just restricting
+clients' access to the agent itself.
 
 ### Automatic labels for SSH nodes
 
@@ -154,7 +168,7 @@ any provisioned Teleport SSH agents. This document only proposes support for
 Teleport SSH agents as applying them to other scoped Teleport services (i.e.
 Application, Database, etc.) introduces significant complexity. The
 `ssh_labels` field of a `ScopedToken` will be encoded into the resulting host
-certificate in much the same way as the `assigned_scope`. These labels will be
+certificates in much the same way as the `assigned_scope`. These labels will be
 extracted while registering the inventory control stream and applied as a new
 `token_labels` field stored in `ServerSpecV2`. Future heartbeats will verify
 `token_labels` just as they do for static labels and command labels.
@@ -178,61 +192,16 @@ be created by setting the `mode` field of a scoped token's spec to `oneshot`.
 This will be implemented as first-come-first-served by recording the first
 joining host's public key in the `status.used_by_public_key` field of the
 scoped token used. Once a token has recorded a public key it will no longer be
-usable by any other hosts. This could also be controlled by a simple boolean,
-but using the public key allows for reuse of the oneshot token by the same
-host. This is useful in cases where the host fails to join after credentials
-have been issued due to some transient error receiving or storing those
-credentials.
+usable by any other hosts. This could also be controlled by a boolean, but
+using the public key allows for reuse of the oneshot token by the same host as
+long as it provides the same public key. This is useful in cases where the host
+fails to join after credentials have been issued due to some transient error
+receiving or storing those credentials.
 
-In order to prevent tokens from being indefinitely reusable by a given public
-key, an optional final message should be added to the joining flow:
-
-```protobuf
---- a/api/proto/teleport/join/v1/joinservice.proto
-+++ b/api/proto/teleport/join/v1/joinservice.proto
-@@ -436,6 +436,7 @@ message JoinRequest {
-     OracleInit oracle_init = 9;
-     TPMInit tpm_init = 10;
-     AzureInit azure_init = 11;
-+    Confirm confirm = 12;
-   }
- }
-
-@@ -501,6 +502,10 @@ message BotResult {
-   optional BoundKeypairResult bound_keypair_result = 2;
- }
-
-+// The final message sent from the client to the cluster signaling that credentials have been
-+// successfully received.
-+message Confirm {}
-+
- // JoinResponse is the message type sent from the server to the joining client.
- message JoinResponse {
-   oneof payload {
-@@ -515,6 +520,10 @@ message JoinResponse {
-     // the cluster when the join flow is successful.
-     // For the token join method, it is sent immediately in response to the ClientInit request.
-     Result result = 3;
-+    // Confirm is the final message sent from the client back to the cluster after a successful join.
-+    // It signals to the cluster that the client received their credentials and the token used can
-+    // be consumed.
-+    Confirm confirm = 4;
-   }
- }
-```
-
-This new message will signal to the auth service that the host received and
-stored their credentials. At which point, the scoped token's `used_at` field
-should be updated with the current timestamp and future attempts to reuse the
-token will fail with a token exhausted error. This is added to the end of the
-join bidi stream in order to leverage auth's knowledge of which token was used
-to initiate a join attempt. Otherwise the token name would need to be encoded
-into the host certificate to prevent any sort of malicious consumption of other
-tokens. As an additional measure, a token should only be reusable for a limited
-time after the first public key has been recorded. Once this time has elapsed,
-the token will be considered exhausted even when using the same public key. The
-`reusable_until` field will be set with the current timestamp at the same time
-as `used_by_public_key` in support of this.
+In order to prevent indefinite reuse of a token by a given host, the
+`reusable_until` field will be set with an expiration timestamp representing 30
+minutes after the public key has been recorded. After this time, the token will
+no longer be usable at all.
 
 By default, a new scoped token should be created with a `mode` of `unlimited`
 unless another mode is explicitly specified.
@@ -248,23 +217,37 @@ subject to scoped access controls. Meaning that you will not be able to create
 a token for a scope that is orthogonal or ancestor to the scope of your own
 access credentials.
 
+The scoped variant of `tctl token add` will also replace the optional `--value`
+flag with `--name` to better represent what the flag influences. The `--value`
+override will not be implemented as the secret will be automatically generated
+at token creation.
+
 Below are examples for each of the sub commands that will be implemented as
 part of this RFD.
 
 ```bash
 # adding a scoped token that will assign provisioned resources to the
 # /staging/west scope
-$ tctl scoped tokens add --type=node --scope=/staging/west--assign-scope=/staging/west
+$ tctl scoped tokens add --type=node --scope=/staging/west --assign-scope=/staging/west
 ```
 
 ```bash
-# adding a oneshot scoped token that will assign a provisioned resource to the
-# /staging/west scope, automatically assign labels
+# adding a scoped token with an explicit name
 $ tctl scoped tokens add \
   --type=node \
   --scope=/staging/west \
   --assign-scope=/staging/west \
-  # ssh_labels follows the same format as the common --labels flag
+  --name=foo
+```
+
+```bash
+# adding a oneshot scoped token that will assign a provisioned resource to the
+# /staging/west scope and automatically assign labels
+$ tctl scoped tokens add \
+  --type=node \
+  --scope=/staging/west \
+  --assign-scope=/staging/west \
+  # --ssh-labels follows the same format as the common --labels flag
   --ssh-labels=env=staging,hello=world \
   --mode oneshot
 ```
@@ -275,32 +258,48 @@ $ tctl scoped tokens rm <token-name>
 ```
 
 ```bash
-# List all scoped tokens assigning provisioned resources to scopes subject to
-# the target scope /staging (e.g. tokens assigning /staging/west and
-# /staging/east will all be returned). Descendant matches are also the default
-# behavior when filtering on scope
-$ tctl scoped tokens ls --scope=/staging
+# List all scoped tokens visible to the scope of the current credentials
+$ tctl scoped tokens ls
 ```
 
-```bash
-# List all scoped tokens assigning provisioned resources to ancestors of the
-# target scope /staging/east (e.g. tokens assigning /staging/east and /staging
-# will all be returned, but /staging/west will not be)
-$ tctl scoped tokens ls --scope=/staging/east --mode=ancestor
+### Config Changes
+
+Static scoped tokens will be enabled by adding a `scoped_tokens` block to the
+`auth_service` section of the config file. The typical token strings will be
+broken into their constituent parts with the addition of the `scope` and
+`secret` fields.
+
+For example, the configuration below will create two tokens `foo` and `bar`
+that can both be used to provision nodes. The `foo` token will be unscoped and
+`bar` will be scoped to `/staging`.
+
+```yaml
+auth_service:
+  tokens:
+    - node:foo
+  scoped_tokens:
+    - name: bar
+      roles: [node]
+      scope: /staging
+      secret: asdf1234
 ```
 
-### Agent Changes
+A `token_secret` field will also be added to the `join_params` block of the
+`teleport` section in order to provide the secret and the name when using
+scoped tokens. This field will function exactly like the `token_name` field for
+unscoped tokens in that it can source its value from a file. The `auth_token`
+field will not be supported for scoped tokens.
 
-As mentioned earlier in this RFD, scoped tokens are meant to be backwards
-compatible for Teleport agents. Which means the existing mechanisms for
-joining, such as `join_params` in `teleport.yaml` or the
-`--token` flag of `teleport start`, will continue to work in the same way. The
-issued host certificate will be ammended with an `AgentScope` field which will
-be used by the Teleport Auth Service during access control decisions. Because
-joining can still be successful without issuing the new confirmation message,
-oneshot tokens will also be usable by agents on previous versions. With the
-caveat that token reuse will be possible until the `reusable_until` timestamp
-has been reached.
+```yaml
+teleport:
+  join_params:
+    method: token
+    token_name: bar
+    token_secret: asdf1234
+```
+
+Finally, a `--token-secret` flag will be added to the `teleport start` command
+in order to maintain usage parity with unscoped tokens.
 
 ## Modifying provisioned resource scope
 
@@ -327,6 +326,6 @@ should still be accessible to unscoped identities using the `editor` role.
   from accessible scopes.
 - SSH nodes joining with a scoped token are:
   - Assigned the correct scope
-  - Assigned the token's `ssh_labels`
+  - Assigned the token's `--ssh-labels`
   - Assigned a certificate containing their assigned scope and token labels
 - Oneshot Scoped tokens are not usable more than once.
