@@ -126,8 +126,7 @@ certificate. Deletes take effect immediately.
     $ tctl auth rotate --manual --type=db-client --phase=init
     $ tctl auth rotate --manual --type=db-client --phase=update_clients
     > ERROR: Found CA overrides for authority "db-client". You must either
-    > supply an override for public key public key "AB:CD:EF:..." or disable
-    > the override.
+    > supply an override for public key "AB:CD:EF:..." or disable the override.
     >
     > tctl auth sub-ca create-csr --public-key='AB:CD:EF:...'
     > or
