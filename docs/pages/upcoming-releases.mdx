@@ -34,6 +34,7 @@ We plan to release the following versions in the coming months:
 |---------|----------------------------|
 | 18.5.0  | Week of December 1, 2025   |
 | 18.6.0  | Week of December 15, 2025  |
+| 18.7.0  | Week of January 26, 2026   |
 | 19.0.0  | August 2026                |
 
 ### 18.5.0
@@ -58,6 +59,11 @@ memberships.
 Teleport SCIM server will natively support PATCH operation to improve reliability
 of bulk SCIM operations in integrations like SailPoint.
 
+#### Entra ID integration and Access List performance improvements
+
+Teleport Entra ID integration will be able to handle the sync of large directories on the order
+of 20K groups with 200 members each.
+
 ### 18.6.0
 
 #### Identifier-first login enhancements
@@ -65,10 +71,16 @@ of bulk SCIM operations in integrations like SailPoint.
 Teleport will automatically pass the username to the identifier provider when performing
 Identifier-first login with OIDC or SAML IdPs. 
 
-#### Entra ID integration and Access List performance improvements
+#### GitHub Actions Kubernetes Wizard
 
-Teleport Entra ID integration will be able to handle the sync of large directories on the order
-of 20K groups with 200 members each.
+Teleport will ship with a new guided flow for setting up GitHub Actions workflows that
+connect to Teleport-protected Kubernetes clusters without secrets.
+ 
+### 18.7.0
+
+#### VNet for Linux
+
+Teleport VNet support will be extended to Linux workstations.
 
 ## Teleport Cloud
 
