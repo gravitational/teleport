@@ -27,10 +27,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +41,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
 // Always sleep for a second for predictability
@@ -47,6 +49,117 @@ var retryConfig = retryutils.RetryV2Config{
 	Max:    time.Second,
 	Driver: retryutils.NewLinearDriver(time.Second),
 }
+
+type fakeTokenProvider struct {
+	mu    sync.Mutex
+	token string
+}
+
+func (t *fakeTokenProvider) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.token == "" {
+		t.token = uuid.NewString()
+	}
+
+	return azcore.AccessToken{
+		Token: t.token,
+	}, nil
+}
+
+func (t *fakeTokenProvider) clearToken() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.token = ""
+}
+
+// inspectToken returns the current token without generating a new one if the current token is
+// empty. Useful in tests that need to verify that the client requested a new token after it was
+// cleared.
+func (t *fakeTokenProvider) inspectToken() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.token
+}
+
+const usersPayload = `[
+    {
+    	"businessPhones": [],
+    	"displayName": "Alice Alison",
+    	"givenName": null,
+    	"jobTitle": null,
+    	"mail": "alice@example.com",
+    	"mobilePhone": null,
+    	"officeLocation": null,
+    	"preferredLanguage": null,
+    	"surname": null,
+    	"userPrincipalName": "alice@example.com",
+    	"id": "6e7b768e-07e2-4810-8459-485f84f8f204"
+    },
+    {
+    	"businessPhones": [
+    		"+1 425 555 0109"
+    	],
+    	"displayName": "Bob Bobert",
+    	"givenName": "Bob",
+    	"jobTitle": "Product Marketing Manager",
+    	"mail": "bob@example.com",
+    	"mobilePhone": null,
+    	"officeLocation": "18/2111",
+    	"preferredLanguage": "en-US",
+    	"surname": "Bobert",
+    	"userPrincipalName": "bob@example.com",
+    	"id": "87d349ed-44d7-43e1-9a83-5f2406dee5bd"
+    },
+    {
+    	"businessPhones": [
+    		"8006427676"
+    	],
+    	"displayName": "Administrator",
+    	"givenName": null,
+    	"jobTitle": null,
+    	"mail": "admin@example.com",
+    	"mobilePhone": "5555555555",
+    	"officeLocation": null,
+    	"preferredLanguage": "en-US",
+    	"surname": null,
+		"onPremisesSamAccountName": "AD Administrator",
+    	"userPrincipalName": "admin@example.com",
+    	"id": "5bde3e51-d13b-4db1-9948-fe4b109d11a7"
+    },
+    {
+    	"businessPhones": [
+    		"+1 858 555 0110"
+    	],
+    	"displayName": "Carol C",
+    	"givenName": "Carol",
+    	"jobTitle": "Marketing Assistant",
+    	"mail": "carol@example.com",
+    	"mobilePhone": null,
+    	"officeLocation": "131/1104",
+    	"preferredLanguage": "en-US",
+    	"surname": "C",
+    	"userPrincipalName": "carol@example.com",
+    	"id": "4782e723-f4f4-4af3-a76e-25e3bab0d896"
+    },
+    {
+    	"businessPhones": [
+    		"+1 262 555 0106"
+    	],
+    	"displayName": "Eve Evil",
+    	"givenName": "Eve",
+    	"jobTitle": "Corporate Security Officer",
+    	"mail": "eve@example.com",
+    	"mobilePhone": null,
+    	"officeLocation": "24/1106",
+    	"preferredLanguage": "en-US",
+    	"surname": "Evil",
+    	"userPrincipalName": "eve#EXT#@example.com",
+    	"id": "c03e6eaa-b6ab-46d7-905b-73ec7ea1f755"
+    }
+]`
 
 // paginatedHandler emulates the Graph API's pagination with the given static set of objects.
 func paginatedHandler(t *testing.T, values []json.RawMessage) http.Handler {
@@ -84,22 +197,19 @@ func paginatedHandler(t *testing.T, values []json.RawMessage) http.Handler {
 func TestIterateUsers_Empty(t *testing.T) {
 	t.Parallel()
 
-	fakeServer := msgraphtest.NewServer(msgraphtest.WithPayloads(
-		msgraphtest.Payloads{
-			Users: "",
-		},
-	))
-	t.Cleanup(func() { fakeServer.TLSServer.Close() })
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1.0/users", func(w http.ResponseWriter, r *http.Request) {
+		_, err := strconv.Atoi(r.URL.Query().Get("$top"))
+		assert.NoError(t, err, "expected to get $top parameter")
+		w.Write([]byte(`{"value": []}`))
+	})
 
-	httpClient := &http.Client{
-		Transport: &msgraphtest.RewriteTransport{
-			Base: fakeServer.TLSServer.Client().Transport,
-			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
-		},
-	}
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(func() { srv.Close() })
+
 	client, err := NewClient(Config{
-		HTTPClient:    httpClient,
-		TokenProvider: &msgraphtest.TokenProvider{},
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
 		RetryConfig:   &retryConfig,
 	})
 	require.NoError(t, err)
@@ -113,18 +223,17 @@ func TestIterateUsers_Empty(t *testing.T) {
 func TestIterateUsers(t *testing.T) {
 	t.Parallel()
 
-	fakeServer := msgraphtest.NewServer()
-	t.Cleanup(func() { fakeServer.TLSServer.Close() })
+	var sourceUsers []json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(usersPayload), &sourceUsers))
+	mux := http.NewServeMux()
+	mux.Handle("GET /v1.0/users", paginatedHandler(t, sourceUsers))
 
-	httpClient := &http.Client{
-		Transport: &msgraphtest.RewriteTransport{
-			Base: fakeServer.TLSServer.Client().Transport,
-			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
-		},
-	}
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(func() { srv.Close() })
+
 	client, err := NewClient(Config{
-		HTTPClient:    httpClient,
-		TokenProvider: &msgraphtest.TokenProvider{},
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
 		RetryConfig:   &retryConfig,
 		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
 	})
@@ -139,7 +248,7 @@ func TestIterateUsers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, users, 5)
 
-	require.Equal(t, "alice@example.com", *users[0].ID)
+	require.Equal(t, "6e7b768e-07e2-4810-8459-485f84f8f204", *users[0].ID)
 	require.Equal(t, "alice@example.com", *users[0].Mail)
 	require.Equal(t, "Alice Alison", *users[0].DisplayName)
 	require.Equal(t, "alice@example.com", *users[0].UserPrincipalName)
@@ -151,12 +260,12 @@ func TestIterateUsers(t *testing.T) {
 	require.Equal(t, "Bobert", *users[1].Surname)
 	require.Equal(t, "Bob", *users[1].GivenName)
 
-	require.Equal(t, "carol@example.com", *users[2].Mail)
-	require.Equal(t, "carol@example.com", *users[2].UserPrincipalName)
+	require.Equal(t, "admin@example.com", *users[2].Mail)
+	require.Equal(t, "admin@example.com", *users[2].UserPrincipalName)
+	require.Equal(t, "AD Administrator", *users[2].OnPremisesSAMAccountName)
 
-	require.Equal(t, "admin@example.com", *users[3].Mail)
-	require.Equal(t, "admin@example.com", *users[3].UserPrincipalName)
-	require.Equal(t, "AD Administrator", *users[3].OnPremisesSAMAccountName)
+	require.Equal(t, "carol@example.com", *users[3].Mail)
+	require.Equal(t, "carol@example.com", *users[3].UserPrincipalName)
 
 	require.Equal(t, "eve@example.com", *users[4].Mail)
 	require.Equal(t, "eve#EXT#@example.com", *users[4].UserPrincipalName)
@@ -221,7 +330,7 @@ func TestRetry(t *testing.T) {
 
 		client, err := NewClient(Config{
 			HTTPClient:    newHTTPClient(srv),
-			TokenProvider: &msgraphtest.TokenProvider{},
+			TokenProvider: &fakeTokenProvider{},
 			RetryConfig:   &retryConfig,
 			Clock:         clock,
 		})
@@ -270,7 +379,7 @@ func TestRetry(t *testing.T) {
 
 		client, err := NewClient(Config{
 			HTTPClient:    newHTTPClient(srv),
-			TokenProvider: &msgraphtest.TokenProvider{},
+			TokenProvider: &fakeTokenProvider{},
 			RetryConfig:   &retryConfig,
 			PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
 			Clock:         clock,
@@ -319,7 +428,7 @@ func TestRetry(t *testing.T) {
 
 		client, err := NewClient(Config{
 			HTTPClient:    newHTTPClient(srv),
-			TokenProvider: &msgraphtest.TokenProvider{},
+			TokenProvider: &fakeTokenProvider{},
 			RetryConfig:   &retryConfig,
 			Clock:         clock,
 		})
@@ -347,7 +456,7 @@ func TestRetry(t *testing.T) {
 		srv := httptest.NewTLSServer(mux)
 		t.Cleanup(func() { srv.Close() })
 
-		tokenProvider := &msgraphtest.TokenProvider{}
+		tokenProvider := &fakeTokenProvider{}
 		client, err := NewClient(Config{
 			HTTPClient:    newHTTPClient(srv),
 			TokenProvider: tokenProvider,
@@ -366,11 +475,11 @@ func TestRetry(t *testing.T) {
 		// First failure, the client now waits before retrying.
 		require.NoError(t, clock.BlockUntilContext(t.Context(), 1))
 		require.EqualValues(t, 1, handler.timesCalled.Load())
-		tokenBefore := tokenProvider.InspectToken()
+		tokenBefore := tokenProvider.inspectToken()
 		require.NotEmpty(t, tokenBefore)
 
 		// Clear the token to simulate expiry.
-		tokenProvider.ClearToken()
+		tokenProvider.clearToken()
 
 		// Advance time to make the client try again.
 		clock.Advance(time.Duration(handler.retryAfter) * time.Second)
@@ -381,7 +490,7 @@ func TestRetry(t *testing.T) {
 			require.Fail(t, "expected client to return")
 		}
 
-		tokenAfter := tokenProvider.InspectToken()
+		tokenAfter := tokenProvider.inspectToken()
 		require.NotEmpty(t, tokenAfter,
 			"the client did not request a new token after the previous one was cleared")
 		require.NotEqual(t, tokenAfter, tokenBefore,
@@ -389,21 +498,39 @@ func TestRetry(t *testing.T) {
 	})
 }
 
+const listGroupsMembersPayload = `[
+    {
+      "@odata.type": "#microsoft.graph.user",
+      "id": "9f615773-8219-4a5e-9eb1-8e701324c683",
+      "mail": "alice@example.com"
+    },
+	{
+      "@odata.type": "#microsoft.graph.device",
+      "id": "1566d9a7-c652-44e7-a75e-665b77431435",
+      "mail": "device@example.com"
+    },
+	{
+      "@odata.type": "#microsoft.graph.group",
+      "id": "7db727c5-924a-4f6d-b1f0-d44e6cafa87c",
+      "displayName": "Test Group 1"
+    }
+  ]`
+
 func TestIterateGroupMembers(t *testing.T) {
 	t.Parallel()
 
-	groupID := "group1"
-	fakeServer := msgraphtest.NewServer()
-	t.Cleanup(func() { fakeServer.TLSServer.Close() })
-	httpClient := &http.Client{
-		Transport: &msgraphtest.RewriteTransport{
-			Base: fakeServer.TLSServer.Client().Transport,
-			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
-		},
-	}
+	var membersJSON []json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(listGroupsMembersPayload), &membersJSON))
+	mux := http.NewServeMux()
+	groupID := "fd5be192-6e51-4f54-bbdf-30407435ceb7"
+	mux.Handle("GET /v1.0/groups/"+groupID+"/members", paginatedHandler(t, membersJSON))
+
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(func() { srv.Close() })
+
 	client, err := NewClient(Config{
-		HTTPClient:    httpClient,
-		TokenProvider: &msgraphtest.TokenProvider{},
+		HTTPClient:    newHTTPClient(srv),
+		TokenProvider: &fakeTokenProvider{},
 		RetryConfig:   &retryConfig,
 		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
 	})
@@ -420,35 +547,57 @@ func TestIterateGroupMembers(t *testing.T) {
 	{
 		require.IsType(t, &User{}, members[0])
 		user := members[0].(*User)
-		require.Equal(t, "alice@example.com", *user.ID)
+		require.Equal(t, "9f615773-8219-4a5e-9eb1-8e701324c683", *user.ID)
 		require.Equal(t, "alice@example.com", *user.Mail)
 	}
 	{
 		require.IsType(t, &Group{}, members[1])
 		group := members[1].(*Group)
-		require.Equal(t, "group2", *group.ID)
-		require.Equal(t, "group2", *group.DisplayName)
+		require.Equal(t, "7db727c5-924a-4f6d-b1f0-d44e6cafa87c", *group.ID)
+		require.Equal(t, "Test Group 1", *group.DisplayName)
 	}
 }
 
-func TestGetApplication(t *testing.T) {
-	appID := "app1"
-	fakeServer := msgraphtest.NewServer(msgraphtest.WithPayloads(
-		msgraphtest.Payloads{
-			Applications: msgraphtest.PayloadGetApplication,
-		},
-	))
-	t.Cleanup(func() { fakeServer.TLSServer.Close() })
+const getApplicationPayload = `
+{
+        "id": "aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4",
+        "appId": "d2a39a2a-1636-457f-82f9-c2d76527e20e",
+        "displayName": "test SAML App",
+        "groupMembershipClaims": "SecurityGroup",
+        "identifierUris": [
+            "goteleport.com"
+        ],
+        "optionalClaims": {
+            "accessToken": [],
+            "idToken": [],
+            "saml2Token": [
+                {
+                    "additionalProperties": [
+                        "sam_account_name"
+                    ],
+                    "essential": false,
+                    "name": "groups",
+                    "source": null
+                }
+            ]
+        }
+    }`
 
-	httpClient := &http.Client{
-		Transport: &msgraphtest.RewriteTransport{
-			Base: fakeServer.TLSServer.Client().Transport,
-			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
-		},
-	}
+func TestGetApplication(t *testing.T) {
+
+	mux := http.NewServeMux()
+	appID := "d2a39a2a-1636-457f-82f9-c2d76527e20e"
+	mux.Handle(fmt.Sprintf("GET /v1.0/applications(appId='%s')", appID),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(getApplicationPayload))
+		}))
+
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(func() { srv.Close() })
+
 	client, err := NewClient(Config{
-		HTTPClient:    httpClient,
-		TokenProvider: &msgraphtest.TokenProvider{},
+		TokenProvider: &fakeTokenProvider{},
+		HTTPClient:    newHTTPClient(srv),
 		RetryConfig:   &retryConfig,
 		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
 	})
@@ -456,13 +605,13 @@ func TestGetApplication(t *testing.T) {
 
 	app, err := client.GetApplication(t.Context(), appID)
 	require.NoError(t, err)
-	require.Equal(t, "app1", *app.ID)
+	require.Equal(t, "aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4", *app.ID)
 
 	expectation := &Application{
-		AppID: toPtr("app1"),
+		AppID: toPtr("d2a39a2a-1636-457f-82f9-c2d76527e20e"),
 		DirectoryObject: DirectoryObject{
 			DisplayName: toPtr("test SAML App"),
-			ID:          toPtr("app1"),
+			ID:          toPtr("aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4"),
 		},
 		GroupMembershipClaims: toPtr("SecurityGroup"),
 		IdentifierURIs:        &[]string{"goteleport.com"},
@@ -480,6 +629,7 @@ func TestGetApplication(t *testing.T) {
 		},
 	}
 	require.EqualValues(t, expectation, app)
+
 }
 
 func toPtr[T any](s T) *T { return &s }
@@ -495,7 +645,7 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "empty endpoint sets default graph endpoint",
 			config: Config{
-				TokenProvider: &msgraphtest.TokenProvider{},
+				TokenProvider: &fakeTokenProvider{},
 				GraphEndpoint: "",
 			},
 			expectedGraphEndpoint: types.MSGraphDefaultEndpoint,
@@ -504,7 +654,7 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "configured endpoint",
 			config: Config{
-				TokenProvider: &msgraphtest.TokenProvider{},
+				TokenProvider: &fakeTokenProvider{},
 				GraphEndpoint: "https://dod-graph.microsoft.us",
 			},
 			expectedGraphEndpoint: "https://dod-graph.microsoft.us",
@@ -513,7 +663,7 @@ func TestNewClient(t *testing.T) {
 		{
 			name: "invalid endpoint",
 			config: Config{
-				TokenProvider: &msgraphtest.TokenProvider{},
+				TokenProvider: &fakeTokenProvider{},
 				GraphEndpoint: "https://graph.windows.net",
 			},
 			errExpected:  true,
@@ -562,7 +712,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	client, err := NewClient(Config{
 		HTTPClient:    newHTTPClient(srv),
-		TokenProvider: &msgraphtest.TokenProvider{},
+		TokenProvider: &fakeTokenProvider{},
 		RetryConfig:   &retryConfig,
 		PageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
 	})
@@ -673,11 +823,4 @@ func newHTTPClient(server *httptest.Server) *http.Client {
 		},
 	}
 	return httpClient
-}
-
-func mustParseURL(t *testing.T, in string) *url.URL {
-	t.Helper()
-	url, err := url.Parse(in)
-	require.NoError(t, err)
-	return url
 }

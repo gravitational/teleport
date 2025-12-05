@@ -17,98 +17,38 @@
 package msgraphtest
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
-	"strconv"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
-
-// TokenProvider implements [msgraph.AzureTokenProvider]
-type TokenProvider struct {
-	mu    sync.Mutex
-	Token string
-}
-
-// GetToken returns a token to be used in msgraph request.
-func (t *TokenProvider) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if t.Token == "" {
-		t.Token = uuid.NewString()
-	}
-
-	return azcore.AccessToken{
-		Token: t.Token,
-	}, nil
-}
-
-// ClearToken deletes token value.
-func (t *TokenProvider) ClearToken() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.Token = ""
-}
-
-// InspectToken returns the current token without generating a new one if the current token is
-// empty. Useful in tests that need to verify that the client requested a new token after it was
-// cleared.
-func (t *TokenProvider) InspectToken() string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	return t.Token
-}
-
-// Payloads defines payload value to fake msgraph responses.
-type Payloads struct {
-	Users, Groups, Applications string
-	GroupMembers                map[string]string
-}
-
-// DefaultPayload creates a default response payload.
-func DefaultPayload() Payloads {
-	return Payloads{
-		Users:        PayloadListUsers,
-		Groups:       PayloadListGroups,
-		Applications: PayloadGetApplication,
-		GroupMembers: map[string]string{
-			"group1": PayloadListGroup1Members,
-			"group2": PayloadListGroup2Members,
-			"group3": PayloadListGroup3Members,
-		},
-	}
-}
 
 // Server defines fake server.
 type Server struct {
-	Payloads  Payloads
+	mu        sync.RWMutex
 	TLSServer *httptest.Server
+	Storage   *Storage
 }
 
 // ServerOption is a custom opt for [NewServer].
 type ServerOption func(*Server)
 
-// WithPayloads sets custom response payload.
-func WithPayloads(p Payloads) ServerOption {
+// WithStorage configures default storage
+func WithStorage(storage *Storage) ServerOption {
 	return func(s *Server) {
-		s.Payloads = p
+		s.Storage = storage
 	}
 }
 
 // NewServer creates a new fake server.
 func NewServer(opts ...ServerOption) *Server {
+	// By default, use storage populated with default mock data
 	s := &Server{
-		Payloads: DefaultPayload(),
+		Storage: NewDefaultStorage(),
 	}
 	// Apply options
 	for _, opt := range opts {
@@ -126,7 +66,7 @@ func (s *Server) Handler() http.Handler {
 
 	r.HandleFunc("GET /v1.0/users", s.handleListUsers)
 	r.HandleFunc("GET /v1.0/groups", s.handleListGroups)
-	r.HandleFunc("GET /v1.0/groups/{groupid}/members", s.handleListGroupMembers)
+	r.HandleFunc("GET /v1.0/groups/{id}/members", s.handleListGroupMembers)
 	r.HandleFunc("/v1.0/", s.handleCatchAll)
 	r.HandleFunc("/metadata/identity/oauth2/token", s.handleGetToken)
 
@@ -134,71 +74,83 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
-	var source []json.RawMessage
-
-	w.Header().Set("Content-Type", "application/json")
-	if s.Payloads.Users == "" {
-		w.Write([]byte(`{"value": []}`))
-		return
+	s.mu.RLock()
+	users := make([]*msgraph.User, 0, len(s.Storage.Users))
+	for _, user := range s.Storage.Users {
+		users = append(users, user)
 	}
-	if err := json.Unmarshal([]byte(s.Payloads.Users), &source); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to unmarshal payload: %s", err.Error()), http.StatusInternalServerError)
-		return
-	}
+	s.mu.RUnlock()
 
-	Paginator(w, r, source)
+	jsonResponse(w, map[string]interface{}{
+		"value": users,
+	})
 }
 
 func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
-	var source []json.RawMessage
-
-	w.Header().Set("Content-Type", "application/json")
-	if s.Payloads.Groups == "" {
-		w.Write([]byte(`{"value": []}`))
-		return
+	s.mu.RLock()
+	groups := make([]*msgraph.Group, 0, len(s.Storage.Groups))
+	for _, group := range s.Storage.Groups {
+		groups = append(groups, group)
 	}
-	if err := json.Unmarshal([]byte(s.Payloads.Groups), &source); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to unmarshal payload: %s", err.Error()), http.StatusInternalServerError)
-		return
-	}
+	s.mu.RUnlock()
 
-	Paginator(w, r, source)
+	jsonResponse(w, map[string]interface{}{
+		"value": groups,
+	})
 }
 
 func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) {
-	var source []json.RawMessage
+	groupID := r.PathValue("id")
 
-	w.Header().Set("Content-Type", "application/json")
+	s.mu.RLock()
+	groupMembers := s.Storage.GroupMembers[groupID]
+	s.mu.RUnlock()
 
-	if len(s.Payloads.GroupMembers) == 0 {
-		w.Write([]byte(`{"value": []}`))
-		return
+	members := make([]map[string]interface{}, 0, len(groupMembers))
+	for _, member := range groupMembers {
+		memberData := map[string]interface{}{
+			"id": member.GetID(),
+		}
+
+		switch member.(type) {
+		case *msgraph.User:
+			memberData["@odata.type"] = "#microsoft.graph.user"
+		case *msgraph.Group:
+			memberData["@odata.type"] = "#microsoft.graph.group"
+		default:
+			// Default to user if unknown
+			memberData["@odata.type"] = "#microsoft.graph.user"
+		}
+
+		members = append(members, memberData)
 	}
 
-	groupID := r.PathValue("groupid")
-	if err := json.Unmarshal([]byte(s.Payloads.GroupMembers[groupID]), &source); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to unmarshal payload: %s", err.Error()), http.StatusInternalServerError)
-		return
-	}
-
-	Paginator(w, r, source)
+	jsonResponse(w, map[string]interface{}{
+		"value": members,
+	})
 }
 
 // handleGetApplication handles GET /v1.0/applications(appId='...') requests.
 func (s *Server) handleGetApplication(w http.ResponseWriter, r *http.Request, appID string) {
-	if appID == "app1" {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(s.Payloads.Applications))
+	s.mu.RLock()
+	app, ok := s.Storage.Applications[appID]
+	s.mu.RUnlock()
+
+	if !ok {
+		http.Error(w, "application not found", http.StatusNotFound)
 		return
 	}
 
-	http.NotFound(w, r)
+	jsonResponse(w, app)
 }
 
-var applicationByAppIDPattern = regexp.MustCompile(`^/v1\.0/applications\(appId='([^']+)'\)$`)
+var (
+	applicationByAppIDPattern = regexp.MustCompile(`^/v1\.0/applications\(appId='([^']+)'\)$`)
+)
 
 // handleCatchAll handles other endpoints like applications(appId='app-id').
 func (s *Server) handleCatchAll(w http.ResponseWriter, r *http.Request) {
+	// Handle GET /v1.0/applications(appId='app-id')
 	if r.Method == http.MethodGet {
 		if matches := applicationByAppIDPattern.FindStringSubmatch(r.URL.Path); matches != nil {
 			appID := matches[1]
@@ -225,40 +177,50 @@ func (s *Server) handleGetToken(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(token))
 }
 
-// Paginator emulates the Graph API's pagination with the given static set of objects.
-func Paginator(w http.ResponseWriter, r *http.Request, values []json.RawMessage) {
-	top, err := strconv.Atoi(r.URL.Query().Get("$top"))
-	if err != nil {
-		http.Error(w, "Expected to get $top parameter", http.StatusInternalServerError)
-		return
+// SetUsers updates users storage.
+func (s *Server) SetUsers(users []*msgraph.User) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, user := range users {
+		if user.ID != nil {
+			s.Storage.Users[*user.ID] = user
+		}
 	}
+}
 
-	skip, _ := strconv.Atoi(r.URL.Query().Get("$skipToken"))
-
-	from, to := skip, skip+top
-	if to > len(values) {
-		to = len(values)
+// SetGroups updates groups storage.
+func (s *Server) SetGroups(groups []*msgraph.Group) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, group := range groups {
+		if group.ID != nil {
+			s.Storage.Groups[*group.ID] = group
+		}
 	}
-	page := values[from:to]
+}
 
-	nextLink := *r.URL
-	nextLink.Host = r.Host
-	nextLink.Scheme = "https"
-	vals := nextLink.Query()
-	// $skipToken is an opaque value in MS Graph, for testing purposes we use a simple offset.
-	vals.Set("$skipToken", strconv.Itoa(top+skip))
-	nextLink.RawQuery = vals.Encode()
+// SetGroupMembers updates group members storage.
+func (s *Server) SetGroupMembers(groupID string, members []msgraph.GroupMember) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Storage.GroupMembers[groupID] = members
+}
 
-	response := map[string]any{
-		"value": page,
+// SetApplications updates application storage.
+func (s *Server) SetApplications(apps []*msgraph.Application) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, app := range apps {
+		if app.AppID != nil {
+			s.Storage.Applications[*app.AppID] = app
+		}
 	}
+}
 
-	if skip+top < len(values) {
-		response["@odata.nextLink"] = nextLink.String()
-	}
-
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to unmarshal payload: %s", err.Error()), http.StatusInternalServerError)
+func jsonResponse(writer http.ResponseWriter, data interface{}) {
+	writer.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(writer).Encode(data); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }
 
