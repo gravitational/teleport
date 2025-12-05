@@ -552,7 +552,11 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 // In this situation no AssumeRole should be passed to the AWS client.
 func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]string, error) {
 	if !f.Matcher.HasOrganizationMatcher() {
-		return []string{f.Matcher.AssumeRole.RoleARN}, nil
+		var roleARN string
+		if f.Matcher.AssumeRole != nil {
+			roleARN = f.Matcher.AssumeRole.RoleARN
+		}
+		return []string{roleARN}, nil
 	}
 
 	accountIDs, err := f.fetchAccountIDsUnderOrganization(ctx)
