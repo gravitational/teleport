@@ -174,7 +174,7 @@ func (c *ActiveHealthChecker) step(curr *healthSigner) (*healthSigner, error) {
 	if curr != nil {
 		err := c.healthFn(curr)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return curr, trace.Wrap(err)
 		}
 	}
 	next, err := c.nextSigner(curr)
