@@ -99,6 +99,13 @@ func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moder
 		sftp.UseConcurrentWrites(true),
 	)
 	if err != nil {
+		// After the subsystem request succeeds, the sftp server subprocess may still
+		// fail to initialize, resulting in an EOF error here. Check the stderr from
+		// the subsystem for a more actionable error.
+		var sb strings.Builder
+		if n, _ := io.Copy(&sb, pe); n > 0 {
+			return nil, trace.Errorf("%s", sb.String())
+		}
 		return nil, trace.Wrap(err)
 	}
 	return &RemoteFS{
