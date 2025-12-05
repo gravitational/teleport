@@ -31,11 +31,11 @@ var (
 	attrTypeRegexp = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9-])*$`)
 )
 
-// ParseDistinguishedName parses an RFD 2253-like distinguished name parser.
+// ParseDistinguishedName parses an RFC 2253-like distinguished name parser.
 //
 // For example: "C=US,O=Teleport,CN=Teleport CA".
 //
-// Deviations in relation to the RFD:
+// Deviations in relation to the RFC:
 //   - Common OIDs are not supported: use "C" instead of 2.5.4.6, "O" instead of
 //     2.5.4.10, etc.
 //   - Hexstrings are not supported (ie, "#1234ABCD"). Custom OIDs values must
@@ -508,7 +508,7 @@ func tokenize(dn string) (*tokenList, error) {
 				trailingSpaceBuf.WriteRune(r)
 				state = tokenizeStateStringEnd
 			case '=', '#': // Go does this.
-				// NOT OK per RFD, should be escaped.
+				// NOT OK per RFC, should be escaped.
 				fallthrough
 			default:
 				buf.WriteRune(r)
@@ -517,7 +517,7 @@ func tokenize(dn string) (*tokenList, error) {
 		case tokenizeStateStringEscape:
 			switch r {
 			case ' ': // Go does this.
-				// OK per RFD and allows the "\\ " trick.
+				// OK per RFC and allows the "\\ " trick.
 				fallthrough
 			case ',', '=', '+', '<', '>', '#', ';', '\\', '"':
 				buf.WriteRune(r)
