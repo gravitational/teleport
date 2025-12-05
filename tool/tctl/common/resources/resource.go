@@ -58,6 +58,7 @@ func Handlers() map[string]Handler {
 		types.KindGithubConnector:                    githubConnectorHandler(),
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindInferenceModel:                     inferenceModelHandler(),
+		types.KindInferenceSecret:                    inferenceSecretHandler(),
 		types.KindInstaller:                          installerHandler(),
 		types.KindLock:                               lockHandler(),
 		types.KindNode:                               serverHandler(),

@@ -19,7 +19,10 @@
 package mysql
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"time"
@@ -102,7 +105,11 @@ type connector struct {
 }
 
 // connect establishes connection to MySQL database.
-func (c *connector) connect(ctx context.Context, certExpiry time.Time) (*client.Conn, error) {
+func (c *connector) connect(
+	ctx context.Context,
+	certExpiry time.Time,
+	onDial func(context.Context, net.Conn),
+) (*client.Conn, error) {
 	tlsConfig, err := c.auth.GetTLSConfig(ctx, certExpiry, c.database, c.databaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -166,7 +173,12 @@ func (c *connector) connect(ctx context.Context, certExpiry time.Time) (*client.
 		func(ctx context.Context, network, address string) (net.Conn, error) {
 			conn, err := dialer(ctx, network, address)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(newDialError(err))
+			}
+			if onDial != nil {
+				recorder := newRecorderConn(conn)
+				onDial(ctx, recorder)
+				return recorder.rewind(), nil
 			}
 			return conn, nil
 		},
@@ -214,4 +226,92 @@ func updateServerVersion(
 		"version", serverVersion,
 	)
 	return trace.Wrap(updateProxiedDatabase(db.GetName(), doUpdate))
+}
+
+func newRecorderConn(conn net.Conn) *recorderConn {
+	rc := &recorderConn{Conn: conn}
+	rc.reset()
+	return rc
+}
+
+type recorderConn struct {
+	net.Conn
+	// buf contains the recorded data read since the last reset or rewind.
+	buf bytes.Buffer
+	// recordingReader is used to limit reads from the conn that are written to the
+	// buffer. The recorder enforces a limit to prevent accidental memory
+	// exhaustion.
+	recordingReader *io.LimitedReader
+}
+
+// Read implements [io.Reader]. All reads from the connection are recorded up
+// to a fixed size limit. After the limit is reached, all further reads are not
+// recorded.
+func (rc *recorderConn) Read(p []byte) (int, error) {
+	return io.MultiReader(rc.recordingReader, rc.Conn).Read(p)
+}
+
+func (rc *recorderConn) reset() {
+	const bufferSizeLimit = 1 << 20 // 1MB
+	rc.buf.Reset()
+	rc.recordingReader = &io.LimitedReader{
+		R: io.TeeReader(rc.Conn, &rc.buf),
+		N: bufferSizeLimit,
+	}
+}
+
+// remainingBufferSize returns the remaining size, in bytes, of the current
+// recorder buffer.
+func (rc *recorderConn) remainingBufferSize() int {
+	return int(rc.recordingReader.N)
+}
+
+// rewind sets the underlying [net.Conn] to a [bufferedConn] that reads from the
+// recorded data first, then the connection itself. After calling rewind the
+// recorder can be reused, but it should not be used once recording is no longer
+// necessary, since it will continue to buffer reads in memory up to its buffer
+// limit.
+// The [net.Conn] returned will replay recorded data, but it will not record
+// further reads, so it should be used once recording is no longer needed.
+func (rc *recorderConn) rewind() net.Conn {
+	rc.Conn = newBufferedConn(bytes.NewReader(bytes.Clone(rc.buf.Bytes())), rc.Conn)
+	rc.reset()
+	return rc.Conn
+}
+
+func newBufferedConn(recording io.Reader, conn net.Conn) *bufferedConn {
+	return &bufferedConn{
+		Conn:      conn,
+		recording: recording,
+	}
+}
+
+type bufferedConn struct {
+	net.Conn
+	recording io.Reader
+}
+
+func (bc *bufferedConn) Read(p []byte) (int, error) {
+	return io.MultiReader(bc.recording, bc.Conn).Read(p)
+}
+
+// dialError is used to mark errors encountered when attempting to connect
+// to the MySQL database.
+type dialError struct{ inner error }
+
+// newDialError returns a dialError.
+func newDialError(inner error) *dialError {
+	if inner == nil {
+		return nil
+	}
+	return &dialError{inner: inner}
+}
+
+func (d *dialError) Error() string { return d.inner.Error() }
+func (d *dialError) Unwrap() error { return d.inner }
+
+// isDialError checks if the error is from failing to dial the MySQL database.
+func isDialError(err error) bool {
+	var target *dialError
+	return errors.As(err, &target)
 }

@@ -1430,6 +1430,9 @@ type Cache interface {
 
 	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
 	services.DiscoveryConfigsGetter
+
+	// AppAuthConfigGetter defines methods for fetching app auth configs.
+	services.AppAuthConfigReader
 }
 
 type NodeWrapper struct {

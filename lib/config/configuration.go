@@ -1575,6 +1575,10 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		for _, region := range matcher.Regions {
+			if region == types.Wildcard {
+				continue
+			}
+
 			if !awsregion.IsKnownRegion(region) {
 				const message = "AWS matcher uses unknown region" +
 					"This is either a typo or a new AWS region that is unknown to the AWS SDK used to compile this binary. "
