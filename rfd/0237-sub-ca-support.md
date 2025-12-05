@@ -436,10 +436,12 @@ message UpsertCertificateOverrideRequest {
 
   // Value to add or modify.
   // Patches are always additive.
-  CertificateOverride certificate_override_to_upsert = 2;
+  CertificateOverride certificate_override = 2;
 }
 
-message UpsertCertificateOverrideResponse {}
+message UpsertCertificateOverrideResponse {
+  CertificateOverride certificate_override = 1;
+}
 
 message DeleteCertificateOverrideRequest {
   // Certificate override to delete.
