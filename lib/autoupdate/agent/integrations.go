@@ -32,6 +32,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+var (
+	// ErrConfigNotFound is returned by HellorUpdaterInfo when the updater config file cannot be found.
+	ErrConfigNotFound = errors.New("updater config file not found")
+
+	// ErrUnstableExecutable is returned by StableExecutable when no stable path can be found.
+	ErrUnstableExecutable = errors.New("executable has unstable path")
+)
+
 const updateConfigFileEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
 
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
@@ -56,7 +64,7 @@ func IsManagedByUpdater() (bool, error) {
 	if p == "" {
 		return false, nil
 	}
-	_, err = os.Stat(filepath.Join(p, updateConfigName))
+	_, err = os.Stat(filepath.Join(p, UpdateConfigName))
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -65,9 +73,6 @@ func IsManagedByUpdater() (bool, error) {
 	}
 	return true, nil
 }
-
-// ErrUnstableExecutable is returned by StableExecutable when no stable path can be found.
-var ErrUnstableExecutable = errors.New("executable has unstable path")
 
 // StableExecutable returns a stable path to Teleport binaries that may or may not be managed by Agent Managed Updates.
 // Note that StableExecutable is not guaranteed to return the same binary, as the binary may have been updated
@@ -102,7 +107,7 @@ func stablePathForBinary(origPath, defaultPath string) (string, error) {
 	// This is determined by looking for ../../../update.yaml, if we are in ../../../versions.
 	// update.yaml will always have the target path if Managed Updates are enabled.
 	if p := findParentMatching(origPath, versionsDirName, 4); p != "" {
-		cfgPath := filepath.Join(p, updateConfigName)
+		cfgPath := filepath.Join(p, UpdateConfigName)
 		cfg, err := readConfig(cfgPath)
 		if err == nil && cfg.Spec.Path != "" {
 			// If the path exists and resolves, it is always the best candidate path,
@@ -150,9 +155,9 @@ func findConfigFile() (string, error) {
 	}
 	p := findParentMatching(teleportPath, versionsDirName, 4)
 	if p == "" {
-		return "", trace.Errorf("installation not managed by updater")
+		return "", trace.Wrap(ErrConfigNotFound)
 	}
-	return filepath.Join(p, updateConfigName), nil
+	return filepath.Join(p, UpdateConfigName), nil
 }
 
 // ReadHelloUpdaterInfo reads the updater config and generates a proto.UpdaterV2Info
@@ -164,7 +169,7 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 
 	configPath, err := findConfigFile()
 	if err != nil {
-		return nil, trace.Wrap(err, "config file not specified")
+		return nil, trace.Wrap(err)
 	}
 	cfg, err := readConfig(configPath)
 	if err != nil {

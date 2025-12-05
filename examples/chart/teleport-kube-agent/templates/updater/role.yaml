@@ -53,6 +53,24 @@ rules:
   verbs:
     - create
     - patch
+# the updater needs to create, get, and update the configmap containing updater state
+- apiGroups:
+    - ""
+  resources:
+    - configmaps
+  verbs:
+    - create
+    - watch
+    - list
+- apiGroups:
+    - ""
+  resources:
+    - configmaps
+  verbs:
+    - get
+    - update
+  resourceNames:
+    - {{ .Release.Name }}-updater
 # the controller in the updater must be able to watch deployments and
 # statefulsets and get the one it should reconcile
 - apiGroups:
