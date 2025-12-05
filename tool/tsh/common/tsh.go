@@ -1449,6 +1449,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 	// SCAN subcommands.
 	scan := newScanCommand(app)
+	// scopes subcommands.
+	scopes := newScopesCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
@@ -1815,6 +1817,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.join.run(&cf)
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
+	case scopes.ls.FullCommand():
+		err = scopes.ls.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case proxyDB.FullCommand():

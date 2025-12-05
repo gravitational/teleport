@@ -106,10 +106,6 @@ func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedacce
 // ListScopedRoles returns a paginated list of scoped roles.
 // NOTE: this method is only used by local auth caches, and doesn't implement sorting, filtering, or pagination.
 func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
-	if req.GetPageSize() != 0 {
-		return nil, trace.NotImplemented("page size limits are not implemented for direct backend scoped role reads")
-	}
-
 	if req.GetResourceScope() != nil {
 		return nil, trace.NotImplemented("filtering by resource scope is not implemented for direct backend scoped role reads")
 	}
@@ -443,10 +439,6 @@ func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
 // NOTE: this method is only used by local auth caches, and doesn't implement sorting, filtering, or pagination.
 func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
-	if req.GetPageSize() != 0 {
-		return nil, trace.NotImplemented("page size limits are not implemented for direct backend scoped role assignment reads")
-	}
-
 	if req.GetResourceScope() != nil {
 		return nil, trace.NotImplemented("filtering by resource scope is not implemented for direct backend scoped role assignment reads")
 	}
