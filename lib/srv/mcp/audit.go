@@ -454,16 +454,19 @@ func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrit
 		}
 
 		var rewriteAuth bool
-		for _, rewrite := range rewrite.Headers {
-			if strings.EqualFold(rewrite.Name, "Authorization") {
+		for _, header := range rewrite.Headers {
+			if strings.EqualFold(header.Name, "Authorization") {
 				rewriteAuth = true
 			}
 
 			// Check if any header value includes "{{internal.jwt}}".
-			if strings.Contains(rewrite.Value, "internal.jwt") {
+			if strings.Contains(header.Value, "internal.jwt") {
 				// Apply fake traits just to be sure. The fake traits will
 				// result two values if applied successfully.
-				if interpolated, _ := services.ApplyValueTraits(rewrite.Value, testJWTTraits); len(interpolated) > 1 {
+				if interpolated, _ := services.ApplyValueTraits(header.Value, testJWTTraits); len(interpolated) > 1 {
+					if rewrite.JwtAuthority == types.JwtAuthorityOIDC {
+						return "app-oidc"
+					}
 					return "app-jwt"
 				}
 			}
