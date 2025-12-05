@@ -17,14 +17,19 @@
 package join
 
 import (
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // handleIAMJoin handles join attempts for the IAM join method.
@@ -75,11 +80,12 @@ func (s *Server) handleIAMJoin(
 	// Verify the sts:GetCallerIdentity request, send it to AWS, and make sure
 	// the verified identity matches allow rules in the provision token.
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(stream.Context(), &iamjoin.CheckIAMRequestParams{
-		Challenge:          challenge,
-		ProvisionToken:     token,
-		STSIdentityRequest: solution.STSIdentityRequest,
-		HTTPClient:         s.cfg.AuthService.GetHTTPClientForAWSSTS(),
-		FIPS:               s.cfg.FIPS,
+		Challenge:                   challenge,
+		ProvisionToken:              token,
+		STSIdentityRequest:          solution.STSIdentityRequest,
+		HTTPClient:                  s.cfg.AuthService.GetHTTPClientForAWSSTS(),
+		FIPS:                        s.cfg.FIPS,
+		DescribeAccountClientGetter: s.awsDescribeAccountClientGetter(),
 	})
 	// An identity will be returned even on error if the sts:GetCallerIdentity
 	// request was completed but no allow rules were matched, include it in the
@@ -105,4 +111,29 @@ func (s *Server) handleIAMJoin(
 		},
 	)
 	return result, trace.Wrap(err)
+}
+
+func (s *Server) awsDescribeAccountClientGetter() func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
+	// For IAM Join flow, the token might allow all all the AWS Accounts under an Organization.
+	// In order to validate the organization ID of the joining identity, a call to organizations:DescribeAccount is performed.
+	// This requires AWS credentials to be accessible to the Auth Service.
+	// Currently, only ambient credentails are supported.
+	// When running within Teleport Cloud, the Auth Service is not able to access ambient credentials for target account.
+	// In that scenario a NotImplemented error is returned.
+	if modules.GetModules().Features().Cloud {
+		return func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
+			return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID are not supported in Teleport Cloud")
+		}
+	}
+
+	return func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
+		// Use cached AWS config without specifying a region, as Organizations is a global service.
+		noRegion := ""
+		awsCfg, err := s.awsCachedProvider.GetConfig(ctx, noRegion, awsconfig.WithAmbientCredentials())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return organizations.NewFromConfig(awsCfg).DescribeAccount, nil
+	}
 }

@@ -103,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -521,6 +522,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if cfg.RecordingMetadataProvider == nil {
 		cfg.RecordingMetadataProvider = recordingmetadata.NewProvider()
 	}
+
+	if cfg.AWSCachedProvider == nil {
+		awsCachedProvider, err := awsconfig.NewCache()
+		if err != nil {
+			return nil, trace.Wrap(err, "creating AWS cached provider")
+		}
+		cfg.AWSCachedProvider = awsCachedProvider
+	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
 		if err != nil {
@@ -702,6 +711,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		logger:                    cfg.Logger,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 		recordingMetadataProvider: cfg.RecordingMetadataProvider,
+		awsCachedProvider:         cfg.AWSCachedProvider,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1360,6 +1370,9 @@ type Server struct {
 	// ec2ClientForEC2JoinMethod overrides the default client used for making
 	// requests to the AWS ec2 service during EC2 join attempt verification.
 	ec2ClientForEC2JoinMethod ec2join.EC2Client
+
+	// awsCachedProvider is the AWS SDK cache provider.
+	awsCachedProvider awsconfig.Provider
 
 	// accessMonitoringEnabled is a flag that indicates whether access monitoring is enabled.
 	accessMonitoringEnabled bool

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
@@ -120,14 +121,21 @@ type ServerConfig struct {
 type Server struct {
 	cfg               *ServerConfig
 	oracleRootCACache *oraclejoin.RootCACache
+	awsCachedProvider awsconfig.Provider
 }
 
 // NewServer returns a new [Server] instance.
-func NewServer(cfg *ServerConfig) *Server {
+func NewServer(cfg *ServerConfig) (*Server, error) {
+	awsCachedProvider, err := awsconfig.NewCache()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Server{
 		cfg:               cfg,
 		oracleRootCACache: oraclejoin.NewRootCACache(),
-	}
+		awsCachedProvider: awsCachedProvider,
+	}, nil
 }
 
 // getProvisionToken attempts to resolve a name to a [provision.Token] by first attempting to
