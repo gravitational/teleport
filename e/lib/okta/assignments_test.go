@@ -132,7 +132,7 @@ func assertRecNewAndCurAssignments(t *testing.T, reconciler *assignmentReconcile
 	assertAssignments(t, want, reconciler.getNewAssignments())
 }
 
-func assertAssignments(t *testing.T, got, want types.OktaAssignments) {
+func assertAssignments(t *testing.T, want, got types.OktaAssignments) {
 	cmpOpts := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 	require.Empty(t, cmp.Diff(want, got, cmpopts.SortSlices(assignmentLess), cmpOpts))
 }

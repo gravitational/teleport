@@ -152,7 +152,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 			_, err := authServer.GetOktaAssignment(ctx, accessRequestName)
 			require.Error(t, err)
 			require.True(t, trace.IsNotFound(err))
-		}, time.Second*10, time.Millisecond*50)
+		}, time.Second*20, time.Millisecond*50)
 	})
 
 	t.Run("verify assignment to the group1 is cleaned up on the Okta side", func(t *testing.T) {

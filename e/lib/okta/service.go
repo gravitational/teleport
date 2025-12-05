@@ -17,7 +17,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
@@ -30,10 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -82,12 +79,6 @@ type Config struct {
 
 	// HostID is the ID of this host.
 	HostID string
-
-	// RotationGetter gets the rotation for this server.
-	RotationGetter services.RotationGetter
-
-	// ProxyGetter returns a list of proxies.
-	ProxyGetter ProxyGetter
 
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
@@ -166,12 +157,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("host ID is missing")
-	}
-	if c.RotationGetter == nil {
-		return trace.BadParameter("rotation getter is missing")
-	}
-	if c.ProxyGetter == nil {
-		c.ProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 	if c.Emitter == nil {
 		return trace.BadParameter("emitter is missing")
@@ -254,11 +239,9 @@ type Service struct {
 	tlsConfig  *tls.Config
 	authorizer authz.Authorizer
 
-	clusterName    string
-	hostname       string
-	hostID         string
-	rotationGetter services.RotationGetter
-	proxyGetter    ProxyGetter
+	clusterName string
+	hostname    string
+	hostID      string
 
 	// accessPoint is a caching AccessPoint with Okta Extensions, used by this
 	// service to interact with the Teleport cluster.
@@ -271,13 +254,6 @@ type Service struct {
 
 	// rateLimiter will rate limit backend interactions.
 	rateLimiter *rate.Limiter
-
-	// Heartbeat monitoring
-	heartbeatsMu sync.Mutex
-	heartbeats   map[string]*srv.Heartbeat
-
-	// TODO(kopiczko) Extract group reconciler code and get rid of the sync maps because they
-	// are almost certainly not needed.
 
 	// groupsReconciler will reconcile groups discovered in Okta.
 	groupsReconciler *services.Reconciler[types.UserGroup]
@@ -298,14 +274,14 @@ type Service struct {
 	// are almost certainly not needed.
 
 	// appsReconciler will reconcile applications discovered in Okta.
-	appsReconciler *services.Reconciler[types.Application]
+	appsReconciler *services.Reconciler[types.AppServer]
 
 	// apps is the current mapping of { appName => app }.
-	apps utils.SyncMap[string, types.Application]
+	apps utils.SyncMap[string, types.AppServer]
 
 	// newApps is the mapping of { appName => app } for apps discovered
 	// by Okta, not yet synchronzied to the apps map by the reconciler.
-	newApps utils.SyncMap[string, types.Application]
+	newApps utils.SyncMap[string, types.AppServer]
 
 	// app stats for the audit even for a particular reconcile.
 	appsAdded   []*apievents.OktaResource
@@ -332,7 +308,6 @@ type Service struct {
 	stopCh       chan struct{}
 
 	shutdownCalled atomic.Bool
-	closeCalled    atomic.Bool
 
 	// userReconciler is used to reconcile the Teleport user DB with an upstream
 	// Okta organization. If this value is `nil` it means that user syncing is
@@ -472,8 +447,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		clusterName:             config.ClusterName,
 		hostname:                config.Hostname,
 		hostID:                  config.HostID,
-		rotationGetter:          config.RotationGetter,
-		proxyGetter:             config.ProxyGetter,
 		accessPoint:             config.AccessPoint,
 		accessLists:             config.AccessLists,
 		onHeartbeat:             config.OnHeartbeat,
@@ -481,7 +454,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		orgURL:                  strings.TrimSuffix(oktaClient.GetOrgUrl(), "/"),
 		emitter:                 config.Emitter,
 		rateLimiter:             rate.NewLimiter(rate.Every(time.Second/time.Duration(config.BackendTasksPerSecond)), 1),
-		heartbeats:              map[string]*srv.Heartbeat{},
 		groupIRMapping:          map[string]prioritizedLabels{},
 		applicationIRMapping:    map[string]prioritizedLabels{},
 		groupNameRegexes:        []regexAndPriorityLabels{},
@@ -519,7 +491,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	if appGroupSyncEnabled {
 		config.Logger.InfoContext(ctx, "App and Group sync is enabled", "bidirectional", bidirectionalSyncEnabled)
 
-		s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.Application]{
+		s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.AppServer]{
 			Matcher:             s.appsMatcher,
 			GetCurrentResources: s.apps.Clone,
 			GetNewResources:     s.newApps.Clone,
@@ -607,8 +579,13 @@ func getPluginStartError(err error) (types.PluginStatusCode, error) {
 // Start will start the Okta service. This service will not make any calls the Okta API while it is
 // not the leader.
 func (s *Service) Start(ctx context.Context) error {
+	if s.appsReconciler != nil {
+		if err := s.seedAppsReconciler(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if s.groupsReconciler != nil {
-		if err := s.seedGroupReconciler(ctx); err != nil {
+		if err := s.seedGroupsReconciler(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -687,40 +664,9 @@ func (s *Service) Shutdown() error {
 	s.stopChCloser.Do(func() { close(s.stopCh) })
 	s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
 
-	s.heartbeatsMu.Lock()
-	defer s.heartbeatsMu.Unlock()
-
 	if s.assignmentReconciler != nil {
 		s.assignmentReconciler.stop()
 	}
 
-	var errs []error
-	for _, heartbeat := range s.heartbeats {
-		if err := heartbeat.Close(); err != nil {
-			s.logger.ErrorContext(context.Background(), "Unable to close heartbeat", "error", err)
-		}
-	}
-
-	return trace.NewAggregate(errs...)
-}
-
-// Close cleans up any lingering resources.
-func (s *Service) Close(ctx context.Context) error {
-	// If we've already called close, return.
-	if !s.closeCalled.CompareAndSwap(false, true) {
-		return nil
-	}
-
-	var errs []error
-	if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
-		for appName := range s.heartbeats {
-			if err := s.accessPoint.DeleteApplicationServer(ctx, defaults.Namespace, s.hostID, appName); err != nil {
-				if !trace.IsNotFound(err) {
-					errs = append(errs, err)
-				}
-			}
-		}
-	}
-
-	return trace.NewAggregate(errs...)
+	return nil
 }

@@ -189,7 +189,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		ClusterName:        clusterName,
 		Hostname:           process.Config.Hostname,
 		HostID:             conn.HostUUID(),
-		RotationGetter:     process.GetRotation,
 		Emitter:            asyncEmitter,
 		AccessPoint:        accessPoint,
 		Access:             conn.Client,
@@ -217,17 +216,17 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		if err := oktaLeader.Close(); err != nil {
 			logger.WarnContext(process.ExitContext(), "Error closing Okta leader", "error", err)
 		}
-		var ctx context.Context
+
+		closeCtx := context.Background()
 		if payload != nil {
-			payloadCtx, ok := payload.(context.Context)
-			if ok {
-				ctx = payloadCtx
+			if payloadCtx, ok := payload.(context.Context); ok {
+				closeCtx = payloadCtx
 			}
 		}
 
 		oktaServiceMu.Lock()
 		defer oktaServiceMu.Unlock()
-		closeOktaService(ctx, logger, oktaService)
+		closeOktaService(closeCtx, logger, oktaService)
 	})
 
 	process.BroadcastEvent(service.Event{Name: EventWithComponents(OktaReady, components...), Payload: nil})
@@ -300,11 +299,5 @@ func closeOktaService(ctx context.Context, log *slog.Logger, oktaService *okta.S
 
 	if err := oktaService.Shutdown(); err != nil {
 		log.ErrorContext(ctx, "Error shutting down Okta service", "error", err)
-	}
-
-	if ctx != nil {
-		if err := oktaService.Close(ctx); err != nil {
-			log.ErrorContext(ctx, "Error closing Okta service", "error", err)
-		}
 	}
 }

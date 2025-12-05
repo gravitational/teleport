@@ -75,7 +75,7 @@ type accessListSyncConfig struct {
 	OrgURL string
 
 	// AppsGetter is the function to get apps to import.
-	AppsGetter func() map[string]types.Application
+	AppsGetter func() map[string]types.AppServer
 
 	// GroupsGetter is the function to get groups to import.
 	GroupsGetter func() map[string]types.UserGroup
@@ -187,7 +187,7 @@ type accessListSync struct {
 	oktaUsersMu     sync.Mutex
 
 	// getters to retrieve the synchronized apps and groups to import.
-	appsGetter   func() map[string]types.Application
+	appsGetter   func() map[string]types.AppServer
 	groupsGetter func() map[string]types.UserGroup
 
 	// filters for groups and apps
@@ -576,7 +576,7 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	}
 	userMapping := a.oktaUserMapping
 
-	appMapping := map[string]types.Application{}
+	appMapping := map[string]types.AppServer{}
 	for _, app := range apps {
 		appMapping[app.GetName()] = app
 	}
@@ -720,12 +720,12 @@ type importResourceMetadata struct {
 var errNoAssignments = errors.New("no assignments")
 
 type importAppsParams struct {
-	apps        map[string]types.Application
+	apps        map[string]types.AppServer
 	userMapping map[oktaUserID]userName
 	importCh    chan importResourceMetadata
 }
 
-func getAppID(a types.Application) (oktaAppID, bool) {
+func getAppID(a types.AppServer) (oktaAppID, bool) {
 	id, ok := a.GetLabel(eteleport.OktaAppIDLabel)
 	return oktaAppID(id), ok
 }
@@ -739,7 +739,7 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 	// app.GetName() is generated with a hash value impacted by the link name we make sure
 	// always use the the same app/link for each Okta app here.
 	// https://github.com/gravitational/teleport.e/pull/5934#discussion_r1929587258
-	sortedApps := slices.SortedFunc(maps.Values(params.apps), func(a, b types.Application) int {
+	sortedApps := slices.SortedFunc(maps.Values(params.apps), func(a, b types.AppServer) int {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	for _, app := range sortedApps {
@@ -801,8 +801,8 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 	return nil
 }
 
-func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaAppID, app types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
-	title, ok := app.GetLabel(types.OktaAppNameLabel)
+func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaAppID, appServer types.AppServer, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
+	title, ok := appServer.GetLabel(types.OktaAppNameLabel)
 	if !ok {
 		a.logger.DebugContext(ctx, "application ID has no app name to use as a title", "app_id", appID)
 	}
@@ -831,7 +831,7 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaApp
 	}
 
 	return importResourceMetadata{
-		name:        app.GetName(),
+		name:        appServer.GetName(),
 		title:       title,
 		description: "imported access list for Okta application",
 		roleAppLabels: map[string][]string{
@@ -843,7 +843,7 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaApp
 
 type importGroupsParams struct {
 	groups      map[string]types.UserGroup
-	appMapping  map[string]types.Application
+	appMapping  map[string]types.AppServer
 	userMapping map[oktaUserID]userName
 	importCh    chan importResourceMetadata
 }
@@ -911,7 +911,7 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 	return nil
 }
 
-func (a *accessListSync) groupToImportResources(ctx context.Context, groupID oktaGroupID, group types.UserGroup, appMapping map[string]types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
+func (a *accessListSync) groupToImportResources(ctx context.Context, groupID oktaGroupID, group types.UserGroup, appServerMapping map[string]types.AppServer, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
 	title, ok := group.GetLabel(types.OktaGroupNameLabel)
 	if !ok {
 		return importResourceMetadata{}, trace.BadParameter("group ID %s has no group name to use as a title", groupID)
@@ -933,13 +933,13 @@ func (a *accessListSync) groupToImportResources(ctx context.Context, groupID okt
 
 	appLabels := map[string][]string{}
 	for _, appName := range group.GetApplications() {
-		app, ok := appMapping[appName]
+		appServer, ok := appServerMapping[appName]
 		if !ok {
 			a.logger.ErrorContext(ctx, "Unable to find app as part of group", "app", appName, "group", group.GetName())
 			continue
 		}
 
-		oktaAppID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
+		oktaAppID, ok := appServer.GetLabel(eteleport.OktaAppIDLabel)
 		if !ok {
 			a.logger.ErrorContext(ctx, "Unable to find Okta App ID for app", "app", appName)
 			continue

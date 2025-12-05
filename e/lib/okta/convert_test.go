@@ -139,7 +139,7 @@ func TestOktaAppToApplications(t *testing.T) {
 		oktaApp          *okta.Application
 		groupIDs         []string
 		errAssertionFunc require.ErrorAssertionFunc
-		expected         []*types.AppV3
+		expected         []types.AppServer
 	}{
 		{
 			name: "happy path (with group IDs)",
@@ -163,8 +163,8 @@ func TestOktaAppToApplications(t *testing.T) {
 			},
 			groupIDs:         []string{"group1", "group2", "group3"},
 			errAssertionFunc: require.NoError,
-			expected: []*types.AppV3{
-				newApp(t,
+			expected: []types.AppServer{
+				newAppServer(t,
 					types.Metadata{
 						Name:        "3cjffnnvq17sgg",
 						Description: "app label",
@@ -182,7 +182,7 @@ func TestOktaAppToApplications(t *testing.T) {
 						UserGroups: []string{"group1", "group2", "group3"},
 					},
 				),
-				newApp(t,
+				newAppServer(t,
 					types.Metadata{
 						Name:        "4nmi1dlgr9wc9z",
 						Description: "app label",
@@ -223,8 +223,8 @@ func TestOktaAppToApplications(t *testing.T) {
 				},
 			},
 			errAssertionFunc: require.NoError,
-			expected: []*types.AppV3{
-				newApp(t,
+			expected: []types.AppServer{
+				newAppServer(t,
 					types.Metadata{
 						Name:        "3cjffnnvq17sgg",
 						Description: "app label",
@@ -241,7 +241,7 @@ func TestOktaAppToApplications(t *testing.T) {
 						PublicAddr: fmt.Sprintf("3cjffnnvq17sgg.%s", testClusterName),
 					},
 				),
-				newApp(t,
+				newAppServer(t,
 					types.Metadata{
 						Name:        "4nmi1dlgr9wc9z",
 						Description: "app label",
@@ -321,8 +321,8 @@ func TestOktaAppToApplications(t *testing.T) {
 				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{Web: &trueBool}},
 			},
 			errAssertionFunc: require.NoError,
-			expected: []*types.AppV3{
-				newApp(t,
+			expected: []types.AppServer{
+				newAppServer(t,
 					types.Metadata{
 						Name:        "33fv66f9ju37a6",
 						Description: "app label",
@@ -348,7 +348,7 @@ func TestOktaAppToApplications(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ap := newTestAccessPoint(t, clockwork.NewRealClock())
 			service, _ := newTestService(t, ap, newTestOktaClient())
-			apps, err := service.oktaAppToApps(test.oktaApp, test.groupIDs)
+			apps, err := service.oktaAppToAppServers(test.oktaApp, test.groupIDs)
 			test.errAssertionFunc(t, err)
 			require.Equal(t, test.expected, apps)
 		})

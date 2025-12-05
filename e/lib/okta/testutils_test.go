@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -33,15 +35,11 @@ import (
 )
 
 const (
-	testOrgURL        = "https://test.okta.example.com"
-	testHostname      = "test-host"
-	testHostID        = "test-host-id"
-	testConnectorName = "okta-test"
-	testClusterName   = "test-cluster-name"
-	testClusterURL    = "https://test-cluster.example.com"
+	testOrgURL      = "https://test.okta.example.com"
+	testHostname    = "test-host"
+	testHostID      = "test-host-id"
+	testClusterName = "test-cluster-name"
 )
-
-var testProxyIDs = []string{"proxy-ids"}
 
 // testAccessPoint is a test access point for the Okta service.
 type testAccessPoint struct {
@@ -210,12 +208,6 @@ func createStubSAMLConnector(ctx context.Context, t *testing.T, name string, ap 
 	return ap.CreateSAMLConnector(ctx, connType)
 }
 
-type testProxyGetter struct{}
-
-func (t *testProxyGetter) GetProxyIDs() []string {
-	return testProxyIDs
-}
-
 type testServiceOpt func(*Config)
 
 func withUserSyncEnabled(syncSource types.OktaUserSyncSource) testServiceOpt {
@@ -269,8 +261,6 @@ func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt)
 		ClusterName:      testClusterName,
 		Hostname:         testHostname,
 		HostID:           testHostID,
-		RotationGetter:   func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ProxyGetter:      &testProxyGetter{},
 		AccessPoint:      ap,
 		Access:           ap,
 		AccessLists:      ap,
@@ -388,20 +378,43 @@ func waitForResult[T any](t *testing.T, ch chan T, expected T, numTimes int) {
 	}
 }
 
-func mustAppName(t testing.TB, name, appLinkName string) string {
-	t.Helper()
+func mustAppName(t require.TestingT, name, appLinkName string) string {
+	testCallHelper(t)
 	appName, err := AppName(name, appLinkName)
 	require.NoError(t, err)
 	return appName
 }
 
-func newApp(t testing.TB, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppV3 {
+func newAppServer(t testing.TB, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppServerV3 {
 	t.Helper()
 
 	app, err := types.NewAppV3(metadata, appSpec)
 	require.NoError(t, err)
 
-	return app
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{
+			Name:        app.GetName(),
+			Description: app.GetDescription(),
+			Labels:      app.GetStaticLabels(),
+		},
+		types.AppServerSpecV3{
+			Version:  ossteleport.Version,
+			Hostname: testHostname,
+			HostID:   testHostID,
+			App:      app,
+		},
+	)
+	require.NoError(t, err)
+
+	return appServer
+}
+
+func upsertAppServer(t testing.TB, ap services.Presence, appServer types.AppServer) {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := ap.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
 }
 
 func application(t testing.TB, name, appLinkName, origin, orgURL, hostID string) types.AppServer {
@@ -419,16 +432,11 @@ func application(t testing.TB, name, appLinkName, origin, orgURL, hostID string)
 		Labels: labels,
 	}
 
-	app := newApp(t, metadata, types.AppSpecV3{
+	appServer := newAppServer(t, metadata, types.AppSpecV3{
 		URI:        "https://www.link1.com",
 		PublicAddr: "public-addr",
 	})
-	appServer, err := types.NewAppServerV3(metadata, types.AppServerSpecV3{
-		Hostname: testHostname,
-		HostID:   hostID,
-		App:      app,
-	})
-	require.NoError(t, err)
+	appServer.Spec.HostID = hostID
 	return appServer
 }
 
@@ -539,35 +547,51 @@ func requireUsersExist(t require.TestingT, ap services.UserGetter, users ...stri
 	}
 }
 
-func requireOktaApplicationServers(t require.TestingT, ap services.Presence, oktaAppIDs []string) {
-	testCallHelper(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	appServers, err := ap.GetApplicationServers(ctx, defaults.Namespace)
-	require.NoError(t, err)
-	var existingAppIDs []string
-	for _, as := range appServers {
-		if oktaID, ok := as.GetApp().GetLabel(teleport.OktaAppIDLabel); ok {
-			existingAppIDs = append(existingAppIDs, oktaID)
-		}
-	}
-	require.ElementsMatch(t, oktaAppIDs, existingAppIDs)
+type testApplicationServerGetter interface {
+	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 }
 
-func testGetOktaApplicationServerName(t *testing.T, ap services.Presence, oktaAppID string) string {
+func testGetAppServer(t *testing.T, ap testApplicationServerGetter, name string) types.AppServer {
 	t.Helper()
 	ctx := t.Context()
 
 	appServers, err := ap.GetApplicationServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
 	for _, as := range appServers {
-		if id, ok := as.GetApp().GetLabel(teleport.OktaAppIDLabel); ok && id == oktaAppID {
-			return as.GetName()
+		if as.GetName() == name {
+			return as
 		}
 	}
-	require.FailNowf(t, "no app_server for Okta ID %q", oktaAppID)
-	panic("unreachable")
+	t.Fatalf("app_server %q not found", name)
+	return nil // should never get there because of the t.Fatalf call above
+}
+
+func requireAppServers(t require.TestingT, ap testApplicationServerGetter, names []string) {
+	testCallHelper(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	appServers, err := ap.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	// This loop will build the slice of currentNames with Okta app ID added as a suffix if
+	// found. This suffix is also added to the original names list so the comparison doesn't
+	// fail. This makes it easier to debug when you see "3hfhsud9otxdnc:app2" instead of
+	// "3hfhsud9otxdnc".
+	var currentNames []string
+	enrichedNames := slices.Clone(names)
+	for _, as := range appServers {
+		oktaAppID, hasOktaAppID := as.GetLabel(types.OktaAppIDLabel)
+		if hasOktaAppID {
+			currentNames = append(currentNames, as.GetName()+":"+oktaAppID)
+			if i := slices.Index(names, as.GetName()); i >= 0 {
+				enrichedNames[i] += ":" + oktaAppID
+			}
+		} else {
+			currentNames = append(currentNames, as.GetName())
+		}
+	}
+	require.ElementsMatch(t, enrichedNames, currentNames)
 }
 
 func requireUserGroups(t require.TestingT, ap services.UserGroups, groupIDs []string) {

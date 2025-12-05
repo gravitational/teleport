@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"testing"
 	"time"
 
@@ -15,22 +14,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	oktaapitest "github.com/gravitational/teleport/e/lib/okta/api/apitest"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 )
-
-// stopAllHeartbeats cleans up any active heartbeats at the end of a test,
-// preventing the test from leaking heartbeat processes that eventually crash.
-func (svc *Service) stopAllHeartbeats() {
-	svc.heartbeatsMu.Lock()
-	heartbeats := maps.Clone(svc.heartbeats)
-	svc.heartbeatsMu.Unlock()
-
-	for app := range heartbeats {
-		svc.stopHeartbeat(app)
-	}
-}
 
 func TestSynchronizeGroups(t *testing.T) {
 	t.Parallel()
@@ -39,7 +27,6 @@ func TestSynchronizeGroups(t *testing.T) {
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	client := newTestOktaClient()
 	svc, emitter := newTestService(t, ap, client)
-	t.Cleanup(svc.stopAllHeartbeats)
 
 	// Add in one app to get a group to app mapping from
 	client.OktaApps = []okta.App{
@@ -103,7 +90,8 @@ func TestSynchronizeGroups(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, group3.GetMetadata().Description)
 
-	require.NoError(t, svc.seedGroupReconciler(ctx))
+	require.NoError(t, svc.seedAppsReconciler(ctx))
+	require.NoError(t, svc.seedGroupsReconciler(ctx))
 
 	svc.userReconciler = nil // disable user reconciliation
 	require.NoError(t, svc.synchronize(ctx))
@@ -353,8 +341,8 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 			// Increase the BackendTasksPerSecond so the test doesn't timeout with the
 			// flaky tests detector -count 100 flag.
 			svc, emitter := newTestService(t, ap, client, withBackendTasksPerSecond(10))
-			require.NoError(t, svc.seedGroupReconciler(ctx))
-			t.Cleanup(svc.stopAllHeartbeats)
+			require.NoError(t, svc.seedAppsReconciler(ctx))
+			require.NoError(t, svc.seedGroupsReconciler(ctx))
 
 			// ALSO GIVEN a mocked Okta organization with several applications
 			// configured
@@ -422,104 +410,96 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 func TestSynchronizeApplications(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	client := newTestOktaClient()
 	svc, emitter := newTestService(t, ap, client)
-	require.NoError(t, svc.seedGroupReconciler(ctx))
-	t.Cleanup(svc.stopAllHeartbeats)
 
-	// Add a few apps that should be deleted since they're not present in the client.
-	addApp(t, "app1", types.OriginOkta, svc.orgURL, svc)
-	addApp(t, "app2", types.OriginOkta, svc.orgURL, svc)
+	const app1, app2, app3, app4, app5 = "app1", "app2", "app3", "app4", "app5"
+	const link1, link2 = "app_link_1", "app_link_2"
+	const href1, href2 = "https://link1.example.com", "https://link2.exmpale.com"
 
-	// Add an app to be updated.
-	app3Name, err := AppName("app3", "applink-name1")
-	require.NoError(t, err)
-	addApp(t, app3Name, types.OriginOkta, svc.orgURL, svc)
+	// Add apps stored in the backend.
+	for _, oktaID := range []string{app1, app2, app3} {
+		uri := href1
+		if oktaID == app3 {
+			// For app3 set an incorrect URI to see if it was updated.
+			uri = "https://www.wrong1.link.exmaple.com"
+		}
+		upsertAppServer(t, ap, newAppServer(t,
+			types.Metadata{
+				Name: mustAppName(t, oktaID, link1),
+				Labels: map[string]string{
+					types.OktaAppIDLabel:     oktaID,
+					types.OriginLabel:        types.OriginOkta,
+					teleport.OktaOrgURLLabel: svc.orgURL,
+				},
+			},
+			types.AppSpecV3{
+				URI: uri,
+			},
+		))
+	}
 
 	// Add okta apps.
 	client.OktaApps = []okta.App{
 		// This app should trigger an update.
-		&okta.Application{
-			Id:     "app3",
-			Name:   "app-name",
-			Status: "ACTIVE",
-			Label:  "app label",
-			Links: map[string]any{
-				"appLinks": []any{
-					map[string]any{
-						"name": "applink-name1",
-						"href": "https://www.link1.com",
-					},
-				},
+		oktaapitest.NewApplication(oktaapitest.ApplicationArgs{
+			ID:     app3,
+			Label:  "App with ID " + app3,
+			Status: oktaapitest.StatusActive,
+			Links: []oktaapitest.AppLink{
+				{Name: link1, Href: href1},
 			},
-		},
+		}),
 		// This app should be created.
-		&okta.Application{
-			Id:     "app4",
-			Name:   "app-name",
-			Status: "ACTIVE",
-			Label:  "app label",
-			Links: map[string]any{
-				"appLinks": []any{
-					map[string]any{
-						"name": "applink-name1",
-						"href": "https://www.link1.com",
-					},
-					map[string]any{
-						"name": "applink-name2",
-						"href": "https://www.link2.com",
-					},
-				},
+		oktaapitest.NewApplication(oktaapitest.ApplicationArgs{
+			ID:     app4,
+			Label:  "App with ID " + app4,
+			Status: oktaapitest.StatusActive,
+			Links: []oktaapitest.AppLink{
+				{Name: link1, Href: href1},
+				{Name: link2, Href: href2},
 			},
-		},
+		}),
 		// This app should fail but not interrupt the sync.
-		&okta.Application{
-			Id:     "app5",
-			Name:   "app-name",
-			Status: "INACTIVE",
-			Label:  "app label",
-		},
+		oktaapitest.NewApplication(oktaapitest.ApplicationArgs{
+			ID:     app5,
+			Label:  "App with ID " + app5,
+			Status: oktaapitest.StatusActive,
+			Links:  nil, // no links, so the app should not be synced
+		}),
 		// This app should fail but not interrupt the sync.
 		&dummyOktaApp{},
 	}
-	client.AppsToGroups["app4"] = []oktaGroupID{"group4"}
+	client.AppsToGroups[app4] = []oktaGroupID{"group4"}
 
-	apps := mapOfAllApps(t, svc)
-	require.Len(t, apps, 3)
+	// Verify conditions before synchronizing.
+	requireAppServers(t, ap, []string{
+		mustAppName(t, app1, link1),
+		mustAppName(t, app2, link1),
+		mustAppName(t, app3, link1),
+	})
+	// Verify app3 link is not href1 before sync.
+	require.NotEqual(t, href1, testGetAppServer(t, ap, mustAppName(t, app3, link1)).GetApp().GetURI())
 
-	app3 := apps[app3Name]
-	require.Equal(t, "https://test.com", app3.GetURI())
-
+	require.NoError(t, svc.seedAppsReconciler(ctx))
+	require.NoError(t, svc.seedGroupsReconciler(ctx))
 	svc.userReconciler = nil // disable user sync
 	require.NoError(t, svc.synchronize(ctx))
 
-	apps = mapOfAllApps(t, svc)
-	require.Len(t, apps, 3)
-
-	// Verify the apps that are present.
-	// These should have been deleted.
-	_, ok := apps["app1"]
-	require.False(t, ok)
-	_, ok = apps["app2"]
-	require.False(t, ok)
-
-	// This should have been updated
-	app3 = apps[app3Name]
-	require.Equal(t, "https://www.link1.com", app3.GetURI())
-
-	// This should have been created
-	app4Link1Name, err := AppName("app4", "applink-name1")
-	require.NoError(t, err)
-	app4Link1 := apps[app4Link1Name]
-	require.Equal(t, "https://www.link1.com", app4Link1.GetURI())
-	require.Equal(t, []string{"group4"}, app4Link1.GetUserGroups())
-	app4Link2Name, err := AppName("app4", "applink-name2")
-	require.NoError(t, err)
-	app4Link2 := apps[app4Link2Name]
-	require.Equal(t, "https://www.link2.com", app4Link2.GetURI())
-	require.Equal(t, []string{"group4"}, app4Link2.GetUserGroups())
+	// Verify conditions after synchronizing.
+	requireAppServers(t, svc.accessPoint, []string{
+		// app1, app2 got deleted because they are not present in Okta.
+		// app3 is still there, but its link got updated which will be verified later.
+		mustAppName(t, app3, link1),
+		// There are 2 app_severs for Okta app4, because it has 2 links.
+		mustAppName(t, app4, link1),
+		mustAppName(t, app4, link2),
+		// There is no app_server for Okta app5, because it has no links.
+	})
+	// Verify app3 link is href1 after sync.
+	require.Equal(t, href1, testGetAppServer(t, ap, mustAppName(t, app3, link1)).GetApp().GetURI())
 
 	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
 		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
@@ -534,7 +514,8 @@ func TestEmitSyncEventsInBatches(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, emitter := newTestService(t, ap, newTestOktaClient())
-	require.NoError(t, svc.seedGroupReconciler(ctx))
+	require.NoError(t, svc.seedAppsReconciler(ctx))
+	require.NoError(t, svc.seedGroupsReconciler(ctx))
 
 	added := genEventResources(50, "added")
 	updated := genEventResources(100, "updated")
@@ -606,25 +587,6 @@ func TestTickerUpdates(t *testing.T) {
 	require.Equal(t, svc.timeBetweenSyncs, interval)
 }
 
-func addApp(t *testing.T, name, origin, orgURL string, svc *Service) {
-	labels := map[string]string{
-		types.OriginLabel: types.OriginOkta,
-	}
-	if orgURL != "" {
-		labels[teleport.OktaOrgURLLabel] = orgURL
-	}
-
-	app, err := types.NewAppV3(types.Metadata{
-		Name:   name,
-		Labels: labels,
-	}, types.AppSpecV3{
-		URI: "https://test.com",
-	})
-	require.NoError(t, err)
-
-	svc.apps.Store(name, app)
-}
-
 func addGroup(t *testing.T, name, origin, orgURL string, ap authclient.OktaAccessPoint) {
 	labels := map[string]string{
 		types.OriginLabel: types.OriginOkta,
@@ -640,18 +602,6 @@ func addGroup(t *testing.T, name, origin, orgURL string, ap authclient.OktaAcces
 	require.NoError(t, err)
 
 	require.NoError(t, ap.CreateUserGroup(context.Background(), userGroup))
-}
-
-func mapOfAllApps(t *testing.T, svc *Service) map[string]types.Application {
-	appMap := map[string]types.Application{}
-
-	svc.apps.Read(func(apps map[string]types.Application) {
-		for _, app := range apps {
-			appMap[app.GetName()] = app
-		}
-	})
-
-	return appMap
 }
 
 func genEventResources(numResources int, descPrefix string) []*apievents.OktaResource {
@@ -744,7 +694,6 @@ func TestSynchronizeUsers(t *testing.T) {
 			withSSOConnector(samlConnectorName),
 			withClock(ap.Clock()),
 		)
-		subtestT.Cleanup(svc.stopAllHeartbeats)
 
 		for i, name := range userNames {
 			client.OktaAppUsers = append(client.OktaAppUsers,

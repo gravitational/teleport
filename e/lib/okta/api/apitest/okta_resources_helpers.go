@@ -71,6 +71,7 @@ func NewApplication(args ApplicationArgs) *oktasdk.Application {
 	}
 	return &oktasdk.Application{
 		Id:     args.ID,
+		Name:   "test_app_name_" + args.ID,
 		Label:  args.Label,
 		Status: string(args.Status),
 		Links:  map[string]any{"appLinks": appLinks},

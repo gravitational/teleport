@@ -59,8 +59,8 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, uac.OnLogin(ctx, user))
 	assertEmptyAssignmentList(t, ap)
 
-	mustUpsertApplicationServer(t, ctx, ap, app1)
-	mustUpsertApplicationServer(t, ctx, ap, appDupe)
+	upsertAppServer(t, ap, app1)
+	upsertAppServer(t, ap, appDupe)
 
 	// The UnifiedResourceCache doesn't take host id into consideration for apps.
 	// So even though there exist two apps, the most recent one is the only app
@@ -77,7 +77,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	t.Run("test assignment creation", func(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
-		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustNewAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{app1},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -93,14 +93,14 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustNewAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
 	})
 
 	t.Run("re-add application", func(t *testing.T) {
-		mustUpsertApplicationServer(t, ctx, ap, app1)
+		upsertAppServer(t, ap, app1)
 
 		assertResourceCount(t, ctx, ap, 1)
 
@@ -108,7 +108,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustNewAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -117,14 +117,14 @@ func TestUserAssignmentCreator(t *testing.T) {
 	t.Run("Add a new app", func(t *testing.T) {
 		// We'll add a new app, which should cause a new assignment to be generated and the
 		// old one to be marked as needing cleanup.
-		mustUpsertApplicationServer(t, ctx, ap, app2)
+		upsertAppServer(t, ap, app2)
 
 		assertResourceCount(t, ctx, ap, 2)
 
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustNewAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -137,7 +137,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustNewAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, group2, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -150,7 +150,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
-		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustNewAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -167,7 +167,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 		require.NoError(t, uac.OnLogin(ctx, user))
 		mustDeleteCleanupAssignments(t, ctx, ap)
-		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustNewAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -180,7 +180,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		mustDeleteCleanupAssignments(t, ctx, ap)
 
 		mustDeleteCleanupAssignments(t, ctx, ap)
-		want := mustCreateAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
+		want := mustNewAssignmentList(t, uac.hash, testUser, clock)([][]types.Resource{
 			{group1, app1, app2},
 		})
 		mustFetchAndAssertAssignments(t, ctx, ap, want)
@@ -194,7 +194,7 @@ func BenchmarkUserAssignmentCreator(b *testing.B) {
 
 	for i := range 1234 {
 		app1 := application(b, "app"+strconv.Itoa(i), "link", types.OriginOkta, testOrgURL, testHostID)
-		mustUpsertApplicationServer(b, ctx, suite, app1)
+		upsertAppServer(b, suite, app1)
 	}
 
 	for b.Loop() {
@@ -214,11 +214,6 @@ func assertResourceCount(t *testing.T, ctx context.Context, ap *testUACAccessPoi
 
 		assert.Equal(t, want, count)
 	}, 10*time.Second, 100*time.Millisecond)
-}
-
-func mustUpsertApplicationServer(t testing.TB, ctx context.Context, ap *testUACAccessPoint, app1 types.AppServer) {
-	_, err := ap.UpsertApplicationServer(ctx, app1)
-	require.NoError(t, err)
 }
 
 func TestAssignmentDiff(t *testing.T) {
@@ -337,33 +332,31 @@ func mustDeleteCleanupAssignments(t *testing.T, ctx context.Context, ap *testUAC
 	}
 }
 
-func mustCreateAssignmentList(t *testing.T, hash crypto.Hash, user string, clock clocki.FakeClock) func([][]types.Resource) []types.OktaAssignment {
-	return func(itemsTargets [][]types.Resource) []types.OktaAssignment {
+func mustNewAssignmentList(t *testing.T, hash crypto.Hash, user string, clock clocki.FakeClock) func([][]types.Resource) []types.OktaAssignment {
+	return func(targetResourceSets [][]types.Resource) []types.OktaAssignment {
 		var groups []string
 		var apps []string
 		var out []types.OktaAssignment
 
-		for _, v := range itemsTargets {
+		for _, targetResources := range targetResourceSets {
 			var targets []*types.OktaAssignmentTargetV1
-			for _, item := range v {
-				switch t := item.(type) {
-				case types.UserGroup:
-					targets = append(targets, &types.OktaAssignmentTargetV1{
-						Type: types.OktaAssignmentTargetV1_GROUP,
-						Id:   t.GetName(),
-					})
-					groups = append(groups, t.GetName())
-				case types.AppServer:
-					targets = append(targets, &types.OktaAssignmentTargetV1{
-						Type: types.OktaAssignmentTargetV1_APPLICATION,
-						Id:   t.GetName(),
-					})
-					apps = append(apps, t.GetName())
+			for _, resource := range targetResources {
+				var typ types.OktaAssignmentTargetV1_OktaAssignmentTargetType
+				switch resource.GetKind() {
+				case types.KindUserGroup:
+					typ = types.OktaAssignmentTargetV1_GROUP
+					groups = append(groups, resource.GetName())
+				case types.KindAppServer:
+					typ = types.OktaAssignmentTargetV1_APPLICATION
+					apps = append(apps, resource.GetName())
+				default:
+					require.FailNow(t, "unexpected resource kind %q", resource.GetKind())
 				}
+				targets = append(targets, &types.OktaAssignmentTargetV1{Type: typ, Id: resource.GetName()})
 			}
 			name, err := uacAssignmentName(hash, user, groups, apps)
 			require.NoError(t, err)
-			item, err := types.NewOktaAssignment(types.Metadata{
+			assignment, err := types.NewOktaAssignment(types.Metadata{
 				Name: name,
 				Labels: map[string]string{
 					teleport.OktaAssignmentSourceLabel: userAssignmentCreatorSource,
@@ -375,7 +368,7 @@ func mustCreateAssignmentList(t *testing.T, hash crypto.Hash, user string, clock
 				LastTransition: clock.Now(),
 			})
 			require.NoError(t, err)
-			out = append(out, item)
+			out = append(out, assignment)
 		}
 		return out
 	}

@@ -19,8 +19,6 @@ type Client struct {
 	ClientFuncs
 }
 
-const TestOrgURL = "https://test.okta.example.com"
-
 func NewClient(t *testing.T, funcs ClientFuncs) *Client {
 	return &Client{
 		t:           t,

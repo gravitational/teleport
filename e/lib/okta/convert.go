@@ -10,6 +10,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	oktasdk "github.com/okta/okta-sdk-golang/v2/okta"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	oktaconvert "github.com/gravitational/teleport/e/lib/okta/convert"
@@ -66,9 +67,9 @@ type oktaApplicationEmbedLink struct {
 	Href string `mapstructure:"href"`
 }
 
-// oktaAppToApps converts an Okta app object to types.Application objects. This will convert
-// multiple appLinks in an Okta object into multiple applications.
-func (s *Service) oktaAppToApps(oktaApplication *oktasdk.Application, groupIDs []string) ([]*types.AppV3, error) {
+// oktaAppToAppServers converts an Okta app object to types.Application objects. This will convert
+// multiple appLinks in an Okta object into multiple app_server resources.
+func (s *Service) oktaAppToAppServers(oktaApplication *oktasdk.Application, groupIDs []string) ([]types.AppServer, error) {
 	appIdentifier := fmt.Sprintf("%s (%s)", oktaApplication.Id, oktaApplication.Label)
 
 	// Filter out Okta apps if they're not the kind we want to display to users.
@@ -91,7 +92,7 @@ func (s *Service) oktaAppToApps(oktaApplication *oktasdk.Application, groupIDs [
 		return nil, trace.BadParameter("app links is empty in okta application object %s", appIdentifier)
 	}
 
-	var apps []*types.AppV3
+	var appServers []types.AppServer
 
 	labels, err := s.getApplicationLabels(oktaApplication.Id, oktaApplication.Label)
 	if err != nil {
@@ -138,10 +139,27 @@ func (s *Service) oktaAppToApps(oktaApplication *oktasdk.Application, groupIDs [
 			return nil, trace.Wrap(err)
 		}
 
-		apps = append(apps, app)
+		appServer, err := types.NewAppServerV3(
+			types.Metadata{
+				Name:        app.GetName(),
+				Description: app.GetDescription(),
+				Labels:      app.GetStaticLabels(),
+			},
+			types.AppServerSpecV3{
+				Version:  teleport.Version,
+				Hostname: s.hostname,
+				HostID:   s.hostID,
+				App:      app,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		appServers = append(appServers, appServer)
 	}
 
-	return apps, nil
+	return appServers, nil
 }
 
 // AppName returns an app name based on the Okta app ID and embed link name.

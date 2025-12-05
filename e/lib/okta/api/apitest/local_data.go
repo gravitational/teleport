@@ -77,7 +77,7 @@ func (d *LocalData) UpsertAppForId(appId oktaapi.OktaAppID) {
 		ID:     string(appId),
 		Label:  "Test Application " + string(appId),
 		Status: StatusActive,
-		Links:  []AppLink{{Name: "test_link_1", Href: "https://testlink1.example.com"}},
+		Links:  []AppLink{{Name: TestLink1Name, Href: TestLink1Href}},
 	}))
 }
 

@@ -52,14 +52,14 @@ type accessListSyncTestContext struct {
 	emitter *eventstest.ChannelEmitter
 	ap      *testAccessPoint
 
-	apps   map[string]types.Application
+	apps   map[string]types.AppServer
 	groups map[string]types.UserGroup
 
 	oktaClient *oktaapitest.Client
 	oktaData   *oktaapitest.LocalData
 }
 
-func (a *accessListSyncTestContext) addApp(app types.Application) types.Application {
+func (a *accessListSyncTestContext) addApp(app types.AppServer) types.AppServer {
 	a.apps[app.GetName()] = app
 	return app
 }
@@ -135,7 +135,7 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 		emitter: emitter,
 		ap:      ap,
 
-		apps:   map[string]types.Application{},
+		apps:   map[string]types.AppServer{},
 		groups: map[string]types.UserGroup{},
 
 		oktaClient: oktaClient,
@@ -151,7 +151,7 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 		Access:      ap,
 		AccessLists: ap,
 		OrgURL:      oktaapitest.TestOrgURL,
-		AppsGetter: func() map[string]types.Application {
+		AppsGetter: func() map[string]types.AppServer {
 			return alsCtx.apps
 		},
 		GroupsGetter: func() map[string]types.UserGroup {
@@ -209,8 +209,8 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("Okta apps and groups but no assignments", func(t *testing.T) {
 		c := initAccessListSync(t, ctx)
 
-		c.addApp(newAccessListSyncApp(t, "app1"))
-		c.addApp(newAccessListSyncApp(t, "app2"))
+		c.addApp(newAccessListSyncAppServer(t, "app1"))
+		c.addApp(newAccessListSyncAppServer(t, "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group1"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 		c.svc.sync(ctx)
@@ -257,8 +257,8 @@ func TestAccessListSync(t *testing.T) {
 		c.oktaData.UpsertAppUserAssignments("app1-okta", "1", "2", "3")
 		c.oktaData.UpsertAppUserAssignments("app2-okta", "1", "2", "3")
 
-		c.addApp(newAccessListSyncApp(t, "app1"))
-		c.addApp(newAccessListSyncApp(t, "app2"))
+		c.addApp(newAccessListSyncAppServer(t, "app1"))
+		c.addApp(newAccessListSyncAppServer(t, "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group1", "app1", "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
@@ -323,8 +323,8 @@ func TestAccessListSync(t *testing.T) {
 		c.oktaData.UpsertAppUserAssignments("app2-okta", "1", "2")
 		c.oktaData.UpsertGroupUserAssignments("group1", "1", "2")
 
-		c.addApp(newAccessListSyncApp(t, "app1"))
-		c.addApp(newAccessListSyncApp(t, "app2"))
+		c.addApp(newAccessListSyncAppServer(t, "app1"))
+		c.addApp(newAccessListSyncAppServer(t, "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group1", "app1", "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
@@ -401,9 +401,9 @@ func TestAccessListSync(t *testing.T) {
 		c.oktaData.UpsertGroupUserAssignments("dev-group2", "1", "2")
 		c.oktaData.UpsertGroupUserAssignments("dev-group3", "1", "2")
 
-		c.addApp(newAccessListSyncAppLabelAppName(t, "admin-app1"))
-		c.addApp(newAccessListSyncAppLabelAppName(t, "dev-app2"))
-		c.addApp(newAccessListSyncAppLabelAppName(t, "dev-app3"))
+		c.addApp(newAccessListSyncAppServerLabelAppName(t, "admin-app1"))
+		c.addApp(newAccessListSyncAppServerLabelAppName(t, "dev-app2"))
+		c.addApp(newAccessListSyncAppServerLabelAppName(t, "dev-app3"))
 		c.addGroup(newAccessListSyncGroupLabelGroupName(t, "admin-group1"))
 		c.addGroup(newAccessListSyncGroupLabelGroupName(t, "dev-group2"))
 		c.addGroup(newAccessListSyncGroupLabelGroupName(t, "dev-group3"))
@@ -514,8 +514,8 @@ func TestAccessListSync(t *testing.T) {
 		c.oktaData.UpsertAppUserAssignments("app2-okta", "1", "2")
 		c.oktaData.UpsertGroupUserAssignments("group1", "1", "2")
 
-		c.addApp(newAccessListSyncApp(t, "app1"))
-		c.addApp(newAccessListSyncApp(t, "app2"))
+		c.addApp(newAccessListSyncAppServer(t, "app1"))
+		c.addApp(newAccessListSyncAppServer(t, "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group1"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
@@ -719,7 +719,7 @@ func TestAccessListSync(t *testing.T) {
 				c.oktaData.UpsertUserForId("user1", "1")
 				c.oktaData.UpsertUserForId("user2", "2")
 				for _, appName := range appNames {
-					app := c.addApp(newAccessListSyncApp(t, appName))
+					app := c.addApp(newAccessListSyncAppServer(t, appName))
 					appID, _ := app.GetLabel(eteleport.OktaAppIDLabel)
 					c.oktaData.UpsertAppForId(oktaapi.OktaAppID(appID))
 					c.oktaData.UpsertAppUserAssignments(oktaapi.OktaAppID(appID), "1", "2")
@@ -763,10 +763,10 @@ func TestAccessListSync(t *testing.T) {
 	})
 }
 
-func newAccessListSyncAppWithLabels(t *testing.T, name string, labels map[string]string) types.Application {
+func newAccessListSyncAppServerWithLabels(t *testing.T, name string, labels map[string]string) types.AppServer {
 	t.Helper()
 
-	app, err := types.NewAppV3(
+	return newAppServer(t,
 		types.Metadata{
 			Name:        name,
 			Description: "app label",
@@ -777,14 +777,12 @@ func newAccessListSyncAppWithLabels(t *testing.T, name string, labels map[string
 			PublicAddr: fmt.Sprintf("%s.%s", name, testClusterName),
 		},
 	)
-	require.NoError(t, err)
-	return app
 }
 
-func newAccessListSyncApp(t *testing.T, name string) types.Application {
+func newAccessListSyncAppServer(t *testing.T, name string) types.AppServer {
 	t.Helper()
 
-	return newAccessListSyncAppWithLabels(t, name, map[string]string{
+	return newAccessListSyncAppServerWithLabels(t, name, map[string]string{
 		types.OriginLabel:             types.OriginOkta,
 		types.OktaAppNameLabel:        "app label",
 		types.OktaAppDescriptionLabel: "applink-name1",
@@ -793,10 +791,10 @@ func newAccessListSyncApp(t *testing.T, name string) types.Application {
 	})
 }
 
-func newAccessListSyncAppLabelAppName(t *testing.T, name string) types.Application {
+func newAccessListSyncAppServerLabelAppName(t *testing.T, name string) types.AppServer {
 	t.Helper()
 
-	return newAccessListSyncAppWithLabels(t, name, map[string]string{
+	return newAccessListSyncAppServerWithLabels(t, name, map[string]string{
 		types.OriginLabel:             types.OriginOkta,
 		types.OktaAppNameLabel:        name,
 		types.OktaAppDescriptionLabel: "applink-name1",

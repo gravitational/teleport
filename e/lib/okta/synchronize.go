@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -249,7 +250,7 @@ type userGroupsToApplications map[string][]string
 // synchronizeApplications will synchronize Okta applications with the backend.
 func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToApplications, error) {
 	groupsToAppsMapping := userGroupsToApplications{}
-	newApps := map[string]types.Application{}
+	newApps := map[string]types.AppServer{}
 	err := s.client.IterateApps(ctx, func(oktaApp okta.App) error {
 		oktaApplication, ok := oktaApp.(*okta.Application)
 		if !ok {
@@ -272,7 +273,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 			groups[i] = string(g)
 		}
 
-		apps, err := s.oktaAppToApps(oktaApplication, groups)
+		apps, err := s.oktaAppToAppServers(oktaApplication, groups)
 		if err != nil {
 			s.logger.DebugContext(ctx, "Error converting Okta app", "error", err)
 			return nil
@@ -311,29 +312,38 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 	return groupsToAppsMapping, nil
 }
 
-func (s *Service) seedGroupReconciler(ctx context.Context) error {
-	// Seed the user groups with the groups from the backend.
+// seedAppsReconciler will restore AppServers still present in the backend as reconciled app
+// resources.
+func (s *Service) seedAppsReconciler(ctx context.Context) error {
+	appServers, err := s.accessPoint.GetApplicationServers(ctx, defaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	apps := map[string]types.AppServer{}
+	for _, app := range appServers {
+		labels := app.GetStaticLabels()
+		if app.Origin() == types.OriginOkta && labels[eteleport.OktaOrgURLLabel] == s.orgURL {
+			apps[app.GetName()] = app
+		}
+	}
+	s.apps.Set(apps)
+
+	return nil
+}
+
+// seedGroupsReconciler will restore UserGroups still present in the backend as reconciled groups
+// resources.
+func (s *Service) seedGroupsReconciler(ctx context.Context) error {
 	groups := map[string]types.UserGroup{}
-	var nextToken string
-	for {
-		var userGroups []types.UserGroup
-		var err error
-		userGroups, nextToken, err = s.accessPoint.ListUserGroups(ctx, 0, nextToken)
+	for userGroup, err := range clientutils.Resources(ctx, s.accessPoint.ListUserGroups) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		for _, userGroup := range userGroups {
-			labels := userGroup.GetStaticLabels()
-
-			// Only look for Okta sourced user groups for this org URL.
-			if userGroup.Origin() == types.OriginOkta && labels[eteleport.OktaOrgURLLabel] == s.orgURL {
-				groups[userGroup.GetName()] = userGroup
-			}
-		}
-
-		if nextToken == "" {
-			break
+		labels := userGroup.GetStaticLabels()
+		if userGroup.Origin() == types.OriginOkta && labels[eteleport.OktaOrgURLLabel] == s.orgURL {
+			groups[userGroup.GetName()] = userGroup
 		}
 	}
 	s.groups.Set(groups)
@@ -412,21 +422,20 @@ func (s *Service) onDeleteGroup(ctx context.Context, group types.UserGroup) erro
 }
 
 // appMatcher will match applications.
-func (s *Service) appsMatcher(resource types.Application) bool {
-	return resource.GetKind() == types.KindApp && resource.Origin() == types.OriginOkta
+func (s *Service) appsMatcher(resource types.AppServer) bool {
+	return resource.GetKind() == types.KindAppServer && resource.Origin() == types.OriginOkta
 }
 
 // onCreateApp will run when an application is created.
-func (s *Service) onCreateApp(ctx context.Context, app types.Application) error {
+func (s *Service) onCreateApp(ctx context.Context, app types.AppServer) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.apps.Store(app.GetName(), app)
-
-	if err := s.startHeartbeat(context.Background(), app); err != nil {
-		return trace.Wrap(err, "error starting heartbeat for new app %v", app)
+	if _, err := s.accessPoint.UpsertApplicationServer(ctx, app); err != nil {
+		return trace.Wrap(err, "creating app_server")
 	}
+	s.apps.Store(app.GetName(), app)
 
 	s.addAppOktaResource(ctx, &s.appsAdded, app)
 
@@ -434,33 +443,32 @@ func (s *Service) onCreateApp(ctx context.Context, app types.Application) error 
 }
 
 // onUpdateGroup will run when an application is updated.
-func (s *Service) onUpdateApp(ctx context.Context, app, _ types.Application) error {
+func (s *Service) onUpdateApp(ctx context.Context, newApp, oldApp types.AppServer) error {
+	_ = oldApp // unused
+
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	s.apps.Store(app.GetName(), app)
+	if _, err := s.accessPoint.UpsertApplicationServer(ctx, newApp); err != nil {
+		return trace.Wrap(err, "updating app_server")
+	}
+	s.apps.Store(newApp.GetName(), newApp)
 
-	s.addAppOktaResource(ctx, &s.appsUpdated, app)
+	s.addAppOktaResource(ctx, &s.appsUpdated, newApp)
 
 	return nil
 }
 
 // onDeleteApp will run when an application is deleted.
-func (s *Service) onDeleteApp(ctx context.Context, app types.Application) error {
+func (s *Service) onDeleteApp(ctx context.Context, app types.AppServer) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.stopHeartbeat(app.GetName()); err != nil {
-		return trace.Wrap(err, "error stopping heartbeat for deleted app %v", app)
+	if err := s.accessPoint.DeleteApplicationServer(ctx, defaults.Namespace, s.hostID, app.GetName()); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err, "deleting app_server")
 	}
-
-	err := s.accessPoint.DeleteApplicationServer(ctx, defaults.Namespace, s.hostID, app.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err, "error deleting application server")
-	}
-
 	s.apps.Delete(app.GetName())
 
 	s.addAppOktaResource(ctx, &s.appsDeleted, app)
@@ -477,7 +485,7 @@ func (s *Service) addGroupOktaResource(target *[]*apievents.OktaResource, group 
 }
 
 // addAppOktaResource adds the app to the list of Okta resources.
-func (s *Service) addAppOktaResource(ctx context.Context, target *[]*apievents.OktaResource, app types.Application) {
+func (s *Service) addAppOktaResource(ctx context.Context, target *[]*apievents.OktaResource, app types.AppServer) {
 	oktaID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
 	if !ok {
 		s.logger.WarnContext(ctx, "app ID label is missing for app, using the app name instead", "app", app.GetName())

@@ -564,10 +564,6 @@ func TestProcessAssignments(t *testing.T) {
 // This test makes sure we don't skip Okta-side cleanup of okta_assignment resources that expired
 // during plugin restart. This may happen due to race conditions and/or proper reconcilers seeding.
 func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
-	// The test fails because heartbeats are used to create app_servers for Okta apps. This
-	// situation is aggravated by the fact that Service.Close deletes all app_servers in most
-	// cases (apart from graceful upgrades).
-	t.Skip("TODO(kopiczko): Fix the issue with app assignments cleanup after plugin restart")
 	t.Parallel()
 
 	ctx := t.Context()
@@ -590,7 +586,7 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	// Wait for sync.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		requireUsersExist(t, ap, user1, user2)
-		requireOktaApplicationServers(t, ap, []string{application1})
+		requireAppServers(t, ap, []string{mustAppName(t, application1, oktaapitest.TestLink1Name)})
 		requireUserGroups(t, ap, []string{group1})
 	}, time.Second*10, time.Millisecond*50)
 
@@ -602,7 +598,7 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	finalized := false
 	lastTransitionTime := time.Time{}
 	assignment, err := ap.CreateOktaAssignment(ctx, assignment(t, "assignment1", user1, cleanupTime, constants.OktaAssignmentStatusPending, lastTransitionTime, finalized,
-		target(types.OktaAssignmentTargetV1_APPLICATION, testGetOktaApplicationServerName(t, ap, application1)),
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, application1, oktaapitest.TestLink1Name)),
 		target(types.OktaAssignmentTargetV1_GROUP, group1),
 	))
 	require.NoError(t, err)
@@ -614,8 +610,6 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	}, time.Second*10, time.Millisecond*50)
 
 	err = svc.Shutdown()
-	require.NoError(t, err)
-	err = svc.Close(ctx)
 	require.NoError(t, err)
 
 	// Let's now mark the assignment for cleanup before starting the Okta service again.
