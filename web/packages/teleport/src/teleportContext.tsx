@@ -36,6 +36,7 @@ import RecordingsService from './services/recordings';
 import ResourceService from './services/resources';
 import sessionService from './services/session';
 import { storageService } from './services/storageService';
+import { tfgenService } from './services/tfgen/tfgen';
 import userService from './services/user';
 import userGroupService from './services/userGroups';
 import { yamlService } from './services/yaml/yaml';
@@ -64,6 +65,7 @@ class TeleportContext implements types.Context {
   mfaService = new MfaService();
   notificationService = new NotificationService();
   yamlService = yamlService;
+  tfgenService = tfgenService;
 
   notificationContentFactory = notificationContentFactory;
 
