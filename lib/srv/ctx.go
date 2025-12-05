@@ -1414,3 +1414,38 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	c.readyr = nil
 	return trace.NewAggregate(waitErr, closeErr)
 }
+
+// GetChildError reads the child process's stderr pipe for an error.
+// If stderr is empty, an empty string is returned. If stderr is non-empty and
+// looks like "Failed to launch: <internal-error-message>", the error message
+// is returned, potentially with additional error context gathered from the given
+// server context.
+//
+// This must only be called after the child process has exited.
+func (c *ServerContext) GetChildError() (string, error) {
+	// Close stderr writer. The child process should have exited before this is called and doesn't
+	// have a way to close this pipe itself.
+	//
+	// TODO(Joerger): Closing stderr here is risky if the child process is still running.
+	// Rather than pointing this out in the godoc, the child.Wait() call could be manged
+	// alongside the stderr read, e.g. with a CommandContext instead of the oversized
+	// ServerContext.
+	c.stderrW.Close()
+
+	// Copy stderr to the start of the error message. It should be empty or include
+	// an error message like "Failed to launch: ..."
+	errMsg := new(strings.Builder)
+	if _, err := io.Copy(errMsg, c.stderrR); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
+		return "", trace.BadParameter("unexpected error message from child process: %v", errMsg.String())
+	}
+
+	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
+	// the cause of the session failure to add to the error message.
+	// e.g. user unknown because host user creation denied.
+
+	return errMsg.String(), nil
+}

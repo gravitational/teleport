@@ -1297,7 +1297,19 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	}
 
 	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd)
-	return proc, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := proc.WaitReady(nsctx.CancelContext()); err != nil {
+		errMsg, err := nsctx.GetChildError()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, errors.New(errMsg)
+	}
+
+	return proc, nil
 }
 
 // HandleRequest processes global out-of-band requests. Global out-of-band

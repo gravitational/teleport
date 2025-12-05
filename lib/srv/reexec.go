@@ -762,6 +762,10 @@ func RunNetworking() (code int, err error) {
 		// Therefore we favor handling requests and cleanup on the main PAM thread for requests that
 		// are expected to be impacted (unix socket listeners).
 		switch req.Operation {
+		case networking.NetworkingReadyCheck:
+			// Signal ready by responding to the connection.
+			requestConn.Write([]byte{0})
+			requestConn.Close()
 		case networking.NetworkingOperationDial, networking.NetworkingOperationListen:
 			switch req.Network {
 			case "tcp":
@@ -1513,32 +1517,4 @@ func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) erro
 	case err := <-waitCh:
 		return trace.Wrap(err)
 	}
-}
-
-// ErrorMessageFromStderr reads the child process's stderr pipe for an error.
-// If stderr is empty, an empty string is returned. If stderr is non-empty and
-// looks like "Failed to launch: <internal-error-message>", the error message
-// is returned, potentially with additional error context gathered from the given
-// server context. This must only be called after the child process has exited.
-func ErrorMessageFromStderr(scx *ServerContext) (string, error) {
-	// Close stderr writer. The child process has exited and doesn't
-	// have a way to close this pipe itself.
-	scx.stderrW.Close()
-
-	// Copy stderr to the start of the error message. It should be empty or include
-	// an error message like "Failed to launch: ..."
-	errMsg := new(strings.Builder)
-	if _, err := io.Copy(errMsg, scx.stderrR); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
-		return "", trace.BadParameter("unexpected error message from child process: %v", errMsg.String())
-	}
-
-	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
-	// the cause of the session failure to add to the error message.
-	// e.g. user unknown because host user creation denied.
-
-	return errMsg.String(), nil
 }
