@@ -248,7 +248,7 @@ func (t *terminal) Wait() (*ExecResult, error) {
 		code = status.ExitStatus()
 	}
 
-	errMsg, err := ErrorMessageFromStderr(t.serverContext)
+	errMsg, err := t.serverContext.GetChildError()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
