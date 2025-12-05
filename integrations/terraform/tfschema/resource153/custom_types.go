@@ -27,6 +27,8 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	apitypes "github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
@@ -101,4 +103,16 @@ func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type,
 	value.Value = (*o).AsDuration()
 
 	return value
+}
+
+func GenSchemaLabels(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfschema.GenSchemaLabels(ctx, attr)
+}
+
+func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
+	tfschema.CopyFromLabels(diags, v, o)
+}
+
+func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Value) attr.Value {
+	return tfschema.CopyToLabels(diags, o, t, v)
 }
