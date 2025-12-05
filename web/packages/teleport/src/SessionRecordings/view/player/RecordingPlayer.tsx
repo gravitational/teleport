@@ -27,9 +27,10 @@ import {
 } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useEventListener } from 'usehooks-ts';
-import Box from 'web/packages/design/src/Box';
-import Flex from 'web/packages/design/src/Flex';
-import { Pause, Play } from 'web/packages/design/src/Icon';
+
+import Box from 'design/Box';
+import Flex from 'design/Flex';
+import { Pause, Play } from 'design/Icon';
 
 import type { SessionRecordingEvent } from 'teleport/services/recordings';
 import {
