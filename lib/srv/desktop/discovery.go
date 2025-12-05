@@ -163,7 +163,7 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		attrs = append(attrs, computerAttributes...)
 		attrs = append(attrs, discoveryConfig.LabelAttributes...)
 
-		entries, err := ldapClient.ReadWithFilter(discoveryConfig.BaseDN, filter, attrs)
+		entries, err := ldapClient.ReadWithFilter(s.closeCtx, discoveryConfig.BaseDN, filter, attrs, false)
 		if err != nil {
 			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops", "error", err)
 			return nil
@@ -213,6 +213,7 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	if len(dn) > 0 && len(cn) > 0 {
 		ou := strings.TrimPrefix(dn, "CN="+cn+",")
 		labels[types.DiscoveryLabelWindowsOU] = ou
+		labels[types.DiscoveryLabelWindowsDomain] = dnToDomain(dn)
 	}
 
 	// label domain controllers
@@ -227,6 +228,11 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
 		}
 	}
+}
+
+func dnToDomain(dn string) string {
+	_, a, _ := strings.Cut(dn, "DC=")
+	return strings.ReplaceAll(a, ",DC=", ".")
 }
 
 const dnsQueryTimeout = 5 * time.Second
@@ -347,7 +353,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 		labels,
 		types.WindowsDesktopSpecV3{
 			Addr:   addr.String(),
-			Domain: s.cfg.Domain,
+			Domain: labels[types.DiscoveryLabelWindowsDomain],
 			HostID: s.cfg.Heartbeat.HostUUID,
 		},
 	)
