@@ -221,9 +221,8 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 
 				fromJWT := func(token string, pk crypto.Signer) (*jwt.AzureTokenClaims, error) {
 					key, err := jwt.New(&jwt.Config{
-						Clock:       m.Clock,
-						PrivateKey:  pk,
-						ClusterName: types.TeleportAzureMSIEndpoint,
+						Clock:      m.Clock,
+						PrivateKey: pk,
 					})
 					require.NoError(t, err)
 					return key.VerifyAzureToken(token)

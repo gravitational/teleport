@@ -44,14 +44,13 @@ func verifyJWT(t *testing.T, pack *Pack, token, appURI string) {
 
 	// Verify JWT.
 	key, err := jwt.New(&jwt.Config{
-		PublicKey:   publicKey,
-		ClusterName: pack.jwtAppClusterName,
+		PublicKey: publicKey,
 	})
 	require.NoError(t, err)
-	claims, err := key.Verify(jwt.VerifyParams{
-		Username: pack.username,
-		RawToken: token,
-		URI:      appURI,
+	claims, err := key.Verify(token, jwt.VerifyParams{
+		Issuer:   pack.jwtAppClusterName,
+		Subject:  pack.username,
+		Audience: []string{appURI},
 	})
 	require.NoError(t, err)
 	require.Equal(t, pack.username, claims.Username)
