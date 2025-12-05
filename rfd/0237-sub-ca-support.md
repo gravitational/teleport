@@ -48,6 +48,9 @@ the more "visible" Teleport CAs to their own self-managed roots.
 1. Alice sends the CSRs to the parent CA, acquiring the certificates as a
    result.
 
+1. Alice configures the databases to trust the parent CA, if not already
+   trusted.
+
 1. Finally, Alice writes the certificates back to Teleport. The new certificates
    take effect immediately.
 
