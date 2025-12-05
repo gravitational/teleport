@@ -121,9 +121,6 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd.Stdout = os.Stdout
-	// TODO: Handle stderr instead of writing (duplicate?)
-	s.sftpCmd.Stderr = io.MultiWriter(os.Stderr, s.sftpCmd.Stderr)
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
@@ -231,9 +228,15 @@ func (s *sftpSubsys) Wait() error {
 	waitErr := s.sftpCmd.Wait()
 	s.logger.DebugContext(ctx, "SFTP process finished")
 
+	errMsg, err := srv.ErrorMessageFromStderr(s.serverCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
-		Command: s.sftpCmd.String(),
-		Code:    s.sftpCmd.ProcessState.ExitCode(),
+		Command:      s.sftpCmd.String(),
+		Code:         s.sftpCmd.ProcessState.ExitCode(),
+		ErrorMessage: errMsg,
 	})
 
 	errs := []error{waitErr}

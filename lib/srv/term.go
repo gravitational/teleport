@@ -27,7 +27,6 @@ import (
 	"os/exec"
 	"os/user"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -249,7 +248,7 @@ func (t *terminal) Wait() (*ExecResult, error) {
 		code = status.ExitStatus()
 	}
 
-	errMsg, err := errorMessageFromStderr(t.serverContext)
+	errMsg, err := ErrorMessageFromStderr(t.serverContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -259,25 +258,6 @@ func (t *terminal) Wait() (*ExecResult, error) {
 		Command:      t.cmd.Path,
 		ErrorMessage: errMsg,
 	}, nil
-}
-
-func errorMessageFromStderr(scx *ServerContext) (string, error) {
-	// Close stderr writer. The child process has exited and doesn't
-	// have a way to close this pipe itself.
-	scx.stderrW.Close()
-
-	// Copy stderr to the start of the error message. It should be empty or include
-	// an error message like "Failed to launch: ..."
-	errMsg := new(strings.Builder)
-	if _, err := io.Copy(errMsg, scx.stderrR); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
-	// the cause of the session failure to add to the error message.
-	// e.g. user unknown because host user creation denied.
-
-	return errMsg.String(), nil
 }
 
 func (t *terminal) WaitForChild(ctx context.Context) error {
@@ -617,7 +597,6 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: handle error handling for forwarder?
 	err = t.session.Wait()
 	if err != nil {
 		var exitErr *ssh.ExitError
