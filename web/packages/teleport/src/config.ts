@@ -48,6 +48,7 @@ import generateResourcePath from './generateResourcePath';
 import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
+import { TerraformSupportedResourceKind } from './services/tfgen/types';
 
 export type Cfg = typeof cfg;
 const cfg = {
@@ -537,6 +538,10 @@ const cfg = {
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
+    },
+
+    tfgen: {
+      stringify: '/v1/webapi/terraform/stringify/:kind',
     },
 
     sessionRecording: {
@@ -1176,6 +1181,10 @@ const cfg = {
 
   getYamlStringifyUrl(kind: YamlSupportedResourceKind) {
     return generatePath(cfg.api.yaml.stringify, { kind });
+  },
+
+  getTerraformStringifyUrl(kind: TerraformSupportedResourceKind) {
+    return generatePath(cfg.api.tfgen.stringify, { kind });
   },
 
   getLocksRoute() {
