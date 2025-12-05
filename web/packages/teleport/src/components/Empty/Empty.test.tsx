@@ -20,9 +20,10 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
-import Empty, { Props } from './Empty';
+import Empty from './Empty';
+import { Custom } from './type';
 
-test('empty state for enterprise or oss, with create perms', async () => {
+test('empty state with create perms', async () => {
   render(
     <MemoryRouter>
       <Empty {...props} />
@@ -34,7 +35,7 @@ test('empty state for enterprise or oss, with create perms', async () => {
   ).resolves.toBeVisible();
 });
 
-test('empty state for cant create or leaf cluster', async () => {
+test('empty state without create perms', async () => {
   render(
     <MemoryRouter>
       <Empty {...props} canCreate={false} />
@@ -46,7 +47,7 @@ test('empty state for cant create or leaf cluster', async () => {
   ).resolves.toBeVisible();
 });
 
-const props: Props = {
+const props: Custom = {
   clusterId: 'im-a-cluster',
   canCreate: true,
   emptyStateInfo: {
