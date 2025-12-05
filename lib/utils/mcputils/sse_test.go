@@ -47,7 +47,7 @@ func TestConnectSSEServer(t *testing.T) {
 	initReq := mcpclienttransport.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(int64(1)),
-		Method:  string(mcp.MethodInitialize),
+		Method:  MethodInitialize,
 		Params: mcp.InitializeParams{
 			ProtocolVersion: mcp.LATEST_PROTOCOL_VERSION,
 			ClientInfo: mcp.Implementation{

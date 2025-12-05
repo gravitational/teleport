@@ -213,7 +213,7 @@ func (h *HTTPReaderWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMess
 		resp, err := h.targetClient.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
 			JSONRPC: v.JSONRPC,
 			ID:      v.ID,
-			Method:  string(v.Method),
+			Method:  v.Method,
 			Params:  v.Params,
 		})
 		if err != nil {
@@ -225,7 +225,7 @@ func (h *HTTPReaderWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMess
 		return trace.Wrap(h.targetClient.SendNotification(ctx, mcp.JSONRPCNotification{
 			JSONRPC: v.JSONRPC,
 			Notification: mcp.Notification{
-				Method: string(v.Method),
+				Method: v.Method,
 				Params: mcp.NotificationParams{
 					AdditionalFields: v.Params,
 				},

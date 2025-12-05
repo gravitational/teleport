@@ -89,7 +89,7 @@ func TestJSONRPCNotification(t *testing.T) {
 
 	m := base.MakeNotification()
 	require.NotNil(t, m)
-	assert.Equal(t, mcp.MCPMethod("notifications/message"), m.Method)
+	assert.Equal(t, "notifications/message", m.Method)
 	assert.Len(t, base.Params, 3)
 
 	outputJSON, err := json.MarshalIndent(m, "", "  ")
@@ -106,7 +106,7 @@ func TestJSONRPCRequest(t *testing.T) {
 
 	m := base.MakeRequest()
 	require.NotNil(t, m)
-	assert.Equal(t, mcp.MethodToolsCall, m.Method)
+	assert.Equal(t, MethodToolsCall, m.Method)
 	assert.Equal(t, "int64:2", m.ID.String())
 	name, ok := m.Params.GetName()
 	assert.True(t, ok)
