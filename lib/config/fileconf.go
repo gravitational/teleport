@@ -1853,7 +1853,7 @@ type AWSMatcher struct {
 type AWSOrganizationMatcher struct {
 	// OrganizationID is the AWS Organization ID to match against.
 	// Required.
-	OrganizationID string `yaml:"organization_id"`
+	OrganizationID string `yaml:"organization_id,omitempty"`
 
 	// OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
 	OrganizationalUnits AWSOrganizationUnitsMatcher `yaml:"organizational_units,omitempty"`

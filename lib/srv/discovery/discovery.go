@@ -299,8 +299,8 @@ kubernetes matchers are present.`)
 	}
 	if c.GetAWSOrganizationsClient == nil {
 		c.GetAWSOrganizationsClient = func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
-			region := "" // Organizations API is global, no region needed.
-			cfg, err := c.getAWSConfig(ctx, region, opts...)
+			const noRegion = "" // Organizations API is global, no region needed.
+			cfg, err := c.getAWSConfig(ctx, noRegion, opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

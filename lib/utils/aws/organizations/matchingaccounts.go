@@ -26,6 +26,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // RequiredAPIs lists the AWS Organizations APIs required by MatchingAccounts.
@@ -76,14 +78,14 @@ func (m *MatchingAccountsFilter) checkAndSetDefaults() error {
 	}
 
 	if len(m.IncludeOUs) == 0 {
-		m.IncludeOUs = []string{"*"}
+		m.IncludeOUs = []string{types.Wildcard}
 	}
 
-	if len(m.IncludeOUs) > 1 && slices.Contains(m.IncludeOUs, "*") {
+	if len(m.IncludeOUs) > 1 && slices.Contains(m.IncludeOUs, types.Wildcard) {
 		return trace.BadParameter("IncludeOUs cannot contain '*' along with other OU IDs")
 	}
 
-	if len(m.ExcludeOUs) > 1 && slices.Contains(m.ExcludeOUs, "*") {
+	if len(m.ExcludeOUs) > 1 && slices.Contains(m.ExcludeOUs, types.Wildcard) {
 		return trace.BadParameter("ExcludeOUs cannot contain '*' along with other OU IDs")
 	}
 
@@ -91,11 +93,11 @@ func (m *MatchingAccountsFilter) checkAndSetDefaults() error {
 }
 
 func (m *MatchingAccountsFilter) isIncludeNothing() bool {
-	return len(m.ExcludeOUs) == 1 && m.ExcludeOUs[0] == "*"
+	return len(m.ExcludeOUs) == 1 && m.ExcludeOUs[0] == types.Wildcard
 }
 
 func (m *MatchingAccountsFilter) isIncludeAll() bool {
-	return len(m.ExcludeOUs) == 0 && (len(m.IncludeOUs) == 0 || (len(m.IncludeOUs) == 1 && m.IncludeOUs[0] == "*"))
+	return len(m.ExcludeOUs) == 0 && (len(m.IncludeOUs) == 0 || (len(m.IncludeOUs) == 1 && m.IncludeOUs[0] == types.Wildcard))
 }
 
 // MatchingAccounts returns the list of account IDs that are part of the organization and match the filter.
@@ -121,7 +123,7 @@ func MatchingAccounts(ctx context.Context, orgsClient OrganizationsClient, filte
 	}
 
 	// Then: iterate over the tree and collect the included accounts.
-	includeEverything := len(filter.IncludeOUs) == 0 || filter.IncludeOUs[0] == "*"
+	includeEverything := len(filter.IncludeOUs) == 0 || filter.IncludeOUs[0] == types.Wildcard
 	return collectIncludedAccounts(orgTree, filter.IncludeOUs, includeEverything), nil
 }
 
@@ -158,8 +160,12 @@ func allAccounts(ctx context.Context, orgsClient OrganizationsClient, organizati
 			// This check ensures the assumed role belongs to the expected Organization.
 			// Only need to validate once because all accounts will belong to the same Organization.
 			if !organizationIDValidated {
-				if err := accountARNBelongsToOrganizationID(aws.ToString(account.Arn), organizationID); err != nil {
+				accountsOrganization, err := organizationIDFromAccountARN(aws.ToString(account.Arn))
+				if err != nil {
 					return nil, trace.Wrap(err)
+				}
+				if accountsOrganization != organizationID {
+					return nil, trace.BadParameter("the AWS Organizations client is not part of the expected Organization %s", organizationID)
 				}
 				organizationIDValidated = true
 			}
@@ -197,8 +203,12 @@ func buildOrgTree(ctx context.Context, orgsClient OrganizationsClient, filter Ma
 	}
 	root := roots[0]
 
-	if err := rootOUARNBelongsToOrganizationID(aws.ToString(root.Arn), filter.OrganizationID); err != nil {
+	rootsOrganization, err := organizationIDFromRootOUARN(aws.ToString(root.Arn))
+	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if rootsOrganization != filter.OrganizationID {
+		return nil, trace.BadParameter("the AWS Organizations client is not part of the expected Organization %s", filter.OrganizationID)
 	}
 
 	rootOU, err := organizationalUnitDetails(ctx, orgsClient, aws.ToString(root.Id), filter.ExcludeOUs)

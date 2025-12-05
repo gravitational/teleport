@@ -25,32 +25,31 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// accountARNBelongsToOrganizationID extracts the organization ID from an account ARN, and checks if it matches the provided organization ID.
+// organizationIDFromAccountARN extracts the organization ID from an account ARN.
 // Example ARN: arn:aws:organizations::<org-master-account-id>:account/<org-id>/<account-id>
-func accountARNBelongsToOrganizationID(accountARN string, organizationID string) error {
-	return orgARNBelongsToOrganizationID(accountARN, organizationID)
+func organizationIDFromAccountARN(accountARN string) (string, error) {
+	return organizationIDFromARN(accountARN, "account")
 }
 
-// accountARNBelongsToOrganizationID extracts the organization ID from an account ARN, and checks if it matches the provided organization ID.
+// organizationIDFromRootOUARN extracts the organization ID from an root Organizational Unit ARN.
 // Example ARN: arn:aws:organizations::<org-master-account-id>:root/<org-id>/<root-ou-id>
-func rootOUARNBelongsToOrganizationID(rootOUARN string, organizationID string) error {
-	return orgARNBelongsToOrganizationID(rootOUARN, organizationID)
+func organizationIDFromRootOUARN(rootOUARN string) (string, error) {
+	return organizationIDFromARN(rootOUARN, "root")
 }
 
-func orgARNBelongsToOrganizationID(orgARN string, organizationID string) error {
+func organizationIDFromARN(orgARN string, resourceType string) (string, error) {
 	arnParsed, err := arn.Parse(orgARN)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	resourceSplitted := strings.Split(arnParsed.Resource, "/")
 	if len(resourceSplitted) != 3 {
-		return trace.BadParameter("unexpected resource received in ARN from organizations API call: %s", orgARN)
+		return "", trace.BadParameter("unexpected resource received in ARN from organizations API call: %s", orgARN)
 	}
-	arnOrgID := resourceSplitted[1]
-
-	if arnOrgID != organizationID {
-		return trace.BadParameter("requested organization ID %q is not accessible from current assumed IAM role", organizationID)
+	if resourceSplitted[0] != resourceType {
+		return "", trace.BadParameter("unexpected resource type received in ARN from organizations API call: %s", orgARN)
 	}
+	organizationID := resourceSplitted[1]
 
-	return nil
+	return organizationID, nil
 }
