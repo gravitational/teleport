@@ -54,9 +54,9 @@ servers.
 ## Table of Contents
 
 1. [Introduction](#introduction)
-1. [Why We Built Teleport?](#why-did-we-build-teleport)
-1. [Support and Contributing](#support-and-contributing)
-1. [Installing and Running](#installing-and-running)
+1. [Why We Built Teleport](#why-we-built-teleport)
+1. [Supporting & Contributing](#supporting--contributing)
+1. [Installing & Running](#installing--running)
 1. [Docker](#docker)
 1. [Building Teleport](#building-teleport)
 1. [Teleport Editions & Features](#teleport-editions--features)
@@ -72,14 +72,14 @@ resources behind the firewall.
 Teleport is a single Go binary that integrates with multiple protocols and
 cloud services, including
 
-* [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
+* [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/)
 * [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
 * [PostgreSQL, MongoDB, CockroachDB and MySQL
-  databases](https://goteleport.com/docs/enroll-resources/database-access/).
+  databases](https://goteleport.com/docs/enroll-resources/database-access/)
 * [Model Context Protocol](https://goteleport.com/docs/connect-your-client/model-context-protocol/)
-* [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
-* [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
-* [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
+* [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/)
+* [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/)
+* [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/)
 
 You can set up Teleport as a [Linux
 daemon](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo)
