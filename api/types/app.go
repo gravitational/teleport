@@ -108,6 +108,8 @@ type Application interface {
 	GetIdentityCenter() *AppIdentityCenter
 	// GetMCP fetches MCP specific configuration.
 	GetMCP() *MCP
+	// IsEqual determines if two application resources are equivalent to one another.
+	IsEqual(Application) bool
 }
 
 // NewAppV3 creates a new app resource.
