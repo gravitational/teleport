@@ -1,5 +1,7 @@
 ---
 title: "Deploying a High Availability Teleport Cluster"
+sidebar_label: High Availability
+sidebar_position: 1
 description: "Deploying a High Availability Teleport Cluster"
 tags:
  - conceptual
@@ -47,7 +49,7 @@ Infrastructure components include:
   credential provisioner will need to manage DNS records to demonstrate control
   over your domain name.
 
-![Architecture of a high availability Teleport deployment](../../../img/ha-diagram.png)
+![Architecture of a high availability Teleport deployment](../../../../img/ha-diagram.png)
 
 ## Layer 4 load balancers
 
@@ -73,7 +75,7 @@ solution) to ensure availability.
 #### TLS Routing
 
 The way you configure the Proxy Service load balancer depends on whether you
-will enable [TLS Routing](../management/operations/tls-routing.mdx) in your
+will enable [TLS Routing](../../management/operations/tls-routing.mdx) in your
 Teleport cluster.
 
 With TLS Routing, the Teleport Proxy Service uses application-layer protocol
@@ -298,7 +300,7 @@ pod or virtual machine in your group.
 
 If you plan to run Teleport on Kubernetes, the `teleport-cluster` Helm chart
 deploys the Auth Service and Proxy Service pools for you. To see how to use this
-Helm chart, read our [Helm Deployments](helm-deployments/helm-deployments.mdx) documentation.
+Helm chart, read our [Helm Deployments](../helm-deployments/helm-deployments.mdx) documentation.
 
 </Admonition>
 
@@ -355,7 +357,7 @@ Create a configuration file and provide it to each of your Proxy Service
 instances at `/etc/teleport.yaml`. We will explain the required configuration
 fields for a high-availability Teleport deployment below. These are the minimum
 requirements, and when planning your high-availability deployment, you will want
-to follow a more specific [deployment guide](deployments/deployments.mdx) for your
+to follow a more specific [deployment guide](deployments.mdx) for your
 environment. 
 
 #### `proxy_service` and `auth_service`
@@ -469,7 +471,7 @@ Create a configuration file and provide it to each of your Auth Service
 instances at `/etc/teleport.yaml`. We will explain the required configuration
 fields for a high-availability Teleport deployment below. These are the minimum
 requirements, and when planning your high-availability deployment, you will want
-to follow a more specific [deployment guide](deployments/deployments.mdx) for your
+to follow a more specific [deployment guide](deployments.mdx) for your
 environment.
 
 #### `storage`
@@ -485,7 +487,7 @@ teleport:
     # ...
 ```
 
-Consult our [Backends Reference](../../reference/deployment/backends.mdx) for the configuration
+Consult our [Backends Reference](../../../reference/deployment/backends.mdx) for the configuration
 fields you should set in the `storage` section.
 
 #### `auth_service` and `proxy_service`
@@ -542,8 +544,8 @@ deployment, read about how to design your own deployment on Kubernetes or a
 cluster of virtual machines in your cloud of choice:
 
 - [High-availability Teleport Deployments on Kubernetes with
-  Helm](helm-deployments/helm-deployments.mdx)
-- [Reference Deployments](deployments/deployments.mdx) for running Teleport on a cluster of
+  Helm](../helm-deployments/helm-deployments.mdx)
+- [Reference Deployments](deployments.mdx) for running Teleport on a cluster of
   virtual machines
 
 ### Ensure high performance
@@ -551,8 +553,8 @@ cluster of virtual machines in your cloud of choice:
 You should also get familiar with how to ensure that your Teleport deployment is
 performing as expected:
 
-- [Scaling a Teleport cluster](../management/operations/scaling.mdx)
-- [Monitoring a Teleport cluster](../management/diagnostics/diagnostics.mdx)
+- [Scaling a Teleport cluster](../../management/operations/scaling.mdx)
+- [Monitoring a Teleport cluster](../../management/diagnostics/diagnostics.mdx)
 
 ### Deploy Teleport services
 
@@ -562,9 +564,9 @@ separate network from your Teleport cluster.
 
 To get started, read about registering:
 
-- [Applications](../../enroll-resources/application-access/getting-started.mdx)
-- [Servers](../../enroll-resources/server-access/getting-started.mdx)
-- [Kubernetes clusters](../../enroll-resources/kubernetes-access/getting-started.mdx)
-- [Databases](../../enroll-resources/database-access/getting-started.mdx)
-- [Windows desktops](../../enroll-resources/desktop-access/introduction.mdx)
-- [Bot users](../../machine-workload-identity/getting-started.mdx)
+- [Applications](../../../enroll-resources/application-access/getting-started.mdx)
+- [Servers](../../../enroll-resources/server-access/getting-started.mdx)
+- [Kubernetes clusters](../../../enroll-resources/kubernetes-access/getting-started.mdx)
+- [Databases](../../../enroll-resources/database-access/getting-started.mdx)
+- [Windows desktops](../../../enroll-resources/desktop-access/introduction.mdx)
+- [Bot users](../../../machine-workload-identity/getting-started.mdx)

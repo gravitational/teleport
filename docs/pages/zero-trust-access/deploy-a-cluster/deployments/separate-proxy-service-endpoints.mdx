@@ -1,5 +1,6 @@
 ---
 title: Separate Internal and External Proxy Service Traffic
+sidebar_label: Dedicated Internal Address
 description: Explains how to set up the Teleport Proxy Service to isolate traffic from the public internet from internal client traffic.
 tags:
 - how-to
@@ -128,7 +129,7 @@ multiplexing enabled.
    address listed, to use the value of the environment variable instead.
 
    The step differs according to whether you installed Teleport on Linux servers
-   using [Manage Updates v2](../../upgrading/agent-managed-updates/agent-managed-updates.mdx) or
+   using [Manage Updates v2](../../../upgrading/agent-managed-updates/agent-managed-updates.mdx) or
    using the `teleport-kube-agent` Helm chart:
 
    <Tabs>
@@ -174,7 +175,7 @@ In this setup, end users would connect to the external address,
 ### Tunnel public address
 
 If your cluster has disabled [TLS
-multiplexing](../../reference/architecture/tls-routing.mdx), you can configure
+multiplexing](../../../reference/architecture/tls-routing.mdx), you can configure
 internal clients, such as Teleport Agents, to connect to the Teleport Proxy
 Service over a port that is separate from the HTTPS port that end users connect
 to. We recommend using the split DNS or multiple public Proxy Service addresses
