@@ -339,12 +339,18 @@ const (
 	// CommandModeConfigure indicates a command instance will be used for
 	// `tbot configure ...`
 	CommandModeConfigure
+
+	// CommandModeAPISpawn indicates a command will be used to spawn the service
+	// via a running API listener.
+	CommandModeAPISpawn
 )
 
 func (c CommandMode) String() string {
 	switch c {
 	case CommandModeConfigure:
 		return "Configures"
+	case CommandModeAPISpawn:
+		return "Spawns"
 	default:
 		return "Starts"
 	}

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/botapi/botapiconfig"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
@@ -109,6 +110,10 @@ type BotConfig struct {
 	// ReloadCh allows a channel to be injected into the bot to trigger a
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
+
+	// DynamicServiceCh is a channel that can be used to spawn services
+	// dynamically.
+	DynamicServiceCh <-chan bot.ServiceBuilder
 
 	// Testing is set in unit tests to attach a faux service which exposes the
 	// bot's underlying identity and client so we can make assertions on it.
@@ -427,6 +432,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case application.ProxyServiceType:
 			v := &application.ProxyServiceConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case botapiconfig.ServiceType:
+			v := &botapiconfig.Config{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}

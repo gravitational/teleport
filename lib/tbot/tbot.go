@@ -44,6 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/botapi"
+	"github.com/gravitational/teleport/lib/tbot/services/botapi/botapiconfig"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
@@ -62,6 +64,13 @@ var clientMetrics = grpcmetrics.CreateGRPCClientMetrics(
 	false,
 	prometheus.Labels{},
 )
+
+type servicePrereqs struct {
+	alpnUpgradeCache      *internal.ALPNUpgradeCache
+	setupTrustBundleCache func() *workloadidentity.TrustBundleCacheFacade
+	setupCRLCache         func() *workloadidentity.CRLCacheFacade
+	spawner               botapi.Spawner
+}
 
 type Bot struct {
 	cfg     *config.BotConfig
@@ -116,6 +125,108 @@ func (b *Bot) getClient() *apiclient.Client {
 	defer b.mu.Unlock()
 
 	return b.client
+}
+
+func buildService(svcCfg config.ServiceConfig, botCfg *config.BotConfig, p *servicePrereqs) (bot.ServiceBuilder, error) {
+	// Convert the service config into the actual service type.
+	switch svcCfg := svcCfg.(type) {
+	case *database.TunnelConfig:
+		return database.TunnelServiceBuilder(svcCfg, botCfg.ConnectionConfig(), botCfg.CredentialLifetime), nil
+	case *example.Config:
+		return example.ServiceBuilder(svcCfg), nil
+	case *ssh.MultiplexerConfig:
+		return ssh.MultiplexerServiceBuilder(
+			svcCfg,
+			p.alpnUpgradeCache,
+			botCfg.ConnectionConfig(),
+			botCfg.CredentialLifetime,
+			clientMetrics,
+		), nil
+	case *k8s.OutputV1Config:
+		return k8s.OutputV1ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(botCfg.CredentialLifetime)), nil
+	case *k8s.OutputV2Config:
+		return k8s.OutputV2ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(botCfg.CredentialLifetime)), nil
+	case *k8s.ArgoCDOutputConfig:
+		return k8s.ArgoCDServiceBuilder(
+			svcCfg,
+			k8s.WithDefaultCredentialLifetime(botCfg.CredentialLifetime),
+			k8s.WithInsecure(botCfg.ConnectionConfig().Insecure),
+			k8s.WithALPNUpgradeCache(p.alpnUpgradeCache),
+		), nil
+	case *ssh.HostOutputConfig:
+		return ssh.HostOutputServiceBuilder(svcCfg, botCfg.CredentialLifetime), nil
+	case *application.OutputConfig:
+		return application.OutputServiceBuilder(svcCfg, botCfg.CredentialLifetime), nil
+	case *database.OutputConfig:
+		return database.OutputServiceBuilder(svcCfg, botCfg.CredentialLifetime), nil
+	case *identitysvc.OutputConfig:
+		return identitysvc.OutputServiceBuilder(svcCfg, p.alpnUpgradeCache, botCfg.CredentialLifetime, botCfg.Insecure, botCfg.FIPS), nil
+	case *clientcredentials.UnstableConfig:
+		return clientcredentials.ServiceBuilder(svcCfg, botCfg.CredentialLifetime), nil
+	case *application.TunnelConfig:
+		return application.TunnelServiceBuilder(svcCfg, botCfg.ConnectionConfig(), botCfg.CredentialLifetime), nil
+	case *application.ProxyServiceConfig:
+		return application.ProxyServiceBuilder(svcCfg, botCfg.ConnectionConfig(), botCfg.CredentialLifetime, p.alpnUpgradeCache), nil
+	case *workloadidentitysvc.X509OutputConfig:
+		return workloadidentitysvc.X509OutputServiceBuilder(
+			svcCfg,
+			p.setupTrustBundleCache(),
+			p.setupCRLCache(),
+			botCfg.CredentialLifetime,
+		), nil
+	case *workloadidentitysvc.JWTOutputConfig:
+		return workloadidentitysvc.JWTOutputServiceBuilder(
+			svcCfg,
+			p.setupTrustBundleCache(),
+			botCfg.CredentialLifetime,
+		), nil
+	case *workloadidentitysvc.WorkloadAPIConfig:
+		return workloadidentitysvc.WorkloadAPIServiceBuilder(
+			svcCfg,
+			p.setupTrustBundleCache(),
+			p.setupCRLCache(),
+			botCfg.CredentialLifetime,
+		), nil
+	case *awsra.Config:
+		return awsra.ServiceBuilder(svcCfg), nil
+	case *botapiconfig.Config:
+		return botapi.ServiceBuilder(svcCfg, p.spawner), nil
+	default:
+		return nil, trace.BadParameter("unknown service type: %T", svcCfg)
+	}
+}
+
+type dynamicSpawner struct {
+	l       *slog.Logger
+	cfg     *config.BotConfig
+	prereqs *servicePrereqs
+	bot     *bot.Bot
+}
+
+func (s *dynamicSpawner) AddDynamicService(ctx context.Context, cfg config.ServiceConfig) error {
+	l := s.l.With("name", cfg.GetName(), "type", cfg.Type())
+
+	if v, ok := cfg.(config.Initable); ok {
+		if err := v.Init(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	l.DebugContext(context.Background(), "building service")
+	builder, err := buildService(cfg, s.cfg, s.prereqs)
+	if err != nil {
+		return trace.Wrap(err, "building dynamic service")
+	}
+
+	l.DebugContext(context.Background(), "built service, spawning...")
+
+	if err := s.bot.SpawnDynamicService(builder); err != nil {
+		return trace.Wrap(err, "spawning dynamic service")
+	}
+
+	l.InfoContext(context.Background(), "service spawned successfully")
+
+	return nil
 }
 
 func (b *Bot) Run(ctx context.Context) (err error) {
@@ -237,52 +348,26 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return crlCache
 	}
 
+	spawner := &dynamicSpawner{
+		l:   b.log,
+		cfg: b.cfg,
+		// prereqs, bot left unfilled for now
+	}
+	servicePrereqs := &servicePrereqs{
+		alpnUpgradeCache:      alpnUpgradeCache,
+		setupTrustBundleCache: setupTrustBundleCache,
+		setupCRLCache:         setupCRLCache,
+		spawner:               spawner,
+	}
+
 	// Append any services configured by the user
 	for _, svcCfg := range b.cfg.Services {
-		// Convert the service config into the actual service type.
-		switch svcCfg := svcCfg.(type) {
-		case *database.TunnelConfig:
-			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
-		case *example.Config:
-			services = append(services, example.ServiceBuilder(svcCfg))
-		case *ssh.MultiplexerConfig:
-			services = append(services, ssh.MultiplexerServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, clientMetrics))
-		case *k8s.OutputV1Config:
-			services = append(services, k8s.OutputV1ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
-		case *k8s.OutputV2Config:
-			services = append(services, k8s.OutputV2ServiceBuilder(svcCfg, k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
-		case *k8s.ArgoCDOutputConfig:
-			services = append(services, k8s.ArgoCDServiceBuilder(
-				svcCfg,
-				k8s.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
-				k8s.WithInsecure(b.cfg.ConnectionConfig().Insecure),
-				k8s.WithALPNUpgradeCache(alpnUpgradeCache),
-			))
-		case *ssh.HostOutputConfig:
-			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
-		case *application.OutputConfig:
-			services = append(services, application.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
-		case *database.OutputConfig:
-			services = append(services, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
-		case *identitysvc.OutputConfig:
-			services = append(services, identitysvc.OutputServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.CredentialLifetime, b.cfg.Insecure, b.cfg.FIPS))
-		case *clientcredentials.UnstableConfig:
-			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
-		case *application.TunnelConfig:
-			services = append(services, application.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime))
-		case *application.ProxyServiceConfig:
-			services = append(services, application.ProxyServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, alpnUpgradeCache))
-		case *workloadidentitysvc.X509OutputConfig:
-			services = append(services, workloadidentitysvc.X509OutputServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
-		case *workloadidentitysvc.JWTOutputConfig:
-			services = append(services, workloadidentitysvc.JWTOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
-		case *workloadidentitysvc.WorkloadAPIConfig:
-			services = append(services, workloadidentitysvc.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
-		case *awsra.Config:
-			services = append(services, awsra.ServiceBuilder(svcCfg))
-		default:
-			return trace.BadParameter("unknown service type: %T", svcCfg)
+		svc, err := buildService(svcCfg, b.cfg, servicePrereqs)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+
+		services = append(services, svc)
 	}
 
 	bt, err := bot.New(bot.Config{
@@ -300,6 +385,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Fill in missing spawner values before any services that require it are
+	// started.
+	spawner.bot = bt
+	spawner.prereqs = servicePrereqs
 
 	if b.cfg.Oneshot {
 		return bt.OneShot(ctx)

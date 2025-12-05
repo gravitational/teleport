@@ -57,13 +57,14 @@ type Registry struct {
 	notifyCh chan struct{}
 }
 
-// AddService adds a service to the registry so that its health will be reported
-// from our readyz endpoints. It returns a Reporter the service can use to report
-// status changes.
+// AddServiceWithCallback adds a service to the registry so that its health will
+// be reported from our readyz endpoints. It returns a Reporter the service can
+// use to report status changes. If an optional callback function is provided,
+// the callback will be executed with the first reported status.
 //
 // Note: you should add all of your services before any service reports its status
 // otherwise AllServicesReported will unblock too early.
-func (r *Registry) AddService(serviceType, name string) Reporter {
+func (r *Registry) AddServiceWithCallback(serviceType, name string, cb func(name string, status Status, reason string)) Reporter {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -77,12 +78,31 @@ func (r *Registry) AddService(serviceType, name string) Reporter {
 		r.services[name] = status
 	}
 
+	var once sync.Once
 	return &reporter{
 		mu:     &r.mu,
 		clock:  r.clock,
 		status: status,
-		notify: sync.OnceFunc(r.maybeNotifyLocked),
+		notify: func(status Status, reason string) {
+			once.Do(func() {
+				r.maybeNotifyLocked()
+
+				if cb != nil {
+					cb(name, status, reason)
+				}
+			})
+		},
 	}
+}
+
+// AddService adds a service to the registry so that its health will be reported
+// from our readyz endpoints. It returns a Reporter the service can use to report
+// status changes.
+//
+// Note: you should add all of your services before any service reports its status
+// otherwise AllServicesReported will unblock too early.
+func (r *Registry) AddService(serviceType, name string) Reporter {
+	return r.AddServiceWithCallback(serviceType, name, nil)
 }
 
 // ServiceStatus reads the named service's status. The bool value will be false
