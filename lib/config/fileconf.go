@@ -644,6 +644,10 @@ type Global struct {
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
+
+	// ReconnectBackoff defines the parameters used to control the retry
+	// behavior when attempting to reconnect to auth.
+	ReconnectBackoff ReconnectBackoffConfig `yaml:"reconnect_backoff,omitempty"`
 }
 
 // CachePolicy is used to control  local cache
@@ -672,6 +676,31 @@ func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 	out := servicecfg.CachePolicy{
 		Enabled:        c.Enabled(),
 		MaxRetryPeriod: c.MaxBackoff,
+	}
+	if err := out.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &out, nil
+}
+
+// ReconnectBackoffConfig defines the parameters used to control the retry
+// behavior when attempting to reconnect to auth.
+type ReconnectBackoffConfig struct {
+	// MaxRetryPeriod is the upper limit for how long to wait between retries.
+	MaxRetryPeriod time.Duration `yaml:"max_period,omitempty"`
+	// MinRetryPeriod is the initial delay before the first retry attempt.
+	// The retry logic will apply jitter to this duration.
+	MinRetryPeriod time.Duration `yaml:"min_period,omitempty"`
+	// RetryStep is the amount of time added to the retry delay.
+	RetryStep time.Duration `yaml:"step,omitempty"`
+}
+
+// Parse parses reconnect configuration from Teleport config
+func (c *ReconnectBackoffConfig) Parse() (*servicecfg.ReconnectBackoffConfig, error) {
+	out := servicecfg.ReconnectBackoffConfig{
+		MaxRetryPeriod: c.MaxRetryPeriod,
+		MinRetryPeriod: c.MinRetryPeriod,
+		RetryStep:      c.RetryStep,
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

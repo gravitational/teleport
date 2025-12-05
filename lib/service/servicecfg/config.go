@@ -235,8 +235,8 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
-	MaxRetryPeriod time.Duration
+	// ReconnectBackoff nect defines the auth reconnection service configuration.
+	ReconnectBackoff ReconnectBackoffConfig
 
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
@@ -345,6 +345,42 @@ type AuditLogConfig struct {
 	Enabled bool
 	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
 	StartDate time.Time
+}
+
+// ReconnectBackoffConfig defines the parameters used to control the retry
+// behavior when attempting to reconnect to auth.
+type ReconnectBackoffConfig struct {
+	// MaxRetryPeriod is the upper limit for how long to wait between retries.
+	MaxRetryPeriod time.Duration
+	// MinRetryPeriod is the initial delay before the first retry attempt.
+	// The retry logic will apply jitter to this duration.
+	MinRetryPeriod time.Duration
+	// RetryStep is the amount of time added to the retry delay.
+	RetryStep time.Duration
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (c *ReconnectBackoffConfig) CheckAndSetDefaults() error {
+	if c.MaxRetryPeriod < 1 {
+		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	}
+	if c.RetryStep < 1 {
+		c.RetryStep = c.MaxRetryPeriod / 5
+	}
+	if c.MinRetryPeriod < 1 {
+		c.MinRetryPeriod = c.MaxRetryPeriod / 10
+	}
+
+	return nil
+}
+
+// DefaultRatioReconnectBackoffConfig returns ReconnectBackoffConfig with parameters based on maxRetryPeriod
+func DefaultRatioReconnectBackoffConfig(maxRetryPeriod time.Duration) *ReconnectBackoffConfig {
+	return &ReconnectBackoffConfig{
+		MaxRetryPeriod: maxRetryPeriod,
+		RetryStep:      maxRetryPeriod / 5,
+		MinRetryPeriod: maxRetryPeriod / 10,
+	}
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -640,7 +676,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.ReconnectBackoff = *DefaultRatioReconnectBackoffConfig(defaults.MaxWatcherBackoff)
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 

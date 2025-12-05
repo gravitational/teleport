@@ -74,9 +74,9 @@ const updateClientsJoinWarning = "This agent joined the cluster during the updat
 // service until succeeds or process gets shut down
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  retryutils.HalfJitter(process.Config.MaxRetryPeriod / 10),
-		Step:   process.Config.MaxRetryPeriod / 5,
-		Max:    process.Config.MaxRetryPeriod,
+		First:  retryutils.HalfJitter(process.Config.ReconnectBackoff.MinRetryPeriod),
+		Step:   process.Config.ReconnectBackoff.RetryStep,
+		Max:    process.Config.ReconnectBackoff.MaxRetryPeriod,
 		Clock:  process.Clock,
 		Jitter: retryutils.HalfJitter,
 	})

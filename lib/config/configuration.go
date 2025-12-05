@@ -644,6 +644,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.CachePolicy = *cachePolicy
 
+	reconnectBackoff, err := fc.ReconnectBackoff.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.ReconnectBackoff = *reconnectBackoff
+
 	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
 
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
