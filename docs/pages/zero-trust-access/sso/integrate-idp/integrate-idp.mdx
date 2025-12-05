@@ -1,0 +1,78 @@
+---
+title: Integrate your Identity Provider with Teleport
+sidebar_label: Integrate your Provider
+description: Provides step-by-step guides for allowing users to authenticate to Teleport using your IdP.
+---
+
+You can configure Teleport so that users authenticate with an external identity
+provider such as Okta or GitHub. To do so, you can create a Teleport resource
+called an **authentication connector** that contains information about your IdP
+and configures the Teleport roles that users assume once they authenticate.
+
+The guides in this section show you how to integrate your IdP with Teleport. 
+
+For an overview of how Teleport integrates with single sign-on providers, see
+[Single Sign-On](../sso.mdx).
+
+<Admonition type="warning">
+
+Teleport Community Edition only supports GitHub as an identity provider. In
+Teleport Enterprise, you can integrate SAML and OIDC solutions as well. All
+editions support [local
+users](../../../zero-trust-access/management/admin/users.mdx).
+
+</Admonition>
+
+## Integrating your provider
+
+Integrating a provider with Teleport includes the following steps:
+
+1. **Configure your IdP** to register Teleport as an application, resulting in a
+   client ID, client secret, and other data about your application.
+1. **Determine a role mapping:** When a user authenticates to Teleport, Teleport
+   issues certificates containing the user's roles. A role mapping configures
+   how Teleport selects roles for the user based on the user's GitHub teams,
+   SAML attributes, or OIDC claims.
+1. **Apply an authentication connector:** The authentication connector includes
+   information about the role mapping and Teleport application, giving Teleport
+   the information it needs to exchange SAML, OIDC, and GitHub SSO messages with
+   your IdP and issue certificates to users. 
+1. **Apply a cluster authentication preference:** The cluster auth preference
+   resource selects an SSO provider as the default authentication method for
+   Teleport users.
+
+Teleport supports the following identity providers:
+
+<DocCardList kind="labelOnly" />
+
+## Provider-specific workarounds
+
+Certain SSO providers may require or benefit from changes to Teleport's SSO
+flow. These provider-specific changes can be enabled by setting the
+`spec.provider` property of the connector definition to one of the following
+values to match your identity provider:
+
+- `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
+  to the full [ADFS guide](adfs.mdx) for details.
+- `jumpcloud` (SAML): Required for compatibility with JumpCloud.
+- `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
+  the [OIDC guide](oidc.mdx) for details.
+- `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including
+  PingOne and PingFederate).
+- `okta` (OIDC): Required when using Okta as an OIDC provider.
+
+At this time, the `spec.provider` field should not be set for any other identity providers.
+
+## Customizing authentication buttons 
+
+Use the `display` field in an authentication connector to control the appearance
+of SSO buttons in the Teleport Web UI.
+
+| Provider | YAML | Example |
+| - | - | - |
+| GitHub | `display: GitHub` | ![github](../../../../img/teleport-sso/github@2x.png) |
+| Microsoft | `display: Microsoft` | ![microsoft](../../../../img/teleport-sso/microsoft@2x.png) |
+| Google | `display: Google` | ![google](../../../../img/teleport-sso/google@2x.png) |
+| BitBucket | `display: Bitbucket` | ![bitbucket](../../../../img/teleport-sso/bitbucket@2x.png) |
+| OpenID | `display: Okta` | ![Okta](../../../../img/teleport-sso/openId@2x.png) |
+
