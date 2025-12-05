@@ -147,7 +147,7 @@ func allAccounts(ctx context.Context, orgsClient OrganizationsClient, organizati
 
 	paginator := organizations.NewListAccountsPaginator(orgsClient, &organizations.ListAccountsInput{})
 
-	if paginator.HasMorePages() {
+	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
