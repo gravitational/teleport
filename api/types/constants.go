@@ -1737,6 +1737,11 @@ const (
 	JWTClaimsRewriteTraits = "traits"
 	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
 	JWTClaimsRewriteNone = "none"
+
+	// JwtAuthorityDefault is the default Teleport JWT authority for signing JWT tokens.
+	JwtAuthorityDefault = "jwt"
+	// JwtAuthorityOIDC is the Teleport OIDC IDP authority for signing JWT tokens.
+	JwtAuthorityOIDC = "oidc"
 )
 
 const (

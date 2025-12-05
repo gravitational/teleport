@@ -1200,6 +1200,14 @@ message Rewrite {
   repeated Header Headers = 2 [(gogoproto.jsontag) = "headers,omitempty"];
   // JWTClaims configures whether roles/traits are included in the JWT token.
   string JWTClaims = 3 [(gogoproto.jsontag) = "jwt_claims,omitempty"];
+  // JwtAuthority configures which Teleport authority issues the JWT token.
+  // Supported values:
+  // - "jwt": issues tokens with Teleport JWT CA and tokens can be verified via
+  //   ".well-known/jwks.json"
+  // - "odic": issues tokens with Teleport OIDC IDP CA and tokens can be
+  //   verified via ".well-known/openid-configuration".
+  // Defaults to "jwt".
+  string jwt_authority = 4;
 }
 
 // Header represents a single http header passed over to the proxied application.

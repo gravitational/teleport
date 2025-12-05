@@ -474,8 +474,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone, JWTClaimsRewriteTraits:
 		default:
 			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
-
 		}
+		switch a.Spec.Rewrite.JwtAuthority {
+		case "", JwtAuthorityDefault, JwtAuthorityOIDC:
+		default:
+			return trace.BadParameter("app %q has unexpected JWT authority value %q", a.GetName(), a.Spec.Rewrite.JwtAuthority)
+		}
+
 	}
 
 	if len(a.Spec.TCPPorts) != 0 {

@@ -2290,6 +2290,8 @@ type Rewrite struct {
 	Headers []string `yaml:"headers,omitempty"`
 	// JWTClaims configures whether roles/traits are included in the JWT token
 	JWTClaims string `yaml:"jwt_claims,omitempty"`
+	// JwtAuthority configures which Teleport authority issues the JWT token.
+	JwtAuthority string `yaml:"jwt_authority,omitempty"`
 }
 
 // AppAWS contains additional options for AWS applications.

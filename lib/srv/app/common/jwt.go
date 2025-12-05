@@ -43,6 +43,7 @@ func GenerateJWTAndTraits(
 	app types.Application,
 	generator AppTokenGenerator,
 ) (string, wrappers.Traits, error) {
+	var jwtAuthority string
 	rewrite := app.GetRewrite()
 	traits := identity.Traits
 	roles := identity.Groups
@@ -57,15 +58,17 @@ func GenerateJWTAndTraits(
 			roles = nil
 		case "", types.JWTClaimsRewriteRolesAndTraits:
 		}
+		jwtAuthority = rewrite.JwtAuthority
 	}
 
 	// Request a JWT token that will be attached to all requests.
 	jwt, err := generator.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
-		Username: identity.Username,
-		Roles:    roles,
-		Traits:   traits,
-		URI:      app.GetURI(),
-		Expires:  identity.Expires,
+		Username:     identity.Username,
+		Roles:        roles,
+		Traits:       traits,
+		URI:          app.GetURI(),
+		Expires:      identity.Expires,
+		JwtAuthority: jwtAuthority,
 	})
 	if err != nil {
 		return "", nil, trace.Wrap(err)
