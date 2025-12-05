@@ -24,12 +24,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -177,6 +180,46 @@ func TestHandlers(t *testing.T) {
 				return types.ProtoResource153ToLegacy(model)
 			},
 			updateResource:   updateResourceWithLabels,
+			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindInferenceSecret,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				secret := makeInferenceSecret(name)
+				return types.ProtoResource153ToLegacy(secret)
+			},
+			updateResource:   updateResourceWithLabels,
+			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindUserTask,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+					Integration: name + "-integration",
+					TaskType:    "discover-ec2",
+					IssueType:   "ec2-ssm-invocation-failure",
+					State:       "OPEN",
+					DiscoverEc2: &usertasksv1.DiscoverEC2{
+						AccountId: "123456789012",
+						Region:    "us-east-1",
+						Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+							"i-123": {
+								InstanceId:      "i-123",
+								DiscoveryConfig: "dc01",
+								DiscoveryGroup:  "dg01",
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return types.ProtoResource153ToLegacy(userTask)
+			},
+			updateResource: func(t *testing.T, r types.Resource) types.Resource {
+				r.SetExpiry(time.Now().Add(time.Minute))
+				return r
+			},
 			checkMFARequired: require.False,
 		},
 	}

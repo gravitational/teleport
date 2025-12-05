@@ -62,7 +62,7 @@ func newAlloyDBEndpointsResolver(db types.Database, clients healthchecks.GCPClie
 	}
 
 	return healthcheck.NewTargetDialer(func(ctx context.Context) ([]string, error) {
-		adminClient, err := clients.GetGCPAlloyDBClient(ctx)
+		adminClient, err := clients.GetAlloyDBClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

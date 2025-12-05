@@ -959,11 +959,13 @@ func Test_clientMetaFromReq(t *testing.T) {
 		http.MethodGet, "https://example.com/webapi/foo", nil,
 	)
 	r.Header.Set("User-Agent", ua)
+	r.Header.Set("Max-Touch-Points", "5")
 
 	got := clientMetaFromReq(r)
 	require.Equal(t, &authclient.ForwardedClientMetadata{
-		UserAgent:  ua,
-		RemoteAddr: "192.0.2.1:1234",
+		UserAgent:      ua,
+		RemoteAddr:     "192.0.2.1:1234",
+		MaxTouchPoints: 5,
 	}, got)
 }
 

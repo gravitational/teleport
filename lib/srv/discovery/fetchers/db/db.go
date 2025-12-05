@@ -28,15 +28,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
-	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -129,6 +129,9 @@ type AWSFetcherFactoryConfig struct {
 	AWSConfigProvider awsconfig.Provider
 	// AWSClients provides AWS SDK clients.
 	AWSClients AWSClientProvider
+
+	// Logger is the logger used by the factory and its fetchers.
+	Logger *slog.Logger
 }
 
 func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
@@ -137,6 +140,9 @@ func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
 	}
 	if c.AWSClients == nil {
 		c.AWSClients = defaultAWSClients{}
+	}
+	if c.Logger == nil {
+		c.Logger = slog.Default()
 	}
 	return nil
 }
@@ -175,6 +181,10 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
+					if region == types.Wildcard {
+						f.cfg.Logger.WarnContext(ctx, "AWS Database discovery does not support region discovery, remove the '*' from the regions field", "discovery_config", discoveryConfigName)
+						continue
+					}
 					fetcher, err := makeFetcher(awsFetcherConfig{
 						Type:                matcherType,
 						AssumeRole:          assumeRole,
@@ -197,7 +207,7 @@ func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.A
 }
 
 // MakeAzureFetchers creates new Azure database fetchers.
-func MakeAzureFetchers(ctx context.Context, getAzureClients func(ctx context.Context, integration string) (cloud.AzureClients, error), matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
+func MakeAzureFetchers(ctx context.Context, getAzureClients func(ctx context.Context, integration string) (azure.Clients, error), matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
 	for _, matcher := range services.SimplifyAzureMatchers(matchers) {
 		azureClients, err := getAzureClients(ctx, matcher.Integration)
 		if err != nil {

@@ -28,7 +28,7 @@ export type RecordingsResponse = {
   startKey: string;
 };
 
-export type RecordingType = 'ssh' | 'desktop' | 'k8s' | 'database';
+export type RecordingType = 'ssh' | 'desktop' | 'k8s' | 'database' | 'app';
 
 export function validateRecordingType(
   value: RecordingType | string
@@ -37,7 +37,8 @@ export function validateRecordingType(
     value === 'ssh' ||
     value === 'database' ||
     value === 'desktop' ||
-    value === 'k8s'
+    value === 'k8s' ||
+    value === 'app'
   );
 }
 

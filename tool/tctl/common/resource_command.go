@@ -47,7 +47,6 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
@@ -137,11 +136,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
 		types.KindPlugin:                      rc.createPlugin,
-		types.KindUserTask:                    rc.createUserTask,
 		types.KindHealthCheckConfig:           rc.createHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment: rc.createScopedRoleAssignment,
-		types.KindInferenceSecret:             rc.createInferenceSecret,
 		types.KindInferencePolicy:             rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
@@ -149,7 +146,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindCrownJewel:                  rc.updateCrownJewel,
 		types.KindVnetConfig:                  rc.updateVnetConfig,
 		types.KindPlugin:                      rc.updatePlugin,
-		types.KindUserTask:                    rc.updateUserTask,
 		types.KindHealthCheckConfig:           rc.updateHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment: rc.updateScopedRoleAssignment,
@@ -562,28 +558,6 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	resource, err := services.UnmarshalUserTask(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	c := client.UserTasksServiceClient()
-	if rc.force {
-		if _, err := c.UpsertUserTask(ctx, resource); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user task %q has been updated\n", resource.GetMetadata().GetName())
-	} else {
-		if _, err := c.CreateUserTask(ctx, resource); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user task %q has been created\n", resource.GetMetadata().GetName())
-	}
-
-	return nil
-}
-
 func (rc *ResourceCommand) createScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	if rc.IsForced() {
 		return trace.BadParameter("scoped role creation does not support --force")
@@ -669,18 +643,6 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	in, err := services.UnmarshalUserTask(resource.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.UserTasksServiceClient().UpdateUserTask(ctx, in); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("user task %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
 
@@ -1019,12 +981,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
 
-	case types.KindUserTask:
-		if err := client.UserTasksServiceClient().DeleteUserTask(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
-
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1079,8 +1035,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
-	case types.KindInferenceSecret:
-		return trace.Wrap(rc.deleteInferenceSecret(ctx, client))
 	case types.KindInferencePolicy:
 		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	default:
@@ -1512,23 +1466,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &integrationCollection{integrations: resources}, nil
-	case types.KindUserTask:
-		userTasksClient := client.UserTasksClient()
-		if rc.ref.Name != "" {
-			uit, err := userTasksClient.GetUserTask(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &userTaskCollection{items: []*usertasksv1.UserTask{uit}}, nil
-		}
-
-		tasks, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*usertasksv1.UserTask, string, error) {
-			return userTasksClient.ListUserTasks(ctx, int64(limit), token, &usertasksv1.ListUserTasksFilters{})
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &userTaskCollection{items: tasks}, nil
 	case types.KindAuditQuery:
 		if rc.ref.Name != "" {
 			auditQuery, err := client.SecReportsClient().GetSecurityAuditQuery(ctx, rc.ref.Name)
@@ -1698,9 +1635,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			c = append(c, types.ProtoResource153ToLegacy(rs))
 		}
 		return c, nil
-	case types.KindInferenceSecret:
-		secrets, err := rc.getInferenceSecrets(ctx, client)
-		return secrets, trace.Wrap(err)
 	case types.KindInferencePolicy:
 		policies, err := rc.getInferencePolicies(ctx, client)
 		return policies, trace.Wrap(err)
