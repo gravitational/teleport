@@ -162,7 +162,7 @@ environment variable `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE`.
 Opsgenie plugin users, role annotations must now contain
 `teleport.dev/notify-services` to receive notification on Opsgenie.
 `teleport.dev/schedules` is now the label used to determine auto approval flow.
-See [the Opsgenie plugin documentation](docs/pages/identity-governance/access-request-plugins/opsgenie.mdx)
+See [the Opsgenie plugin documentation](docs/pages/identity-governance/access-requests/plugins/opsgenie.mdx)
 for setup instructions.
 
 #### Teleport Assist has been removed
@@ -3295,7 +3295,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/identity-governance/access-request-plugins/access-request-plugins.mdx)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/identity-governance/access-requests/plugins/plugins.mdx)
 
 ##### Signed RPM and Releases
 
@@ -3558,12 +3558,12 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/identity-governance/access-request-plugins/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/identity-governance/access-requests/plugins/plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
-*   [PagerDuty](docs/pages/identity-governance/access-request-plugins/ssh-approval-pagerduty.mdx)
-*   [Jira](docs/pages/identity-governance/access-request-plugins/ssh-approval-jira.mdx)
-*   [Slack](docs/pages/identity-governance/access-request-plugins/ssh-approval-slack.mdx)
-*   [Mattermost](docs/pages/identity-governance/access-request-plugins/ssh-approval-mattermost.mdx)
+*   [PagerDuty](docs/pages/identity-governance/access-requests/plugins/pagerduty.mdx)
+*   [Jira](docs/pages/identity-governance/access-requests/plugins/jira.mdx)
+*   [Slack](docs/pages/identity-governance/access-requests/plugins/slack.mdx)
+*   [Mattermost](docs/pages/identity-governance/access-requests/plugins/mattermost.mdx)
 
 #### Improvements
 

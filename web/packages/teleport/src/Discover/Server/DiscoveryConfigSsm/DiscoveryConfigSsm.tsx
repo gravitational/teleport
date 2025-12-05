@@ -420,6 +420,7 @@ const inlinePolicyJson = `{
       {
           "Effect": "Allow",
           "Action": [
+              "account:ListRegions",
               "ec2:DescribeInstances",
               "ssm:DescribeInstanceInformation",
               "ssm:GetCommandInvocation",

@@ -150,6 +150,9 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 // ConfigureEC2SSM creates the required resources in AWS to enable EC2 Auto Discover using script mode..
 // It creates an inline policy with the following permissions:
 //
+// Action: List AWS Regions.
+//   - account:ListRegions
+//
 // Action: List EC2 instances where teleport is going to be installed.
 //   - ec2:DescribeInstances
 //
