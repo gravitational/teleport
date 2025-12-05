@@ -166,7 +166,7 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
-	if err := m.validOrganizationAccountDiscovery(); err != nil {
+	if err := m.validateOrganizationAccountDiscovery(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -287,7 +287,7 @@ func (m *AWSMatcher) HasOrganizationMatcher() bool {
 	return m.Organization != nil && m.Organization.OrganizationID != ""
 }
 
-func (m *AWSMatcher) validOrganizationAccountDiscovery() error {
+func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
 	if m.Organization == nil {
 		return nil
 	}
