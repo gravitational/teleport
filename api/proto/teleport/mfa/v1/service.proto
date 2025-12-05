@@ -16,13 +16,10 @@ syntax = "proto3";
 
 package teleport.mfa.v1;
 
-import "gogoproto/gogo.proto";
 import "teleport/mfa/v1/challenge.proto";
 import "teleport/mfa/v1/validated_challenge.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
 
 // MFAService defines the Multi-Factor Authentication (MFA) service. While this service is currently focused on user
 // sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of

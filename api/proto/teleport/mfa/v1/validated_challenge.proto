@@ -16,12 +16,9 @@ syntax = "proto3";
 
 package teleport.mfa.v1;
 
-import "gogoproto/gogo.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
 
 // ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
 message ValidatedMFAChallenge {

@@ -16,13 +16,10 @@ syntax = "proto3";
 
 package teleport.mfa.v1;
 
-import "gogoproto/gogo.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
 
 // AuthenticateChallenge is a challenge for all MFA devices registered for a user.
 message AuthenticateChallenge {
