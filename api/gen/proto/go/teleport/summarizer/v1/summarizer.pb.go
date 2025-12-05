@@ -24,6 +24,7 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
@@ -1137,7 +1138,11 @@ type CommandAnalysis struct {
 	// DataExfiltration indicates whether the command involved data exfiltration.
 	DataExfiltration bool `protobuf:"varint,19,opt,name=data_exfiltration,json=dataExfiltration,proto3" json:"data_exfiltration,omitempty"`
 	// Persistence indicates whether the command involved persistence mechanisms.
-	Persistence   bool `protobuf:"varint,20,opt,name=persistence,proto3" json:"persistence,omitempty"`
+	Persistence bool `protobuf:"varint,20,opt,name=persistence,proto3" json:"persistence,omitempty"`
+	// StartOffset is the start time of the command, relative to the start of the session.
+	StartOffset *durationpb.Duration `protobuf:"bytes,21,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
+	// EndOffset is the end time of the command, relative to the start of the session.
+	EndOffset     *durationpb.Duration `protobuf:"bytes,22,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1312,6 +1317,20 @@ func (x *CommandAnalysis) GetPersistence() bool {
 	return false
 }
 
+func (x *CommandAnalysis) GetStartOffset() *durationpb.Duration {
+	if x != nil {
+		return x.StartOffset
+	}
+	return nil
+}
+
+func (x *CommandAnalysis) GetEndOffset() *durationpb.Duration {
+	if x != nil {
+		return x.EndOffset
+	}
+	return nil
+}
+
 // SecurityRecommendation represents a security recommendation related to a command
 type SecurityRecommendation struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1481,7 +1500,7 @@ var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
 
 const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
+	"'teleport/summarizer/v1/summarizer.proto\x12\x16teleport.summarizer.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xd3\x01\n" +
 	"\x0eInferenceModel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -1533,7 +1552,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"model_name\x18\x06 \x01(\tR\tmodelName\x12C\n" +
 	"\x11session_end_event\x18\a \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\x12#\n" +
 	"\rerror_message\x18\b \x01(\tR\ferrorMessage\x12R\n" +
-	"\x10enhanced_summary\x18\t \x01(\v2'.teleport.summarizer.v1.EnhancedSummaryR\x0fenhancedSummary\"\x8a\a\n" +
+	"\x10enhanced_summary\x18\t \x01(\v2'.teleport.summarizer.v1.EnhancedSummaryR\x0fenhancedSummary\"\x82\b\n" +
 	"\x0fCommandAnalysis\x12\x18\n" +
 	"\acommand\x18\x01 \x01(\tR\acommand\x12C\n" +
 	"\bcategory\x18\x02 \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\x12\x18\n" +
@@ -1557,7 +1576,10 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x12has_sensitive_data\x18\x11 \x01(\bR\x10hasSensitiveData\x121\n" +
 	"\x14privilege_escalation\x18\x12 \x01(\bR\x13privilegeEscalation\x12+\n" +
 	"\x11data_exfiltration\x18\x13 \x01(\bR\x10dataExfiltration\x12 \n" +
-	"\vpersistence\x18\x14 \x01(\bR\vpersistence\"\x8f\x01\n" +
+	"\vpersistence\x18\x14 \x01(\bR\vpersistence\x12<\n" +
+	"\fstart_offset\x18\x15 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
+	"\n" +
+	"end_offset\x18\x16 \x01(\v2\x19.google.protobuf.DurationR\tendOffset\"\x8f\x01\n" +
 	"\x16SecurityRecommendation\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12=\n" +
@@ -1641,6 +1663,7 @@ var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(*v1.Metadata)(nil),            // 16: teleport.header.v1.Metadata
 	(*timestamppb.Timestamp)(nil),  // 17: google.protobuf.Timestamp
 	(*structpb.Struct)(nil),        // 18: google.protobuf.Struct
+	(*durationpb.Duration)(nil),    // 19: google.protobuf.Duration
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
 	16, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
@@ -1659,14 +1682,16 @@ var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
 	1,  // 13: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
 	2,  // 14: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
 	3,  // 15: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	2,  // 16: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	2,  // 17: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	13, // 18: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	19, // 16: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
+	19, // 17: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
+	2,  // 18: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	2,  // 19: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	13, // 20: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }

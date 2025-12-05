@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.summarizer.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
@@ -317,6 +318,10 @@ message CommandAnalysis {
   bool data_exfiltration = 19;
   // Persistence indicates whether the command involved persistence mechanisms.
   bool persistence = 20;
+  // StartOffset is the start time of the command, relative to the start of the session.
+  google.protobuf.Duration start_offset = 21;
+  // EndOffset is the end time of the command, relative to the start of the session.
+  google.protobuf.Duration end_offset = 22;
 }
 
 // SecurityRecommendation represents a security recommendation related to a command
