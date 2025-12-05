@@ -386,16 +386,24 @@ func TestAccessMySQL(t *testing.T) {
 
 func TestMySQLServerVersionUpdateOnConnection(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(
-		ctx,
-		t,
-		withSelfHostedMySQL("mysql",
-			// Set an older version in DB spec.
-			withMySQLServerVersionInDBSpec("6.6.6-before"),
-			// Set a newer version in TestServer.
-			withMySQLServerVersion("8.8.8-after"),
-		),
-	)
+	testCtx := setupTestContext(ctx, t)
+	// disable default health check, because health checks will extract and
+	// update the server version before we connect
+	hcc, err := testCtx.authServer.GetHealthCheckConfig(ctx, teleport.VirtualDefaultHealthCheckConfigDBName)
+	require.NoError(t, err)
+	hcc.Spec.Match.Disabled = true
+	_, err = testCtx.authServer.UpsertHealthCheckConfig(ctx, hcc)
+	require.NoError(t, err)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases: types.Databases{
+			withSelfHostedMySQL("mysql",
+				// Set an older version in DB spec.
+				withMySQLServerVersionInDBSpec("6.6.6-before"),
+				// Set a newer version in TestServer.
+				withMySQLServerVersion("8.8.8-after"),
+			)(t, ctx, testCtx),
+		},
+	})
 	go testCtx.startHandlingConnections()
 
 	// Confirm the server version configured in the spec.
