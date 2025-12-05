@@ -41,32 +41,75 @@ type UserLoginState struct {
 
 // Spec is the specification for the user login state.
 type Spec struct {
-	// OriginalRoles is the list of the original roles from the user login state.
+	// OriginalRoles are the user roles that are part of the user's static definition. These roles
+	// are not affected by access granted by access lists and are obtained prior to granting access
+	// list access. Basically, [OriginalRoles] = [Roles] - [AccessListRoles].
 	OriginalRoles []string `json:"original_roles" yaml:"original_roles"`
 
-	// OriginalTraits is the list of the original traits from the user login state.
+	// OriginalTraits are the user traits that are part of the user's static definition. These
+	// traits are not affected by access granted by access lists and are obtained prior to granting
+	// access list access. Basically, [OriginalTraits] = [Traits] - [AccessListTraits].
 	OriginalTraits trait.Traits `json:"original_traits" yaml:"original_traits"`
 
-	// Roles is the list of roles attached to the user login state.
+	// Roles are the user roles attached to the user. Basically, [Roles] = [OriginalRoles] +
+	// [AccessListRoles].
 	Roles []string `json:"roles" yaml:"roles"`
 
-	// Traits are the traits attached to the user login state.
+	// Traits are the traits attached to the user. Basically, [roles] = [original_traits] +
+	// [access_list_traits].
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+
+	// AccessListRoles are roles granted to this user by the Access Lists
+	// membership/ownership.  Basically, [AccessListRoles] = [Roles] - [OriginalRoles].
+	AccessListRoles []string `json:"access_list_roles,omitempty" yaml:"access_list_roles"`
+
+	// AccessListTraits are traits granted to this user by the Access Lists membership/ownership.
+	// Basically, [AccessListTraits] = [Traits] - [OriginalTraits].
+	AccessListTraits trait.Traits `json:"access_list_traits" yaml:"access_list_traits"`
 
 	// UserType is the type of user that this state represents.
 	UserType types.UserType `json:"user_type" yaml:"user_type"`
 
 	// GitHubIdentity is user's attached GitHub identity
 	GitHubIdentity *ExternalIdentity `json:"github_identity,omitempty" yaml:"github_identity"`
+
+	// SAMLIdentities are the identities created from the SAML connectors used to log in by
+	// this user name.
+	//
+	// NOTE: There is no mechanism to clean those identities. If the the user is deleted, the
+	// user_login_state and it's saml_identities will not be deleted. Or even if the user still
+	// exists, but it's SAML identity expires it isn't cleared from the user_login_state. This means
+	// the information stored here can be used only as long as there is a background sync running and
+	// making sure the user's info is up-to-date. E.g. Okta assignment creator is using this
+	// information, but it is running only when Okta user sync is active and periodically updates the
+	// user which in turn updates the user_login_state.
+	//
+	// NOTE2: This field isn't currently used. It's introduced so we can resolve the
+	// https://github.com/gravitational/teleport.e/issues/6723 issue in stages.
+	// The STAGE 1 is to introduce this field and give enough time to get existing Teleport
+	// installations to get updated and populate this field.
+	// The STAGE 2 is in the v19 release (or maybe even v20) to deploy the actual fix PR
+	// (https://github.com/gravitational/teleport.e/pull/7168) reading this field and calculating
+	// access to Okta resources. See more details in the description of the fix PR.
+	//
+	// TODO(kopiczko) v19: consider proceeding with the STAGE 2 described above.
+	SAMLIdentities []ExternalIdentity `json:"saml_identities,omitempty" yaml:"saml_identities"`
 }
 
 // ExternalIdentity defines an external identity attached to this user state.
 type ExternalIdentity struct {
+	// ConnectorID is the connector this identity was created with. It's empty for the local
+	// user.
+	ConnectorID string
 	// UserId is the unique identifier of the external identity such as GitHub
 	// user ID.
 	UserID string
 	// Username is the username of the external identity.
 	Username string
+	// GrantedRoles specific for this identity. E.g.: from connector attributes mapping.
+	GrantedRoles []string
+	// GrantedTraits specific for this identity. E.g.: from connector roles attributes mapping.
+	GrantedTraits trait.Traits
 }
 
 // New creates a new user login state.
@@ -114,24 +157,40 @@ func (u *UserLoginState) IsEqual(i *UserLoginState) bool {
 	return deriveTeleportEqualUserLoginState(u, i)
 }
 
-// GetOriginalRoles returns the original roles that the user login state was derived from.
+// GetOriginalRoles returns the original roles that the user login state was derived from. It's the
+// same as GetRoles() - GetOriginalRoles().
 func (u *UserLoginState) GetOriginalRoles() []string {
 	return u.Spec.OriginalRoles
 }
 
-// GetOriginalTraits returns the original traits that the user login state was derived from.
+// GetOriginalTraits returns the original traits that the user login state was derived from. It's
+// the same as GetTraits() - GetAccessListTraits().
 func (u *UserLoginState) GetOriginalTraits() map[string][]string {
 	return u.Spec.OriginalTraits
 }
 
-// GetRoles returns the roles attached to the user login state.
+// GetRoles returns the roles attached to the user login state. It's the same as GetOriginalRoles()
+// + GetAccessListRoles().
 func (u *UserLoginState) GetRoles() []string {
 	return u.Spec.Roles
 }
 
-// GetTraits returns the traits attached to the user login state.
+// GetTraits returns the traits attached to the user login state. It's the same as
+// GetOriginalTraits() + GetAccessListTraits().
 func (u *UserLoginState) GetTraits() map[string][]string {
 	return u.Spec.Traits
+}
+
+// GetAccessListRoles returns roles granted to this user by the Access Lists membership/ownership.
+// It's the same as GetRoles() - GetOriginalRoles().
+func (u *UserLoginState) GetAccessListRoles() []string {
+	return u.Spec.AccessListRoles
+}
+
+// GetAccessListTraits returns traits granted to this user by the Access Lists
+// membership/ownership. It's the same as GetTraits() - GetOriginalTraits().
+func (u *UserLoginState) GetAccessListTraits() map[string][]string {
+	return u.Spec.AccessListTraits
 }
 
 // GetUserType returns the user type for the user login state.

@@ -95,22 +95,54 @@ func (x *UserLoginState) GetSpec() *Spec {
 // Spec is the specification for a user login state.
 type Spec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// roles are the user roles attached to the user.
+	// roles are the user roles attached to the user. Basically, [roles] = [original_roles] +
+	// [access_list_roles].
 	Roles []string `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
-	// traits are the traits attached to the user.
+	// traits are the traits attached to the user. Basically, [roles] = [original_traits] +
+	// [access_list_traits].
 	Traits []*v11.Trait `protobuf:"bytes,2,rep,name=traits,proto3" json:"traits,omitempty"`
 	// user_type is the type of user this state represents.
 	UserType string `protobuf:"bytes,3,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
-	// original_roles are the user roles that are part of the user's static definition. These roles are
-	// not affected by access granted by access lists and are obtained prior to granting access list access.
+	// original_roles are the user roles that are part of the user's static definition. These roles
+	// are not affected by access granted by access lists and are obtained prior to granting access
+	// list access. Basically, [original_roles] = [roles] - [access_list_roles].
 	OriginalRoles []string `protobuf:"bytes,4,rep,name=original_roles,json=originalRoles,proto3" json:"original_roles,omitempty"`
-	// original_traits are the user traits that are part of the user's static definition. These traits are
-	// not affected by access granted by access lists and are obtained prior to granting access list access.
+	// original_traits are the user traits that are part of the user's static definition. These
+	// traits are not affected by access granted by access lists and are obtained prior to granting
+	// access list access. Basically, [original_traits] = [traits] - [access_list_traits].
 	OriginalTraits []*v11.Trait `protobuf:"bytes,5,rep,name=original_traits,json=originalTraits,proto3" json:"original_traits,omitempty"`
 	// GitHubIdentity is the external identity attached to this user state.
 	GitHubIdentity *ExternalIdentity `protobuf:"bytes,6,opt,name=git_hub_identity,json=gitHubIdentity,proto3" json:"git_hub_identity,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// saml_identities are the identities created from the SAML connectors used to log in by this
+	// user name. They are useful for RBAC calculation when there is a user with same username form
+	// multiple SSO connectors, i.e. having multiple SSO indentities.
+	//
+	// NOTE: There is no mechanism to clean those identities. If the the user is deleted, the
+	// user_login_state and it's saml_identities will not be deleted. Or even if the user still
+	// exists, but it's SAML identity expires it isn't cleared from the user_login_state. This means
+	// the information stored here can be used only as long as there is a background sync running and
+	// making sure the user's info is up-to-date. E.g. Okta assignment creator is using this
+	// information, but it is running only when Okta user sync is active and periodically updates the
+	// user which in turn updates the user_login_state.
+	//
+	// NOTE2: This field isn't currently used. It's introduced so we can resolve the
+	// https://github.com/gravitational/teleport.e/issues/6723 issue in stages.
+	// The STAGE 1 is to introduce this field and give enough time to get existing Teleport
+	// installations to get updated and populate this field.
+	// The STAGE 2 is in the v19 release (or maybe even v20) to deploy the actual fix PR
+	// (https://github.com/gravitational/teleport.e/pull/7168) reading this field and calculating
+	// access to Okta resources. See more details in the description of the fix PR.
+	//
+	// TODO(kopiczko) v19: consider proceeding with the STAGE 2 described above.
+	SamlIdentities []*ExternalIdentity `protobuf:"bytes,7,rep,name=saml_identities,json=samlIdentities,proto3" json:"saml_identities,omitempty"`
+	// access_list_roles are roles granted to this user by the Access Lists
+	// membership/ownership.  Basically, [access_list_roles] = [roles] - [original_roles].
+	AccessListRoles []string `protobuf:"bytes,8,rep,name=access_list_roles,json=accessListRoles,proto3" json:"access_list_roles,omitempty"`
+	// access_list_traits are traits granted to this user by the Access Lists membership/ownership.
+	// Basically, [access_list_traits] = [traits] - [original_traits].
+	AccessListTraits []*v11.Trait `protobuf:"bytes,9,rep,name=access_list_traits,json=accessListTraits,proto3" json:"access_list_traits,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Spec) Reset() {
@@ -185,14 +217,41 @@ func (x *Spec) GetGitHubIdentity() *ExternalIdentity {
 	return nil
 }
 
+func (x *Spec) GetSamlIdentities() []*ExternalIdentity {
+	if x != nil {
+		return x.SamlIdentities
+	}
+	return nil
+}
+
+func (x *Spec) GetAccessListRoles() []string {
+	if x != nil {
+		return x.AccessListRoles
+	}
+	return nil
+}
+
+func (x *Spec) GetAccessListTraits() []*v11.Trait {
+	if x != nil {
+		return x.AccessListTraits
+	}
+	return nil
+}
+
 // ExternalIdentity defines an external identity attached to this user state.
 type ExternalIdentity struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UserId is the unique identifier of the external identity such as GitHub user
+	// UserID is the unique identifier of the external identity such as GitHub user
 	// ID.
 	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	// Username is the username of the external identity.
-	Username      string `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	Username string `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	// ConnectorID is the connector this identity was created with. It's empty for the local user.
+	ConnectorId string `protobuf:"bytes,3,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
+	// GrantedRoles specific for this identity. E.g.: from connector attributes mapping.
+	GrantedRoles []string `protobuf:"bytes,4,rep,name=granted_roles,json=grantedRoles,proto3" json:"granted_roles,omitempty"`
+	// GrantedTraits specific for this identity. E.g.: from connector roles attributes mapping.
+	GrantedTraits []*v11.Trait `protobuf:"bytes,5,rep,name=granted_traits,json=grantedTraits,proto3" json:"granted_traits,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -241,6 +300,27 @@ func (x *ExternalIdentity) GetUsername() string {
 	return ""
 }
 
+func (x *ExternalIdentity) GetConnectorId() string {
+	if x != nil {
+		return x.ConnectorId
+	}
+	return ""
+}
+
+func (x *ExternalIdentity) GetGrantedRoles() []string {
+	if x != nil {
+		return x.GrantedRoles
+	}
+	return nil
+}
+
+func (x *ExternalIdentity) GetGrantedTraits() []*v11.Trait {
+	if x != nil {
+		return x.GrantedTraits
+	}
+	return nil
+}
+
 var File_teleport_userloginstate_v1_userloginstate_proto protoreflect.FileDescriptor
 
 const file_teleport_userloginstate_v1_userloginstate_proto_rawDesc = "" +
@@ -248,17 +328,23 @@ const file_teleport_userloginstate_v1_userloginstate_proto_rawDesc = "" +
 	"/teleport/userloginstate/v1/userloginstate.proto\x12\x1ateleport.userloginstate.v1\x1a'teleport/header/v1/resourceheader.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x82\x01\n" +
 	"\x0eUserLoginState\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x124\n" +
-	"\x04spec\x18\x02 \x01(\v2 .teleport.userloginstate.v1.SpecR\x04spec\"\xad\x02\n" +
+	"\x04spec\x18\x02 \x01(\v2 .teleport.userloginstate.v1.SpecR\x04spec\"\xf8\x03\n" +
 	"\x04Spec\x12\x14\n" +
 	"\x05roles\x18\x01 \x03(\tR\x05roles\x120\n" +
 	"\x06traits\x18\x02 \x03(\v2\x18.teleport.trait.v1.TraitR\x06traits\x12\x1b\n" +
 	"\tuser_type\x18\x03 \x01(\tR\buserType\x12%\n" +
 	"\x0eoriginal_roles\x18\x04 \x03(\tR\roriginalRoles\x12A\n" +
 	"\x0foriginal_traits\x18\x05 \x03(\v2\x18.teleport.trait.v1.TraitR\x0eoriginalTraits\x12V\n" +
-	"\x10git_hub_identity\x18\x06 \x01(\v2,.teleport.userloginstate.v1.ExternalIdentityR\x0egitHubIdentity\"G\n" +
+	"\x10git_hub_identity\x18\x06 \x01(\v2,.teleport.userloginstate.v1.ExternalIdentityR\x0egitHubIdentity\x12U\n" +
+	"\x0fsaml_identities\x18\a \x03(\v2,.teleport.userloginstate.v1.ExternalIdentityR\x0esamlIdentities\x12*\n" +
+	"\x11access_list_roles\x18\b \x03(\tR\x0faccessListRoles\x12F\n" +
+	"\x12access_list_traits\x18\t \x03(\v2\x18.teleport.trait.v1.TraitR\x10accessListTraits\"\xd0\x01\n" +
 	"\x10ExternalIdentity\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busernameB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1;userloginstatev1b\x06proto3"
+	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
+	"\fconnector_id\x18\x03 \x01(\tR\vconnectorId\x12#\n" +
+	"\rgranted_roles\x18\x04 \x03(\tR\fgrantedRoles\x12?\n" +
+	"\x0egranted_traits\x18\x05 \x03(\v2\x18.teleport.trait.v1.TraitR\rgrantedTraitsB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1;userloginstatev1b\x06proto3"
 
 var (
 	file_teleport_userloginstate_v1_userloginstate_proto_rawDescOnce sync.Once
@@ -286,11 +372,14 @@ var file_teleport_userloginstate_v1_userloginstate_proto_depIdxs = []int32{
 	4, // 2: teleport.userloginstate.v1.Spec.traits:type_name -> teleport.trait.v1.Trait
 	4, // 3: teleport.userloginstate.v1.Spec.original_traits:type_name -> teleport.trait.v1.Trait
 	2, // 4: teleport.userloginstate.v1.Spec.git_hub_identity:type_name -> teleport.userloginstate.v1.ExternalIdentity
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	2, // 5: teleport.userloginstate.v1.Spec.saml_identities:type_name -> teleport.userloginstate.v1.ExternalIdentity
+	4, // 6: teleport.userloginstate.v1.Spec.access_list_traits:type_name -> teleport.trait.v1.Trait
+	4, // 7: teleport.userloginstate.v1.ExternalIdentity.granted_traits:type_name -> teleport.trait.v1.Trait
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_userloginstate_v1_userloginstate_proto_init() }
