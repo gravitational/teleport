@@ -86,7 +86,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.59.0
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.30.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.37.0
-	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
 	github.com/aws/smithy-go v1.23.2
 	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.4
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.9.1
