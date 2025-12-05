@@ -7112,6 +7112,11 @@ enum RequireMFAType {
   // HARDWARE_KEY_TOUCH_AND_PIN means login sessions must use a hardware private key that
   // requires touch and pin to be used.
   HARDWARE_KEY_TOUCH_AND_PIN = 5;
+  // IN_BAND_SESSION means in-band MFA is required to establish server sessions. This forces exclusive use of the
+  // in-band MFA flow for all supported protocols and disallows all out-of-band MFA. Only the SSH protocol is supported
+  // and enforced at this time while this option is enabled.
+  // TODO(cthach): Update documentation to publicly expose this option when the in-band MFA feature is code complete.
+  IN_BAND_SESSION = 6;
 }
 
 // SignatureAlgorithmSuite represents the suite of cryptographic signature algorithms used in the cluster.

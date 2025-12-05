@@ -612,6 +612,10 @@ after which all components must support the in‑band MFA flow exclusively.
 Example: if this RFD is implemented in Teleport 20.0.0, the transition period covers releases 20.x and 19.x and will end
 with the release of 21.0.0. Starting with 21.0.0, all components must support in‑band MFA enforcement only.
 
+This transition period might be too long for some environments that want to enforce in-band MFA sooner for improved
+security. To accommodate these environments, an [opt-in configuration option](#early-adopters--opt-in-feature-gate) will
+be provided to allow early adopters to enable in-band MFA enforcement before the end of the transition period.
+
 #### SSH Service
 
 The SSH service will continue to support legacy clients that rely on per-session MFA SSH certificates during the
@@ -662,6 +666,28 @@ A modern client can differentiate between legacy and modern agents by checking i
 authentication whether the SSH service sends a keyboard-interactive prompt indicating that MFA is required. If an SSH
 authentication error is received, the client can assume it is connecting to a legacy agent and must generate a
 per-session MFA SSH certificate in order to complete MFA verification.
+
+#### Early Adopters / Opt-In Feature Gate
+
+Set the configuration option `auth_service.require_session_mfa = in_band_session` to force exclusive use of the in‑band
+MFA flow for testing and early adoption.
+
+For environments deploying a fresh Teleport cluster during the transition period, it is recommended to enable this
+option to ensure that all components use the in‑band MFA flow from the start.
+
+This option is instance-wide and affects both clients and agents. When this option is set:
+
+1. Modern clients will not request per-session MFA certificates and will use the in‑band MFA flow.
+1. Modern agents will reject per-session MFA certificates and require in‑band MFA for connections that need MFA.
+1. Clients will no longer be able to request per-session MFA certificates from the Auth service.
+
+> Warning: intended for testing/early adopters only. Enabling this will break connections from legacy clients or legacy
+> agents that still rely on per-session MFA certificates. Remove the flag once the environment has completed migration
+> to the in‑band flow. Once the transition period is over, the flag will be removed and modern clients and agents will
+> exclusively use the in‑band MFA flow.
+
+When the configuration option is not set, the system behaves as described in the previous sections, supporting both
+legacy and modern clients and agents during the transition period.
 
 ### Audit Events
 
