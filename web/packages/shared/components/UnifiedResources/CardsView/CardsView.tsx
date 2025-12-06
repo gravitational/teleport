@@ -36,6 +36,7 @@ export function CardsView({
   isProcessing,
   pinningSupport,
   visibleInputFields,
+  resourceLabelConfig,
 }: ResourceViewProps) {
   return (
     <CardsContainer className="CardsContainer" gap={2}>
@@ -53,6 +54,7 @@ export function CardsView({
             onShowStatusInfo={onShowStatusInfo}
             showingStatusInfo={showingStatusInfo}
             visibleInputFields={visibleInputFields}
+            resourceLabelConfig={resourceLabelConfig}
           />
         )
       )}

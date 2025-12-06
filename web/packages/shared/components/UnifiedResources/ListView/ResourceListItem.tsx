@@ -22,6 +22,7 @@ import styled, { css } from 'styled-components';
 import { Box, ButtonIcon, Flex, Label, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { Tags, Warning } from 'design/Icon';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -51,6 +52,7 @@ export function ResourceListItem({
   showingStatusInfo,
   viewItem,
   visibleInputFields = { pin: true, checkbox: true },
+  resourceLabelConfig,
 }: ResourceItemProps) {
   const {
     name,
@@ -281,26 +283,32 @@ export function ResourceListItem({
           >
             {labels.map((label, i) => {
               const labelText = makeLabelTag(label);
-              // We can use the index i as the key since it will always be unique to this label.
+              const sharedProps = {
+                title: labelText,
+                onClick: () => onLabelClick?.(label),
+                kind: resourceLabelConfig?.kind || 'secondary',
+                mr: 2,
+              };
+
+              // We can use the index i as the key since
+              // it will always be unique to this label.
+
+              if (resourceLabelConfig?.Icon) {
+                return (
+                  <StyledLabelButton
+                    key={i}
+                    {...sharedProps}
+                    Icon={resourceLabelConfig.Icon}
+                    placement={resourceLabelConfig.iconPlacement ?? 'right'}
+                  >
+                    {labelText}
+                  </StyledLabelButton>
+                );
+              }
               return (
-                <Label
-                  key={i}
-                  title={labelText}
-                  onClick={() => onLabelClick?.(label)}
-                  kind="secondary"
-                  mr={2}
-                  css={`
-                    cursor: pointer;
-                    height: 20px;
-                    line-height: 19px;
-                    max-width: 100%;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                  `}
-                >
+                <StyledLabel key={i} {...sharedProps}>
                   {labelText}
-                </Label>
+                </StyledLabel>
               );
             })}
           </Box>
@@ -359,6 +367,24 @@ const RowContainer = styled(Box)<{
       height: 100%;
     }
   }
+`;
+
+const sharedLabelStyle = css`
+  cursor: pointer;
+  height: 20px;
+  line-height: 19px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const StyledLabel = styled(Label)`
+  ${sharedLabelStyle}
+`;
+
+const StyledLabelButton = styled(LabelButtonWithIcon)`
+  ${sharedLabelStyle}
 `;
 
 const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
