@@ -222,8 +222,8 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() (*servicecfg.PAMConfig, error) {
-	return &servicecfg.PAMConfig{}, nil
+func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 
 // GetClock returns a clock setup for the server
