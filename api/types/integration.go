@@ -76,6 +76,8 @@ type Integration interface {
 
 	// GetAzureOIDCIntegrationSpec returns the `azure-oidc` spec fields.
 	GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1
+	// SetAzureOIDCIntegrationSpec sets the `azure-oidc` spec fields.
+	SetAzureOIDCIntegrationSpec(*AzureOIDCIntegrationSpecV1)
 
 	// GetGitHubIntegrationSpec returns the GitHub spec.
 	GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1
@@ -399,6 +401,13 @@ func (ig *IntegrationV1) SetAWSOIDCIssuerS3URI(issuerS3URI string) {
 // GetAzureOIDCIntegrationSpec returns the specific spec fields for `azure-oidc` subkind integrations.
 func (ig *IntegrationV1) GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1 {
 	return ig.Spec.GetAzureOIDC()
+}
+
+// SetAzureOIDCIntegrationSpec sets the `azure-oidc` spec fields.
+func (ig *IntegrationV1) SetAzureOIDCIntegrationSpec(spec *AzureOIDCIntegrationSpecV1) {
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_AzureOIDC{
+		AzureOIDC: spec,
+	}
 }
 
 // GetGitHubIntegrationSpec returns the GitHub spec.

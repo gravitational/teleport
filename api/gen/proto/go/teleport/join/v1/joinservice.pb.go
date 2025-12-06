@@ -93,7 +93,7 @@ func (x GivingUp_Reason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use GivingUp_Reason.Descriptor instead.
 func (GivingUp_Reason) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{21, 0}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{24, 0}
 }
 
 // ClientInit is the first message sent from the client during the join process, it
@@ -1317,6 +1317,261 @@ func (x *OracleChallengeSolution) GetSignedRootCaReq() []byte {
 	return nil
 }
 
+// TPMInit is the message sent from the client in response to the ServerInit
+// message for the TPM join flow.
+// The server is expected to respond with a TPMEncryptedCredential message.
+//
+// The TPM method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: TPMInit
+// 4. client<-server: TPMEncryptedCredential
+// 5. client->server: TPMSolution
+// 6. client<-server: Result
+type TPMInit struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
+	// The encoded TPMT_PUBLIC structure containing the attestation public key
+	// and signing parameters.
+	Public []byte `protobuf:"bytes,2,opt,name=public,proto3" json:"public,omitempty"`
+	// The properties of the attestation key, encoded as a TPMS_CREATION_DATA
+	// structure.
+	CreateData []byte `protobuf:"bytes,3,opt,name=create_data,json=createData,proto3" json:"create_data,omitempty"`
+	// An assertion as to the details of the key, encoded as a TPMS_ATTEST
+	// structure.
+	CreateAttestation []byte `protobuf:"bytes,4,opt,name=create_attestation,json=createAttestation,proto3" json:"create_attestation,omitempty"`
+	// A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
+	CreateSignature []byte `protobuf:"bytes,5,opt,name=create_signature,json=createSignature,proto3" json:"create_signature,omitempty"`
+	// Types that are valid to be assigned to Ek:
+	//
+	//	*TPMInit_EkCert
+	//	*TPMInit_EkKey
+	Ek            isTPMInit_Ek `protobuf_oneof:"ek"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TPMInit) Reset() {
+	*x = TPMInit{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TPMInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TPMInit) ProtoMessage() {}
+
+func (x *TPMInit) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TPMInit.ProtoReflect.Descriptor instead.
+func (*TPMInit) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *TPMInit) GetClientParams() *ClientParams {
+	if x != nil {
+		return x.ClientParams
+	}
+	return nil
+}
+
+func (x *TPMInit) GetPublic() []byte {
+	if x != nil {
+		return x.Public
+	}
+	return nil
+}
+
+func (x *TPMInit) GetCreateData() []byte {
+	if x != nil {
+		return x.CreateData
+	}
+	return nil
+}
+
+func (x *TPMInit) GetCreateAttestation() []byte {
+	if x != nil {
+		return x.CreateAttestation
+	}
+	return nil
+}
+
+func (x *TPMInit) GetCreateSignature() []byte {
+	if x != nil {
+		return x.CreateSignature
+	}
+	return nil
+}
+
+func (x *TPMInit) GetEk() isTPMInit_Ek {
+	if x != nil {
+		return x.Ek
+	}
+	return nil
+}
+
+func (x *TPMInit) GetEkCert() []byte {
+	if x != nil {
+		if x, ok := x.Ek.(*TPMInit_EkCert); ok {
+			return x.EkCert
+		}
+	}
+	return nil
+}
+
+func (x *TPMInit) GetEkKey() []byte {
+	if x != nil {
+		if x, ok := x.Ek.(*TPMInit_EkKey); ok {
+			return x.EkKey
+		}
+	}
+	return nil
+}
+
+type isTPMInit_Ek interface {
+	isTPMInit_Ek()
+}
+
+type TPMInit_EkCert struct {
+	// The device's endorsement certificate in X509, ASN.1 DER form. This
+	// certificate contains the public key of the endorsement key. This is
+	// preferred to ek_key.
+	EkCert []byte `protobuf:"bytes,6,opt,name=ek_cert,json=ekCert,proto3,oneof"`
+}
+
+type TPMInit_EkKey struct {
+	// The device's public endorsement key in PKIX, ASN.1 DER form. This is
+	// used when a TPM does not contain any endorsement certificates.
+	EkKey []byte `protobuf:"bytes,7,opt,name=ek_key,json=ekKey,proto3,oneof"`
+}
+
+func (*TPMInit_EkCert) isTPMInit_Ek() {}
+
+func (*TPMInit_EkKey) isTPMInit_Ek() {}
+
+// TPMEncryptedCredential is the message sent from the server in response to the
+// TPMInit message.
+// The client is expected to respond with a TPMSolution message.
+type TPMEncryptedCredential struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The `credential_blob` parameter to be used with the `ActivateCredential`
+	// command. This is used with the decrypted value of `secret` in a
+	// cryptographic process to decrypt the solution.
+	CredentialBlob []byte `protobuf:"bytes,1,opt,name=credential_blob,json=credentialBlob,proto3" json:"credential_blob,omitempty"`
+	// The `secret` parameter to be used with `ActivateCredential`. This is a
+	// seed which can be decrypted with the EK. The decrypted seed is then used
+	// when decrypting `credential_blob`.
+	Secret        []byte `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TPMEncryptedCredential) Reset() {
+	*x = TPMEncryptedCredential{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TPMEncryptedCredential) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TPMEncryptedCredential) ProtoMessage() {}
+
+func (x *TPMEncryptedCredential) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TPMEncryptedCredential.ProtoReflect.Descriptor instead.
+func (*TPMEncryptedCredential) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *TPMEncryptedCredential) GetCredentialBlob() []byte {
+	if x != nil {
+		return x.CredentialBlob
+	}
+	return nil
+}
+
+func (x *TPMEncryptedCredential) GetSecret() []byte {
+	if x != nil {
+		return x.Secret
+	}
+	return nil
+}
+
+// TPMSolution is the message sent from the client in response to the
+// TPMEncryptedCredential message. The server is expected to respond with a
+// Result message.
+type TPMSolution struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The client's solution to TPMEncryptedCredential using ActivateCredential.
+	Solution      []byte `protobuf:"bytes,1,opt,name=solution,proto3" json:"solution,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TPMSolution) Reset() {
+	*x = TPMSolution{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TPMSolution) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TPMSolution) ProtoMessage() {}
+
+func (x *TPMSolution) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TPMSolution.ProtoReflect.Descriptor instead.
+func (*TPMSolution) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *TPMSolution) GetSolution() []byte {
+	if x != nil {
+		return x.Solution
+	}
+	return nil
+}
+
 // ChallengeSolution holds a solution to a challenge issued by the server.
 type ChallengeSolution struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1326,6 +1581,7 @@ type ChallengeSolution struct {
 	//	*ChallengeSolution_BoundKeypairRotationResponse
 	//	*ChallengeSolution_IamChallengeSolution
 	//	*ChallengeSolution_OracleChallengeSolution
+	//	*ChallengeSolution_TpmSolution
 	Payload       isChallengeSolution_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1333,7 +1589,7 @@ type ChallengeSolution struct {
 
 func (x *ChallengeSolution) Reset() {
 	*x = ChallengeSolution{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1345,7 +1601,7 @@ func (x *ChallengeSolution) String() string {
 func (*ChallengeSolution) ProtoMessage() {}
 
 func (x *ChallengeSolution) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1358,7 +1614,7 @@ func (x *ChallengeSolution) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChallengeSolution.ProtoReflect.Descriptor instead.
 func (*ChallengeSolution) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{20}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ChallengeSolution) GetPayload() isChallengeSolution_Payload {
@@ -1404,6 +1660,15 @@ func (x *ChallengeSolution) GetOracleChallengeSolution() *OracleChallengeSolutio
 	return nil
 }
 
+func (x *ChallengeSolution) GetTpmSolution() *TPMSolution {
+	if x != nil {
+		if x, ok := x.Payload.(*ChallengeSolution_TpmSolution); ok {
+			return x.TpmSolution
+		}
+	}
+	return nil
+}
+
 type isChallengeSolution_Payload interface {
 	isChallengeSolution_Payload()
 }
@@ -1424,6 +1689,10 @@ type ChallengeSolution_OracleChallengeSolution struct {
 	OracleChallengeSolution *OracleChallengeSolution `protobuf:"bytes,4,opt,name=oracle_challenge_solution,json=oracleChallengeSolution,proto3,oneof"`
 }
 
+type ChallengeSolution_TpmSolution struct {
+	TpmSolution *TPMSolution `protobuf:"bytes,5,opt,name=tpm_solution,json=tpmSolution,proto3,oneof"`
+}
+
 func (*ChallengeSolution_BoundKeypairChallengeSolution) isChallengeSolution_Payload() {}
 
 func (*ChallengeSolution_BoundKeypairRotationResponse) isChallengeSolution_Payload() {}
@@ -1431,6 +1700,8 @@ func (*ChallengeSolution_BoundKeypairRotationResponse) isChallengeSolution_Paylo
 func (*ChallengeSolution_IamChallengeSolution) isChallengeSolution_Payload() {}
 
 func (*ChallengeSolution_OracleChallengeSolution) isChallengeSolution_Payload() {}
+
+func (*ChallengeSolution_TpmSolution) isChallengeSolution_Payload() {}
 
 // GivingUp should be sent by clients that fail to complete the join flow so
 // that the Auth service can log an informative error message.
@@ -1446,7 +1717,7 @@ type GivingUp struct {
 
 func (x *GivingUp) Reset() {
 	*x = GivingUp{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1458,7 +1729,7 @@ func (x *GivingUp) String() string {
 func (*GivingUp) ProtoMessage() {}
 
 func (x *GivingUp) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1471,7 +1742,7 @@ func (x *GivingUp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GivingUp.ProtoReflect.Descriptor instead.
 func (*GivingUp) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{21}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GivingUp) GetReason() GivingUp_Reason {
@@ -1502,6 +1773,7 @@ type JoinRequest struct {
 	//	*JoinRequest_Ec2Init
 	//	*JoinRequest_OidcInit
 	//	*JoinRequest_OracleInit
+	//	*JoinRequest_TpmInit
 	Payload       isJoinRequest_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1509,7 +1781,7 @@ type JoinRequest struct {
 
 func (x *JoinRequest) Reset() {
 	*x = JoinRequest{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[22]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1521,7 +1793,7 @@ func (x *JoinRequest) String() string {
 func (*JoinRequest) ProtoMessage() {}
 
 func (x *JoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[22]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1534,7 +1806,7 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
 func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{22}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *JoinRequest) GetPayload() isJoinRequest_Payload {
@@ -1625,6 +1897,15 @@ func (x *JoinRequest) GetOracleInit() *OracleInit {
 	return nil
 }
 
+func (x *JoinRequest) GetTpmInit() *TPMInit {
+	if x != nil {
+		if x, ok := x.Payload.(*JoinRequest_TpmInit); ok {
+			return x.TpmInit
+		}
+	}
+	return nil
+}
+
 type isJoinRequest_Payload interface {
 	isJoinRequest_Payload()
 }
@@ -1665,6 +1946,10 @@ type JoinRequest_OracleInit struct {
 	OracleInit *OracleInit `protobuf:"bytes,9,opt,name=oracle_init,json=oracleInit,proto3,oneof"`
 }
 
+type JoinRequest_TpmInit struct {
+	TpmInit *TPMInit `protobuf:"bytes,10,opt,name=tpm_init,json=tpmInit,proto3,oneof"`
+}
+
 func (*JoinRequest_ClientInit) isJoinRequest_Payload() {}
 
 func (*JoinRequest_TokenInit) isJoinRequest_Payload() {}
@@ -1683,6 +1968,8 @@ func (*JoinRequest_OidcInit) isJoinRequest_Payload() {}
 
 func (*JoinRequest_OracleInit) isJoinRequest_Payload() {}
 
+func (*JoinRequest_TpmInit) isJoinRequest_Payload() {}
+
 // ServerInit is the first message sent from the server in response to the
 // ClientInit message.
 type ServerInit struct {
@@ -1698,7 +1985,7 @@ type ServerInit struct {
 
 func (x *ServerInit) Reset() {
 	*x = ServerInit{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[23]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1710,7 +1997,7 @@ func (x *ServerInit) String() string {
 func (*ServerInit) ProtoMessage() {}
 
 func (x *ServerInit) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[23]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1723,7 +2010,7 @@ func (x *ServerInit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInit.ProtoReflect.Descriptor instead.
 func (*ServerInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{23}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ServerInit) GetJoinMethod() string {
@@ -1749,6 +2036,7 @@ type Challenge struct {
 	//	*Challenge_BoundKeypairRotationRequest
 	//	*Challenge_IamChallenge
 	//	*Challenge_OracleChallenge
+	//	*Challenge_TpmEncryptedCredential
 	Payload       isChallenge_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1756,7 +2044,7 @@ type Challenge struct {
 
 func (x *Challenge) Reset() {
 	*x = Challenge{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[24]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1768,7 +2056,7 @@ func (x *Challenge) String() string {
 func (*Challenge) ProtoMessage() {}
 
 func (x *Challenge) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[24]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1781,7 +2069,7 @@ func (x *Challenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Challenge.ProtoReflect.Descriptor instead.
 func (*Challenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{24}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *Challenge) GetPayload() isChallenge_Payload {
@@ -1827,6 +2115,15 @@ func (x *Challenge) GetOracleChallenge() *OracleChallenge {
 	return nil
 }
 
+func (x *Challenge) GetTpmEncryptedCredential() *TPMEncryptedCredential {
+	if x != nil {
+		if x, ok := x.Payload.(*Challenge_TpmEncryptedCredential); ok {
+			return x.TpmEncryptedCredential
+		}
+	}
+	return nil
+}
+
 type isChallenge_Payload interface {
 	isChallenge_Payload()
 }
@@ -1847,6 +2144,10 @@ type Challenge_OracleChallenge struct {
 	OracleChallenge *OracleChallenge `protobuf:"bytes,4,opt,name=oracle_challenge,json=oracleChallenge,proto3,oneof"`
 }
 
+type Challenge_TpmEncryptedCredential struct {
+	TpmEncryptedCredential *TPMEncryptedCredential `protobuf:"bytes,5,opt,name=tpm_encrypted_credential,json=tpmEncryptedCredential,proto3,oneof"`
+}
+
 func (*Challenge_BoundKeypairChallenge) isChallenge_Payload() {}
 
 func (*Challenge_BoundKeypairRotationRequest) isChallenge_Payload() {}
@@ -1854,6 +2155,8 @@ func (*Challenge_BoundKeypairRotationRequest) isChallenge_Payload() {}
 func (*Challenge_IamChallenge) isChallenge_Payload() {}
 
 func (*Challenge_OracleChallenge) isChallenge_Payload() {}
+
+func (*Challenge_TpmEncryptedCredential) isChallenge_Payload() {}
 
 // Result is the final message sent from the cluster back to the client, it
 // contains the result of the joining process including the assigned host ID
@@ -1871,7 +2174,7 @@ type Result struct {
 
 func (x *Result) Reset() {
 	*x = Result{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[25]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1883,7 +2186,7 @@ func (x *Result) String() string {
 func (*Result) ProtoMessage() {}
 
 func (x *Result) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[25]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1896,7 +2199,7 @@ func (x *Result) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Result.ProtoReflect.Descriptor instead.
 func (*Result) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{25}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *Result) GetPayload() isResult_Payload {
@@ -1959,7 +2262,7 @@ type Certificates struct {
 
 func (x *Certificates) Reset() {
 	*x = Certificates{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[26]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1971,7 +2274,7 @@ func (x *Certificates) String() string {
 func (*Certificates) ProtoMessage() {}
 
 func (x *Certificates) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[26]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1984,7 +2287,7 @@ func (x *Certificates) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Certificates.ProtoReflect.Descriptor instead.
 func (*Certificates) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{26}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Certificates) GetTlsCert() []byte {
@@ -2028,7 +2331,7 @@ type HostResult struct {
 
 func (x *HostResult) Reset() {
 	*x = HostResult{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[27]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2040,7 +2343,7 @@ func (x *HostResult) String() string {
 func (*HostResult) ProtoMessage() {}
 
 func (x *HostResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[27]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2053,7 +2356,7 @@ func (x *HostResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostResult.ProtoReflect.Descriptor instead.
 func (*HostResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{27}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *HostResult) GetCertificates() *Certificates {
@@ -2083,7 +2386,7 @@ type BotResult struct {
 
 func (x *BotResult) Reset() {
 	*x = BotResult{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[28]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2095,7 +2398,7 @@ func (x *BotResult) String() string {
 func (*BotResult) ProtoMessage() {}
 
 func (x *BotResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[28]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2108,7 +2411,7 @@ func (x *BotResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BotResult.ProtoReflect.Descriptor instead.
 func (*BotResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{28}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *BotResult) GetCertificates() *Certificates {
@@ -2140,7 +2443,7 @@ type JoinResponse struct {
 
 func (x *JoinResponse) Reset() {
 	*x = JoinResponse{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[29]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2152,7 +2455,7 @@ func (x *JoinResponse) String() string {
 func (*JoinResponse) ProtoMessage() {}
 
 func (x *JoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[29]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2165,7 +2468,7 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
 func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{29}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *JoinResponse) GetPayload() isJoinResponse_Payload {
@@ -2248,7 +2551,7 @@ type ClientInit_ProxySuppliedParams struct {
 
 func (x *ClientInit_ProxySuppliedParams) Reset() {
 	*x = ClientInit_ProxySuppliedParams{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[30]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2260,7 +2563,7 @@ func (x *ClientInit_ProxySuppliedParams) String() string {
 func (*ClientInit_ProxySuppliedParams) ProtoMessage() {}
 
 func (x *ClientInit_ProxySuppliedParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[30]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2377,12 +2680,28 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\x04cert\x18\x01 \x01(\fR\x04cert\x12\"\n" +
 	"\fintermediate\x18\x02 \x01(\fR\fintermediate\x12\x1c\n" +
 	"\tsignature\x18\x03 \x01(\fR\tsignature\x12+\n" +
-	"\x12signed_root_ca_req\x18\x04 \x01(\fR\x0fsignedRootCaReq\"\xdc\x03\n" +
+	"\x12signed_root_ca_req\x18\x04 \x01(\fR\x0fsignedRootCaReq\"\x9b\x02\n" +
+	"\aTPMInit\x12C\n" +
+	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\x12\x16\n" +
+	"\x06public\x18\x02 \x01(\fR\x06public\x12\x1f\n" +
+	"\vcreate_data\x18\x03 \x01(\fR\n" +
+	"createData\x12-\n" +
+	"\x12create_attestation\x18\x04 \x01(\fR\x11createAttestation\x12)\n" +
+	"\x10create_signature\x18\x05 \x01(\fR\x0fcreateSignature\x12\x19\n" +
+	"\aek_cert\x18\x06 \x01(\fH\x00R\x06ekCert\x12\x17\n" +
+	"\x06ek_key\x18\a \x01(\fH\x00R\x05ekKeyB\x04\n" +
+	"\x02ek\"Y\n" +
+	"\x16TPMEncryptedCredential\x12'\n" +
+	"\x0fcredential_blob\x18\x01 \x01(\fR\x0ecredentialBlob\x12\x16\n" +
+	"\x06secret\x18\x02 \x01(\fR\x06secret\")\n" +
+	"\vTPMSolution\x12\x1a\n" +
+	"\bsolution\x18\x01 \x01(\fR\bsolution\"\xa0\x04\n" +
 	"\x11ChallengeSolution\x12z\n" +
 	" bound_keypair_challenge_solution\x18\x01 \x01(\v2/.teleport.join.v1.BoundKeypairChallengeSolutionH\x00R\x1dboundKeypairChallengeSolution\x12w\n" +
 	"\x1fbound_keypair_rotation_response\x18\x02 \x01(\v2..teleport.join.v1.BoundKeypairRotationResponseH\x00R\x1cboundKeypairRotationResponse\x12^\n" +
 	"\x16iam_challenge_solution\x18\x03 \x01(\v2&.teleport.join.v1.IAMChallengeSolutionH\x00R\x14iamChallengeSolution\x12g\n" +
-	"\x19oracle_challenge_solution\x18\x04 \x01(\v2).teleport.join.v1.OracleChallengeSolutionH\x00R\x17oracleChallengeSolutionB\t\n" +
+	"\x19oracle_challenge_solution\x18\x04 \x01(\v2).teleport.join.v1.OracleChallengeSolutionH\x00R\x17oracleChallengeSolution\x12B\n" +
+	"\ftpm_solution\x18\x05 \x01(\v2\x1d.teleport.join.v1.TPMSolutionH\x00R\vtpmSolutionB\t\n" +
 	"\apayload\"\xe9\x01\n" +
 	"\bGivingUp\x129\n" +
 	"\x06reason\x18\x01 \x01(\x0e2!.teleport.join.v1.GivingUp.ReasonR\x06reason\x12\x10\n" +
@@ -2391,7 +2710,7 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eREASON_UNSUPPORTED_JOIN_METHOD\x10\x01\x12#\n" +
 	"\x1fREASON_UNSUPPORTED_MESSAGE_TYPE\x10\x02\x12$\n" +
-	" REASON_CHALLENGE_SOLUTION_FAILED\x10\x03\"\xd5\x04\n" +
+	" REASON_CHALLENGE_SOLUTION_FAILED\x10\x03\"\x8d\x05\n" +
 	"\vJoinRequest\x12?\n" +
 	"\vclient_init\x18\x01 \x01(\v2\x1c.teleport.join.v1.ClientInitH\x00R\n" +
 	"clientInit\x12<\n" +
@@ -2404,18 +2723,21 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\bec2_init\x18\a \x01(\v2\x19.teleport.join.v1.EC2InitH\x00R\aec2Init\x129\n" +
 	"\toidc_init\x18\b \x01(\v2\x1a.teleport.join.v1.OIDCInitH\x00R\boidcInit\x12?\n" +
 	"\voracle_init\x18\t \x01(\v2\x1c.teleport.join.v1.OracleInitH\x00R\n" +
-	"oracleInitB\t\n" +
+	"oracleInit\x126\n" +
+	"\btpm_init\x18\n" +
+	" \x01(\v2\x19.teleport.join.v1.TPMInitH\x00R\atpmInitB\t\n" +
 	"\apayload\"i\n" +
 	"\n" +
 	"ServerInit\x12\x1f\n" +
 	"\vjoin_method\x18\x01 \x01(\tR\n" +
 	"joinMethod\x12:\n" +
-	"\x19signature_algorithm_suite\x18\x02 \x01(\tR\x17signatureAlgorithmSuite\"\x86\x03\n" +
+	"\x19signature_algorithm_suite\x18\x02 \x01(\tR\x17signatureAlgorithmSuite\"\xec\x03\n" +
 	"\tChallenge\x12a\n" +
 	"\x17bound_keypair_challenge\x18\x01 \x01(\v2'.teleport.join.v1.BoundKeypairChallengeH\x00R\x15boundKeypairChallenge\x12t\n" +
 	"\x1ebound_keypair_rotation_request\x18\x02 \x01(\v2-.teleport.join.v1.BoundKeypairRotationRequestH\x00R\x1bboundKeypairRotationRequest\x12E\n" +
 	"\riam_challenge\x18\x03 \x01(\v2\x1e.teleport.join.v1.IAMChallengeH\x00R\fiamChallenge\x12N\n" +
-	"\x10oracle_challenge\x18\x04 \x01(\v2!.teleport.join.v1.OracleChallengeH\x00R\x0foracleChallengeB\t\n" +
+	"\x10oracle_challenge\x18\x04 \x01(\v2!.teleport.join.v1.OracleChallengeH\x00R\x0foracleChallenge\x12d\n" +
+	"\x18tpm_encrypted_credential\x18\x05 \x01(\v2(.teleport.join.v1.TPMEncryptedCredentialH\x00R\x16tpmEncryptedCredentialB\t\n" +
 	"\apayload\"\x92\x01\n" +
 	"\x06Result\x12?\n" +
 	"\vhost_result\x18\x01 \x01(\v2\x1c.teleport.join.v1.HostResultH\x00R\n" +
@@ -2458,7 +2780,7 @@ func file_teleport_join_v1_joinservice_proto_rawDescGZIP() []byte {
 }
 
 var file_teleport_join_v1_joinservice_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(GivingUp_Reason)(0),                   // 0: teleport.join.v1.GivingUp.Reason
 	(*ClientInit)(nil),                     // 1: teleport.join.v1.ClientInit
@@ -2481,24 +2803,27 @@ var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(*OracleInit)(nil),                     // 18: teleport.join.v1.OracleInit
 	(*OracleChallenge)(nil),                // 19: teleport.join.v1.OracleChallenge
 	(*OracleChallengeSolution)(nil),        // 20: teleport.join.v1.OracleChallengeSolution
-	(*ChallengeSolution)(nil),              // 21: teleport.join.v1.ChallengeSolution
-	(*GivingUp)(nil),                       // 22: teleport.join.v1.GivingUp
-	(*JoinRequest)(nil),                    // 23: teleport.join.v1.JoinRequest
-	(*ServerInit)(nil),                     // 24: teleport.join.v1.ServerInit
-	(*Challenge)(nil),                      // 25: teleport.join.v1.Challenge
-	(*Result)(nil),                         // 26: teleport.join.v1.Result
-	(*Certificates)(nil),                   // 27: teleport.join.v1.Certificates
-	(*HostResult)(nil),                     // 28: teleport.join.v1.HostResult
-	(*BotResult)(nil),                      // 29: teleport.join.v1.BotResult
-	(*JoinResponse)(nil),                   // 30: teleport.join.v1.JoinResponse
-	(*ClientInit_ProxySuppliedParams)(nil), // 31: teleport.join.v1.ClientInit.ProxySuppliedParams
-	(*timestamppb.Timestamp)(nil),          // 32: google.protobuf.Timestamp
+	(*TPMInit)(nil),                        // 21: teleport.join.v1.TPMInit
+	(*TPMEncryptedCredential)(nil),         // 22: teleport.join.v1.TPMEncryptedCredential
+	(*TPMSolution)(nil),                    // 23: teleport.join.v1.TPMSolution
+	(*ChallengeSolution)(nil),              // 24: teleport.join.v1.ChallengeSolution
+	(*GivingUp)(nil),                       // 25: teleport.join.v1.GivingUp
+	(*JoinRequest)(nil),                    // 26: teleport.join.v1.JoinRequest
+	(*ServerInit)(nil),                     // 27: teleport.join.v1.ServerInit
+	(*Challenge)(nil),                      // 28: teleport.join.v1.Challenge
+	(*Result)(nil),                         // 29: teleport.join.v1.Result
+	(*Certificates)(nil),                   // 30: teleport.join.v1.Certificates
+	(*HostResult)(nil),                     // 31: teleport.join.v1.HostResult
+	(*BotResult)(nil),                      // 32: teleport.join.v1.BotResult
+	(*JoinResponse)(nil),                   // 33: teleport.join.v1.JoinResponse
+	(*ClientInit_ProxySuppliedParams)(nil), // 34: teleport.join.v1.ClientInit.ProxySuppliedParams
+	(*timestamppb.Timestamp)(nil),          // 35: google.protobuf.Timestamp
 }
 var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
-	31, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
+	34, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
 	2,  // 1: teleport.join.v1.HostParams.public_keys:type_name -> teleport.join.v1.PublicKeys
 	2,  // 2: teleport.join.v1.BotParams.public_keys:type_name -> teleport.join.v1.PublicKeys
-	32, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
+	35, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
 	3,  // 4: teleport.join.v1.ClientParams.host_params:type_name -> teleport.join.v1.HostParams
 	4,  // 5: teleport.join.v1.ClientParams.bot_params:type_name -> teleport.join.v1.BotParams
 	5,  // 6: teleport.join.v1.TokenInit.client_params:type_name -> teleport.join.v1.ClientParams
@@ -2507,39 +2832,43 @@ var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
 	5,  // 9: teleport.join.v1.IAMInit.client_params:type_name -> teleport.join.v1.ClientParams
 	5,  // 10: teleport.join.v1.EC2Init.client_params:type_name -> teleport.join.v1.ClientParams
 	5,  // 11: teleport.join.v1.OracleInit.client_params:type_name -> teleport.join.v1.ClientParams
-	10, // 12: teleport.join.v1.ChallengeSolution.bound_keypair_challenge_solution:type_name -> teleport.join.v1.BoundKeypairChallengeSolution
-	12, // 13: teleport.join.v1.ChallengeSolution.bound_keypair_rotation_response:type_name -> teleport.join.v1.BoundKeypairRotationResponse
-	16, // 14: teleport.join.v1.ChallengeSolution.iam_challenge_solution:type_name -> teleport.join.v1.IAMChallengeSolution
-	20, // 15: teleport.join.v1.ChallengeSolution.oracle_challenge_solution:type_name -> teleport.join.v1.OracleChallengeSolution
-	0,  // 16: teleport.join.v1.GivingUp.reason:type_name -> teleport.join.v1.GivingUp.Reason
-	1,  // 17: teleport.join.v1.JoinRequest.client_init:type_name -> teleport.join.v1.ClientInit
-	6,  // 18: teleport.join.v1.JoinRequest.token_init:type_name -> teleport.join.v1.TokenInit
-	8,  // 19: teleport.join.v1.JoinRequest.bound_keypair_init:type_name -> teleport.join.v1.BoundKeypairInit
-	21, // 20: teleport.join.v1.JoinRequest.solution:type_name -> teleport.join.v1.ChallengeSolution
-	14, // 21: teleport.join.v1.JoinRequest.iam_init:type_name -> teleport.join.v1.IAMInit
-	22, // 22: teleport.join.v1.JoinRequest.giving_up:type_name -> teleport.join.v1.GivingUp
-	17, // 23: teleport.join.v1.JoinRequest.ec2_init:type_name -> teleport.join.v1.EC2Init
-	7,  // 24: teleport.join.v1.JoinRequest.oidc_init:type_name -> teleport.join.v1.OIDCInit
-	18, // 25: teleport.join.v1.JoinRequest.oracle_init:type_name -> teleport.join.v1.OracleInit
-	9,  // 26: teleport.join.v1.Challenge.bound_keypair_challenge:type_name -> teleport.join.v1.BoundKeypairChallenge
-	11, // 27: teleport.join.v1.Challenge.bound_keypair_rotation_request:type_name -> teleport.join.v1.BoundKeypairRotationRequest
-	15, // 28: teleport.join.v1.Challenge.iam_challenge:type_name -> teleport.join.v1.IAMChallenge
-	19, // 29: teleport.join.v1.Challenge.oracle_challenge:type_name -> teleport.join.v1.OracleChallenge
-	28, // 30: teleport.join.v1.Result.host_result:type_name -> teleport.join.v1.HostResult
-	29, // 31: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
-	27, // 32: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
-	27, // 33: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
-	13, // 34: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
-	24, // 35: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
-	25, // 36: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
-	26, // 37: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
-	23, // 38: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
-	30, // 39: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
-	39, // [39:40] is the sub-list for method output_type
-	38, // [38:39] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	5,  // 12: teleport.join.v1.TPMInit.client_params:type_name -> teleport.join.v1.ClientParams
+	10, // 13: teleport.join.v1.ChallengeSolution.bound_keypair_challenge_solution:type_name -> teleport.join.v1.BoundKeypairChallengeSolution
+	12, // 14: teleport.join.v1.ChallengeSolution.bound_keypair_rotation_response:type_name -> teleport.join.v1.BoundKeypairRotationResponse
+	16, // 15: teleport.join.v1.ChallengeSolution.iam_challenge_solution:type_name -> teleport.join.v1.IAMChallengeSolution
+	20, // 16: teleport.join.v1.ChallengeSolution.oracle_challenge_solution:type_name -> teleport.join.v1.OracleChallengeSolution
+	23, // 17: teleport.join.v1.ChallengeSolution.tpm_solution:type_name -> teleport.join.v1.TPMSolution
+	0,  // 18: teleport.join.v1.GivingUp.reason:type_name -> teleport.join.v1.GivingUp.Reason
+	1,  // 19: teleport.join.v1.JoinRequest.client_init:type_name -> teleport.join.v1.ClientInit
+	6,  // 20: teleport.join.v1.JoinRequest.token_init:type_name -> teleport.join.v1.TokenInit
+	8,  // 21: teleport.join.v1.JoinRequest.bound_keypair_init:type_name -> teleport.join.v1.BoundKeypairInit
+	24, // 22: teleport.join.v1.JoinRequest.solution:type_name -> teleport.join.v1.ChallengeSolution
+	14, // 23: teleport.join.v1.JoinRequest.iam_init:type_name -> teleport.join.v1.IAMInit
+	25, // 24: teleport.join.v1.JoinRequest.giving_up:type_name -> teleport.join.v1.GivingUp
+	17, // 25: teleport.join.v1.JoinRequest.ec2_init:type_name -> teleport.join.v1.EC2Init
+	7,  // 26: teleport.join.v1.JoinRequest.oidc_init:type_name -> teleport.join.v1.OIDCInit
+	18, // 27: teleport.join.v1.JoinRequest.oracle_init:type_name -> teleport.join.v1.OracleInit
+	21, // 28: teleport.join.v1.JoinRequest.tpm_init:type_name -> teleport.join.v1.TPMInit
+	9,  // 29: teleport.join.v1.Challenge.bound_keypair_challenge:type_name -> teleport.join.v1.BoundKeypairChallenge
+	11, // 30: teleport.join.v1.Challenge.bound_keypair_rotation_request:type_name -> teleport.join.v1.BoundKeypairRotationRequest
+	15, // 31: teleport.join.v1.Challenge.iam_challenge:type_name -> teleport.join.v1.IAMChallenge
+	19, // 32: teleport.join.v1.Challenge.oracle_challenge:type_name -> teleport.join.v1.OracleChallenge
+	22, // 33: teleport.join.v1.Challenge.tpm_encrypted_credential:type_name -> teleport.join.v1.TPMEncryptedCredential
+	31, // 34: teleport.join.v1.Result.host_result:type_name -> teleport.join.v1.HostResult
+	32, // 35: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
+	30, // 36: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
+	30, // 37: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
+	13, // 38: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
+	27, // 39: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
+	28, // 40: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
+	29, // 41: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
+	26, // 42: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
+	33, // 43: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
+	43, // [43:44] is the sub-list for method output_type
+	42, // [42:43] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_teleport_join_v1_joinservice_proto_init() }
@@ -2554,12 +2883,17 @@ func file_teleport_join_v1_joinservice_proto_init() {
 		(*ClientParams_BotParams)(nil),
 	}
 	file_teleport_join_v1_joinservice_proto_msgTypes[20].OneofWrappers = []any{
+		(*TPMInit_EkCert)(nil),
+		(*TPMInit_EkKey)(nil),
+	}
+	file_teleport_join_v1_joinservice_proto_msgTypes[23].OneofWrappers = []any{
 		(*ChallengeSolution_BoundKeypairChallengeSolution)(nil),
 		(*ChallengeSolution_BoundKeypairRotationResponse)(nil),
 		(*ChallengeSolution_IamChallengeSolution)(nil),
 		(*ChallengeSolution_OracleChallengeSolution)(nil),
+		(*ChallengeSolution_TpmSolution)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[22].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[25].OneofWrappers = []any{
 		(*JoinRequest_ClientInit)(nil),
 		(*JoinRequest_TokenInit)(nil),
 		(*JoinRequest_BoundKeypairInit)(nil),
@@ -2569,19 +2903,21 @@ func file_teleport_join_v1_joinservice_proto_init() {
 		(*JoinRequest_Ec2Init)(nil),
 		(*JoinRequest_OidcInit)(nil),
 		(*JoinRequest_OracleInit)(nil),
+		(*JoinRequest_TpmInit)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[24].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[27].OneofWrappers = []any{
 		(*Challenge_BoundKeypairChallenge)(nil),
 		(*Challenge_BoundKeypairRotationRequest)(nil),
 		(*Challenge_IamChallenge)(nil),
 		(*Challenge_OracleChallenge)(nil),
+		(*Challenge_TpmEncryptedCredential)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[25].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[28].OneofWrappers = []any{
 		(*Result_HostResult)(nil),
 		(*Result_BotResult)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[28].OneofWrappers = []any{}
-	file_teleport_join_v1_joinservice_proto_msgTypes[29].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[31].OneofWrappers = []any{}
+	file_teleport_join_v1_joinservice_proto_msgTypes[32].OneofWrappers = []any{
 		(*JoinResponse_Init)(nil),
 		(*JoinResponse_Challenge)(nil),
 		(*JoinResponse_Result)(nil),
@@ -2592,7 +2928,7 @@ func file_teleport_join_v1_joinservice_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_join_v1_joinservice_proto_rawDesc), len(file_teleport_join_v1_joinservice_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   31,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -224,6 +224,9 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string
 	// GetProxyClientCertificate returns the proxy client certificate.
 	GetProxyClientCertificate func() (*tls.Certificate, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
@@ -342,6 +345,8 @@ func (c *Config) SetDefaults() {
 	if c.AutomaticUpgradesChannels == nil {
 		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
+
+	c.ProxyGroupID = cmp.Or(c.ProxyGroupID, os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"))
 
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
@@ -872,16 +877,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
-	// TODO (avatus): delete in v21
-	// Deprecated: Use the v2 endpoint instead.
-	//
-	// clusterSearchEvents handles audit event retrieval for a given site.
-	// This legacy endpoint returns event listings without advanced search capabilities.
-	// Prefer using /v2/webapi/sites/:site/events/search for full query-based filtering.
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents)) // search site events
-	// clusterSearchEventsV2 handles audit event retrieval for a given site with support for
-	// advanced search filters and query parameters.
-	h.GET("/v2/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEventsV2))            // search site events
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
@@ -989,7 +985,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
+	// TODO(kimlisa): DELETE IN 20.0 along with the api path defined in `config.ts`
+	// Replaced by its v2 endpoint
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
+	// v2 introduces a query param for optionally including system roles
+	// in the list and optionally include returning the object version
+	// of resource (only supported for roles).
+	h.GET("/v2/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
 	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
@@ -2742,6 +2744,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	var webSession types.WebSession
 	switch {
@@ -3127,6 +3130,8 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3151,6 +3156,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	switch {
 	// Since checking for private key policy meant that they passed authn,
@@ -4417,47 +4424,6 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 	return el, nil
 }
 
-// clusterSearchEventsV2 returns all audit log events matching the provided criteria
-//
-// GET /v2/webapi/sites/:site/events/search
-//
-// Query parameters:
-//
-//	"from"    : date range from, encoded as RFC3339
-//	"to"      : date range to, encoded as RFC3339
-//	"limit"   : optional maximum number of events to return on each fetch
-//	"startKey": resume events search from the last event received,
-//	            empty string means start search from beginning
-//	"include" : optional comma-separated list of event names to return e.g.
-//	            include=session.start,session.end, all are returned if empty
-//	"order":    optional ordering of events. Can be either "asc" or "desc"
-//	            for ascending and descending respectively.
-//	            If no order is provided it defaults to descending.
-//	"search":   optional search term to filter events by (case-insensitive substring match)
-func (h *Handler) clusterSearchEventsV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	values := r.URL.Query()
-
-	var eventTypes []string
-	if include := values.Get("include"); include != "" {
-		eventTypes = strings.Split(include, ",")
-	}
-
-	search := values.Get("search")
-
-	searchEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
-			From:       from,
-			To:         to,
-			EventTypes: eventTypes,
-			Limit:      limit,
-			Order:      order,
-			StartKey:   startKey,
-			Search:     search,
-		})
-	}
-	return clusterEventsList(r.Context(), sctx, cluster, r.URL.Query(), searchEvents)
-}
-
 // clusterSearchEvents returns all audit log events matching the provided criteria
 //
 // GET /v1/webapi/sites/:site/events/search
@@ -4616,7 +4582,7 @@ func QueryLimitAsInt32(query url.Values, name string, def int32) (int32, error) 
 // queryOrder returns the order parameter with the specified name from the
 // query string or a default if the parameter is not provided.
 func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
-	value := strings.ToLower(query.Get(name))
+	value := query.Get(name)
 	switch value {
 	case "desc":
 		return types.EventOrderDescending, nil
@@ -4678,13 +4644,15 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
+	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:                 req.User,
 			SSHPublicKey:             req.SSHPubKey,
 			TLSPublicKey:             req.TLSPubKey,
-			ClientMetadata:           clientMetaFromReq(r),
+			ClientMetadata:           clientMeta,
 			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 		},
 		CompatibilityMode:       req.Compatibility,
@@ -5119,7 +5087,7 @@ func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
 // This is a good default to use as both Cluster and User auth are checked here, but `WithLimiter` can be used if
 // you're certain that no authenticated requests will be made.
 func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return h.unauthenticatedLimiterFunc(fn, h.WithLimiterHandlerFunc)
+	return h.unauthenticatedLimiterFunc(fn, h.limiter)
 }
 
 // WithUnauthenticatedHighLimiter adds a conditional IP-based rate limiting that will limit only unauthenticated
@@ -5127,20 +5095,75 @@ func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.
 // This higher rate limit should only be used on endpoints which are only CPU constrained
 // (no file or other resources used).
 func (h *Handler) WithUnauthenticatedHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return h.unauthenticatedLimiterFunc(fn, h.WithHighLimiterHandlerFunc)
+	return h.unauthenticatedLimiterFunc(fn, h.highLimiter)
 }
 
-func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, rateFunc func(fn httplib.HandlerFunc) httplib.HandlerFunc) httprouter.Handle {
+func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		// check if the request remote is rate limited before attempting authentication.
+		isLimited, err := isRequestRateLimited(r, limiter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if isLimited {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
 		if _, _, err := h.authenticateRequestWithCluster(w, r, p); err != nil {
 			// retry with user auth
 			if _, err = h.AuthenticateRequest(w, r, true /* check token */); err != nil {
 				// no auth passed, limit request
-				return rateFunc(fn)(w, r, p)
+				return withLimiterHandlerFunc(fn, limiter)(w, r, p)
 			}
 		}
 		// auth passed, call directly
 		return fn(w, r, p)
+	})
+}
+
+func withLimiterHandlerFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		err := rateLimitRequest(r, limiter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fn(w, r, p)
+	}
+}
+
+// WithAccessDeniedLimiter adds conditional IP-based rate limiting that only applies
+// when the request handler returns an access denied error.
+//
+// This is different from WithUnauthenticatedLimiter in an important way:
+//   - WithUnauthenticatedLimiter: Checks authentication BEFORE executing the handler using local
+//     authentication mechanisms (user auth session cookie). If authentication fails locally, it
+//     applies rate limiting BEFORE executing the handler.
+//   - WithAccessDeniedLimiter: Executes the handler first, delegates authentication
+//     to the handler, then applies rate limiting ONLY if the handler returns an access denied error.
+//
+// Use this limiter for endpoints where authentication happens downstream (e.g., SCIM
+// endpoints where auth is handled by the auth server, not in the proxy).
+func (h *Handler) WithAccessDeniedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return h.conditionalLimiterFunc(fn, h.limiter, trace.IsAccessDenied)
+}
+
+func (h *Handler) conditionalLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter, shouldLimit func(error) bool) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		remoteAddr, err := getRemoteAddressFromRequest(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if limiter.IsRateLimited(remoteAddr) {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
+		result, err := fn(w, r, p)
+		if err != nil {
+			if shouldLimit(err) {
+				if err := limiter.RegisterRequest(remoteAddr, nil); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+		return result, err
 	})
 }
 
@@ -5184,6 +5207,24 @@ func (h *Handler) WithHighLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.Han
 		}
 		return fn(w, r, p)
 	}
+}
+
+// isRequestRateLimited checks if the request would be rate-limited without consuming any tokens.
+// Returns true if the request is rate-limited, false otherwise.
+func isRequestRateLimited(r *http.Request, limiter *limiter.RateLimiter) (bool, error) {
+	remote, err := getRemoteAddressFromRequest(r)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return limiter.IsRateLimited(remote), nil
+}
+
+func getRemoteAddressFromRequest(r *http.Request) (string, error) {
+	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return remote, nil
 }
 
 func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {

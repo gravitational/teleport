@@ -25,6 +25,7 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -1376,6 +1377,19 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 				return nil, trace.BadParameter("invalid kmsKeysARNs %q", keyARN)
 			}
 			argsList = append(argsList, fmt.Sprintf("--kms-key=%s", shsprintf.EscapeDefaultContext(keyARN)))
+		}
+	}
+
+	if eksAuditLogs := queryParams.Get("eksAuditLogs"); eksAuditLogs != "" {
+		enabled, err := strconv.ParseBool(eksAuditLogs)
+		if err != nil {
+			// The error returned by ParseBool contains no more information than this
+			// error. As we canot wrap both it and trace.BadParameter, we do the
+			// latter as a preferred error type.
+			return nil, trace.BadParameter("invalid boolean value for eksAuditLogs %q", eksAuditLogs)
+		}
+		if enabled {
+			argsList = append(argsList, "--eks-audit-logs")
 		}
 	}
 

@@ -94,7 +94,6 @@ linters:
             - '!**lib/services/compare.go'
             - '!**/lib/services/local/access_list.go'
             - '!**/lib/services/local/users.go'
-            - '!**/lib/services/server.go'
             - '!**/lib/services/user.go'
           deny:
             - pkg: github.com/google/go-cmp/cmp
@@ -186,6 +185,10 @@ linters:
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
             - pkg: github.com/zitadel/oidc$
               desc: 'github.com/zitadel/oidc/v3 should be used instead'
+        synctest:
+          deny:
+            - pkg: testing/synctest
+              desc: 'use "github.com/gravitational/teleport/lib/utils/testutils/synctest" instead'
         test_packages:
           files:
             - '!$test'

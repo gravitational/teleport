@@ -19,9 +19,14 @@
 package service
 
 import (
+	"context"
 	"testing"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestProcessStateGetState(t *testing.T) {
@@ -89,4 +94,65 @@ func TestProcessStateGetState(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestProcessStateStarting validates that we correctly keep track of the starting services.
+func TestProcessStateStarting(t *testing.T) {
+	t.Parallel()
+	component := teleport.Component("test-component")
+	slowComponent := teleport.Component("slow-component")
+	log := logtest.NewLogger()
+
+	supervisor := NewSupervisor("test-process-state", log)
+	process := &TeleportProcess{
+		Supervisor: supervisor,
+		Clock:      clockwork.NewFakeClock(),
+		logger:     log,
+	}
+	ps, err := newProcessState(process)
+	require.NoError(t, err)
+	process.state = ps
+
+	eventProcessor := newFakeEventProcessor(t.Context(), process)
+
+	require.Equal(t, stateStarting, ps.getState(), "no services are running, we are starting")
+	process.OnHeartbeat(component)(nil)
+	eventProcessor.processEvent()
+	require.Equal(t, stateOK, ps.getState(), "a single service is running, we are healthy")
+
+	process.ExpectService(slowComponent)
+	eventProcessor.processEvent()
+	require.Equal(t, stateStarting, ps.getState(), "we know about a second service starting, we should be in starting state")
+
+	process.OnHeartbeat(component)(nil)
+	eventProcessor.processEvent()
+	require.Equal(t, stateStarting, ps.getState(), "we know about a second service starting, we should still be in starting state")
+
+	process.OnHeartbeat(slowComponent)(nil)
+	eventProcessor.processEvent()
+	require.Equal(t, stateOK, ps.getState(), "two services are running, we are healthy")
+}
+
+// fakeEventProcessor synchronously processes events in tests. The real TeleportProcess
+// has a dedicated routine for that, but testing with asynchronous event processing
+// would be troublesome and flaky.
+type fakeEventProcessor struct {
+	eventCh chan Event
+	ps      *processState
+}
+
+func newFakeEventProcessor(ctx context.Context, process *TeleportProcess) *fakeEventProcessor {
+	eventCh := make(chan Event, 1024)
+	process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
+	process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
+	process.ListenForEvents(ctx, TeleportStartingEvent, eventCh)
+	return &fakeEventProcessor{
+		eventCh: eventCh,
+		ps:      process.state,
+	}
+}
+
+func (f *fakeEventProcessor) processEvent() {
+	evt := <-f.eventCh
+	f.ps.update(evt)
 }

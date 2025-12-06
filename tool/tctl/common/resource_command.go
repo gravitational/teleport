@@ -1731,6 +1731,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
 		case types.IntegrationSubKindAWSRolesAnywhere:
 			existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
+		case types.IntegrationSubKindAzureOIDC:
+			existingIntegration.SetAzureOIDCIntegrationSpec(integration.GetAzureOIDCIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}

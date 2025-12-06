@@ -79,10 +79,11 @@ func testRDS(t *testing.T) {
 
 	// use random names so we can test auto provisioning these users with these
 	// roles via Teleport, without tests colliding with eachother across
-	// parallel test runs.
-	autoUserFineGrain := "auto_fine_grain_" + randASCII(t)
-	autoUserKeep := "auto_keep_" + randASCII(t)
-	autoUserDrop := "auto_drop_" + randASCII(t)
+	// parallel test runs. use email addresses in some tests to test out
+	// special characters.
+	autoUserFineGrain := "auto_fine_grain_" + randASCII(t) + "@teleport.com"
+	autoUserKeep := "auto_keep_" + randASCII(t) + "@teleport.com"
+	autoUserDrop := "auto_drop_" + randASCII(t) + "@teleport.com"
 	autoUserFineGrain2 := "auto_fine_grain2_" + randASCII(t)
 	autoUserKeep2 := "auto_keep2_" + randASCII(t)
 	autoUserDrop2 := "auto_drop2_" + randASCII(t)

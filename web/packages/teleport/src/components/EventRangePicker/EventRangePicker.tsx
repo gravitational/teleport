@@ -17,27 +17,43 @@
  */
 
 import { useState } from 'react';
+import { components, ValueContainerProps } from 'react-select';
 
 import 'react-day-picker/dist/style.css';
 
 import styled from 'styled-components';
 
-import { Box, ButtonBorder, Text } from 'design';
+import { Box, Text } from 'design';
 import { displayDate } from 'design/datetime';
 import Dialog from 'design/DialogConfirmation';
-import { Calendar } from 'design/Icon';
+import Select, { Option } from 'shared/components/Select';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
+
+import { State } from 'teleport/Audit/useAuditEvents';
 
 import { CustomRange } from './Custom';
 import { EventRange } from './utils';
 
-export default function DateRange({ ml, range, onChangeRange }: Props) {
+type RangeOption = Option<EventRange, string>;
+
+export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
   const [isPickerOpen, openDayPicker] = useState(false);
+  const [rangeOptions] = useState(() =>
+    ranges.map(range => ({ value: range, label: range.name }))
+  );
 
   const dayPickerRef = useRefClickOutside<HTMLDivElement>({
     open: isPickerOpen,
     setOpen: openDayPicker,
   });
+
+  function handleOnChange(option: Option<EventRange>) {
+    if (option.value.isCustom) {
+      openDayPicker(true);
+    } else {
+      onChangeRange(option.value);
+    }
+  }
 
   function onClosePicker() {
     openDayPicker(false);
@@ -50,15 +66,14 @@ export default function DateRange({ ml, range, onChangeRange }: Props) {
 
   return (
     <>
-      <Box ml={ml}>
-        <DateRangeButton onClick={() => openDayPicker(true)}>
-          <Calendar size={16} mr={2} />
-          {range ? (
-            <Text>{`${displayDate(range.from)} - ${displayDate(range.to)}`}</Text>
-          ) : (
-            <Text color="text.muted">Select date range...</Text>
-          )}
-        </DateRangeButton>
+      <Box ml={ml} width="210px">
+        <Select
+          isSearchable={false}
+          components={{ ValueContainer }}
+          options={rangeOptions}
+          onChange={handleOnChange}
+          value={{ value: range, label: range.name }}
+        />
       </Box>
       <Dialog
         dialogCss={() => ({ padding: '0' })}
@@ -67,11 +82,7 @@ export default function DateRange({ ml, range, onChangeRange }: Props) {
         open={isPickerOpen}
       >
         <CustomRange
-          initialRange={
-            range
-              ? { from: range.from, to: range.to }
-              : { from: new Date(), to: new Date() }
-          }
+          initialRange={{ from: range.from, to: range.to }}
           onChange={onSetCustomRange}
           ref={dayPickerRef}
         />
@@ -80,16 +91,36 @@ export default function DateRange({ ml, range, onChangeRange }: Props) {
   );
 }
 
-const DateRangeButton = styled(ButtonBorder)`
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 240px;
-  padding: 8px 12px;
+const ValueContainer = ({
+  children,
+  ...props
+}: ValueContainerProps<RangeOption>) => {
+  const { isCustom, from, to } = props.getValue()[0].value;
+
+  if (isCustom) {
+    return (
+      <components.ValueContainer {...props}>
+        <ValueText color="text.main">
+          {`${displayDate(from)} - ${displayDate(to)}`}
+        </ValueText>
+        {children}
+      </components.ValueContainer>
+    );
+  }
+
+  return (
+    <components.ValueContainer {...props}>{children}</components.ValueContainer>
+  );
+};
+
+/** Positions the value text on the internal react-select grid. */
+const ValueText = styled(Text)`
+  grid-area: 1/1/2/3;
 `;
 
 type Props = {
   ml?: string | number;
-  range: EventRange | undefined;
-  onChangeRange: (range: EventRange) => void;
+  range: State['range'];
+  onChangeRange: State['setRange'];
+  ranges: State['rangeOptions'];
 };

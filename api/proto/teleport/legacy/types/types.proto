@@ -208,6 +208,8 @@ message DatabaseServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "status"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 7;
 }
 
 // DatabaseServerSpecV3 is the database server spec.
@@ -923,6 +925,8 @@ message ServerV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 6;
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -1030,6 +1034,8 @@ message AppServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 6;
 }
 
 // AppServerSpecV3 is the app access server spec.
@@ -5240,6 +5246,8 @@ message KubernetesServerV3 {
   ];
   // Status is the Kubernetes server status.
   KubernetesServerStatusV3 status = 6;
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 7;
 }
 
 // KubernetesServerSpecV3 is the Kubernetes server spec.
@@ -9035,6 +9043,32 @@ message AWSMatcher {
   // This value should match the IAM identity that Teleport Kubernetes Service uses.
   // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
   string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
+  // Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization.
+  AWSOrganizationMatcher Organization = 10 [(gogoproto.jsontag) = "organization,omitempty"];
+}
+
+// AWSOrganizationMatcher specifies an Organization and rules for discovering accounts under that organization.
+message AWSOrganizationMatcher {
+  // OrganizationID is the AWS Organization ID to match against.
+  // Required.
+  string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+
+  // OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
+  AWSOrganizationUnitsMatcher OrganizationalUnits = 2 [(gogoproto.jsontag) = "organizational_units,omitempty"];
+}
+
+// AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
+// Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+message AWSOrganizationUnitsMatcher {
+  // Include is a list of AWS Organizational Unit IDs to match.
+  // Only exact matches or wildcard (*) are supported.
+  // If empty, all Organizational Units are included by default.
+  repeated string Include = 1 [(gogoproto.jsontag) = "include,omitempty"];
+
+  // Exclude is a list of AWS Organizational Unit IDs to exclude.
+  // Only exact matches or wildcard (*) are supported.
+  // If empty, no Organizational Units are excluded by default.
+  repeated string Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -9148,6 +9182,9 @@ message AzureMatcher {
   // Params sets the join method when installing on
   // discovered Azure nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with Azure APIs.
+  // Environment credentials will not be used when this value is set.
+  string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // GCPMatcher matches GCP resources.
@@ -9224,6 +9261,17 @@ message AccessGraphAWSSyncCloudTrailLogs {
   string SQSQueue = 2 [(gogoproto.jsontag) = "sqs_queue,omitempty"];
 }
 
+// AccessGraphAWSSyncEKSAuditLogs defines the settings for ingesting Kubernetes apiserver
+// audit logs from EKS clusters.
+message AccessGraphAWSSyncEKSAuditLogs {
+  // The tags of EKS clusters for which apiserver audit logs should be fetched.
+  wrappers.LabelValues Tags = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "tags,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+}
+
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
 message AccessGraphAWSSync {
   // Regions are AWS regions to import resources from.
@@ -9234,6 +9282,7 @@ message AccessGraphAWSSync {
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
   // Configuration settings for collecting AWS CloudTrail logs via an SQS queue.
   AccessGraphAWSSyncCloudTrailLogs cloud_trail_logs = 5 [(gogoproto.jsontag) = "cloud_trail_logs,omitempty"];
+  AccessGraphAWSSyncEKSAuditLogs eks_audit_logs = 6 [(gogoproto.jsontag) = "eks_audit_logs,omitempty"];
 }
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.

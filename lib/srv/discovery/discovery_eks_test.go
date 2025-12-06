@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -25,8 +23,8 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -51,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func discoveryConfigWithAWSMatchers(t *testing.T, discoveryGroup string, m ...types.AWSMatcher) *discoveryconfig.DiscoveryConfig {
@@ -248,9 +247,8 @@ func TestDiscoveryServerEKS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithCancel(t.Context())
-
-			synctest.Run(func() {
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
 				fakeConfigProvider := mocks.AWSConfigProvider{
 					OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
 						Integration: awsOIDCIntegration,
@@ -296,7 +294,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				cancel()
 
 				// Discovery usage events are reported.
-				require.Greater(t, len(mockAccessPoint.usageEvents), 0)
+				require.NotEmpty(t, mockAccessPoint.usageEvents)
 
 				// Check the UserTasks created by the discovery server.
 				existingTasks := slices.Collect(maps.Values(mockAccessPoint.storeUserTasks))
@@ -318,8 +316,42 @@ type mockAuthServer struct {
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
 
+type mockWatcher struct {
+	done     chan struct{}
+	events   chan types.Event
+	doneOnce sync.Once
+}
+
+func (w *mockWatcher) Events() <-chan types.Event {
+	return w.events
+}
+
+func (w *mockWatcher) Close() error {
+	w.doneOnce.Do(func() {
+		close(w.done)
+		close(w.events)
+	})
+	return nil
+}
+
+func (w *mockWatcher) Error() error {
+	return nil
+}
+
+func (w *mockWatcher) Done() <-chan struct{} {
+	return w.done
+}
+
 func (m *mockAuthServer) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	return m.events.NewWatcher(ctx, watch)
+	w := &mockWatcher{
+		done:   make(chan struct{}),
+		events: make(chan types.Event, 1),
+	}
+
+	w.events <- types.Event{
+		Type: types.OpInit,
+	}
+	return w, nil
 }
 
 func (m *mockAuthServer) Ping(context.Context) (proto.PingResponse, error) {
@@ -375,6 +407,22 @@ func (m *mockAuthServer) ListDatabases(ctx context.Context, limit int, startKey 
 
 func (m *mockAuthServer) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
 	return stream.Empty[types.Database]()
+}
+
+func (m *mockAuthServer) CreateApp(ctx context.Context, _ types.Application) error {
+	return nil
+}
+
+func (m *mockAuthServer) GetApps(ctx context.Context) ([]types.Application, error) {
+	return nil, nil
+}
+
+func (m *mockAuthServer) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	return nil, "", nil
+}
+
+func (m *mockAuthServer) RangeApps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
+	return func(yield func(types.Application, error) bool) {}
 }
 
 func (m *mockAuthServer) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {

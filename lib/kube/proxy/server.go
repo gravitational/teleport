@@ -40,14 +40,16 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -73,15 +75,21 @@ type TLSServerConfig struct {
 	GetRotation services.RotationGetter
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	// RelayInfoGetter is the function used to get the relay tunnel client info
+	// to fill in the server heartbeats.
+	RelayInfoGetter relaytunnel.GetRelayInfoFunc
 	// Log is the logger.
 	Log *slog.Logger
 	// Selectors is a list of resource monitor selectors.
 	ResourceMatchers []services.ResourceMatcher
 	// OnReconcile is called after each kube_cluster resource reconciliation.
 	OnReconcile func(types.KubeClusters)
-	// CloudClients is a set of cloud clients that Teleport supports.
-	CloudClients cloud.Clients
-	awsClients   *awsClientsGetter
+	// azureClients provides Azure SDK clients
+	azureClients azure.Clients
+	// gcpClients provides GCP SDK clients
+	gcpClients gcp.Clients
+	// awsCloudClients provides AWS SDK clients.
+	awsClients *awsClientsGetter
 	// StaticLabels is a map of static labels associated with this service.
 	// Each cluster advertised by this kubernetes_service will include these static labels.
 	// If the service and a cluster define labels with the same key,
@@ -163,12 +171,15 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = slog.Default()
 	}
-	if c.CloudClients == nil {
-		cloudClients, err := cloud.NewClients()
+	if c.azureClients == nil {
+		azureClients, err := azure.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.CloudClients = cloudClients
+		c.azureClients = azureClients
+	}
+	if c.gcpClients == nil {
+		c.gcpClients = gcp.NewClients()
 	}
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
@@ -382,6 +393,31 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	t.kubeClusterWatcher = kubeClusterWatcher
 	t.mu.Unlock()
 
+	if t.OnHeartbeat != nil {
+		// Kube uses heartbeat v2, which heartbeats resources but not the server itself
+		// If there are no resources, we will never report ready.
+		// We work around by reporting ready after the first successful watcher init.
+		var watcherWaiters []func() error
+		if kubeClusterWatcher != nil {
+			watcherWaiters = append(watcherWaiters, kubeClusterWatcher.WaitInitialization)
+		}
+		if t.KubernetesServersWatcher != nil {
+			watcherWaiters = append(watcherWaiters, t.KubernetesServersWatcher.WaitInitialization)
+		}
+		if len(watcherWaiters) > 0 {
+			go func() {
+				for _, w := range watcherWaiters {
+					err := w()
+					if err != nil {
+						t.OnHeartbeat(err)
+						return
+					}
+				}
+				t.OnHeartbeat(nil)
+			}()
+		}
+	}
+
 	// kubeServerWatcher is used by the kube proxy to watch for changes in the
 	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap
 	// which holds the list of kubernetes_services connected to the proxy for a given
@@ -418,7 +454,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster, true))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
@@ -443,6 +479,9 @@ func (t *TLSServer) close(ctx context.Context) error {
 		listClose = t.listener.Close()
 	}
 	t.mu.Unlock()
+
+	errs = append(errs, t.gcpClients.Close())
+
 	return trace.NewAggregate(append(errs, listClose)...)
 }
 
@@ -479,18 +518,27 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 		name += teleport.KubeLegacyProxySuffix
 	}
 
+	var relayGroup string
+	var relayIDs []string
+	if t.RelayInfoGetter != nil {
+		// relayInfoGetter returns a copy of the slice, so we can move it in the
+		// protobuf message
+		relayGroup, relayIDs = t.RelayInfoGetter()
+	}
 	srv, err := types.NewKubernetesServerV3(
 		types.Metadata{
 			Name:      name,
 			Namespace: t.Namespace,
 		},
 		types.KubernetesServerSpecV3{
-			Version:  teleport.Version,
-			Hostname: addr,
-			HostID:   t.TLSServerConfig.HostID,
-			Rotation: t.getRotationState(),
-			Cluster:  cluster,
-			ProxyIDs: t.ConnectedProxyGetter.GetProxyIDs(),
+			Version:    teleport.Version,
+			Hostname:   addr,
+			HostID:     t.TLSServerConfig.HostID,
+			Rotation:   t.getRotationState(),
+			Cluster:    cluster,
+			ProxyIDs:   t.ConnectedProxyGetter.GetProxyIDs(),
+			RelayGroup: relayGroup,
+			RelayIds:   relayIDs,
 		},
 	)
 	if err != nil {

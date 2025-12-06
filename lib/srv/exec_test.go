@@ -64,8 +64,6 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	rec, ok := scx.session.recorder.(*mockRecorder)
 	require.True(t, ok)
 
-	scx.GetServer().TargetMetadata()
-
 	expectedUsr, err := user.Current()
 	require.NoError(t, err)
 	expectedHostname := "testHost"
@@ -151,6 +149,7 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 		term:     term,
 		emitter:  rec,
 		recorder: rec,
+		scx:      scx,
 	}
 	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
 	require.NoError(t, err)

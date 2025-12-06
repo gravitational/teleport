@@ -23,9 +23,12 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -695,19 +698,21 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 
-	var loginIP, userAgent string
+	var loginIP, userAgent, proxyGroupID string
 	if cm := req.ClientMetadata; cm != nil {
 		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userAgent = cm.UserAgent
+		proxyGroupID = cm.ProxyGroupID
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:                 user.GetName(),
 		LoginIP:              loginIP,
 		LoginUserAgent:       userAgent,
+		ProxyGroupID:         proxyGroupID,
 		Roles:                user.GetRoles(),
 		Traits:               user.GetTraits(),
 		LoginTime:            a.clock.Now().UTC(),
@@ -812,7 +817,19 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var userAgent, proxyGroupID string
+	if req.ClientMetadata != nil {
+		userAgent = req.ClientMetadata.UserAgent
+		proxyGroupID = req.ClientMetadata.ProxyGroupID
+	}
 	UserLoginCount.Inc()
+	userAgentType, userAgentVersion := splitClientUserAgent(userAgent)
+	userLoginCountPerClient.With(prometheus.Labels{
+		tagUserAgentType: userAgentType,
+		tagVersion:       userAgentVersion,
+		tagProxyGroupID:  proxyGroupID,
+	}).Inc()
 
 	var clientOptions authclient.ClientOptions
 	if o, err := a.ClientOptionsForLogin(user); err == nil {
@@ -892,6 +909,21 @@ func trimUserAgent(userAgent string) string {
 		return userAgent[:maxUserAgentLen-3] + "..."
 	}
 	return userAgent
+}
+
+// splitClientUserAgent strictly splits the user agent into a type and a semantic version.
+// Any other formatting is not allowed and is treated as a third-party client (to be ignored).
+func splitClientUserAgent(userAgent string) (string, string) {
+	agent := strings.SplitN(userAgent, "/", 2)
+	if len(agent) != 2 {
+		return "", ""
+	}
+	ver, err := semver.NewVersion(agent[1])
+	if err != nil {
+		return "", ""
+	}
+
+	return agent[0], ver.String()
 }
 
 const noLocalAuth = "local auth disabled"

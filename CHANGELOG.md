@@ -1,5 +1,71 @@
 # Changelog
 
+## 18.5.0 (12/04/25)
+
+### Kubernetes support for Relay Service
+The relay service now facilitates Kubernetes connections.
+
+### Shared state between tsh and Teleport Connect
+Teleport Connect and tsh now share the same local state. Logins from one app will automatically be reflected in the other.
+
+### SCIM PATCH support in SailPoint integration
+Teleport SCIM server now natively supports PATCH operations to improve reliability of bulk SCIM operations in integrations like SailPoint.
+
+### Other changes and improvements
+
+* Updated Go to 1.24.11. [#61953](https://github.com/gravitational/teleport/pull/61953)
+* Added support for discovering EC2 instances in all regions, without enumerating them. Requires access to `account.ListRegions` in the IAM Role assumed by the Discovery Service. [#61924](https://github.com/gravitational/teleport/pull/61924)
+* Fixed a bug where JWT-SVID timestamp claims would be represented using scientific notation. [#61921](https://github.com/gravitational/teleport/pull/61921)
+* Fixed "SSH cert not found" errors in Teleport Connect. [#61846](https://github.com/gravitational/teleport/pull/61846)
+* Added support for authenticating Azure resource discovery using Azure OIDC integrations. [#61830](https://github.com/gravitational/teleport/pull/61830)
+* Fixed a bug in Proxy recording mode where Teleport Node sessions would result in duplicate audit events with a different session ID. [#61246](https://github.com/gravitational/teleport/pull/61246)
+* Tuned teleport-cluster, teleport-kube-agent, and teleport-relay Helm charts to reduce the probability of Teleport exceeding its memory limits and being OOM-Killed. GOMEMLIMIT defaults to 90% of the configured memory limits.
+
+Enterprise:
+* Added support for AWS Account name and ID labels (`teleport.dev/account-id`, `teleport.dev/account-name`) on AWS Identity Center resources (`aws_ic_account_assignment` and `aws_ic_account`). These labels improve compatibility with Access Monitoring Rules, allowing users to more easily target and audit AWS IC accounts.
+* Updated the Access Automation Rules dialog to display rules in a paginated view.
+
+## 18.4.2 (12/01/25)
+
+* Fixed a bug causing high memory consumption in the Teleport Auth Service when clients were listing large resources. [#61849](https://github.com/gravitational/teleport/pull/61849)
+* Prevent data races when terminating interactive Kubernetes sessions. [#61818](https://github.com/gravitational/teleport/pull/61818)
+* Fixed `tsh db connect` failing to connect to databases using separate ports configuration (non-TLS routing mode). [#61812](https://github.com/gravitational/teleport/pull/61812)
+* Fixed a bug where Kubernetes App Discovery `poll_interval` is not set correctly. [#61791](https://github.com/gravitational/teleport/pull/61791)
+* Fixed an issue that caused a failed upload of an encrypted session recording to block other recordings from uploading. [#61774](https://github.com/gravitational/teleport/pull/61774)
+* Fixed relative path evaluation for SFTP in proxy recording mode. [#61760](https://github.com/gravitational/teleport/pull/61760)
+* Fixed `tsh kube ls` showing deleted clusters. [#61742](https://github.com/gravitational/teleport/pull/61742)
+* Fixed workload identity templating to support certain numeric values that previously gave a "expression did not evaluate to a string" error. [#61738](https://github.com/gravitational/teleport/pull/61738)
+* Added User Details view to Web UI. [#61737](https://github.com/gravitational/teleport/pull/61737)
+* Added --roles flag for tsh request search, allowing users to list all requestable roles. This flag is mutually exclusive with --kind. [#61699](https://github.com/gravitational/teleport/pull/61699)
+* Fixed EC2 SSM Document set up script used in Enroll New Resource. [#61673](https://github.com/gravitational/teleport/pull/61673)
+* Fixed AWS Console access when using AWS IAM Roles Anywhere or AWS OIDC integrations, when IP Pinning is enabled. [#61654](https://github.com/gravitational/teleport/pull/61654)
+* Fixed "invalid name syntax" connection error for PostgreSQL auto-provisioned users with email usernames. [#61631](https://github.com/gravitational/teleport/pull/61631)
+* Auth readiness tuned to wait for cache initialization. [#61620](https://github.com/gravitational/teleport/pull/61620)
+* Added ability to update existing Azure OIDC integration with `tctl`. [#61592](https://github.com/gravitational/teleport/pull/61592)
+
+Enterprise:
+* Added Entra directory sync metrics.
+* Improved the initial EntraID user and group synchronization time, reducing the time required for the first full sync.
+* Prevented Trivy from reporting false positives when scanning the Teleport binaries.
+
+## 18.4.1 (11/20/25)
+
+* Fixed a bug that prevented searching audit log events in the web UI when using Athena audit storage. [#61603](https://github.com/gravitational/teleport/pull/61603)
+* Prevented Trivy from reporting false positives when scanning the Teleport binaries. [#61539](https://github.com/gravitational/teleport/pull/61539)
+* Added support for `tsh logout --proxy` (or `TELEPORT_PROXY` set) to work without `--user` flag when one identity exists. [#61404](https://github.com/gravitational/teleport/pull/61404)
+* Fixed web upload/download failure behind load balancers when web listen address is unspecified. [#61393](https://github.com/gravitational/teleport/pull/61393)
+* Fixed corrupted private keys breaking tsh. [#61388](https://github.com/gravitational/teleport/pull/61388)
+* Resource names are now properly validated for AWS Roles Anywhere integration `Generate Command`. [#61385](https://github.com/gravitational/teleport/pull/61385)
+* Added caches to reduce Active Directory user SID lookups and TLS certificate requests. [#61317](https://github.com/gravitational/teleport/pull/61317)
+* GOAWAY errors received from Kubernetes API Servers configured with a non-zero --goaway-chance are now forward to clients to be retried. [#61256](https://github.com/gravitational/teleport/pull/61256)
+* Added support for creating and managing scoped tokens using `tctl scoped tokens add/ls/rm`. SSH nodes can now join a cluster within a particular scope by joining with a scoped token. [#60758](https://github.com/gravitational/teleport/pull/60758)
+
+Enterprise:
+* Removed sync of the model identifier from Intune to avoid mismatches between the identifier reported by Intune vs Teleport clients.
+* Added support for Jamf's /v2/computers-inventory API (addresses Jamf's deprecation of /v1/computers-inventory).
+* Updated the AWS Identity Center resource synchronizer to handle AWS Account name changes more gracefully.
+* Added audit events in response to SCIM provisioning requests.
+
 ## 18.4.0 (11/13/25)
 
 ### Streamable-HTTP and SSE support for MCP Zero-Trust Access
@@ -994,3 +1060,4 @@ or `alpn-ping` as upgrade types was left as a fallback until v17.
 
 Teleport v18 removes the legacy upgrade mode entirely including the use of the
 `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
+

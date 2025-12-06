@@ -1188,8 +1188,6 @@ type SearchEventsRequest struct {
 	// If the previous response had LastKey set then this should be
 	// set to its value. Otherwise leave empty.
 	StartKey string
-	// Search is an optional search query to filter events.
-	Search string
 }
 
 type SearchSessionEventsRequest struct {

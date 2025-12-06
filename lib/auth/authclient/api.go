@@ -389,6 +389,8 @@ type ReadRelayAccessPoint interface {
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+
+	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 }
 
 // ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be

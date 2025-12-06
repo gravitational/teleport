@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"maps"
 	"slices"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -1172,4 +1174,78 @@ func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Contex
 		}
 	}
 	return nil
+}
+
+// InsertAccessListCollection inserts a complete collection of access lists and their members from a single
+// upstream source (e.g. EntraID) using a batch operation for improved performance.
+//
+// This method is designed for bulk import scenarios where an entire access list collection needs to be
+// synchronized from an external source. All access lists and members in the collection are
+// inserted using chunked batch operations, minimizing memory allocation while still reducing
+// the number of write operations. Due to the batch nature of this operation (access list hierarchy
+// is known upfront), we can avoid per-access-list locking and global locks to improve performance.
+//
+// Important: This method assumes the collection is self-contained. Access lists in the collection
+// cannot reference access lists outside the collection as members or owners. This is intentional for
+// collections representing a complete snapshot from a single upstream source.
+// The function should be used only once during initial import where
+// we are sure that Teleport doesn't have any pre-existing access lists from the upstream and the
+// internal relation between upstream access lists and internal access lists doesn't exist yet.
+//
+// Operation can fail due to backend shutdown. In that case, if partial state was created,
+// use UpsertAccessListWithMembers/DeleteAccessListMember to reconcile to the desired state.
+func (a *AccessListService) InsertAccessListCollection(ctx context.Context, collection *accesslists.Collection) error {
+	if err := collection.Validate(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	// Collect backend items in chunks of 800 items each to avoid high memory consumption
+	// from constructing a large slice of all backend items at once. PutBatch will then
+	// leverage its own internal chunking to write items to the backend in smaller batches.
+	// TODO(smallinsky) align the chunk size with the one used in backend.PutBatch
+	for chunk, err := range stream.Chunks(a.collectionToBackendItemsIter(collection), 800) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := backend.PutBatch(ctx, a.backend, chunk); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// collectionToBackendItemsIter converts access list collection to an iterator of backend items.
+// The iterator yields access list members first, followed by their parent access list.
+func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists.Collection) iter.Seq2[backend.Item, error] {
+	return func(yield func(backend.Item, error) bool) {
+		for aclName, members := range collection.MembersByAccessList {
+			acl, ok := collection.AccessListsByName[aclName]
+			if !ok {
+				yield(backend.Item{}, trace.NotFound("access list %q not found", aclName))
+				return
+			}
+			for _, member := range members {
+				item, err := a.memberService.WithPrefix(member.Spec.AccessList).MakeBackendItem(member)
+				if err != nil {
+					yield(backend.Item{}, trace.Wrap(err))
+					return
+				}
+				if !yield(item, nil) {
+					return
+				}
+			}
+			item, err := a.service.MakeBackendItem(acl)
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+			if !yield(item, nil) {
+				return
+			}
+		}
+	}
+}
+
+// ListUserAccessLists is not implemented in the local service.
+func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
+	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
 }

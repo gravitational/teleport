@@ -89,8 +89,10 @@
     "GCP's",
     "GENPASS",
     "GHES",
+    "GOAWAY",
     "GODEBUG",
     "GOMAXPROCS",
+    "GOMEMLIMIT",
     "GSLB",
     "Gbps",
     "Ghostunnel",
@@ -564,6 +566,7 @@
     "gitref",
     "glmhf",
     "gncm",
+    "goaway",
     "googleoidc",
     "googleusercontent",
     "goroutines",
@@ -828,6 +831,7 @@
     "pgbouncer",
     "pgpass",
     "pguser",
+    "pipx",
     "pidof",
     "pkce",
     "pkill",
@@ -1138,8 +1142,10 @@
     "hte"
   ],
   "ignorePaths": [
-    "**/reference/infrastructure-as-code/terraform-provider/**",
+    "**/includes/access-monitoring-events.mdx",
+    "**/includes/reference/code-blocks-no-cspell/**",
     "**/reference/infrastructure-as-code/operator-resources/**",
-    "**/includes/reference/code-blocks-no-cspell/**"
+    "**/reference/infrastructure-as-code/teleport-resources/**",
+    "**/reference/infrastructure-as-code/terraform-provider/**"
   ]
 }

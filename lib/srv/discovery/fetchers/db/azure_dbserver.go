@@ -42,13 +42,13 @@ func newAzurePostgresFetcher(config azureFetcherConfig) (common.Fetcher, error) 
 // azureDBServerPlugin implements azureFetcherPlugin for MySQL and PostgreSQL.
 type azureDBServerPlugin struct{}
 
-func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
+func (p *azureDBServerPlugin) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
 	switch cfg.Type {
 	case types.AzureMatcherMySQL:
-		client, err := cfg.AzureClients.GetAzureMySQLClient(subID)
+		client, err := cfg.AzureClients.GetMySQLClient(ctx, subID)
 		return client, trace.Wrap(err)
 	case types.AzureMatcherPostgres:
-		client, err := cfg.AzureClients.GetAzurePostgresClient(subID)
+		client, err := cfg.AzureClients.GetPostgresClient(ctx, subID)
 		return client, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown matcher type %q", cfg.Type)

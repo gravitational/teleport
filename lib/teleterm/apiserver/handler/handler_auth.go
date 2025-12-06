@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -106,9 +107,16 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	return trace.Wrap(err)
 }
 
-// Logout logs a user out from a cluster
+// Logout logs the user out of the cluster and cleans up associated resources.
+// Optionally removes the profile.
+// This operation is idempotent and can be safely invoked multiple times.
 func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.EmptyResponse, error) {
-	if err := s.DaemonService.ClusterLogout(ctx, req.ClusterUri); err != nil {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = s.DaemonService.ClusterLogout(ctx, clusterURI, req.RemoveProfile); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

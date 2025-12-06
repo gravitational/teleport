@@ -1,5 +1,6 @@
 ---
-title: OAuth2 and OIDC authentication
+title: OAuth2 and OIDC Authentication
+sidebar_label: OAuth2 and OIDC
 description: How to configure Teleport access with OAuth2 or OpenID connect (OIDC)
 tags:
  - sso
@@ -267,20 +268,7 @@ spec:
 
 ### Optional: Specify a claim to use as the username
 
-By default, Teleport will use the user's email as their Teleport username.
-
-You can define a `username_claim` to specify the claim that should be used as
-the username instead:
-
-```yaml
-kind: oidc
-version: v2
-metadata:
-  name: connector
-spec:
-  # Use the `preferred_username` claim as the user's Teleport username.
-  username_claim: preferred_username
-```
+(!docs/pages/includes/sso/username-claim.mdx!)
 
 ### Optional: Request object mode
 

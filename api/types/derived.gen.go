@@ -150,7 +150,8 @@ func deriveTeleportEqualKubernetesServerV3(this, that *KubernetesServerV3) bool 
 			this.SubKind == that.SubKind &&
 			this.Version == that.Version &&
 			deriveTeleportEqualMetadata(&this.Metadata, &that.Metadata) &&
-			deriveTeleportEqual_16(&this.Spec, &that.Spec)
+			deriveTeleportEqual_16(&this.Spec, &that.Spec) &&
+			this.Scope == that.Scope
 }
 
 // deriveTeleportEqualOktaAssignmentV1 returns whether this and that are equal.

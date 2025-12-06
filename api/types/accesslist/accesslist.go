@@ -18,6 +18,7 @@ package accesslist
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"time"
 
@@ -291,6 +292,17 @@ func (r *Requires) IsEmpty() bool {
 	return len(r.Roles) == 0 && len(r.Traits) == 0
 }
 
+// Clone returns a deep copy of the [Requires]
+func (r *Requires) Clone() Requires {
+	if r == nil {
+		return Requires{}
+	}
+	return Requires{
+		Roles:  slices.Clone(r.Roles),
+		Traits: r.Traits.Clone(),
+	}
+}
+
 // Grants describes what access is granted by membership to the access list.
 type Grants struct {
 	// Roles are the roles that are granted to users who are members of the access list.
@@ -314,6 +326,8 @@ type Status struct {
 
 	// CurrentUserAssignments describes the current user's ownership and membership in the access list.
 	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
+	// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+	UserAssignments *UserAssignments `json:"-" yaml:"-"`
 }
 
 // CurrentUserAssignments describes the current user's ownership and membership status in the access list.
@@ -332,6 +346,24 @@ func (c *CurrentUserAssignments) IsMember() bool {
 // IsOwner returns true if the OwnershipType is either explicit or inherited.
 func (c *CurrentUserAssignments) IsOwner() bool {
 	return c.OwnershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
+}
+
+// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+type UserAssignments struct {
+	// OwnershipType represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+	OwnershipType accesslistv1.AccessListUserAssignmentType `json:"ownership_type" yaml:"ownership_type"`
+	// MembershipType represents the requested user's membership type (explicit, inherited, or none) in the access list.
+	MembershipType accesslistv1.AccessListUserAssignmentType `json:"membership_type" yaml:"membership_type"`
+}
+
+// IsMember returns true if the MembershipType is either explicit or inherited.
+func (u *UserAssignments) IsMember() bool {
+	return u.MembershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
+}
+
+// IsOwner returns true if the OwnershipType is either explicit or inherited.
+func (u *UserAssignments) IsOwner() bool {
+	return u.OwnershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 }
 
 // NewAccessList will create a new access list.

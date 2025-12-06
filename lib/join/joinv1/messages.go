@@ -42,6 +42,8 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 		return oidcInitToMessage(msg.OidcInit)
 	case *joinv1.JoinRequest_OracleInit:
 		return oracleInitToMessage(msg.OracleInit)
+	case *joinv1.JoinRequest_TpmInit:
+		return tpmInitToMessage(msg.TpmInit)
 	case *joinv1.JoinRequest_Solution:
 		return challengeSolutionToMessage(msg.Solution)
 	case *joinv1.JoinRequest_GivingUp:
@@ -121,10 +123,21 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 				OracleInit: oracleInit,
 			},
 		}, nil
+	case *messages.TPMInit:
+		tpmInit, err := tpmInitFromMessage(typedMsg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &joinv1.JoinRequest{
+			Payload: &joinv1.JoinRequest_TpmInit{
+				TpmInit: tpmInit,
+			},
+		}, nil
 	case *messages.BoundKeypairChallengeSolution,
 		*messages.BoundKeypairRotationResponse,
 		*messages.IAMChallengeSolution,
-		*messages.OracleChallengeSolution:
+		*messages.OracleChallengeSolution,
+		*messages.TPMSolution:
 		solution, err := challengeSolutionFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -292,6 +305,8 @@ func challengeSolutionToMessage(req *joinv1.ChallengeSolution) (messages.Request
 		return iamChallengeSolutionToMessage(payload.IamChallengeSolution), nil
 	case *joinv1.ChallengeSolution_OracleChallengeSolution:
 		return oracleChallengeSolutionToMessage(payload.OracleChallengeSolution), nil
+	case *joinv1.ChallengeSolution_TpmSolution:
+		return tpmSolutionToMessage(payload.TpmSolution), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge solution message type %T", payload)
 	}
@@ -321,6 +336,12 @@ func challengeSolutionFromMessage(msg messages.Request) (*joinv1.ChallengeSoluti
 		return &joinv1.ChallengeSolution{
 			Payload: &joinv1.ChallengeSolution_OracleChallengeSolution{
 				OracleChallengeSolution: oracleChallengeSolutionFromMessage(typedMsg),
+			},
+		}, nil
+	case *messages.TPMSolution:
+		return &joinv1.ChallengeSolution{
+			Payload: &joinv1.ChallengeSolution_TpmSolution{
+				TpmSolution: tpmSolutionFromMessage(typedMsg),
 			},
 		}, nil
 	default:
@@ -355,7 +376,8 @@ func responseFromMessage(msg messages.Response) (*joinv1.JoinResponse, error) {
 	case *messages.BoundKeypairChallenge,
 		*messages.BoundKeypairRotationRequest,
 		*messages.IAMChallenge,
-		*messages.OracleChallenge:
+		*messages.OracleChallenge,
+		*messages.TPMEncryptedCredential:
 		challenge, err := challengeFromMessage(msg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -418,6 +440,8 @@ func challengeToMessage(resp *joinv1.Challenge) (messages.Response, error) {
 		return iamChallengeToMessage(payload.IamChallenge), nil
 	case *joinv1.Challenge_OracleChallenge:
 		return oracleChallengeToMessage(payload.OracleChallenge), nil
+	case *joinv1.Challenge_TpmEncryptedCredential:
+		return tpmEncryptedCredentialToMessage(payload.TpmEncryptedCredential), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge payload type %T", payload)
 	}
@@ -447,6 +471,12 @@ func challengeFromMessage(resp messages.Response) (*joinv1.Challenge, error) {
 		return &joinv1.Challenge{
 			Payload: &joinv1.Challenge_OracleChallenge{
 				OracleChallenge: oracleChallengeFromMessage(msg),
+			},
+		}, nil
+	case *messages.TPMEncryptedCredential:
+		return &joinv1.Challenge{
+			Payload: &joinv1.Challenge_TpmEncryptedCredential{
+				TpmEncryptedCredential: tpmEncryptedCredentialFromMessage(msg),
 			},
 		}, nil
 	default:

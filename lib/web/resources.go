@@ -61,12 +61,15 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 		return nil, trace.Wrap(err)
 	}
 
+	skipSystemRoles := values.Get("includeSystemRoles") != "yes"
+	includeRoleObject := values.Get("includeObject") == "yes"
+
 	roles, err := clt.ListRoles(context.TODO(), &proto.ListRolesRequest{
 		Limit:    limit,
 		StartKey: values.Get("startKey"),
 		Filter: &types.RoleFilter{
 			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
-			SkipSystemRoles: true,
+			SkipSystemRoles: skipSystemRoles,
 		},
 	})
 	if err != nil {
@@ -78,7 +81,7 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 		typeRoles = append(typeRoles, role)
 	}
 
-	uiRoles, err := ui.NewRoles(typeRoles)
+	uiRoles, err := ui.NewRoles(typeRoles, includeRoleObject)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -180,7 +183,7 @@ func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, param
 // via the public ping endpoint.
 func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	presets := auth.GetPresetRoles()
-	return ui.NewRoles(presets)
+	return ui.NewRoles(presets, false /* without role object */)
 }
 
 // getGithubConnectorHandle returns a GitHub connector by name.

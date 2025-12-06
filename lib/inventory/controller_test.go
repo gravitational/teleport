@@ -45,6 +45,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestMain(m *testing.M) {
@@ -201,8 +202,127 @@ func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) 
 // an ssh service.
 func TestSSHServerBasics(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testSSHServerBasics)
+	synctest.Test(t, testSSHServerBasics)
+	synctest.Test(t, testSSHServerScope)
 }
+
+func testSSHServerScope(t *testing.T) {
+	const serverID = "test-server"
+	const zeroAddr = "0.0.0.0:123"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, &proto.UpstreamInventoryPong{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+		Scope:    "/aa/bb",
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake ssh server heartbeat with a scope matching registration
+	err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+			Scope: "/aa/bb",
+		},
+	})
+	require.NoError(t, err)
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(sshUpsertOk, sshKeepAliveOk),
+		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
+	)
+
+	// send an ssh server heartbeat with a scope different from registration
+	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+			Scope: "/aa/bb/cc",
+		},
+	})
+	require.NoError(t, err)
+
+	// verify that the handler closes
+	awaitEvents(t, events,
+		expect(handlerClose),
+		deny(sshUpsertOk, sshKeepAliveOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+}
+
 func testSSHServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const zeroAddr = "0.0.0.0:123"
@@ -417,7 +537,7 @@ func testSSHServerBasics(t *testing.T) {
 // an app service.
 func TestAppServerBasics(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testAppServerBasics)
+	synctest.Test(t, testAppServerBasics)
 }
 func testAppServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -651,7 +771,7 @@ func testAppServerBasics(t *testing.T) {
 // a database server.
 func TestDatabaseServerBasics(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testDatabaseServerBasics)
+	synctest.Test(t, testDatabaseServerBasics)
 }
 func testDatabaseServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -918,7 +1038,7 @@ func testDatabaseServerBasics(t *testing.T) {
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat_Disabled(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testInstanceHeartbeat_Disabled)
+	synctest.Test(t, testInstanceHeartbeat_Disabled)
 }
 func testInstanceHeartbeat_Disabled(t *testing.T) {
 	const serverID = "test-instance"
@@ -970,7 +1090,7 @@ func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testInstanceHeartbeat)
+	synctest.Test(t, testInstanceHeartbeat)
 }
 func testInstanceHeartbeat(t *testing.T) {
 	const serverID = "test-instance"
@@ -1090,7 +1210,7 @@ func testInstanceHeartbeat(t *testing.T) {
 // inventory control stream.
 func TestUpdateLabels(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testUpdateLabels)
+	synctest.Test(t, testUpdateLabels)
 }
 func testUpdateLabels(t *testing.T) {
 	const serverID = "test-instance"
@@ -1163,7 +1283,7 @@ func testUpdateLabels(t *testing.T) {
 // inventory control stream.
 func TestAgentMetadata(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testAgentMetadata)
+	synctest.Test(t, testAgentMetadata)
 }
 func testAgentMetadata(t *testing.T) {
 	const serverID = "test-instance"
@@ -1440,14 +1560,14 @@ func TestGoodbye(t *testing.T) {
 		}
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			maybeSynctest(t, inner)
+			synctest.Test(t, inner)
 		})
 	}
 }
 
 func TestKubernetesServerBasics(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testKubernetesServerBasics)
+	synctest.Test(t, testKubernetesServerBasics)
 }
 func testKubernetesServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -1678,7 +1798,7 @@ func testKubernetesServerBasics(t *testing.T) {
 
 func TestGetSender(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testGetSender)
+	synctest.Test(t, testGetSender)
 }
 func testGetSender(t *testing.T) {
 	controller := NewController(
@@ -1751,7 +1871,7 @@ func testGetSender(t *testing.T) {
 // TestTimeReconciliation verifies basic behavior of the time reconciliation check.
 func TestTimeReconciliation(t *testing.T) {
 	t.Parallel()
-	maybeSynctest(t, testTimeReconciliation)
+	synctest.Test(t, testTimeReconciliation)
 }
 func testTimeReconciliation(t *testing.T) {
 	const serverID = "test-server"

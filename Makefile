@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.4.0
+VERSION=18.5.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -49,14 +49,14 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 # When TELEPORT_DEBUG is true, set flags to produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
-BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
-BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l"
-BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
-BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 # teleport-update builds with disabled cgo, buildmode=pie is not required.
-BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -320,10 +320,10 @@ ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
-BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 # teleport-update builds with disabled cgo, buildmode=pie is not required.
-BUILDFLAGS_TELEPORT_UPDATE = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
+BUILDFLAGS_TELEPORT_UPDATE = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 endif
 
 ifeq ("$(OS)","darwin")
@@ -2007,9 +2007,30 @@ audit-event-reference-up-to-date: must-start-clean/host audit-event-reference
 		exit 1; \
 	fi
 
+.PHONY: access-monitoring-reference
+access-monitoring-reference:
+	cd ./build.assets/tooling/cmd/gen-athena-docs && go run main.go > ../../../../docs/pages/includes/access-monitoring-events.mdx
+
+.PHONY: access-monitoring-reference-up-to-date
+access-monitoring-reference-up-to-date: access-monitoring-reference
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "Access Monitoring event reference docs" "make access-monitoring-reference"; \
+		exit 1; \
+	fi
+
 .PHONY: gen-docs
-gen-docs:
+gen-docs: gen-resource-docs audit-event-reference
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
-	$(MAKE) audit-event-reference
+
+.PHONY: gen-resource-docs
+gen-resource-docs:
+	cd build.assets/tooling/cmd/resource-ref-generator && go run . -config config.yaml
+
+.PHONY: resource-docs-up-to-date
+resource-docs-up-to-date: must-start-clean/host gen-resource-docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "tctl resource reference docs" "make gen-resource-docs"; \
+		exit 1; \
+	fi

@@ -10,7 +10,7 @@ tags:
 ---
 
 This guide will explain how to set up Microsoft Teams to receive Access Request messages
-from Teleport. 
+from Teleport.
 
 <details>
 <summary>This integration is hosted on Teleport Enterprise (Cloud)</summary>
@@ -58,25 +58,26 @@ productivity.
 ## Step 1/9. Define RBAC resources
 
 Before you set up the Microsoft Teams plugin, you will need to enable Role Access Requests
-in your Teleport cluster. 
+in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/9. Install the Teleport Microsoft Teams plugin
+## Step 2/9. Define a Teleport Microsoft Teams plugin user
 
-Install the Microsoft Teams plugin on your workstation. If you are deploying the
-plugin on Kubernetes, you will still need to install the plugin locally in order
-to generate an application archive to upload later in this guide.
+The required permissions for the plugin are configured in the preset `access-plugin`
+role. To generate credentials for the plugin, define either a Machine ID bot user
+or a regular Teleport user.
 
-(!docs/pages/includes/plugins/install-access-request.mdx name="msteams"!)
+<Tabs>
+<TabItem label="Machine & Workload Identity">
+(!docs/pages/includes/plugins/rbac-impersonate-machine-id.mdx!)
+</TabItem>
+<TabItem label="Long-lived identity files">
+(!docs/pages/includes/plugins/rbac-impersonate.mdx!)
+</TabItem>
+</Tabs>
 
-## Step 3/9. Create a user and role for the plugin
-
-(!docs/pages/includes/plugins/rbac-with-friendly-name.mdx!)
-
-(!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
-
-## Step 4/9. Export the access plugin identity
+## Step 3/9. Export the access plugin identity
 
 Give the plugin access to a Teleport identity file. We recommend using Machine
 ID for this in order to produce short-lived identity files that are less
@@ -91,6 +92,14 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-msteams-identity"!)
 </TabItem>
 </Tabs>
+
+## Step 4/9. Install the Teleport Microsoft Teams plugin
+
+Install the Microsoft Teams plugin on your workstation. If you are deploying the
+plugin on Kubernetes, you will still need to install the plugin locally in order
+to generate an application archive to upload later in this guide.
+
+(!docs/pages/includes/plugins/install-access-request.mdx name="msteams"!)
 
 ## Step 5/9. Register an Azure Bot
 

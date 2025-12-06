@@ -205,6 +205,12 @@ func deriveDeepCopy_1(dst, src *Status) {
 		dst.CurrentUserAssignments = new(CurrentUserAssignments)
 		*dst.CurrentUserAssignments = *src.CurrentUserAssignments
 	}
+	if src.UserAssignments == nil {
+		dst.UserAssignments = nil
+	} else {
+		dst.UserAssignments = new(UserAssignments)
+		*dst.UserAssignments = *src.UserAssignments
+	}
 }
 
 // deriveDeepCopy_2 recursively copies the contents of src into dst.

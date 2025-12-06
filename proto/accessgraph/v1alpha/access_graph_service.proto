@@ -31,6 +31,7 @@ import "accessgraph/v1alpha/netiq.proto";
 import "accessgraph/v1alpha/okta.proto";
 import "accessgraph/v1alpha/resources.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/auditlog/v1/auditlog.proto";
 
@@ -102,6 +103,32 @@ service AccessGraphService {
   // 3. Server sends second response providing the starting `resume_state` (possilby empty).
   // 4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
   rpc AWSCloudTrailStream(stream AWSCloudTrailStreamRequest) returns (stream AWSCloudTrailStreamResponse);
+
+  // KubeAuditLogStream establishes a persistent bidirectional stream for exporting
+  // Kubernetes audit logs from a client (teleport) to a server (access-graph). This stream
+  // is separate from other audit log streams as fetching Kubernetes audit logs can
+  // require a variety of mechanisms for retrieving them depending on how/where the
+  // k8s cluster is deployed. It often will not make sense to integrate this audit log
+  // stream with any of the others.
+  //
+  // This stream facilitates:
+  // - Initial configuration exchange and validation.
+  // - Streaming batches of audit log events from client to server.
+  // - Reliable export resumption via client-provided resume state updates.
+  // - Logs for multiple clusters can be streamed across the one grpc stream.
+  //
+  // Basic Interaction Flow:
+  // 1. Client connects and sends an initial `KubeAuditLogStreamRequest` with `config`.
+  // 2. Server responds with an initial `KubeAuditLogStreamResponse`, confirming the
+  //    effective configuration.
+  // 3. Client sends a `KubeAuditLogNewStream` message initiating a log stream for
+  //    a cluster, with a timestamp of the oldest logs it wants.
+  // 4. Server responds with a `KubeAuditLogResumeState` message containing either
+  //    a resumption cursor indicating when logs should be streamed from, or if
+  //    a new cluster or an old outdated resumption point has been stored, sends
+  //    the timestamp from which logs should be sent.
+  // 5. Client sends subsequent `KubeAuditLogStreamRequest` messages with new logs.
+  rpc KubeAuditLogStream(stream KubeAuditLogStreamRequest) returns (stream KubeAuditLogStreamResponse);
 
   // Register submits a new tenant representing this Teleport cluster to the TAG service,
   // identified by its HostCA certificate.
@@ -608,6 +635,119 @@ message AWSCloudTrailEventResource {
   // the resource types supported for a service, see Filtering CloudTrail Events
   // (https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events-console.html#filtering-cloudtrail-events).
   string type = 2;
+}
+
+// KubeAuditLogStreamRequest is sent from the client (Teleport) to the server
+// (access graph) over the bi-directional KubeAuditLogStream. It encapsulates
+// distinct client actions for sending batches of Kubernetes audit log events
+// and managing the persistent resume state maintained by the access graph
+// server.
+message KubeAuditLogStreamRequest {
+  oneof action {
+    KubeAuditLogConfig config = 1;
+    KubeAuditLogNewStream new_stream = 2;
+    KubeAuditLogEvents events = 3;
+  }
+}
+
+// KubeAuditLogConfig is the KubeAuditLogStream configuration. It is sent from
+// the client (Teleport) to the server (access graph) on start up, containing
+// any configuration parameters from the Teleport config. The server will
+// respond with an adjusted config that is that it will use, possibly
+// overriding the supplied config.
+// Currently there is no configuration exchanged. This message is present for
+// future expansion.
+message KubeAuditLogConfig {}
+
+// KubeAuditLogNewStream identifies a log source and cluster that the client
+// wants to start sending to the server. The server responds with a
+// KubeAuditLogResumeState message indicating where to resume streaming
+// logs from.
+message KubeAuditLogNewStream {
+  KubeAuditLogCursor initial = 1;
+}
+
+// KubeAuditLogEvents is a chunk of Kubernetes apiserver audit logs.
+message KubeAuditLogEvents {
+  // event is a Kubernetes audit log event represented as a struct so as to
+  // not depend on the Kubernetes proto files. Additionally, the audit log
+  // events are typically received as JSON, not protobufs.
+  // package k8s.io.apiserver.pkg.apis.audit.v1 at
+  // https://github.com/kubernetes/apiserver/blob/master/pkg/apis/audit/v1/generated.proto
+  repeated google.protobuf.Struct events = 1;
+
+  // cursor is the position in the event stream of the last event in the
+  // event field. It can be sent back to Teleport when a stream is
+  // reconnected to resume the event stream from the end of this chunk.
+  KubeAuditLogCursor cursor = 2;
+}
+
+// KubeAuditLogCursor is a position in a stream of KubeAuditLogEvents for
+// resuming a stream of events after an interrupted connection. Each batch
+// of events has a cursor referring to the last event of the batch. The
+// cursor can be sent to Teleport when resuming a connection.
+message KubeAuditLogCursor {
+  // KubeAuditLogSource specifies a source of logs in order to interpret a
+  // KubeAuditLogCursor id and cursor. Different sources of logs will have
+  // different ways of representing a position in a log stream.
+  enum KubeAuditLogSource {
+    // KUBE_AUDIT_LOG_SOURCE_UNSPECIFIED represents a zero value where no log
+    // source has been specified.
+    KUBE_AUDIT_LOG_SOURCE_UNSPECIFIED = 0;
+    // KUBE_AUDIT_LOG_SOURCE_EKS specifies AWS CloudWatch as the source of
+    // Kubernetes apiserver audit logs. This is where EKS sends the apiserver
+    // audit logs.
+    KUBE_AUDIT_LOG_SOURCE_EKS = 1;
+  }
+
+  // log_source is where the logs are coming from that this cursor is for.
+  KubeAuditLogSource log_source = 1;
+
+  // cluster_id is an opaque identifier for the Kubernetes cluster that this
+  // cursor refers to. The ID should be interpreted based on the cluster type.
+  string cluster_id = 2;
+
+  // event_id is the ID of the last event of a batch of events that a cursor
+  // refers to. It is an opaque value interpreted according to the log_source
+  // of the cursor. When sent as part of a KubeAuditLogNewStream message, it
+  // will be empty. When sent as part of a KubeAuditLogResumeState, it may be
+  // empty to indicate that there is no resume state cursor.
+  string event_id = 3;
+
+  // last_event_time is the timestamp of the last event of a batch of events
+  // that a cursor refers to. If the event_id is sufficient to resume streaming
+  // events for a log source then this field may be omitted. When sent as part
+  // of a KubeAuditLogNewStream message, it may contain the timestamp from which
+  // the client intends to stream logs. The KubeAuditLogResumeState may contain
+  // a different time, indicating the timestamp from which it should start,
+  // either because it is a resumption of an existing stream or because the
+  // server is overriding the start timestamp for a new stream.
+  google.protobuf.Timestamp last_event_time = 4;
+}
+
+// KubeAuditLogStreamResponse is sent from the server (access graph) to the
+// client (Teleport) over th bi-directional KubeAuditLogStream. It is used to
+// convey the resume state of the log streams that access graph is processing
+// the logs for.
+message KubeAuditLogStreamResponse {
+  oneof state {
+    KubeAuditLogConfig config = 1;
+    KubeAuditLogResumeState resume_state = 2;
+  }
+}
+
+// KubeAuditLogResumeState is the response to the KubeAuditLogNewStream request
+// and contains the cursor for the resume state of that Kubernetes cluster.
+message KubeAuditLogResumeState {
+  // cursor is a resumption cursor for a new stream, sent in response to
+  // a KubeAuditLogNewStream request. If the log_source and cluster_id sent
+  // in the new stream request are unknown to the server, this cursor
+  // may not contain a position to resume from. However the timestamp in
+  // the cursor should be set to what was received in the KubeAuditLogNewStream
+  // message if it is not to be overridden, or it should be replaced with
+  // a different initial start timestamp if Access Graph (server) wants to
+  // override that.
+  KubeAuditLogCursor cursor = 1;
 }
 
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
