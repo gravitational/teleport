@@ -128,6 +128,25 @@ func (h *Multi[T]) Remove(key T) {
 	}
 }
 
+func (h *Multi[T]) Reset(key T) {
+	for i := range h.heap.Slice {
+		if h.heap.Slice[i].key != key {
+			continue
+		}
+
+		now := h.clock.Now()
+
+		const firstFalse = false
+		h.heap.Slice[i].tick = now.Add(h.interval(firstFalse))
+		h.heap.Fix(i)
+
+		const firedFalse = false
+		h.reset(now, firedFalse)
+
+		return
+	}
+}
+
 // Tick *must* be called exactly once for each firing observed on the Elapsed channel, with the time
 // of the firing. Tick will advance the internal state of the multi to start targeting the next interval,
 // and return the key associated with the interval that just fired.
