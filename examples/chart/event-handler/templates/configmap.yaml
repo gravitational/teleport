@@ -19,16 +19,35 @@ data:
     types = "{{ join "," .Values.eventHandler.types }}"
     {{- end }}
     {{- if .Values.eventHandler.skipEventTypes }}
-    skip-event-types = "{{ join "," .Values.eventHandler.skipEventTypes  }}"
+    skip-event-types = "{{ join "," .Values.eventHandler.skipEventTypes }}"
     {{- end }}
-    {{- if .Values.eventHandler.skipSessionTypes  }}
+    {{- if .Values.eventHandler.skipSessionTypes }}
     skip-session-types = "{{ join "," .Values.eventHandler.skipSessionTypes }}"
+    {{- end }}
+    {{- if .Values.eventHandler.startTime }}
+    start-time = {{ .Values.eventHandler.startTime | quote }}
+    {{- end }}
+    {{- if .Values.eventHandler.dryRun }}
+    dry-run = {{ .Values.eventHandler.dryRun }}
+    {{- end }}
+    {{- if .Values.eventHandler.exitOnLastEvent }}
+    exit-on-last-event = {{ .Values.eventHandler.exitOnLastEvent }}
+    {{- end }}
+    {{- if .Values.eventHandler.concurrency }}
+    concurrency = {{ .Values.eventHandler.concurrency }}
+    {{- end }}
+    {{- if and (.Values.eventHandler.lock) (.Values.eventHandler.lock.enabled) }}
+    lock-enabled = {{ .Values.eventHandler.lock.enabled }}
+    lock-failed-attempts-count = {{ .Values.eventHandler.lock.failedAttemptsCount }}
+    lock-period = {{ .Values.eventHandler.lock.period | quote }}
+    lock-for = {{ .Values.eventHandler.lock.for | quote }}
     {{- end }}
 
     [teleport]
     addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
     identity = "/var/lib/teleport/plugins/event-handler/teleport-identity/{{ include "event-handler.identitySecretPath" . }}"
-    refresh.enabled = true
+    refresh.enabled = {{ default "true" .Values.teleport.refreshEnabled }}
+    refresh.interval = {{ default "1m" .Values.teleport.refreshInterval | quote}}
 
     [forward.fluentd]
     url = "{{ .Values.fluentd.url }}"
@@ -36,3 +55,8 @@ data:
     ca = "/var/lib/teleport/plugins/event-handler/ca.crt"
     cert = "/var/lib/teleport/plugins/event-handler/client.crt"
     key = "/var/lib/teleport/plugins/event-handler/client.key"
+    {{- if .Values.fluentd.maxConnections }}
+    max-connections = {{ .Values.fluentd.maxConnections }}
+    {{- else }}
+    max-connections = {{ mul .Values.eventHandler.concurrency 2 }}
+    {{- end }}
