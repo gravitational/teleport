@@ -4,6 +4,14 @@ templates:
 tests:
   - it: should match the snapshot
     set:
+      eventHandler:
+        debug: true
+        startTime: "2025-01-01T00:00:00.000Z"
+        dryRun: true
+        exitOnLastEvent: true
+        concurrency: 2
+        lock:
+          enabled: true
       teleport:
         address: teleport.example.com:1234
       fluentd:
