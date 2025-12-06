@@ -37,7 +37,7 @@ type reporter struct {
 	mu     *sync.Mutex
 	status *ServiceStatus
 	clock  clockwork.Clock
-	notify func()
+	notify func(status Status, reason string)
 }
 
 func (r *reporter) Report(status Status) {
@@ -54,7 +54,7 @@ func (r *reporter) ReportReason(status Status, reason string) {
 	updatedAt := r.clock.Now()
 	r.status.UpdatedAt = &updatedAt
 
-	r.notify()
+	r.notify(status, reason)
 }
 
 // NoopReporter returns a no-op Reporter that can be used when no real reporter
