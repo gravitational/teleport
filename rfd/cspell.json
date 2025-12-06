@@ -162,6 +162,7 @@
     "createrole",
     "credentialprocess",
     "creds",
+    "crls",
     "cryptographical",
     "cslint",
     "csrs",
@@ -462,6 +463,7 @@
     "mvnw",
     "myauth",
     "myaws",
+    "mycluster",
     "mycommand",
     "mycompany",
     "mydatabase",
@@ -569,6 +571,7 @@
     "PKCE",
     "PKCS",
     "pkey",
+    "PKINIT",
     "PKISVC",
     "PKIX",
     "plantuml",
@@ -791,6 +794,7 @@
     "structpb",
     "structs",
     "stscreds",
+    "subca",
     "subcases",
     "subcondition",
     "Subconditions",
@@ -973,6 +977,7 @@
     "Zdunek",
     "zdvik",
     "Zilla",
+    "zarquon",
     "ZLMR"
   ]
 }
