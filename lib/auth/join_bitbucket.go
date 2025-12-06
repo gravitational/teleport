@@ -24,13 +24,19 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/bitbucket"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
 )
 
-type bitbucketIDTokenValidator interface {
-	Validate(
-		ctx context.Context, idpURL, audience, token string,
-	) (*bitbucket.IDTokenClaims, error)
+// GetBitbucketIDTokenValidator returns the currently configured token validator
+// for Bitbucket.
+func (a *Server) GetBitbucketIDTokenValidator() bitbucket.Validator {
+	return a.bitbucketIDTokenValidator
+}
+
+// SetBitbucketIDTokenValidator sets the current Bitbucket token validator
+// implementation. Used in tests.
+func (a *Server) SetBitbucketIDTokenValidator(validator bitbucket.Validator) {
+	a.bitbucketIDTokenValidator = validator
 }
 
 func (a *Server) checkBitbucketJoinRequest(
@@ -38,51 +44,14 @@ func (a *Server) checkBitbucketJoinRequest(
 	req *types.RegisterUsingTokenRequest,
 	pt types.ProvisionToken,
 ) (*bitbucket.IDTokenClaims, error) {
-	if req.IDToken == "" {
-		return nil, trace.BadParameter("id_token not provided for bitbucket join request")
-	}
-	token, ok := pt.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("bitbucket join method only supports ProvisionTokenV2, '%T' was provided", pt)
-	}
+	claims, err := bitbucket.CheckIDToken(ctx, &bitbucket.CheckIDTokenParams{
+		ProvisionToken: pt,
+		IDToken:        []byte(req.IDToken),
+		Clock:          a.GetClock(),
+		Validator:      a.bitbucketIDTokenValidator,
+	})
 
-	claims, err := a.bitbucketIDTokenValidator.Validate(
-		ctx, token.Spec.Bitbucket.IdentityProviderURL, token.Spec.Bitbucket.Audience, req.IDToken,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	a.logger.InfoContext(ctx, "Bitbucket run trying to join cluster", "claims", claims, "token", pt.GetName())
-
-	return claims, trace.Wrap(checkBitbucketAllowRules(token, claims))
-}
-
-func checkBitbucketAllowRules(token *types.ProvisionTokenV2, claims *bitbucket.IDTokenClaims) error {
-	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.Bitbucket.Allow {
-		// Please consider keeping these field validators in the same order they
-		// are defined within the ProvisionTokenSpecV2Bitbucket proto spec.
-
-		if rule.WorkspaceUUID != "" && claims.WorkspaceUUID != rule.WorkspaceUUID {
-			continue
-		}
-
-		if rule.RepositoryUUID != "" && claims.RepositoryUUID != rule.RepositoryUUID {
-			continue
-		}
-
-		if rule.DeploymentEnvironmentUUID != "" && claims.DeploymentEnvironmentUUID != rule.DeploymentEnvironmentUUID {
-			continue
-		}
-
-		if rule.BranchName != "" && claims.BranchName != rule.BranchName {
-			continue
-		}
-
-		// All provided rules met.
-		return nil
-	}
-
-	return trace.AccessDenied("id token claims did not match any allow rules")
+	// Note: We try to return claims regardless of whether or not an error is
+	// returned for downstream logging.
+	return claims, trace.Wrap(err)
 }

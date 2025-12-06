@@ -19,10 +19,27 @@
 package bitbucket
 
 import (
+	"context"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
+	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "bitbucket")
+
+// Validator is a validator for Bitbucket OIDC tokens.
+type Validator interface {
+	Validate(
+		ctx context.Context, idpURL, audience, token string,
+	) (*IDTokenClaims, error)
+}
 
 // IDTokenClaims
 // See the following for the structure:
@@ -80,4 +97,86 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsBitbucket {
 		DeploymentEnvironmentUuid: c.DeploymentEnvironmentUUID,
 		BranchName:                c.BranchName,
 	}
+}
+
+// CheckIDTokenParams are parameters used to validate Bitbucket OIDC tokens.
+type CheckIDTokenParams struct {
+	ProvisionToken provision.Token
+	IDToken        []byte
+	Clock          clockwork.Clock
+	Validator      Validator
+}
+
+func (p *CheckIDTokenParams) checkAndSetDefaults() error {
+	switch {
+	case p.ProvisionToken == nil:
+		return trace.BadParameter("ProvisionToken is required")
+	case len(p.IDToken) == 0:
+		return trace.BadParameter("IDToken is required")
+	case p.Validator == nil:
+		return trace.BadParameter("Validator is required")
+	case p.Clock == nil:
+		p.Clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// CheckIDToken validates a Bitbucket OIDC token, verifying both the validity of
+// the OIDC token itself, as well as ensuring claims match any configured allow
+// rules in the provided provision token.
+func CheckIDToken(
+	ctx context.Context,
+	params *CheckIDTokenParams,
+) (*IDTokenClaims, error) {
+	if err := params.checkAndSetDefaults(); err != nil {
+		return nil, trace.AccessDenied("%s", err.Error())
+	}
+
+	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter("bitbucket join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
+	}
+
+	claims, err := params.Validator.Validate(
+		ctx, token.Spec.Bitbucket.IdentityProviderURL, token.Spec.Bitbucket.Audience, string(params.IDToken),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.InfoContext(ctx, "Bitbucket run trying to join cluster",
+		"claims", claims,
+		"token", params.ProvisionToken.GetName(),
+	)
+
+	return claims, trace.Wrap(checkBitbucketAllowRules(token, claims))
+}
+
+func checkBitbucketAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+	// If a single rule passes, accept the IDToken
+	for _, rule := range token.Spec.Bitbucket.Allow {
+		// Please consider keeping these field validators in the same order they
+		// are defined within the ProvisionTokenSpecV2Bitbucket proto spec.
+
+		if rule.WorkspaceUUID != "" && claims.WorkspaceUUID != rule.WorkspaceUUID {
+			continue
+		}
+
+		if rule.RepositoryUUID != "" && claims.RepositoryUUID != rule.RepositoryUUID {
+			continue
+		}
+
+		if rule.DeploymentEnvironmentUUID != "" && claims.DeploymentEnvironmentUUID != rule.DeploymentEnvironmentUUID {
+			continue
+		}
+
+		if rule.BranchName != "" && claims.BranchName != rule.BranchName {
+			continue
+		}
+
+		// All provided rules met.
+		return nil
+	}
+
+	return trace.AccessDenied("id token claims did not match any allow rules")
 }
