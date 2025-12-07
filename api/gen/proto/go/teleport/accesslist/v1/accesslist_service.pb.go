@@ -1429,26 +1429,11 @@ type UpsertAccessListWithPresetRequest struct {
 	// what set of actions Teleport will perform.
 	PresetType PresetType `protobuf:"varint,1,opt,name=preset_type,json=presetType,proto3,enum=teleport.accesslist.v1.PresetType" json:"preset_type,omitempty"`
 	// access_roles is a list of role specs that defines the "access" to
-	// resources. Teleport will perform role create/update/delete (CUD) per
-	// spec. The role CUD operations will depend on if the request was for a
-	// "create" or an "update" to this access list.
+	// resources. The access roles are either assigned directly or indirectly to
+	// member or owners depending on preset type requested (see PresetType).
 	//
-	// If a create request, only role create operation is performed. Then
-	// depending on the "preset_type" requested, Teleport will assign these
-	// roles either:
-	//   - directly: where Teleport assigns the `access_roles` as member or
-	//     owner grants in the access list
-	//   - indirectly: where Teleport creates extra set of roles meant for:
-	//   - requesting access: Teleport will assign the `access_roles` as
-	//     `allow.request.search_as_roles`, then assign this requester role
-	//     as a grant typically meant for members of the access list
-	//   - reviewing access: Teleport will assign the `access_roles` as
-	//     `allow.review_requests.roles`, then assign this reviewer role
-	//     as a grant typically meant for owners of the access list.
-	//
-	// If the request was for an "update", then the role operations are as below.
-	// The updates applied to this access list as a result of these operations
-	// will depend on the "preset_type" set on the access list:
+	// Teleport will perform the following role create/update/delete (CUD)
+	// operations:
 	//   - delete: Roles tied to this access list not supplied in this request
 	//     will be deleted. All roles that were deleted will also be removed from
 	//     any member/owner grants or other related roles referencing it
