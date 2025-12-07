@@ -4281,8 +4281,11 @@ func TestAccessRequestNotifications(t *testing.T) {
 		Clock: fakeClock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	testTLSServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
 
 	reviewerUsername := "reviewer"
 	requesterUsername := "requester"
@@ -4524,6 +4527,7 @@ func TestCleanupNotifications(t *testing.T) {
 		CacheEnabled: true,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	srv, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -4918,6 +4922,7 @@ func TestServerHostnameSanitization(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	cases := []struct {
 		name            string
