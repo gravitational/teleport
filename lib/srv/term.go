@@ -248,15 +248,10 @@ func (t *terminal) Wait() (*ExecResult, error) {
 		code = status.ExitStatus()
 	}
 
-	errMsg, err := t.serverContext.GetChildError()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &ExecResult{
-		Code:         code,
-		Command:      t.cmd.Path,
-		ErrorMessage: errMsg,
+		Code:    code,
+		Command: t.cmd.Path,
+		Error:   t.serverContext.GetChildError(),
 	}, nil
 }
 

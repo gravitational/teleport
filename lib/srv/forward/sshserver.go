@@ -1344,8 +1344,9 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		case result := <-scx.ExecResultCh:
 			s.logger.DebugContext(ctx, "Exec request complete", "command", result.Command, "code", result.Code)
 
-			if result.ErrorMessage != "" {
-				s.stderrWrite(ctx, ch, result.ErrorMessage)
+			if result.Error != nil {
+				message := utils.FormatErrorWithNewline(result.Error)
+				s.stderrWrite(ctx, ch, message)
 			}
 
 			// The exec process has finished and delivered the execution result, send

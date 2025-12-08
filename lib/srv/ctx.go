@@ -1422,7 +1422,7 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 // server context.
 //
 // This must only be called after the child process has exited.
-func (c *ServerContext) GetChildError() (string, error) {
+func (c *ServerContext) GetChildError() error {
 	// Close stderr writer. The child process should have exited before this is called and doesn't
 	// have a way to close this pipe itself.
 	//
@@ -1436,16 +1436,42 @@ func (c *ServerContext) GetChildError() (string, error) {
 	// an error message like "Failed to launch: ..."
 	errMsg := new(strings.Builder)
 	if _, err := io.Copy(errMsg, c.stderrR); err != nil {
-		return "", trace.Wrap(err)
+		c.Logger.DebugContext(c.CancelContext(), "Failed to read error message from child process", "err", err)
+		return nil
 	}
 
 	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
-		return "", trace.BadParameter("unexpected error message from child process: %v", errMsg.String())
+		c.Logger.DebugContext(c.CancelContext(), "Unexpected error message from child process", "errMsg", errMsg.String())
+		return nil
 	}
 
 	// TODO(Joerger): Process the err msg from stderr to provide deeper insights into
 	// the cause of the session failure to add to the error message.
 	// e.g. user unknown because host user creation denied.
 
-	return errMsg.String(), nil
+	return NewChildProcessError(errMsg.String())
+}
+
+// ChildProcessError is an error from a child process that caused an early exit.
+type ChildProcessError struct {
+	message string
+}
+
+// NewChildProcessError returns a new [ChildProcessError] instance.
+func NewChildProcessError(msg string) *ChildProcessError {
+	return &ChildProcessError{
+		message: msg,
+	}
+}
+
+// Error returns the textual representation of [ChildProcessError].
+func (e *ChildProcessError) Error() string {
+	return e.message
+}
+
+// Is returns `true` if `err` is a [ChildProcessError].
+// Meant to be used with [errors.Is].
+func (e *ChildProcessError) Is(target error) bool {
+	_, ok := target.(*ChildProcessError)
+	return ok
 }
