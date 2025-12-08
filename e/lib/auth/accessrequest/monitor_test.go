@@ -207,6 +207,7 @@ func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)

@@ -131,6 +131,7 @@ func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig
 		SessionSummarizerProvider: sessionSummarizerProvider,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
 		cfg.APIConfig.PluginRegistry = plugin.NewRegistry()

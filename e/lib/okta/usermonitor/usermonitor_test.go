@@ -626,6 +626,7 @@ func newUserMonitorService(t *testing.T) *UserMonitor {
 		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	svc, err := New(Config{
 		AuthServer: as.AuthServer,

@@ -939,6 +939,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		Clock:       clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
 	a := testAuthServer.AuthServer
 	mockEmitter := &eventstest.MockRecorderEmitter{}
@@ -1431,6 +1432,7 @@ func TestSAMLAuthCompat(t *testing.T) {
 
 	proxyClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyClient.Close()) })
 
 	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)

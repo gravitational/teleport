@@ -73,11 +73,14 @@ func createSuite(t *testing.T) *suite {
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
 	authorizer := &fakeAuthorizer{checker: &fakeChecker{}}
+
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
 	pluginService := local.NewPluginsService(authServer.Backend)
 	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(authServer.Backend)
 	require.NoError(t, err)
