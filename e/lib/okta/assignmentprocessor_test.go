@@ -39,11 +39,12 @@ func TestProcessAssignments(t *testing.T) {
 	testOktaUserID := oktaUserID("okta-user-id")
 
 	type auditEventInfo struct {
-		name           string
-		event          string
-		code           string
-		startingStatus string
-		endingStatus   string
+		name             string
+		event            string
+		code             string
+		startingStatus   string
+		endingStatus     string
+		errorAssertionFn func(t require.TestingT, s any, msgAndArgs ...any)
 	}
 
 	tests := []struct {
@@ -60,12 +61,10 @@ func TestProcessAssignments(t *testing.T) {
 		oktaClientGroupMapping map[oktaapi.OktaGroupID]set.Set[oktaapi.OktaUserID]
 		oktaClientAppMapping   map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]
 		expectedAuditEvents    []auditEventInfo
-		errAssertionFunc       require.ErrorAssertionFunc
 	}{
 		{
-			name:             "empty",
-			assignments:      types.OktaAssignments{},
-			errAssertionFunc: require.NoError,
+			name:        "empty",
+			assignments: types.OktaAssignments{},
 		},
 		{
 			name: "fail to process app, skip pending app for different org, skip successful group",
@@ -101,10 +100,10 @@ func TestProcessAssignments(t *testing.T) {
 					code:           events.OktaAssignmentProcessFailureCode,
 					startingStatus: constants.OktaAssignmentStatusPending,
 					endingStatus:   constants.OktaAssignmentStatusFailed,
+					errorAssertionFn: func(t require.TestingT, s any, msgAndArgs ...any) {
+						require.Contains(t, s, fmt.Sprintf(`app_server %q does not have an Okta App ID`, appName("app1")), msgAndArgs...)
+					},
 				},
-			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, fmt.Sprintf(`app_server %q App ID missing`, appName("app1")))
 			},
 		},
 		{
@@ -139,10 +138,10 @@ func TestProcessAssignments(t *testing.T) {
 					code:           events.OktaAssignmentProcessFailureCode,
 					startingStatus: constants.OktaAssignmentStatusFailed,
 					endingStatus:   constants.OktaAssignmentStatusFailed,
+					errorAssertionFn: func(t require.TestingT, s any, msgAndArgs ...any) {
+						require.Contains(t, s, "assignments for group group1 not found")
+					},
 				},
-			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "assignments for group group1 not found")
 			},
 		},
 		{
@@ -162,14 +161,14 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
-					name:           "assignment1",
-					event:          events.OktaAssignmentProcessEvent,
-					code:           events.OktaAssignmentProcessSuccessCode,
-					startingStatus: constants.OktaAssignmentStatusPending,
-					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+					name:             "assignment1",
+					event:            events.OktaAssignmentProcessEvent,
+					code:             events.OktaAssignmentProcessSuccessCode,
+					startingStatus:   constants.OktaAssignmentStatusPending,
+					endingStatus:     constants.OktaAssignmentStatusSuccessful,
+					errorAssertionFn: require.Empty,
 				},
 			},
-			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "fail to process group due to no assignment in backend",
@@ -183,9 +182,6 @@ func TestProcessAssignments(t *testing.T) {
 			skipAssignmentCreation: true,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
 				"group1": set.New[oktaUserID](),
-			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, `"assignment1" doesn't exist`)
 			},
 		},
 		{
@@ -214,11 +210,11 @@ func TestProcessAssignments(t *testing.T) {
 					code:           events.OktaAssignmentCleanupFailureCode,
 					startingStatus: constants.OktaAssignmentStatusPending,
 					endingStatus:   constants.OktaAssignmentStatusFailed,
+					errorAssertionFn: func(t require.TestingT, s any, msgAndArgs ...any) {
+						require.Contains(t, s, `assignments for app app1 not found`)
+						require.Contains(t, s, `assignments for group group1 not found`)
+					},
 				},
-			},
-			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, `assignments for app app1 not found`)
-				require.ErrorContains(t, err, `assignments for group group1 not found`)
 			},
 		},
 		{
@@ -246,14 +242,14 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
-					name:           "assignment1",
-					event:          events.OktaAssignmentCleanupEvent,
-					code:           events.OktaAssignmentCleanupSuccessCode,
-					startingStatus: constants.OktaAssignmentStatusPending,
-					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+					name:             "assignment1",
+					event:            events.OktaAssignmentCleanupEvent,
+					code:             events.OktaAssignmentCleanupSuccessCode,
+					startingStatus:   constants.OktaAssignmentStatusPending,
+					endingStatus:     constants.OktaAssignmentStatusSuccessful,
+					errorAssertionFn: require.Empty,
 				},
 			},
-			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "finalized assignment will be deleted",
@@ -274,7 +270,6 @@ func TestProcessAssignments(t *testing.T) {
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New[oktaapi.AppAssignment](),
 			},
-			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "finalized assignment reprocessed due to later cleanup time",
@@ -299,7 +294,6 @@ func TestProcessAssignments(t *testing.T) {
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New(oktaapi.AppAssignment{UserID: "okta-user-id", Scope: oktaapi.UserScope}),
 			},
-			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "processing timeout, app retried, group retried",
@@ -326,14 +320,14 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
-					name:           "assignment1",
-					event:          events.OktaAssignmentProcessEvent,
-					code:           events.OktaAssignmentProcessSuccessCode,
-					startingStatus: constants.OktaAssignmentStatusProcessing,
-					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+					name:             "assignment1",
+					event:            events.OktaAssignmentProcessEvent,
+					code:             events.OktaAssignmentProcessSuccessCode,
+					startingStatus:   constants.OktaAssignmentStatusProcessing,
+					endingStatus:     constants.OktaAssignmentStatusSuccessful,
+					errorAssertionFn: require.Empty,
 				},
 			},
-			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "cleanup due to assignment cleanup time passed",
@@ -365,14 +359,14 @@ func TestProcessAssignments(t *testing.T) {
 			incrementTimeDuration: processingTimeout + time.Minute,
 			expectedAuditEvents: []auditEventInfo{
 				{
-					name:           "assignment1",
-					event:          events.OktaAssignmentCleanupEvent,
-					code:           events.OktaAssignmentCleanupSuccessCode,
-					startingStatus: constants.OktaAssignmentStatusPending,
-					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+					name:             "assignment1",
+					event:            events.OktaAssignmentCleanupEvent,
+					code:             events.OktaAssignmentCleanupSuccessCode,
+					startingStatus:   constants.OktaAssignmentStatusPending,
+					endingStatus:     constants.OktaAssignmentStatusSuccessful,
+					errorAssertionFn: require.Empty,
 				},
 			},
-			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "cleanup retry",
@@ -399,14 +393,14 @@ func TestProcessAssignments(t *testing.T) {
 			incrementTimeDuration: processingTimeout + 10*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
 				{
-					name:           "assignment1",
-					event:          events.OktaAssignmentCleanupEvent,
-					code:           events.OktaAssignmentCleanupSuccessCode,
-					startingStatus: constants.OktaAssignmentStatusFailed,
-					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+					name:             "assignment1",
+					event:            events.OktaAssignmentCleanupEvent,
+					code:             events.OktaAssignmentCleanupSuccessCode,
+					startingStatus:   constants.OktaAssignmentStatusFailed,
+					endingStatus:     constants.OktaAssignmentStatusSuccessful,
+					errorAssertionFn: require.Empty,
 				},
 			},
-			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "still assigned because two assignments refer to the same target",
@@ -433,14 +427,14 @@ func TestProcessAssignments(t *testing.T) {
 			incrementTimeDuration: processingTimeout + 5*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
 				{
-					name:           "assignment2",
-					event:          events.OktaAssignmentCleanupEvent,
-					code:           events.OktaAssignmentCleanupSuccessCode,
-					startingStatus: constants.OktaAssignmentStatusSuccessful,
-					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+					name:             "assignment2",
+					event:            events.OktaAssignmentCleanupEvent,
+					code:             events.OktaAssignmentCleanupSuccessCode,
+					startingStatus:   constants.OktaAssignmentStatusSuccessful,
+					endingStatus:     constants.OktaAssignmentStatusSuccessful,
+					errorAssertionFn: require.Empty,
 				},
 			},
-			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "still assigned because two assignments refer to the same target (reverse order)",
@@ -467,14 +461,14 @@ func TestProcessAssignments(t *testing.T) {
 			incrementTimeDuration: processingTimeout + 5*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
 				{
-					name:           "assignment1",
-					event:          events.OktaAssignmentCleanupEvent,
-					code:           events.OktaAssignmentCleanupSuccessCode,
-					startingStatus: constants.OktaAssignmentStatusSuccessful,
-					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+					name:             "assignment1",
+					event:            events.OktaAssignmentCleanupEvent,
+					code:             events.OktaAssignmentCleanupSuccessCode,
+					startingStatus:   constants.OktaAssignmentStatusSuccessful,
+					endingStatus:     constants.OktaAssignmentStatusSuccessful,
+					errorAssertionFn: require.Empty,
 				},
 			},
-			errAssertionFunc: require.NoError,
 		},
 	}
 
@@ -530,8 +524,7 @@ func TestProcessAssignments(t *testing.T) {
 
 			clock.Advance(test.incrementTimeDuration)
 
-			err := a.processAllAssignments(ctx)
-			test.errAssertionFunc(t, err)
+			a.processAllAssignments(ctx)
 
 			actual, _, err := ap.ListOktaAssignments(ctx, 0, "")
 			require.NoError(t, err)
@@ -547,14 +540,18 @@ func TestProcessAssignments(t *testing.T) {
 				require.Empty(t, cmp.Diff(test.oktaClientAppMapping, m))
 			})
 
-			for _, expectedEvent := range test.expectedAuditEvents {
-				expectAuditEvent(t, emitter, func(event *apievents.OktaAssignmentResult) {
-					require.Equal(t, expectedEvent.name, event.Name)
-					require.Equal(t, expectedEvent.event, event.GetType())
-					require.Equal(t, expectedEvent.code, event.GetCode())
-					require.Equal(t, expectedEvent.startingStatus, event.StartingStatus)
-					require.Equal(t, expectedEvent.endingStatus, event.EndingStatus)
-				})
+			var events []*apievents.OktaAssignmentResult
+			collectAllEvents(t, emitter, &events)
+
+			require.Len(t, events, len(test.expectedAuditEvents))
+			for i, event := range events {
+				expectedEvent := test.expectedAuditEvents[i]
+				require.Equal(t, expectedEvent.name, event.Name)
+				require.Equal(t, expectedEvent.event, event.GetType())
+				require.Equal(t, expectedEvent.code, event.GetCode())
+				require.Equal(t, expectedEvent.startingStatus, event.StartingStatus)
+				require.Equal(t, expectedEvent.endingStatus, event.EndingStatus)
+				expectedEvent.errorAssertionFn(t, event.Error)
 			}
 		})
 	}

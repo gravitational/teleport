@@ -487,6 +487,23 @@ func assignmentLess(a1, a2 types.OktaAssignment) bool {
 	return a1.GetName() < a2.GetName()
 }
 
+func collectAllEvents[T any](t *testing.T, emitter *eventstest.ChannelEmitter, result *[]T) {
+	t.Helper()
+
+	var res []T
+	for {
+		select {
+		case event := <-emitter.C():
+			e, ok := event.(T)
+			require.True(t, ok, "expected type %T, got %T", e, event)
+			res = append(res, e)
+		default:
+			*result = res
+			return
+		}
+	}
+}
+
 func requireAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter) T {
 	t.Helper()
 

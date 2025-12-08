@@ -44,6 +44,10 @@ type assignmentReconciler struct {
 	watcher             *services.OktaAssignmentWatcher
 	assignmentProcessor *assignmentProcessor
 
+	// assignmentProcessorID is not thread safe and it's supposed to be used by
+	// onCreate/onUpdate/onDelete methods for the underlying generic reconciler.
+	assignmentProcessorID string
+
 	reconcileCh chan struct{}
 
 	stopCh chan struct{}
@@ -63,14 +67,15 @@ type assignmentReconciler struct {
 // newAssignmentReconciler creates a new AssignmentReconciler.
 func newAssignmentReconciler(clusterName string, svc *Service) *assignmentReconciler {
 	a := &assignmentReconciler{
-		logger:         slog.With(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler),
-		clock:          svc.clock,
-		clusterName:    clusterName,
-		accessPoint:    svc.accessPoint,
-		reconcileCh:    make(chan struct{}),
-		stopCh:         make(chan struct{}, 1),
-		assignments:    make(map[string]types.OktaAssignment),
-		newAssignments: make(map[string]types.OktaAssignment),
+		logger:                slog.With(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler),
+		clock:                 svc.clock,
+		clusterName:           clusterName,
+		accessPoint:           svc.accessPoint,
+		reconcileCh:           make(chan struct{}),
+		assignmentProcessorID: "unset_id",
+		stopCh:                make(chan struct{}, 1),
+		assignments:           make(map[string]types.OktaAssignment),
+		newAssignments:        make(map[string]types.OktaAssignment),
 	}
 
 	a.assignmentProcessor = newAssignmentProcessor(svc, a.getAssignments)
@@ -120,6 +125,7 @@ func (a *assignmentReconciler) reconcile(ctx context.Context, reconciler *servic
 			if !ok {
 				return
 			}
+			a.assignmentProcessorID = newAssignmentProcessorIDGen(sourceWatcher, a.clock.Now())(1)
 			if err := reconciler.Reconcile(ctx); err != nil {
 				a.logger.ErrorContext(ctx, "Failed to reconcile", "error", err)
 			} else if a.onReconcile != nil {
@@ -220,27 +226,21 @@ func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*servi
 
 // onCreate will update the Okta API based on newly created Okta assignments.
 func (a *assignmentReconciler) onCreate(ctx context.Context, newAssignment types.OktaAssignment) error {
-	if err := a.assignmentProcessor.processAssignment(ctx, newAssignment.Copy(), false); err != nil {
-		return trace.Wrap(err)
+	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, newAssignment.Copy(), false); r != processAssignmentFailed {
+		a.assignmentsMu.Lock()
+		a.assignments[newAssignment.GetName()] = newAssignment
+		a.assignmentsMu.Unlock()
 	}
-
-	a.assignmentsMu.Lock()
-	a.assignments[newAssignment.GetName()] = newAssignment
-	a.assignmentsMu.Unlock()
-
 	return nil
 }
 
 // onUpdate will perform necessary Okta assignment operations based on updated Okta assignments.
 func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, _ types.OktaAssignment) error {
-	if err := a.assignmentProcessor.processAssignment(ctx, updatedAssignment.Copy(), false); err != nil {
-		return trace.Wrap(err)
+	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, updatedAssignment.Copy(), false); r != processAssignmentFailed {
+		a.assignmentsMu.Lock()
+		a.assignments[updatedAssignment.GetName()] = updatedAssignment
+		a.assignmentsMu.Unlock()
 	}
-
-	a.assignmentsMu.Lock()
-	a.assignments[updatedAssignment.GetName()] = updatedAssignment
-	a.assignmentsMu.Unlock()
-
 	return nil
 }
 
@@ -248,19 +248,16 @@ func (a *assignmentReconciler) onUpdate(ctx context.Context, updatedAssignment, 
 // NOTE: This should never actually be run as users shouldn't be deleting OktaAssignment objects.
 func (a *assignmentReconciler) onDelete(ctx context.Context, deletedAssignment types.OktaAssignment) error {
 	deletedAssignment.SetCleanupTime(a.clock.Now())
-	if err := a.assignmentProcessor.processAssignment(ctx, deletedAssignment.Copy(), false); err != nil {
-		return trace.Wrap(err)
+	if r := a.assignmentProcessor.processAssignment(ctx, a.assignmentProcessorID, deletedAssignment.Copy(), false); r != processAssignmentFailed {
+		a.assignmentsMu.Lock()
+		delete(a.assignments, deletedAssignment.GetName())
+		a.assignmentsMu.Unlock()
 	}
-
-	a.assignmentsMu.Lock()
-	delete(a.assignments, deletedAssignment.GetName())
-	a.assignmentsMu.Unlock()
-
 	return nil
 }
 
 // matcher will match all Okta assignments.
-func (a *assignmentReconciler) matcher(ctx context.Context, resource types.ResourceWithLabels) bool {
+func (a *assignmentReconciler) matcher(_ context.Context, _ types.ResourceWithLabels) bool {
 	return true
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 
@@ -147,9 +148,7 @@ func (a *assignmentProcessor) loop(ctx context.Context) {
 		a.assignmentClient = newAssignmentClient(a.logger, a.oktaClient)
 		a.assignmentClientMu.Unlock()
 
-		if err := a.processAllAssignments(ctx); err != nil {
-			a.logger.ErrorContext(ctx, "Error while processing assignments", "error", err)
-		}
+		a.processAllAssignments(ctx)
 
 		timer.Reset(TimeBetweenAssignmentProcessLoops)
 	}
@@ -162,11 +161,10 @@ func (a *assignmentProcessor) stop() {
 
 // processAllAssignments will iterate through all of the assignments, spawning a goroutine to
 // process each one.
-func (a *assignmentProcessor) processAllAssignments(ctx context.Context) error {
+func (a *assignmentProcessor) processAllAssignments(ctx context.Context) {
 	var wg sync.WaitGroup
 	assignments := a.assignmentGetter()
 	numAssignments := len(assignments)
-	errs := make(chan error, numAssignments)
 
 	// Rebuild the target counter in a fresh loop.
 	a.rebuildTargetCounter(assignments)
@@ -186,18 +184,22 @@ func (a *assignmentProcessor) processAllAssignments(ctx context.Context) error {
 	// generally we expect to issue 10 Okta API calls per second (or less) when running through
 	// these assignments worst case. The assignment client will cache Okta state per run, so API
 	// calls will be minimized.
-	for range numWorkers {
-		wg.Add(1)
-		go func() {
+	idGen := newAssignmentProcessorIDGen(sourceTimer, a.clock.Now())
+	wg.Add(numWorkers)
+	for i := range numWorkers {
+		go func(id string) {
 			defer wg.Done()
 			for {
 				assignment, ok := <-assignmentsCh
 				if !ok {
 					return
 				}
-				errs <- a.processAssignment(ctx, assignment, true)
+				// processAssignment does not return error, it only returns a
+				// result to signal if the assignment was processed or not so the
+				// return value can be ignored here.
+				_ = a.processAssignment(ctx, id, assignment, true)
 			}
-		}()
+		}(idGen(i + 1))
 	}
 
 	for _, assignment := range assignments {
@@ -206,23 +208,36 @@ func (a *assignmentProcessor) processAllAssignments(ctx context.Context) error {
 
 	close(assignmentsCh)
 	wg.Wait()
-
-	close(errs)
-	return trace.NewAggregateFromChannel(errs, ctx)
 }
+
+type processAssignmentResult int
+
+const (
+	_ processAssignmentResult = iota
+	processAssignmentProcessed
+	processAssignmentSkipped
+	processAssignmentFailed
+)
 
 // processAssignment will apply the proper actions dictated by the OktaAssignment. The function will
 // update the assignment with the results of the action application. An okta state is optionally suppliable
 // for caching in bulk runs. If reconcile is set, the function will attempt to find differences from the Okta
-// state and reconcile them. Otherwise, they will not be processed.
-func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment types.OktaAssignment, reconcile bool) error {
+// state and reconcile them. Otherwise, they will not be processed. It will return true if the
+// assignment processing was successful or not required.
+func (a *assignmentProcessor) processAssignment(ctx context.Context, id string, assignment types.OktaAssignment, reconcile bool) processAssignmentResult {
 	// Skip processing if the leadership has not been acquired.
 	if !a.leader.IsLeader() {
-		return nil
+		return processAssignmentSkipped
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
 	defer cancel()
+
+	logger := a.logger.With(
+		"processor_id", id,
+		"assignment", assignment.GetName(),
+		"user", assignment.GetUser(),
+	)
 
 	cleanupTime := assignment.GetCleanupTime()
 	needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
@@ -231,10 +246,12 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	// If the assignment was Finalized (Successfully processed in needCleanupState) delete Okta
 	// assignment from backend.
 	if assignment.IsFinalized() && needsCleanup {
-		if err := a.deleteFinalizedAssignment(ctx, assignment); err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+		if err := a.accessPoint.DeleteOktaAssignment(ctx, assignment.GetName()); err != nil && !trace.IsNotFound(err) {
+			logger.ErrorContext(ctx, "Error deleting finalized assignment. Will retry on the next loop", "error", err)
+			return processAssignmentFailed
 		}
-		return nil
+		logger.DebugContext(ctx, "Deleted finalized and cleaned up assignment")
+		return processAssignmentProcessed
 	}
 
 	// We only process non-pending assignments if reconcile is set or if the assignment needs to be cleaned up.
@@ -243,89 +260,110 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 			needsReprovision ||
 			assignment.GetStatus() == constants.OktaAssignmentStatusPending
 		if !force {
-			return nil
+			return processAssignmentSkipped
 		}
 	}
 
+	startStatus := assignment.GetStatus()
 	sinceTransition := a.clock.Since(assignment.GetLastTransition())
 
-	startStatus := assignment.GetStatus()
+	if shouldProcess := a.shouldProcess(ctx, logger, assignment, needsCleanup); !shouldProcess {
+		return processAssignmentSkipped
+	}
 
-	// See if we should process this assignment.
-	shouldProcess, err := a.shouldProcess(ctx, assignment, needsCleanup)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !shouldProcess {
-		return nil
-	}
+	logger.DebugContext(ctx, "Processing assignment", slog.Group("details",
+		"status", assignment.GetStatus(),
+		"finalized", assignment.IsFinalized(),
+		"cleanup_time", timeAttr(assignment.GetCleanupTime()),
+	))
 
 	// Before we process, set finalized to false if we're re-processing.
 	if needsReprovision {
+		var err error
 		assignment.SetFinalized(false)
 		assignment, err = a.accessPoint.UpdateOktaAssignment(ctx, assignment)
 		if err != nil {
-			return trace.Wrap(err)
+			logger.ErrorContext(ctx, "Error unsetting finalized on assignment that doesn't need cleanup. Will retry on the next loop", "error", err)
+			return processAssignmentFailed
 		}
 	}
 
 	if err := assignment.SetStatus(constants.OktaAssignmentStatusProcessing); err != nil {
 		if !trace.IsCompareFailed(err) {
 			a.logger.DebugContext(ctx, "Skipping assignment claimed by another service", "assignment", assignment.GetName())
-			return nil
+			return processAssignmentFailed
 		}
-		return trace.Wrap(err)
+		logger.ErrorContext(ctx, "Illegal assignment status transition (this is a bug)", "error", err)
+		return processAssignmentFailed
 	}
 
-	// Update the status to processing, which will lock other services from operating on this.
-	err = a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), constants.OktaAssignmentStatusProcessing, sinceTransition)
+	// Update the status to processing, which will lock other processor goroutines from operating on this.
+	if err := a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), assignment.GetStatus(), sinceTransition); err != nil {
+		if trace.IsBadParameter(err) {
+			// err.Error() to not print the whole stack. This will be the "since last
+			// transition" error.
+			logger.DebugContext(ctx, "Failed to acquire assignment for processing, probably acquired by another processor", "error", err.Error())
+		} else {
+			logger.ErrorContext(ctx, "Failed to acquire assignment for processing", "error", err)
+		}
+		return processAssignmentFailed
+	}
+
+	var processErrs []error
+	// TODO(kopiczko) pass the logger with extra attributes to assignmentClient.
+	assignmentClient := a.getAssignmentClient()
+	// If we can't find the user in Okta, skip trying to process any of the targets.
+	if _, err := assignmentClient.userID(ctx, userName(assignment.GetUser())); err != nil {
+		processErrs = []error{trace.NotFound("Okta user for the assignment not found; it could have been deleted in the meantime")}
+		logger.DebugContext(ctx, "Okta user for the assignment not found. It could have been deleted in the meantime. Skipping", "error", err.Error())
+	} else if needsCleanup {
+		processErrs = a.cleanupTargets(ctx, logger, assignmentClient, assignment)
+	} else {
+		processErrs = a.processTargets(ctx, logger, assignmentClient, assignment)
+	}
+
+	var err error
+	if len(processErrs) == 0 {
+		err = assignment.SetStatus(constants.OktaAssignmentStatusSuccessful)
+	} else {
+		err = assignment.SetStatus(constants.OktaAssignmentStatusFailed)
+	}
 	if err != nil {
-		return trace.Wrap(err)
+		logger.ErrorContext(ctx, "Illegal assignment status transition after processing the assignment (this is a bug)", "error", err)
+		return processAssignmentFailed
+	}
+	assignment.SetLastTransition(a.clock.Now())
+	assignment.SetFinalized(len(processErrs) == 0 && needsCleanup)
+	if _, err := a.accessPoint.UpdateOktaAssignment(ctx, assignment); err != nil {
+		logger.ErrorContext(ctx, "Failed to update processed assignment resource", "error", err)
+		return processAssignmentFailed
 	}
 
-	var processErr error
-	if needsCleanup {
-		processErr = a.cleanupTargets(ctx, assignment)
-	} else {
-		processErr = a.processTargets(ctx, assignment)
-	}
-	nextStatus := constants.OktaAssignmentStatusSuccessful
-	if processErr != nil {
-		nextStatus = constants.OktaAssignmentStatusFailed
-	}
-	finalized := processErr == nil && needsCleanup
+	// Errors are logged while processing the assignment, so log success only when there are no
+	// processing errors.
+	if len(processErrs) == 0 {
+		logger.DebugContext(ctx, "Successfully processed assignment", slog.Group("details",
+			"status", assignment.GetStatus(),
+			"finalized", assignment.IsFinalized(),
+			"cleanup_time", timeAttr(assignment.GetCleanupTime()),
+		))
 
-	// If we successfully finalized the assignment, we'll update the finalized flag here.
-	if finalized {
-		if err := assignment.SetStatus(nextStatus); err != nil {
-			return trace.Wrap(err)
-		}
-		assignment.SetLastTransition(a.clock.Now())
-		assignment.SetFinalized(true)
-		_, updateErr := a.accessPoint.UpdateOktaAssignment(ctx, assignment)
-		if updateErr != nil {
-			return trace.Wrap(updateErr)
-		}
-	} else {
-		if err := a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), nextStatus, 0); err != nil {
-			return trace.NewAggregate(trace.Wrap(err), processErr)
-		}
 	}
 
 	// Emit the event if there was a processing error or cleanup was needed, or the starting and ending status aren't
 	// both successful.
-	emitEvent := processErr != nil ||
+	emitEvent := len(processErrs) != 0 ||
 		needsCleanup ||
 		startStatus != constants.OktaAssignmentStatusSuccessful ||
-		nextStatus != constants.OktaAssignmentStatusSuccessful
+		assignment.GetStatus() != constants.OktaAssignmentStatusSuccessful
 	if emitEvent {
-		a.emitAuditEvent(ctx, assignment, startStatus, nextStatus, needsCleanup, processErr)
+		a.emitAuditEvent(ctx, assignment, startStatus, assignment.GetStatus(), needsCleanup, trace.NewAggregate(processErrs...))
 	}
 
-	return trace.Wrap(processErr)
+	return processAssignmentProcessed
 }
 
-func (a *assignmentProcessor) shouldProcess(ctx context.Context, assignment types.OktaAssignment, needsCleanup bool) (bool, error) {
+func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Logger, assignment types.OktaAssignment, needsCleanup bool) bool {
 	sinceTransition := a.clock.Since(assignment.GetLastTransition())
 	startStatus := assignment.GetStatus()
 
@@ -338,196 +376,141 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, assignment type
 			// If the assignment is marked finalized, it means this assignment was recently unlocked
 			// and we need to re-process it.
 			if assignment.IsFinalized() {
-				return true, nil
+				return true
 			}
 
 			// Otherwise, we should only retry successful objects if the time between loops has passes since
 			// it last became successful
 			if sinceTransition < TimeBetweenAssignmentProcessLoops {
-				return false, nil
+				return false
 			}
 		case constants.OktaAssignmentStatusFailed:
 			// Only process this if enough time has passed since the failure state.
 			if sinceTransition < timeBeforeFailedRetry {
-				return false, nil
+				return false
 			}
 		case constants.OktaAssignmentStatusProcessing:
 			// Only process this if enough time has passed since trying to process this.
 			if sinceTransition < processingTimeout {
-				return false, nil
+				return false
 			}
-			a.logger.DebugContext(ctx, "Restarting processing of stuck assignment", "assignment", assignment.GetName())
+			logger.DebugContext(ctx, "Restarting processing of stuck assignment", "assignment", assignment.GetName())
 		default:
-			return false, trace.BadParameter("unknown state %s, unable to process assignment %s", assignment.GetStatus(), assignment.GetName())
+			logger.ErrorContext(ctx, "Unknown assignment status, unable to process", "status", startStatus)
+			return false
 		}
-	} else {
-		a.logger.DebugContext(ctx, "Processing assignment which transitioned into cleanup state immediately", "assignment", assignment.GetName())
 	}
 
-	return true, nil
+	return true
 }
 
 // processTargets will process or retry the targets for an assignment.
-func (a *assignmentProcessor) processTargets(ctx context.Context, assignment types.OktaAssignment) error {
-	assignmentClient := a.getAssignmentClient()
-
-	a.logger.InfoContext(ctx, "Provisioning assignment", "assignment", assignment.GetName(), "user", assignment.GetUser())
-
-	// If we can't find the user in Okta, skip trying to process any of the targets.
-	if _, err := assignmentClient.userID(ctx, userName(assignment.GetUser())); err != nil {
-		return trace.Wrap(err)
-	}
-
+func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment) []error {
 	var errs []error
-	for _, target := range assignment.GetTargets() {
-		m, err := a.accessPoint.GetAccessListMember(ctx, target.GetID(), assignment.GetUser())
-		switch {
-		case err == nil:
-			if m.Spec.AddedBy == accesslist.OktaServiceRoleUsername {
-				// If the assignment was added by the "okta-service" role, it means it originated
-				// from Okta and was imported into Teleport via Okta Access List Sync.
-				//
-				// In this case, we treat the assignment as being managed by Okta upstream,
-				// so we should not attempt to re-provision the target resource
-				continue
-			}
-		case trace.IsNotFound(err): // do nothing
-		default:
-			a.logger.WarnContext(ctx, "failed to check access list membership", "error", err)
-		}
-
-		switch outcome := a.authorizeTarget(target); outcome {
-		case targetAuthorized:
-			// Carry on with processing.
-		case targetNotFound:
-			// If we can't find the target, then we'll continue because there's nothing we can do here.
-			a.logger.DebugContext(ctx, "Resource for the target not found, ignoring",
-				"assignment", assignment.GetName(),
-				"user", assignment.GetUser(),
-				"target_type", target.GetTargetType(),
-				"target_id", target.GetID(),
-			)
-			continue
-		default:
-			a.logger.WarnContext(ctx, "target is not managed by this service",
-				"assignment", assignment.GetName(),
-				"user", assignment.GetUser(),
-				"target_type", target.GetTargetType(),
-				"target_id", target.GetID(),
-				"reason", outcome,
-			)
-			continue
-		}
-
-		switch target.GetTargetType() {
-		case constants.OktaAssignmentTargetGroup:
-			err = trace.Wrap(assignmentClient.registerUserToGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID())))
-		case constants.OktaAssignmentTargetApplication:
-			appID, ok := a.getOktaAppIDFromAppServer(target.GetID())
-			if !ok {
-				err = trace.Errorf("app_server %q App ID missing", target.GetID())
-			} else {
-				err = trace.Wrap(assignmentClient.registerUserToApp(ctx, userName(assignment.GetUser()), appID))
-			}
-		}
-		if err == nil {
-			a.logger.InfoContext(ctx, "Successfully provisioned target",
-				"assignment", assignment.GetName(),
-				"user", assignment.GetUser(),
-				"target_type", target.GetTargetType(),
-				"target_id", target.GetID(),
-			)
-			a.registerUserTarget(assignment, target)
-		} else {
-			a.logger.ErrorContext(ctx, "Error provisioning target",
-				"assignment", assignment.GetName(),
-				"user", assignment.GetUser(),
-				"target_type", target.GetTargetType(),
-				"target_id", target.GetID(),
-			)
-			errs = append(errs, err)
-		}
-	}
-
-	return trace.NewAggregate(errs...)
-}
-
-// cleanupTargets will cleanup the targets for an assignment.
-func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment types.OktaAssignment) error {
-	var errs []error
-	assignmentClient := a.getAssignmentClient()
-
-	logger := a.logger.With(
-		"assignment", assignment.GetName(),
-		"user", assignment.GetUser(),
-	)
-
-	logger.InfoContext(ctx, "Cleaning up target")
-
-	// If we can't find the user in Okta, skip trying to process any of the targets.
-	if _, err := assignmentClient.userID(ctx, userName(assignment.GetUser())); err != nil {
-		return trace.Wrap(err)
-	}
-
 	for _, target := range assignment.GetTargets() {
 		logger := logger.With(
 			"target_type", target.GetTargetType(),
 			"target_id", target.GetID(),
 		)
+
+		m, err := a.accessPoint.GetAccessListMember(ctx, target.GetID(), assignment.GetUser())
+		switch {
+		case err == nil && m.Spec.AddedBy == accesslist.OktaServiceRoleUsername:
+			// If the assignment was added by the "okta-service" role, it means it originated
+			// from Okta and was imported into Teleport via Okta Access List Sync.
+			//
+			// In this case, we treat the assignment as being managed by Okta upstream,
+			// so we should not attempt to re-provision the target resource
+			continue
+		case trace.IsNotFound(err):
+			// User member, nothing to check.
+		case err != nil:
+			logger.WarnContext(ctx, "Failed to check access list membership", "error", err)
+		}
+
 		switch outcome := a.authorizeTarget(target); outcome {
 		case targetAuthorized:
 			// Carry on with processing.
 		case targetNotFound:
 			// If we can't find the target, then we'll continue because there's nothing we can do here.
-			a.logger.DebugContext(ctx, "Resource for the target not found, ignoring",
-				"assignment", assignment.GetName(),
-				"user", assignment.GetUser(),
-				"target_type", target.GetTargetType(),
-				"target_id", target.GetID(),
-			)
+			logger.DebugContext(ctx, "Resource for the target not found, ignoring")
 			continue
 		default:
-			a.logger.WarnContext(ctx, "target is not managed by this service",
-				"assignment", assignment.GetName(),
-				"user", assignment.GetUser(),
-				"target_type", target.GetTargetType(),
-				"target_id", target.GetID(),
-				"reason", outcome,
-			)
+			logger.WarnContext(ctx, "target is not managed by this service", "reason", outcome)
+			continue
+		}
+
+		var registerErr error
+		switch target.GetTargetType() {
+		case constants.OktaAssignmentTargetGroup:
+			registerErr = client.registerUserToGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
+		case constants.OktaAssignmentTargetApplication:
+			if appID, ok := a.getOktaAppIDFromAppServer(target.GetID()); !ok {
+				registerErr = trace.Errorf("app_server %q does not have an Okta App ID", target.GetID())
+			} else {
+				registerErr = trace.Wrap(client.registerUserToApp(ctx, userName(assignment.GetUser()), appID))
+			}
+		default:
+			logger.ErrorContext(ctx, "Unrecognized target type, skipping (this is a bug)", "target_type", target.GetTargetType())
+		}
+		if registerErr != nil {
+			logger.ErrorContext(ctx, "Error provisioning target", "error", registerErr)
+			errs = append(errs, newTargetAuditError(target, verbProvision, registerErr))
+		} else {
+			a.registerUserTarget(assignment, target)
+		}
+	}
+	return errs
+}
+
+// cleanupTargets will cleanup the targets for an assignment.
+func (a *assignmentProcessor) cleanupTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment) []error {
+	var errs []error
+	for _, target := range assignment.GetTargets() {
+		logger := logger.With(
+			"target_type", target.GetTargetType(),
+			"target_id", target.GetID(),
+		)
+
+		switch outcome := a.authorizeTarget(target); outcome {
+		case targetAuthorized:
+			// Carry on with processing.
+		case targetNotFound:
+			// If we can't find the target, then we'll continue because there's nothing we can do here.
+			logger.DebugContext(ctx, "Resource for the target not found, ignoring")
+			continue
+		default:
+			logger.WarnContext(ctx, "target is not managed by this service", "reason", outcome)
 			continue
 		}
 
 		// Only cleanup the target if there are no more known assignments that have the given target.
 		remainingAssignments := a.unregisterUserTarget(assignment, target)
-		if len(remainingAssignments) != 0 {
-			logger.InfoContext(ctx, "Target cleaned up, but assignments still reference it, so the target will not be removed",
-				"remaining_assignments", len(remainingAssignments),
-			)
+		if remainingAssignments != 0 {
+			logger.InfoContext(ctx, "Skipping target clean up, because other assignments still reference it",
+				"remaining_assignments", remainingAssignments)
 			continue
 		}
 
-		var err error
+		var unregisterErr error
 		switch target.GetTargetType() {
 		case constants.OktaAssignmentTargetGroup:
-			err = assignmentClient.unregisterUserFromGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
+			unregisterErr = client.unregisterUserFromGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
 		case constants.OktaAssignmentTargetApplication:
-			var appID oktaAppID
-			appID, ok := a.getOktaAppIDFromAppServer(target.GetID())
-			if !ok {
-				err = trace.Errorf("app_server %q App ID missing", target.GetID())
+			if appID, ok := a.getOktaAppIDFromAppServer(target.GetID()); !ok {
+				unregisterErr = trace.Errorf("app_server %q does not have an Okta App ID", target.GetID())
 			} else {
-				err = assignmentClient.unregisterUserFromApp(ctx, userName(assignment.GetUser()), appID)
+				unregisterErr = client.unregisterUserFromApp(ctx, userName(assignment.GetUser()), appID)
 			}
+		default:
+			logger.ErrorContext(ctx, "Unrecognized target type, skipping (this is a bug)", "target_type", target.GetTargetType())
 		}
-		if err != nil {
-			logger.ErrorContext(ctx, "Error cleaning up target", "error", err)
-			errs = append(errs, err)
-		} else {
-			logger.InfoContext(ctx, "Successfully cleaned up target")
+		if unregisterErr != nil {
+			logger.ErrorContext(ctx, "Error cleaning up target", "error", unregisterErr)
+			errs = append(errs, unregisterErr)
 		}
 	}
-
-	return trace.NewAggregate(errs...)
+	return errs
 }
 
 // rebuildTargetCounter will rebuild the target counter based on the list of assignments.
@@ -577,7 +560,7 @@ func (a *assignmentProcessor) registerUserTarget(assignment types.OktaAssignment
 }
 
 // unregisterUserTarget unregisters a user target with the user target counter and returns the references left to it.
-func (a *assignmentProcessor) unregisterUserTarget(assignment types.OktaAssignment, target types.OktaAssignmentTarget) []string {
+func (a *assignmentProcessor) unregisterUserTarget(assignment types.OktaAssignment, target types.OktaAssignmentTarget) int {
 	a.userTargetCounterMu.Lock()
 	defer a.userTargetCounterMu.Unlock()
 
@@ -585,23 +568,16 @@ func (a *assignmentProcessor) unregisterUserTarget(assignment types.OktaAssignme
 
 	assignments, ok := a.userTargetCounter[targetName]
 	if !ok {
-		return nil
+		return 0
 	}
 
 	delete(assignments, assignment.GetName())
 
-	remainingAssignmentsMap := assignments
-
-	if len(remainingAssignmentsMap) == 0 {
+	if len(assignments) == 0 {
 		delete(a.userTargetCounter, targetName)
 	}
 
-	var remainingAssignmentNames []string
-	for assignmentName := range remainingAssignmentsMap {
-		remainingAssignmentNames = append(remainingAssignmentNames, assignmentName)
-	}
-
-	return remainingAssignmentNames
+	return len(assignments)
 }
 
 // getAssignmentClient returns the assignment client.
@@ -681,10 +657,54 @@ func userTargetName(assignment types.OktaAssignment, target types.OktaAssignment
 	return fmt.Sprintf("%x:%x:%x", assignment.GetUser(), target.GetTargetType(), target.GetID())
 }
 
-func (a *assignmentProcessor) deleteFinalizedAssignment(ctx context.Context, assignment types.OktaAssignment) error {
-	a.logger.DebugContext(ctx, "Pruning cleaned up assignment from backend", "assignment", assignment.GetName())
-	if err := a.accessPoint.DeleteOktaAssignment(ctx, assignment.GetName()); err != nil {
-		return trace.Wrap(err)
+type verb int
+
+const (
+	_ verb = iota // unset
+	verbProvision
+	verbCleanup
+)
+
+// newTargetAuditError creates an error for an assignment target which denotes the error details
+// are already logged and can be found using assignment reference in this error message.
+func newTargetAuditError(target types.OktaAssignmentTarget, verb verb, err error) error {
+	// The assignment reference should be already present in the audit event, but there is no
+	// info about the target so add the target ref to the error message.
+	targetRef := target.GetTargetType() + ":" + target.GetID()
+
+	// verb type is intentionally not a string to discourage from using %s formatting which
+	// would make it difficult to grep the code for the error message.
+	switch verb {
+	case verbProvision:
+		return trace.BadParameter("failed to provision target %q: %s", targetRef, err)
+	case verbCleanup:
+		return trace.BadParameter("failed to cleanup target %q: %s", targetRef, err)
+	default:
+		return trace.BadParameter("failed to process target (unsupported verb [%d]) %q: %s", verb, targetRef, err)
 	}
-	return nil
+}
+
+type processorSource string
+
+const (
+	sourceWatcher processorSource = "watcher"
+	sourceTimer   processorSource = "timer"
+)
+
+func newAssignmentProcessorIDGen(source processorSource, time time.Time) func(idx int) string {
+	timeFmt := time.UTC().Format("02150405") // ddhhmmss
+	return func(idx int) string {
+		return "src:" + string(source) + ":" + timeFmt + ":" + strconv.Itoa(idx)
+	}
+}
+
+// TODO(kopiczko) Move to OSS lib/utils/log (https://github.com/gravitational/teleport/pull/62057)
+func timeAttr(t time.Time) slog.LogValuer {
+	return &timeAttrT{t}
+}
+
+type timeAttrT struct{ v time.Time }
+
+func (a *timeAttrT) LogValue() slog.Value {
+	return slog.StringValue(a.v.UTC().Format(time.RFC3339))
 }
