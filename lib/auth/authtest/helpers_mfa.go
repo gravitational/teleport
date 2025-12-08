@@ -20,6 +20,7 @@ package authtest
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -47,8 +48,54 @@ type Device struct {
 	passwordless bool
 }
 
+var _ json.Marshaler = (*Device)(nil)
+
+func (d *Device) MarshalJSON() ([]byte, error) {
+	alias := struct {
+		MFA          *types.MFADevice `json:"mfa"`
+		TOTPSecret   string           `json:"totp_secret"`
+		Key          *mocku2f.Key     `json:"key"`
+		Origin       string           `json:"origin"`
+		Passwordless bool             `json:"passwordless"`
+	}{
+		MFA:          d.MFA,
+		TOTPSecret:   d.TOTPSecret,
+		Key:          d.Key,
+		Origin:       d.origin,
+		Passwordless: d.passwordless,
+	}
+
+	return json.Marshal(&alias)
+}
+
+func (d *Device) UnmarshalJSON(data []byte) error {
+	var alias struct {
+		MFA          *types.MFADevice `json:"mfa"`
+		TOTPSecret   string           `json:"totp_secret"`
+		Key          *mocku2f.Key     `json:"key"`
+		Origin       string           `json:"origin"`
+		Passwordless bool             `json:"passwordless"`
+	}
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return trace.Wrap(err)
+	}
+	d.MFA = alias.MFA
+	d.TOTPSecret = alias.TOTPSecret
+	d.Key = alias.Key
+	d.origin = alias.Origin
+	d.passwordless = alias.Passwordless
+	d.clock = clockwork.NewRealClock()
+	return nil
+}
+
 // TestDeviceOpt is a creation option for TestDevice.
 type TestDeviceOpt func(d *Device)
+
+func WithOrigin(origin string) TestDeviceOpt {
+	return func(d *Device) {
+		d.origin = origin
+	}
+}
 
 func WithTestDeviceClock(clock clockwork.Clock) TestDeviceOpt {
 	return func(d *Device) {

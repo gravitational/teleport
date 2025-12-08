@@ -32,11 +32,14 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/binary"
+	"encoding/json"
 	"math/big"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // u2fRegistrationFlags is fixed by the U2F standard.
@@ -82,6 +85,51 @@ type Key struct {
 	ReplyWithCredProps bool
 
 	counter uint32
+}
+
+var _ json.Marshaler = (*Key)(nil)
+
+func (k *Key) MarshalJSON() ([]byte, error) {
+	type Alias Key
+
+	privateKeyPem, err := keys.MarshalPrivateKey(k.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s := struct {
+		PrivateKey string `json:"PrivateKey"`
+		Counter    uint32 `json:"Counter"`
+		*Alias
+	}{
+		PrivateKey: string(privateKeyPem),
+		Counter:    k.counter,
+		Alias:      (*Alias)(k),
+	}
+	return json.Marshal(s)
+}
+
+func (k *Key) UnmarshalJSON(data []byte) error {
+	type Alias Key
+	s := struct {
+		PrivateKey string `json:"PrivateKey"`
+		Counter    uint32 `json:"Counter"`
+		*Alias
+	}{}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return trace.Wrap(err)
+	}
+	privateKey, err := keys.ParsePrivateKey([]byte(s.PrivateKey))
+	if err != nil {
+		return trace.Wrap(err, "parsing private key")
+	}
+	ecPrivateKey, ok := privateKey.Signer.(*ecdsa.PrivateKey)
+	if !ok {
+		return trace.BadParameter("expected ECDSA private key, got %T", privateKey)
+	}
+	*k = Key(*s.Alias)
+	k.PrivateKey = ecPrivateKey
+	k.counter = s.Counter
+	return nil
 }
 
 func selfSignPublicKey(keyToSign *ecdsa.PublicKey) (cert []byte, err error) {
