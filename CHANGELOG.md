@@ -1,6 +1,30 @@
 # Changelog
 
-## 17.7.10 (11/13/15)
+## 17.7.11 (12/08/25)
+
+* Reduced memory consumption of the Application service. [#62013](https://github.com/gravitational/teleport/pull/62013)
+* Prevented stuck `teleport-cluster` Helm chart rollouts in small Kubernetes clusters. Removed resource requests from configuration check hooks. [#62004](https://github.com/gravitational/teleport/pull/62004)
+* Updated Go to 1.24.11. [#61954](https://github.com/gravitational/teleport/pull/61954)
+* Updates `tsh workload-identity issue-x509` to automatically create the specified folder if it does not exist. [#61951](https://github.com/gravitational/teleport/pull/61951)
+* Fixed a bug where JWT-SVID timestamp claims would be represented using scientific notation. [#61922](https://github.com/gravitational/teleport/pull/61922)
+* Fixed a bug causing high memory consumption in the Teleport Auth Service when clients were listing large resources. [#61848](https://github.com/gravitational/teleport/pull/61848)
+* Prevent data races when terminating interactive Kubernetes sessions. [#61822](https://github.com/gravitational/teleport/pull/61822)
+* Fix `tsh db connect` failing to connect to databases using separate ports configuration (non-TLS routing mode). [#61811](https://github.com/gravitational/teleport/pull/61811)
+* Fixed bug where Kubernetes App Discovery `poll_interval` is not set correctly. [#61792](https://github.com/gravitational/teleport/pull/61792)
+* Fixed relative path evaluation for SFTP in proxy recording mode. [#61759](https://github.com/gravitational/teleport/pull/61759)
+* Fixed `tsh kube ls` showing deleted clusters. [#61743](https://github.com/gravitational/teleport/pull/61743)
+* Fixed workload identity templating to support certain numeric values that previously gave a "expression did not evaluate to a string" error. [#61739](https://github.com/gravitational/teleport/pull/61739)
+* Fixed AWS Console access when using AWS IAM Roles Anywhere or AWS OIDC integrations, when IP Pinning is enabled. [#61655](https://github.com/gravitational/teleport/pull/61655)
+* Added ability to update existing Azure OIDC integration with `tctl`. [#61593](https://github.com/gravitational/teleport/pull/61593)
+* Prevented Trivy from reporting false positives when scanning the Teleport binaries. [#61540](https://github.com/gravitational/teleport/pull/61540)
+* Updated tsh debug output to include tsh client version when --debug flag is set. [#61526](https://github.com/gravitational/teleport/pull/61526)
+* Fixed web upload/download failure behind load balancers when web listen address is unspecified. [#61394](https://github.com/gravitational/teleport/pull/61394)
+* Fixed corrupted private keys breaking tsh. [#61387](https://github.com/gravitational/teleport/pull/61387)
+* Fix an issue connections to MongoDB Atlas clusters fail if clusters use certs signed by Google Trust Services (GTS). [#61325](https://github.com/gravitational/teleport/pull/61325)
+* GOAWAY errors received from Kubernetes API Servers configured with a non-zero --goaway-chance are now forward to clients to be retried. [#61255](https://github.com/gravitational/teleport/pull/61255)
+* Added a Workload Identities page to the web UI to list workload identities. [#59478](https://github.com/gravitational/teleport/pull/59478)
+
+## 17.7.10 (11/13/25)
 
 * Improved reverse tunnel dialing recovery from default route changes by 1min on average. [#61318](https://github.com/gravitational/teleport/pull/61318)
 * Fixed an issue with the Identity Center resource cache that could cause the account resources to be deleted from the cache. [#61313](https://github.com/gravitational/teleport/pull/61313)
