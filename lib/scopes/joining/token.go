@@ -58,6 +58,10 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("scoped token must have a scope assigned")
 	}
 
+	if token.GetStatus().GetSecret() == "" {
+		return trace.BadParameter("secret value must be defined for a scoped token")
+	}
+
 	spec := token.GetSpec()
 	if spec == nil {
 		return trace.BadParameter("spec must not be nil")
@@ -262,4 +266,9 @@ func (t *Token) GetAllowRules() []*types.TokenRule {
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
 	return types.NewDuration(0)
+}
+
+// GetScoped returns the wrapped [*joiningv1.ScopedToken]
+func (t *Token) GetScoped() *joiningv1.ScopedToken {
+	return t.scoped
 }

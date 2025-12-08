@@ -104,13 +104,24 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 		}
 		name, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
-			return nil, trace.Wrap(err, "generating token value")
+			return nil, trace.Wrap(err, "generating token name")
 		}
 		token.Metadata.Name = name
 	}
 
 	if token.GetSpec() != nil && token.GetSpec().GetJoinMethod() == "" {
 		token.Spec.JoinMethod = string(types.JoinMethodToken)
+	}
+
+	if token.GetSpec().GetJoinMethod() == string(types.JoinMethodToken) {
+		if token.Status == nil {
+			token.Status = &scopedjoiningv1.ScopedTokenStatus{}
+		}
+		secret, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating token secret")
+		}
+		token.Status.Secret = secret
 	}
 
 	res, err := s.backend.CreateScopedToken(ctx, req)
