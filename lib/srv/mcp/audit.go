@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -113,14 +112,14 @@ func eventWithHeader(header http.Header) eventOptionFunc {
 	}
 }
 
-func (a *sessionAuditor) shouldEmitEvent(method mcp.MCPMethod) bool {
+func (a *sessionAuditor) shouldEmitEvent(method string) bool {
 	// Do not record discovery, ping calls.
 	switch method {
-	case mcp.MethodPing,
-		mcp.MethodResourcesList,
-		mcp.MethodResourcesTemplatesList,
-		mcp.MethodPromptsList,
-		mcp.MethodToolsList:
+	case mcputils.MethodPing,
+		mcputils.MethodResourcesList,
+		mcputils.MethodResourcesTemplatesList,
+		mcputils.MethodPromptsList,
+		mcputils.MethodToolsList:
 		return false
 	default:
 		return true
@@ -187,7 +186,7 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 		AppMetadata:     a.makeAppMetadata(),
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
-			Method:  string(msg.Method),
+			Method:  msg.Method,
 			Params:  msg.Params.GetEventParams(),
 		},
 		Status: apievents.Status{
@@ -221,7 +220,7 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 		},
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
-			Method:  string(msg.Method),
+			Method:  msg.Method,
 			ID:      msg.ID.String(),
 			Params:  msg.Params.GetEventParams(),
 		},

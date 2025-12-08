@@ -228,7 +228,7 @@ func (c *requestBuilder) makeToolsCallRequest(toolName string) *mcputils.JSONRPC
 	return &mcputils.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      c.makeRequestID(),
-		Method:  mcp.MethodToolsCall,
+		Method:  mcputils.MethodToolsCall,
 		Params: mcputils.JSONRPCParams{
 			"name": toolName,
 		},
@@ -239,7 +239,7 @@ func (c *requestBuilder) makeToolsListRequest() *mcputils.JSONRPCRequest {
 	return &mcputils.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      c.makeRequestID(),
-		Method:  mcp.MethodToolsList,
+		Method:  mcputils.MethodToolsList,
 	}
 }
 
