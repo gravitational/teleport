@@ -78,7 +78,7 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	cert, err := graphClient.CreateServicePrincipalTokenSigningCertificate(ctx, spID, displayName)
 
 	if err != nil {
-		trace.Wrap(err, "failed to create a signing certificate")
+		return trace.Wrap(err, "failed to create a signing certificate")
 	}
 
 	// Set the preferred SAML signing key
