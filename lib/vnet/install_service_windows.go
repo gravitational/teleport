@@ -80,10 +80,10 @@ func InstallService(ctx context.Context) (err error) {
 		return trace.Wrap(err, "granting authenticated users permission to control the VNet Windows service")
 	}
 	if err := installEventSource(); err != nil {
-		trace.Wrap(err, "creating event source for logging")
+		return trace.Wrap(err, "creating event source for logging")
 	}
 	if err := logInstallationEvent("VNet service installed"); err != nil {
-		trace.Wrap(err, "logging installation event")
+		return trace.Wrap(err, "logging installation event")
 	}
 	return nil
 }
