@@ -75,7 +75,6 @@ func TestStartCmdConfig(t *testing.T) {
 					LockConfig: LockConfig{
 						LockFailedAttemptsCount: 3,
 						LockPeriod:              time.Minute,
-						LockFor:                 5 * time.Second,
 					},
 				},
 			},
@@ -117,7 +116,6 @@ func TestStartCmdConfig(t *testing.T) {
 					LockConfig: LockConfig{
 						LockFailedAttemptsCount: 3,
 						LockPeriod:              time.Minute,
-						LockFor:                 5 * time.Second,
 					},
 				},
 			},
@@ -159,7 +157,6 @@ func TestStartCmdConfig(t *testing.T) {
 					LockConfig: LockConfig{
 						LockFailedAttemptsCount: 3,
 						LockPeriod:              time.Minute,
-						LockFor:                 5 * time.Second,
 					},
 				},
 			},

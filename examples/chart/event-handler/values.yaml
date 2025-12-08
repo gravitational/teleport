@@ -66,10 +66,12 @@ eventHandler:
   # When unset, the event handler forwards all events.
   types: []
   # eventHandler.skipEventTypes(list) -- is the list of audit event types to skip.
-  # When unset, the event handler skips spammy and binary events.
   skipEventTypes: []
   # eventHandler.skipSessionTypes(list) -- is the list of session recording event types to skip.
-  # When unset, the event handler skips spammy and binary events (eg. "print", "desktop.recording").
+  # When unset, the event handler skips spammy and binary events.
+  #
+  # See the [Teleport-event-handler README](https://github.com/gravitational/teleport/blob/1d2bd5eb8fc3500deb7d7108f6835efde98b7b24/integrations/event-handler/README.md)
+  # for a list of default skipped events.
   skipSessionTypes: []
   # eventHandler.startTime(string) -- is the start time to start ingestion from (RFC3339 format).
   startTime: ""
@@ -105,8 +107,9 @@ fluentd:
     certPath: "client.crt"
     # fluentd.certificate.keyPath(string) -- is the name of the key which contains the client's private key inside the secret.
     keyPath: "client.key"
-  # fluentd.maxConnections(int) -- is the maximum number of connections to Fluentd. By default, this is set to `eventHandler.concurrency` * 2.
-  # maxConnections: 10
+  # fluentd.maxConnections(int) -- is the maximum number of connections to Fluentd. By default, or when set to 0,
+  # this becomes `eventHandler.concurrency` * 2.
+  maxConnections: 0
 
 # tbot -- controls the optional tbot deployment that obtains and renews
 # credentials for the plugin to connect to Teleport.
