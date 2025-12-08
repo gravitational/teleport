@@ -215,6 +215,8 @@ message CertificateOverride {
 
   // Certificate chain, in PEM form.
   //
+  // The chain must be sorted from leaf to root.
+  //
   // If present Teleport may supply the chain along with the certificate in
   // appropriate situations.
   repeated string chain = 4;
@@ -255,6 +257,9 @@ https://github.com/gravitational/teleport/blob/d7b212d617003992fab4420f87fbdb0b6
 +  bool CertOverrideActive = 5;
 +
 +  // Certificate trust chain, in PEM form.
++  //
++  // Sorted from leaf to root.
++  //
 +  // Absent for self-signed certificates, but may be present if a cert override
 +  // is active.
 +  repeated X509Certificate TrustChain = 6;
@@ -285,6 +290,9 @@ authn - [public docs][mssql-pub] and [sources][mssql-sources].)
    repeated bytes CACerts = 2;
 +
 +  // Certificate trust chain, in PEM form.
++  //
++  // Sorted from leaf to root.
++  //
 +  // If present should be presented along with Cert to form its trust chain.
 +  repeated types.X509Certificate TrustChain = 3;
  }
