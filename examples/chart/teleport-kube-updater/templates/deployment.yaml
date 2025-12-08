@@ -1,13 +1,13 @@
-{{- if .Values.updater.enabled -}}
+{{- if .Values.updater.enabled }}
 {{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater -}}
 {{- $versionServerOverride := and $updater.versionServer (ne $updater.versionServer "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-updater
-  namespace: {{ .Release.Namespace }}
+  name: {{ template "teleport-kube-updater.fullname" . }}-updater
+  namespace: {{ include "teleport-kube-updater.namespace" . }}
   labels:
-    app: {{ .Release.Name }}-updater
+    app: {{ include "teleport-kube-updater.name" . }}-updater
 {{- if $updater.extraLabels.deployment }}
     {{- toYaml $updater.extraLabels.deployment | nindent 4 }}
 {{- end }}
@@ -18,7 +18,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-updater
+      app: {{ include "teleport-kube-updater.name" . }}-updater
   template:
     metadata:
       annotations:
@@ -26,7 +26,7 @@ spec:
   {{- toYaml $updater.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ .Release.Name }}-updater
+        app: {{ include "teleport-kube-updater.name" . }}-updater
 {{- if $updater.extraLabels.pod }}
   {{- toYaml $updater.extraLabels.pod | nindent 8 }}
 {{- end }}
@@ -45,7 +45,7 @@ spec:
 {{- end }}
       containers:
       - name: "kube-agent-updater"
-        image: "{{ $updater.image }}:{{ include "teleport-kube-agent.version" . }}"
+        image: "{{ $updater.image }}:{{ include "teleport-kube-updater.version" . }}"
 {{- if $updater.imagePullPolicy }}
         imagePullPolicy: {{ toYaml $updater.imagePullPolicy }}
 {{- end }}
@@ -60,9 +60,9 @@ spec:
   {{- end }}
 {{- end }}
         args:
-          - "--agent-name={{ .Release.Name }}"
-          - "--agent-namespace={{ .Release.Namespace }}"
-          - "--base-image={{ include "teleport-kube-agent.baseImage" . }}"
+          - "--agent-name={{ include "teleport-kube-updater.app.fullname" . }}"
+          - "--agent-namespace={{ include "teleport-kube-updater.namespace" . }}"
+          - "--base-image={{ include "teleport-kube-updater.baseImage" . }}"
   {{- if $updater.versionServer}}
           - "--version-server={{ tpl $updater.versionServer . }}"
           - "--version-channel={{ $updater.releaseChannel }}"
@@ -133,5 +133,5 @@ spec:
 {{- if $updater.priorityClassName }}
       priorityClassName: {{ $updater.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ template "teleport-kube-agent-updater.serviceAccountName" . }}
+      serviceAccountName: {{ template "teleport-kube-updater.serviceAccountName" . }}
 {{- end -}}

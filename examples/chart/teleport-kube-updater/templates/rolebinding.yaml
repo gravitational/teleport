@@ -1,10 +1,10 @@
 {{- if .Values.updater.enabled -}}
-{{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater -}}
+{{- $updater :=  .Values.updater -}}
 {{- if $updater.rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}-updater
+  name: {{ template "teleport-kube-updater.fullname" . }}-role
   namespace: {{ .Release.Namespace }}
 {{- if $updater.extraLabels.roleBinding }}
   labels:
@@ -13,10 +13,10 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ .Release.Name }}-updater
+  name: {{ template "teleport-kube-updater.fullname" . }}-role
 subjects:
-- kind: ServiceAccount
-  name: {{ template "teleport-kube-agent-updater.serviceAccountName" . }}
-  namespace: {{ .Release.Namespace }}
+  - kind: ServiceAccount
+    name: {{ template "teleport-kube-updater.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
 {{- end -}}
 {{- end -}}
