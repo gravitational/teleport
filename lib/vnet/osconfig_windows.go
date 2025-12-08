@@ -309,14 +309,16 @@ func deleteRegistryKey(key string) error {
 
 // https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-refreshpolicyex
 func forceRefreshComputerPolicies() error {
-	// rp_force is a flag for RefreshPolicyEx which makes it reapply all policies even if no policy
-	// change was detected.
-	const rp_force = 1
+	// refreshComputerPolicies corresponds to the first argument of RefreshPolicyEx which specifies
+	// whether to refresh computer or user policies.
+	const refreshComputerPolicies = 1
+	// rpForce corresponds to the RP_FORCE flag for RefreshPolicyEx which makes it reapply all
+	// policies even if no policy change was detected.
+	const rpForce = 1
 
 	retVal, _, err := procRefreshPolicyEx.Call(
-		// Refresh computer policies.
-		uintptr(1),
-		uintptr(rp_force),
+		uintptr(refreshComputerPolicies),
+		uintptr(rpForce),
 	)
 	if retVal == 0 {
 		return trace.Wrap(err)
