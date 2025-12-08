@@ -22,10 +22,9 @@ import (
 	"context"
 	"crypto"
 	"log/slog"
-	"sync"
 	"testing"
+	"testing/synctest"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -49,43 +48,36 @@ func (m *mockKM) Equal(o crypto.PublicKey) bool {
 	return ok && unwrap == m
 }
 
-func TestActiveHealthChecker(t *testing.T) {
-	ca := &types.CertAuthorityV2{}
-	err := ca.SetActiveKeys(types.CAKeySet{
-		TLS: []*types.TLSKeyPair{{
-			Cert: []byte{0},
-		}},
+func TestActiveHealthCheckerSync(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ca := &types.CertAuthorityV2{}
+		err := ca.SetActiveKeys(types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: []byte{0},
+			}},
+		})
+		require.NoError(t, err)
+
+		ch := make(chan []types.CertAuthority, 1)
+		ch <- []types.CertAuthority{ca}
+		calls := make([]error, 0)
+
+		hc, err := NewActiveHealthChecker(ActiveHealthCheckConfig{
+			Callback: func(err error) {
+				calls = append(calls, err)
+			},
+			ResourceC:  ch,
+			KeyManager: &mockKM{},
+			Logger:     slog.Default(),
+		})
+		require.NoError(t, err)
+		hc.healthFn = func(_ *healthSigner) error {
+			return nil
+		}
+
+		go hc.Run(t.Context())
+		synctest.Wait()
+		require.Len(t, calls, 1)
+		require.NoError(t, calls[0])
 	})
-	require.NoError(t, err)
-
-	ch := make(chan []types.CertAuthority, 1)
-	ch <- []types.CertAuthority{ca}
-
-	calls := make([]error, 0)
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
-	hc, err := NewActiveHealthChecker(ActiveHealthCheckConfig{
-		Callback: func(err error) {
-			calls = append(calls, err)
-			wg.Done()
-		},
-		ResourceC:  ch,
-		KeyManager: &mockKM{},
-		Logger:     slog.Default(),
-	})
-	require.NoError(t, err)
-
-	clock := clockwork.NewFakeClock()
-	hc.clock = clock
-	hc.healthFn = func(_ *healthSigner) error {
-		return nil
-	}
-
-	go hc.Run(t.Context())
-	clock.Advance(hc.interval)
-	wg.Wait()
-
-	require.Len(t, calls, 1)
-	require.NoError(t, calls[0])
 }

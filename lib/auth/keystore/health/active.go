@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
@@ -85,7 +84,6 @@ func NewActiveHealthChecker(c ActiveHealthCheckConfig) (*ActiveHealthChecker, er
 	return &ActiveHealthChecker{
 		interval:        c.Interval,
 		failureInterval: c.FailureInterval,
-		clock:           clockwork.NewRealClock(),
 		callback:        c.Callback,
 		c:               c.ResourceC,
 		firstEvent:      make(chan struct{}, 1),
@@ -112,7 +110,6 @@ type ActiveHealthChecker struct {
 
 	m        KeyManager
 	callback func(error)
-	clock    clockwork.Clock
 	logger   *slog.Logger
 
 	// mu protects signers.
@@ -140,7 +137,7 @@ func (c *ActiveHealthChecker) Run(ctx context.Context) error {
 		return ctx.Err()
 	}
 
-	ticker := c.clock.NewTicker(c.interval)
+	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 	var (
 		signer *healthSigner
@@ -158,7 +155,7 @@ func (c *ActiveHealthChecker) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.Chan():
+		case <-ticker.C:
 		}
 	}
 }
