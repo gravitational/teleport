@@ -20,9 +20,11 @@ import styled from 'styled-components';
 import {
   fontFamily,
   fontSize,
+  fontWeight,
   position,
   type FontFamilyProps,
   type FontSizeProps,
+  type FontWeightProps,
   type PositionProps,
 } from 'styled-system';
 
@@ -86,7 +88,8 @@ export interface BoxProps
     BackgroundProps,
     FontFamilyProps,
     FontSizeProps,
-    PositionProps {}
+    PositionProps,
+    FontWeightProps {}
 
 const Box = styled.div<BoxProps>`
   box-sizing: border-box;
@@ -110,6 +113,7 @@ const Box = styled.div<BoxProps>`
   ${fontFamily}
   ${fontSize}
   ${position}
+  ${fontWeight}
 `;
 
 Box.displayName = 'Box';
