@@ -48,6 +48,7 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -642,6 +643,11 @@ func (c *Client) UserTasksClient() services.UserTasks {
 
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
+}
+
+// MFAClient returns a client for the MFA service.
+func (c *Client) MFAClient() mfav1.MFAServiceClient {
+	return mfav1.NewMFAServiceClient(c.APIClient.GetConnection())
 }
 
 // DatabaseObjectsClient returns a client for managing the DatabaseObject resource.

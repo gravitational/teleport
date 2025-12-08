@@ -135,7 +135,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.36.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.40.0 // indirect
-	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0 // indirect
 	github.com/aws/smithy-go v1.23.2 // indirect
 	github.com/aws/smithy-go/tracing/smithyoteltracing v1.0.9 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -319,7 +318,6 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jedisct1/go-minisign v0.0.0-20230811132847-661be99b8267 // indirect
-	github.com/jmespath/go-jmespath v0.4.1-0.20220621161143-b0104c826a24 // indirect
 	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531 // indirect

@@ -16,7 +16,7 @@ metadata:
 spec:
 
   # openai tells Teleport to use OpenAI for summarizing session recordings
-  # using this model. Currently this is the only option.
+  # using this model.
   openai:
 
     # openai_model_id is the provider-specific model name. If this model
@@ -44,5 +44,19 @@ spec:
   # incurring additional cost from summarization attempts that fail because of
   # the model's context window limit. Optional, defaults to 200kB.
   max_session_length_bytes: 235000
-```
+  
+  # bedrock tells Teleport to use Amazon Bedrock for summarizing session
+  # recordings using this model.
+  bedrock:
 
+    # region is the AWS region which will be used for inference. Required.
+    region: eu-central-1
+
+    # bedrock_model_id specifies a model ID or an inference profile as
+    # understood by the Bedrock API. Required.
+    bedrock_model_id: "anthropic.claude-3-5-sonnet-20240620-v1:0"
+
+    # temperature is an optional temperature of the model. Defaults to whatever
+    # is the model's default.
+    temperature: 0.6
+```
