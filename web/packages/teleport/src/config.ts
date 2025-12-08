@@ -215,6 +215,7 @@ const cfg = {
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
+    browserSso: '/web/browser/:requestId',
     integrations: '/web/integrations',
     integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',

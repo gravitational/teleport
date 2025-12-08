@@ -8831,6 +8831,9 @@ message HeadlessAuthentication {
   // TLS certificate in case of successful auth. It must be in PEM-encoded
   // PKCS#1 or PKIX format.
   bytes tls_public_key = 8;
+
+  //HeadlessAuthenticationType is the type of request that was initiated.
+  HeadlessAuthenticationType type = 9;
 }
 
 // HeadlessAuthenticationState is a headless authentication state.
@@ -8845,6 +8848,20 @@ enum HeadlessAuthenticationState {
 
   // authentication approved.
   HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
+}
+
+// HeadlessAuthenticationType is the type of authentication event
+enum HeadlessAuthenticationType {
+  HEADLESS_AUTHENTICATION_TYPE_UNSPECIFIED = 0;
+
+  // headless login attempt
+  HEADLESS_AUTHENTICATION_TYPE_HEADLESS = 1;
+
+  // browser login attempt
+  HEADLESS_AUTHENTICATION_TYPE_BROWSER = 2;
+
+  // per-session MFA attempt
+  HEADLESS_AUTHENTICATION_TYPE_SESSION = 3;
 }
 
 // WatchKind specifies resource kind to watch

@@ -190,6 +190,9 @@ func ParseMFAChallengeResponse(mfaResponseJSON []byte) (*proto.MFAAuthenticateRe
 type HeadlessLoginReq struct {
 	// User is a teleport username
 	User string `json:"user"`
+	// RemoteAuthenticationType is the type of remote authentication being
+	// performed (headless or browser).
+	RemoteAuthenticationType types.HeadlessAuthenticationType `json:"remote_type"`
 	// HeadlessAuthenticationID is a headless authentication resource id.
 	HeadlessAuthenticationID string `json:"headless_id"`
 	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
@@ -387,6 +390,10 @@ type SSHLoginHeadless struct {
 	// User is the login username.
 	User string
 
+	// RemoteAuthenticationType is the type of remote authentication being
+	// performed (headless, browser, or session).
+	RemoteAuthenticationType types.HeadlessAuthenticationType
+
 	// HeadlessAuthenticationID is a headless authentication request ID.
 	HeadlessAuthenticationID string
 }
@@ -513,6 +520,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 
 	req := HeadlessLoginReq{
 		User:                     login.User,
+		RemoteAuthenticationType: login.RemoteAuthenticationType,
 		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
 		UserPublicKeys: UserPublicKeys{
 			SSHPubKey:               login.SSHPubKey,

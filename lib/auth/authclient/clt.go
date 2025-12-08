@@ -1414,6 +1414,9 @@ type AuthenticateUserRequest struct {
 	Session *SessionCreds `json:"session,omitempty"`
 	// ClientMetadata includes forwarded information about a client
 	ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
+	// RemoteAuthenticationType is the type of remote authentication being
+	// performed (headless, browser, or session).
+	RemoteAuthenticationType types.HeadlessAuthenticationType `json:"headless_authentication_type"`
 	// HeadlessAuthenticationID is the ID for a headless authentication resource.
 	HeadlessAuthenticationID string `json:"headless_authentication_id"`
 }
