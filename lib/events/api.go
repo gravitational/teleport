@@ -948,7 +948,7 @@ const (
 )
 
 // SessionRecordingEvents is a list of events that are related to session
-// recorings.
+// recordings.
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
