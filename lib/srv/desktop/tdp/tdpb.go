@@ -384,19 +384,6 @@ func TranslateToLegacy(msg Message) ([]Message, error) {
 		})
 	case *tdpb.ClipboardData:
 		messages = append(messages, ClipboardData(m.Data))
-	case *tdpb.MFA:
-		var mfaType byte
-		switch m.Type {
-		case tdpb.MFAType_MFA_TYPE_U2F:
-			mfaType = 'u'
-		case tdpb.MFAType_MFA_TYPE_WEBAUTHN:
-			mfaType = 'n'
-		}
-		messages = append(messages, MFA{
-			Type: mfaType,
-			//MFAAuthenticateChallenge: m.Challenge,
-			MFAAuthenticateResponse: m.AuthenticationResponse,
-		})
 	case *tdpb.SharedDirectoryAnnounce:
 		messages = append(messages, SharedDirectoryAnnounce{
 			DirectoryID: m.DirectoryId,
@@ -618,9 +605,6 @@ func TranslateToModern(msg Message) ([]Message, error) {
 			Message:  m.Message,
 			Severity: tdpb.AlertSeverity_ALERT_SEVERITY_ERROR,
 		})
-	case MFA:
-		// Goodness gracious, the MFA message...
-		messages = append(messages)
 	case Alert:
 		var severity tdpb.AlertSeverity
 		switch m.Severity {
