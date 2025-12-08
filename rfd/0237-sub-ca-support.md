@@ -419,10 +419,10 @@ message DistinguishedName {
 
 message AttributeTypeAndValue {
   repeated int oid = 1;
-  oneof value {
-    string text = 2;
-    bytes binary = 3;
-  }
+  // Note: Go only allows strings as the value for a pkix.AttributeTypeAndValue.
+  // See
+  // https://cs.opensource.google/go/go/+/refs/tags/go1.25.5:src/crypto/x509/pkix/pkix.go;l=152.
+  string value = 2;
 }
 
 message CreateCSRResponse {
