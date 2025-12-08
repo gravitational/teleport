@@ -25,7 +25,7 @@ import { allAccessAcl } from 'teleport/mocks/contexts';
 import TeleportContext from 'teleport/teleportContext';
 
 import { ConnectGitHub } from './ConnectGitHub';
-import { GitHubFlowProvider } from './useGitHubFlow';
+import { GitHubSshFlowProvider } from './useGitHubSshFlow';
 
 describe('connectGitHub Component', () => {
   function setup() {
@@ -39,9 +39,9 @@ describe('connectGitHub Component', () => {
     render(
       <MemoryRouter>
         <ContextProvider ctx={ctx}>
-          <GitHubFlowProvider>
+          <GitHubSshFlowProvider>
             <ConnectGitHub />
-          </GitHubFlowProvider>
+          </GitHubSshFlowProvider>
         </ContextProvider>
       </MemoryRouter>
     );

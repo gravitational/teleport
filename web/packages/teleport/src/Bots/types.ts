@@ -55,7 +55,7 @@ export type ViewBotProps = {
 };
 
 export enum BotFlowType {
-  GitHubActions = 'github-actions',
+  GitHubActionsSsh = 'github-actions-ssh',
 }
 
 export type EditBotProps = {

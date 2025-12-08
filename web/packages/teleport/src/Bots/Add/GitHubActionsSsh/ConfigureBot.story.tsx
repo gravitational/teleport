@@ -19,38 +19,52 @@
 import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { allAccessAcl, createTeleportContext } from 'teleport/mocks/contexts';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
-import { ConnectGitHub } from './ConnectGitHub';
-import { Finish } from './Finish';
-import { GitHubFlowProvider } from './useGitHubFlow';
+import { ConfigureBot } from './ConfigureBot';
+import { GitHubSshFlowProvider } from './useGitHubSshFlow';
 
-const Provider = ({ children }) => {
+const Provider = ({ children, access = allAccessAcl }) => {
   const ctx = createTeleportContext();
+  ctx.storeUser.setState({
+    username: 'joe@example.com',
+    acl: access,
+  });
 
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <GitHubFlowProvider>{children}</GitHubFlowProvider>
+        <GitHubSshFlowProvider>{children}</GitHubSshFlowProvider>
       </ContextProvider>
     </MemoryRouter>
   );
 };
 
 export default {
-  title: 'Teleport/Bots/Add/GitHubActions',
+  title: 'Teleport/Bots/Add/GitHubActions+SSH/Permissions',
 };
 
-export const RepoRules = () => (
+export const Loaded = () => (
   <Provider>
-    <ConnectGitHub {...props} />
+    <ConfigureBot {...props} />
   </Provider>
 );
 
-export const Finished = () => (
-  <Provider>
-    <Finish />
+export const NoCreatePermission = () => (
+  <Provider
+    access={{
+      ...allAccessAcl,
+      bots: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+    }}
+  >
+    <ConfigureBot {...props} />
   </Provider>
 );
 

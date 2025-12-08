@@ -27,7 +27,7 @@ import { Access, Acl } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
 
 import { ConfigureBot } from './ConfigureBot';
-import { GitHubFlowProvider } from './useGitHubFlow';
+import { GitHubSshFlowProvider } from './useGitHubSshFlow';
 
 type SetupProps = {
   access?: Acl;
@@ -51,9 +51,9 @@ describe('configureBot Component', () => {
     render(
       <MemoryRouter>
         <ContextProvider ctx={ctx}>
-          <GitHubFlowProvider>
+          <GitHubSshFlowProvider>
             <ConfigureBot />
-          </GitHubFlowProvider>
+          </GitHubSshFlowProvider>
         </ContextProvider>
       </MemoryRouter>
     );

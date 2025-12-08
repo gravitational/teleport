@@ -18,7 +18,6 @@
 
 import React, { useContext, useState } from 'react';
 
-import { Option } from 'shared/components/Select';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrorMessage } from 'shared/utils/error';
 
@@ -33,11 +32,11 @@ import {
   BotUiFlow,
   CreateBotRequest,
   GitHubRepoRule,
-  RefType,
 } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
-export const GITHUB_HOST = 'github.com';
+import { GITHUB_HOST, parseRepoAddress, RefTypeOption } from '../Shared/github';
+
 const GITHUB_ACTIONS_LABEL_VAL = BotUiFlow.GitHubActionsSsh;
 
 type GitHubFlowContext = {
@@ -52,7 +51,27 @@ type GitHubFlowContext = {
   resetAttempt: () => void;
 };
 
-const gitHubFlowContext = React.createContext<GitHubFlowContext>(null);
+const noop = () => {};
+const gitHubFlowContext = React.createContext<GitHubFlowContext>({
+  addEmptyRepoRule: noop,
+  attempt: {
+    status: '',
+    statusText: undefined,
+    statusCode: undefined,
+  },
+  createBotRequest: {
+    botName: '',
+    labels: [],
+    roles: [],
+    login: '',
+  },
+  setCreateBotRequest: noop,
+  repoRules: [],
+  setRepoRules: noop,
+  tokenName: '',
+  createBot: () => Promise.reject('noop'),
+  resetAttempt: noop,
+});
 
 export const initialBotState = {
   labels: [{ name: '*', value: '*' }],
@@ -61,7 +80,7 @@ export const initialBotState = {
   roles: [],
 };
 
-export function GitHubFlowProvider({
+export function GitHubSshFlowProvider({
   children,
   bot = initialBotState,
 }: React.PropsWithChildren<{ bot?: CreateBotRequest }>) {
@@ -132,7 +151,7 @@ export function GitHubFlowProvider({
                 actor: r.actor,
                 environment: r.environment,
                 ref: r.ref,
-                refType: r.refType.value || null,
+                refType: r.refType.value || undefined,
                 workflow: r.workflowName,
               };
             }),
@@ -150,9 +169,10 @@ export function GitHubFlowProvider({
         mfaResponse
       );
 
-      return true; // success
+      return true; // successful
     } catch (err) {
       setAttempt({ status: 'failed', statusText: getErrorMessage(err) });
+      return false; // unsuccessful
     }
   }
 
@@ -175,11 +195,9 @@ export function GitHubFlowProvider({
   );
 }
 
-export function useGitHubFlow(): GitHubFlowContext {
+export function useGitHubSshFlow(): GitHubFlowContext {
   return useContext(gitHubFlowContext);
 }
-
-export type RefTypeOption = Option<RefType | ''>;
 
 export type Rule = {
   workflowName: string;
@@ -198,53 +216,6 @@ export const defaultRule: Rule = {
   repoAddress: '',
   actor: '',
 };
-
-/**
- * Parses the GitHub repository URL and returns the repository name and
- * its owner's name. Throws errors if parsing the URL fails or
- * the URL doesn't contains the expected format.
- * @param repoAddr repository address (with or without protocl)
- * @returns owner and repository name
- */
-export function parseRepoAddress(repoAddr: string): {
-  host: string;
-  owner: string;
-  repository: string;
-} {
-  // add protocol if it is missing
-  if (!repoAddr.startsWith('http://') && !repoAddr.startsWith('https://')) {
-    repoAddr = `https://${repoAddr}`;
-  }
-
-  let url;
-  try {
-    url = new URL(repoAddr);
-  } catch (error) {
-    throw new Error('Must be a valid URL', { cause: error });
-  }
-
-  const paths = url.pathname.split('/');
-  // expected length is 3, since pathname starts with a /, so paths[0] should be empty
-  if (paths.length < 3) {
-    throw new Error(
-      'URL expected to be in the format https://<host>/<owner>/<repository>'
-    );
-  }
-
-  const owner = paths[1];
-  const repository = paths[2];
-  if (owner.trim() === '' || repository.trim() == '') {
-    throw new Error(
-      'URL expected to be in the format https://<host>/<owner>/<repository>'
-    );
-  }
-
-  return {
-    host: url.host,
-    owner,
-    repository,
-  };
-}
 
 function getRoleYaml(
   botName: string,
