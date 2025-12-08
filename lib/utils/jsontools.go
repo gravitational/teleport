@@ -117,8 +117,7 @@ func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 // WriteJSONArray marshals values as a JSON array.
 func WriteJSONArray[T any](w io.Writer, values []T) error {
 	if len(values) == 0 {
-		_, err := w.Write([]byte("[]"))
-		return err
+		values = []T{}
 	}
 	return WriteJSON(w, values)
 }
