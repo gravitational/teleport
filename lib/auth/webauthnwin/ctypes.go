@@ -29,6 +29,10 @@ const (
 	webauthnUserVerificationRequired    = uint32(1)
 	webauthnUserVerificationPreferred   = uint32(2)
 	webauthnUserVerificationDiscouraged = uint32(3)
+
+	webauthnCredentialHintSecurityKey  = "security-key"
+	webauthnCredentialHintClientDevice = "client-device"
+	webauthnCredentialHintHybrid       = "hybrid"
 )
 
 type webauthnRPEntityInformation struct {
@@ -329,6 +333,8 @@ type webauthnAuthenticatorGetAssertionOptions struct {
 
 	//
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_9
+	//
+	// https://github.com/microsoft/webauthn/blob/c3ed95fd7603441a0253c55c14e79239cb556a9f/webauthn.h#L958.
 	//
 
 	// Web Origin. For Remote Web App scenario.
