@@ -289,13 +289,58 @@ type webauthnAuthenticatorGetAssertionOptions struct {
 	//
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_5
 	//
-	// This field is kept just to keep size of struct valid.
-	_ uint32
-	// Size of pbCredLargeBlob
-	// This field is kept just to keep size of struct valid.
-	_ uint32
-	// This field is kept just to keep size of struct valid.
-	_ *byte
+
+	_               uint32 // dwCredLargeBlobOperation
+	cbCredLargeBlob uint32
+	pbCredLargeBlob *byte
+
+	//
+	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_6
+	//
+
+	// PRF values which will be converted into HMAC-SECRET values according to WebAuthn Spec.
+	_ uint32 // pHmacSecretSaltValues
+
+	// Optional. BrowserInPrivate Mode. Defaulting to FALSE.
+	bBrowserInPrivateMode bool
+
+	//
+	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_7
+	//
+
+	// Deprecated
+	// Optional. Linked Device Connection Info.
+	_ uint32 // pLinkedDevice
+
+	// Optional. Allowlist MUST contain 1 credential applicable for Hybrid transport.
+	bAutoFill bool
+
+	// Size of pbJsonExt
+	cbJsonExt uint32
+	pbJsonExt *byte
+
+	//
+	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_8
+	//
+
+	// PublicKeyCredentialHints (https://w3c.github.io/webauthn/#enum-hints)
+	cCredentialHints     uint32
+	ppwszCredentialHints *uint16
+
+	//
+	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_9
+	//
+
+	// Web Origin. For Remote Web App scenario.
+	pwszRemoteWebOrigin *uint16
+
+	// UTF-8 encoded JSON serialization of the PublicKeyCredentialRequestOptions.
+	cbPublicKeyCredentialRequestOptionsJSON uint32
+	pbPublicKeyCredentialRequestOptionsJSON *byte
+
+	// Authenticator ID got from WebAuthNGetAuthenticatorList API.
+	cbAuthenticatorID uint32
+	pbAuthenticatorID *byte
 }
 
 //nolint:unused // TODO: remove when linter runs on windows build tag
