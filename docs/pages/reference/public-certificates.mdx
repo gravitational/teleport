@@ -1,14 +1,16 @@
-## Public Certificates & Encryption Keys
+---
+title: "Public Certificates & Encryption Keys"
+---
 
 We use the following certificates and public keys to sign our software. Many of
-these keys and certificates use our legal business name “Gravitational Inc.” and
-our former domain “gravitational.com”. Don’t worry – [Gravitational is
+these keys and certificates use our legal business name Gravitational, Inc. and
+our former domain gravitational.com. Don’t worry – [Gravitational is
 Teleport](https://goteleport.com/blog/gravitational-is-teleport/).
 
-### APT, YUM, & Zypper Signing Keys
+## APT, YUM, & Zypper signing keys
 
 We sign our [APT, YUM and Zypper
-repositories](https://goteleport.com/docs/installation/#package-repositories)
+repositories](../installation/linux.mdx#package-repositories)
 with the following PGP key:
 
 * ID `C87ED53A6282C411`
@@ -19,7 +21,7 @@ The key is available for download at:
 * [https://yum.releases.teleport.dev/gpg](https://yum.releases.teleport.dev/gpg)
 * [https://zypper.releases.teleport.dev/gpg](https://zypper.releases.teleport.dev/gpg)
 
-### Apple Signing Certificates
+## Apple signing certificates
 
 Our Apple packages and binaries are [code
 signed](https://developer.apple.com/support/code-signing/) by "Developer ID
@@ -35,8 +37,8 @@ Packages published prior to September 14, 2021 are signed with an older certific
 Verify the Developer ID and fingerprint match on package downloads with the
 pkgutil tool:
 ```console
-$ pkgutil --check-signature teleport-15.0.2.pkg
-Package "teleport-15.0.2.pkg":
+$ pkgutil --check-signature teleport-(=teleport.version=).pkg
+Package "teleport-(=teleport.version=).pkg":
    Status: signed by a developer certificate issued by Apple for distribution
    Notarization: trusted by the Apple notary service
    Signed with a trusted timestamp on: 2024-02-16 21:42:52 +0000
@@ -77,11 +79,11 @@ TeamIdentifier=QH8AA5B8UP
 The Teleport package in Homebrew is not maintained or signed by Teleport. We
 recommend the use of [our Teleport packages](https://goteleport.com/download/).
 
-### Windows Signing Certificates
+## Windows signing certificates
 
 Our Windows binaries are signed with the following certificate:
-* Issued to: Gravitational Inc.
-* Thumbprint: C644BAB07912F5BD09BDB3C2D9AE6A724F9B2391
+* Issued to: Gravitational, Inc.
+* Thumbprint: `C644BAB07912F5BD09BDB3C2D9AE6A724F9B2391`
 
 Verify the binary using the following PowerShell command:
 ```console
@@ -95,7 +97,7 @@ C644BAB07912F5BD09BDB3C2D9AE6A724F9B2391  Valid    tsh.exe
 ```
 
 Ensure that the `SignerCertificate` matches the thumbprint shown above, and that
-the `Status` field is `Valid`. 
+the `Status` field is `Valid`.
 
 To further inspect the certificate, run the following PowerShell command:
 ```console
@@ -112,7 +114,7 @@ Thumbprint   : C644BAB07912F5BD09BDB3C2D9AE6A724F9B2391
 FriendlyName :
 NotBefore    : 11/2/2023 12:00:00 AM
 NotAfter     : 10/16/2026 11:59:59 PM
-Extensions   : {System.Security.Cryptography.Oid, 
+Extensions   : {System.Security.Cryptography.Oid,
                 System.Security.Cryptography.Oid,
                 System.Security.Cryptography.Oid,
                 System.Security.Cryptography.Oid...}
@@ -133,7 +135,7 @@ Explorer with the following steps:
 8. Select the “Thumbprint” item from the list, and compare its value to the
    thumbprint listed above.
 
-### OCI Container Images
+## OCI container images
 All of our distroless OCI container images are signed with `cosign`. The public
 key is:
 ```
@@ -156,9 +158,9 @@ T8LjqFu3u3dxVOo9RuLk+BkCAwEAAQ==
 Signatures can be validated against the Teleport OCI image signing key:
 ```console
 $ cosign verify --key teleport-oci-key.pub \
-    public.ecr.aws/gravitational/teleport-distroless-debug:15.4.6
+    public.ecr.aws/gravitational/teleport-distroless-debug:(=teleport.version=)
 
-Verification for public.ecr.aws/gravitational/teleport-distroless-debug:15.4.6 --
+Verification for public.ecr.aws/gravitational/teleport-distroless-debug:(=teleport.version=) --
 The following checks were performed on each of these signatures:
   - The cosign claims were validated
   - The signatures were verified against the specified public key
