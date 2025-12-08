@@ -45,12 +45,6 @@ teleport:
   # the connection to your Teleport cluster. If the secret has the path,
   # `"auth_id"`, you can omit this field.
   identitySecretPath: "auth_id"
-  # teleport.refreshEnabled(bool) -- controls if the identity file should be reloaded
-  # from disk after the initial start on interval.
-  refreshEnabled: true
-  # teleport.refreshInterval(string) -- is how often to load the identity file
-  # from disk when `teleport-refresh-enabled` is specified. By default, this is set to 1 minute.
-  refreshInterval: "1m"
 
 # eventHandler -- contains the configuration used by the plugin to forward Teleport events.
 eventHandler:
@@ -69,19 +63,18 @@ eventHandler:
   # eventHandler.debug(bool) -- enables debug logging.
   debug: false
   # eventHandler.types(list) -- is the list of event types to forward.
+  # When unset, the event handler forwards all events.
   types: []
   # eventHandler.skipEventTypes(list) -- is the list of audit event types to skip.
+  # When unset, the event handler skips spammy and binary events.
   skipEventTypes: []
   # eventHandler.skipSessionTypes(list) -- is the list of session recording event types to skip.
-  #
-  # By default this is set to ["print", "desktop.recording"].
-  skipSessionTypes: ["print","desktop.recording"]
+  # When unset, the event handler skips spammy and binary events (eg. "print", "desktop.recording").
+  skipSessionTypes: []
   # eventHandler.startTime(string) -- is the start time to start ingestion from (RFC3339 format).
   startTime: ""
   # eventHandler.dryRun(bool) -- enables dry run without sending events to fluentd.
   dryRun: false
-  # eventHandler.exitOnLastEvent(bool) -- enables setting to exit when last event is processed.
-  exitOnLastEvent: false
   # eventHandler.concurrency(int) -- is the number of concurent sessions to process. By default, this is set to 5.
   concurrency: 5
   lock:
@@ -93,8 +86,8 @@ eventHandler:
     # eventHandler.lock.period(string) -- is the time period where `lock-failed-attempts-count` failed attempts
     # will trigger locking. By default, this is set to 1 minute.
     period: "1m"
-    # eventHandler.lock.for(string) -- is the time period for which user gets lock. By default, this is set to 10 seconds.
-    for: "5s"
+    # eventHandler.lock.for(string) -- is the time period for which user gets lock.
+    for: ""
 
 # fluentd -- contains the configuration for the fluentd forwarder.
 fluentd:

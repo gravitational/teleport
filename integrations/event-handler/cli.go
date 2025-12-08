@@ -167,7 +167,7 @@ type LockConfig struct {
 	// LockPeriod represents rate limiting period
 	LockPeriod time.Duration `help:"Time period where lock-failed-attempts-count failed attempts will trigger locking" name:"lock-period" default:"1m" env:"FDFWD_LOCKING_PERIOD"`
 	// LockFor represents the duration of the new lock
-	LockFor time.Duration `help:"Time period for which user gets lock" name:"lock-for" default:"5s" env:"FDFWD_LOCKING_FOR"`
+	LockFor time.Duration `help:"Time period for which user gets lock" name:"lock-for" env:"FDFWD_LOCKING_FOR"`
 }
 
 // StartCmdConfig is start command description

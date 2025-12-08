@@ -312,16 +312,6 @@
                     "examples": [
                         "auth_id"
                     ]
-                },
-                "refreshEnabled": {
-                    "$id": "#/properties/teleport/properties/refreshEnabled",
-                    "type": "boolean",
-                    "default": true
-                },
-                "refreshInterval": {
-                    "$id": "#/properties/teleport/properties/refreshInterval",
-                    "type": "string",
-                    "default": "1m"
                 }
             },
             "additionalProperties": true
@@ -409,7 +399,7 @@
                 "skipSessionTypes": {
                     "$id": "#/properties/eventHandler/properties/skipSessionTypes",
                     "type": "array",
-                    "default": ["print", "desktop.recording"],
+                    "default": "",
                     "examples": [
                         ["print", "desktop.recording"]
                     ]
@@ -424,14 +414,6 @@
                 },
                 "dryRun": {
                     "$id": "#/properties/eventHandler/properties/dryRun",
-                    "type": "boolean",
-                    "default": false,
-                    "examples": [
-                        false
-                    ]
-                },
-                "exitOnLastEvent": {
-                    "$id": "#/properties/eventHandler/properties/exitOnLastEvent",
                     "type": "boolean",
                     "default": false,
                     "examples": [
