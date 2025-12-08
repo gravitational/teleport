@@ -30,24 +30,28 @@ data:
     {{- if .Values.eventHandler.dryRun }}
     dry-run = {{ .Values.eventHandler.dryRun }}
     {{- end }}
-    {{- if .Values.eventHandler.exitOnLastEvent }}
-    exit-on-last-event = {{ .Values.eventHandler.exitOnLastEvent }}
-    {{- end }}
     {{- if .Values.eventHandler.concurrency }}
     concurrency = {{ .Values.eventHandler.concurrency }}
     {{- end }}
-    {{- if and (.Values.eventHandler.lock) (.Values.eventHandler.lock.enabled) }}
+    {{- if .Values.eventHandler.lock }}
+    {{- if .Values.eventHandler.lock.enabled }}
     lock-enabled = {{ .Values.eventHandler.lock.enabled }}
+    {{- end }}
+    {{- if .Values.eventHandler.lock.failedAttemptsCount }}
     lock-failed-attempts-count = {{ .Values.eventHandler.lock.failedAttemptsCount }}
+    {{- end }}
+    {{- if .Values.eventHandler.lock.period }}
     lock-period = {{ .Values.eventHandler.lock.period | quote }}
+    {{- end }}
+    {{- if .Values.eventHandler.lock.for }}
     lock-for = {{ .Values.eventHandler.lock.for | quote }}
+    {{- end }}
     {{- end }}
 
     [teleport]
     addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
     identity = "/var/lib/teleport/plugins/event-handler/teleport-identity/{{ include "event-handler.identitySecretPath" . }}"
-    refresh.enabled = {{ default "true" .Values.teleport.refreshEnabled }}
-    refresh.interval = {{ default "1m" .Values.teleport.refreshInterval | quote}}
+    refresh.enabled = true
 
     [forward.fluentd]
     url = "{{ .Values.fluentd.url }}"
@@ -55,8 +59,4 @@ data:
     ca = "/var/lib/teleport/plugins/event-handler/ca.crt"
     cert = "/var/lib/teleport/plugins/event-handler/client.crt"
     key = "/var/lib/teleport/plugins/event-handler/client.key"
-    {{- if .Values.fluentd.maxConnections }}
-    max-connections = {{ .Values.fluentd.maxConnections }}
-    {{- else }}
-    max-connections = {{ mul .Values.eventHandler.concurrency 2 }}
-    {{- end }}
+    max-connections = {{ default (mul .Values.eventHandler.concurrency 2) .Values.fluentd.maxConnections }}

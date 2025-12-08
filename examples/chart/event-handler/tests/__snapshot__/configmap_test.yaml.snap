@@ -8,21 +8,17 @@ should match the snapshot:
         batch = 20
         window-size = "24h"
         debug = true
-        skip-session-types = "print,desktop.recording"
         start-time = "2025-01-01T00:00:00.000Z"
         dry-run = true
-        exit-on-last-event = true
         concurrency = 2
         lock-enabled = true
         lock-failed-attempts-count = 3
         lock-period = "1m"
-        lock-for = "5s"
 
         [teleport]
         addr = "teleport.example.com:1234"
         identity = "/var/lib/teleport/plugins/event-handler/teleport-identity/auth_id"
         refresh.enabled = true
-        refresh.interval = "1m"
 
         [forward.fluentd]
         url = "https://fluentd:8888/test.log"
