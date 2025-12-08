@@ -230,7 +230,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 			t.Parallel()
 			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
 			if tt.err != nil {
-				require.IsType(t, tt.err, trace.Unwrap(err))
+				require.ErrorIs(t, trace.Unwrap(err), tt.err)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.outMessage, body)
