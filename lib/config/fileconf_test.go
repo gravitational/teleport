@@ -1264,8 +1264,8 @@ func TestBackoffConfig(t *testing.T) {
 			mutate: func(cfg cfgMap) {},
 			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
 				UpperLimitBetweenRetries: 90 * time.Second,
-				BackoffStepDuration:      9 * time.Second,
-				InitialConnectionDelay:   18 * time.Second,
+				InitialConnectionDelay:   9 * time.Second,
+				BackoffStepDuration:      18 * time.Second,
 			},
 			errorFn: require.NoError,
 		},
@@ -1280,8 +1280,8 @@ func TestBackoffConfig(t *testing.T) {
 			},
 			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
 				UpperLimitBetweenRetries: 90 * time.Second,
-				BackoffStepDuration:      9 * time.Second,
-				InitialConnectionDelay:   18 * time.Second,
+				InitialConnectionDelay:   9 * time.Second,
+				BackoffStepDuration:      18 * time.Second,
 			},
 			errorFn: require.NoError,
 		},
@@ -1294,8 +1294,8 @@ func TestBackoffConfig(t *testing.T) {
 			},
 			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
 				UpperLimitBetweenRetries: 3 * time.Minute,
-				BackoffStepDuration:      18 * time.Second,
-				InitialConnectionDelay:   36 * time.Second,
+				InitialConnectionDelay:   18 * time.Second,
+				BackoffStepDuration:      36 * time.Second,
 			},
 			errorFn: require.NoError,
 		},

@@ -955,15 +955,13 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		// This test must use RoleInstance because all other roles wait for the
 		// Instance connector without a timeout.
 		c, err := process.reconnectToAuthService(types.RoleInstance)
 		require.Equal(t, ErrTeleportExited, err)
 		require.Nil(t, c)
-	}()
+	})
 
 	timeout := time.After(10 * time.Second)
 	step := cfg.AuthConnectionConfig.BackoffStepDuration

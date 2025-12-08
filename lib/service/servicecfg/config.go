@@ -369,7 +369,7 @@ func (c *AuthConnectionConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialConnectionDelay < 1 {
-		c.InitialConnectionDelay = c.UpperLimitBetweenRetries / 5
+		c.InitialConnectionDelay = c.UpperLimitBetweenRetries / 10
 	} else if c.InitialConnectionDelay > c.UpperLimitBetweenRetries {
 		return trace.BadParameter(
 			"initial_connection_delay (%s) cannot be larger than upper_limit_between_retries (%s)",
@@ -379,7 +379,7 @@ func (c *AuthConnectionConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.BackoffStepDuration < 1 {
-		c.BackoffStepDuration = c.UpperLimitBetweenRetries / 10
+		c.BackoffStepDuration = c.UpperLimitBetweenRetries / 5
 	} else if c.BackoffStepDuration > c.UpperLimitBetweenRetries {
 		return trace.BadParameter(
 			"backoff_step_duration (%s) cannot be larger than upper_limit_between_retries (%s)",
@@ -395,8 +395,8 @@ func (c *AuthConnectionConfig) CheckAndSetDefaults() error {
 func DefaultRatioAuthConnectionConfig(UpperLimitBetweenRetries time.Duration) *AuthConnectionConfig {
 	return &AuthConnectionConfig{
 		UpperLimitBetweenRetries: UpperLimitBetweenRetries,
-		InitialConnectionDelay:   UpperLimitBetweenRetries / 5,
-		BackoffStepDuration:      UpperLimitBetweenRetries / 10,
+		InitialConnectionDelay:   UpperLimitBetweenRetries / 10,
+		BackoffStepDuration:      UpperLimitBetweenRetries / 5,
 	}
 }
 
