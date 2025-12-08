@@ -316,11 +316,6 @@ func (d *cryptoCountDecrypter) Decrypt(rand io.Reader, ciphertext []byte, opts c
 	return plaintext, nil
 }
 
-func (m *Manager) GetTLSSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
-	_, signer, err := m.getTLSCertAndSigner(ctx, ca.GetActiveKeys())
-	return signer, trace.Wrap(err)
-}
-
 // GetSSHSigner selects a usable SSH keypair from the given CA ActiveKeys and
 // returns an [ssh.Signer].
 func (m *Manager) GetSSHSigner(ctx context.Context, ca types.CertAuthority) (ssh.Signer, error) {
@@ -482,6 +477,13 @@ func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthorit
 		return nil, nil, trace.Wrap(err)
 	}
 	return cert, signer, trace.Wrap(err)
+}
+
+// GetTLSSigner selects a usable TLS keypair from the given CA and returns a
+// [crypto.Signer].
+func (m *Manager) GetTLSSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	_, signer, err := m.getTLSCertAndSigner(ctx, ca.GetActiveKeys())
+	return signer, trace.Wrap(err)
 }
 
 // GetAdditionalTrustedTLSCertAndSigner selects a usable TLS keypair from the given CA
