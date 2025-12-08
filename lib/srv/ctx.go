@@ -1449,29 +1449,5 @@ func (c *ServerContext) GetChildError() error {
 	// the cause of the session failure to add to the error message.
 	// e.g. user unknown because host user creation denied.
 
-	return NewChildProcessError(errMsg.String())
-}
-
-// ChildProcessError is an error from a child process that caused an early exit.
-type ChildProcessError struct {
-	message string
-}
-
-// NewChildProcessError returns a new [ChildProcessError] instance.
-func NewChildProcessError(msg string) *ChildProcessError {
-	return &ChildProcessError{
-		message: msg,
-	}
-}
-
-// Error returns the textual representation of [ChildProcessError].
-func (e *ChildProcessError) Error() string {
-	return e.message
-}
-
-// Is returns `true` if `err` is a [ChildProcessError].
-// Meant to be used with [errors.Is].
-func (e *ChildProcessError) Is(target error) bool {
-	_, ok := target.(*ChildProcessError)
-	return ok
+	return errors.New(errMsg.String())
 }
