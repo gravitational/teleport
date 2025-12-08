@@ -1345,9 +1345,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 			s.logger.DebugContext(ctx, "Exec request complete", "command", result.Command, "code", result.Code)
 
 			if result.ErrorMessage != "" {
-				if _, err := ch.Stderr().Write([]byte(result.ErrorMessage)); err != nil {
-					scx.Logger.InfoContext(ctx, "Failed to write error message to stderr", "command", result.Command, "msg", result.ErrorMessage, "error", err)
-				}
+				s.stderrWrite(ctx, ch, result.ErrorMessage)
 			}
 
 			// The exec process has finished and delivered the execution result, send

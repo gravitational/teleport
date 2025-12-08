@@ -1703,8 +1703,8 @@ func (s *session) broadcastResult(r ExecResult) {
 	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
 	for _, p := range s.getParties() {
 		if r.ErrorMessage != "" {
-			if _, err := p.ch.Stderr().Write([]byte(r.ErrorMessage)); err != nil {
-				s.logger.InfoContext(s.serverCtx, "Failed to write error message to stderr", "command", r.Command, "msg", r.ErrorMessage, "error", err)
+			if _, err := io.WriteString(p.ch.Stderr(), r.ErrorMessage); err != nil {
+				s.logger.WarnContext(s.serverCtx, "Failed writing to stderr of SSH channel", "error", err)
 			}
 		}
 		if _, err := p.ch.SendRequest("exit-status", false, payload); err != nil {

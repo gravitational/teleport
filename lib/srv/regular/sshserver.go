@@ -1791,9 +1791,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 			scx.Logger.DebugContext(ctx, "Exec request complete", "command", result.Command, "code", result.Code)
 
 			if result.ErrorMessage != "" {
-				if _, err := ch.Stderr().Write([]byte(result.ErrorMessage)); err != nil {
-					scx.Logger.InfoContext(ctx, "Failed to write error message to stderr", "command", result.Command, "msg", result.ErrorMessage, "error", err)
-				}
+				s.writeStderr(ctx, ch, result.ErrorMessage)
 			}
 
 			// The exec process has finished and delivered the execution result, send
