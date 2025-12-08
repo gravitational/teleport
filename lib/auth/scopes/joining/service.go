@@ -24,6 +24,7 @@ import (
 	"iter"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
@@ -102,15 +103,26 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 		if token.Metadata == nil {
 			token.Metadata = &headerv1.Metadata{}
 		}
-		name, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+		name, err := uuid.NewRandom()
 		if err != nil {
-			return nil, trace.Wrap(err, "generating token value")
+			return nil, trace.Wrap(err, "generating token name")
 		}
-		token.Metadata.Name = name
+		token.Metadata.Name = name.String()
 	}
 
 	if token.GetSpec() != nil && token.GetSpec().GetJoinMethod() == "" {
 		token.Spec.JoinMethod = string(types.JoinMethodToken)
+	}
+
+	if token.GetSpec().GetJoinMethod() == string(types.JoinMethodToken) {
+		if token.Status == nil {
+			token.Status = &scopedjoiningv1.ScopedTokenStatus{}
+		}
+		secret, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating token secret")
+		}
+		token.Status.Secret = secret
 	}
 
 	res, err := s.backend.CreateScopedToken(ctx, req)

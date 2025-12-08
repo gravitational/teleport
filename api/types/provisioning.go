@@ -183,6 +183,10 @@ type ProvisionToken interface {
 	// unscoped
 	GetAssignedScope() string
 
+	// GetSecret returns the token's secret value and a bool representing whether
+	// or not the token had a secret..
+	GetSecret() (string, bool)
+
 	// Clone creates a copy of the token.
 	Clone() ProvisionToken
 }
@@ -661,6 +665,12 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 // unscoped
 func (p *ProvisionTokenV2) GetAssignedScope() string {
 	return ""
+}
+
+// GetSecret always returns an empty string and false because a [ProvisionTokenV2] does not have a
+// dedicated secret value. The name itself is the secret for the "token" join method.
+func (p *ProvisionTokenV2) GetSecret() (string, bool) {
+	return "", false
 }
 
 // String returns the human readable representation of a provisioning token.

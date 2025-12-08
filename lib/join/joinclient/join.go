@@ -374,7 +374,7 @@ func joinWithMethod(
 		}
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodToken:
-		return tokenJoin(stream, clientParams)
+		return tokenJoin(stream, clientParams, joinParams.TokenSecret)
 	case types.JoinMethodTPM:
 		return tpmJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodTerraformCloud:
@@ -400,6 +400,7 @@ func joinWithMethod(
 func tokenJoin(
 	stream messages.ClientStream,
 	clientParams messages.ClientParams,
+	secret string,
 ) (messages.Response, error) {
 	// The token join method is relatively simple, the flow is
 	//
@@ -412,6 +413,7 @@ func tokenJoin(
 	// that's left is to send the TokenInit message and receive the final result.
 	tokenInitMsg := &messages.TokenInit{
 		ClientParams: clientParams,
+		Secret:       secret,
 	}
 	if err := stream.Send(tokenInitMsg); err != nil {
 		return nil, trace.Wrap(err)
