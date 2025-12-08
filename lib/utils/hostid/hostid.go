@@ -74,6 +74,7 @@ func Generate(ctx context.Context, joinMethod types.JoinMethod) (string, error) 
 		types.JoinMethodAzure,
 		types.JoinMethodGCP,
 		types.JoinMethodTPM,
+		types.JoinMethodSpacelift,
 		types.JoinMethodTerraformCloud,
 		types.JoinMethodOracle,
 		types.JoinMethodEnv0:

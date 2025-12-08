@@ -1,0 +1,112 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.mfa.v1;
+
+import "teleport/mfa/v1/challenge.proto";
+import "teleport/mfa/v1/validated_challenge.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
+
+// MFAService defines the Multi-Factor Authentication (MFA) service. While this service is currently focused on user
+// sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of
+// concerns instead of further bloating the AuthService.
+service MFAService {
+  // CreateSessionChallenge creates an MFA challenge that is tied to a user session.
+  rpc CreateSessionChallenge(CreateSessionChallengeRequest) returns (CreateSessionChallengeResponse);
+  // ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
+  // in the backend.
+  rpc ValidateSessionChallenge(ValidateSessionChallengeRequest) returns (ValidateSessionChallengeResponse);
+  // ReplicateValidatedMFAChallenge replicates a validated MFA challenge from root cluster to leaf cluster for
+  // verification during SSH session establishment. The reverse tunnel server watches for validated challenges in the
+  // root cluster and invokes this RPC on the leaf cluster. This is a NOOP when invoked in the root cluster.
+  rpc ReplicateValidatedMFAChallenge(ReplicateValidatedMFAChallengeRequest) returns (ReplicateValidatedMFAChallengeResponse);
+  // VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session. If the
+  // challenge does not yet exist, this method will block until the resource appears or until the timeout is reached.
+  // The payload is used to verify the challenge is tied to the correct user session. If the verification fails, an
+  // error is returned.
+  rpc VerifyValidatedMFAChallenge(VerifyValidatedMFAChallengeRequest) returns (VerifyValidatedMFAChallengeResponse);
+}
+
+// CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
+message CreateSessionChallengeRequest {
+  // Value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server will
+  // verify it matches the payload supplied to CreateSessionChallengeRequest.
+  SessionIdentifyingPayload payload = 1;
+  // Name of the target cluster where the SSH session is being established. If unset, the server assumes the challenge
+  // is for the local cluster. Used to determine where the validated challenge should be replicated for leaf clusters.
+  // Required when the SSH session is being established in a leaf cluster.
+  string target_cluster = 2;
+  // Used to construct the IdP redirect URL in SSO MFA challenges. If the client does not support SSO MFA, this field
+  // may be left unset and no SSO challenge will be included in the response. If set, the server will include SSO
+  // challenges in the response.
+  string sso_client_redirect_url = 3;
+  // Proxy address the user is using to connect to the Proxy. Required for SSO MFA to determine which URL to redirect
+  // the user to when there are multiple options.
+  string proxy_address_for_sso = 4;
+}
+
+// CreateSessionChallengeResponse is the response message for CreateSessionChallenge.
+message CreateSessionChallengeResponse {
+  // MFA challenge that the user must respond to.
+  AuthenticateChallenge mfa_challenge = 1;
+}
+
+// ValidateSessionChallengeRequest is the request message for ValidateSessionChallenge.
+message ValidateSessionChallengeRequest {
+  // MFA challenge response provided by the user.
+  AuthenticateResponse mfa_response = 1;
+}
+
+// ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
+message ValidateSessionChallengeResponse {}
+
+// ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
+message ReplicateValidatedMFAChallengeRequest {
+  // Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
+  // challenge.
+  string name = 1;
+  // Value that uniquely identifies the user's session. Must match the payload in CreateSessionChallengeRequest.
+  SessionIdentifyingPayload payload = 2;
+  // Name of the source cluster where the validated challenge originated. Required in order to match the validated
+  // challenge to the correct session.
+  string source_cluster = 3;
+  // Name of the target cluster where the SSH session is being established. Required in order to match the validated
+  // challenge to the correct session.
+  string target_cluster = 4;
+}
+
+// ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
+message ReplicateValidatedMFAChallengeResponse {
+  // Validated MFA challenge that was replicated.
+  ValidatedMFAChallenge replicated_challenge = 1;
+}
+
+// VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
+message VerifyValidatedMFAChallengeRequest {
+  // Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
+  // challenge.
+  string name = 1;
+  // Value that uniquely identifies the user's session. The client calling VerifyValidatedMFAChallenge MUST
+  // independently compute this value from session state. The server will verify it matches the payload supplied in
+  // CreateSessionChallengeRequest to ensure the challenge is tied to the correct session.
+  SessionIdentifyingPayload payload = 2;
+  // Name of the cluster where the validated challenge originated.
+  string source_cluster = 3;
+}
+
+// VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
+message VerifyValidatedMFAChallengeResponse {}

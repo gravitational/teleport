@@ -155,6 +155,22 @@ sequenceDiagram
   Host-->>SSH: SSH connection established
   SSH-->>Proxy: SSH connection established
   Proxy-->>Client: SSH session established
+```
+
+```mermaid
+---
+title: SSH MFA Connection Flow (Leaf Cluster)
+---
+sequenceDiagram
+  autoNumber
+
+  participant Client
+  participant Proxy as Proxy Service
+  participant rMFA as Root MFA Service
+  participant lMFA as Leaf MFA Service
+  participant SSH as SSH Service
+  participant Dec as Decision Service
+  participant Host as Target SSH Host
 
   Client->>Proxy: Dial SSH
   Proxy->>Dec: EvaluateSSHAccess
@@ -244,7 +260,8 @@ message SSHAccessPermit {
   // ... existing fields ...
 
   // Preconditions is a list of conditions that must be satisfied before access is granted.
- repeated Precondition preconditions = 26;
+  // If any precondition is not satisfied, access must be denied.
+  repeated Precondition preconditions = 26;
 }
 
 // Precondition represents a condition that must be satisfied before access is granted.
@@ -255,7 +272,8 @@ message Precondition {
 
 // PreconditionKind defines the types of preconditions that can be specified.
 enum PreconditionKind {
-  // PreconditionKindUnspecified is an unspecified precondition. This value has no effect.
+  // PreconditionKindUnspecified is the default value and indicates that no precondition is specified.
+  // This value should be treated as an error if encountered in required contexts.
   PRECONDITION_KIND_UNSPECIFIED = 0;
   // PreconditionKindInBandMFA requires in-band MFA to be completed.
   PRECONDITION_KIND_IN_BAND_MFA = 1;

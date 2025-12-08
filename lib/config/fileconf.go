@@ -1952,6 +1952,8 @@ type AzureMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// ResourceTags are Azure tags on resources to match.
 	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// Integration is the Azure Integration name.
+	Integration string `yaml:"integration,omitempty"`
 	// InstallParams sets the join method when installing on
 	// discovered Azure nodes.
 	InstallParams *InstallParams `yaml:"install,omitempty"`

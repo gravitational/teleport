@@ -224,6 +224,9 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string
 	// GetProxyClientCertificate returns the proxy client certificate.
 	GetProxyClientCertificate func() (*tls.Certificate, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
@@ -342,6 +345,8 @@ func (c *Config) SetDefaults() {
 	if c.AutomaticUpgradesChannels == nil {
 		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
+
+	c.ProxyGroupID = cmp.Or(c.ProxyGroupID, os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"))
 
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
@@ -989,7 +994,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
+	// TODO(kimlisa): DELETE IN 20.0 along with the api path defined in `config.ts`
+	// Replaced by its v2 endpoint
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
+	// v2 introduces a query param for optionally including system roles
+	// in the list and optionally include returning the object version
+	// of resource (only supported for roles).
+	h.GET("/v2/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
 	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
@@ -1206,6 +1217,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
+
+	// MWI IaC Wizards
+	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -2742,6 +2756,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	var webSession types.WebSession
 	switch {
@@ -2780,9 +2795,20 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 }
 
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
+	var maxTouchPoints int
+	// The frontend client sends Max-Touch-Points only to endpoints that lead to the Device Trust
+	// prompt in the Web UI.
+	rawMaxTouchPoints := r.Header.Get("Max-Touch-Points")
+	if rawMaxTouchPoints != "" {
+		if value, err := strconv.Atoi(rawMaxTouchPoints); err == nil {
+			maxTouchPoints = value
+		}
+	}
+
 	return &authclient.ForwardedClientMetadata{
-		UserAgent:  r.UserAgent(),
-		RemoteAddr: r.RemoteAddr,
+		UserAgent:      r.UserAgent(),
+		RemoteAddr:     r.RemoteAddr,
+		MaxTouchPoints: maxTouchPoints,
 	}
 }
 
@@ -3127,6 +3153,8 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3151,6 +3179,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	switch {
 	// Since checking for private key policy meant that they passed authn,
@@ -4683,13 +4713,15 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
+	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:                 req.User,
 			SSHPublicKey:             req.SSHPubKey,
 			TLSPublicKey:             req.TLSPubKey,
-			ClientMetadata:           clientMetaFromReq(r),
+			ClientMetadata:           clientMeta,
 			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 		},
 		CompatibilityMode:       req.Compatibility,
@@ -5124,7 +5156,7 @@ func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
 // This is a good default to use as both Cluster and User auth are checked here, but `WithLimiter` can be used if
 // you're certain that no authenticated requests will be made.
 func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return h.unauthenticatedLimiterFunc(fn, h.WithLimiterHandlerFunc)
+	return h.unauthenticatedLimiterFunc(fn, h.limiter)
 }
 
 // WithUnauthenticatedHighLimiter adds a conditional IP-based rate limiting that will limit only unauthenticated
@@ -5132,20 +5164,75 @@ func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.
 // This higher rate limit should only be used on endpoints which are only CPU constrained
 // (no file or other resources used).
 func (h *Handler) WithUnauthenticatedHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return h.unauthenticatedLimiterFunc(fn, h.WithHighLimiterHandlerFunc)
+	return h.unauthenticatedLimiterFunc(fn, h.highLimiter)
 }
 
-func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, rateFunc func(fn httplib.HandlerFunc) httplib.HandlerFunc) httprouter.Handle {
+func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		// check if the request remote is rate limited before attempting authentication.
+		isLimited, err := isRequestRateLimited(r, limiter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if isLimited {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
 		if _, _, err := h.authenticateRequestWithCluster(w, r, p); err != nil {
 			// retry with user auth
 			if _, err = h.AuthenticateRequest(w, r, true /* check token */); err != nil {
 				// no auth passed, limit request
-				return rateFunc(fn)(w, r, p)
+				return withLimiterHandlerFunc(fn, limiter)(w, r, p)
 			}
 		}
 		// auth passed, call directly
 		return fn(w, r, p)
+	})
+}
+
+func withLimiterHandlerFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		err := rateLimitRequest(r, limiter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fn(w, r, p)
+	}
+}
+
+// WithAccessDeniedLimiter adds conditional IP-based rate limiting that only applies
+// when the request handler returns an access denied error.
+//
+// This is different from WithUnauthenticatedLimiter in an important way:
+//   - WithUnauthenticatedLimiter: Checks authentication BEFORE executing the handler using local
+//     authentication mechanisms (user auth session cookie). If authentication fails locally, it
+//     applies rate limiting BEFORE executing the handler.
+//   - WithAccessDeniedLimiter: Executes the handler first, delegates authentication
+//     to the handler, then applies rate limiting ONLY if the handler returns an access denied error.
+//
+// Use this limiter for endpoints where authentication happens downstream (e.g., SCIM
+// endpoints where auth is handled by the auth server, not in the proxy).
+func (h *Handler) WithAccessDeniedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return h.conditionalLimiterFunc(fn, h.limiter, trace.IsAccessDenied)
+}
+
+func (h *Handler) conditionalLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter, shouldLimit func(error) bool) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		remoteAddr, err := getRemoteAddressFromRequest(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if limiter.IsRateLimited(remoteAddr) {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
+		result, err := fn(w, r, p)
+		if err != nil {
+			if shouldLimit(err) {
+				if err := limiter.RegisterRequest(remoteAddr, nil); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+		return result, err
 	})
 }
 
@@ -5169,34 +5256,39 @@ func (h *Handler) WithHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 // WithLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This
 // should be used when you need to nest this inside another HandlerFunc.
 func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		err := rateLimitRequest(r, h.limiter)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return fn(w, r, p)
-	}
+	return withLimiterHandlerFunc(fn, h.limiter)
 }
 
 // WithHighLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This is similar to WithLimiterHandlerFunc
 // but provides a higher rate limit.  This should only be used for requests which are only CPU bound (no disk or other
 // resources used).
 func (h *Handler) WithHighLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		err := rateLimitRequest(r, h.highLimiter)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return fn(w, r, p)
+	return withLimiterHandlerFunc(fn, h.highLimiter)
+}
+
+// isRequestRateLimited checks if the request would be rate-limited without consuming any tokens.
+// Returns true if the request is rate-limited, false otherwise.
+func isRequestRateLimited(r *http.Request, limiter *limiter.RateLimiter) (bool, error) {
+	remote, err := getRemoteAddressFromRequest(r)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
+	return limiter.IsRateLimited(remote), nil
+}
+
+func getRemoteAddressFromRequest(r *http.Request) (string, error) {
+	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return remote, nil
 }
 
 func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
-	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	remote, err := getRemoteAddressFromRequest(r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	return trace.Wrap(limiter.RegisterRequest(remote, nil /* customRate */))
 }
 

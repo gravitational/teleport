@@ -1,5 +1,6 @@
 ---
 title: FedRAMP Compliance for Infrastructure Access
+sidebar_label: FedRAMP
 description: How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.
 tags:
  - conceptual
@@ -47,7 +48,7 @@ government agencies.
 
 | Control | Teleport Features |
 | - | - |
-| [IA-02 Concurrent Session Control]((=fedramp.control_url=)IA-02) | Integrates with SSO providers such as GitHub, Okta, Google, etc. Acts as its own SSO provider. Enforces the use of multi-factor authentication (MFA), including requiring per-session MFA. Supports PIV-compatible hardware keys, as well as connection and user limits. |
+| [IA-02 Concurrent Session Control]((=fedramp.control_url=)IA-02) | Integrates with SSO providers such as GitHub, Okta, Google, etc. Acts as its own SSO provider. Supports the use of multi-factor authentication (MFA) including per-session MFA. Supports PIV-compatible hardware keys, as well as connection and user limits. |
 | [IA-04 Identifier Management]((=fedramp.control_url=)IA-04) | Maintains several unique identifiers: local users are required to be unique (unique username), roles have unique names and tied to organization roles via SSO, identifiers for devices are unique randomly generated IDs (UUID). |
 | [IA-08 Identification and Authentication (Non-Organizational Users)]((=fedramp.control_url=)IA-08) | Teleport supports PIV-compatible hardware keys. |
 | [IA-03 Device Identification and Authentication]((=fedramp.control_url=)IA-03) | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |

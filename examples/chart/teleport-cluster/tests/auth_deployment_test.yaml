@@ -1021,3 +1021,102 @@ tests:
               labelSelector:
                 matchLabels:
                   app: baz
+
+  - it: sets GOMEMLIMIT by default (SI unit)
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint
+      resources:
+        limits:
+          memory: "10.5G"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: sets GOMEMLIMIT by default (IEC unit)
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint
+      resources:
+        limits:
+          memory: "10.5Gi"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "10146860237"
+
+  - it: sets GOMEMLIMIT by default (scientific notation)
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint
+      resources:
+        limits:
+          memory: "10.5e9"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: honours existing GOMEMLIMIT
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint
+      resources:
+        limits:
+          memory: "10.5G"
+      extraEnv:
+        - name: FOO
+          value: bar
+        - name: GOMEMLIMIT
+          value: "5GB"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "5GB"
+
+  - it: does not set GOMEMLIMIT if ratio is 0
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint
+      # we set an extra env so contrainers[0].env always exists
+      # this makes testing easier
+      extraEnv:
+        - name: FOO
+          value: bar
+      resources:
+        limits:
+          memory: "10.5G"
+      # we nest under auth to check if merge works properly
+      auth:
+        goMemLimitRatio: 0
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: does not set GOMEMLIMIT if resources are not set
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint
+      # we set an extra env so contrainers[0].env always exists
+      # this makes testing easier
+      extraEnv:
+        - name: FOO
+          value: bar
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+          any: true

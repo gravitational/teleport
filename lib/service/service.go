@@ -3014,6 +3014,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.BotInstance = services.BotInstance
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Plugin = services.Plugins
+	cfg.AppAuthConfig = services.AppAuthConfig
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3061,6 +3062,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
+	cfg.AppAuthConfig = client
 
 	return accesspoint.NewCache(cfg)
 }
@@ -5391,6 +5393,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxySSHAddr:              proxySSHAddr,
 			ProxyWebAddr:              utils.FromAddr(listeners.web.Addr()),
 			ProxyPublicAddrs:          cfg.Proxy.PublicAddrs,
+			ProxyGroupID:              cfg.Proxy.ProxyGroupID,
 			CipherSuites:              cfg.CipherSuites,
 			FIPS:                      cfg.FIPS,
 			AccessPoint:               accessPoint,

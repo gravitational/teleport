@@ -665,6 +665,45 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindHealthCheckConfig",
 	}
+
+	discoveryConfig = payload{
+		Name:                  "DiscoveryConfig",
+		TypeName:              "DiscoveryConfig",
+		VarName:               "discoveryConfig",
+		GetMethod:             "DiscoveryConfigClient().GetDiscoveryConfig",
+		CreateMethod:          "DiscoveryConfigClient().CreateDiscoveryConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "DiscoveryConfigClient().UpsertDiscoveryConfig",
+		DeleteMethod:          "DiscoveryConfigClient().DeleteDiscoveryConfig",
+		ID:                    "discoveryConfig.Header.Metadata.Name",
+		Kind:                  "discovery_config",
+		HasStaticID:           false,
+		ProtoPackage:          "discoveryconfigv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/discoveryconfig/v1",
+		TerraformResourceType: "teleport_discovery_config",
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindDiscoveryConfig",
+		ConvertPackagePath:    "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1",
+	}
+
+	integration = payload{
+		Name:                   "Integration",
+		VarName:                "integration",
+		TypeName:               "IntegrationV1",
+		IfaceName:              "Integration",
+		GetMethod:              "GetIntegration",
+		CreateMethod:           "CreateIntegration",
+		UpdateMethod:           "UpdateIntegration",
+		UpsertMethodArity:      2,
+		DeleteMethod:           "DeleteIntegration",
+		ID:                     "integration.Metadata.Name",
+		Kind:                   "integration",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_integration",
+		HasCheckAndSetDefaults: true,
+	}
 )
 
 func main() {
@@ -726,6 +765,10 @@ func genTFSchema() {
 	generateDataSource(autoUpdateConfig, singularDataSource)
 	generateResource(healthCheckConfig, pluralResource)
 	generateDataSource(healthCheckConfig, pluralDataSource)
+	generateResource(discoveryConfig, pluralResource)
+	generateDataSource(discoveryConfig, pluralDataSource)
+	generateResource(integration, pluralResource)
+	generateDataSource(integration, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {

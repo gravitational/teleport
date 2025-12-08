@@ -474,7 +474,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			TeleportClusterName: cfg.KeyRing.ClusterName,
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.KeyRing,
-			TLSServerName:       cfg.KubeTLSServerName,
+			TLSServerNameFunc:   func(teleportClusterName, kubeClusterName string) string { return cfg.KubeTLSServerName },
 			KubeClusters:        kubeCluster,
 		}, cfg.KubeStoreAllCAs, writer); err != nil {
 			return nil, trace.Wrap(err)

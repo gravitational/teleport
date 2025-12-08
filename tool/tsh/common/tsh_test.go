@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -5712,7 +5713,18 @@ func TestShowSessions(t *testing.T) {
 		"session_start": "0001-01-01T00:00:00Z",
 		"session_stop": "0001-01-01T00:00:00Z",
 		"participants": ["someParticipant"]
-    } ]`
+    },
+	{
+		"app_name": "someApp",
+		"ei": 0,
+		"event": "",
+		"server_id": "",
+		"session_chunk_id": "someChunkID",
+		"sid": "",
+		"time": "0001-01-01T00:00:00Z",
+		"uid": "someID5",
+		"user": "someUser"
+	} ]`
 	sessions := []events.AuditEvent{
 		&events.SessionEnd{
 			Metadata: events.Metadata{
@@ -5751,6 +5763,18 @@ func TestShowSessions(t *testing.T) {
 			StartTime:    time.Time{},
 			EndTime:      time.Time{},
 			Participants: []string{"someParticipant"},
+		},
+		&events.AppSessionChunk{
+			Metadata: events.Metadata{
+				ID: "someID5",
+			},
+			UserMetadata: events.UserMetadata{
+				User: "someUser",
+			},
+			AppMetadata: events.AppMetadata{
+				AppName: "someApp",
+			},
+			SessionChunkID: "someChunkID",
 		},
 	}
 	var buf bytes.Buffer
@@ -6076,6 +6100,17 @@ func TestLogout(t *testing.T) {
 			modifyKeyDir: func(t *testing.T, homePath string) {
 				privKeyPath := keypaths.UserSSHKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
 				require.NoError(t, os.Remove(privKeyPath))
+			},
+		},
+		{
+			name: "TLS cert is present but SSH cert is missing",
+			modifyKeyDir: func(t *testing.T, homePath string) {
+				tlsCertPath := keypaths.TLSCertPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
+				err := os.WriteFile(tlsCertPath, []byte(fixtures.TLSCACertPEM), 0o600)
+				require.NoError(t, err)
+				sshCertPath := keypaths.SSHCertPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username, clientKeyRing.ClusterName)
+				_, err = os.ReadFile(sshCertPath)
+				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
 		{

@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -190,30 +189,6 @@ func (a *Server) CheckPasswordWOToken(ctx context.Context, user string, password
 
 func (a *Server) ResetPassword(ctx context.Context, username string) error {
 	return a.resetPassword(ctx, username)
-}
-
-func (a *Server) SetJWKSValidator(clt JWKSValidator) {
-	a.k8sJWKSValidator = clt
-}
-
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
-	a.azureDevopsIDTokenValidator = validator
-}
-
-func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
-	a.k8sTokenReviewValidator = validator
-}
-
-func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidator) {
-	a.spaceliftIDTokenValidator = validator
-}
-
-func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
-	a.terraformIDTokenValidator = validator
-}
-
-func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
-	a.tpmValidator = validator
 }
 
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
@@ -363,7 +338,6 @@ func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 type GitHubManager = githubManager
 type AttestedData = attestedData
 type SignedAttestedData = signedAttestedData
-type JWKSValidator = k8sJWKSValidator
 type AzureRegisterOption = azureRegisterOption
 type AzureRegisterConfig = azureRegisterConfig
 type AzureVMClientGetter = vmClientGetter
