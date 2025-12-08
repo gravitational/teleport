@@ -13,14 +13,10 @@ import (
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
-	"github.com/gravitational/teleport/e/lib/cloud/usagereporter"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -75,49 +71,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	presence := process.Config.Presence
-	if presence == nil {
-		presence = local.NewPresenceService(process.GetBackend())
-	}
-
-	identity := process.Config.Identity
-	if identity == nil {
-		identity, err = local.NewIdentityService(process.GetBackend())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	access := process.Config.Access
-	if access == nil {
-		access = local.NewAccessService(process.GetBackend())
-	}
-
-	resourceGetter := struct {
-		services.Presence
-		services.Identity
-		services.Access
-		services.StatusInternal
-		events.AuditLogSessionStreamer
-	}{
-		Identity:                identity,
-		Presence:                presence,
-		Access:                  access,
-		StatusInternal:          local.NewStatusService(process.GetBackend()),
-		AuditLogSessionStreamer: process.GetAuditLog(),
-	}
-	usageReporter, err := usagereporter.New(usagereporter.Config{
-		Logger:         cfg.Logger,
-		Interval:       cfg.ReportingInterval,
-		Clock:          process.Clock,
-		BackendGetter:  process.GetBackend(),
-		CloudClient:    cloudClient,
-		ResourceGetter: resourceGetter,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Activate cloud API methods
 	cfg.AuthPlugin.EnableCloud(cloudClient)
 
@@ -153,9 +106,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 		}
 		go featureService.Run(process.ExitContext())
 	}
-
-	// Start usage reporting
-	go usageReporter.Run(process.ExitContext())
 
 	if cfg.AuthPlugin.HostedPlugins.Enabled {
 		if err := plugins.RegisterPluginManager(cfg.AuthPlugin.HostedPlugins.OAuthProviders, process.TeleportProcess); err != nil {
