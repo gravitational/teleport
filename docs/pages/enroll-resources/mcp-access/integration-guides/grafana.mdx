@@ -1,5 +1,5 @@
 ---
-title: Connect a Grafana MCP server to Teleport
+title: Connect a Grafana MCP Server to Teleport
 sidebar_label: Grafana
 description: Set up a Grafana MCP server for access through Teleport
 tags:
@@ -8,23 +8,23 @@ tags:
 - zero-trust
 ---
 
-This guide demonstrates how to run a Grafana MCP server and connect it via
-Teleport.
+(!docs/pages/includes/mcp-access/integration-intro.mdx serviceName="Grafana" !)
 
 ## How it works
 
 The [Grafana MCP server](https://github.com/grafana/mcp-grafana)
 forwards JWT tokens signed by Teleport to access Grafana and runs on a local
-endpoint reachable by Teleport. Teleport proxies all client requests to the
-server, which interacts with Grafana using permissions mapped by [JWT
-authentication](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/jwt/).
+endpoint reachable by the Teleport Application Service. Teleport proxies all
+client requests to the server, which interacts with Grafana using permissions
+mapped by [JWT authentication](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/jwt/).
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)" clients="\`tsh\` client"!)
 - Ability to configure your Grafana instance.
 - A host to run the MCP server that is reachable by the Teleport Application Service.
-- Running [Teleport Application Service](../getting-started.mdx).
+- A running Teleport Application Service. If you have not yet done this, follow
+  the [Getting Started guide](../getting-started.mdx).
 - A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
   MCP servers.
 
@@ -49,7 +49,7 @@ $ ./mcp-grafana --transport streamable-http --address <Var name="MCP_HOST" initi
 ```
 </TabItem>
 
-<TabItem label="docker">
+<TabItem label="Docker">
 Run the MCP server in streamable-HTTP transport. Assign <Var name="GRAFANA_URL"
 initial_value="https://your-grafana-instance-url"/> to the URL of your Grafana
 instance:
@@ -65,89 +65,7 @@ The Grafana MCP Server now exposes a streamable-HTTP endpoint at `http://<Var na
 
 ## Step 3/3. Connect via Teleport
 
-You can register an MCP application in Teleport by defining it in your Teleport
-Application Service configuration, or by using dynamic registration with `tctl`
-or Terraform:
-
-<Tabs>
-<TabItem label="Static configuration">
-Replace <Var name="MCP_HOST"/> with the host running the Grafana MCP server:
-```yaml
-app_service:
-  enabled: "yes"
-  apps:
-  - name: "grafana-mcp"
-    uri: "mcp+http://<Var name="MCP_HOST"/>:8000/mcp"
-    labels:
-      env: dev
-      service: grafana
-    rewrite:
-      headers:
-      - "X-Grafana-API-Key: {{internal.jwt}}"
-```
-
-Restart the Application Service.
-</TabItem>
-
-<TabItem label="tctl">
-Create an `app` resource definition file named `app-grafana-mcp.yaml`. Replace
-<Var name="MCP_HOST" /> with the host running the Grafana MCP server:
-```yaml
-# app-grafana-mcp.yaml
-kind: app
-version: v3
-metadata:
-  name: grafana-mcp
-  labels:
-    env: dev
-    service: grafana
-spec:
-  uri: "mcp+http://<Var name="MCP_HOST" />:8000/mcp"
-  rewrite:
-    headers:
-    - name: "X-Grafana-API-Key"
-      value: "{{internal.jwt}}"
-```
-
-Create the `app` resource with:
-```code
-$ tctl create -f app-grafana-app.yaml
-```
-</TabItem>
-
-<TabItem label="Terraform">
-Create a `teleport_app` resource in terraform. Replace <Var name="MCP_HOST" />
-with the host running the Grafana MCP server:
-```hcl
-resource "teleport_app" "grafana" {
-  version = "v3"
-  metadata = {
-    name = "grafana"
-    labels = {
-      "teleport.dev/origin" = "dynamic"
-      "env"                 = "dev"
-      "service"             = "grafana"
-    }
-  }
-
-  spec = {
-    uri = "mcp+http://<Var name="MCP_HOST" />:8000/mcp"
-    rewrite = {
-      headers = [{
-        name  = "X-Grafana-API-Key"
-        value = "{{internal.jwt}}"
-      }]
-    }
-  }
-}
-```
-Apply the configuration:
-```code
-$ terraform apply
-```
-</TabItem>
-
-</Tabs>
+(!docs/pages/includes/mcp-access/integration-teleport-app-rewrite.mdx service="grafana" serviceName="Grafana" port="8000" headerName="X-Grafana-API-Key" headerValue="&#123;&#123;internal.jwt&#125;&#125;" !)
 
 The header rewrite configuration above will replace the `{{internal.jwt}}`
 template variable with a Teleport-signed JWT token in each request. The Grafana
@@ -210,7 +128,7 @@ app_service:
       service: grafana
 ```
 
-## Next Steps
+## Next steps
 
 - Read more on accessing Grafana through Teleport with [JWT authentication](../../application-access/jwt/grafana.mdx).
 - Review [Enroll a Streamable-HTTP MCP Server](../enrolling-mcp-servers/streamable-http.mdx).
