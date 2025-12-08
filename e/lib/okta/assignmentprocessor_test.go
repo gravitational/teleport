@@ -104,7 +104,7 @@ func TestProcessAssignments(t *testing.T) {
 				},
 			},
 			errAssertionFunc: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, fmt.Sprintf(`app_server %q does not have an Okta App ID`, appName("app1")))
+				require.ErrorContains(t, err, fmt.Sprintf(`app_server %q App ID missing`, appName("app1")))
 			},
 		},
 		{
@@ -498,7 +498,7 @@ func TestProcessAssignments(t *testing.T) {
 			a.rateLimiter = rate.NewLimiter(rate.Inf, 1)
 
 			for _, group := range test.groups {
-				require.NoError(t, ap.CreateUserGroup(ctx, group))
+				a.syncedUserGroups.Store(group.GetName(), group)
 
 				if !test.groupsSkipAddToOkta {
 					oktaClient.AddGroupToMapping(group.GetName())
@@ -511,8 +511,7 @@ func TestProcessAssignments(t *testing.T) {
 					delete(labels, teleport.OktaAppIDLabel)
 					app.SetStaticLabels(labels)
 				}
-				_, err := ap.UpsertApplicationServer(ctx, app)
-				require.NoError(t, err)
+				a.syncedAppServers.Store(app.GetName(), app)
 
 				if !test.appsSkipAddToOkta {
 					oktaAppID, ok := app.GetLabel(teleport.OktaAppIDLabel)

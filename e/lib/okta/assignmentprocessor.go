@@ -12,15 +12,15 @@ import (
 	"golang.org/x/time/rate"
 
 	ossteleport "github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	ossaccesslist "github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/accesslist"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type isLeaderGetter interface {
@@ -49,29 +49,38 @@ const (
 	maxNumWorkers = 5
 )
 
-type assignmentProcessorAccessPoint interface {
+type assignmentProcessorAccessPoint struct {
+	oktaAssignmentService
+	accessListService
+}
+
+type oktaAssignmentService interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
 	// since the last transition.
 	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
-	// GetUserGroup returns the specified user group resources.
-	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
-	// ListResources returns a paginated list of resources.
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 }
 
+type accessListService interface {
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*ossaccesslist.AccessListMember, error)
+}
+
 // assignmentProcessor will process an Okta assignment, updating its status along the way.
 type assignmentProcessor struct {
-	leader             isLeaderGetter
-	logger             *slog.Logger
-	clock              clockwork.Clock
-	oktaOrgURL         string
-	hostID             string
-	emitter            apievents.Emitter
-	accessPoint        assignmentProcessorAccessPoint
+	leader      isLeaderGetter
+	logger      *slog.Logger
+	clock       clockwork.Clock
+	oktaOrgURL  string
+	hostID      string
+	emitter     apievents.Emitter
+	accessPoint assignmentProcessorAccessPoint
+	// syncedAppServers are shared with [Service]. They should not be modified.
+	syncedAppServers *utils.SyncMap[string, types.AppServer]
+	// syncedUserGroups are shared with [Service]. They should not be modified.
+	syncedUserGroups   *utils.SyncMap[string, types.UserGroup]
 	assignmentGetter   func() types.OktaAssignments
 	rateLimiter        *rate.Limiter
 	oktaClient         oktaapi.Interface
@@ -85,25 +94,27 @@ type assignmentProcessor struct {
 	// be called. Otherwise, the assignment will be marked cleaned up but the Okta API will not be called
 	// until the counter reaches 0.
 	userTargetCounter map[string]map[string]struct{}
-	// accessListSvc is used to access the access list service.
-	accessListSvc services.AccessLists
 }
 
 func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssignments) *assignmentProcessor {
 	return &assignmentProcessor{
-		leader:            svc.leader,
-		logger:            svc.logger,
-		clock:             svc.clock,
-		oktaOrgURL:        svc.orgURL,
-		hostID:            svc.hostID,
-		emitter:           svc.emitter,
-		accessPoint:       svc.accessPoint,
+		leader:     svc.leader,
+		logger:     svc.logger,
+		clock:      svc.clock,
+		oktaOrgURL: svc.orgURL,
+		hostID:     svc.hostID,
+		emitter:    svc.emitter,
+		accessPoint: assignmentProcessorAccessPoint{
+			oktaAssignmentService: svc.accessPoint,
+			accessListService:     svc.accessLists,
+		},
+		syncedAppServers:  &svc.apps,
+		syncedUserGroups:  &svc.groups,
 		assignmentGetter:  assignmentGetter,
 		oktaClient:        svc.client,
 		assignmentClient:  newAssignmentClient(svc.logger, svc.client),
 		stopCh:            make(chan struct{}, 1),
 		userTargetCounter: map[string]map[string]struct{}{},
-		accessListSvc:     svc.accessLists,
 	}
 }
 
@@ -369,7 +380,7 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 
 	var errs []error
 	for _, target := range assignment.GetTargets() {
-		m, err := a.accessListSvc.GetAccessListMember(ctx, target.GetID(), assignment.GetUser())
+		m, err := a.accessPoint.GetAccessListMember(ctx, target.GetID(), assignment.GetUser())
 		switch {
 		case err == nil:
 			if m.Spec.AddedBy == accesslist.OktaServiceRoleUsername {
@@ -385,38 +396,40 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 			a.logger.WarnContext(ctx, "failed to check access list membership", "error", err)
 		}
 
-		ok, err := a.authorizeTarget(ctx, target)
-		if err != nil {
+		switch outcome := a.authorizeTarget(target); outcome {
+		case targetAuthorized:
+			// Carry on with processing.
+		case targetNotFound:
 			// If we can't find the target, then we'll continue because there's nothing we can do here.
-			if trace.IsNotFound(err) {
-				continue
-			}
-			return trace.Wrap(err)
-		}
-
-		if !ok {
-			a.logger.WarnContext(ctx, "target is not managed by this service",
+			a.logger.DebugContext(ctx, "Resource for the target not found, ignoring",
 				"assignment", assignment.GetName(),
 				"user", assignment.GetUser(),
 				"target_type", target.GetTargetType(),
 				"target_id", target.GetID(),
 			)
 			continue
+		default:
+			a.logger.WarnContext(ctx, "target is not managed by this service",
+				"assignment", assignment.GetName(),
+				"user", assignment.GetUser(),
+				"target_type", target.GetTargetType(),
+				"target_id", target.GetID(),
+				"reason", outcome,
+			)
+			continue
 		}
 
 		switch target.GetTargetType() {
 		case constants.OktaAssignmentTargetGroup:
-			err = assignmentClient.registerUserToGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
+			err = trace.Wrap(assignmentClient.registerUserToGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID())))
 		case constants.OktaAssignmentTargetApplication:
-			var appID oktaAppID
-			appID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
-			if err != nil {
-				break
+			appID, ok := a.getOktaAppIDFromAppServer(target.GetID())
+			if !ok {
+				err = trace.Errorf("app_server %q App ID missing", target.GetID())
+			} else {
+				err = trace.Wrap(assignmentClient.registerUserToApp(ctx, userName(assignment.GetUser()), appID))
 			}
-
-			err = assignmentClient.registerUserToApp(ctx, userName(assignment.GetUser()), appID)
 		}
-
 		if err == nil {
 			a.logger.InfoContext(ctx, "Successfully provisioned target",
 				"assignment", assignment.GetName(),
@@ -461,17 +474,26 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 			"target_type", target.GetTargetType(),
 			"target_id", target.GetID(),
 		)
-		ok, err := a.authorizeTarget(ctx, target)
-		if err != nil {
+		switch outcome := a.authorizeTarget(target); outcome {
+		case targetAuthorized:
+			// Carry on with processing.
+		case targetNotFound:
 			// If we can't find the target, then we'll continue because there's nothing we can do here.
-			if trace.IsNotFound(err) {
-				continue
-			}
-			return trace.Wrap(err)
-		}
-
-		if !ok {
-			logger.WarnContext(ctx, "Target is not managed by this service")
+			a.logger.DebugContext(ctx, "Resource for the target not found, ignoring",
+				"assignment", assignment.GetName(),
+				"user", assignment.GetUser(),
+				"target_type", target.GetTargetType(),
+				"target_id", target.GetID(),
+			)
+			continue
+		default:
+			a.logger.WarnContext(ctx, "target is not managed by this service",
+				"assignment", assignment.GetName(),
+				"user", assignment.GetUser(),
+				"target_type", target.GetTargetType(),
+				"target_id", target.GetID(),
+				"reason", outcome,
+			)
 			continue
 		}
 
@@ -484,19 +506,19 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 			continue
 		}
 
+		var err error
 		switch target.GetTargetType() {
 		case constants.OktaAssignmentTargetGroup:
 			err = assignmentClient.unregisterUserFromGroup(ctx, userName(assignment.GetUser()), oktaGroupID(target.GetID()))
 		case constants.OktaAssignmentTargetApplication:
 			var appID oktaAppID
-			appID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
-			if err != nil {
-				break
+			appID, ok := a.getOktaAppIDFromAppServer(target.GetID())
+			if !ok {
+				err = trace.Errorf("app_server %q App ID missing", target.GetID())
+			} else {
+				err = assignmentClient.unregisterUserFromApp(ctx, userName(assignment.GetUser()), appID)
 			}
-
-			err = assignmentClient.unregisterUserFromApp(ctx, userName(assignment.GetUser()), appID)
 		}
-
 		if err != nil {
 			logger.ErrorContext(ctx, "Error cleaning up target", "error", err)
 			errs = append(errs, err)
