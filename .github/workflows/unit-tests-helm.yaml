@@ -28,6 +28,7 @@ jobs:
               - 'examples/chart/**'
               - 'Makefile'
               - 'docs/pages/reference/helm-reference/*'
+              - 'docs/pages/includes/helm-reference/*'
 
   test:
     name: Unit Tests (Helm)
