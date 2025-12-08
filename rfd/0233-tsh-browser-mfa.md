@@ -46,9 +46,8 @@ tsh login --proxy teleport.example.com --user alice
 
 She is asked for her password, which is then sent to Teleport. Teleport verifies
 her username and password, and checks for valid methods of second factor
-authentication. It finds her passkey returns a URL which `tsh` opens in the
-default browser for her to complete the challenge. If a browser cannot be opened
-the URL is printed out for her to click.
+authentication. It finds her passkey and returns a URL which `tsh` prints and
+attempts to open in the default browser for her to complete the challenge.
 
 The browser will open to a page that contains a modal prompting her to verify it
 is her by completing the MFA check. Once this is completed, the browser will
@@ -64,9 +63,9 @@ that requires per-session MFA. She runs the following command:
 ```
 tsh ssh alice@node
 ```
-
-She is then redirected to the browser, or given a URL, to authenticate with her
-MFA. Upon success, she is redirected back and the ssh session can continue.
+The MFA URL is printed and `tsh` attempts to open her browser, to authenticate
+with her MFA. Upon success, she is redirected back and the ssh session can
+continue.
 
 ### Design
 
@@ -82,42 +81,56 @@ sequenceDiagram
     participant tsh
     participant proxy
     participant auth
+    participant backend
 
     Note over tsh: tsh login --proxy proxy.example.com --user alice --mfa-mode=browser
-    Note over tsh: print URL proxy.example.com/web/browser/<request_id>
+    Note over tsh: Generate code_verifier (random string)
+    Note over tsh: Generate code_challenge = BASE64URL(SHA256(code_verifier))
+    Note over tsh: Print URL proxy.example.com/web/browser/<request_id>
 
-    tsh->>proxy: POST /webapi/login/browser
-    proxy->>auth: POST /:version/users/:user/ssh/authenticate
-    auth-->>+backend: wait for backend insert /browser_authentication/<request_id>
+    tsh->>proxy: POST /webapi/login/browser<br/>{request_id, request_type=login, code_challenge, code_challenge_method: S256}
+    proxy->>auth: POST /:version/users/:user/ssh/authenticate<br/>{request_id, request_type, code_challenge}
+    auth->>backend: insert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=pending}
+    auth->>+backend: wait for state change to 'approved'
 
     tsh-->>web: browser opens to URL
     Note over web: proxy.example.com/web/browser/<request_id>
+    
     opt user is not already logged in locally
         web->>proxy: user logs in normally e.g. password+MFA
-        proxy->>web:
+        proxy->>web: login success
     end
 
-    web->>auth: rpc GetBrowserAuthentication (request_id, request_type=login)
-    auth ->> backend: insert /browser_authentication/<request_id>
+    web->>auth: rpc GetBrowserAuthentication(request_id)
+    auth->>backend: read /browser_authentication/<request_id>
+    auth->>web: Browser Authentication details {request_id, user, ip, request_type}
 
-    backend ->>- auth: unblock on insert
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public_key, user, ip, request_type}
-    auth ->>+ backend: wait for state change
-
-
-    auth->>web: Browser Authentication details
-
-    Note over web: share request details with user
+    Note over web: Share request details with user
     web->>auth: rpc CreateAuthenticateChallenge
     auth->>web: MFA Challenge
-    Note over web: user auths with biometrics/passkey
+    Note over web: User auths with biometrics/passkey
     web->>auth: rpc UpdateBrowserAuthenticationState<br/>with signed MFA challenge response
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public_key, user, ip, request_type, state=approved, mfaDevice}
+    auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice}
 
-    backend ->>- auth: unblock on state change
-    auth->>proxy: user certificates<br/>(MFA-verified, 12 hour TTL)
-    proxy->>tsh: user certificates<br/>(MFA-verified, 12 hour TTL)
-    Note over tsh: User is logged in
+    backend->>-auth: unblock on state change
+    auth->>auth: Generate authorization_code
+    auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice, authorization_code}
+    auth->>tsh: Authorization Code
+
+    tsh->>proxy: POST /webapi/login/browser/exchange/<request_id><br/>{authorization_code, code_verifier}
+    proxy->>auth: POST /:version/users/:user/exchange<br/>{request_id, authorization_code, code_verifier}
+    auth->>backend: read /browser_authentication/<request_id> for authorization_code
+    auth->>auth: Verify: SHA256(code_verifier) == code_challenge
+    alt PKCE verification successful
+        auth->>auth: Generate user certificates<br/>(MFA-verified, standard user cert TTL)
+        auth->>proxy: user certificates
+        proxy->>tsh: user certificates
+        Note over tsh: User is logged in successfully
+    else PKCE verification failed
+        auth->>proxy: Error: Invalid code_verifier
+        proxy->>tsh: Error: Authentication failed
+        Note over tsh: Login failed
+    end
 ```
 
 ##### Login Flow
@@ -130,45 +143,63 @@ The flow can be broken down in to three sections:
 ##### `tsh` initiating a browser login flow
 
 When the user performs a `tsh login`, it will check for either an explicit
-`--mfa-mode=browser` flag or it will default to browser authentication if there
-are no other MFA methods available. If the user goes through the latter flow
-where no mode is specified, they will be prompted for their password to check
-for other MFA methods first, before being sent to the browser.
+`--mfa-mode=browser` flag or it will error if there are no other MFA methods
+available. This error will be changed to prompt the user to try browser
+authentication by providing command.
+
+`tsh` will generate a random `code_verifier` string to be used as part of a
+PKCE flow to prove that this client is the original requester. Then, a
+`code_challenge` will be generated by hashing (SHA256) and encoding (Base64) the
+`code_verifier` to send to the proxy. `tsh` will generate a random UUID to be
+used as the Request ID. The Request ID will be used to track this session
+throughout the authentication flow.
 
 `tsh` will send a unauthenticated request to `/webapi/login/browser` that will
 remain open until the request is approved, denied, or times out. The security of
 this unauthenticated endpoint will be discussed in the
 [security section](#unauthenticated-webapiloginbrowser-endpoint).
 
-The auth service will generate a Request ID that it will store on the backend
-under `/browser_authentication/<request_id>`. Using the same method as [headless
-authentication](0105-headless-authentication.md#headless-login-initiation), the
-Request ID will be a UUID derived from the client's public key to prevent an
-attacker mimicing a browser login to gain access. The record will have a short
-TTL of 5 minutes. The auth server waits for a decision from the user by using a
-resource watcher.
+The auth service will store the Request ID on the backend under
+`/browser_authentication/<request_id>`. The record will have a short TTL of 5
+minutes. It will contain the request type, code challenge, user, ip, and the
+current state (pending). The auth server waits for a decision from the user by
+using a resource watcher.
 
 ##### The user verifying their MFA through the browser
 
-When `tsh` generates the MFA URL, it will attempt to open the user's default
-browser. If that fails, it will print the URL for the user to click. 
+When `tsh` generates the MFA URL, it will print the URL attempt to open the
+user's default browser.
 
 Once in the browser, their login session will be used to connect to the auth
 server. If the user is not already logged in, they will be prompted to do so.
 
-When authenticated, the user can view the details of the request and either
-approve or deny it. If the user approves, they will verify using their MFA
-method. If the user denies the request, it will be marked as such on the
-backend.
+When authenticated, the browser will make an
+`rpc GetBrowserAuthentication(request_id)` call to obtain the details of the
+request. The user can view the details of the request and either
+approve or deny it. The request details are as follows:
+- user
+- ip (with geo location?)
+- request_type (login or per-session MFA)
+- request_id
 
-If the request is approved, the record is approved on the backend.
+The user will be reminded this request was generated from a `tsh login` attempt
+and that they should check the above details to ensure they match what they
+expect to see. If the user approves, they will verify using their MFA method. If
+the user denies the request, it will be marked as such on the backend. If the
+request is approved, the record is approved on the backend.
 
 ##### `tsh` receiving certificates
 
-If the browser authentication is successful, the auth server will unblock the
-request and `tsh` will receive its certificates through the original POST
-request it made to `/webapi/login/browser`. They will be stored on disk and have
-a TTL of 12 hours.
+If the browser authentication is successful, the
+`/browser_authentication/<request_id>` object will be upserted with an approved
+state and which MFA device was used. The auth server will unblock the
+request and generate an authorization code that it will send to `tsh`. `tsh`
+will send the authorization code along with the `code_verifier` to the auth
+service, which will verify that `SHA256(code_verifier)` matches the
+`code_challenge` it has stored from the initial request to complete the PKCE
+verification. If successful, certificates with the standard user TTL will be
+generated and returned to `tsh. If verification fails, an error will be
+returned.
 
 #### Per-session MFA
 
@@ -181,41 +212,56 @@ sequenceDiagram
     participant tsh
     participant proxy
     participant auth
+    participant backend
 
     Note over tsh: tsh ssh alice@node
-    Note over tsh: print URL proxy.example.com/web/browser/<request_id>
+    Note over tsh: Generate code_verifier (random string)
+    Note over tsh: Generate code_challenge = BASE64URL(SHA256(code_verifier))
+    Note over tsh: Print URL proxy.example.com/web/browser/<request_id>
 
-    tsh->>proxy: POST /webapi/login/browser
-    proxy->>auth: POST /:version/users/:user/ssh/authenticate
-    auth-->>+backend: wait for backend insert /browser_authentication/<request_id>
+    tsh->>proxy: POST /webapi/login/browser<br/>{request_id, request_type=session, code_challenge, code_challenge_method: S256}
+    proxy->>auth: POST /:version/users/:user/ssh/authenticate<br/>{request_id, request_type, code_challenge}
+    auth->>backend: insert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=pending}
+    auth->>+backend: wait for state change to 'approved'
 
     tsh-->>web: browser opens to URL
     Note over web: proxy.example.com/web/browser/<request_id>
+    
     opt user is not already logged in locally
         web->>proxy: user logs in normally e.g. password+MFA
-        proxy->>web:
+        proxy->>web: login success
     end
 
-    web->>auth: rpc GetBrowserAuthentication (request_id, request_type=session)
-    auth ->> backend: insert /browser_authentication/<request_id>
+    web->>auth: rpc GetBrowserAuthentication(request_id)
+    auth->>backend: read /browser_authentication/<request_id>
+    auth->>web: Browser Authentication details {request_id, user, ip, request_type}
 
-    backend ->>- auth: unblock on insert
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public_key, user, ip, , request_type}
-    auth ->>+ backend: wait for state change
-
-    auth->>web: Browser Authentication details
-
-    Note over web: share request details with user
+    Note over web: Share request details with user
     web->>auth: rpc CreateAuthenticateChallenge
     auth->>web: MFA Challenge
-    Note over web: user auths with biometrics/passkey
+    Note over web: User auths with biometrics/passkey
     web->>auth: rpc UpdateBrowserAuthenticationState<br/>with signed MFA challenge response
-    auth ->> backend: upsert /browser_authentication/<request_id><br/>{public_key, user, ip, request_type, state=approved, mfaDevice}
+    auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice}
 
-    backend ->>- auth: unblock on state change
-    auth->>proxy: user certificates<br/>(MFA-verified, 1 minute TTL)
-    proxy->>tsh: user certificates<br/>(MFA-verified, 1 minute TTL)
-    Note over tsh: tsh uses cert to connect to alice@node
+    backend->>-auth: unblock on state change
+    auth->>auth: Generate authorization_code
+    auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice, authorization_code}
+    auth->>tsh: Authorization Code
+
+    tsh->>proxy: POST /webapi/login/browser/exchange/<request_id><br/>{authorization_code, code_verifier}
+    proxy->>auth: POST /:version/users/:user/exchange<br/>{request_id, authorization_code, code_verifier}
+    auth->>backend: read /browser_authentication/<request_id> for authorization_code
+    auth->>auth: Verify: SHA256(code_verifier) == code_challenge
+    alt PKCE verification successful
+        auth->>auth: Generate user certificates<br/>(MFA-verified, 1 minute TTL)
+        auth->>proxy: user certificates
+        proxy->>tsh: user certificates
+        Note over tsh: tsh uses cert to connect to alice@node
+    else PKCE verification failed
+        auth->>proxy: Error: Invalid code_verifier
+        proxy->>tsh: Error: Authentication failed
+        Note over tsh: tsh ssh fails
+    end
 ```
 
 The flow is similar to the [login flow](#login-flow) except for a few key
@@ -230,18 +276,18 @@ changes:
 #### Unauthenticated `/webapi/login/browser` endpoint
 
 The endpoint that the unauthenticated `tsh` client will make a request to will
-also need to be unauthenticated. This exposes the proxy to the risk of DoS
-attacks.
+need to be unauthenticated. This exposes the proxy to the risk of DoS attacks.
 
-To mitigate this risk, the endpoint will be rate limited and resources that it
-creates on the backend will be created on-demand. A `BrowserAuthentication`
-resource needs to be created on the backend to store information about the
-request. Instead of creating the resource when the unauthenticated `tsh` client
-sends a request, it will be created when the authenticated user calls
-`rpc GetBrowserAuthentication`, which is called during the browser
-authentication flow. Initially, `GetBrowserAuthentication` creates an empty
-`BrowserAuthentication`, if it doesn't already exist. The details are then
-updated by the auth service once it detects that the resource has been created.
+To mitigate this risk, the endpoint will be rate limited and the
+`BrowserAuthentication` object will be unique per user. The 
+A `BrowserAuthentication` resource needs to be created on the backend to store
+information about the request. Instead of creating the resource when the
+unauthenticated `tsh` client sends a request, it will be created when the
+authenticated user calls `rpc GetBrowserAuthentication`, which is called during
+the browser authentication flow. Initially, `GetBrowserAuthentication` creates
+an empty `BrowserAuthentication`, if it doesn't already exist. The details are
+then updated by the auth service once it detects that the resource has been
+created.
 
 #### IP restrictions
 
