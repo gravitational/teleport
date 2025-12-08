@@ -137,6 +137,11 @@ type AuthPreference interface {
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
 
+	// GetMFAFlowMode returns the MFA flow mode for the cluster.
+	GetMFAFlowMode() MFAFlowMode
+	// SetMFAFlowMode sets the MFA flow mode for the cluster.
+	SetMFAFlowMode(MFAFlowMode)
+
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
@@ -1121,4 +1126,96 @@ func (r *RequireMFAType) setFromEnum(val int32) error {
 	}
 	*r = RequireMFAType(val)
 	return nil
+}
+
+const (
+	// MFAFlowModeBestEffortString is the string representation of MFAFlowMode_MFA_FLOW_MODE_BEST_EFFORT.
+	MFAFlowModeBestEffortString = "best_effort"
+	// MFAFlowModeInBandString is the string representation of MFAFlowMode_MFA_FLOW_MODE_IN_BAND.
+	MFAFlowModeInBandString = "in_band"
+)
+
+// GetMFAFlowMode gets the MFA flow mode.
+func (c *AuthPreferenceV2) GetMFAFlowMode() MFAFlowMode {
+	return c.Spec.MFAFlowMode
+}
+
+// SetMFAFlowMode sets the MFA flow mode.
+func (c *AuthPreferenceV2) SetMFAFlowMode(mode MFAFlowMode) {
+	c.Spec.MFAFlowMode = mode
+}
+
+// encode MFAFlowMode into a string for serialization.
+func (m *MFAFlowMode) encode() (any, error) {
+	switch *m {
+	case MFAFlowMode_MFA_FLOW_MODE_BEST_EFFORT:
+		return MFAFlowModeBestEffortString, nil
+	case MFAFlowMode_MFA_FLOW_MODE_IN_BAND:
+		return MFAFlowModeInBandString, nil
+	default:
+		return nil, trace.BadParameter("MFAFlowMode invalid value %v", *m)
+	}
+}
+
+// decode MFAFlowMode from a string or int for deserialization.
+func (m *MFAFlowMode) decode(val any) error {
+	switch v := val.(type) {
+	case string:
+		switch v {
+		case MFAFlowModeBestEffortString:
+			*m = MFAFlowMode_MFA_FLOW_MODE_BEST_EFFORT
+		case MFAFlowModeInBandString:
+			*m = MFAFlowMode_MFA_FLOW_MODE_IN_BAND
+		default:
+			return trace.BadParameter("MFAFlowMode invalid string value %v", v)
+		}
+	case int32:
+		switch v {
+		case 0:
+			*m = MFAFlowMode_MFA_FLOW_MODE_BEST_EFFORT
+		case 1:
+			*m = MFAFlowMode_MFA_FLOW_MODE_IN_BAND
+		default:
+			return trace.BadParameter("MFAFlowMode invalid int value %v", v)
+		}
+	case int:
+		return m.decode(int32(v))
+	case int64:
+		return m.decode(int32(v))
+	default:
+		return trace.BadParameter("MFAFlowMode invalid type %T", val)
+	}
+	return nil
+}
+
+// UnmarshalYAML supports parsing MFAFlowMode from string or int.
+func (m *MFAFlowMode) UnmarshalYAML(unmarshal func(any) error) error {
+	var tmp any
+	if err := unmarshal(&tmp); err != nil {
+		return trace.Wrap(err)
+	}
+	return m.decode(tmp)
+}
+
+// UnmarshalJSON supports parsing MFAFlowMode from string or int.
+func (m *MFAFlowMode) UnmarshalJSON(data []byte) error {
+	var tmp any
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return trace.Wrap(err)
+	}
+	return m.decode(tmp)
+}
+
+// MarshalYAML marshals MFAFlowMode to a string.
+func (m MFAFlowMode) MarshalYAML() (any, error) {
+	return m.encode()
+}
+
+// MarshalJSON marshals MFAFlowMode to a string.
+func (m MFAFlowMode) MarshalJSON() ([]byte, error) {
+	val, err := m.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return json.Marshal(val)
 }

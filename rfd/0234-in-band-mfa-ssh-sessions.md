@@ -669,13 +669,13 @@ per-session MFA SSH certificate in order to complete MFA verification.
 
 #### Early Adopters / Opt-In Feature Gate
 
-Set the configuration option `auth_service.require_session_mfa = in_band_session` to force exclusive use of the in‑band
-MFA flow for testing and early adoption.
+Set the configuration option `auth_service.mfa_flow_mode = in_band` to force exclusive use of the in‑band MFA flow for
+testing and early adoption.
 
 For environments deploying a fresh Teleport cluster during the transition period, it is recommended to enable this
 option to ensure that all components use the in‑band MFA flow from the start.
 
-This option is instance-wide and affects both clients and agents. When this option is set:
+This option is cluster-wide and affects both clients and agents. When this option is set:
 
 1. Modern clients will not request per-session MFA certificates and will use the in‑band MFA flow.
 1. Modern agents will reject per-session MFA certificates and require in‑band MFA for connections that need MFA.
@@ -686,8 +686,9 @@ This option is instance-wide and affects both clients and agents. When this opti
 > to the in‑band flow. Once the transition period is over, the flag will be removed and modern clients and agents will
 > exclusively use the in‑band MFA flow.
 
-When the configuration option is not set, the system behaves as described in the previous sections, supporting both
-legacy and modern clients and agents during the transition period.
+When the configuration option is not set, the system behaves as described in the previous sections (equivalent to
+configuration option `auth_service.mfa_flow_mode = best_effort`), supporting both legacy and modern clients and agents
+during the transition period.
 
 ### Audit Events
 

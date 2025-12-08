@@ -2741,6 +2741,10 @@ message AuthPreferenceSpecV2 {
   // StableUnixUserConfig contains the cluster-wide configuration for stable
   // UNIX users.
   StableUNIXUserConfig stable_unix_user_config = 22;
+
+  // MFAFlowMode is the mode of MFA flow enforced for this cluster.
+  // 0 is "MFA_FLOW_MODE_BEST_EFFORT", 1 is "MFA_FLOW_MODE_IN_BAND".
+  MFAFlowMode MFAFlowMode = 23 [(gogoproto.jsontag) = "mfa_flow_mode,omitempty"];
 }
 
 // StableUNIXUserConfig contains the cluster-wide configuration for stable UNIX
@@ -7112,11 +7116,35 @@ enum RequireMFAType {
   // HARDWARE_KEY_TOUCH_AND_PIN means login sessions must use a hardware private key that
   // requires touch and pin to be used.
   HARDWARE_KEY_TOUCH_AND_PIN = 5;
-  // IN_BAND_SESSION means in-band MFA is required to establish server sessions. This forces exclusive use of the
-  // in-band MFA flow for all supported protocols and disallows all out-of-band MFA. Only the SSH protocol is supported
-  // and enforced at this time while this option is enabled.
-  // TODO(cthach): Update documentation to publicly expose this option when the in-band MFA feature is code complete.
-  IN_BAND_SESSION = 6;
+}
+
+// MFAFlowMode represents the MFA flow in the cluster. The option provides granular control over how MFA is enforced for
+// session protocols.
+//
+// Depending on the selected mode, the system will determine whether MFA challenges are presented and verified within
+// the session protocol (in-band) or outside of it (out-of-band). This is particularly relevant for protocols that
+// support in-band MFA, such as SSH. For protocols or clients that do not support in-band MFA, the behavior can be
+// configured to fallback to out-of-band enforcement or deny the session.
+//
+// Note: The in-band MFA feature is under active development. This feature is not fully implemented and available for
+// all protocols. Documentation and usage guidance will be updated as support for additional protocols is implemented.
+enum MFAFlowMode {
+  // MFA_FLOW_MODE_BEST_EFFORT means that MFA is enforced using the most secure method available. The system will prefer
+  // in-band MFA and will fallback to out-of-band MFA if in-band MFA is not supported for the requested protocol, the
+  // client does not support in-band MFA, or the session type does not allow in-band MFA. "Most secure method available"
+  // means that in-band MFA is preferred when possible, as it provides stronger guarantees against session hijacking and
+  // man-in-the-middle attacks. If in-band MFA cannot be used, out-of-band MFA is enforced as a fallback to ensure MFA
+  // coverage. The preference order is: in-band MFA > out-of-band MFA.
+  MFA_FLOW_MODE_BEST_EFFORT = 0;
+  // MFA_FLOW_MODE_IN_BAND means that MFA requires the in-band MFA flow for all protocols. If a requested protocol or
+  // client does not support in-band MFA, or the session type does not allow in-band MFA, the session request will be
+  // denied. This mode provides the strongest security guarantees by ensuring that MFA challenges are always presented
+  // and verified within the session protocol itself, eliminating the risks associated with out-of-band MFA methods.
+  //
+  // WARNING: Protocols and clients that do not support in-band MFA will be denied access when this mode is selected.
+  // Users should ensure that their workflows and clients support in-band MFA before enabling this mode to avoid
+  // disruptions.
+  MFA_FLOW_MODE_IN_BAND = 1;
 }
 
 // SignatureAlgorithmSuite represents the suite of cryptographic signature algorithms used in the cluster.

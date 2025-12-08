@@ -239,3 +239,34 @@ func TestNewAuthPreference_secondFactors(t *testing.T) {
 		})
 	}
 }
+
+func TestEncodeDecodeMFAFlowMode(t *testing.T) {
+	for _, tt := range []struct {
+		mfaFlowMode MFAFlowMode
+		encoded     any
+	}{
+		{
+			mfaFlowMode: MFAFlowMode_MFA_FLOW_MODE_BEST_EFFORT,
+			encoded:     "best_effort",
+		},
+		{
+			mfaFlowMode: MFAFlowMode_MFA_FLOW_MODE_IN_BAND,
+			encoded:     "in_band",
+		},
+	} {
+		t.Run(tt.mfaFlowMode.String(), func(t *testing.T) {
+			t.Run("encode", func(t *testing.T) {
+				encoded, err := tt.mfaFlowMode.encode()
+				require.NoError(t, err)
+				require.Equal(t, tt.encoded, encoded)
+			})
+
+			t.Run("decode", func(t *testing.T) {
+				var decoded MFAFlowMode
+				err := decoded.decode(tt.encoded)
+				require.NoError(t, err)
+				require.Equal(t, tt.mfaFlowMode, decoded)
+			})
+		})
+	}
+}

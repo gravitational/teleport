@@ -1050,6 +1050,7 @@ type AuthenticationConfig struct {
 	U2F            *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 	Webauthn       *Webauthn                  `yaml:"webauthn,omitempty"`
 	RequireMFAType types.RequireMFAType       `yaml:"require_session_mfa,omitempty"`
+	MFAFlowMode    types.MFAFlowMode          `yaml:"mfa_flow_mode,omitempty"`
 	LockingMode    constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
@@ -1156,6 +1157,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		U2F:                     u,
 		Webauthn:                w,
 		RequireMFAType:          a.RequireMFAType,
+		MFAFlowMode:             a.MFAFlowMode,
 		LockingMode:             a.LockingMode,
 		AllowLocalAuth:          a.LocalAuth,
 		AllowPasswordless:       a.Passwordless,
