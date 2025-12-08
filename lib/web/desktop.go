@@ -159,8 +159,8 @@ func readTDPInitialMessages(ctx context.Context, rw MessageReadWriter, log *slog
 }
 
 type handshakeInitializer struct {
-	ClientHandshakeHandler func(ctx context.Context, rw MessageReadWriter, log *slog.Logger) (handshakeData, error)
-	MFAPrompconstructor    MFAPromptconstructor
+	clientHandshakeHandler func(ctx context.Context, rw MessageReadWriter, log *slog.Logger) (handshakeData, error)
+	promptBuilder          mfaPromptBuilder
 }
 
 // Send upgrade. Ignore messages until Client Hello is received
@@ -251,9 +251,9 @@ func (h *handshakeData) ForwardTDPB(w io.Writer, username string) error {
 }
 
 func SendTDPError(w MessageReadWriter, err error) error {
-	if err != nil {
+	if err == nil {
 		slog.Warn("SendTDPError called with empty message")
-		err = errors.New("")
+		err = trace.Errorf("undefined error")
 	}
 
 	err = w.WriteMessage(tdp.Alert{
@@ -276,7 +276,7 @@ func SendTDPBError(w MessageReadWriter, err error) error {
 	return err
 }
 
-type MFAPromptconstructor func(string) mfa.PromptFunc
+type mfaPromptBuilder func(string) mfa.PromptFunc
 
 func readWebSocketMessage(ws *websocket.Conn) ([]byte, error) {
 	mType, data, err := ws.ReadMessage()
@@ -317,6 +317,8 @@ func (h *Handler) createDesktopConnection(
 	}
 	withheld := []tdp.Message{}
 
+	// Initialize a few utilties that will allow us to create the desktop connection
+	// for either a TDP or TDPB client.
 	var init handshakeInitializer
 	var adapter wsAdapter
 	var sendError func(MessageReadWriter, error) error
@@ -343,8 +345,8 @@ func (h *Handler) createDesktopConnection(
 
 		sendError = SendTDPBError
 		init = handshakeInitializer{
-			ClientHandshakeHandler: handleTDPUpgrade,
-			MFAPrompconstructor:    MFAPromptconstructor(tdp.NewTDPBMFAPrompt(&adapter, &withheld)),
+			clientHandshakeHandler: handleTDPUpgrade,
+			promptBuilder:          mfaPromptBuilder(tdp.NewTDPBMFAPrompt(&adapter, &withheld)),
 		}
 	} else {
 		log.DebugContext(ctx, "Creating Desktop connection for legacy TDP client")
@@ -359,12 +361,12 @@ func (h *Handler) createDesktopConnection(
 
 		sendError = SendTDPError
 		init = handshakeInitializer{
-			ClientHandshakeHandler: readTDPInitialMessages,
-			MFAPrompconstructor:    tdp.NewTDPBMFAPrompt(&adapter, &withheld),
+			clientHandshakeHandler: readTDPInitialMessages,
+			promptBuilder:          tdp.NewTDPMFAPrompt(&adapter, &withheld),
 		}
 	}
 	// Handles either TDP upgrade or listens for TDPB client hello
-	handshakeData, err := init.ClientHandshakeHandler(ctx, &adapter, log)
+	handshakeData, err := init.clientHandshakeHandler(ctx, &adapter, log)
 
 	username, err := readUsername(r)
 	if err != nil {
@@ -385,7 +387,7 @@ func (h *Handler) createDesktopConnection(
 	}
 
 	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
-	certs, err := h.issueCerts(ctx, sctx, mfaRequired, certsReq, init.MFAPrompconstructor)
+	certs, err := h.issueCerts(ctx, sctx, mfaRequired, certsReq, init.promptBuilder)
 	if err != nil {
 		return sendError(&adapter, err)
 	}
@@ -426,6 +428,14 @@ func (h *Handler) createDesktopConnection(
 
 	// ALPN informs us which dialect the server will be using.
 	alpnResult := serviceConnTLS.ConnectionState().NegotiatedProtocol
+	switch alpnResult {
+	case "":
+		alpnResult = protocolTDP
+	case protocolTDPB:
+		// Intentionally empty
+	default:
+		return trace.Errorf("unknown desktop agent protocol")
+	}
 	// Now that we have a connection to the Windows Desktop Service, we can
 	// forward the client_hello message (TDPB) or username and screen spec (TDP)
 	// to the service, and any withheld messages that were received before the MFA
@@ -526,7 +536,7 @@ func (h *Handler) issueCerts(
 	sctx *SessionContext,
 	mfaRequired bool,
 	certsReq *proto.UserCertsRequest,
-	promptConstructor MFAPromptconstructor,
+	promptConstructor mfaPromptBuilder,
 ) (certs *proto.Certs, err error) {
 	if mfaRequired {
 		certs, err = h.performSessionMFACeremony(ctx, sctx, certsReq, promptConstructor)
@@ -575,7 +585,7 @@ func (h *Handler) performSessionMFACeremony(
 	ctx context.Context,
 	sctx *SessionContext,
 	certsReq *proto.UserCertsRequest,
-	promptConstructor MFAPromptconstructor,
+	promptConstructor mfaPromptBuilder,
 ) (_ *proto.Certs, err error) {
 	ctx, span := h.tracer.Start(ctx, "desktop/performSessionMFACeremony")
 	defer func() {
@@ -637,7 +647,7 @@ func readClientProtocol(r *http.Request) (string, error) {
 	case "":
 		return protocolTDP, nil
 	case protocolTDPB:
-		return tdpbVersion, nil
+		return protocolTDPB, nil
 	default:
 		return "", trace.Errorf("unknown TDPB version '%s'", tdpbVersion)
 	}
@@ -647,15 +657,48 @@ func readClientProtocol(r *http.Request) (string, error) {
 // Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
 type desktopPinger struct {
 	server tdp.MessageWriter
-	ch     <-chan []byte
+	client tdp.MessageWriter
+	// when false, the interceptor function swallows ping messages
+	// without writing to the channel
+	latencySupported bool
+	ch               chan []byte
 }
 
-func (d desktopPinger) Ping(ctx context.Context) error {
-	uuid := uuid.New()
-	ping := tdp.NewTDPBMessage(&tdpbv1.Ping{
-		Uuid: uuid[:],
-	})
-	if err := d.server.WriteMessage(ping); err != nil {
+func (d desktopPinger) intercept(msg tdp.Message) ([]tdp.Message, error) {
+	var uuid []byte
+	switch m := msg.(type) {
+	case tdp.Ping:
+		uuid = m.UUID[:]
+	case *tdp.TdpbMessage:
+		ping := &tdpbv1.Ping{}
+		if err := m.As(ping); err != nil {
+			if errors.Is(err, tdp.ErrUnexpectedMessageType) {
+				// This simply isn't the message we're looking for
+				return []tdp.Message{msg}, err
+			}
+			// Something else went wrong
+			return nil, trace.Wrap(err)
+		}
+		uuid = ping.Uuid
+	default:
+		// This may be some other legacy TDP message
+		return []tdp.Message{msg}, nil
+	}
+
+	if !d.latencySupported {
+		slog.Warn("received unexpected Ping message from server (this is a bug)")
+		// Swallow the ping message, but there's no need to return an error
+		// (which will probably kill the connection)
+		return nil, nil
+	}
+
+	d.ch <- uuid
+	// We've handled the ping. Do not pass it along to the proxy.
+	return nil, nil
+}
+
+func (d desktopPinger) ping(ctx context.Context, msg tdp.Message) error {
+	if err := d.server.WriteMessage(msg); err != nil {
 		return trace.Wrap(err)
 	}
 	for {
@@ -670,7 +713,30 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 	}
 }
 
-var translators = map[string]tdp.ReadWriteInterceptor{}
+func (d desktopPinger) reportTDPB(_ context.Context, stats latency.Statistics) error {
+	return d.client.WriteMessage(tdp.NewTDPBMessage(&tdpbv1.LatencyStats{
+		ClientLatency: uint32(stats.Client),
+		ServerLatency: uint32(stats.Server),
+	}))
+}
+
+func (d desktopPinger) reportTDP(_ context.Context, stats latency.Statistics) error {
+	return d.client.WriteMessage(tdp.LatencyStats{
+		ClientLatency: uint32(stats.Client),
+		ServerLatency: uint32(stats.Server)},
+	)
+}
+
+func (d desktopPinger) pingTDP(ctx context.Context) error {
+	return d.ping(ctx, tdp.Ping{UUID: uuid.New()})
+}
+
+func (d desktopPinger) pingTDPB(ctx context.Context) error {
+	uuid := uuid.New()
+	return d.ping(ctx, tdp.NewTDPBMessage(&tdpbv1.Ping{
+		Uuid: uuid[:],
+	}))
+}
 
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
@@ -688,47 +754,23 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 		return trace.Wrap(err)
 	}
 
-	pings := make(chan []byte)
-	// The ping interceptor is bilingual. It can intercept either TDP or TDPB ping messages.
-	tdpbPingInterceptor := func(msg tdp.Message) ([]tdp.Message, error) {
-		var uuid []byte
-		switch m := msg.(type) {
-		case tdp.Ping:
-			uuid = m.UUID[:]
-		case *tdp.TdpbMessage:
-			ping := &tdpbv1.Ping{}
-			if err := m.As(ping); err != nil {
-				if errors.Is(err, tdp.ErrUnexpectedMessageType) {
-					// This simply isn't the message we're looking for
-					return []tdp.Message{msg}, err
-				}
-				// Something else went wrong
-				return nil, trace.Wrap(err)
-			}
-			uuid = ping.Uuid
-		default:
-			// This may be some other legacy TDP message
-			return []tdp.Message{msg}, err
-		}
-
-		if !latencySupported {
-			return nil, trace.BadParameter("received unexpected Ping message from server (this is a bug)")
-		}
-
-		select {
-		case pings <- uuid:
-		case <-ctx.Done():
-		}
-		// We've handled the ping. Do not pass it along to the proxy.
-		return nil, nil
+	serverConn := tdp.MessageReadWriteCloser(tdp.NewConn(wds))
+	clientConn := tdp.MessageReadWriteCloser(tdp.NewConn(&WebsocketIO{Conn: ws}))
+	pinger := desktopPinger{
+		server:           serverConn,
+		client:           clientConn,
+		latencySupported: latencySupported,
+		ch:               make(chan []byte),
 	}
 
-	// Run the ping interceptor in the read path of the server connection.
-	// Translation interceptors will be (optionally) installed in the write paths.
-	serverConn := tdp.NewReadWriteInterceptor(tdp.NewConn(wds), tdpbPingInterceptor, nil)
-	clientConn := tdp.MessageReadWriteCloser(tdp.NewConn(&WebsocketIO{Conn: ws}))
+	// Translation interceptors will be (optionally) installed in the *write* paths of each connection.
+	// The ping interceptor will be installed in the read path of the server connection. Since this
+	// interceptor is bilingual, it is agnostic to the server's native dialect.
+	serverConn = tdp.NewReadWriteInterceptor(tdp.NewConn(wds), pinger.intercept, nil)
 
-	if clientProtocol != serverProtocol {
+	needTranslation := clientProtocol != serverProtocol
+	if needTranslation {
+		// Translation is needed
 		if serverProtocol == protocolTDPB {
 			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", "TDPB", "client_dialect", "TDP")
 			// Server speaks TDPB
@@ -746,22 +788,29 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 			// Translate to TDPB (modern) when writing to this connection
 			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdp.TranslateToModern)
 		}
+	} else {
+		slog.InfoContext(ctx, "Proxying desktop connection without translation", "server_dialect", "TDP", "client_dialect", "TDPB")
 	}
 
 	proxy := tdp.NewConnProxy(clientConn, serverConn)
 	if latencySupported {
-		pinger := desktopPinger{
-			server: serverConn,
-			ch:     pings,
+		// Default to TDPB
+		pingerFunc := pinger.pingTDPB
+		reportFunc := pinger.reportTDPB
+		// Optionally use TDP versions
+		if clientProtocol == protocolTDP {
+			pingerFunc = pinger.pingTDP
+		}
+		if serverProtocol == protocolTDP {
+			reportFunc = pinger.reportTDP
 		}
 
-		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
-			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
-				return clientConn.WriteMessage(tdp.NewTDPBMessage(&tdpbv1.LatencyStats{
-					ClientLatency: uint32(stats.Client),
-					ServerLatency: uint32(stats.Server),
-				}))
-			}),
+		go monitorLatency(
+			ctx,
+			clockwork.NewRealClock(),
+			ws,
+			latency.PingerFunc(pingerFunc),
+			latency.ReporterFunc(reportFunc),
 		)
 	}
 
