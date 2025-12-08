@@ -17,7 +17,6 @@
 package joining
 
 import (
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -206,33 +205,10 @@ func (t *Token) GetRoles() types.SystemRoles {
 	return t.roles
 }
 
-// GetSafeName returns the name of the scoped token, sanitized appropriately
-// for join methods where the name is secret. This should be used when logging
-// the token name.
+// GetSafeName returns the name the santiized name of the scoped token. Because
+// scoped token names are not secret, this is just an alias for [GetName].
 func (t *Token) GetSafeName() string {
-	return GetSafeScopedTokenName(t.scoped)
-}
-
-// GetSafeScopedTokenName returns the name of the scoped token, sanitized
-// appropriately for join methods where the name is secret. This should be used
-// when logging the token name.
-func GetSafeScopedTokenName(token *joiningv1.ScopedToken) string {
-	name := token.GetMetadata().GetName()
-	if types.JoinMethod(token.GetSpec().GetJoinMethod()) != types.JoinMethodToken {
-		return name
-	}
-
-	// If the token name is short, we just blank the whole thing.
-	if len(name) < 16 {
-		return strings.Repeat("*", len(name))
-	}
-
-	// If the token name is longer, we can show the last 25% of it to help
-	// the operator identify it.
-	hiddenBefore := int(0.75 * float64(len(name)))
-	name = name[hiddenBefore:]
-	name = strings.Repeat("*", hiddenBefore) + name
-	return name
+	return t.GetName()
 }
 
 // Expiry returns the [time.Time] representing when the wrapped
