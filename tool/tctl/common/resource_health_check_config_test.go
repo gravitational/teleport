@@ -99,7 +99,7 @@ spec:
 
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.Error(t, err)
-	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	_, err = runResourceCommand(t, clt, []string{"create", "-f", resourceYAMLPath})
 	require.NoError(t, err)
