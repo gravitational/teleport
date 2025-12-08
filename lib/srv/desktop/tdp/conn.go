@@ -351,13 +351,12 @@ func (c *ConnProxy) Run() error {
 	var clientToServerErr, serverToClientErr error
 	wg.Go(func() {
 		err := copyMessages(c.client, c.server)
-		serverToClientErr = errors.Join(err, c.client.Close())
+		serverToClientErr = trace.NewAggregate(err, c.client.Close())
 	})
 	wg.Go(func() {
 		err := copyMessages(c.server, c.client)
-		clientToServerErr = errors.Join(err, c.server.Close())
+		clientToServerErr = trace.NewAggregate(err, c.server.Close())
 	})
 	wg.Wait()
-
-	return errors.Join(clientToServerErr, serverToClientErr)
+	return trace.NewAggregate(clientToServerErr, serverToClientErr)
 }
