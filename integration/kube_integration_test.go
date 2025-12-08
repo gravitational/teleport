@@ -2530,13 +2530,14 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// send a test message from the participant
 	participantStdinW.Write([]byte("\ahi from peer\n\r"))
 
+	// validate that the output from peer message is received.
+	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from peer"))
+
 	// type "hi from term" followed by "enter" to broadcast data
 	// to all participants.
 	term.Type("\ahi from term\n\r")
 
-	// validate that the output from both messages above is
-	// written to the participant stdout in the expected order.
-	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from peer"))
+	// validate that the output from the term  is received.
 	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from term"))
 
 	// send exit command to close the session
