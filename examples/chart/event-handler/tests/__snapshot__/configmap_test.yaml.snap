@@ -22,7 +22,7 @@ should match the snapshot:
         addr = "teleport.example.com:1234"
         identity = "/var/lib/teleport/plugins/event-handler/teleport-identity/auth_id"
         refresh.enabled = true
-        refresh.interval = 1m
+        refresh.interval = "1m"
 
         [forward.fluentd]
         url = "https://fluentd:8888/test.log"
