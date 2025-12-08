@@ -581,6 +581,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	ha.SshPublicKey = req.SSHPublicKey
 	ha.TlsPublicKey = req.TLSPublicKey
 	ha.ClientIpAddress = req.ClientMetadata.RemoteAddr
+	ha.Type = req.RemoteAuthenticationType
 	if err := services.ValidateHeadlessAuthentication(ha); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -820,7 +821,16 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 			return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
 		}
 		certReq.mfaVerified = ha.MfaDevice.Metadata.Name
-		certReq.ttl = time.Minute
+		switch req.RemoteAuthenticationType {
+		case types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_BROWSER:
+			certReq.ttl = 12 * time.Hour
+		case types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_HEADLESS,
+			types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_SESSION,
+			types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_UNSPECIFIED:
+			certReq.ttl = time.Minute
+		default:
+			certReq.ttl = time.Minute
+		}
 	}
 
 	certs, err := a.generateUserCert(ctx, certReq)

@@ -29,6 +29,7 @@ import { CardAccept, CardDenied } from 'teleport/HeadlessRequest/Cards';
 import { shouldShowMfaPrompt, useMfa } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { getHeadlessAuthTypeLabel, HeadlessAuthenticationType } from './types';
 
 export function HeadlessRequest() {
   const { requestId } = useParams<{ requestId: string }>();
@@ -38,21 +39,16 @@ export function HeadlessRequest() {
     status: 'pending',
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
-  });
-
-  const mfa = useMfa({
-    req: {
-      scope: MfaChallengeScope.HEADLESS_LOGIN,
-    },
-    isMfaRequired: true,
+    authType: '',
   });
 
   useEffect(() => {
-    const setIpAddress = (response: { clientIpAddress: string }) => {
+    const setIpAddress = (response: { clientIpAddress: string, authType: number }) => {
       setState({
         ...state,
         status: 'loaded',
         ipAddress: response.clientIpAddress,
+        authType: getHeadlessAuthTypeLabel(response.authType),
       });
     };
 
@@ -67,6 +63,13 @@ export function HeadlessRequest() {
         });
       });
   }, [requestId]);
+
+  const mfa = useMfa({
+    req: {
+      scope: MfaChallengeScope.HEADLESS_LOGIN,
+    },
+    isMfaRequired: true,
+  });
 
   const setSuccess = () => {
     setState({ ...state, status: 'success' });
@@ -147,6 +150,7 @@ export function HeadlessRequest() {
                 });
             }}
             errorText={state.errorText}
+            authType={state.authType}
           />
         )
       }
@@ -159,3 +163,4 @@ const Spin = styled(Box)`
   font-size: 24px;
   animation: ${rotate360} 1s linear infinite;
 `;
+

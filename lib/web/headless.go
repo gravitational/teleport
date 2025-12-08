@@ -50,7 +50,7 @@ func (h *Handler) getHeadless(_ http.ResponseWriter, r *http.Request, params htt
 
 		return nil, trace.BadParameter("requested invalid headless session")
 	}
-
+	h.logger.InfoContext(r.Context(), headlessAuthn.String())
 	return headlessAuthn, nil
 }
 

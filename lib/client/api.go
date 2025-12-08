@@ -3781,6 +3781,10 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("" +
 				"Headless login is not supported for this command. " +
 				"Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported.")
+		case constants.BrowserConnector:
+			return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+				return tc.browserLogin(ctx, keyRing)
+			}, nil
 		case constants.LocalConnector, "":
 			// if passwordless is enabled and there are passwordless credentials
 			// registered, we can try to go with passwordless login even though
@@ -4264,7 +4268,43 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 			KubernetesCluster: tc.KubernetesCluster,
 		},
 		User:                     tc.Username,
+		RemoteAuthenticationType: types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_HEADLESS,
 		HeadlessAuthenticationID: headlessAuthenticationID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+func (tc *TeleportClient) browserLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+	browserAuthenticationID := services.NewHeadlessAuthenticationID(keyRing.SSHPrivateKey.MarshalSSHPublicKey())
+
+	webUILink, err := url.JoinPath("https://"+tc.WebProxyAddr, "web", "headless", browserAuthenticationID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_ = sso.OpenURLInBrowser(tc.Browser, webUILink)
+	fmt.Fprintf(tc.Stderr, "Complete browser authentication in your local web browser:\n\n%s\n", webUILink)
+
+	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+			TLSPubKey:         tlsPub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Compatibility:     tc.CertificateFormat,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		User:                     tc.Username,
+		RemoteAuthenticationType: types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_BROWSER,
+		HeadlessAuthenticationID: browserAuthenticationID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

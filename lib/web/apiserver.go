@@ -4785,6 +4785,7 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 			SSHPublicKey:             req.SSHPubKey,
 			TLSPublicKey:             req.TLSPubKey,
 			ClientMetadata:           clientMeta,
+			RemoteAuthenticationType: req.RemoteAuthenticationType,
 			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 		},
 		CompatibilityMode:       req.Compatibility,

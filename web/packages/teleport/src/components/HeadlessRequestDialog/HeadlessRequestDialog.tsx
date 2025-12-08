@@ -24,18 +24,34 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import logger from 'shared/libs/stores/logger';
 
 export default function HeadlessRequestDialog({
   ipAddress,
   onAccept,
   onReject,
   errorText,
+  authType,
 }: Props) {
+  logger.info(authType);
+  console.log(authType);
+  let action;
+  switch (authType) {
+    case "browser":
+      action = "login"
+      break;
+    case "session":
+    case "headless":
+    default:
+      action = "command"
+      break;
+  }
+
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <DialogHeader style={{ flexDirection: 'column' }}>
         <DialogTitle textAlign="center">
-          Host {ipAddress} wants to execute a command
+          Host {ipAddress} has initiated a {action}
         </DialogTitle>
       </DialogHeader>
       <DialogContent mb={6}>
@@ -55,7 +71,7 @@ export default function HeadlessRequestDialog({
             </>
           ) : (
             <>
-              Someone has initiated a command from {ipAddress}. If it was not
+              Someone has initiated a {action} from {ipAddress}. If it was not
               you, click Reject and contact your administrator.
               <br />
               <br />
@@ -85,4 +101,5 @@ export type Props = {
   onAccept: () => void;
   onReject: () => void;
   errorText: string;
+  authType: string;
 };

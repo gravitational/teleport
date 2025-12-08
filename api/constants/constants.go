@@ -55,6 +55,9 @@ const (
 	// HeadlessConnector is the authentication connector for headless logins.
 	HeadlessConnector = "headless"
 
+	// BrowserConnector is the authentication connector for browser logins.
+	BrowserConnector = "browser"
+
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
@@ -186,6 +189,7 @@ var SystemConnectors = []string{
 	LocalConnector,
 	PasswordlessConnector,
 	HeadlessConnector,
+	BrowserConnector,
 }
 
 // OIDCPKCEMode represents the mode of PKCE (Proof Key for Code Exchange).

@@ -583,6 +583,9 @@ type CLIConf struct {
 	// Headless uses headless login for the client session.
 	Headless bool
 
+	// BrowserAuth uses browser to login
+	BrowserAuth bool
+
 	// MlockMode determines whether the process memory will be locked, and whether errors will be enforced.
 	// Allowed values include false, strict, and best_effort.
 	MlockMode string
@@ -781,6 +784,7 @@ const (
 	proxyEnvVar               = "TELEPORT_PROXY"
 	relayEnvVar               = "TELEPORT_RELAY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
+	browserAuthEnvVar         = "TELEPORT_BROWSER_AUTH"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
@@ -936,6 +940,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
 	app.Flag("headless", "Use headless login. Shorthand for --auth=headless.").Envar(headlessEnvVar).BoolVar(&cf.Headless)
+	app.Flag("authbrowser", "Use browser login. Shorthand for --auth=browser.").Envar(browserAuthEnvVar).BoolVar(&cf.BrowserAuth)
 	app.Flag("mlock", fmt.Sprintf("Determines whether process memory will be locked and whether failure to do so will be accepted (%v).", strings.Join(mlockModes, ", "))).
 		Default(mlockModeAuto).
 		Envar(mlockModeEnvVar).
@@ -4858,6 +4863,14 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
 		}
 		cf.AuthConnector = constants.HeadlessConnector
+	}
+
+	if cf.BrowserAuth {
+		if cf.AuthConnector != "" && cf.AuthConnector != constants.BrowserConnector {
+			return nil, trace.BadParameter("either --browserauth or --auth can be specifiec, not both")
+		}
+
+		cf.AuthConnector = constants.BrowserConnector
 	}
 
 	if cf.AuthConnector == constants.HeadlessConnector {
