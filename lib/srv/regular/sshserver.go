@@ -1295,11 +1295,9 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	}
 
 	if err := proc.WaitReady(nsctx.CancelContext()); err != nil {
-		errMsg, err := nsctx.GetChildError()
-		if err != nil {
+		if err := nsctx.GetChildError(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, errors.New(errMsg)
 	}
 
 	return proc, nil
@@ -1785,8 +1783,9 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		case result := <-scx.ExecResultCh:
 			scx.Logger.DebugContext(ctx, "Exec request complete", "command", result.Command, "code", result.Code)
 
-			if result.ErrorMessage != "" {
-				s.writeStderr(ctx, ch, result.ErrorMessage)
+			if result.Error != nil {
+				message := utils.FormatErrorWithNewline(result.Error)
+				s.writeStderr(ctx, ch, message)
 			}
 
 			// The exec process has finished and delivered the execution result, send

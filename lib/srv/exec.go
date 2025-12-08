@@ -62,8 +62,8 @@ type ExecResult struct {
 	// Code is return code that execution of the command resulted in.
 	Code int
 
-	// ErrorMessage is an error message captured and modified from stderr.
-	ErrorMessage string
+	// Error is an exit error from the child process.
+	Error error
 }
 
 // Exec executes an "exec" request.
@@ -219,15 +219,10 @@ func (e *localExec) Wait() *ExecResult {
 	// Emit the result of execution to the Audit Log.
 	emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
 
-	errMsg, err := e.Ctx.GetChildError()
-	if err != nil {
-		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Failed to read stderr", "err", err)
-	}
-
 	execResult := &ExecResult{
-		Command:      e.GetCommand(),
-		Code:         exitCode,
-		ErrorMessage: errMsg,
+		Command: e.GetCommand(),
+		Code:    exitCode,
+		Error:   e.Ctx.GetChildError(),
 	}
 
 	return execResult
