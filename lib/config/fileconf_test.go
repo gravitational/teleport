@@ -1256,58 +1256,102 @@ func TestBackoffConfig(t *testing.T) {
 	testCases := []struct {
 		desc                   string
 		mutate                 func(cfgMap)
-		expectSvcBackoffConfig *servicecfg.ReconnectBackoffConfig
+		expectSvcBackoffConfig *servicecfg.AuthConnectionConfig
+		errorFn                func(t require.TestingT, err error, msgAndArgs ...interface{})
 	}{
 		{
 			desc:   "default",
 			mutate: func(cfg cfgMap) {},
-			expectSvcBackoffConfig: &servicecfg.ReconnectBackoffConfig{
-				MaxRetryPeriod: 90 * time.Second,
-				MinRetryPeriod: 9 * time.Second,
-				RetryStep:      18 * time.Second,
+			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
+				UpperLimitBetweenRetries: 90 * time.Second,
+				BackoffStepDuration:      9 * time.Second,
+				InitialConnectionDelay:   18 * time.Second,
 			},
+			errorFn: require.NoError,
 		},
 		{
 			desc: "negative values use defaults",
 			mutate: func(cfg cfgMap) {
-				cfg["teleport"].(cfgMap)["reconnect_backoff"] = cfgMap{
-					"min_period": "-1m",
-					"max_period": "-5m",
-					"step":       "-3s",
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"initial_connection_delay":    "-1m",
+					"upper_limit_between_retries": "-5m",
+					"backoff_step_duration":       "-3s",
 				}
 			},
-			expectSvcBackoffConfig: &servicecfg.ReconnectBackoffConfig{
-				MaxRetryPeriod: 90 * time.Second,
-				MinRetryPeriod: 9 * time.Second,
-				RetryStep:      18 * time.Second,
+			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
+				UpperLimitBetweenRetries: 90 * time.Second,
+				BackoffStepDuration:      9 * time.Second,
+				InitialConnectionDelay:   18 * time.Second,
 			},
+			errorFn: require.NoError,
 		},
 		{
 			desc: "use default ratio when only max is given",
 			mutate: func(cfg cfgMap) {
-				cfg["teleport"].(cfgMap)["reconnect_backoff"] = cfgMap{
-					"max_period": "3m",
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"upper_limit_between_retries": "3m",
 				}
 			},
-			expectSvcBackoffConfig: &servicecfg.ReconnectBackoffConfig{
-				MaxRetryPeriod: 180 * time.Second,
-				MinRetryPeriod: 18 * time.Second,
-				RetryStep:      36 * time.Second,
+			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
+				UpperLimitBetweenRetries: 3 * time.Minute,
+				BackoffStepDuration:      18 * time.Second,
+				InitialConnectionDelay:   36 * time.Second,
 			},
+			errorFn: require.NoError,
 		},
 		{
 			desc: "user specified",
 			mutate: func(cfg cfgMap) {
-				cfg["teleport"].(cfgMap)["reconnect_backoff"] = cfgMap{
-					"min_period": "1m",
-					"max_period": "5m",
-					"step":       "3s",
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"initial_connection_delay":    "1m",
+					"upper_limit_between_retries": "5m",
+					"backoff_step_duration":       "3s",
 				}
 			},
-			expectSvcBackoffConfig: &servicecfg.ReconnectBackoffConfig{
-				MaxRetryPeriod: 5 * time.Minute,
-				MinRetryPeriod: time.Minute,
-				RetryStep:      3 * time.Second,
+			expectSvcBackoffConfig: &servicecfg.AuthConnectionConfig{
+				UpperLimitBetweenRetries: 5 * time.Minute,
+				InitialConnectionDelay:   time.Minute,
+				BackoffStepDuration:      3 * time.Second,
+			},
+			errorFn: require.NoError,
+		},
+		{
+			desc: "minimum upper range enforced",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"upper_limit_between_retries": "2ms",
+				}
+			},
+			expectSvcBackoffConfig: nil,
+			errorFn: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.ErrorContains(t, err, "cannot be set below")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc: "cannot set initial delay above upper limit",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"initial_connection_delay": "2h",
+				}
+			},
+			expectSvcBackoffConfig: nil,
+			errorFn: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.ErrorContains(t, err, "cannot be larger than upper_limit_between_retries")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc: "cannot set step above upper limit",
+			mutate: func(cfg cfgMap) {
+				cfg["teleport"].(cfgMap)["auth_connection_config"] = cfgMap{
+					"backoff_step_duration": "2h",
+				}
+			},
+			expectSvcBackoffConfig: nil,
+			errorFn: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.ErrorContains(t, err, "cannot be larger than upper_limit_between_retries")
+				require.True(t, trace.IsBadParameter(err))
 			},
 		},
 	}
@@ -1319,8 +1363,8 @@ func TestBackoffConfig(t *testing.T) {
 			cfg, err := ReadConfig(text)
 			require.NoError(t, err)
 
-			svccfg, err := cfg.ReconnectBackoff.Parse()
-			require.NoError(t, err)
+			svccfg, err := cfg.AuthConnectionConfig.Parse()
+			tc.errorFn(t, err)
 
 			require.Equal(t, tc.expectSvcBackoffConfig, svccfg)
 		})

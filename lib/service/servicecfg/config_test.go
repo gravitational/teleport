@@ -108,9 +108,9 @@ func TestDefaultConfig(t *testing.T) {
 	require.True(t, config.DebugService.Enabled)
 
 	// Reconnect section
-	require.Equal(t, defaults.MaxWatcherBackoff, config.ReconnectBackoff.MaxRetryPeriod)
-	require.Equal(t, 9*time.Second, config.ReconnectBackoff.MinRetryPeriod)
-	require.Equal(t, 18*time.Second, config.ReconnectBackoff.RetryStep)
+	require.Equal(t, defaults.MaxWatcherBackoff, config.AuthConnectionConfig.UpperLimitBetweenRetries)
+	require.Equal(t, 9*time.Second, config.AuthConnectionConfig.BackoffStepDuration)
+	require.Equal(t, 18*time.Second, config.AuthConnectionConfig.InitialConnectionDelay)
 
 }
 

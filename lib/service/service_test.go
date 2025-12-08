@@ -945,7 +945,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
-	cfg.ReconnectBackoff = *servicecfg.DefaultRatioReconnectBackoffConfig(5 * time.Millisecond)
+	cfg.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(5 * time.Millisecond)
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
 	cfg.Testing.ClientTimeout = time.Millisecond
@@ -966,7 +966,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	}()
 
 	timeout := time.After(10 * time.Second)
-	step := cfg.ReconnectBackoff.RetryStep
+	step := cfg.AuthConnectionConfig.BackoffStepDuration
 	for i := range 5 {
 		// wait for connection to fail
 		select {
@@ -2313,7 +2313,7 @@ func TestInstanceCertReissue(t *testing.T) {
 	agentCfg.WindowsDesktop.Enabled = true
 	agentCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	agentCfg.Logger = logtest.NewLogger()
-	agentCfg.ReconnectBackoff = *servicecfg.DefaultRatioReconnectBackoffConfig(time.Second)
+	agentCfg.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(time.Second)
 	agentCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	agentProc, err := NewTeleport(agentCfg)

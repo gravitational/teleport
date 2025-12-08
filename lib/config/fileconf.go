@@ -645,9 +645,8 @@ type Global struct {
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
 
-	// ReconnectBackoff defines the parameters used to control the retry
-	// behavior when attempting to reconnect to auth.
-	ReconnectBackoff ReconnectBackoffConfig `yaml:"reconnect_backoff,omitempty"`
+	// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+	AuthConnectionConfig AuthConnectionConfig `yaml:"auth_connection_config,omitempty"`
 }
 
 // CachePolicy is used to control  local cache
@@ -683,29 +682,28 @@ func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 	return &out, nil
 }
 
-// ReconnectBackoffConfig defines the parameters used to control the retry
-// behavior when attempting to reconnect to auth.
-type ReconnectBackoffConfig struct {
-	// MaxRetryPeriod is the upper limit for how long to wait between retries.
-	MaxRetryPeriod time.Duration `yaml:"max_period,omitempty"`
-	// MinRetryPeriod is the initial delay before the first retry attempt.
+// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+type AuthConnectionConfig struct {
+	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
+	UpperLimitBetweenRetries time.Duration `yaml:"upper_limit_between_retries,omitempty"`
+	// InitialConnectionDelay is the initial delay before the first retry attempt.
 	// The retry logic will apply jitter to this duration.
-	MinRetryPeriod time.Duration `yaml:"min_period,omitempty"`
-	// RetryStep is the amount of time added to the retry delay.
-	RetryStep time.Duration `yaml:"step,omitempty"`
+	InitialConnectionDelay time.Duration `yaml:"initial_connection_delay,omitempty"`
+	// BackoffStepDuration is the amount of time added to the retry delay.
+	BackoffStepDuration time.Duration `yaml:"backoff_step_duration,omitempty"`
 }
 
-// Parse parses reconnect configuration from Teleport config
-func (c *ReconnectBackoffConfig) Parse() (*servicecfg.ReconnectBackoffConfig, error) {
-	out := servicecfg.ReconnectBackoffConfig{
-		MaxRetryPeriod: c.MaxRetryPeriod,
-		MinRetryPeriod: c.MinRetryPeriod,
-		RetryStep:      c.RetryStep,
+// Parse parses [servicecfg.AuthConnectionConfig] from Teleport config
+func (c *AuthConnectionConfig) Parse() (*servicecfg.AuthConnectionConfig, error) {
+	out := &servicecfg.AuthConnectionConfig{
+		UpperLimitBetweenRetries: c.UpperLimitBetweenRetries,
+		InitialConnectionDelay:   c.InitialConnectionDelay,
+		BackoffStepDuration:      c.BackoffStepDuration,
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to parse auth_connection_config")
 	}
-	return &out, nil
+	return out, nil
 }
 
 // Service is a common configuration of a teleport service

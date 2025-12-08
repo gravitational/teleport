@@ -235,8 +235,8 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// ReconnectBackoff nect defines the auth reconnection service configuration.
-	ReconnectBackoff ReconnectBackoffConfig
+	// AuthConnectionConfig defines the Auth Service connection configuration.
+	AuthConnectionConfig AuthConnectionConfig
 
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
@@ -347,39 +347,56 @@ type AuditLogConfig struct {
 	StartDate time.Time
 }
 
-// ReconnectBackoffConfig defines the parameters used to control the retry
-// behavior when attempting to reconnect to auth.
-type ReconnectBackoffConfig struct {
-	// MaxRetryPeriod is the upper limit for how long to wait between retries.
-	MaxRetryPeriod time.Duration
-	// MinRetryPeriod is the initial delay before the first retry attempt.
+// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+type AuthConnectionConfig struct {
+	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
+	UpperLimitBetweenRetries time.Duration
+	// InitialConnectionDelay is the initial delay before the first retry attempt.
 	// The retry logic will apply jitter to this duration.
-	MinRetryPeriod time.Duration
-	// RetryStep is the amount of time added to the retry delay.
-	RetryStep time.Duration
+	InitialConnectionDelay time.Duration
+	// BackoffStepDuration is the amount of time added to the retry delay.
+	BackoffStepDuration time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values
-func (c *ReconnectBackoffConfig) CheckAndSetDefaults() error {
-	if c.MaxRetryPeriod < 1 {
-		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
+func (c *AuthConnectionConfig) CheckAndSetDefaults() error {
+	const minWatcherBackoff = 10 * time.Second
+
+	if c.UpperLimitBetweenRetries < 1 {
+		c.UpperLimitBetweenRetries = defaults.MaxWatcherBackoff
+	} else if c.UpperLimitBetweenRetries < minWatcherBackoff {
+		return trace.BadParameter("upper_limit_between_retries (%s) cannot be set below %s", c.UpperLimitBetweenRetries, minWatcherBackoff)
 	}
-	if c.RetryStep < 1 {
-		c.RetryStep = c.MaxRetryPeriod / 5
+
+	if c.InitialConnectionDelay < 1 {
+		c.InitialConnectionDelay = c.UpperLimitBetweenRetries / 5
+	} else if c.InitialConnectionDelay > c.UpperLimitBetweenRetries {
+		return trace.BadParameter(
+			"initial_connection_delay (%s) cannot be larger than upper_limit_between_retries (%s)",
+			c.InitialConnectionDelay,
+			c.UpperLimitBetweenRetries,
+		)
 	}
-	if c.MinRetryPeriod < 1 {
-		c.MinRetryPeriod = c.MaxRetryPeriod / 10
+
+	if c.BackoffStepDuration < 1 {
+		c.BackoffStepDuration = c.UpperLimitBetweenRetries / 10
+	} else if c.BackoffStepDuration > c.UpperLimitBetweenRetries {
+		return trace.BadParameter(
+			"backoff_step_duration (%s) cannot be larger than upper_limit_between_retries (%s)",
+			c.BackoffStepDuration,
+			c.UpperLimitBetweenRetries,
+		)
 	}
 
 	return nil
 }
 
-// DefaultRatioReconnectBackoffConfig returns ReconnectBackoffConfig with parameters based on maxRetryPeriod
-func DefaultRatioReconnectBackoffConfig(maxRetryPeriod time.Duration) *ReconnectBackoffConfig {
-	return &ReconnectBackoffConfig{
-		MaxRetryPeriod: maxRetryPeriod,
-		RetryStep:      maxRetryPeriod / 5,
-		MinRetryPeriod: maxRetryPeriod / 10,
+// DefaultRatioAuthConnectionConfig returns AuthConnectionConfig with parameters based on UpperLimitBetweenRetries
+func DefaultRatioAuthConnectionConfig(UpperLimitBetweenRetries time.Duration) *AuthConnectionConfig {
+	return &AuthConnectionConfig{
+		UpperLimitBetweenRetries: UpperLimitBetweenRetries,
+		InitialConnectionDelay:   UpperLimitBetweenRetries / 5,
+		BackoffStepDuration:      UpperLimitBetweenRetries / 10,
 	}
 }
 
@@ -676,7 +693,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.ReconnectBackoff = *DefaultRatioReconnectBackoffConfig(defaults.MaxWatcherBackoff)
+	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 
