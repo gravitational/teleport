@@ -299,13 +299,13 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// launch the shell under.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
-		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
-		// discard std{out,err}. If this was not done, things like MOTD would be
-		// printed for "exec" requests.
+		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
+		// otherwise discard std{out,err}. If this was not done, things like MOTD
+		// would be printed for non-interactive "exec" requests.
 		var stdin io.Reader
 		var stdout io.Writer
 		var stderr io.Writer
-		if c.RequestType == sshutils.ShellRequest {
+		if tty != nil {
 			stdin = tty
 			stdout = tty
 			stderr = tty
@@ -383,7 +383,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
-	err = waitForSignal(contfd, 10*time.Second)
+	err = waitForSignal(ctx, contfd, 10*time.Second)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -1429,4 +1429,31 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 	go cmd.Wait()
 
 	return nil
+}
+
+// waitForSignal will wait for the other side of the pipe to signal, if not
+// received, it will stop waiting and exit.
+func waitForSignal(ctx context.Context, fd *os.File, timeout time.Duration) error {
+	waitCh := make(chan error, 1)
+	go func() {
+		// Reading from the file descriptor will block until it's closed.
+		_, err := fd.Read(make([]byte, 1))
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		waitCh <- err
+	}()
+
+	// Timeout if no signal has been sent within the provided duration.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err(), "got context error while waiting for continue signal")
+	case <-timer.C:
+		return trace.LimitExceeded("timed out waiting for continue signal")
+	case err := <-waitCh:
+		return trace.Wrap(err)
+	}
 }

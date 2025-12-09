@@ -184,6 +184,16 @@ func TestHandlers(t *testing.T) {
 			checkMFARequired: require.False,
 		},
 		{
+			kind: types.KindInferenceSecret,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				secret := makeInferenceSecret(name)
+				return types.ProtoResource153ToLegacy(secret)
+			},
+			updateResource:   updateResourceWithLabels,
+			checkMFARequired: require.False,
+		},
+		{
 			kind: types.KindUserTask,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()

@@ -503,39 +503,43 @@ The language also supports the following functions:
 
 | Functions                         | Return type | Description                                                                                                                                |
 | --------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `contains(list, item)`            | `Boolean`   | Returns true if `item` is included in the `list`                                                                                           |
-| `equals(a, b)`                    | `Boolean`   | Returns true if value `a` is equal to `b`                                                                                                  |
-| `contains_all(list, items)`       | `Boolean`   | Returns true if all `items` are included in the `list`                                                                                     |
-| `contains_any(list, items)`       | `Boolean`   | Returns true if any of `items` is included in the `list`                                                                                   |
-| `set(value1, value2, ...)`        | `[]string`  | Returns a list of strings                                                                                                                  |
 | `all_end_with(a, suffix)`         | `Boolean`   | If `a` is a list, returns true if all strings in the `a` end with `suffix`. If `a` is a string, returns true if `a` ends with `suffix`.    |
 | `all_equal(a, b)`                 | `Boolean`   | If `a` is a list, returns true if all items in `a` are equal to `b`. If `a` is a string, returns true if it's equal to `b`.                |
-| `is_subset(a, item1, item2, ...)` | `Boolean`   | If `a` is a list, returns true if `list(item1, item2, ...)` is a subset of `a`. If `a` is a string, returns true if the list contains `a`. |
+| `contains(list, item)`            | `Boolean`   | Returns true if `item` is included in the `list`                                                                                           |
+| `contains_all(list, items)`       | `Boolean`   | Returns true if all `items` are included in the `list`                                                                                     |
+| `contains_any(list, items)`       | `Boolean`   | Returns true if any of `items` is included in the `list`                                                                                   |
+| `equals(a, b)`                    | `Boolean`   | Returns true if value `a` is equal to `b`                                                                                                  |
 | `has_prefix(s, prefix)`           | `Boolean`   | Returns true if string `s` starts with `prefix`                                                                                            |
+| `is_subset(a, item1, item2, ...)` | `Boolean`   | If `a` is a list, returns true if `list(item1, item2, ...)` is a subset of `a`. If `a` is a string, returns true if the list contains `a`. |
+| `set(value1, value2, ...)`        | `[]string`  | Returns a list of strings                                                                                                                  |
 
 It's possible to build predicates using information about target resource,
 session, and user.
 
 | Field                            | Meaning                                                                                                                                                         | Example                                           |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| user                             | User that created the session.                                                                                                                                  |                                                   |
-| user.metadata.name               | User's name                                                                                                                                                     | `is_subset(user.metadata.name, "alice", "bob")`   |
-| user.spec.roles                  | User's roles                                                                                                                                                    | `contains(user.spec.roles, "intern")`             |
-| user.spec.traits                 | User's traits                                                                                                                                                   | `contains(user.spec.traits["teams"], "alpha")`    |
 | resource                         | Resource that this session connects to (server, Kubernetes cluster, or database)                                                                                |                                                   |
-| resource.kind                    | Resource kind                                                                                                                                                   | `resource.kind == "node`                          |
-| resource.metadata.name           | Resource name. In case of SSH servers, it's the server ID.                                                                                                      | `resource.name == "production-cluster"`           |
+| resource.kind                    | Resource kind                                                                                                                                                   | `resource.kind == "node"`                         |
 | resource.metadata.labels         | Resource labels                                                                                                                                                 | `equals(resource.metadata.labels["env"], "prod")` |
-| session                          | The session that is being matched. This object supports all the fields of `session.end` and `db.session.end` events, so we only name the most useful ones here. |
-| session.participants             | Users that participated in the session (SSH and Kubernetes sessions only)                                                                                       | `contains(session.participants, "alice")`         |
+| resource.metadata.name           | Resource name. In case of SSH servers, it's the server ID.                                                                                                      | `resource.name == "production-cluster"`           |
+| resource.spec.addr               | Server address (SSH sessions only)                                                                                                                              | `resource.spec.addr == "123.123.123.123:3022"`    |
+| resource.spec.db_protocol        | Database protocol (database sessions only). See [DB resource reference](../reference/infrastructure-as-code/teleport-resources/db.mdx) for supported values.    | `resource.spec.protocol == "postgres"`            |
+| resource.spec.hostname           | Server hostname (SSH sessions only)                                                                                                                             | `resource.spec.hostname == "dummy-host"`          |
+| resource.spec.uri                | Database URI (database sessions only)                                                                                                                           | `has_prefix(resource.spec.uri, "db-host")`        |
+| session                          | The session that is being matched. This object supports all the fields of `session.end` and `db.session.end` events, so we only name the most useful ones here. |                                                   |
 | session.cluster_name             | Name of the Teleport cluster                                                                                                                                    | `cluster_name == "teleport.example.com"`          |
 | session.db_name                  | Name of database (the underlying one, not the Teleport resource; database sessions only)                                                                        | `session.db_name == "orders"`                     |
 | session.db_service               | Database service name (database sessions only)                                                                                                                  | `session.db_service == "prod-db-service"`         |
-| session.kubernetes_users         | List of Kubernetes usernames (Kubernetes sessions only)                                                                                                         | `contains(session.kubernetes_users, "admin")`     |
 | session.kubernetes_groups        | List of Kubernetes groups (Kubernetes sessions only)                                                                                                            | `contains(session.kubernetes_groups, "viewers")`  |
 | session.kubernetes_node_name     | Name of node that runs the pod (Kubernetes sessions only)                                                                                                       | `session.kubernetes_node_name == "node1"`         |
 | session.kubernetes_pod_name      | Name of the pod (Kubernetes sessions only)                                                                                                                      | `session.kubernetes_pod_name == "some-pod"`       |
 | session.kubernetes_pod_namespace | Namespace that contains the pod (Kubernetes sessions only)                                                                                                      | `session.kubernetes_pod_namespace == "default"`   |
+| session.kubernetes_users         | List of Kubernetes usernames (Kubernetes sessions only)                                                                                                         | `contains(session.kubernetes_users, "admin")`     |
+| session.participants             | Users that participated in the session (SSH and Kubernetes sessions only)                                                                                       | `contains(session.participants, "alice")`         |
+| user                             | User that created the session.                                                                                                                                  |                                                   |
+| user.metadata.name               | User's name                                                                                                                                                     | `is_subset(user.metadata.name, "alice", "bob")`   |
+| user.spec.roles                  | User's roles                                                                                                                                                    | `contains(user.spec.roles, "intern")`             |
+| user.spec.traits                 | User's traits                                                                                                                                                   | `contains(user.spec.traits["teams"], "alpha")`    |
 
 ## Using LiteLLM and other OpenAI-compatible proxies
 

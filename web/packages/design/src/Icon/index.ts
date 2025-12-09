@@ -236,4 +236,5 @@ export { WarningCircle } from './Icons/WarningCircle';
 export { Wifi } from './Icons/Wifi';
 export { Windows } from './Icons/Windows';
 export { Wrench } from './Icons/Wrench';
+export { XCheck } from './Icons/XCheck';
 export { Youtube } from './Icons/Youtube';

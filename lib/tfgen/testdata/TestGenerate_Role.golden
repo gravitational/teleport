@@ -1,0 +1,24 @@
+resource "teleport_role" "gravitational-teleport-kube-access" {
+  version = "v8"
+
+  metadata = {
+    name = "gravitational-teleport-kube-access"
+    # Remember to add some labels!
+    labels = {}
+  }
+
+  spec = {
+    allow = {
+      node_labels = {
+        bar  = ["baz"]
+        team = ["a", "b", "c"]
+      }
+      kubernetes_groups = ["{{internal.kubernetes_groups}}"]
+      kubernetes_users  = ["{{internal.kubernetes_users}}"]
+      kubernetes_labels = {
+        env    = ["staging", "dev"]
+        region = ["eu-west-1"]
+      }
+    }
+  }
+}

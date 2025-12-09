@@ -53,6 +53,7 @@ import (
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appauthconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -90,11 +91,13 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/accessmonitoringrules/accessmonitoringrulesv1"
+	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
@@ -110,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
+	"github.com/gravitational/teleport/lib/auth/mfa/mfav1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
@@ -580,6 +584,13 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 		}
 		if role, ok := event.Resource.(*types.RoleV6); ok {
 			downgraded, err := maybeDowngradeRole(stream.Context(), role)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			event.Resource = downgraded
+		}
+		if dc, ok := event.Resource.(*discoveryconfig.DiscoveryConfig); ok {
+			downgraded, err := discoveryconfigv1.MaybeDowngradeDiscoveryConfig(stream.Context(), dc)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -6422,6 +6433,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	decisionpb.RegisterDecisionServiceServer(server, decisionService)
 
+	mfaService, err := mfav1.NewService(mfav1.ServiceConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	mfav1pb.RegisterMFAServiceServer(server, mfaService)
+
 	healthCheckConfigSvc, err := healthcheckconfigv1.NewService(healthcheckconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services.HealthCheckConfig,
@@ -6432,6 +6449,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	healthcheckconfigv1pb.RegisterHealthCheckConfigServiceServer(server, healthCheckConfigSvc)
+
+	appAuthConfigSvc, err := appauthconfigv1.NewService(appauthconfigv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services.AppAuthConfig,
+		Cache:      cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	appauthconfigv1pb.RegisterAppAuthConfigServiceServer(server, appAuthConfigSvc)
 
 	return authServer, nil
 }
