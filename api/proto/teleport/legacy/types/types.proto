@@ -1497,6 +1497,9 @@ message TokenRule {
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
   // must match this ARN. Supports wildcards "*" and "?".
   string AWSARN = 4 [(gogoproto.jsontag) = "aws_arn,omitempty"];
+  // AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes
+  // must belong to this organization.
+  string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
