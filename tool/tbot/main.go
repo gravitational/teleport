@@ -19,10 +19,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -35,6 +39,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -53,7 +58,7 @@ func main() {
 	}
 }
 
-const appHelp = `Teleport Machine & Workload Identity 
+const appHelp = `Teleport Machine & Workload Identity
 
 Machine & Workload Identity issues and renews short-lived certificates so your
 machines can access Teleport protected resources in the same way your engineers do!
@@ -83,6 +88,12 @@ func Run(args []string, stdout io.Writer) error {
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&configureOutPath)
+
+	var apiAddress string
+	apiCmd := app.Command("api", "Interact with a running bot api.")
+	apiCmd.Flag("address", "Address of a tbot API socket, e.g. unix:///path/to/api.sock").Required().StringVar(&apiAddress)
+
+	apiSpawnCmd := apiCmd.Command("spawn", "Spawn a new service on a running tbot via the bot api.")
 
 	keypairCmd := app.Command("keypair", "Manage keypairs for bound-keypair joining")
 
@@ -133,6 +144,7 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+		cli.NewIdentityCommand(apiSpawnCmd, buildAPISpawner(ctx, &apiAddress), cli.CommandModeAPISpawn),
 
 		cli.NewDatabaseCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewDatabaseCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
@@ -148,6 +160,7 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewApplicationTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewApplicationTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+		cli.NewApplicationTunnelCommand(apiSpawnCmd, buildAPISpawner(ctx, &apiAddress), cli.CommandModeAPISpawn),
 
 		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
@@ -169,6 +182,10 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewSSHMultiplexerCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewSSHMultiplexerCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewBotAPICommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewBotAPICommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+		// Note: no API helper for spawning API services, no need to recurse.
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really
@@ -319,6 +336,15 @@ func buildConfigAndConfigure(ctx context.Context, globals *cli.GlobalArgs, outPa
 	}
 }
 
+func buildAPISpawner(ctx context.Context, apiAddr *string) cli.MutatorAction {
+	// This doesn't actually need to build a whole config, so we'll just pass
+	// the mutator along. (API spawning will use an empty config to extract the
+	// services directly.)
+	return func(mutator cli.ConfigMutator) error {
+		return trace.Wrap(onAPISpawn(ctx, apiAddr, mutator))
+	}
+}
+
 func initializeTracing(
 	ctx context.Context, endpoint string,
 ) (*tracing.Provider, error) {
@@ -393,6 +419,80 @@ func onConfigure(
 	return nil
 }
 
+func createHTTPClient(addr string) (*http.Client, string, error) {
+	parsed, err := url.Parse(addr)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "parsing %q", addr)
+	}
+
+	switch parsed.Scheme {
+	// If no scheme is provided, default to TCP.
+	case "tcp", "http", "":
+		c, err := defaults.HTTPClient()
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// No need to override the base path.
+		return c, addr, nil
+	case "unix":
+		return &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", parsed.Path)
+				},
+			},
+		}, "http://unix", nil
+	default:
+		return nil, "", trace.BadParameter("unsupported scheme %q", parsed.Scheme)
+	}
+}
+
+func onAPISpawn(ctx context.Context, address *string, mutator cli.ConfigMutator) error {
+	// Start with an empty BotConfig so we have an explicitly empty list of
+	// services.
+	cfg := config.BotConfig{}
+	if err := mutator.ApplyConfig(&cfg, log); err != nil {
+		return trace.Wrap(err, "applying api spawn config")
+	}
+
+	for _, svc := range cfg.Services {
+		log.InfoContext(ctx, "requesting dynamic service", "name", svc.GetName(), "type", svc.Type())
+	}
+
+	b, err := yaml.Marshal(cfg.Services)
+	if err != nil {
+		return trace.Wrap(err, "marshaling yaml")
+	}
+
+	client, apiBase, err := createHTTPClient(*address)
+
+	p, err := url.JoinPath(apiBase, "spawn")
+	if err != nil {
+		return trace.Wrap(err, "invalid api url: %s", apiBase)
+	}
+
+	log.InfoContext(ctx, "making api request", "address", address, "base", apiBase, "endpoint", p)
+
+	req, err := http.NewRequest("POST", p, bytes.NewReader(b))
+	if err != nil {
+		return trace.Wrap(err, "creating request")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return trace.Wrap(err, "sending request")
+	}
+	defer resp.Body.Close()
+
+	bytes, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(trace.ReadError(resp.StatusCode, bytes), "api response")
+}
+
 func onMigrate(
 	ctx context.Context,
 	globalCfg *cli.GlobalArgs,
@@ -455,6 +555,7 @@ func onStart(ctx context.Context, botConfig *config.BotConfig) error {
 
 	reloadCh := make(chan struct{})
 	botConfig.ReloadCh = reloadCh
+
 	go handleSignals(ctx, log, cancel, reloadCh)
 
 	telemetrySentCh := make(chan struct{})
