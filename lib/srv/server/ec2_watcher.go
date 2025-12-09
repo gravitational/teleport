@@ -547,16 +547,27 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 	return accountIDs, nil
 }
 
+type assumeRoleWithExternalID struct {
+	RoleARN    string
+	ExternalID string
+}
+
 // allAssumeRoles returns a list of all the AWS Assume Roles that must be assumed.
 // There's a special case when there is no Role to Assume, in this case an empty string is returned.
 // In this situation no AssumeRole should be passed to the AWS client.
-func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]string, error) {
+func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]assumeRoleWithExternalID, error) {
 	if !f.Matcher.HasOrganizationMatcher() {
+		// When targeting a single Account (ie, no account discovery / no organization account matcher)
+		// the discovery service can either use the current IAM Role or assume another IAM Role.
+		// If defined, then the Assume Role ARN is returned, otherwise an empty string is returned.
+		// An empty string is used to indicate that no Assume Role should be used.
 		var roleARN string
+		var externalID string
 		if f.Matcher.AssumeRole != nil {
 			roleARN = f.Matcher.AssumeRole.RoleARN
+			externalID = f.Matcher.AssumeRole.ExternalID
 		}
-		return []string{roleARN}, nil
+		return []assumeRoleWithExternalID{{RoleARN: roleARN, ExternalID: externalID}}, nil
 	}
 
 	accountIDs, err := f.fetchAccountIDsUnderOrganization(ctx)
@@ -564,17 +575,24 @@ func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]string, erro
 		return nil, trace.Wrap(err)
 	}
 
-	var allAssumeRoles []string
+	if f.Matcher.Organization.IAM == nil || f.Matcher.Organization.IAM.RoleName == "" {
+		return nil, trace.BadParameter("role name is required when using account discovery (under an organization)")
+	}
+
+	var allAssumeRoles []assumeRoleWithExternalID
 	for _, accountID := range accountIDs {
 		assumeRoleARN := arn.ARN{
 			Partition: "aws",
 			Service:   "iam",
 			Region:    "",
 			AccountID: accountID,
-			Resource:  "role/" + f.Matcher.AssumeRole.RoleARN,
+			Resource:  "role/" + f.Matcher.Organization.IAM.RoleName,
 		}
 
-		allAssumeRoles = append(allAssumeRoles, assumeRoleARN.String())
+		allAssumeRoles = append(allAssumeRoles, assumeRoleWithExternalID{
+			RoleARN:    assumeRoleARN.String(),
+			ExternalID: f.Matcher.Organization.IAM.ExternalID,
+		})
 	}
 
 	return allAssumeRoles, nil
@@ -598,7 +616,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 	for _, assumeRole := range accountRolesToAssume {
 		awsOpts := []awsconfig.OptionsFn{
 			awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
-			awsconfig.WithAssumeRole(assumeRole, f.Matcher.AssumeRole.ExternalID),
+			awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID),
 		}
 
 		regions, err := f.matcherRegions(ctx, awsOpts)
@@ -632,7 +650,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 type getInstancesInRegionParams struct {
 	rotation     bool
 	region       string
-	assumeRole   string
+	assumeRole   assumeRoleWithExternalID
 	awsOpts      []awsconfig.OptionsFn
 	ssmRunParams map[string]string
 }
@@ -668,8 +686,8 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 					Parameters:          params.ssmRunParams,
 					Rotation:            params.rotation,
 					Integration:         f.Matcher.Integration,
-					AssumeRoleARN:       params.assumeRole,
-					ExternalID:          f.Matcher.AssumeRole.ExternalID,
+					AssumeRoleARN:       params.assumeRole.RoleARN,
+					ExternalID:          params.assumeRole.ExternalID,
 					DiscoveryConfigName: f.DiscoveryConfigName,
 					EnrollMode:          f.Matcher.Params.EnrollMode,
 				}

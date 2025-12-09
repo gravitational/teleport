@@ -401,14 +401,14 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			in: &AWSMatcher{
 				Types:   []string{"ec2"},
 				Regions: []string{"us-east-1"},
-				AssumeRole: &AssumeRole{
-					RoleARN: "MyRole",
-				},
 				Organization: &AWSOrganizationMatcher{
 					OrganizationID: "o-123",
 					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
 						Include: []string{"ou-123"},
 						Exclude: []string{"ou-456"},
+					},
+					IAM: &AWSIAMAssumeRole{
+						RoleName: "MyRole",
 					},
 				},
 			},

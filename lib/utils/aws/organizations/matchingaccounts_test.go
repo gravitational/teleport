@@ -135,9 +135,10 @@ func TestMatchingAccounts(t *testing.T) {
 		expectedAccounts []string
 	}{
 		{
-			name: "only root OU, no filter: returns all accounts",
+			name: "only root OU, include all filter: returns all accounts",
 			filter: MatchingAccountsFilter{
 				OrganizationID: "o-1",
+				IncludeOUs:     []string{"*"},
 			},
 			orgsClient: &mockOrganizationsClient{
 				organizationID: "o-1",
@@ -174,6 +175,7 @@ func TestMatchingAccounts(t *testing.T) {
 			name: "only root OU, no filter, invalid org: returns error",
 			filter: MatchingAccountsFilter{
 				OrganizationID: "o-1",
+				IncludeOUs:     []string{"*"},
 			},
 			orgsClient: &mockOrganizationsClient{
 				organizationID: "o-2",
@@ -207,6 +209,7 @@ func TestMatchingAccounts(t *testing.T) {
 			name: "multiple OUs, no filter: returns all accounts",
 			filter: MatchingAccountsFilter{
 				OrganizationID: "o-1",
+				IncludeOUs:     []string{"*"},
 			},
 			orgsClient: &mockOrganizationsClient{
 				organizationID: "o-1",
@@ -231,6 +234,7 @@ func TestMatchingAccounts(t *testing.T) {
 			name: "multiple OUs with empty OUs, no filter: returns all accounts",
 			filter: MatchingAccountsFilter{
 				OrganizationID: "o-1",
+				IncludeOUs:     []string{"*"},
 			},
 			orgsClient: &mockOrganizationsClient{
 				organizationID: "o-1",
@@ -258,6 +262,7 @@ func TestMatchingAccounts(t *testing.T) {
 			name: "filter excludes all OUs explicitly: returns no accounts",
 			filter: MatchingAccountsFilter{
 				OrganizationID: "o-1",
+				IncludeOUs:     []string{"*"},
 				ExcludeOUs:     []string{"r-1", "ou-11", "ou-20"},
 			},
 			orgsClient: &mockOrganizationsClient{
@@ -286,6 +291,7 @@ func TestMatchingAccounts(t *testing.T) {
 			name: "filter excludes all OUs explicitly, except the root: returns only the root accounts",
 			filter: MatchingAccountsFilter{
 				OrganizationID: "o-1",
+				IncludeOUs:     []string{"*"},
 				ExcludeOUs:     []string{"ou-10", "ou-20"},
 			},
 			orgsClient: &mockOrganizationsClient{

@@ -1600,6 +1600,10 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					Include: matcher.Organization.OrganizationalUnits.Include,
 					Exclude: matcher.Organization.OrganizationalUnits.Exclude,
 				},
+				IAM: &types.AWSIAMAssumeRole{
+					RoleName:   matcher.Organization.IAM.RoleName,
+					ExternalID: matcher.Organization.IAM.ExternalID,
+				},
 			}
 		}
 

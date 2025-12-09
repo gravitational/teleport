@@ -5091,12 +5091,14 @@ func TestDiscoveryConfig(t *testing.T) {
 						"tags": cfgMap{
 							"discover_teleport": "yes",
 						},
-						"assume_role_arn": "my-role",
 						"organization": cfgMap{
 							"organization_id": "o-123",
 							"organizational_units": cfgMap{
 								"include": []string{"ou-123"},
 								"exclude": []string{"ou-456"},
+							},
+							"iam": cfgMap{
+								"role_name": "my-role",
 							},
 						},
 					},
@@ -5117,14 +5119,14 @@ func TestDiscoveryConfig(t *testing.T) {
 					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
 				},
 				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
-				AssumeRole: &types.AssumeRole{
-					RoleARN: "my-role",
-				},
 				Organization: &types.AWSOrganizationMatcher{
 					OrganizationID: "o-123",
 					OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
 						Include: []string{"ou-123"},
 						Exclude: []string{"ou-456"},
+					},
+					IAM: &types.AWSIAMAssumeRole{
+						RoleName: "my-role",
 					},
 				},
 			}},

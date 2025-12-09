@@ -172,11 +172,8 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 
 	if m.AssumeRole != nil {
 		if m.AssumeRole.RoleARN != "" {
-			// When discovering Accounts under an Organization, the Role is validated above.
-			if !m.HasOrganizationMatcher() {
-				if err := awsapiutils.CheckRoleARN(m.AssumeRole.RoleARN); err != nil {
-					return trace.BadParameter("invalid assume role: %v", err)
-				}
+			if err := awsapiutils.CheckRoleARN(m.AssumeRole.RoleARN); err != nil {
+				return trace.BadParameter("invalid assume role: %v", err)
 			}
 		} else if m.AssumeRole.ExternalID != "" {
 			for _, t := range m.Types {
@@ -303,11 +300,11 @@ func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
 		return nil
 	}
 
-	if m.AssumeRole == nil || m.AssumeRole.RoleARN == "" {
-		return trace.BadParameter("assume role must be set to the role name when discovering accounts")
+	if m.Organization.IAM == nil || m.Organization.IAM.RoleName == "" {
+		return trace.BadParameter("organization.iam.role_name is required when organization id is set")
 	}
 
-	if err := awsapiutils.IsValidIAMRoleName(m.AssumeRole.RoleARN); err != nil {
+	if err := awsapiutils.IsValidIAMRoleName(m.Organization.IAM.RoleName); err != nil {
 		return trace.BadParameter("assume role must be set to the role name (not the arn) when discovering accounts: %v", err)
 	}
 
