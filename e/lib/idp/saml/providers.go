@@ -42,7 +42,10 @@ func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.I
 			// redirect user to /web/saml-idp/login to provide mfa and try again.
 			redirectURL, err := SSORedirectURL(r, IdPRoute+r.URL.Path)
 			if err != nil {
-				trace.Wrap(err)
+				s.emitAuthAttemptEvent(ctx, username, entityID, "", err)
+				s.logger.ErrorContext(ctx, "Failed to process redirect URL for MFA", "error", err)
+				s.writeError(w, err)
+				return nil
 			}
 			http.Redirect(w, r, samlIdpLoginPath+redirectURL.String(), http.StatusSeeOther)
 			return nil

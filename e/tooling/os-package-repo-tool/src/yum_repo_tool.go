@@ -32,7 +32,7 @@ const ArtifactExtension string = ".rpm"
 func NewYumRepoTool(config *YumConfig, supportedOSs map[string][]string, serializer Serializer) (*YumRepoTool, error) {
 	cr, err := NewCreateRepo(config.cacheDir)
 	if err != nil {
-		trace.Wrap(err, "failed to instantiate new CreateRepo instance")
+		return nil, trace.Wrap(err, "failed to instantiate new CreateRepo instance")
 	}
 
 	s3Manager, err := NewS3Manager(config.S3Config)

@@ -191,7 +191,7 @@ func (a *auditLogExporter) exportBulk(ctx context.Context, startDate time.Time, 
 		Concurrency:   3, // TODO(juliaogris): Make configurable. Minimum should be 3. See: https://github.com/gravitational/teleport/blob/v17.3.3/integrations/event-handler/events_job.go#L156
 	})
 	if err != nil {
-		trace.Wrap(err, "Failed to create bulk exporter for audit log exports to access-graph")
+		return trace.Wrap(err, "Failed to create bulk exporter for audit log exports to access-graph")
 	}
 	defer exporter.Close()
 
