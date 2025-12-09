@@ -19,6 +19,7 @@
 package winpki
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base32"
@@ -303,7 +304,7 @@ func extractReferrals(ldapErr *ldap.Error) []string {
 	return out
 }
 
-func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchRequest *ldap.SearchRequest) ([]*ldap.Entry, []string, error) {
+func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchRequest *ldap.SearchRequest) (entries []*ldap.Entry, referrals []string, err error) {
 	l.cfg.Logger.DebugContext(ctx, "Executing paged query", "filter", searchRequest.Filter, "baseDN", searchRequest.BaseDN)
 	res, err := client.SearchWithPaging(searchRequest, searchPageSize)
 	if err != nil {
