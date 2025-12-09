@@ -54,7 +54,7 @@ the more "visible" Teleport CAs to their own self-managed roots.
 1. Finally, Alice writes the certificates back to Teleport. The new certificates
    take effect immediately.
 
-    `tctl auth sub-ca create-override cert.pem [chain.pem...]`
+    `tctl auth sub-ca create-override --type=db-client cert.pem [chain.pem...]`
 
 ### Alice configures "windows" as a sub CA
 
@@ -131,20 +131,20 @@ certificate. Deletes take effect immediately.
     > ERROR: Found CA overrides for authority "db-client". You must either
     > supply an override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth sub-ca create-csr --public-key='AB:CD:EF:...'
+    > tctl auth sub-ca create-csr --type=db-client --public-key='AB:CD:EF:...'
     > or
-    > tctl auth sub-ca disable-override --public-key='AB:CD:EF:...'
+    > tctl auth sub-ca disable-override --type=db-client --public-key='AB:CD:EF:...'
     ```
 
 1. Alice updates the CA override for "db-client":
 
     ```shell
-    $ tctl auth sub-ca create-csr --public-key='AB:CD:EF:...'
+    $ tctl auth sub-ca create-csr --type=db-client --public-key='AB:CD:EF:...'
     > (CSR PEM)
 
     # Alice issues certificate from CSR.
 
-    tctl auth sub-ca create-override cert.pem [chain.pem...]
+    tctl auth sub-ca create-override --type=db-client cert.pem [chain.pem...]
     ```
 
 1. Alice advances the rotation to the `update_clients` step:
@@ -409,15 +409,14 @@ service SubCAService {
 
 message CreateCSRRequest {
   // CA type per api/types.CertAuthType.
-  // Either ca_type or public_key is required.
+  // Required.
   string ca_type = 1;
 
   // Optional. Targets all clusters if empty.
   string cluster_name = 2;
 
   // Targets a (CA,cluster) pair by its public key.
-  // Replaces ca_type and cluster_name if present.
-  // Either ca_type or public_key is required.
+  // Optional.
   string public_key = 3;
 
   // Customized certificate Subject.
@@ -471,8 +470,11 @@ message DeleteCertificateOverrideRequest {
 message DeleteCertificateOverrideResponse {}
 
 message CertificateOverrideTarget {
-  // Targets a (CA,cluster) override by name.
+  // CA type per api/types.CertAuthType.
+  // Required.
   string ca_type = 1;
+
+  // Targets a (CA,cluster) override by name.
   string cluster_name = 2;
 
   // Targets a (CA,cluster) override by its public key.
@@ -612,7 +614,7 @@ The design offers only Subject customization via the `tctl auth sub-ca
 create-csr`, as that is understood to be sufficient. A CSR signing command could
 be provided to offer a higher degree customization:
 
-`tctl auth sub-ca sign-csr cert-request.pem`
+`tctl auth sub-ca sign-csr --type=db-client cert-request.pem`
 
 The sign-csr command validates the request, similarly to the creation/update of
 a cert_authority_override resource, ensuring it fulfils the requirements of a
