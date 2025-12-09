@@ -244,6 +244,7 @@ type webauthnClientData struct {
 	pwszHashAlgID *uint16
 }
 
+//nolint:unused // This type maps a C struct. We need to keep the layout consistent.
 type webauthnAuthenticatorGetAssertionOptions struct {
 	dwVersion uint32
 	// Time that the operation is expected to complete within.
