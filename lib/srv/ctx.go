@@ -1325,7 +1325,7 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 	var waitErr error
 	if bpfService.Enabled() && pam.Enabled {
 		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
-			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
+			c.Logger.Errorf("Child process never became ready. err: %v", waitErr)
 		}
 	}
 

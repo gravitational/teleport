@@ -361,7 +361,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
-	err = waitForSignal(ctx, contfd, 10*time.Second)
+	err = waitForSignal(context.TODO(), contfd, 10*time.Second)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
