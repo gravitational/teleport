@@ -556,14 +556,14 @@ protocols. When using HTTP protocol, the user's query activity is captured in
 the Teleport audit log.
 
 See how to connect ClickHouse to Teleport
-[here](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/clickhouse-self-hosted.mdx).
+[here](docs/pages/enroll-resources/database-access/enrollment/self-hosted/clickhouse-self-hosted.mdx).
 
 #### Oracle database access audit logging support
 
 In Teleport 14, database access for Oracle integration is updated with query
 audit logging support.
 
-See documentation on how to configure it in the [Oracle guide](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/oracle-self-hosted.mdx).
+See documentation on how to configure it in the [Oracle guide](docs/pages/enroll-resources/database-access/enrollment/self-hosted/oracle-self-hosted.mdx).
 
 #### Limited passwordless access for local Windows users in Teleport Community Edition
 
@@ -1803,7 +1803,7 @@ label resources.
 
 Teleport database access now supports auto-discovery for Azure-hosted PostgreSQL
 and MySQL databases. See the [Azure
-guide](docs/pages/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx) for more
+guide](docs/pages/enroll-resources/database-access/enrollment/azure/azure-postgres-mysql.mdx) for more
 details.
 
 In addition, Teleport database access will now use Azure AD managed identity
@@ -2003,7 +2003,7 @@ to other supported database protocols.
 Teleport database access for SQL Server remains in Preview mode with more UX
 improvements coming in future releases.
 
-Refer to [the guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad.mdx) to set
+Refer to [the guide](docs/pages/enroll-resources/database-access/enrollment/aws/rds/sql-server-ad.mdx) to set
 up access to a SQL Server with Active Directory authentication.
 
 ### Snowflake database access (Preview)
@@ -2014,7 +2014,7 @@ standard database access features like role-based access control and audit
 logging, including query activity.
 
 Connect your Snowflake database to Teleport following the
-[documentation](docs/pages/enroll-resources/database-access/enroll-managed-databases/snowflake.mdx).
+[documentation](docs/pages/enroll-resources/database-access/enrollment/managed/snowflake.mdx).
 
 ### Elasticache/MemoryDB database access (Preview)
 
@@ -2023,8 +2023,7 @@ this integration by adding native support for AWS-hosted Elasticache and
 MemoryDB, including auto-discovery and automatic credential management in some
 deployment configurations.
 
-Learn more about it in the [documentation](
-docs/pages/enroll-resources/database-access/enroll-aws-databases/redis-aws.mdx).
+Learn more about it in the [documentation](docs/pages/enroll-resources/database-access/enrollment/aws/redis-aws.mdx).
 
 ### Teleport Connect for server and database access (Preview)
 
@@ -2514,7 +2513,7 @@ Redis cluster and view Redis commands in the Teleport audit log. We will be
 adding support for Amazon Elasticache in the coming weeks.
 
 [Self-hosted Redis
-guide](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/redis.mdx)
+guide](docs/pages/enroll-resources/database-access/enrollment/self-hosted/redis.mdx)
 
 #### SQL Server (Preview)
 
@@ -2523,7 +2522,7 @@ Directory authentication support for database access. Audit logging of query
 activity is not included in the preview release and will be implemented in a
 later 9.x release.
 
-[SQL Server guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad.mdx)
+[SQL Server guide](docs/pages/enroll-resources/database-access/enrollment/aws/rds/sql-server-ad.mdx)
 
 #### RDS MariaDB
 
@@ -2531,7 +2530,7 @@ Teleport 9 updates MariaDB support with auto-discovery and connection to AWS RDS
 MariaDB databases using IAM authentication. The minimum MariaDB version that
 supports IAM authentication is 10.6.
 
-[Updated RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
+[Updated RDS guide](docs/pages/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx)
 
 #### Other Improvements
 
@@ -2627,7 +2626,7 @@ without needing to update static YAML configuration or restart application or
 database agents.
 
 See dynamic registration guides for
-[apps](docs/pages/enroll-resources/application-access/guides/dynamic-registration.mdx)
+[apps](docs/pages/enroll-resources/application-access/configuration/dynamic-registration.mdx)
 and
 [databases](docs/pages/enroll-resources/database-access/guides/dynamic-registration.mdx).
 
@@ -2637,7 +2636,7 @@ With RDS auto discovery Teleport database agents can automatically discover RDS
 instances and Aurora clusters in an AWS account.
 
 See updated
-[RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx) for
+[RDS guide](docs/pages/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx) for
 more information.
 
 #### WebAuthn
@@ -2741,13 +2740,13 @@ Teleport 7.0 is a major release of Teleport that contains new features, improvem
 
 Added support for [MongoDB](https://www.mongodb.com) to Teleport database access. [#6600](https://github.com/gravitational/teleport/issues/6600).
 
-View the [database access with MongoDB](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted.mdx) for more details.
+View the [database access with MongoDB](docs/pages/enroll-resources/database-access/enrollment/self-hosted/mongodb-self-hosted.mdx) for more details.
 
 #### Cloud SQL MySQL
 
 Added support for [GCP Cloud SQL MySQL](https://cloud.google.com/sql/docs/mysql) to Teleport database access. [#7302](https://github.com/gravitational/teleport/pull/7302)
 
-View the Cloud SQL MySQL [guide](docs/pages/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql.mdx) for more details.
+View the Cloud SQL MySQL [guide](docs/pages/enroll-resources/database-access/enrollment/google-cloud/mysql-cloudsql.mdx) for more details.
 
 #### AWS Console
 
@@ -2810,7 +2809,7 @@ before upgrading.
 
 Added support for [Amazon Redshift](https://aws.amazon.com/redshift) to Teleport database access.[#6479](https://github.com/gravitational/teleport/pull/6479).
 
-View the [database access with Redshift on AWS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/postgres-redshift.mdx) for more details.
+View the [database access with Redshift on AWS guide](docs/pages/enroll-resources/database-access/enrollment/aws/postgres-redshift.mdx) for more details.
 
 ### Improvements
 
@@ -2966,10 +2965,10 @@ Configure database access following the [Getting Started](./docs/pages/enroll-re
 ##### Guides
 
 * [AWS RDS/Aurora
-  PostgreSQL](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
-* [AWS RDS/Aurora MySQL](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx)
-* [Self-hosted PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx)
-* [Self-hosted MySQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted.mdx)
+  PostgreSQL](docs/pages/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx)
+* [AWS RDS/Aurora MySQL](docs/pages/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx)
+* [Self-hosted PostgreSQL](docs/pages/enroll-resources/database-access/enrollment/self-hosted/postgres-self-hosted.mdx)
+* [Self-hosted MySQL](docs/pages/enroll-resources/database-access/enrollment/self-hosted/mysql-self-hosted.mdx)
 * [GUI clients](docs/pages/connect-your-client/third-party/gui-clients.mdx)
 
 ##### Resources
