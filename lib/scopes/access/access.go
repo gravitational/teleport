@@ -44,6 +44,12 @@ const (
 	// KindScopedToken is the kind of a scoped token resource.
 	KindScopedToken = "scoped_token"
 
+	// KindScopedAccessList is the kind of a scoped access list.
+	KindScopedAccessList = "scoped_access_list"
+
+	// KindScopedAccessListMember is the kind of a scoped access list member.
+	KindScopedAccessListMember = "scoped_access_list"
+
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
@@ -350,6 +356,157 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	if assignment.GetSpec().GetUser() == "" {
 		return trace.BadParameter("scoped role assignment %q is missing spec.user", assignment.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
+// WeakValidateAccessList validates an access list to ensure it is free of obvious issues that would render it unusable and/or
+// induce serious unintended behavior. Prefer using this function for validating access lists loaded from "internal" sources
+// (e.g. backend/control-plane), and [StrongValidateAccessList] for validating access lists loaded from "external" sources (e.g. user input).
+func WeakValidateAccessList(list *scopedaccessv1.ScopedAccessList) error {
+	if err := commonValidateAccessList(list); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := scopes.WeakValidate(list.GetScope()); err != nil {
+		return trace.BadParameter("scoped access list %q has invalid scope: %v", list.GetMetadata().GetName(), err)
+	}
+
+	for i, scopedRoleGrant := range list.GetSpec().GetGrants().GetScopedRoles() {
+		if err := scopes.WeakValidate(scopedRoleGrant.GetScope()); err != nil {
+			return trace.BadParameter("scoped access list %q has invalid scope in scoped role grant %d: %v", list.GetMetadata().GetName(), i, err)
+		}
+	}
+
+	return nil
+}
+
+// StrongValidateAccessList performs robust validation of an access list to ensure it complies with all expected constraints. Prefer
+// using this function for validating access lists loaded from "external" sources (e.g. user input), and [WeakValidateAccessList] for
+// validating access lists loaded from "internal" sources (e.g. backend/control-plane).
+func StrongValidateAccessList(list *scopedaccessv1.ScopedAccessList) error {
+	if err := commonValidateAccessList(list); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := scopes.StrongValidate(list.GetScope()); err != nil {
+		return trace.BadParameter("scoped access list %q has invalid scope: %v", list.GetMetadata().GetName(), err)
+	}
+
+	for i, scopedRoleGrant := range list.GetSpec().GetGrants().GetScopedRoles() {
+		if err := scopes.StrongValidate(scopedRoleGrant.GetScope()); err != nil {
+			return trace.BadParameter("scoped access list %q has invalid scope in scoped role grant %d: %v", list.GetMetadata().GetName(), i, err)
+		}
+		if err := validateRoleName(scopedRoleGrant.GetRole()); err != nil {
+			return trace.BadParameter("scoped access list %q has invalid role name in scoped role grant %d: %v", list.GetMetadata().GetName(), i, err)
+		}
+		if !scopes.PolicyAssignmentScope(scopedRoleGrant.GetScope()).IsSubjectToPolicyResourceScope(list.GetScope()) {
+			return trace.BadParameter("scoped access list %q assigns scoped role %q at scope %q, which is not a sub-scope of the access list's scope %q",
+				list.GetMetadata().GetName(), scopedRoleGrant.GetRole(), scopedRoleGrant.GetScope(), list.GetScope())
+		}
+	}
+
+	return nil
+}
+
+func commonValidateAccessList(list *scopedaccessv1.ScopedAccessList) error {
+	if list.GetMetadata().GetName() == "" {
+		return trace.BadParameter("scoped access list is missing metadata.name")
+	}
+
+	if list.GetKind() == "" {
+		return trace.BadParameter("scoped access list %q is missing kind", list.GetMetadata().GetName())
+	}
+
+	if list.GetKind() != KindScopedAccessList {
+		return trace.BadParameter("scoped access list %q has invalid kind %q, expected %q", list.GetMetadata().GetName(), list.GetKind(), KindScopedAccessList)
+	}
+
+	if list.GetSubKind() != "" {
+		return trace.BadParameter("scoped access list %q has unknown sub_kind %q", list.GetMetadata().GetName(), list.GetSubKind())
+	}
+
+	if list.GetVersion() == "" {
+		return trace.BadParameter("scoped access list %q is missing version", list.GetMetadata().GetName())
+	}
+
+	if list.GetVersion() != types.V1 {
+		return trace.BadParameter("scoped access list %q has unsupported version %q (expected %q)", list.GetMetadata().GetName(), list.GetVersion(), types.V1)
+	}
+
+	if list.GetScope() == "" {
+		return trace.BadParameter("scoped access list %q is missing scope", list.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
+// WeakValidateAccessListMember validates an access list member to ensure it is free of obvious issues that would render it unusable and/or
+// induce serious unintended behavior. Prefer using this function for validating access lists loaded from "internal" sources
+// (e.g. backend/control-plane), and [StrongValidateAccessListMember] for validating access list members loaded from "external" sources (e.g. user input).
+func WeakValidateAccessListMember(member *scopedaccessv1.ScopedAccessListMember) error {
+	if err := commonValidateAccessListMember(member); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := scopes.WeakValidate(member.GetScope()); err != nil {
+		return trace.BadParameter("scoped access list member %q has invalid scope: %v", member.GetMetadata().GetName(), err)
+	}
+
+	return nil
+}
+
+// StrongValidateAccessListMember performs robust validation of an access list member to ensure it complies with all expected constraints. Prefer
+// using this function for validating access lists loaded from "external" sources (e.g. user input), and [WeakValidateAccessListMember] for
+// validating access lists loaded from "internal" sources (e.g. backend/control-plane).
+func StrongValidateAccessListMember(member *scopedaccessv1.ScopedAccessListMember) error {
+	if err := commonValidateAccessListMember(member); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := scopes.StrongValidate(member.GetScope()); err != nil {
+		return trace.BadParameter("scoped access list member %q has invalid scope: %v", member.GetMetadata().GetName(), err)
+	}
+
+	return nil
+}
+
+func commonValidateAccessListMember(member *scopedaccessv1.ScopedAccessListMember) error {
+	if member.GetMetadata().GetName() == "" {
+		return trace.BadParameter("scoped access list member is missing metadata.name")
+	}
+
+	if member.GetKind() == "" {
+		return trace.BadParameter("scoped access list member %q is missing kind", member.GetMetadata().GetName())
+	}
+
+	if member.GetKind() != KindScopedAccessListMember {
+		return trace.BadParameter("scoped access list member %q has invalid kind %q, expected %q", member.GetMetadata().GetName(), member.GetKind(), KindScopedAccessListMember)
+	}
+
+	if member.GetSubKind() != "" {
+		return trace.BadParameter("scoped access list member %q has unknown sub_kind %q", member.GetMetadata().GetName(), member.GetSubKind())
+	}
+
+	if member.GetVersion() == "" {
+		return trace.BadParameter("scoped access list member %q is missing version", member.GetMetadata().GetName())
+	}
+
+	if member.GetVersion() != types.V1 {
+		return trace.BadParameter("scoped access list member %q has unsupported version %q (expected %q)", member.GetMetadata().GetName(), member.GetVersion(), types.V1)
+	}
+
+	if member.GetScope() == "" {
+		return trace.BadParameter("scoped access list member %q is missing scope", member.GetMetadata().GetName())
+	}
+
+	if member.GetSpec().GetAccessList() == "" {
+		return trace.BadParameter("scoped access list member %q is missing spec.access_list", member.GetMetadata().GetName())
+	}
+
+	if member.GetSpec().GetName() == "" {
+		return trace.BadParameter("scoped access list member %q is missing spec.name", member.GetMetadata().GetName())
 	}
 
 	return nil

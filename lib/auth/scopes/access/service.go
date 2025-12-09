@@ -527,3 +527,29 @@ func (s *Server) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.Updat
 
 	return s.cfg.Writer.UpdateScopedRole(ctx, req)
 }
+
+func (s *Server) CreateScopedAccessList(ctx context.Context, req *scopedaccessv1.CreateScopedAccessListRequest) (*scopedaccessv1.CreateScopedAccessListResponse, error) {
+	if err := scopes.AssertFeatureEnabled(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authzContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// build rule context for where-clause evaluation once to avoid re-creation
+	// on each decision invocation.
+	ruleCtx := authzContext.RuleContext()
+
+	if err := authzContext.CheckerContext.Decision(ctx, req.GetList().GetScope(), func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedAccessList, types.VerbCreate)
+	}); err != nil {
+		s.cfg.Logger.WarnContext(ctx, "user does not have permission to create scoped access lists in the requested scope",
+			"user", authzContext.User.GetName(),
+			"scope", req.GetList().GetScope())
+		return nil, trace.Wrap(err)
+	}
+
+	return s.cfg.Writer.CreateScopedAccessList(ctx, req)
+}

@@ -62,6 +62,7 @@ type CachedScopedAccessReader interface {
 type ScopedAccessWriter interface {
 	ScopedRoleWriter
 	ScopedRoleAssignmentWriter
+	ScopedAccessListWriter
 }
 
 // ScopedRoleReader provides an interface for reading scoped roles.
@@ -101,4 +102,10 @@ type ScopedRoleAssignmentWriter interface {
 
 	// DeleteScopedRoleAssignment deletes a scoped role assignment.
 	DeleteScopedRoleAssignment(context.Context, *scopedaccessv1.DeleteScopedRoleAssignmentRequest) (*scopedaccessv1.DeleteScopedRoleAssignmentResponse, error)
+}
+
+type ScopedAccessListWriter interface {
+	CreateScopedAccessList(context.Context, *scopedaccessv1.CreateScopedAccessListRequest) (*scopedaccessv1.CreateScopedAccessListResponse, error)
+	UpdateScopedAccessList(context.Context, *scopedaccessv1.UpdateScopedAccessListRequest) (*scopedaccessv1.UpdateScopedAccessListResponse, error)
+	DeleteScopedAccessList(context.Context, *scopedaccessv1.DeleteScopedAccessListRequest) (*scopedaccessv1.DeleteScopedAccessListResponse, error)
 }

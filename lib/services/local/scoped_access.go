@@ -62,6 +62,11 @@ const (
 	roleAssignmentLockComponent   = "role_lock"
 )
 
+const (
+	scopedAccessListPrefix       = "scoped_access_list"
+	scopedAccessListMemberPrefix = "scoped_access_list_member"
+)
+
 // ScopedAccessService manages backend state for the ScopedRole and ScopedRoleAssignment types.
 type ScopedAccessService struct {
 	bk     backend.Backend
@@ -726,6 +731,374 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 	return &scopedaccessv1.DeleteScopedRoleAssignmentResponse{}, nil
 }
 
+func (s *ScopedAccessService) CreateScopedAccessList(ctx context.Context, req *scopedaccessv1.CreateScopedAccessListRequest) (*scopedaccessv1.CreateScopedAccessListResponse, error) {
+	list := req.GetList()
+	if list == nil {
+		return nil, trace.BadParameter("missing scoped access list in create request")
+	}
+
+	if err := scopedaccess.StrongValidateAccessList(list); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	condacts, err := s.accessListGrantConditions(ctx, list)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := scopedAccessListToItem(list)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	condacts = append(condacts, backend.ConditionalAction{
+		Key:       scopedAccessListKey(list.GetMetadata().GetName()),
+		Condition: backend.NotExists(),
+		Action:    backend.Put(item),
+	})
+
+	revision, err := s.bk.AtomicWrite(ctx, condacts)
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.CompareFailed("scoped access list %q already exists or a granted role was concurrently modified", list.GetMetadata().GetName())
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedaccessv1.CreateScopedAccessListResponse{
+		List: scopedAccessListWithRevision(list, revision),
+	}, nil
+}
+
+func (s *ScopedAccessService) UpdateScopedAccessList(ctx context.Context, req *scopedaccessv1.UpdateScopedAccessListRequest) (*scopedaccessv1.UpdateScopedAccessListResponse, error) {
+	list := req.GetList()
+	if list == nil {
+		return nil, trace.BadParameter("missing scoped access list in update request")
+	}
+
+	if err := scopedaccess.StrongValidateAccessList(list); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	extant, err := s.GetScopedAccessList(ctx, &scopedaccessv1.GetScopedAccessListRequest{
+		Name: list.GetMetadata().GetName(),
+	})
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		return nil, trace.CompareFailed("scoped access list %q was deleted", list.GetMetadata().GetName())
+	}
+
+	if list.GetMetadata().GetRevision() != "" && list.GetMetadata().GetRevision() != extant.GetList().GetMetadata().GetRevision() {
+		return nil, trace.CompareFailed("scoped access list %q has been concurrently modified", list.GetMetadata().GetName())
+	}
+
+	// disallow change of resource scope via update. use of scopes.Compare directly is generally discouraged,
+	// but that is due to ease of misuse, which isn't really a concern for a simple equivalence check.
+	if scopes.Compare(list.GetScope(), extant.GetList().GetScope()) != scopes.Equivalent {
+		// XXX: the current implementation of our access-control logic relies upon this invarient being enforced. if we ever
+		// relax this restriction here we *must* first modify the outer access-control logic to understand the concept of
+		// scope changing and correctly validate the transition.
+		return nil, trace.BadParameter("cannot modify the resource scope of scoped access list %q (%q -> %q)", list.GetMetadata().GetName(), extant.GetList().GetScope(), list.GetScope())
+	}
+
+	condacts, err := s.accessListGrantConditions(ctx, list)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := scopedAccessListToItem(list)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	condacts = append(condacts, backend.ConditionalAction{
+		Key:       scopedAccessListKey(list.GetMetadata().GetName()),
+		Condition: backend.Revision(extant.GetList().GetMetadata().GetRevision()),
+		Action:    backend.Put(item),
+	})
+
+	revision, err := s.bk.AtomicWrite(ctx, condacts)
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.CompareFailed("scoped access list %q or a granted role was concurrently modified", list.GetMetadata().GetName())
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedaccessv1.UpdateScopedAccessListResponse{
+		List: scopedAccessListWithRevision(list, revision),
+	}, nil
+}
+
+func (s *ScopedAccessService) accessListGrantConditions(ctx context.Context, list *scopedaccessv1.ScopedAccessList) ([]backend.ConditionalAction, error) {
+	var condacts []backend.ConditionalAction
+	for _, scopedRoleGrant := range list.GetSpec().GetGrants().GetScopedRoles() {
+		resp, err := s.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+			Name: scopedRoleGrant.GetRole(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "verifying scoped role granted by scoped access list")
+		}
+		role := resp.GetRole()
+		if scopes.Compare(list.GetScope(), role.GetScope()) == scopes.Descendant {
+			return nil, trace.BadParameter("scoped access list %q in scope %q cannot assign role %q defined descendant scope %q",
+				list.GetMetadata().GetName(), list.GetScope(),
+				role.GetMetadata().GetName(), role.GetScope())
+		}
+		if !scopedaccess.RoleIsAssignableAtScope(role, scopedRoleGrant.GetScope()) {
+			return nil, trace.BadParameter("scoped role %s is not assignable at scope %s", role.GetMetadata().GetName(), scopedRoleGrant.GetScope())
+		}
+		// TODO(nklaassen): a ConditionalAction on every single role grant is
+		// probably too much, probably need to relax this.
+		condacts = append(condacts, backend.ConditionalAction{
+			Key:       scopedRoleKey(role.GetMetadata().GetName()),
+			Condition: backend.Revision(role.GetMetadata().GetRevision()),
+			Action:    backend.Nop(),
+		})
+	}
+	return condacts, nil
+}
+
+func (s *ScopedAccessService) GetScopedAccessList(ctx context.Context, req *scopedaccessv1.GetScopedAccessListRequest) (*scopedaccessv1.GetScopedAccessListResponse, error) {
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("missing scoped access list name in get request")
+	}
+
+	item, err := s.bk.Get(ctx, scopedAccessListKey(req.GetName()))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("scoped access list %q not found", req.GetName())
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	list, err := scopedAccessListFromItem(item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := scopedaccess.WeakValidateAccessList(list); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedaccessv1.GetScopedAccessListResponse{
+		List: list,
+	}, nil
+}
+
+// StreamScopedAccessLists returns a stream of all scoped access lists in the
+// backend. Malformed access lists are skipped. Returned access lists have had
+// weak validation applied.
+func (s *ScopedAccessService) StreamScopedAccessLists(ctx context.Context) stream.Stream[*scopedaccessv1.ScopedAccessList] {
+	return func(yield func(*scopedaccessv1.ScopedAccessList, error) bool) {
+		startKey := scopedAccessListKey("")
+		params := backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   backend.RangeEnd(startKey),
+		}
+
+		for item, err := range s.bk.Items(ctx, params) {
+			if err != nil {
+				// backend errors terminate the stream
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			list, err := scopedAccessListFromItem(&item)
+			if err != nil {
+				// per-list errors are logged and skipped
+				s.logger.WarnContext(ctx, "skipping scoped access list due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				continue
+			}
+
+			if err := scopedaccess.WeakValidateAccessList(list); err != nil {
+				// per-list errors are logged and skipped
+				s.logger.WarnContext(ctx, "skipping scoped access list due to validation error", "error", err, "key", logutils.StringerAttr(item.Key))
+				continue
+			}
+
+			if !yield(list, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (s *ScopedAccessService) DeleteScopedAccessList(ctx context.Context, req *scopedaccessv1.DeleteScopedAccessListRequest) (*scopedaccessv1.DeleteScopedAccessListResponse, error) {
+	listName := req.GetName()
+	if listName == "" {
+		return nil, trace.BadParameter("missing scoped access list name in delete request")
+	}
+
+	// TODO(nklaassen): make sure no memberships reference this list.
+
+	action := backend.ConditionalAction{
+		Key:       scopedAccessListKey(listName),
+		Condition: backend.Exists(),
+		Action:    backend.Delete(),
+	}
+	if rev := req.GetRevision(); rev != "" {
+		action.Condition = backend.Revision(rev)
+	}
+
+	if _, err := s.bk.AtomicWrite(ctx, []backend.ConditionalAction{action}); err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.CompareFailed("scoped access list %q has been concurrently modified and/or assigned", listName)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedaccessv1.DeleteScopedAccessListResponse{}, nil
+}
+
+func (s *ScopedAccessService) CreateScopedAccessListMember(ctx context.Context, req *scopedaccessv1.CreateScopedAccessListMemberRequest) (*scopedaccessv1.CreateScopedAccessListMemberResponse, error) {
+	member := req.GetMember()
+	if member == nil {
+		return nil, trace.BadParameter("missing scoped access list member in create request")
+	}
+
+	if err := scopedaccess.StrongValidateAccessListMember(member); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := s.GetScopedAccessList(ctx, &scopedaccessv1.GetScopedAccessListRequest{
+		Name: member.GetSpec().GetAccessList(),
+	})
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.BadParameter("scoped access list member %q references scoped access list %q which does not exist",
+				member.GetMetadata().GetName(), member.GetSpec().GetAccessList())
+		}
+		return nil, trace.Wrap(err)
+	}
+	list := listResp.GetList()
+
+	if scopes.Compare(list.GetScope(), member.GetScope()) != scopes.Equivalent {
+		return nil, trace.BadParameter("access list member %q is not in the same scope as access list %q",
+			member.GetMetadata().GetName(), list.GetMetadata().GetName())
+	}
+
+	condacts := []backend.ConditionalAction{
+		{
+			Key:       scopedAccessListKey(list.GetMetadata().GetName()),
+			Condition: backend.Revision(list.GetMetadata().GetRevision()),
+			Action:    backend.Nop(),
+		},
+	}
+
+	switch member.GetSpec().GetMembershipKind() {
+	case scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED, scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_USER:
+		// No validation for users, the user resource may not exist until login.
+	case scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_LIST:
+		assignedListResp, err := s.GetScopedAccessList(ctx, &scopedaccessv1.GetScopedAccessListRequest{
+			Name: member.GetSpec().GetName(),
+		})
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, trace.BadParameter("scoped access list member %q assigns scoped access list %q which does not exist",
+					member.GetMetadata().GetName(), member.GetSpec().GetName())
+			}
+			return nil, trace.Wrap(err)
+		}
+		assignedList := assignedListResp.GetList()
+		if scopes.Compare(list.GetScope(), assignedList.GetScope()) == scopes.Descendant {
+			return nil, trace.BadParameter("scoped access lists cannot have member lists defined in descendant scopes")
+		}
+		condacts = append(condacts, backend.ConditionalAction{
+			Key:       scopedAccessListKey(assignedList.GetMetadata().GetName()),
+			Condition: backend.Revision(assignedList.GetMetadata().GetRevision()),
+			Action:    backend.Nop(),
+		})
+	default:
+		return nil, trace.BadParameter("unhandled scoped access list membership kind %q", member.GetSpec().GetMembershipKind())
+	}
+
+	item, err := scopedAccessListMemberToItem(member)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	condacts = append(condacts, backend.ConditionalAction{
+		Key:       scopedAccessListMemberKey(member.GetMetadata().GetName()),
+		Condition: backend.NotExists(),
+		Action:    backend.Put(item),
+	})
+
+	revision, err := s.bk.AtomicWrite(ctx, condacts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedaccessv1.CreateScopedAccessListMemberResponse{
+		Member: scopedAccessListMemberWithRevision(member, revision),
+	}, nil
+}
+
+func (s *ScopedAccessService) GetScopedAccessListMember(ctx context.Context, req *scopedaccessv1.GetScopedAccessListMemberRequest) (*scopedaccessv1.GetScopedAccessListMemberResponse, error) {
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("missing scoped access list member name in get request")
+	}
+
+	item, err := s.bk.Get(ctx, scopedAccessListMemberKey(req.GetName()))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("scoped access list member %q not found", req.GetName())
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	member, err := scopedAccessListMemberFromItem(item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := scopedaccess.WeakValidateAccessListMember(member); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &scopedaccessv1.GetScopedAccessListMemberResponse{
+		Member: member,
+	}, nil
+}
+
+// StreamScopedAccessListMembers returns a stream of all scoped access list
+// members in the backend. Malformed access list members are skipped. Returned
+// access list members have had weak validation applied.
+func (s *ScopedAccessService) StreamScopedAccessListMembers(ctx context.Context) stream.Stream[*scopedaccessv1.ScopedAccessListMember] {
+	return func(yield func(*scopedaccessv1.ScopedAccessListMember, error) bool) {
+		startKey := scopedAccessListMemberKey("")
+		params := backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   backend.RangeEnd(startKey),
+		}
+
+		for item, err := range s.bk.Items(ctx, params) {
+			if err != nil {
+				// backend errors terminate the stream
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			member, err := scopedAccessListMemberFromItem(&item)
+			if err != nil {
+				// per-member errors are logged and skipped
+				s.logger.WarnContext(ctx, "skipping scoped access list member due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+				continue
+			}
+
+			if err := scopedaccess.WeakValidateAccessListMember(member); err != nil {
+				// per-list errors are logged and skipped
+				s.logger.WarnContext(ctx, "skipping scoped access list due to validation error", "error", err, "key", logutils.StringerAttr(item.Key))
+				continue
+			}
+
+			if !yield(member, nil) {
+				return
+			}
+		}
+	}
+}
+
 func scopedRoleKey(roleName string) backend.Key {
 	return backend.NewKey(scopedRolePrefix, scopedRoleRoleComponent, roleName)
 }
@@ -748,6 +1121,14 @@ func userAssignmentLockKey(username string) backend.Key {
 
 func roleAssignmentLockKey(roleName string) backend.Key {
 	return backend.NewKey(scopedRolePrefix, roleAssignmentLockComponent, roleName)
+}
+
+func scopedAccessListKey(name string) backend.Key {
+	return backend.NewKey(scopedAccessListPrefix, name)
+}
+
+func scopedAccessListMemberKey(name string) backend.Key {
+	return backend.NewKey(scopedAccessListMemberPrefix, name)
 }
 
 // newUserAssignmentLockVal generates a new user assignment lock value for the specified username. A random
@@ -835,6 +1216,78 @@ func scopedRoleAssignmentToItem(assignment *scopedaccessv1.ScopedRoleAssignment)
 	}, nil
 }
 
+func scopedAccessListFromItem(item *backend.Item) (*scopedaccessv1.ScopedAccessList, error) {
+	var list scopedaccessv1.ScopedAccessList
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(item.Value, &list); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if list.GetMetadata() == nil {
+		return nil, trace.BadParameter("access list at %q is critically malformed (missing metadata)", item.Key)
+	}
+
+	list.Metadata.Revision = item.Revision
+	list.Metadata.Expires = utils.TimeIntoProto(item.Expires)
+	return &list, nil
+}
+
+func scopedAccessListToItem(list *scopedaccessv1.ScopedAccessList) (backend.Item, error) {
+	if list.GetMetadata() == nil {
+		return backend.Item{}, trace.BadParameter("missing metadata in scoped access list")
+	}
+
+	if list.GetMetadata().Expires != nil {
+		return backend.Item{}, trace.BadParameter("scoped access lists do not support expiration")
+	}
+
+	data, err := protojson.Marshal(list)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	return backend.Item{
+		Key:      scopedAccessListKey(list.GetMetadata().GetName()),
+		Value:    data,
+		Revision: list.GetMetadata().GetRevision(),
+	}, nil
+}
+
+func scopedAccessListMemberFromItem(item *backend.Item) (*scopedaccessv1.ScopedAccessListMember, error) {
+	var member scopedaccessv1.ScopedAccessListMember
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(item.Value, &member); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if member.GetMetadata() == nil {
+		return nil, trace.BadParameter("access list member at %q is critically malformed (missing metadata)", item.Key)
+	}
+
+	member.Metadata.Revision = item.Revision
+	member.Metadata.Expires = utils.TimeIntoProto(item.Expires)
+	return &member, nil
+}
+
+func scopedAccessListMemberToItem(member *scopedaccessv1.ScopedAccessListMember) (backend.Item, error) {
+	if member.GetMetadata() == nil {
+		return backend.Item{}, trace.BadParameter("missing metadata in scoped access list member")
+	}
+
+	if member.GetMetadata().Expires != nil {
+		return backend.Item{}, trace.BadParameter("scoped access list members do not support expiration")
+	}
+
+	data, err := protojson.Marshal(member)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	return backend.Item{
+		Key:      scopedAccessListMemberKey(member.GetMetadata().GetName()),
+		Value:    data,
+		Revision: member.GetMetadata().GetRevision(),
+	}, nil
+}
+
 // scopedRoleWithRevision creates a copy of the provided role with an updated revision.
 func scopedRoleWithRevision(role *scopedaccessv1.ScopedRole, revision string) *scopedaccessv1.ScopedRole {
 	role = apiutils.CloneProtoMsg(role)
@@ -842,9 +1295,23 @@ func scopedRoleWithRevision(role *scopedaccessv1.ScopedRole, revision string) *s
 	return role
 }
 
-// scopedRoleAssignmentWithRevision creates a shallow copy of the provided assignment with an updated revision.
+// scopedRoleAssignmentWithRevision creates a copy of the provided assignment with an updated revision.
 func scopedRoleAssignmentWithRevision(assignment *scopedaccessv1.ScopedRoleAssignment, revision string) *scopedaccessv1.ScopedRoleAssignment {
 	assignment = apiutils.CloneProtoMsg(assignment)
 	assignment.Metadata.Revision = revision
 	return assignment
+}
+
+// scopedAccessListWithRevision creates a copy of the provided access list with an updated revision.
+func scopedAccessListWithRevision(list *scopedaccessv1.ScopedAccessList, revision string) *scopedaccessv1.ScopedAccessList {
+	list = apiutils.CloneProtoMsg(list)
+	list.Metadata.Revision = revision
+	return list
+}
+
+// scopedAccessListMemberWithRevision creates a copy of the provided access list with an updated revision.
+func scopedAccessListMemberWithRevision(member *scopedaccessv1.ScopedAccessListMember, revision string) *scopedaccessv1.ScopedAccessListMember {
+	member = apiutils.CloneProtoMsg(member)
+	member.Metadata.Revision = revision
+	return member
 }
