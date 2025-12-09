@@ -9080,20 +9080,32 @@ message AWSOrganizationMatcher {
 
   // OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
   AWSOrganizationUnitsMatcher OrganizationalUnits = 2 [(gogoproto.jsontag) = "organizational_units,omitempty"];
+
+  // IAM contains the AWS IAM configuration to assume roles in target accounts.
+  AWSIAMAssumeRole IAM = 3 [(gogoproto.jsontag) = "iam,omitempty"];
 }
 
 // AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
 // Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
 message AWSOrganizationUnitsMatcher {
-  // Include is a list of AWS Organizational Unit IDs to match.
+  // Include is a list of AWS Organizational Unit IDs and children OUs to match.
   // Only exact matches or wildcard (*) are supported.
-  // If empty, all Organizational Units are included by default.
+  // Required.
   repeated string Include = 1 [(gogoproto.jsontag) = "include,omitempty"];
 
-  // Exclude is a list of AWS Organizational Unit IDs to exclude.
+  // Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
   // Only exact matches or wildcard (*) are supported.
-  // If empty, no Organizational Units are excluded by default.
+  // All excluded OUs, and their children, will be excluded, even if they were included.
+  // If empty, no OUs are excluded.
   repeated string Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
+}
+
+// AWSIAMAssumeRole contains the IAM role information to assume roles in an account.
+message AWSIAMAssumeRole {
+  // RoleName is the role name to assume in the target account.
+  string RoleName = 1 [(gogoproto.jsontag) = "role_name,omitempty"];
+  // ExternalID is the external ID to use when assuming the role.
+  string ExternalID = 2 [(gogoproto.jsontag) = "external_id,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role

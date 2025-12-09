@@ -26,8 +26,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/gravitational/trace"
+)
 
-	"github.com/gravitational/teleport/api/types"
+const (
+	allOrganizationalUnits = "*"
 )
 
 // RequiredAPIs lists the AWS Organizations APIs required by MatchingAccounts.
@@ -78,14 +80,14 @@ func (m *MatchingAccountsFilter) checkAndSetDefaults() error {
 	}
 
 	if len(m.IncludeOUs) == 0 {
-		m.IncludeOUs = []string{types.Wildcard}
+		return trace.BadParameter("at least one Organizational Unit must be included")
 	}
 
-	if len(m.IncludeOUs) > 1 && slices.Contains(m.IncludeOUs, types.Wildcard) {
+	if len(m.IncludeOUs) > 1 && slices.Contains(m.IncludeOUs, allOrganizationalUnits) {
 		return trace.BadParameter("IncludeOUs cannot contain '*' along with other OU IDs")
 	}
 
-	if len(m.ExcludeOUs) > 1 && slices.Contains(m.ExcludeOUs, types.Wildcard) {
+	if len(m.ExcludeOUs) > 1 && slices.Contains(m.ExcludeOUs, allOrganizationalUnits) {
 		return trace.BadParameter("ExcludeOUs cannot contain '*' along with other OU IDs")
 	}
 
@@ -93,11 +95,11 @@ func (m *MatchingAccountsFilter) checkAndSetDefaults() error {
 }
 
 func (m *MatchingAccountsFilter) isIncludeNothing() bool {
-	return len(m.ExcludeOUs) == 1 && m.ExcludeOUs[0] == types.Wildcard
+	return len(m.ExcludeOUs) == 1 && m.ExcludeOUs[0] == allOrganizationalUnits
 }
 
 func (m *MatchingAccountsFilter) isIncludeAll() bool {
-	return len(m.ExcludeOUs) == 0 && (len(m.IncludeOUs) == 0 || (len(m.IncludeOUs) == 1 && m.IncludeOUs[0] == types.Wildcard))
+	return len(m.ExcludeOUs) == 0 && (len(m.IncludeOUs) == 0 || (len(m.IncludeOUs) == 1 && m.IncludeOUs[0] == allOrganizationalUnits))
 }
 
 // MatchingAccounts returns the list of account IDs that are part of the organization and match the filter.
@@ -123,7 +125,7 @@ func MatchingAccounts(ctx context.Context, orgsClient OrganizationsClient, filte
 	}
 
 	// Then: iterate over the tree and collect the included accounts.
-	includeEverything := len(filter.IncludeOUs) == 0 || filter.IncludeOUs[0] == types.Wildcard
+	includeEverything := len(filter.IncludeOUs) == 0 || filter.IncludeOUs[0] == allOrganizationalUnits
 	return collectIncludedAccounts(orgTree, filter.IncludeOUs, includeEverything), nil
 }
 

@@ -297,7 +297,8 @@ func deriveTeleportEqual_19(this, that *types.AWSOrganizationMatcher) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.OrganizationID == that.OrganizationID &&
-			deriveTeleportEqual_24(this.OrganizationalUnits, that.OrganizationalUnits)
+			deriveTeleportEqual_24(this.OrganizationalUnits, that.OrganizationalUnits) &&
+			deriveTeleportEqual_25(this.IAM, that.IAM)
 }
 
 // deriveTeleportEqual_20 returns whether this and that are equal.
@@ -307,8 +308,8 @@ func deriveTeleportEqual_20(this, that *types.AccessGraphAWSSync) bool {
 			deriveTeleportEqual_14(this.Regions, that.Regions) &&
 			deriveTeleportEqual_15(this.AssumeRole, that.AssumeRole) &&
 			this.Integration == that.Integration &&
-			deriveTeleportEqual_25(this.CloudTrailLogs, that.CloudTrailLogs) &&
-			deriveTeleportEqual_26(this.EksAuditLogs, that.EksAuditLogs)
+			deriveTeleportEqual_26(this.CloudTrailLogs, that.CloudTrailLogs) &&
+			deriveTeleportEqual_27(this.EksAuditLogs, that.EksAuditLogs)
 }
 
 // deriveTeleportEqual_21 returns whether this and that are equal.
@@ -344,15 +345,23 @@ func deriveTeleportEqual_24(this, that *types.AWSOrganizationUnitsMatcher) bool 
 }
 
 // deriveTeleportEqual_25 returns whether this and that are equal.
-func deriveTeleportEqual_25(this, that *types.AccessGraphAWSSyncCloudTrailLogs) bool {
+func deriveTeleportEqual_25(this, that *types.AWSIAMAssumeRole) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.RoleName == that.RoleName &&
+			this.ExternalID == that.ExternalID
+}
+
+// deriveTeleportEqual_26 returns whether this and that are equal.
+func deriveTeleportEqual_26(this, that *types.AccessGraphAWSSyncCloudTrailLogs) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.Region == that.Region &&
 			this.SQSQueue == that.SQSQueue
 }
 
-// deriveTeleportEqual_26 returns whether this and that are equal.
-func deriveTeleportEqual_26(this, that *types.AccessGraphAWSSyncEKSAuditLogs) bool {
+// deriveTeleportEqual_27 returns whether this and that are equal.
+func deriveTeleportEqual_27(this, that *types.AccessGraphAWSSyncEKSAuditLogs) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			deriveTeleportEqual_16(this.Tags, that.Tags)

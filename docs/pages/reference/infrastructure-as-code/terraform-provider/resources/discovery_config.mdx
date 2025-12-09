@@ -252,15 +252,24 @@ Optional:
 
 Optional:
 
+- `iam` (Attributes) IAM contains the AWS IAM configuration to assume roles in target accounts. (see [below for nested schema](#nested-schema-for-specawsorganizationiam))
 - `organization_id` (String) OrganizationID is the AWS Organization ID to match against. Required.
 - `organizational_units` (Attributes) OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units. (see [below for nested schema](#nested-schema-for-specawsorganizationorganizational_units))
+
+### Nested Schema for `spec.aws.organization.iam`
+
+Optional:
+
+- `external_id` (String) ExternalID is the external ID to use when assuming the role.
+- `role_name` (String) RoleName is the role name to assume in the target account.
+
 
 ### Nested Schema for `spec.aws.organization.organizational_units`
 
 Optional:
 
-- `exclude` (List of String) Exclude is a list of AWS Organizational Unit IDs to exclude. Only exact matches or wildcard (*) are supported. If empty, no Organizational Units are excluded by default.
-- `include` (List of String) Include is a list of AWS Organizational Unit IDs to match. Only exact matches or wildcard (*) are supported. If empty, all Organizational Units are included by default.
+- `exclude` (List of String) Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Only exact matches or wildcard (*) are supported. All excluded OUs, and their children, will be excluded, even if they were included. If empty, no OUs are excluded.
+- `include` (List of String) Include is a list of AWS Organizational Unit IDs and children OUs to match. Only exact matches or wildcard (*) are supported. Required.
 
 
 

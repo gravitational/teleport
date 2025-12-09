@@ -442,9 +442,9 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
 					Include: []string{types.Wildcard},
 				},
-			},
-			AssumeRole: &types.AssumeRole{
-				RoleARN: "MyRole",
+				IAM: &types.AWSIAMAssumeRole{
+					RoleName: "MyRole",
+				},
 			},
 		},
 	}
