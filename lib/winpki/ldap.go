@@ -184,6 +184,8 @@ func convertLDAPError(err error) error {
 
 // GetActiveDirectorySIDAndDN makes an LDAP query to retrieve the security identifier (SID)
 // for the specified Active Directory user. It also returns their distinguished name.
+// The provided username can be a plain username "bob", or a full UPN like
+// "alice@example.com".
 func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username string) (string, string, error) {
 	domain := l.cfg.Domain
 	if strings.Contains(username, "@") {
