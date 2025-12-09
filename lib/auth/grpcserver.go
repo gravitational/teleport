@@ -6433,7 +6433,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	decisionpb.RegisterDecisionServiceServer(server, decisionService)
 
-	mfaService, err := mfav1.NewService(mfav1.ServiceConfig{})
+	mfaService, err := mfav1.NewService(mfav1.ServiceConfig{
+		AuthServer: cfg.AuthServer,
+		Cache:      cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+		Identity:   cfg.AuthServer.Identity,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

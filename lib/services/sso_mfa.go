@@ -18,7 +18,10 @@
 
 package services
 
-import "github.com/gravitational/teleport/lib/auth/mfatypes"
+import (
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
+)
 
 // SSOMFASessionData SSO MFA Session data.
 type SSOMFASessionData struct {
@@ -35,4 +38,6 @@ type SSOMFASessionData struct {
 	ConnectorType string `json:"connector_type,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this SSO MFA session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions"`
+	// Payload is an optional session identifying value that uniquely identifies the user's session.
+	Payload *mfav1.SessionIdentifyingPayload `json:"payload,omitempty"`
 }

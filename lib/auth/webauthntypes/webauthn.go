@@ -27,6 +27,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 )
 
@@ -406,6 +407,8 @@ type SessionData struct {
 	UserVerification string `json:"userVerification,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this webauthn session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions,omitempty"`
+	// Payload is an optional session identifying payload that uniquely identifies the user's session.
+	Payload *mfav1.SessionIdentifyingPayload `json:"payload,omitempty"`
 }
 
 // SessionDataFromProtocol converts a [webauthn.SessionData] struct to an
