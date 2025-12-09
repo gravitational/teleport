@@ -377,8 +377,7 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 			Logger:   l.cfg.Logger,
 		}
 		if conn, err := cfg.createConnection(ctx, l.credentials); err == nil {
-			// Cut the initial slash from the path
-			req.BaseDN = referralURL.Path[1:]
+			req.BaseDN = strings.TrimPrefix(referralURL.Path, "/")
 			entries, newReferrals, err := l.search(ctx, conn, req)
 			if err != nil {
 				l.cfg.Logger.DebugContext(ctx, "LDAP search failed", "referral", referrals[i], "error", err)
