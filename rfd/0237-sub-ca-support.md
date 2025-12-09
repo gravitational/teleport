@@ -186,9 +186,18 @@ Creating a new override automatically generates the corresponding empty CRL.
 package teleport.subca.v1;
 
 message CertAuthorityOverride {
-  teleport.header.v1.ResourceHeader header = 1;
-  CertAuthorityOverrideSpec spec = 2;
-  CertAuthorityOverrideStatus status = 3;
+  // Kind is "cert_authority_override"
+  string kind = 1;
+  // Sub kind not supported.
+  string sub_kind = 2;
+  // Version is "v1".
+  string version = 3;
+  // Metadata for the resource.
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec for the resource.
+  CertAuthorityOverrideSpec spec = 5;
+  // Dynamic state for the resource.
+  CertAuthorityOverrideStatus status = 7;
 }
 
 message CertAuthorityOverrideSpec {
