@@ -21,7 +21,7 @@ syntax = "proto3";
 package teleport.desktop.v1;
 
 import "google/protobuf/descriptor.proto";
-import "teleport/legacy/client/proto/authservice.proto";
+import "teleport/mfa/v1/challenge.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1";
 
@@ -202,8 +202,9 @@ enum MFAType {
 message MFA {
   option (tdp_type_option) = MESSAGE_TYPE_MFA;
   MFAType type = 1;
-  proto.MFAAuthenticateChallenge challenge = 2;
-  proto.MFAAuthenticateResponse authentication_response = 3;
+  string channel_id = 2;
+  mfa.v1.AuthenticateChallenge challenge = 3;
+  mfa.v1.AuthenticateResponse authentication_response = 4;
 }
 
 // Sent by client to announce a new shared directory.
@@ -231,8 +232,6 @@ enum DirectoryOperation {
   DIRECTORY_OPERATION_WRITE = 6;
   DIRECTORY_OPERATION_MOVE = 7;
   DIRECTORY_OPERATION_TRUNCATE = 8;
-  DIRECTORY_OPERATION_ANNOUNCE = 9;
-  DIRECTORY_OPERATION_ACKNOWLEDGE = 10;
 }
 
 // Contains data necessary for shared directory operations.
@@ -268,13 +267,17 @@ message SharedDirectoryRequest {
 // Not all operation types make use of all fields.
 message SharedDirectoryResponse {
   option (tdp_type_option) = MESSAGE_TYPE_SHARED_DIRECTORY_RESPONSE;
+  // Operation type
+  DirectoryOperation operation_code = 1;
   // Common response fields
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
+  uint32 completion_id = 2;
+  uint32 error_code = 3;
   // Returned FileSystemObject(s) for INFO and LIST responses.
-  repeated FileSystemObject fso_list = 3;
+  repeated FileSystemObject fso_list = 4;
   // Data returned in READ responses.
-  bytes data = 4;
+  bytes data = 5;
+  // Returned in WRITE responses.
+  uint32 bytes_written = 6;
 }
 
 // Represents a file object in a shared directory.
