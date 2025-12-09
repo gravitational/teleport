@@ -2166,7 +2166,7 @@ message AuthAttempt {
     (gogoproto.jsontag) = ""
   ];
 
-  // App is a common application resource metadata.
+  // App hold information about the target application.
   AppMetadata App = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
