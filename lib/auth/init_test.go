@@ -136,7 +136,7 @@ func TestBadIdentity(t *testing.T) {
 
 	// bad cert type
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, pub)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// missing authority domain
 	cert, err := a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -153,7 +153,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// missing host uuid
 	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -170,7 +170,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// unrecognized role
 	cert, err = a.GenerateHostCert(sshca.HostCertificateRequest{
@@ -187,7 +187,7 @@ func TestBadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {

@@ -83,5 +83,5 @@ func TestOptionFile(t *testing.T) {
 
 	_, err = optionFile.Env(profile.Name)
 	require.Error(t, err)
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }

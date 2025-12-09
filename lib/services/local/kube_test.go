@@ -99,11 +99,11 @@ func TestKubernetesCRUD(t *testing.T) {
 
 	// Try to fetch a Kubernetes that doesn't exist.
 	_, err = service.GetKubernetesCluster(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Try to create the same Kubernetes.
 	err = service.CreateKubernetesCluster(ctx, kubeCluster1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
 
 	// Update a Kubernetes.
 	kubeCluster1.Metadata.Description = "description"
@@ -124,7 +124,7 @@ func TestKubernetesCRUD(t *testing.T) {
 
 	// Try to delete a Kubernetes that doesn't exist.
 	err = service.DeleteKubernetesCluster(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all Kubernetess.
 	err = service.DeleteAllKubernetesClusters(ctx)

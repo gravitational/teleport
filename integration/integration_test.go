@@ -2456,7 +2456,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	require.NoError(t, a.StopAuth(false))
 	err = tc.SSH(ctx, cmd)
-	require.IsType(t, err, trace.ConnectionProblem(nil, ""))
+	require.ErrorAs(t, err, new(*trace.ConnectionProblemError))
 
 	// Reset and start "Site-A" again
 	a.Config.FileDescriptors = aFdCache

@@ -1384,7 +1384,6 @@ func TestParseCachePolicy(t *testing.T) {
 	tcs := []struct {
 		in  *CachePolicy
 		out *servicecfg.CachePolicy
-		err error
 	}{
 		{in: &CachePolicy{EnabledFlag: "yes", TTL: "never"}, out: &servicecfg.CachePolicy{Enabled: true}},
 		{in: &CachePolicy{EnabledFlag: "true", TTL: "10h"}, out: &servicecfg.CachePolicy{Enabled: true}},
@@ -1395,12 +1394,8 @@ func TestParseCachePolicy(t *testing.T) {
 	for i, tc := range tcs {
 		comment := fmt.Sprintf("test case #%v", i)
 		out, err := tc.in.Parse()
-		if tc.err != nil {
-			require.IsType(t, tc.err, err, comment)
-		} else {
-			require.NoError(t, err, comment)
-			require.Equal(t, out, tc.out, comment)
-		}
+		require.NoError(t, err, comment)
+		require.Equal(t, out, tc.out, comment)
 	}
 }
 

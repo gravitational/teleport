@@ -37,7 +37,7 @@ func TestLicenseUnmarshal(t *testing.T) {
 		description string
 		input       string
 		expected    types.License
-		err         error
+		err         any
 	}
 	testCases := []testCase{
 		{
@@ -91,12 +91,12 @@ func TestLicenseUnmarshal(t *testing.T) {
 		{
 			description: "failed validation - unknown version",
 			input:       `{"kind": "license", "version": "v2", "metadata": {"name": "license"}, "spec": {"usage": "yes", "k8s": "yes", "aws_account": "123", "aws_pid": "4"}}`,
-			err:         trace.BadParameter(""),
+			err:         &trace.BadParameterError{},
 		},
 		{
 			description: "failed validation, bad types",
 			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"usage": 1, "k8s": "yes", "aws_account": 14, "aws_pid": "4"}}`,
-			err:         trace.BadParameter(""),
+			err:         &trace.BadParameterError{},
 		},
 	}
 	for _, tc := range testCases {
@@ -111,7 +111,7 @@ func TestLicenseUnmarshal(t *testing.T) {
 			require.NoError(t, err, comment)
 			require.Empty(t, cmp.Diff(tc.expected, out2))
 		} else {
-			require.IsType(t, err, tc.err, comment)
+			require.ErrorAs(t, err, &tc.err, comment)
 		}
 	}
 }
