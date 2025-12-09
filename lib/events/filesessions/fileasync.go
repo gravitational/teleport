@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -75,6 +76,10 @@ type UploaderConfig struct {
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
 	// If set to 0, then no maximum is enforced.
 	EncryptedRecordingUploadMaxSize int
+	// ServerID is the id of the audit log server, for logging.
+	ServerID string
+	// AlertHandler handles creating cluster alerts.
+	AlertHandler events.AlertHandler
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -207,6 +212,7 @@ func (u *Uploader) Serve(ctx context.Context) error {
 	defer u.wg.Done()
 
 	u.log.InfoContext(ctx, "uploader server ready", "scan_dir", u.cfg.ScanDir, "scan_period", u.cfg.ScanPeriod.String())
+	go u.periodicSpaceMonitor(ctx)
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  u.cfg.InitialScanDelay,
 		Step:   u.cfg.ScanPeriod,
@@ -254,6 +260,53 @@ func (u *Uploader) Serve(ctx context.Context) error {
 					u.log.WarnContext(ctx, "Uploader scan failed, applying backoff before retrying", "backoff", backoff.Duration(), "error", err)
 				}
 			}
+		}
+	}
+}
+
+// periodicSpaceMonitor run forever monitoring how much disk space has been
+// used on disk.
+func (u *Uploader) periodicSpaceMonitor(ctx context.Context) {
+	ticker := time.NewTicker(events.DiskAlertInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Find out what percentage of disk space is used. If the syscall fails,
+			// emit that to prometheus as well.
+			usedPercent, err := utils.PercentUsed(u.cfg.ScanDir)
+			if err != nil {
+				u.log.WarnContext(ctx, "Disk space monitoring failed", "error", err)
+				continue
+			}
+
+			// If used percentage goes above the alerting level, write to logs as well.
+			if usedPercent > float64(events.DiskAlertThreshold) {
+				u.log.WarnContext(ctx, "Free disk space for audit log is running low", "percentage_used", usedPercent)
+				if u.cfg.AlertHandler != nil {
+					alert, err := types.NewClusterAlert(
+						"audit-log-disk-usage/"+u.cfg.ServerID,
+						fmt.Sprintf(
+							"Available disk space for audit logs on node %q is running low (%.2f%% remaining). "+
+								"Increase disk space or clean up old logs to avoid service disruption.",
+							u.cfg.ServerID, 100-usedPercent,
+						),
+						types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindInstance, types.VerbRead)),
+						types.WithAlertLabel(types.AlertOnLogin, "yes"),
+						types.WithAlertExpires(u.cfg.Clock.Now().Add(events.DiskAlertInterval)),
+					)
+					if err != nil {
+						u.log.WarnContext(ctx, "Error creating disk usage alert", "error", err)
+						continue
+					}
+					if err := u.cfg.AlertHandler.UpsertClusterAlert(ctx, alert); err != nil {
+						u.log.WarnContext(ctx, "Error upserting cluster alert", "error", err)
+					}
+				}
+			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }

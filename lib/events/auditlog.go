@@ -104,7 +104,7 @@ const (
 	DiskAlertThreshold = 90
 
 	// DiskAlertInterval is disk space check interval.
-	DiskAlertInterval = 5 * time.Minute
+	DiskAlertInterval = 30 * time.Minute
 
 	// InactivityFlushPeriod is a period of inactivity
 	// that triggers upload of the data - flush.
@@ -814,7 +814,11 @@ func (l *AuditLog) periodicSpaceMonitor() {
 				if l.AlertHandler != nil {
 					alert, err := types.NewClusterAlert(
 						"audit-log-disk-usage",
-						"Free disk space for audit log is running low.",
+						fmt.Sprintf(
+							"Available disk space for audit logs on auth server is running low (%.2f%% remaining). "+
+								"Increase disk space or clean up old logs to avoid service disruption.",
+							100-usedPercent,
+						),
 						types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindInstance, types.VerbRead)),
 						types.WithAlertLabel(types.AlertOnLogin, "yes"),
 						types.WithAlertExpires(l.Clock.Now().Add(DiskAlertInterval)),

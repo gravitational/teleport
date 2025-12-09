@@ -867,7 +867,11 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 
 func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV6 {
 	base := roleSpecForProxy(clusterName)
-	base.Allow.Rules = append(base.Allow.Rules, types.NewRule(types.KindHostCert, services.RW()))
+	base.Allow.Rules = append(
+		base.Allow.Rules,
+		types.NewRule(types.KindHostCert, services.RW()),
+		types.NewRule(types.KindClusterAlert, []string{types.VerbCreate, types.VerbUpdate}),
+	)
 	return base
 }
 
@@ -1039,6 +1043,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						// access decisions for the given node specifically. this verb grant will need to
 						// be revisited as part of that work.
 						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
+						types.NewRule(types.KindClusterAlert, []string{types.VerbCreate, types.VerbUpdate}),
 					},
 				},
 			})
@@ -1068,6 +1073,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindClusterAlert, []string{types.VerbCreate, types.VerbUpdate}),
 					},
 				},
 			})
@@ -1102,6 +1108,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
 						types.NewRule(types.KindDatabaseObject, services.RW()),
 						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+						types.NewRule(types.KindClusterAlert, []string{types.VerbCreate, types.VerbUpdate}),
 					},
 				},
 			})
@@ -1226,6 +1233,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+						types.NewRule(types.KindClusterAlert, []string{types.VerbCreate, types.VerbUpdate}),
 					},
 				},
 			})
@@ -1251,6 +1259,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
 						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
+						types.NewRule(types.KindClusterAlert, []string{types.VerbCreate, types.VerbUpdate}),
 					},
 				},
 			})

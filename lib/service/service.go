@@ -3759,6 +3759,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		events.Streamer
 		events.AuditLogSessionStreamer
 		services.SessionTrackerService
+		events.AlertHandler
 	}
 
 	// use the local auth server for uploads if auth happens to be
@@ -3832,6 +3833,10 @@ func (process *TeleportProcess) initUploaderService() error {
 
 	uploadsDir := filepath.Join(paths[0]...)
 	corruptedDir := filepath.Join(paths[1]...)
+	hostUUID, err := process.storage.ReadOrGenerateHostID(process.ExitContext(), process.Config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		Streamer:                        uploaderClient,
@@ -3841,6 +3846,8 @@ func (process *TeleportProcess) initUploaderService() error {
 		InitialScanDelay:                15 * time.Second,
 		EncryptedRecordingUploader:      uploaderClient,
 		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
+		ServerID:                        hostUUID,
+		AlertHandler:                    uploaderClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)
