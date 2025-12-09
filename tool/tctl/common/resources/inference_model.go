@@ -84,7 +84,7 @@ func inferenceModelHandler() Handler {
 		deleteHandler: deleteInferenceModel,
 		singleton:     false,
 		mfaRequired:   false,
-		description:   "Inference Model",
+		description:   "Specifies a session summarization inference model configuration",
 	}
 }
 

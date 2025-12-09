@@ -44,6 +44,9 @@ computed_fields:
   - 'DiscoveryConfig.header.metadata.revision'
   - 'DiscoveryConfig.header.kind'
   - 'DiscoveryConfig.header.sub_kind'
+  - 'DiscoveryConfig.spec.azure.Params'
+  - 'DiscoveryConfig.spec.azure.Params.ScriptName'
+  - 'DiscoveryConfig.spec.azure.Params.Azure'
 
 # These fields will be marked as Required: true
 required_fields:
@@ -52,6 +55,9 @@ required_fields:
   - 'DiscoveryConfig.header.metadata.name'
   - 'DiscoveryConfig.header.version'
   - 'DiscoveryConfig.spec'
+  - 'DiscoveryConfig.spec.azure.Params.Azure.ClientID'
+  - 'DiscoveryConfig.spec.azure.Params.JoinToken'
+  - 'DiscoveryConfig.spec.azure.Params.JoinMethod'
 
 plan_modifiers:
   # Force to recreate resource if it's name changes

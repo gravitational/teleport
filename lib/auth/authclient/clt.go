@@ -1435,6 +1435,14 @@ type ForwardedClientMetadata struct {
 	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
 	// in proxy peering mode.
 	ProxyGroupID string `json:"proxy_group_id,omitempty"`
+	// MaxTouchPoints indicates whether the client device supports touch controls. It is reported by
+	// JavaScript in the browser and sent by the frontend app through the Max-Touch-Points header. It
+	// differentiates iPadOS from macOS since they both use the same user agent otherwise. This
+	// information is needed to decide whether to show the Device Trust prompt in the Web UI after a
+	// successful login.
+	//
+	// Available only in select endpoints which lead to the Device Trust prompt in the Web UI.
+	MaxTouchPoints int `json:"max_touch_points,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -1606,7 +1614,9 @@ type ClientI interface {
 	services.Notifications
 	services.VnetConfigGetter
 	services.HealthCheckConfig
+	services.AppAuthConfig
 	types.Events
+	services.ScopedAccessClientGetter
 
 	types.WebSessionsGetter
 	services.WebToken

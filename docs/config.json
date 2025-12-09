@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.2.8",
+      "version": "18.4.1",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -251,11 +251,6 @@
       "permanent": true
     },
     {
-      "source": "/access-controls/access-request-plugins/",
-      "destination": "/identity-governance/access-request-plugins/",
-      "permanent": true
-    },
-    {
       "source": "/upgrading/automatic-agent-updates/",
       "destination": "/upgrading/agent-managed-updates-v1/",
       "permanent": true
@@ -397,62 +392,47 @@
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/",
-      "destination": "/identity-governance/access-request-plugins/",
+      "destination": "/identity-governance/access-requests/plugins/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/datadog-hosted/",
-      "destination": "/identity-governance/access-request-plugins/datadog-hosted/",
+      "destination": "/identity-governance/access-requests/plugins/datadog-hosted/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/notification-routing-rules/",
-      "destination": "/identity-governance/access-request-plugins/notification-routing-rules/",
+      "destination": "/identity-governance/access-requests/notification-routing-rules/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/opsgenie/",
-      "destination": "/identity-governance/access-request-plugins/opsgenie/",
+      "destination": "/identity-governance/access-requests/plugins/opsgenie/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/servicenow/",
-      "destination": "/identity-governance/access-request-plugins/servicenow/",
+      "destination": "/identity-governance/access-requests/plugins/servicenow/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-discord/",
-      "destination": "/identity-governance/access-request-plugins/ssh-approval-discord/",
+      "destination": "/identity-governance/access-requests/plugins/discord/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-email/",
-      "destination": "/identity-governance/access-request-plugins/ssh-approval-email/",
-      "permanent": true
-    },
-    {
-      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-jira/",
-      "destination": "/identity-governance/access-request-plugins/ssh-approval-jira/",
+      "destination": "/identity-governance/access-requests/plugins/email/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost/",
-      "destination": "/identity-governance/access-request-plugins/ssh-approval-mattermost/",
+      "destination": "/identity-governance/access-requests/plugins/mattermost/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-msteams/",
-      "destination": "/identity-governance/access-request-plugins/ssh-approval-msteams/",
-      "permanent": true
-    },
-    {
-      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty/",
-      "destination": "/identity-governance/access-request-plugins/ssh-approval-pagerduty/",
-      "permanent": true
-    },
-    {
-      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-slack/",
-      "destination": "/identity-governance/access-request-plugins/ssh-approval-slack/",
+      "destination": "/identity-governance/access-requests/plugins/msteams/",
       "permanent": true
     },
     {
@@ -1002,7 +982,7 @@
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/import-existing-resources/",
-      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/import-existing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/import-existing-resources/",
       "permanent": true
     },
     {
@@ -1207,7 +1187,7 @@
     },
     {
       "source": "/admin-guides/access-controls/guides/webauthn/",
-      "destination": "/zero-trust-access/authentication/webauthn/",
+      "destination": "/zero-trust-access/management/security/idp-compromise/",
       "permanent": true
     },
     {
@@ -1217,12 +1197,12 @@
     },
     {
       "source": "/admin-guides/access-controls/idps/saml-gcp-workforce-identity-federation/",
-      "destination": "/identity-governance/idps/saml-gcp-workforce-identity-federation/",
+      "destination": "/identity-governance/idps/usage/saml-gcp-workforce-identity-federation/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/idps/saml-grafana/",
-      "destination": "/identity-governance/idps/saml-grafana/",
+      "destination": "/identity-governance/idps/usage/saml-grafana/",
       "permanent": true
     },
     {
@@ -1232,7 +1212,7 @@
     },
     {
       "source": "/admin-guides/access-controls/idps/saml-microsoft-entra-external-id/",
-      "destination": "/identity-governance/idps/saml-microsoft-entra-external-id/",
+      "destination": "/identity-governance/idps/usage/saml-microsoft-entra-external-id/",
       "permanent": true
     },
     {
@@ -1287,7 +1267,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/helm-deployments/argocd-helm/",
-      "destination": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
+      "destination": "/enroll-resources/agents/argocd-helm/",
       "permanent": true
     },
     {
@@ -1342,7 +1322,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/high-availability/",
-      "destination": "/zero-trust-access/deploy-a-cluster/high-availability/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/high-availability/",
       "permanent": true
     },
     {
@@ -1357,12 +1337,12 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/multi-region-blueprint/",
-      "destination": "/zero-trust-access/deploy-a-cluster/multi-region-blueprint/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/multi-region-blueprint/",
       "permanent": true
     },
     {
       "source": "/admin-guides/deploy-a-cluster/separate-proxy-service-endpoints/",
-      "destination": "/zero-trust-access/deploy-a-cluster/separate-proxy-service-endpoints/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/separate-proxy-service-endpoints/",
       "permanent": true
     },
     {
@@ -1597,7 +1577,7 @@
     },
     {
       "source": "/admin-guides/api/access-plugin/",
-      "destination": "/identity-governance/access-request-plugins/access-plugin/",
+      "destination": "/identity-governance/access-requests/plugins/how-to-build/",
       "permanent": true
     },
     {
@@ -1697,7 +1677,7 @@
     },
     {
       "source": "/zero-trust-access/access-controls/guides/webauthn/",
-      "destination": "/zero-trust-access/authentication/webauthn/",
+      "destination": "/zero-trust-access/management/security/idp-compromise/",
       "permanent": true
     },
     {
@@ -2918,6 +2898,121 @@
     {
       "source": "/enroll-resources/server-access/guides/vscode/",
       "destination": "/connect-your-client/third-party/vscode/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/introduction/",
+      "destination": "/enroll-resources/application-access/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/",
+      "destination": "/identity-governance/access-requests/plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/opsgenie/",
+      "destination": "/identity-governance/access-requests/plugins/opsgenie/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/ssh-approval-discord/",
+      "destination": "/identity-governance/access-requests/plugins/discord/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/ssh-approval-email/",
+      "destination": "/identity-governance/access-requests/plugins/email/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/ssh-approval-mattermost/",
+      "destination": "/identity-governance/access-requests/plugins/mattermost/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/ssh-approval-msteams/",
+      "destination": "/identity-governance/access-requests/plugins/msteams/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/ssh-approval-pagerduty/",
+      "destination": "/identity-governance/access-requests/plugins/pagerduty/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/ssh-approval-slack/",
+      "destination": "/identity-governance/access-requests/plugins/slack/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/access-plugin/",
+      "destination": "/identity-governance/access-requests/plugins/how-to-build/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/datadog-hosted/",
+      "destination": "/identity-governance/access-requests/plugins/datadog-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/notification-routing-rules/",
+      "destination": "/identity-governance/access-requests/notification-routing-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/servicenow/",
+      "destination": "/identity-governance/access-requests/plugins/servicenow/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-request-plugins/ssh-approval-jira/",
+      "destination": "/identity-governance/access-requests/plugins/jira/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/idps/saml-gcp-workforce-identity-federation/",
+      "destination": "/identity-governance/idps/usage/saml-gcp-workforce-identity-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/idps/saml-grafana/",
+      "destination": "/identity-governance/idps/usage/saml-grafana/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/idps/saml-microsoft-entra-external-id/",
+      "destination": "/identity-governance/idps/usage/saml-microsoft-entra-external-id/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/managing-resources/import-existing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/import-existing-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/authentication/webauthn/",
+      "destination": "/zero-trust-access/management/security/idp-compromise/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/high-availability/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/high-availability/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/multi-region-blueprint/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/multi-region-blueprint/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/separate-proxy-service-endpoints/",
+      "destination": "/zero-trust-access/deploy-a-cluster/deployments/separate-proxy-service-endpoints/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
+      "destination": "/enroll-resources/agents/argocd-helm/",
       "permanent": true
     }
   ]
