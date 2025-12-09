@@ -65,8 +65,8 @@ func TestRegisterEngine(t *testing.T) {
 
 	engine, err := GetEngine(db, ec)
 	require.Nil(t, engine)
-	require.IsType(t, trace.NotFound(""), err)
-	require.IsType(t, trace.NotFound(""), CheckEngines("test"))
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	require.ErrorAs(t, CheckEngines("test"), new(*trace.NotFoundError))
 
 	// Register a "test" engine.
 	RegisterEngine(func(ec EngineConfig) Engine {
