@@ -17,6 +17,9 @@
  */
 
 import {
+  ClientScreenSpec,
+  MouseButtonState,
+  MouseMove,
   selectDirectoryInBrowser,
   TdpClient,
   TdpClientEvent,
@@ -201,30 +204,27 @@ export class PlayerClient extends TdpClient {
   }
 
   // Overrides Client implementation.
-  handleClientScreenSpec(buffer: ArrayBuffer) {
-    this.emit(
-      TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-      this.codec.decodeClientScreenSpec(buffer)
-    );
+  handleClientScreenSpec(spec: ClientScreenSpec) {
+    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
   // Overrides Client implementation. This prevents the Client from sending
   // RDP response PDUs to the server during playback, which is unnecessary
   // and breaks the playback system.
   // eslint-disable-next-line unused-imports/no-unused-vars
-  sendRdpResponsePdu(responseFrame: ArrayBuffer) {
+  sendRdpResponsePdu(_responseFrame: ArrayBufferLike) {
     return;
   }
 
   // Overrides Client implementation.
   // eslint-disable-next-line unused-imports/no-unused-vars
-  handleMouseButton(buffer: ArrayBuffer) {
+  handleMouseButton(_button: MouseButtonState) {
     return;
   }
 
   // Overrides Client implementation.
   // eslint-disable-next-line unused-imports/no-unused-vars
-  handleMouseMove(buffer: ArrayBuffer) {
+  handleMouseMove(_move: MouseMove) {
     return;
   }
 }
