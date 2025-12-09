@@ -61,6 +61,10 @@ spec:
                         identity of joining nodes must match this ARN. Supports wildcards
                         "*" and "?".
                       type: string
+                    aws_organization_id:
+                      description: AWSOrganizationID is used for the IAM join method,
+                        the AWS identity of joining nodes must belong to this organization.
+                      type: string
                     aws_regions:
                       description: AWSRegions is used for the EC2 join method and
                         is a list of AWS regions a node is allowed to join from.
