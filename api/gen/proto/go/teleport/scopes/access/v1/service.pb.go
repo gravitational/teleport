@@ -639,9 +639,14 @@ type ListScopedRoleAssignmentsRequest struct {
 	// User optionally limits the list to assignments for a specific user.
 	User string `protobuf:"bytes,5,opt,name=user,proto3" json:"user,omitempty"`
 	// Role optionally limits the list to assignments for a specific role.
-	Role          string `protobuf:"bytes,6,opt,name=role,proto3" json:"role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Role string `protobuf:"bytes,6,opt,name=role,proto3" json:"role,omitempty"`
+	// AllCallerAssignments, if set to true, overrides the default behavior in favor of returning all
+	// assignments that apply to the caller, including those assigned in parent/orthogonal scopes. This flag
+	// is specifically used to support users discovering where they have been granted privileges across scopes,
+	// and is not intended for general use.
+	AllCallerAssignments bool `protobuf:"varint,7,opt,name=all_caller_assignments,json=allCallerAssignments,proto3" json:"all_caller_assignments,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ListScopedRoleAssignmentsRequest) Reset() {
@@ -714,6 +719,13 @@ func (x *ListScopedRoleAssignmentsRequest) GetRole() string {
 		return x.Role
 	}
 	return ""
+}
+
+func (x *ListScopedRoleAssignmentsRequest) GetAllCallerAssignments() bool {
+	if x != nil {
+		return x.AllCallerAssignments
+	}
+	return false
 }
 
 // ListScopedRoleAssignmentsResponse is the response to list scoped role assignments.
@@ -999,7 +1011,7 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x1fGetScopedRoleAssignmentResponse\x12O\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
-	"assignment\"\x8c\x02\n" +
+	"assignment\"\xc2\x02\n" +
 	" ListScopedRoleAssignmentsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -1007,7 +1019,8 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x0eresource_scope\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12A\n" +
 	"\x0eassigned_scope\x18\x04 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rassignedScope\x12\x12\n" +
 	"\x04user\x18\x05 \x01(\tR\x04user\x12\x12\n" +
-	"\x04role\x18\x06 \x01(\tR\x04role\"\x9e\x01\n" +
+	"\x04role\x18\x06 \x01(\tR\x04role\x124\n" +
+	"\x16all_caller_assignments\x18\a \x01(\bR\x14allCallerAssignments\"\x9e\x01\n" +
 	"!ListScopedRoleAssignmentsResponse\x12Q\n" +
 	"\vassignments\x18\x01 \x03(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\vassignments\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xae\x02\n" +

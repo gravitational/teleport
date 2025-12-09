@@ -6096,6 +6096,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		Reader:           cfg.AuthServer.ScopedAccessCache,
 		Writer:           cfg.AuthServer.scopedAccessBackend,
+		BackendReader:    cfg.AuthServer.scopedAccessBackend,
 		Logger:           logger,
 	})
 	if err != nil {

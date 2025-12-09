@@ -1514,6 +1514,7 @@ type ClientI interface {
 	services.VnetConfigGetter
 	services.HealthCheckConfig
 	types.Events
+	services.ScopedAccessClientGetter
 
 	types.WebSessionsGetter
 	services.WebToken

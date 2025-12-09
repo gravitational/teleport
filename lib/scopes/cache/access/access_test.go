@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -97,7 +98,7 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 
 	// verify that initial role states are immediately available
 	var gotRoleNames []string
-	for role, err := range StreamRoles(ctx, cache) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, cache, &scopedaccessv1.ListScopedRolesRequest{}) {
 		require.NoError(t, err)
 
 		gotRoleNames = append(gotRoleNames, role.GetMetadata().GetName())
@@ -107,7 +108,7 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 
 	// verify that initial assignment states are immediately available
 	var gotAssignmentNames []string
-	for assignment, err := range StreamAssignments(ctx, cache) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, cache, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		require.NoError(t, err)
 
 		gotAssignmentNames = append(gotAssignmentNames, assignment.GetMetadata().GetName())
@@ -148,7 +149,7 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	})
 
 	gotRoleNames = nil
-	for role, err := range StreamRoles(ctx, cache) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, cache, &scopedaccessv1.ListScopedRolesRequest{}) {
 		require.NoError(t, err)
 		gotRoleNames = append(gotRoleNames, role.GetMetadata().GetName())
 	}
@@ -161,14 +162,14 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	})
 
 	gotAssignmentNames = nil
-	for assignment, err := range StreamAssignments(ctx, cache) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, cache, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		require.NoError(t, err)
 		gotAssignmentNames = append(gotAssignmentNames, assignment.GetMetadata().GetName())
 	}
 	require.ElementsMatch(t, expectedAssignmentNames, gotAssignmentNames)
 
 	// test that cache can handle updates to existing roles (NOTE: no corellary for assignments)
-	for role, err := range StreamRoles(ctx, cache) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, cache, &scopedaccessv1.ListScopedRolesRequest{}) {
 		require.NoError(t, err)
 
 		role.Metadata.Labels = map[string]string{"updated": "true"}
@@ -205,7 +206,7 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	})
 
 	gotAssignmentNames = nil
-	for assignment, err := range StreamAssignments(ctx, cache) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, cache, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		require.NoError(t, err)
 		gotAssignmentNames = append(gotAssignmentNames, assignment.GetMetadata().GetName())
 	}
@@ -239,7 +240,7 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	})
 
 	gotRoleNames = nil
-	for role, err := range StreamRoles(ctx, cache) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, cache, &scopedaccessv1.ListScopedRolesRequest{}) {
 		require.NoError(t, err)
 		gotRoleNames = append(gotRoleNames, role.GetMetadata().GetName())
 	}
@@ -321,7 +322,7 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 
 	// verify that initial role states are immediately available
 	var gotRoleNames []string
-	for role, err := range StreamRoles(ctx, cache) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, cache, &scopedaccessv1.ListScopedRolesRequest{}) {
 		require.NoError(t, err)
 
 		gotRoleNames = append(gotRoleNames, role.GetMetadata().GetName())
@@ -331,7 +332,7 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 
 	// verify that initial assignment states are immediately available
 	var gotAssignmentNames []string
-	for assignment, err := range StreamAssignments(ctx, cache) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, cache, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		require.NoError(t, err)
 
 		gotAssignmentNames = append(gotAssignmentNames, assignment.GetMetadata().GetName())
@@ -372,7 +373,7 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	})
 
 	gotRoleNames = nil
-	for role, err := range StreamRoles(ctx, cache) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, cache, &scopedaccessv1.ListScopedRolesRequest{}) {
 		require.NoError(t, err)
 		gotRoleNames = append(gotRoleNames, role.GetMetadata().GetName())
 	}
@@ -385,7 +386,7 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	})
 
 	gotAssignmentNames = nil
-	for assignment, err := range StreamAssignments(ctx, cache) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, cache, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		require.NoError(t, err)
 		gotAssignmentNames = append(gotAssignmentNames, assignment.GetMetadata().GetName())
 	}
@@ -431,7 +432,7 @@ func waitForRoleCondition(t *testing.T, reader services.ScopedRoleReader, condit
 	timeout := time.After(30 * time.Second)
 	for {
 		var roles []*scopedaccessv1.ScopedRole
-		for role, err := range StreamRoles(t.Context(), reader) {
+		for role, err := range scopedutils.RangeScopedRoles(t.Context(), reader, &scopedaccessv1.ListScopedRolesRequest{}) {
 			require.NoError(t, err)
 			roles = append(roles, role)
 		}
@@ -453,7 +454,7 @@ func waitForAssignmentCondition(t *testing.T, reader services.ScopedRoleAssignme
 	timeout := time.After(30 * time.Second)
 	for {
 		var assignments []*scopedaccessv1.ScopedRoleAssignment
-		for assignment, err := range StreamAssignments(t.Context(), reader) {
+		for assignment, err := range scopedutils.RangeScopedRoleAssignments(t.Context(), reader, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 			require.NoError(t, err)
 			assignments = append(assignments, assignment)
 		}
