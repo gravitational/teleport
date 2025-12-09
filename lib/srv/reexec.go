@@ -235,7 +235,7 @@ func RunCommand() (code int, err error) {
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
-	// If we the command fails to launch, write the error to stdout for the parent process
+	// If the command fails to launch, write the error to stdout for the parent process
 	// to digest. If we have a terminal, write it there for the user to see as well.
 	var tty *os.File
 	defer func() {
