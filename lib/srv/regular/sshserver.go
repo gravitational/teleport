@@ -282,8 +282,8 @@ func (s *Server) GetUserAccountingPaths() (string, string, string) {
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
-	return s.pamConfig, nil
+func (s *Server) GetPAM() *servicecfg.PAMConfig {
+	return s.pamConfig
 }
 
 // UseTunnel used to determine if this node has connected to this cluster

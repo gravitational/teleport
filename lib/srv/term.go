@@ -65,7 +65,7 @@ type Terminal interface {
 
 	// WaitForChild blocks until the child process has completed any required
 	// setup operations before proceeding with execution.
-	WaitForChild() error
+	WaitForChild(ctx context.Context) error
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
@@ -260,12 +260,8 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *terminal) WaitForChild() error {
-	err := waitForSignal(t.serverContext.readyr, 20*time.Second)
-	closeErr := t.serverContext.readyr.Close()
-	// Set to nil so the close in the context doesn't attempt to re-close.
-	t.serverContext.readyr = nil
-	return trace.NewAggregate(err, closeErr)
+func (t *terminal) WaitForChild(ctx context.Context) error {
+	return t.serverContext.WaitForChild(ctx)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -622,7 +618,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *remoteTerminal) WaitForChild() error {
+func (t *remoteTerminal) WaitForChild(context.Context) error {
 	return nil
 }
 
