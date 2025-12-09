@@ -394,8 +394,7 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 		}
 	}
 
-	keys := maps.Keys(visited)
-	referrals = slices.AppendSeq([]string{}, keys)
+	referrals = slices.Collect(maps.Keys(visited))
 	l.cfg.Logger.DebugContext(ctx, "no referral provided by LDAP server can execute the query", "referrals", referrals)
 
 	return nil, nil
