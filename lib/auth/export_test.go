@@ -199,10 +199,6 @@ func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
 	a.k8sTokenReviewValidator = validator
 }
 
-func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
-	a.terraformIDTokenValidator = validator
-}
-
 func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
 	a.createBoundKeypairValidator = validator
 }
