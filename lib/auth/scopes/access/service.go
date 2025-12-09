@@ -38,6 +38,7 @@ type Config struct {
 	ScopedAuthorizer authz.ScopedAuthorizer
 	Reader           services.CachedScopedAccessReader
 	Writer           services.ScopedAccessWriter
+	BackendReader    services.ScopedAccessReader
 	Logger           *slog.Logger
 }
 
@@ -53,6 +54,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Writer == nil {
 		return trace.BadParameter("missing Writer in scoped access grpc service config")
+	}
+
+	if c.BackendReader == nil {
+		return trace.BadParameter("missing BackendReader in scoped access grpc service config")
 	}
 
 	if c.Logger == nil {
@@ -157,7 +162,11 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	}
 
 	for _, subAssignment := range req.GetAssignment().GetSpec().GetAssignments() {
-		rsp, err := s.cfg.Reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+		// NOTE: we use the backend reader here because it is a common pattern to create a scoped role
+		// and its associated assignments in a single sequential operation. While this does slightly increase
+		// the backend load associated with assignment creation, it ensures that users are not forced to
+		// take cache replication delays into account when doing setup.
+		rsp, err := s.cfg.BackendReader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
 			Name: subAssignment.GetRole(),
 		})
 		if err != nil {
@@ -404,13 +413,29 @@ func (s *Server) ListScopedRoleAssignments(ctx context.Context, req *scopedacces
 	// can be pre-built once at the beginning of the call.
 	ruleCtx := authzContext.RuleContext()
 
-	// do a pre-check to weed out requests that definitely won't be authorized.
-	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+	if req.AllCallerAssignments {
+		// the all_caller_assignments flag indicates that the caller is specifically trying to discover
+		// their own assignments. in this mode we do not require resource verb permissions, instead filtering
+		// the results to only those assignments that apply to the caller.
+		if req.GetUser() != "" && req.GetUser() != authzContext.User.GetName() {
+			return nil, trace.AccessDenied("caller %q cannot list assignments for user %q using the all_caller_assignments flag", authzContext.User.GetName(), req.GetUser())
+		}
+		req.User = authzContext.User.GetName()
+	} else {
+		// do a pre-check to weed out requests that definitely won't be authorized.
+		if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets, types.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// list scoped role assignments with a filter that only passes assignments the user has access to.
 	rsp, err := s.cfg.Reader.ListScopedRoleAssignmentsWithFilter(ctx, req, func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
+		if req.AllCallerAssignments {
+			// note that this short-circuit doesn't just bypass verb checks, it also bypasses scope pinning. this is
+			// intended behavior and an important part of what makes the all_caller_assignments mode useful, as it allows
+			// users to get an overview of their available privileges across all scopes.
+			return authzContext.User.GetName() == assignment.GetSpec().GetUser()
+		}
 		err := authzContext.CheckerContext.Decision(ctx, assignment.GetScope(), func(checker *services.SplitAccessChecker) error {
 			return checker.Common().CheckAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets, types.VerbList)
 		})

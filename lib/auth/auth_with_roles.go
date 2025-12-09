@@ -21,7 +21,6 @@ package auth
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -2414,10 +2413,7 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 	}
 
 	if err := a.authorizeAction(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
-		}
-
+		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetAuthServers()
 }
