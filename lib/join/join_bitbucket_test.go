@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package join_test
 
 import (
 	"context"
@@ -25,13 +25,15 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/bitbucket"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
@@ -57,7 +59,7 @@ func (m *mockBitbucketTokenValidator) Validate(
 	return &claims, nil
 }
 
-func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
+func TestJoinBitbucket(t *testing.T) {
 	const (
 		validIDToken          = "test.fake.jwt"
 		fakeAudience          = "ari:cloud:bitbucket::workspace/e2b9cba7-4ecf-452c-bb1c-87add4084c99"
@@ -83,13 +85,18 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
-		server.SetBitbucketIDTokenValidator(idTokenValidator)
-		return nil
+	ctx := t.Context()
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
 	})
 	require.NoError(t, err)
-	auth := p.a
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+	auth := authServer.Auth()
+
+	authServer.Auth().SetBitbucketIDTokenValidator(idTokenValidator)
 
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
@@ -149,7 +156,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:          "multiple allow rules",
+			name:          "multiple-allow-rules",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodBitbucket,
@@ -170,7 +177,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			name:          "incorrect workspace uuid",
+			name:          "incorrect-workspace-uuid",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodBitbucket,
@@ -189,7 +196,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect repository uuid",
+			name:          "incorrect-repository-uuid",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodBitbucket,
@@ -208,7 +215,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect branch name",
+			name:          "incorrect-branch-name",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodBitbucket,
@@ -227,7 +234,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "incorrect deployment environment",
+			name:          "incorrect-deployment-environment",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodBitbucket,
@@ -246,7 +253,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			name:          "invalid token",
+			name:          "invalid-token",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
 				JoinMethod: types.JoinMethodBitbucket,
@@ -260,8 +267,8 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 				},
 			},
 			request: newRequest("some other token"),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, errMockInvalidToken)
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "invalid token")
 			},
 		},
 	}
@@ -281,8 +288,48 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.request.Token = tt.name
 
-			_, err = auth.RegisterUsingToken(ctx, tt.request)
-			tt.assertError(t, err)
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			t.Run("legacy", func(t *testing.T) {
+				_, err = auth.RegisterUsingToken(ctx, tt.request)
+				tt.assertError(t, err)
+			})
+
+			t.Run("legacy joinclient", func(t *testing.T) {
+				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodBitbucket,
+					ID: state.IdentityID{
+						Role:     tt.request.Role,
+						NodeName: "testnode",
+						HostUUID: tt.request.HostID,
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
+
+			t.Run("new joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodBitbucket,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
 		})
 	}
 }
