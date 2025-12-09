@@ -222,13 +222,11 @@ extraEnv: []
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 # for more details.
 securityContext:
-  # TODO: is the the minimum we will need?
   privileged: true
 
 # podSecurityContext(object) -- sets the pod security context for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
 # for more details.
 podSecurityContext:
-  # TODO: Validate these are as needed.
   runAsUser: 0
   runAsGroup: 0
