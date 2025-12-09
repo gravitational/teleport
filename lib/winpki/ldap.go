@@ -28,6 +28,7 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -363,12 +364,12 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 	for i := 0; i < len(referrals); i++ {
 		l.cfg.Logger.DebugContext(ctx, "Trying connection to referral", "referral", referrals[i])
 		visited[referrals[i]] = struct{}{}
-		slash := strings.LastIndexByte(referrals[i], '/')
-		if slash < len("ldaps://") {
+		referralURL, err := url.Parse(referrals[i])
+		if err != nil || referralURL.Scheme != "ldaps" {
 			l.cfg.Logger.DebugContext(ctx, "Referral format is invalid", "referral", referrals[i])
 			continue
 		}
-		addr := referrals[i][len("ldaps://"):slash]
+		addr := referralURL.Host
 		cfg := LDAPConfig{
 			Addr:     addr,
 			Username: l.cfg.Username,
@@ -376,7 +377,8 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 			Logger:   l.cfg.Logger,
 		}
 		if conn, err := cfg.createConnection(ctx, l.credentials); err == nil {
-			req.BaseDN = referrals[i][slash+1:]
+			// Cut the initial slash from the path
+			req.BaseDN = referralURL.Path[1:]
 			entries, newReferrals, err := l.search(ctx, conn, req)
 			if err != nil {
 				l.cfg.Logger.DebugContext(ctx, "LDAP search failed", "referral", referrals[i], "error", err)
