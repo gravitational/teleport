@@ -1,5 +1,5 @@
 ---
-title: Connect a HashiCorp Vault MCP server to Teleport
+title: Connect a HashiCorp Vault MCP Server to Teleport
 sidebar_label: HashiCorp Vault
 description: Set up a HashiCorp Vault MCP server for access through Teleport
 tags:
@@ -8,23 +8,23 @@ tags:
 - zero-trust
 ---
 
-This guide demonstrates how to run a HashiCorp MCP server and connect it via
-Teleport.
+(!docs/pages/includes/mcp-access/integration-intro.mdx serviceName="HashiCorp Vault" !)
 
 ## How it works
 
 The [HashiCorp Vault MCP server](https://github.com/hashicorp/vault-mcp-server)
 uses a service token to access HashiCorp Vault and runs on a local endpoint
-reachable by Teleport. Teleport proxies all client requests to the server, which
-interacts with HashiCorp Vault using the permissions granted by the policy bound
-to the token.
+reachable by the Teleport Application Service. Teleport proxies all client
+requests to the server, which interacts with HashiCorp Vault using the
+permissions granted by the policy bound to the token.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)" clients="\`tsh\` client"!)
 - Access to your Vault instance and sufficient privileges to manage policies.
 - A host to run the MCP server that is reachable by the Teleport Application Service.
-- Running [Teleport Application Service](../getting-started.mdx).
+- A running Teleport Application Service. If you have not yet done this, follow
+  the [Getting Started guide](../getting-started.mdx).
 - A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
   MCP servers.
 
@@ -117,7 +117,7 @@ spec:
 
 ![Vault Claude](../../../../img/mcp-access/vault-claude.png)
 
-## Next Steps
+## Next steps
 
 - Review [Enroll a Streamable-HTTP MCP Server](../enrolling-mcp-servers/streamable-http.mdx).
 - See the [dynamic registration](../dynamic-registration.mdx) guide.
