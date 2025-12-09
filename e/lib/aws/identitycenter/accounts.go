@@ -91,6 +91,17 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 }
 
 func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, arn arn.ARN, idSource icsdk.IdentityStoreID) *identitycenterv1.Account {
+	// https://docs.aws.amazon.com/signin/latest/userguide/sign-in-urls-defined.html#access-portal-url
+	startURL := "https://%s.awsapps.com/start/#/console?account_id=%s"
+
+	if arn.Partition == "aws-us-gov" {
+		// https://docs.aws.amazon.com/govcloud-us/latest/UserGuide/govcloud-sso.html#govcloud-diffs-20
+		startURL = "https://start.us-gov-home.awsapps.com/directory/%s#/console?account_id=%s"
+	}
+	// Note: startURL should also consider "aws-cn" partition but is
+	// not handled above, mainly because lack of access to the AWS China
+	// test instance.
+
 	return &identitycenterv1.Account{
 		Kind:    types.KindIdentityCenterAccount,
 		Version: types.V1,
@@ -104,10 +115,11 @@ func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, 
 			},
 		},
 		Spec: &identitycenterv1.AccountSpec{
-			Id:       string(id),
-			Arn:      arn.String(),
-			Name:     name,
-			StartUrl: fmt.Sprintf("https://%s.awsapps.com/start/#/console?account_id=%s", idSource, id),
+			Id:   string(id),
+			Arn:  arn.String(),
+			Name: name,
+			// Web UI appends role_name query when launching users with specific permission set.
+			StartUrl: fmt.Sprintf(startURL, idSource, id),
 		},
 		Status: &identitycenterv1.AccountStatus{},
 	}
