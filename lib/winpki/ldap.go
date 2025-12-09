@@ -187,13 +187,8 @@ func convertLDAPError(err error) error {
 // The provided username can be a plain username "bob", or a full UPN like
 // "alice@example.com".
 func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username string) (string, string, error) {
-	domain := l.cfg.Domain
-	if strings.Contains(username, "@") {
-		parts := strings.SplitN(username, "@", 2)
-		username = parts[0]
-		domain = parts[1]
-	}
-
+	username, domain, _ := strings.Cut(username, "@")
+	domain = cmp.Or(domain, l.cfg.Domain)
 	followReferrals := domain != l.cfg.Domain
 
 	queries := []func() (string, []*ldap.Entry, error){
