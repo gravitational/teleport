@@ -18,27 +18,74 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
+import { waitFor } from 'storybook/internal/test';
 
 import { testQueryClient } from 'design/utils/testing';
 
+import { ContextProvider } from 'teleport/index';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
+
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
+beforeEach(() => {
+  // The API call is debounced, so we'll need to time travel a little.
+  jest.useFakeTimers();
+});
+
+afterEach(async () => {
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
+
+  jest.useRealTimers();
+  jest.clearAllMocks();
+});
+
+afterAll(() => server.close());
 
 describe('useGitHubK8sFlow', () => {
   test('initial', async () => {
+    withGenWizardCiCdSuccess({
+      response: {
+        terraform: 'mock terraform template',
+      },
+    });
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
 
+    await waitForAPI(result.current);
+
     expect(result.current.state).toStrictEqual(withDefaultState({}));
+    expect(result.current.template.terraform.data).toBe(
+      'mock terraform template'
+    );
+
+    expect(result.current.template.ghaWorkflow).toContain(
+      'TELEPORT_TOOLS_VERSION: "4.4.0-dev"'
+    );
+    expect(result.current.template.ghaWorkflow).toContain(
+      'TELEPORT_PROXY_ADDR: "some-long-cluster-public-url-name.cloud.teleport.gravitational.io:1234"'
+    );
   });
 
   describe('github url', () => {
     test.each`
       name                | url
-      ${'with scheme'}    | ${'https://github.com/gravitational/teleport'}
-      ${'without scheme'} | ${'github.com/gravitational/teleport'}
+      ${'with scheme'}    | ${'https://github.example.com/owner/repo'}
+      ${'without scheme'} | ${'github.example.com/owner/repo'}
     `('$name', async ({ url }) => {
+      withGenWizardCiCdSuccess();
+
       const { result } = renderHook(() => useGitHubK8sFlow(), {
         wrapper: Wrapper,
       });
@@ -54,16 +101,34 @@ describe('useGitHubK8sFlow', () => {
         withDefaultState({
           gitHubUrl: url,
           info: {
-            host: 'github.com',
-            owner: 'gravitational',
-            repository: 'teleport',
+            host: 'github.example.com',
+            owner: 'owner',
+            repository: 'repo',
           },
         })
+      );
+
+      await waitForAPI(result.current);
+
+      expect(result.current.template.terraform.data).toContain(
+        '"enterprise_server_host":"github.example.com"'
+      );
+      expect(result.current.template.terraform.data).toContain(
+        '"repository":"repo"'
+      );
+      expect(result.current.template.terraform.data).toContain(
+        '"owner":"owner"'
+      );
+
+      expect(result.current.template.ghaWorkflow).toContain(
+        'TELEPORT_JOIN_TOKEN_NAME: "gha-owner-repo"'
       );
     });
   });
 
   test('branch', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -91,6 +156,15 @@ describe('useGitHubK8sFlow', () => {
         ref: 'release-*',
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"ref":"release-*"'
+    );
+    expect(result.current.template.terraform.data).toContain(
+      '"ref_type":"branch"'
+    );
   });
 
   test('allow any branch', async () => {
@@ -113,6 +187,8 @@ describe('useGitHubK8sFlow', () => {
   });
 
   test('workflow', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -129,9 +205,17 @@ describe('useGitHubK8sFlow', () => {
         workflow: 'my-workflow',
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"workflow":"my-workflow"'
+    );
   });
 
   test('environment', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -148,9 +232,17 @@ describe('useGitHubK8sFlow', () => {
         environment: 'production',
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"environment":"production"'
+    );
   });
 
   test('ref', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -168,9 +260,17 @@ describe('useGitHubK8sFlow', () => {
         branch: 'release-*',
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"ref":"release-*"'
+    );
   });
 
   test('ref type', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -195,9 +295,17 @@ describe('useGitHubK8sFlow', () => {
         isBranchDisabled: true,
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"ref_type":"tag"'
+    );
   });
 
   test('slug', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -214,9 +322,17 @@ describe('useGitHubK8sFlow', () => {
         enterpriseSlug: 'octo-enterprise',
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"enterprise_slug":"octo-enterprise"'
+    );
   });
 
   test('jwks', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -233,9 +349,17 @@ describe('useGitHubK8sFlow', () => {
         enterpriseJwks: '{"keys": []}',
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"static_jwks":"{\\"keys\\": []}"'
+    );
   });
 
   test('kubernetes groups', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -252,9 +376,17 @@ describe('useGitHubK8sFlow', () => {
         kubernetesGroups: ['system:masters'],
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"groups":["system:masters"]'
+    );
   });
 
   test('kubernetes users', async () => {
+    withGenWizardCiCdSuccess();
+
     const { result } = renderHook(() => useGitHubK8sFlow(), {
       wrapper: Wrapper,
     });
@@ -271,8 +403,19 @@ describe('useGitHubK8sFlow', () => {
         kubernetesUsers: ['user1@example.com'],
       })
     );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"users":["user1@example.com"]'
+    );
   });
 });
+
+async function waitForAPI(context: ReturnType<typeof useGitHubK8sFlow>) {
+  await act(jest.advanceTimersToNextTimerAsync);
+  return waitFor(() => expect(context.template.terraform.loading).toBeFalsy());
+}
 
 function withDefaultState(
   overrides: Partial<ReturnType<typeof useGitHubK8sFlow>['state']>
@@ -294,10 +437,19 @@ function withDefaultState(
   };
 }
 
+function withGenWizardCiCdSuccess(
+  ...params: Parameters<typeof genWizardCiCdSuccess>
+) {
+  server.use(genWizardCiCdSuccess(...params));
+}
+
 function Wrapper(props: PropsWithChildren) {
+  const ctx = createTeleportContext();
   return (
     <QueryClientProvider client={testQueryClient}>
-      <GitHubK8sFlowProvider>{props.children}</GitHubK8sFlowProvider>
+      <ContextProvider ctx={ctx}>
+        <GitHubK8sFlowProvider>{props.children}</GitHubK8sFlowProvider>
+      </ContextProvider>
     </QueryClientProvider>
   );
 }
