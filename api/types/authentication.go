@@ -1171,9 +1171,9 @@ func (m *MFAFlowMode) decode(val any) error {
 		}
 	case int32:
 		switch v {
-		case 0:
+		case int32(MFAFlowMode_MFA_FLOW_MODE_BEST_EFFORT):
 			*m = MFAFlowMode_MFA_FLOW_MODE_BEST_EFFORT
-		case 1:
+		case int32(MFAFlowMode_MFA_FLOW_MODE_IN_BAND):
 			*m = MFAFlowMode_MFA_FLOW_MODE_IN_BAND
 		default:
 			return trace.BadParameter("MFAFlowMode invalid int value %v", v)
@@ -1190,20 +1190,20 @@ func (m *MFAFlowMode) decode(val any) error {
 
 // UnmarshalYAML supports parsing MFAFlowMode from string or int.
 func (m *MFAFlowMode) UnmarshalYAML(unmarshal func(any) error) error {
-	var tmp any
-	if err := unmarshal(&tmp); err != nil {
+	var val any
+	if err := unmarshal(&val); err != nil {
 		return trace.Wrap(err)
 	}
-	return m.decode(tmp)
+	return m.decode(val)
 }
 
 // UnmarshalJSON supports parsing MFAFlowMode from string or int.
 func (m *MFAFlowMode) UnmarshalJSON(data []byte) error {
-	var tmp any
-	if err := json.Unmarshal(data, &tmp); err != nil {
+	var val any
+	if err := json.Unmarshal(data, &val); err != nil {
 		return trace.Wrap(err)
 	}
-	return m.decode(tmp)
+	return m.decode(val)
 }
 
 // MarshalYAML marshals MFAFlowMode to a string.

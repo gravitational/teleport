@@ -669,26 +669,24 @@ per-session MFA SSH certificate in order to complete MFA verification.
 
 #### Early Adopters / Opt-In Feature Gate
 
+By default, the system behaves as described in the previous sections supporting both legacy and modern clients and
+agents during the transition period. This is represented by the configuration option
+`auth_service.authentication.mfa_flow_mode = best_effort`.
+
 Set the configuration option `auth_service.authentication.mfa_flow_mode = in_band` to force exclusive use of the in‑band
 MFA flow for testing and early adoption.
-
-For environments deploying a fresh Teleport cluster during the transition period, it is recommended to enable this
-option to ensure that all components use the in‑band MFA flow from the start.
 
 This option is cluster-wide and affects both clients and agents. When this option is set:
 
 1. Modern clients will not request per-session MFA certificates and will use the in‑band MFA flow.
 1. Modern agents will reject per-session MFA certificates and require in‑band MFA for connections that need MFA.
-1. Clients will no longer be able to request per-session MFA certificates from the Auth service.
+1. All clients will no longer be able to request per-session MFA certificates from the Auth service.
+1. Unsupported protocols (e.g., Kubernetes, databases, desktops) that rely on per-session MFA certificates will not be
+   able to enforce MFA and will reject connections that require MFA.
 
-> Warning: intended for testing/early adopters only. Enabling this will break connections from legacy clients or legacy
-> agents that still rely on per-session MFA certificates. Remove the flag once the environment has completed migration
-> to the in‑band flow. Once the transition period is over, the flag will be removed and modern clients and agents will
-> exclusively use the in‑band MFA flow.
-
-When the configuration option is not set, the system behaves as described in the previous sections (equivalent to
-configuration option `auth_service.authentication.mfa_flow_mode = best_effort`), supporting both legacy and modern
-clients and agents during the transition period.
+> Warning: Intended for testing/early adopters only. Enabling this will break connections from legacy clients or legacy
+> agents that still rely on per-session MFA certificates. All unsupported protocols that rely on per-session MFA
+> certificates will be rejected when MFA is required.
 
 ### Audit Events
 

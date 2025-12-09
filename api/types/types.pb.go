@@ -800,12 +800,14 @@ const (
 	// client does not support in-band MFA, or the session type does not allow in-band MFA. "Most secure method available"
 	// means that in-band MFA is preferred when possible, as it provides stronger guarantees against session hijacking and
 	// man-in-the-middle attacks. If in-band MFA cannot be used, out-of-band MFA is enforced as a fallback to ensure MFA
-	// coverage. The preference order is: in-band MFA > out-of-band MFA.
+	// coverage. The preference order is: in-band MFA > out-of-band MFA. This is the recommended mode for most use cases,
+	// as it balances security and compatibility across different protocols and clients.
 	MFAFlowMode_MFA_FLOW_MODE_BEST_EFFORT MFAFlowMode = 0
-	// MFA_FLOW_MODE_IN_BAND means that MFA requires the in-band MFA flow for all protocols. If a requested protocol or
+	// MFA_FLOW_MODE_IN_BAND means that the in-band MFA flow is required where supported. If a requested protocol or
 	// client does not support in-band MFA, or the session type does not allow in-band MFA, the session request will be
 	// denied. This mode provides the strongest security guarantees by ensuring that MFA challenges are always presented
 	// and verified within the session protocol itself, eliminating the risks associated with out-of-band MFA methods.
+	// Only the SSH protocol currently supports in-band MFA. Other protocols will be supported in future releases.
 	//
 	// WARNING: Protocols and clients that do not support in-band MFA will be denied access when this mode is selected.
 	// Users should ensure that their workflows and clients support in-band MFA before enabling this mode to avoid
