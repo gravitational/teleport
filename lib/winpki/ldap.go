@@ -312,9 +312,8 @@ func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchReque
 			referrals := extractReferrals(ldapErr)
 			l.cfg.Logger.DebugContext(ctx, "Got referrals from paged query error", "referrals", referrals)
 			return nil, referrals, nil
-		} else {
-			return nil, nil, trace.Wrap(err)
 		}
+		return nil, nil, trace.Wrap(err)
 	}
 	if len(res.Entries) > 0 {
 		l.cfg.Logger.DebugContext(ctx, "Got results from paged query", "count", len(res.Entries))
