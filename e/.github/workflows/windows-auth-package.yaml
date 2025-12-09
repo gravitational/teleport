@@ -19,10 +19,14 @@ jobs:
         with:
           go-version-file: 'windowsauth/installer/go.mod'
       - name: Setup Rust
-        #embedded-resource crate doesn't like cross-compilation from msvc to mingw
+        # this uses the version of rust in rust-toolchain.toml but sets the
+        # global rustup config to use the -gnu toolchain rather than the -msvc
+        # one because of cross-compilation problems with the embedded-resource
+        # crate
         run: |
-          rustup toolchain install 1.81.0-x86_64-pc-windows-gnu
-          rustup default 1.81.0-x86_64-pc-windows-gnu
+          rustup set default-host x86_64-pc-windows-gnu
+          cd windowsauth
+          rustup install
           rustup show
       - name: Build all
         run: make -C windowsauth all
