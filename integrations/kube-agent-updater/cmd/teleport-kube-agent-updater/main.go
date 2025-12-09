@@ -184,6 +184,7 @@ func main() {
 		ctrl.Log.Error(err, "failed to get updater ID, exiting")
 		os.Exit(1)
 	}
+	ctrl.Log.Info("update ID and group are set", "update_id", updateID, "update_group", updateGroup)
 
 	// Craft the version getter and update triggers based on the configuration (use RFD-109 APIs, RFD-184, or both).
 	var criticalUpdateTriggers []maintenance.Trigger
