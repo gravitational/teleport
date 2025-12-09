@@ -392,12 +392,12 @@ service SubCAService {
 
   // Implementation note: used by `tctl auth sub-ca
   // create-override|disable-override`.
-  rpc UpsertCertificateOverride(UpsertCertificateOverrideRequest)
-    returns (UpsertCertificateOverrideResponse);
+  rpc AddCertificateOverride(AddCertificateOverrideRequest)
+    returns (AddCertificateOverrideResponse);
 
   // Implementation note: used by `tctl auth sub-ca delete-override`.
-  rpc DeleteCertificateOverride(DeleteCertificateOverrideRequest)
-    returns (DeleteCertificateOverrideResponse);
+  rpc RemoveCertificateOverride(RemoveCertificateOverrideRequest)
+    returns (RemoveCertificateOverrideResponse);
 
   rpc GetCertAuthorityOverride(GetCertAuthorityOverrideRequest)
     returns (GetCertAuthorityOverrideResponse);
@@ -450,7 +450,7 @@ message CertificateSigningRequest {
   string pem = 1;
 }
 
-message UpsertCertificateOverrideRequest {
+message AddCertificateOverrideRequest {
   CertificateOverrideTarget target = 1;
 
   // Value to add or modify.
@@ -458,16 +458,16 @@ message UpsertCertificateOverrideRequest {
   CertificateOverride certificate_override = 2;
 }
 
-message UpsertCertificateOverrideResponse {
+message AddCertificateOverrideResponse {
   CertificateOverride certificate_override = 1;
 }
 
-message DeleteCertificateOverrideRequest {
+message RemoveCertificateOverrideRequest {
   // Certificate override to delete.
   CertificateOverrideTarget target = 1;
 }
 
-message DeleteCertificateOverrideResponse {}
+message RemoveCertificateOverrideResponse {}
 
 message CertificateOverrideTarget {
   // CA type per api/types.CertAuthType.
