@@ -706,8 +706,8 @@ func (s *ForwardServer) GetAccessPoint() srv.AccessPoint {
 func (s *ForwardServer) GetDataDir() string {
 	return ""
 }
-func (s *ForwardServer) GetPAM() (*servicecfg.PAMConfig, error) {
-	return &servicecfg.PAMConfig{Enabled: false}, nil
+func (s *ForwardServer) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 func (s *ForwardServer) GetClock() clockwork.Clock {
 	return s.cfg.Clock
