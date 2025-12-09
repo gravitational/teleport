@@ -76,7 +76,9 @@ describe('GitHubActionsK8s', () => {
       screen.getByRole('heading', { name: 'Setup Workflow' })
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Finish' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
     expect(replaceMock).toHaveBeenLastCalledWith('/web/bots');
   });

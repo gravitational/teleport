@@ -16,14 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useState } from 'react';
 import { useHistory } from 'react-router';
 import { styled } from 'styled-components';
 
 import Box from 'design/Box/Box';
-import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
+import {
+  ButtonPrimary,
+  ButtonSecondary,
+  ButtonWarning,
+} from 'design/Button/Button';
+import { Dialog } from 'design/Dialog/Dialog';
+import DialogContent from 'design/Dialog/DialogContent';
+import DialogHeader from 'design/Dialog/DialogHeader';
+import DialogTitle from 'design/Dialog/DialogTitle';
 import Flex from 'design/Flex/Flex';
 import Link from 'design/Link/Link';
-import Text, { H2 } from 'design/Text/Text';
+import Text, { H2, P2 } from 'design/Text/Text';
 
 import cfg from 'teleport/config';
 
@@ -33,9 +42,11 @@ import { CodePanelPlaceholder } from './CodePanel';
 export function Finish(props: FlowStepProps) {
   const { prevStep } = props;
 
+  const [showDoneCheck, setShowDoneCheck] = useState(false);
+
   const history = useHistory();
 
-  const handleFinish = () => {
+  const handleDone = () => {
     history.replace(cfg.getBotsRoute());
   };
 
@@ -77,7 +88,9 @@ export function Finish(props: FlowStepProps) {
         </Text>
 
         <Flex gap={2} pt={5}>
-          <ButtonPrimary onClick={handleFinish}>Finish</ButtonPrimary>
+          <ButtonPrimary onClick={() => setShowDoneCheck(true)}>
+            Done
+          </ButtonPrimary>
           <ButtonSecondary onClick={prevStep}>Back</ButtonSecondary>
         </Flex>
       </Box>
@@ -85,6 +98,33 @@ export function Finish(props: FlowStepProps) {
       <CodeContainer>
         <CodePanelPlaceholder>Code panel coming soon...</CodePanelPlaceholder>
       </CodeContainer>
+
+      <Dialog open={showDoneCheck} onClose={() => setShowDoneCheck(false)}>
+        <DialogHeader mb={4}>
+          <DialogTitle>
+            Are you sure you would like to complete the guide?
+          </DialogTitle>
+        </DialogHeader>
+        <DialogContent mb={3} maxWidth={480}>
+          <P2>
+            Once the guide is completed, you will not longer have access to the
+            Infrastructure as Code and GitHub workflow templates.
+          </P2>
+        </DialogContent>
+        <Flex gap={3}>
+          <ButtonWarning block size="large" onClick={handleDone}>
+            Confirm
+          </ButtonWarning>
+          <ButtonSecondary
+            block
+            size="large"
+            autoFocus
+            onClick={() => setShowDoneCheck(false)}
+          >
+            Cancel
+          </ButtonSecondary>
+        </Flex>
+      </Dialog>
     </Container>
   );
 }
