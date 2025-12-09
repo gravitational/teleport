@@ -1,0 +1,10 @@
+# Set to the name of your Teleport cluster.
+clusterName: example.teleport.sh
+# Set to the name of the token you created.
+token: example-token
+# Set to the address of your Teleport Proxy Service.
+teleportProxyAddress: example.teleport.sh:443
+workloadIdentitySelector:
+  # Set to the name of the WorkloadIdentity resource you'd like to use when
+  # issuing SVIDs.
+  name: example-workload-identity

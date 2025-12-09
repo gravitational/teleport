@@ -1,0 +1,16 @@
+suite: Test ClusterRoleBinding
+templates:
+  - clusterrolebinding.yaml
+tests:
+  - it: should match the snapshot (simple)
+    template: clusterrolebinding.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: should match the snapshot (full)
+    template: clusterrolebinding.yaml
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}
