@@ -99,6 +99,9 @@ func TestJoinToken(t *testing.T) {
 			Roles:         []string{types.RoleNode.String()},
 			JoinMethod:    string(types.JoinMethodToken),
 		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
 	}
 	scopedToken2 := proto.CloneOf(scopedToken1)
 	scopedToken2.Metadata.Name = "scoped2"
@@ -215,9 +218,10 @@ func TestJoinToken(t *testing.T) {
 
 	t.Run("join and rejoin with scoped token", func(t *testing.T) {
 		// Node initially joins by connecting to the proxy's gRPC service.
-		identity, err := joinViaProxy(
+		identity, err := joinViaProxyWithSecret(
 			t.Context(),
 			scopedToken1.GetMetadata().GetName(),
+			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
 		require.NoError(t, err)
@@ -243,9 +247,10 @@ func TestJoinToken(t *testing.T) {
 		//
 		// It should get back its original host ID and the combined roles of
 		// its original certificate and the new token.
-		newIdentity, err := rejoinViaAuthClient(
+		newIdentity, err := rejoinViaAuthClientWithSecret(
 			t.Context(),
 			scopedToken3.GetMetadata().GetName(),
+			scopedToken3.GetStatus().GetSecret(),
 			authClient,
 		)
 		require.NoError(t, err)
@@ -265,9 +270,10 @@ func TestJoinToken(t *testing.T) {
 
 	t.Run("join and rejoin with mismatched scoped tokens", func(t *testing.T) {
 		// Node initially joins by connecting to the proxy's gRPC service.
-		identity, err := joinViaProxy(
+		identity, err := joinViaProxyWithSecret(
 			t.Context(),
 			scopedToken1.GetMetadata().GetName(),
+			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
 		require.NoError(t, err)
@@ -581,13 +587,19 @@ func (p *fakeProxy) runGRPCServer(t *testing.T, l net.Listener) {
 	})
 }
 
-func joinViaProxy(
+func joinViaProxy(ctx context.Context, token string, addr net.Addr) (*state.Identity, error) {
+	return joinViaProxyWithSecret(ctx, token, "", addr)
+}
+
+func joinViaProxyWithSecret(
 	ctx context.Context,
 	token string,
+	tokenSecret string,
 	addr net.Addr,
 ) (*state.Identity, error) {
 	joinResult, err := joinclient.Join(ctx, joinclient.JoinParams{
-		Token: token,
+		Token:       token,
+		TokenSecret: tokenSecret,
 		ID: state.IdentityID{
 			Role:     types.RoleInstance,
 			NodeName: "node",
@@ -610,13 +622,19 @@ func joinViaProxy(
 	return state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
 }
 
-func rejoinViaAuthClient(
+func rejoinViaAuthClient(ctx context.Context, token string, authClient authjoin.AuthJoinClient) (*state.Identity, error) {
+	return rejoinViaAuthClientWithSecret(ctx, token, "", authClient)
+}
+
+func rejoinViaAuthClientWithSecret(
 	ctx context.Context,
 	token string,
+	tokenSecret string,
 	authClient authjoin.AuthJoinClient,
 ) (*state.Identity, error) {
 	joinResult, err := joinclient.Join(ctx, joinclient.JoinParams{
-		Token: token,
+		Token:       token,
+		TokenSecret: tokenSecret,
 		ID: state.IdentityID{
 			Role:     types.RoleInstance,
 			NodeName: "node",
