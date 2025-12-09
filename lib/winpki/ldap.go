@@ -51,6 +51,10 @@ const (
 	// It is larger than the dial timeout because LDAP queries in large
 	// Active Directory environments may take longer to complete.
 	ldapRequestTimeout = 45 * time.Second
+
+	// maxReferralsCount is maximum number of referrals we will try for
+	// given LDAP search.
+	maxReferralsCount = 10
 )
 
 // LocateServer contains parameters for locating LDAP servers
@@ -381,7 +385,11 @@ func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter strin
 			if len(entries) > 0 {
 				return entries, nil
 			}
-			if len(referrals) < 10 {
+			newReferrals = slices.DeleteFunc(newReferrals, func(s string) bool {
+				_, ok := visited[s]
+				return ok
+			})
+			if len(referrals) < maxReferralsCount {
 				referrals = append(referrals, newReferrals...)
 			}
 		} else {
