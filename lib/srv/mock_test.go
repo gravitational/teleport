@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -104,6 +105,9 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	require.NoError(t, err)
 
 	scx.cmdr, scx.cmdw, err = os.Pipe()
+	require.NoError(t, err)
+
+	_, scx.logw, err = os.Pipe()
 	require.NoError(t, err)
 
 	scx.contr, scx.contw, err = os.Pipe()
@@ -327,6 +331,16 @@ func (m *mockServer) GetHostSudoers() HostSudoers {
 // GetSELinuxEnabled
 func (m *mockServer) GetSELinuxEnabled() bool {
 	return false
+}
+
+// ChildLogConfig returns a noop log configuration.
+func (m *mockServer) ChildLogConfig() ChildLogConfig {
+	return ChildLogConfig{
+		ExecLogConfig: ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 // Implementation of ssh.Conn interface.
