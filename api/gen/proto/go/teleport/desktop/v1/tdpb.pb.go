@@ -24,7 +24,7 @@
 package tdpbv1
 
 import (
-	proto "github.com/gravitational/teleport/api/client/proto"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	descriptorpb "google.golang.org/protobuf/types/descriptorpb"
@@ -363,24 +363,20 @@ const (
 	DirectoryOperation_DIRECTORY_OPERATION_WRITE       DirectoryOperation = 6
 	DirectoryOperation_DIRECTORY_OPERATION_MOVE        DirectoryOperation = 7
 	DirectoryOperation_DIRECTORY_OPERATION_TRUNCATE    DirectoryOperation = 8
-	DirectoryOperation_DIRECTORY_OPERATION_ANNOUNCE    DirectoryOperation = 9
-	DirectoryOperation_DIRECTORY_OPERATION_ACKNOWLEDGE DirectoryOperation = 10
 )
 
 // Enum value maps for DirectoryOperation.
 var (
 	DirectoryOperation_name = map[int32]string{
-		0:  "DIRECTORY_OPERATION_UNSPECIFIED",
-		1:  "DIRECTORY_OPERATION_INFO",
-		2:  "DIRECTORY_OPERATION_CREATE",
-		3:  "DIRECTORY_OPERATION_DELETE",
-		4:  "DIRECTORY_OPERATION_LIST",
-		5:  "DIRECTORY_OPERATION_READ",
-		6:  "DIRECTORY_OPERATION_WRITE",
-		7:  "DIRECTORY_OPERATION_MOVE",
-		8:  "DIRECTORY_OPERATION_TRUNCATE",
-		9:  "DIRECTORY_OPERATION_ANNOUNCE",
-		10: "DIRECTORY_OPERATION_ACKNOWLEDGE",
+		0: "DIRECTORY_OPERATION_UNSPECIFIED",
+		1: "DIRECTORY_OPERATION_INFO",
+		2: "DIRECTORY_OPERATION_CREATE",
+		3: "DIRECTORY_OPERATION_DELETE",
+		4: "DIRECTORY_OPERATION_LIST",
+		5: "DIRECTORY_OPERATION_READ",
+		6: "DIRECTORY_OPERATION_WRITE",
+		7: "DIRECTORY_OPERATION_MOVE",
+		8: "DIRECTORY_OPERATION_TRUNCATE",
 	}
 	DirectoryOperation_value = map[string]int32{
 		"DIRECTORY_OPERATION_UNSPECIFIED": 0,
@@ -392,8 +388,6 @@ var (
 		"DIRECTORY_OPERATION_WRITE":       6,
 		"DIRECTORY_OPERATION_MOVE":        7,
 		"DIRECTORY_OPERATION_TRUNCATE":    8,
-		"DIRECTORY_OPERATION_ANNOUNCE":    9,
-		"DIRECTORY_OPERATION_ACKNOWLEDGE": 10,
 	}
 )
 
@@ -1260,10 +1254,11 @@ func (x *ClipboardData) GetData() []byte {
 // The client implicitly expects a non-empty challenge while the server
 // expects a non-empty response.
 type MFA struct {
-	state                  protoimpl.MessageState          `protogen:"open.v1"`
-	Type                   MFAType                         `protobuf:"varint,1,opt,name=type,proto3,enum=teleport.desktop.v1.MFAType" json:"type,omitempty"`
-	Challenge              *proto.MFAAuthenticateChallenge `protobuf:"bytes,2,opt,name=challenge,proto3" json:"challenge,omitempty"`
-	AuthenticationResponse *proto.MFAAuthenticateResponse  `protobuf:"bytes,3,opt,name=authentication_response,json=authenticationResponse,proto3" json:"authentication_response,omitempty"`
+	state                  protoimpl.MessageState    `protogen:"open.v1"`
+	Type                   MFAType                   `protobuf:"varint,1,opt,name=type,proto3,enum=teleport.desktop.v1.MFAType" json:"type,omitempty"`
+	ChannelId              string                    `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	Challenge              *v1.AuthenticateChallenge `protobuf:"bytes,3,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	AuthenticationResponse *v1.AuthenticateResponse  `protobuf:"bytes,4,opt,name=authentication_response,json=authenticationResponse,proto3" json:"authentication_response,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -1305,14 +1300,21 @@ func (x *MFA) GetType() MFAType {
 	return MFAType_MFA_TYPE_UNSPECIFIED
 }
 
-func (x *MFA) GetChallenge() *proto.MFAAuthenticateChallenge {
+func (x *MFA) GetChannelId() string {
+	if x != nil {
+		return x.ChannelId
+	}
+	return ""
+}
+
+func (x *MFA) GetChallenge() *v1.AuthenticateChallenge {
 	if x != nil {
 		return x.Challenge
 	}
 	return nil
 }
 
-func (x *MFA) GetAuthenticationResponse() *proto.MFAAuthenticateResponse {
+func (x *MFA) GetAuthenticationResponse() *v1.AuthenticateResponse {
 	if x != nil {
 		return x.AuthenticationResponse
 	}
@@ -1567,13 +1569,17 @@ func (x *SharedDirectoryRequest) GetName() string {
 // Not all operation types make use of all fields.
 type SharedDirectoryResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Operation type
+	OperationCode DirectoryOperation `protobuf:"varint,1,opt,name=operation_code,json=operationCode,proto3,enum=teleport.desktop.v1.DirectoryOperation" json:"operation_code,omitempty"`
 	// Common response fields
-	CompletionId uint32 `protobuf:"varint,1,opt,name=completion_id,json=completionId,proto3" json:"completion_id,omitempty"`
-	ErrorCode    uint32 `protobuf:"varint,2,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	CompletionId uint32 `protobuf:"varint,2,opt,name=completion_id,json=completionId,proto3" json:"completion_id,omitempty"`
+	ErrorCode    uint32 `protobuf:"varint,3,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
 	// Returned FileSystemObject(s) for INFO and LIST responses.
-	FsoList []*FileSystemObject `protobuf:"bytes,3,rep,name=fso_list,json=fsoList,proto3" json:"fso_list,omitempty"`
+	FsoList []*FileSystemObject `protobuf:"bytes,4,rep,name=fso_list,json=fsoList,proto3" json:"fso_list,omitempty"`
 	// Data returned in READ responses.
-	Data          []byte `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`
+	Data []byte `protobuf:"bytes,5,opt,name=data,proto3" json:"data,omitempty"`
+	// Returned in WRITE responses.
+	BytesWritten  uint32 `protobuf:"varint,6,opt,name=bytes_written,json=bytesWritten,proto3" json:"bytes_written,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1608,6 +1614,13 @@ func (*SharedDirectoryResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19}
 }
 
+func (x *SharedDirectoryResponse) GetOperationCode() DirectoryOperation {
+	if x != nil {
+		return x.OperationCode
+	}
+	return DirectoryOperation_DIRECTORY_OPERATION_UNSPECIFIED
+}
+
 func (x *SharedDirectoryResponse) GetCompletionId() uint32 {
 	if x != nil {
 		return x.CompletionId
@@ -1634,6 +1647,13 @@ func (x *SharedDirectoryResponse) GetData() []byte {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *SharedDirectoryResponse) GetBytesWritten() uint32 {
+	if x != nil {
+		return x.BytesWritten
+	}
+	return 0
 }
 
 // Represents a file object in a shared directory.
@@ -1834,7 +1854,7 @@ var File_teleport_desktop_v1_tdpb_proto protoreflect.FileDescriptor
 
 const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\n" +
-	"\x1eteleport/desktop/v1/tdpb.proto\x12\x13teleport.desktop.v1\x1a google/protobuf/descriptor.proto\x1a.teleport/legacy/client/proto/authservice.proto\"\xa0\x01\n" +
+	"\x1eteleport/desktop/v1/tdpb.proto\x12\x13teleport.desktop.v1\x1a google/protobuf/descriptor.proto\x1a\x1fteleport/mfa/v1/challenge.proto\"\xa0\x01\n" +
 	"\vClientHello\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
@@ -1886,11 +1906,13 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x05delta\x18\x02 \x01(\rR\x05delta:\x04\xb8\xeb\x1d\t\")\n" +
 	"\rClipboardData\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data:\x04\xb8\xeb\x1d\n" +
-	"\"\xd5\x01\n" +
+	"\"\x82\x02\n" +
 	"\x03MFA\x120\n" +
-	"\x04type\x18\x01 \x01(\x0e2\x1c.teleport.desktop.v1.MFATypeR\x04type\x12=\n" +
-	"\tchallenge\x18\x02 \x01(\v2\x1f.proto.MFAAuthenticateChallengeR\tchallenge\x12W\n" +
-	"\x17authentication_response\x18\x03 \x01(\v2\x1e.proto.MFAAuthenticateResponseR\x16authenticationResponse:\x04\xb8\xeb\x1d\v\"V\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x1c.teleport.desktop.v1.MFATypeR\x04type\x12\x1d\n" +
+	"\n" +
+	"channel_id\x18\x02 \x01(\tR\tchannelId\x12D\n" +
+	"\tchallenge\x18\x03 \x01(\v2&.teleport.mfa.v1.AuthenticateChallengeR\tchallenge\x12^\n" +
+	"\x17authentication_response\x18\x04 \x01(\v2%.teleport.mfa.v1.AuthenticateResponseR\x16authenticationResponse:\x04\xb8\xeb\x1d\v\"V\n" +
 	"\x17SharedDirectoryAnnounce\x12!\n" +
 	"\fdirectory_id\x18\x01 \x01(\rR\vdirectoryId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name:\x04\xb8\xeb\x1d\x0e\"d\n" +
@@ -1910,13 +1932,15 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\vend_of_file\x18\b \x01(\rR\tendOfFile\x12\x12\n" +
 	"\x04data\x18\n" +
 	" \x01(\fR\x04data\x12\x12\n" +
-	"\x04name\x18\v \x01(\tR\x04name:\x04\xb8\xeb\x1d\f\"\xb9\x01\n" +
-	"\x17SharedDirectoryResponse\x12#\n" +
-	"\rcompletion_id\x18\x01 \x01(\rR\fcompletionId\x12\x1d\n" +
+	"\x04name\x18\v \x01(\tR\x04name:\x04\xb8\xeb\x1d\f\"\xae\x02\n" +
+	"\x17SharedDirectoryResponse\x12N\n" +
+	"\x0eoperation_code\x18\x01 \x01(\x0e2'.teleport.desktop.v1.DirectoryOperationR\roperationCode\x12#\n" +
+	"\rcompletion_id\x18\x02 \x01(\rR\fcompletionId\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\x02 \x01(\rR\terrorCode\x12@\n" +
-	"\bfso_list\x18\x03 \x03(\v2%.teleport.desktop.v1.FileSystemObjectR\afsoList\x12\x12\n" +
-	"\x04data\x18\x04 \x01(\fR\x04data:\x04\xb8\xeb\x1d\r\"\x97\x01\n" +
+	"error_code\x18\x03 \x01(\rR\terrorCode\x12@\n" +
+	"\bfso_list\x18\x04 \x03(\v2%.teleport.desktop.v1.FileSystemObjectR\afsoList\x12\x12\n" +
+	"\x04data\x18\x05 \x01(\fR\x04data\x12#\n" +
+	"\rbytes_written\x18\x06 \x01(\rR\fbytesWritten:\x04\xb8\xeb\x1d\r\"\x97\x01\n" +
 	"\x10FileSystemObject\x12#\n" +
 	"\rlast_modified\x18\x01 \x01(\x04R\flastModified\x12\x12\n" +
 	"\x04size\x18\x02 \x01(\x04R\x04size\x12\x1b\n" +
@@ -1968,7 +1992,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\aMFAType\x12\x18\n" +
 	"\x14MFA_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11MFA_TYPE_WEBAUTHN\x10\x01\x12\x10\n" +
-	"\fMFA_TYPE_U2F\x10\x02*\xf9\x02\n" +
+	"\fMFA_TYPE_U2F\x10\x02*\xb2\x02\n" +
 	"\x12DirectoryOperation\x12#\n" +
 	"\x1fDIRECTORY_OPERATION_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DIRECTORY_OPERATION_INFO\x10\x01\x12\x1e\n" +
@@ -1978,10 +2002,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x18DIRECTORY_OPERATION_READ\x10\x05\x12\x1d\n" +
 	"\x19DIRECTORY_OPERATION_WRITE\x10\x06\x12\x1c\n" +
 	"\x18DIRECTORY_OPERATION_MOVE\x10\a\x12 \n" +
-	"\x1cDIRECTORY_OPERATION_TRUNCATE\x10\b\x12 \n" +
-	"\x1cDIRECTORY_OPERATION_ANNOUNCE\x10\t\x12#\n" +
-	"\x1fDIRECTORY_OPERATION_ACKNOWLEDGE\x10\n" +
-	":n\n" +
+	"\x1cDIRECTORY_OPERATION_TRUNCATE\x10\b:n\n" +
 	"\x0ftdp_type_option\x12\x1f.google.protobuf.MessageOptions\x18\xb7\xdd\x03 \x01(\x0e2 .teleport.desktop.v1.MessageTypeR\rtdpTypeOption\x88\x01\x01BOZMgithub.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1b\x06proto3"
 
 var (
@@ -1999,38 +2020,38 @@ func file_teleport_desktop_v1_tdpb_proto_rawDescGZIP() []byte {
 var file_teleport_desktop_v1_tdpb_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
 var file_teleport_desktop_v1_tdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
-	(MessageType)(0),                       // 0: teleport.desktop.v1.MessageType
-	(MouseButtonType)(0),                   // 1: teleport.desktop.v1.MouseButtonType
-	(AlertSeverity)(0),                     // 2: teleport.desktop.v1.AlertSeverity
-	(MouseWheelAxis)(0),                    // 3: teleport.desktop.v1.MouseWheelAxis
-	(MFAType)(0),                           // 4: teleport.desktop.v1.MFAType
-	(DirectoryOperation)(0),                // 5: teleport.desktop.v1.DirectoryOperation
-	(*ClientHello)(nil),                    // 6: teleport.desktop.v1.ClientHello
-	(*ServerHello)(nil),                    // 7: teleport.desktop.v1.ServerHello
-	(*Rectangle)(nil),                      // 8: teleport.desktop.v1.Rectangle
-	(*PNGFrame)(nil),                       // 9: teleport.desktop.v1.PNGFrame
-	(*FastPathPDU)(nil),                    // 10: teleport.desktop.v1.FastPathPDU
-	(*RDPResponsePDU)(nil),                 // 11: teleport.desktop.v1.RDPResponsePDU
-	(*ConnectionActivated)(nil),            // 12: teleport.desktop.v1.ConnectionActivated
-	(*SyncKeys)(nil),                       // 13: teleport.desktop.v1.SyncKeys
-	(*MouseMove)(nil),                      // 14: teleport.desktop.v1.MouseMove
-	(*MouseButton)(nil),                    // 15: teleport.desktop.v1.MouseButton
-	(*KeyboardButton)(nil),                 // 16: teleport.desktop.v1.KeyboardButton
-	(*ClientScreenSpec)(nil),               // 17: teleport.desktop.v1.ClientScreenSpec
-	(*Alert)(nil),                          // 18: teleport.desktop.v1.Alert
-	(*MouseWheel)(nil),                     // 19: teleport.desktop.v1.MouseWheel
-	(*ClipboardData)(nil),                  // 20: teleport.desktop.v1.ClipboardData
-	(*MFA)(nil),                            // 21: teleport.desktop.v1.MFA
-	(*SharedDirectoryAnnounce)(nil),        // 22: teleport.desktop.v1.SharedDirectoryAnnounce
-	(*SharedDirectoryAcknowledge)(nil),     // 23: teleport.desktop.v1.SharedDirectoryAcknowledge
-	(*SharedDirectoryRequest)(nil),         // 24: teleport.desktop.v1.SharedDirectoryRequest
-	(*SharedDirectoryResponse)(nil),        // 25: teleport.desktop.v1.SharedDirectoryResponse
-	(*FileSystemObject)(nil),               // 26: teleport.desktop.v1.FileSystemObject
-	(*LatencyStats)(nil),                   // 27: teleport.desktop.v1.LatencyStats
-	(*Ping)(nil),                           // 28: teleport.desktop.v1.Ping
-	(*proto.MFAAuthenticateChallenge)(nil), // 29: proto.MFAAuthenticateChallenge
-	(*proto.MFAAuthenticateResponse)(nil),  // 30: proto.MFAAuthenticateResponse
-	(*descriptorpb.MessageOptions)(nil),    // 31: google.protobuf.MessageOptions
+	(MessageType)(0),                    // 0: teleport.desktop.v1.MessageType
+	(MouseButtonType)(0),                // 1: teleport.desktop.v1.MouseButtonType
+	(AlertSeverity)(0),                  // 2: teleport.desktop.v1.AlertSeverity
+	(MouseWheelAxis)(0),                 // 3: teleport.desktop.v1.MouseWheelAxis
+	(MFAType)(0),                        // 4: teleport.desktop.v1.MFAType
+	(DirectoryOperation)(0),             // 5: teleport.desktop.v1.DirectoryOperation
+	(*ClientHello)(nil),                 // 6: teleport.desktop.v1.ClientHello
+	(*ServerHello)(nil),                 // 7: teleport.desktop.v1.ServerHello
+	(*Rectangle)(nil),                   // 8: teleport.desktop.v1.Rectangle
+	(*PNGFrame)(nil),                    // 9: teleport.desktop.v1.PNGFrame
+	(*FastPathPDU)(nil),                 // 10: teleport.desktop.v1.FastPathPDU
+	(*RDPResponsePDU)(nil),              // 11: teleport.desktop.v1.RDPResponsePDU
+	(*ConnectionActivated)(nil),         // 12: teleport.desktop.v1.ConnectionActivated
+	(*SyncKeys)(nil),                    // 13: teleport.desktop.v1.SyncKeys
+	(*MouseMove)(nil),                   // 14: teleport.desktop.v1.MouseMove
+	(*MouseButton)(nil),                 // 15: teleport.desktop.v1.MouseButton
+	(*KeyboardButton)(nil),              // 16: teleport.desktop.v1.KeyboardButton
+	(*ClientScreenSpec)(nil),            // 17: teleport.desktop.v1.ClientScreenSpec
+	(*Alert)(nil),                       // 18: teleport.desktop.v1.Alert
+	(*MouseWheel)(nil),                  // 19: teleport.desktop.v1.MouseWheel
+	(*ClipboardData)(nil),               // 20: teleport.desktop.v1.ClipboardData
+	(*MFA)(nil),                         // 21: teleport.desktop.v1.MFA
+	(*SharedDirectoryAnnounce)(nil),     // 22: teleport.desktop.v1.SharedDirectoryAnnounce
+	(*SharedDirectoryAcknowledge)(nil),  // 23: teleport.desktop.v1.SharedDirectoryAcknowledge
+	(*SharedDirectoryRequest)(nil),      // 24: teleport.desktop.v1.SharedDirectoryRequest
+	(*SharedDirectoryResponse)(nil),     // 25: teleport.desktop.v1.SharedDirectoryResponse
+	(*FileSystemObject)(nil),            // 26: teleport.desktop.v1.FileSystemObject
+	(*LatencyStats)(nil),                // 27: teleport.desktop.v1.LatencyStats
+	(*Ping)(nil),                        // 28: teleport.desktop.v1.Ping
+	(*v1.AuthenticateChallenge)(nil),    // 29: teleport.mfa.v1.AuthenticateChallenge
+	(*v1.AuthenticateResponse)(nil),     // 30: teleport.mfa.v1.AuthenticateResponse
+	(*descriptorpb.MessageOptions)(nil), // 31: google.protobuf.MessageOptions
 }
 var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	17, // 0: teleport.desktop.v1.ClientHello.screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
@@ -2040,17 +2061,18 @@ var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
 	2,  // 4: teleport.desktop.v1.Alert.severity:type_name -> teleport.desktop.v1.AlertSeverity
 	3,  // 5: teleport.desktop.v1.MouseWheel.axis:type_name -> teleport.desktop.v1.MouseWheelAxis
 	4,  // 6: teleport.desktop.v1.MFA.type:type_name -> teleport.desktop.v1.MFAType
-	29, // 7: teleport.desktop.v1.MFA.challenge:type_name -> proto.MFAAuthenticateChallenge
-	30, // 8: teleport.desktop.v1.MFA.authentication_response:type_name -> proto.MFAAuthenticateResponse
+	29, // 7: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
+	30, // 8: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
 	5,  // 9: teleport.desktop.v1.SharedDirectoryRequest.operation_code:type_name -> teleport.desktop.v1.DirectoryOperation
-	26, // 10: teleport.desktop.v1.SharedDirectoryResponse.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
-	31, // 11: teleport.desktop.v1.tdp_type_option:extendee -> google.protobuf.MessageOptions
-	0,  // 12: teleport.desktop.v1.tdp_type_option:type_name -> teleport.desktop.v1.MessageType
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	12, // [12:13] is the sub-list for extension type_name
-	11, // [11:12] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	5,  // 10: teleport.desktop.v1.SharedDirectoryResponse.operation_code:type_name -> teleport.desktop.v1.DirectoryOperation
+	26, // 11: teleport.desktop.v1.SharedDirectoryResponse.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
+	31, // 12: teleport.desktop.v1.tdp_type_option:extendee -> google.protobuf.MessageOptions
+	0,  // 13: teleport.desktop.v1.tdp_type_option:type_name -> teleport.desktop.v1.MessageType
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	13, // [13:14] is the sub-list for extension type_name
+	12, // [12:13] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_desktop_v1_tdpb_proto_init() }
