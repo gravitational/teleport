@@ -20,15 +20,21 @@ package access
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"maps"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -37,14 +43,32 @@ import (
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // CacheConfig configures the scoped access cache.
 type CacheConfig struct {
 	Events            types.Events
 	Reader            services.ScopedAccessReader
+	AccessListReader  AccessListReader
+	AccessListEvents  types.Events
 	MaxRetryPeriod    time.Duration
 	TTLCacheRetention time.Duration
+}
+
+type AccessListReader interface {
+	// GetAccessList returns the specified access list resource.
+	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+	// GetAccessLists returns a list of all access lists.
+	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
+	// ListAccessLists returns a paginated list of access lists.
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// GetAccessListMember returns the specified access list member resource.
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// ListAccessListMembers returns a paginated list of all access list members.
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
 // CheckAndSetDefaults verifies required fields and sets default values as appropriate.
@@ -55,6 +79,10 @@ func (c *CacheConfig) CheckAndSetDefaults() error {
 
 	if c.Reader == nil {
 		return trace.BadParameter("missing required parameter Reader in scoped access cache config")
+	}
+
+	if c.AccessListReader == nil {
+		return trace.BadParameter("missing required parameter AccessListReader in scoped access cache config")
 	}
 
 	if c.MaxRetryPeriod <= 0 {
@@ -269,8 +297,19 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 	if err != nil {
 		return trace.Errorf("failed to create watcher: %w", err)
 	}
-
 	defer watcher.Close()
+
+	accessListWatcher, err := c.cfg.AccessListEvents.NewWatcher(ctx, types.Watch{
+		Name: "scoped-access-list-cache",
+		Kinds: []types.WatchKind{
+			{Kind: types.KindAccessList},
+			{Kind: types.KindAccessListMember},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating access list watcher")
+	}
+	defer accessListWatcher.Close()
 
 	select {
 	case event := <-watcher.Events():
@@ -289,13 +328,31 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 		return trace.Wrap(ctx.Err())
 	}
 
+	select {
+	case event := <-accessListWatcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	case <-accessListWatcher.Done():
+		if err := accessListWatcher.Error(); err != nil {
+			// watcher errors are expected if the watcher is closed before init completes.
+			return trace.Errorf("watcher failed while waiting for init event: %w", err)
+		}
+		return trace.Errorf("watcher failed while waiting for init event")
+	case <-time.After(retryutils.SeventhJitter(time.Minute)):
+		return trace.Errorf("timed out waiting for init event from watcher")
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+
 	fetchStart := time.Now()
-	state, err := c.fetch(ctx)
+	state, accessListMaterializer, err := c.fetch(ctx)
 	if err != nil {
 		return trace.Errorf("failed to fetch initial state: %w", err)
 	}
 
-	slog.InfoContext(ctx, "scoped access cache fetched initial state", "elapsed", time.Since(fetchStart))
+	fetchEnd := time.Now()
+	slog.InfoContext(ctx, "scoped access cache fetched initial state", "elapsed", fetchEnd.Sub(fetchStart))
 
 	c.rw.Lock()
 	c.state = state
@@ -314,8 +371,12 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 	for {
 		select {
 		case event := <-watcher.Events():
-			if err := processEvent(ctx, state, event); err != nil {
+			if err := processEvent(ctx, state, accessListMaterializer, event); err != nil {
 				return trace.Errorf("failed to process event: %w", err)
+			}
+		case event := <-accessListWatcher.Events():
+			if err := processEvent(ctx, state, accessListMaterializer, event); err != nil {
+				return trace.Errorf("failed to process access list event: %w", err)
 			}
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
@@ -330,7 +391,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 }
 
 // processEvent attempts to update the provided cache state with the given event.
-func processEvent(ctx context.Context, state state, event types.Event) error {
+func processEvent(ctx context.Context, state state, accessListMaterializer *accessListMaterializer, event types.Event) error {
 	switch event.Type {
 	case types.OpPut:
 		switch item := event.Resource.(type) {
@@ -342,6 +403,14 @@ func processEvent(ctx context.Context, state state, event types.Event) error {
 			if err := state.assignments.Put(item.UnwrapT()); err != nil {
 				return trace.Errorf("failed to put scoped role assignment %q: %w", item.UnwrapT().GetMetadata().GetName(), err)
 			}
+		case *accesslist.AccessList:
+			if err := accessListMaterializer.handleAccessListPut(state, item); err != nil {
+				return trace.Wrap(err)
+			}
+		case *accesslist.AccessListMember:
+			if err := accessListMaterializer.handleAccessListMemberPut(ctx, state, item); err != nil {
+				return trace.Wrap(err)
+			}
 		default:
 			return trace.BadParameter("unexpected resource type %T in put event", event.Resource)
 		}
@@ -351,6 +420,18 @@ func processEvent(ctx context.Context, state state, event types.Event) error {
 			state.roles.Delete(event.Resource.GetName())
 		case scopedaccess.KindScopedRoleAssignment:
 			state.assignments.Delete(event.Resource.GetName())
+		case types.KindAccessList:
+			if err := accessListMaterializer.handleAccessListDelete(event.Resource.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		case types.KindAccessListMember:
+			listName := event.Resource.GetMetadata().Description
+			if listName == "" {
+				return trace.Errorf("missing scoped access list name in scoped access list member delete event description")
+			}
+			if err := accessListMaterializer.handleAccessListMemberDelete(ctx, state, listName, event.Resource.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
 		default:
 			return trace.BadParameter("unexpected resource kind %q in event delete event", event.Resource.GetKind())
 		}
@@ -381,7 +462,8 @@ func (c *Cache) read(ctx context.Context) (state, error) {
 
 	// the cache is not ready, load a frozen readonly copy via ttl cache
 	temp, err := utils.FnCacheGet(ctx, c.ttlCache, "access-cache", func(ctx context.Context) (state, error) {
-		return c.fetch(ctx)
+		state, _, err := c.fetch(ctx)
+		return state, trace.Wrap(err)
 	})
 
 	// primary may have been concurrently loaded. prefer using it if so.
@@ -397,16 +479,16 @@ func (c *Cache) read(ctx context.Context) (state, error) {
 }
 
 // fetch loads all currently available roles and assignments from the upstream and builds a cache state.
-func (c *Cache) fetch(ctx context.Context) (state, error) {
+func (c *Cache) fetch(ctx context.Context) (state, *accessListMaterializer, error) {
 	roleCache := roles.NewRoleCache()
 
 	for role, err := range scopedutils.RangeScopedRoles(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRolesRequest{}) {
 		if err != nil {
-			return state{}, trace.Wrap(err)
+			return state{}, nil, trace.Wrap(err)
 		}
 
 		if err := roleCache.Put(role); err != nil {
-			return state{}, trace.Wrap(err)
+			return state{}, nil, trace.Wrap(err)
 		}
 	}
 
@@ -414,16 +496,436 @@ func (c *Cache) fetch(ctx context.Context) (state, error) {
 
 	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		if err != nil {
-			return state{}, trace.Wrap(err)
+			return state{}, nil, trace.Wrap(err)
 		}
 
 		if err := assignmentCache.Put(assignment); err != nil {
-			return state{}, trace.Wrap(err)
+			return state{}, nil, trace.Wrap(err)
 		}
 	}
 
-	return state{
+	s := state{
 		roles:       roleCache,
 		assignments: assignmentCache,
-	}, nil
+	}
+
+	accessListMaterializer := newAccessListMaterializer(c.cfg.AccessListReader)
+	materializeStart := time.Now()
+	if err := accessListMaterializer.init(ctx, s); err != nil {
+		return state{}, nil, trace.Wrap(err, "initializing access list materializer")
+
+	}
+	slog.InfoContext(ctx, "access list materializer initialized", "elapsed", time.Since(materializeStart))
+
+	return s, accessListMaterializer, nil
+}
+
+func newAccessListMaterializer(upstream AccessListReader) *accessListMaterializer {
+	return &accessListMaterializer{
+		upstream:                upstream,
+		allLists:                set.New[string](),
+		directUserMembers:       make(map[string]set.Set[string]),
+		directListMembers:       make(map[string]set.Set[string]),
+		materializedAssignments: make(map[materializedAssignmentKey]string),
+	}
+}
+
+type accessListMaterializer struct {
+	upstream AccessListReader
+
+	// all scoped access lists.
+	allLists set.Set[string]
+	// list -> all users that are direct members of list
+	directUserMembers map[string]set.Set[string]
+	// list -> all lists that are direct members of list
+	directListMembers map[string]set.Set[string]
+	// list -> all nested member lists of that list
+	nestedListMembers map[string]set.Set[string]
+	// list -> (user -> count of how many times user is a member of (list and nestedListMembers[list]))
+	nestedUserMembers map[string]map[string]int
+	// materializedAssignmentKey -> id of materialized assignment
+	materializedAssignments map[materializedAssignmentKey]string
+}
+
+type materializedAssignmentKey struct {
+	list string
+	user string
+}
+
+func (m *accessListMaterializer) init(ctx context.Context, state state) error {
+	for list, err := range clientutils.Resources(ctx, m.upstream.ListAccessLists) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		listName := list.GetName()
+		m.allLists.Add(listName)
+	}
+
+	for member, err := range clientutils.Resources(ctx, m.upstream.ListAllAccessListMembers) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if member.IsUser() {
+			list, member := member.Spec.AccessList, member.Spec.Name
+			if directUserMembers, ok := m.directUserMembers[list]; ok {
+				directUserMembers.Add(member)
+			} else {
+				m.directUserMembers[list] = set.New(member)
+			}
+		} else {
+			parentList, memberList := member.Spec.AccessList, member.Spec.Name
+			if directListMembers, ok := m.directListMembers[parentList]; ok {
+				directListMembers.Add(memberList)
+			} else {
+				m.directListMembers[parentList] = set.New(memberList)
+			}
+		}
+	}
+
+	// Initialize empty sets for any lists with no members.
+	for list := range m.allLists {
+		if _, ok := m.directUserMembers[list]; !ok {
+			m.directUserMembers[list] = set.New[string]()
+		}
+		if _, ok := m.directListMembers[list]; !ok {
+			m.directListMembers[list] = set.New[string]()
+		}
+	}
+
+	m.reinitNestedListMembers()
+	m.reinitNestedUserMembers()
+
+	if err := m.rematerialize(ctx, state); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("directUserMembers", m.directUserMembers)
+	fmt.Println("directListMembers", m.directListMembers)
+	fmt.Println("nestedListMembers", m.nestedListMembers)
+	fmt.Println("nestedUserMembers", m.nestedUserMembers)
+	fmt.Println("materializedAssignments", m.materializedAssignments)
+
+	return nil
+}
+
+func (m *accessListMaterializer) reinitNestedListMembers() {
+	if m.nestedListMembers == nil {
+		m.nestedListMembers = make(map[string]set.Set[string], len(m.directListMembers))
+	} else {
+		clear(m.nestedListMembers)
+	}
+	for list, directMembers := range m.directListMembers {
+		m.nestedListMembers[list] = directMembers.Clone()
+	}
+	m.propagateNestedListMembers()
+}
+
+func (m *accessListMaterializer) propagateNestedListMembers() {
+	changed := true
+	for changed {
+		changed = false
+		for list, nestedMembers := range m.nestedListMembers {
+			lenBefore := nestedMembers.Len()
+			for nestedMember := range nestedMembers {
+				nestedMembers.Union(m.nestedListMembers[nestedMember])
+			}
+			nestedMembers.Remove(list)
+			changed = changed || nestedMembers.Len() != lenBefore
+		}
+	}
+}
+
+func (m *accessListMaterializer) reinitNestedUserMembers() {
+	if m.nestedUserMembers == nil {
+		m.nestedUserMembers = make(map[string]map[string]int, m.allLists.Len())
+	} else {
+		clear(m.nestedUserMembers)
+	}
+	for list := range m.allLists {
+		counts := make(map[string]int)
+		for user := range m.directUserMembers[list] {
+			counts[user]++
+		}
+		for listMember := range m.nestedListMembers[list] {
+			for user := range m.directUserMembers[listMember] {
+				counts[user]++
+			}
+		}
+		m.nestedUserMembers[list] = counts
+	}
+}
+
+func (m *accessListMaterializer) rematerialize(ctx context.Context, state state) error {
+	unseenAssignments := maps.Clone(m.materializedAssignments)
+	for listName, userCounts := range m.nestedUserMembers {
+		for user, count := range userCounts {
+			if count <= 0 {
+				return trace.Errorf("invariant violated, nestedUserMemberships[%s][%s] has count %d", listName, user, count)
+			}
+			key := materializedAssignmentKey{
+				list: listName,
+				user: user,
+			}
+			delete(unseenAssignments, key)
+			if _, alreadyMaterialized := m.materializedAssignments[key]; alreadyMaterialized {
+				continue
+			}
+			list, err := m.upstream.GetAccessList(ctx, listName)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return trace.Errorf("invariant violated, list %s not found", listName)
+				}
+				return trace.Wrap(err)
+			}
+			assignmentID := uuid.NewString()
+			assignment := materializeScopedRoleAssignment(user, list, assignmentID)
+			if err := state.assignments.Put(assignment); err != nil {
+				return trace.Wrap(err, "putting materialized assignment for user %q in list %q into the cache", user, listName)
+			}
+			m.materializedAssignments[key] = assignmentID
+		}
+	}
+	for assignmentKey, assignmentID := range unseenAssignments {
+		state.assignments.Delete(assignmentID)
+		delete(m.materializedAssignments, assignmentKey)
+	}
+	return nil
+}
+
+func (m *accessListMaterializer) handleAccessListPut(state state, list *accesslist.AccessList) error {
+	listName := list.GetName()
+	m.allLists.Add(listName)
+	if _, ok := m.directListMembers[listName]; !ok {
+		m.directListMembers[listName] = set.New[string]()
+	}
+	if _, ok := m.directUserMembers[listName]; !ok {
+		m.directUserMembers[listName] = set.New[string]()
+	}
+	if _, ok := m.nestedListMembers[listName]; !ok {
+		m.nestedListMembers[listName] = set.New[string]()
+	}
+	if _, ok := m.nestedUserMembers[listName]; !ok {
+		m.nestedUserMembers[listName] = make(map[string]int)
+	}
+	for key, id := range m.materializedAssignments {
+		if key.list != listName {
+			continue
+		}
+		newAssignment := materializeScopedRoleAssignment(key.user, list, id)
+		if err := state.assignments.Put(newAssignment); err != nil {
+			return trace.Wrap(err, "putting updated materialized assignment for user %q in list %q into assignment cache")
+		}
+	}
+	return nil
+}
+
+func (m *accessListMaterializer) handleAccessListDelete(listName string) error {
+	if directUserMembers, ok := m.directUserMembers[listName]; ok {
+		if directUserMembers.Len() > 0 {
+			return trace.Errorf("invariant violated, access list %q still has direct user members while being deleted", listName)
+		}
+		delete(m.directUserMembers, listName)
+	}
+	if directListMembers, ok := m.directListMembers[listName]; ok {
+		if directListMembers.Len() > 0 {
+			return trace.Errorf("invariant violated, access list %q still has direct list members while being deleted", listName)
+		}
+		delete(m.directListMembers, listName)
+	}
+	if nestedUserMembers, ok := m.nestedUserMembers[listName]; ok {
+		if len(nestedUserMembers) > 0 {
+			return trace.Errorf("invariant violated, access list %q still has nested user members while being deleted", listName)
+		}
+		delete(m.nestedUserMembers, listName)
+	}
+	if nestedListMembers, ok := m.nestedListMembers[listName]; ok {
+		if nestedListMembers.Len() > 0 {
+			return trace.Errorf("invariant violated, access list %q still has nested list members while being deleted", listName)
+		}
+		delete(m.nestedListMembers, listName)
+	}
+	for key := range m.materializedAssignments {
+		if key.list == listName {
+			return trace.Errorf("invariant violated, access list %q still has materialized scoped role assignment while being deleted", listName)
+		}
+	}
+	m.allLists.Remove(listName)
+	return nil
+}
+
+func (m *accessListMaterializer) handleAccessListMemberPut(ctx context.Context, state state, member *accesslist.AccessListMember) error {
+	if member.IsUser() {
+		return m.handleAccessListUserMemberPut(ctx, state, member)
+	}
+	return m.handleAccessListListMemberPut(ctx, state, member)
+}
+
+func (m *accessListMaterializer) handleAccessListMemberDelete(ctx context.Context, state state, listName, memberName string) error {
+	maybeUser := m.directUserMembers[listName].Contains(memberName)
+	maybeList := m.directListMembers[listName].Contains(memberName)
+	switch {
+	case !maybeUser && !maybeList:
+		// This is already not a member of the list.
+		return nil
+	case maybeUser && maybeList:
+		// The delete event didn't give us enough information...
+		// TODO(nklaassen): figure out how to handle this.
+		return trace.Errorf("deleted access list member could be a list or a user, both exist with the same name")
+	case maybeUser:
+		return m.handleAccessListUserMemberDelete(ctx, state, listName, memberName)
+	case maybeList:
+		return m.handleAccessListListMemberDelete(ctx, state, listName, memberName)
+	}
+	panic("unreachable")
+}
+
+func (m *accessListMaterializer) handleAccessListUserMemberPut(ctx context.Context, state state, member *accesslist.AccessListMember) error {
+	listName, user := member.Spec.AccessList, member.Spec.Name
+	if m.directUserMembers[listName].Contains(user) {
+		// User is already a direct member of this list, nothing to do.
+		return nil
+	}
+
+	// First update direct membership.
+	m.directUserMembers[listName].Add(user)
+
+	// Then update nested memberships.
+	m.nestedUserMembers[listName][user]++
+	possibleNewMemberships := []string{listName}
+	for otherList, otherListMembers := range m.nestedListMembers {
+		if otherList == listName || !otherListMembers.Contains(listName) {
+			// The list this user was just added to is not a nested member of otherList
+			continue
+		}
+		// User is now a nested member of this list for one more reason (they are newly a direct member of listName)
+		m.nestedUserMembers[otherList][user]++
+		possibleNewMemberships = append(possibleNewMemberships, otherList)
+	}
+
+	// Then ensure there is a materialized assignment for all lists user may newly be a nested member of.
+	for _, listName := range possibleNewMemberships {
+		assignmentKey := materializedAssignmentKey{list: listName, user: user}
+		if _, assignmentAlreadyMaterialized := m.materializedAssignments[assignmentKey]; assignmentAlreadyMaterialized {
+			continue
+		}
+		list, err := m.upstream.GetAccessList(ctx, listName)
+		if err != nil {
+			return trace.Errorf("invariant violated: list %q not found despite user %q being a member of it", listName, user)
+		}
+		assignmentID := uuid.NewString()
+		newAssignment := materializeScopedRoleAssignment(user, list, assignmentID)
+		if err := state.assignments.Put(newAssignment); err != nil {
+			return trace.Wrap(err, "putting materialized assignment for user %q in list %q into assignment cache", user, listName)
+		}
+		m.materializedAssignments[assignmentKey] = assignmentID
+	}
+
+	return nil
+}
+
+func (m *accessListMaterializer) handleAccessListUserMemberDelete(ctx context.Context, state state, listName, user string) error {
+	if !m.directUserMembers[listName].Contains(user) {
+		// User is somehow already not a direct member of this list, nothing to do.
+		return nil
+	}
+
+	// First update direct membership.
+	m.directUserMembers[listName].Remove(user)
+
+	// Then update nested memberships.
+	var removedMemberships []string
+	m.nestedUserMembers[listName][user]--
+	if m.nestedUserMembers[listName][user] == 0 {
+		delete(m.nestedUserMembers[listName], user)
+		removedMemberships = append(removedMemberships, listName)
+	}
+	for otherList, otherListMembers := range m.nestedListMembers {
+		if otherList == listName || !otherListMembers.Contains(listName) {
+			// The list this user was just removed from is not a nested member of otherList
+			continue
+		}
+		// User is now a nested member of this list for one fewer reasons (they are no longer a direct member of listName)
+		m.nestedUserMembers[otherList][user]--
+		if m.nestedUserMembers[otherList][user] == 0 {
+			delete(m.nestedUserMembers[otherList], user)
+			removedMemberships = append(removedMemberships, otherList)
+		}
+	}
+
+	// Then make sure to remove materialized assignments for all lists user is no longer a nested member of.
+	for _, listName := range removedMemberships {
+		assignmentKey := materializedAssignmentKey{list: listName, user: user}
+		currentAssignmentID, assignmentCurrentlyMaterialized := m.materializedAssignments[assignmentKey]
+		if !assignmentCurrentlyMaterialized {
+			continue
+		}
+		state.assignments.Delete(currentAssignmentID)
+		delete(m.materializedAssignments, assignmentKey)
+	}
+
+	return nil
+}
+
+func (m *accessListMaterializer) handleAccessListListMemberPut(ctx context.Context, state state, member *accesslist.AccessListMember) error {
+	parentListName, memberListName := member.Spec.AccessList, member.Spec.Name
+	if m.directListMembers[parentListName].Contains(memberListName) {
+		// list is already a direct member of parent list, nothing to do.
+		return nil
+	}
+
+	// First update direct membership.
+	m.directListMembers[parentListName].Add(memberListName)
+
+	// Then update nested list memberships.
+	m.nestedListMembers[parentListName].Add(memberListName)
+	m.propagateNestedListMembers()
+
+	// Then update nested user memberships.
+	m.reinitNestedUserMembers()
+
+	// Then ensure there is a materialized assignment for all (list, user) pairs.
+	return trace.Wrap(m.rematerialize(ctx, state))
+}
+
+func (m *accessListMaterializer) handleAccessListListMemberDelete(ctx context.Context, state state, parentListName, memberListName string) error {
+	if !m.directListMembers[parentListName].Contains(memberListName) {
+		// list is somehow already not a direct member of parent list, nothing to do.
+		return nil
+	}
+
+	// First update direct membership.
+	m.directListMembers[parentListName].Remove(memberListName)
+
+	// Then update nested list memberships.
+	m.reinitNestedListMembers()
+
+	// Then update nested user memberships.
+	m.reinitNestedUserMembers()
+
+	// Then ensure there is a materialized assignment for all (list, user)
+	// pairs and dangling assignements are cleaned up.
+	return trace.Wrap(m.rematerialize(ctx, state))
+}
+
+func materializeScopedRoleAssignment(user string, list *accesslist.AccessList, uuid string) *scopedaccessv1.ScopedRoleAssignment {
+	roleGrants := list.Spec.Grants.ScopedRoles
+	assignment := &scopedaccessv1.ScopedRoleAssignment{
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: uuid,
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			User:        user,
+			Assignments: make([]*scopedaccessv1.Assignment, 0, len(roleGrants)),
+		},
+	}
+	for _, grant := range roleGrants {
+		assignment.Spec.Assignments = append(assignment.Spec.Assignments, &scopedaccessv1.Assignment{
+			Role:  grant.Role,
+			Scope: grant.Scope,
+		})
+	}
+	return assignment
 }

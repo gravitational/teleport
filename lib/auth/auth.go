@@ -644,14 +644,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
-		Events: cfg.Events,
-		Reader: cfg.ScopedAccess,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -743,7 +735,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Services:                     services,
 		Cache:                        services,
 		scopedAccessBackend:          cfg.ScopedAccess,
-		ScopedAccessCache:            scopedAccessCache,
 		keyStore:                     cfg.KeyStore,
 		traceClient:                  cfg.TraceClient,
 		fips:                         cfg.FIPS,
@@ -926,8 +917,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, ok := as.getCache(); !ok {
+	scopedAccessCacheConfig := scopedaccesscache.CacheConfig{
+		Events:           cfg.Events,
+		Reader:           cfg.ScopedAccess,
+		AccessListReader: services,
+		AccessListEvents: cfg.Events,
+	}
+
+	if cache, ok := as.getCache(); ok {
+		scopedAccessCacheConfig.AccessListReader = cache
+		scopedAccessCacheConfig.AccessListEvents = cache
+	} else {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
+	}
+
+	as.ScopedAccessCache, err = scopedaccesscache.NewCache(scopedAccessCacheConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return as, nil
