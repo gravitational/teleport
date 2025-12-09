@@ -69,6 +69,7 @@ import (
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -196,7 +197,11 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.AccessDenied("this cluster does not support Kubernetes")
 	}
 
-	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	// TODO(espadolini): joining requires hitting the agent handling a specific
+	// session, which is not currently implemented through the relay, once it's
+	// possible we should probably get rid of the whole ignoreRelay parameter
+	const ignoreRelayTrue = true
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc, ignoreRelayTrue)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -208,7 +213,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	tlsConfig.InsecureSkipVerify = cf.InsecureSkipVerify
-	tlsConfig.ServerName = kubeStatus.tlsServerName
+	tlsConfig.ServerName = kubeStatus.tlsServerNameForCluster(cluster, kubeCluster)
 	session, err := client.NewKubeSession(cf.Context,
 		client.KubeSessionConfig{
 			KubeProxyAddr:                 tc.Config.KubeProxyAddr,
@@ -1276,7 +1281,8 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err := client.RetryWithRelogin(cf.Context, tc, func() error {
 			var err error
-			kubeStatus, err = fetchKubeStatus(cf.Context, tc)
+			const ignoreRelayFalse = false
+			kubeStatus, err = fetchKubeStatus(cf.Context, tc, ignoreRelayFalse)
 			return trace.Wrap(err)
 		})
 		if err != nil {
@@ -1493,15 +1499,20 @@ type kubernetesStatus struct {
 	teleportClusterName string
 	kubeClusters        []types.KubeCluster
 	credentials         *client.KeyRing
-	tlsServerName       string
+	tlsServerNameFunc   func(teleportClusterName, kubeClusterName string) string
+}
+
+func (s *kubernetesStatus) tlsServerNameForCluster(teleportClusterName, kubeClusterName string) string {
+	if s.tlsServerNameFunc == nil {
+		return ""
+	}
+	return s.tlsServerNameFunc(teleportClusterName, kubeClusterName)
 }
 
 // fetchKubeStatus returns a kubernetesStatus populated from the given TeleportClient.
-func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernetesStatus, error) {
+func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient, ignoreRelay bool) (*kubernetesStatus, error) {
 	var err error
-	kubeStatus := &kubernetesStatus{
-		clusterAddr: tc.KubeClusterAddr(),
-	}
+	kubeStatus := &kubernetesStatus{}
 	kubeStatus.credentials, err = tc.LocalAgent().GetCoreKeyRing()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1511,9 +1522,22 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 		return nil, trace.Wrap(err)
 	}
 
+	if !ignoreRelay && tc.RelayAddr != "" {
+		kubeStatus.clusterAddr = (&url.URL{
+			Scheme: "https",
+			Host:   tc.RelayAddr,
+		}).String()
+		kubeStatus.tlsServerNameFunc = kuberelay.FullSNIForKubeCluster
+		return kubeStatus, nil
+	}
+
+	kubeStatus.clusterAddr = tc.KubeClusterAddr()
 	if tc.TLSRoutingEnabled {
 		k8host, _ := tc.KubeProxyHostPort()
-		kubeStatus.tlsServerName = client.GetKubeTLSServerName(k8host)
+		tlsServerName := client.GetKubeTLSServerName(k8host)
+		kubeStatus.tlsServerNameFunc = func(teleportClusterName, kubeClusterName string) string {
+			return tlsServerName
+		}
 	}
 
 	return kubeStatus, nil
@@ -1527,7 +1551,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus, overrideCo
 		TeleportClusterName: kubeStatus.teleportClusterName,
 		Credentials:         kubeStatus.credentials,
 		ProxyAddr:           cf.Proxy,
-		TLSServerName:       kubeStatus.tlsServerName,
+		TLSServerNameFunc:   kubeStatus.tlsServerNameFunc,
 		Impersonate:         cf.kubernetesImpersonationConfig.kubernetesUser,
 		ImpersonateGroups:   cf.kubernetesImpersonationConfig.kubernetesGroups,
 		Namespace:           cf.kubeNamespace,
@@ -1592,7 +1616,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path, overrideCont
 	if _, err := tc.Ping(cf.Context); err != nil {
 		return trace.Wrap(err)
 	}
-	if tc.KubeProxyAddr == "" {
+	if tc.KubeProxyAddr == "" && tc.RelayAddr == "" {
 		// Kubernetes support disabled, don't touch kubeconfig.
 		return nil
 	}

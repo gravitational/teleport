@@ -38,8 +38,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
 
@@ -120,7 +118,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if types.IsOpenSSHNodeSubKind(ctx.ServerSubKind) || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if ctx.srv.Component() == teleport.ComponentForwardingNode {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -718,13 +716,17 @@ func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
 	return trace.Wrap(t.session.WindowChange(ctx, h, w))
 }
 
-// prepareRemoteSession prepares the more session for execution.
+// prepareRemoteSession prepares the remote session with env vars provided by the forwarding server or client.
 func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
 		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
 		teleport.SSHSessionID:           scx.SessionID(),
+	}
+
+	if scx.GetSessionParams().WebProxyAddr != "" {
+		envs[teleport.SSHSessionWebProxyAddr] = scx.GetSessionParams().WebProxyAddr
 	}
 
 	if err := session.SetEnvs(ctx, envs); err != nil {

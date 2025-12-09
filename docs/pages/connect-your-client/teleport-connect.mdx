@@ -566,11 +566,17 @@ $ tctl lock --server-id=SERVER_UUID --message="Using Connect My Computer is forb
 Teleport Connect ships with its own bundled version of tsh. Teleport Connect will always use this
 version of tsh for any actions performed within the app.
 
-Teleport Connect makes tsh available to use in your terminal of choice as well. Please note that at
-the moment tsh and Teleport Connect operate on different sets of profiles, as Teleport Connect sets
-a custom home location through [the `TELEPORT_HOME` environment
-variable](../reference/cli/tsh.mdx#tsh-environment-variables). For example, logging in to a new cluster
-through tsh will not make that cluster show up in Teleport Connect.
+The bundled tsh tool is also available to use directly in your terminal. By default, Teleport Connect and tsh share
+the same home directory, so any profiles you create or update in one tool are immediately reflected in the other.
+If you prefer a different directory, you can configure it via the `tshHome` property in [the configuration](#configuration).
+
+Teleport Connect actively monitors the tsh directory, so updates made with tsh (such as logging in, logging out,
+or adding new clusters) will automatically appear in the app.
+
+<Admonition title="Note">
+Older versions of Teleport Connect used a separate set of profiles stored in an internal tsh directory.
+On the first launch, the app will automatically migrate your profiles to the new location.
+</Admonition>
 
 <Tabs>
 <TabItem label="macOS">
@@ -631,6 +637,7 @@ Below is the list of the supported config properties.
 | `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.                                       |
 | `skipVersionCheck`            | `false`                                                                                                              | Skips the version check and hides the version compatibility warning when logging in to a cluster.          |
 | `runInBackground` | `true` on macOS/Windows, `false` on Linux | Keeps the app running in the menu bar/system tray even when the main window is closed. On Linux, displaying the system tray icon may require installing shell extensions. |
+| `tshHome` | `~/.tsh` | Home location for tsh configuration and data. |
 | `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS `Consolas, monospace` on Windows `'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                                                              |
 | `terminal.fontSize`           | `15`                                                                                                                 | Font size for the terminal.                                                                                |
 | `terminal.windowsBackend` | `auto` | `auto` uses modern [ConPTY](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available. |
@@ -723,27 +730,30 @@ To reset the state related to a particular cluster:
 1. Close Teleport Connect.
 1. Open Teleport Connect, then log back in to the cluster.
 
-To completely wipe all app state:
+To completely wipe all app state, close Teleport Connect and run the following commands:
 
-1. Close Teleport Connect.
-1. Remove the internal `tsh` folder and the `app_state.json` file to log out of all clusters and
-   clear all remembered tabs and connections.
+{/* TODO: DELETE IN 20.0.0: */}
+{/* Remove cleaning up the internal Teleport Connect/tsh directory from the commands. */}
+{/* Also remove the tsh home migration in Connect's main.ts */}
 
 <Tabs>
 <TabItem label="macOS">
 ```code
 $ rm -rf ~/Library/Application\ Support/Teleport\ Connect/{tsh,app_state.json}
+$ rm -rf ~/.tsh
 ```
 </TabItem>
 <TabItem label="Linux">
 ```code
 $ rm -rf ~/.config/Teleport\ Connect/{tsh,app_state.json}
+$ rm -rf ~/.tsh
 ```
 </TabItem>
 <TabItem label="Windows">
 ```code
-$ rmdir /s /q C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\tsh
 $ del C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\app_state.json
+$ rmdir /s /q C:\Users\%UserName%\AppData\Roaming\"Teleport Connect"\tsh
+$ rmdir /s /q C:\Users\%UserName%\.tsh
 ```
 </TabItem>
 </Tabs>
@@ -840,10 +850,16 @@ Remove Teleport Connect for macOS from the Applications directory with this comm
 $ sudo rm -rf /Applications/Teleport\ Connect.app
 ```
 
-To remove the local user data directory:
+To remove the local user data directory which holds app configuration, state, and logs:
 
 ```code
 $ rm -rf ~/Library/Application\ Support/Teleport\ Connect
+```
+
+To remove the tsh directory which holds cluster credentials (note: this directory is also used by the tsh tool):
+
+```code
+$ rm -rf ~/.tsh
 ```
 
 </TabItem>
@@ -851,10 +867,16 @@ $ rm -rf ~/Library/Application\ Support/Teleport\ Connect
 
 (!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
 
-To remove the local user data directory:
+To remove the local user data directory which holds app configuration, state, and logs:
 
 ```powershell
 $ rmdir /s /q "%APPDATA%\Teleport Connect"
+```
+
+To remove the tsh directory which holds cluster credentials (note: this directory is also used by the tsh tool):
+
+```code
+$ rmdir /s /q C:\Users\%UserName%\.tsh
 ```
 
 </TabItem>
@@ -870,6 +892,12 @@ For RPM installations uninstall Teleport Connect using YUM:
 
 ```code
 $ sudo yum remove teleport-connect
+```
+
+To remove the tsh directory which holds cluster credentials (note: this directory is also used by the tsh tool):
+
+```code
+$ rm -rf ~/.tsh
 ```
 
 Installs based on a tarball should remove the

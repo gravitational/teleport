@@ -46,6 +46,8 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
@@ -56,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	"github.com/gravitational/teleport/lib/scopes/joining"
@@ -86,12 +89,15 @@ type AuthService interface {
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
 	GetAzureDevopsIDTokenValidator() azuredevops.Validator
+	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
+	GetCircleCITokenValidator() circleci.Validator
 	GetEnv0IDTokenValidator() Env0TokenValidator
 	GetGCPIDTokenValidator() gcp.Validator
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
+	GetSpaceliftIDTokenValidator() spacelift.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
 	GetTerraformIDTokenValidator() terraformcloud.Validator
 	services.Presence
@@ -296,8 +302,12 @@ func (s *Server) handleJoinMethod(
 		return s.handleTokenJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodAzureDevops:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateAzureDevopsToken)
+	case types.JoinMethodBitbucket:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateBitbucketToken)
 	case types.JoinMethodBoundKeypair:
 		return s.handleBoundKeypairJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodCircleCI:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateCircleCIToken)
 	case types.JoinMethodIAM:
 		return s.handleIAMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodEC2:
@@ -312,6 +322,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGitlabToken)
+	case types.JoinMethodSpacelift:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTerraformCloud:

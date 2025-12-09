@@ -206,6 +206,23 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "can't evaluate field InvalidVariable",
 		},
 		{
+			name: "invalid secret_labels template",
+			in: func() *ArgoCDOutputConfig {
+				return &ArgoCDOutputConfig{
+					Selectors: []*KubernetesSelector{
+						{Labels: map[string]string{"foo": "bar"}},
+					},
+					SecretNamespace:  "argocd",
+					SecretNamePrefix: "argo-cluster",
+					SecretLabels: map[string]string{
+						"foo": "{{.InvalidVariable}}",
+					},
+					ClusterNameTemplate: "{{.KubeName}}",
+				}
+			},
+			wantErr: "can't evaluate field InvalidVariable",
+		},
+		{
 			name: "defaults",
 			in: func() *ArgoCDOutputConfig {
 				return &ArgoCDOutputConfig{

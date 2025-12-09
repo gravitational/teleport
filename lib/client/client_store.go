@@ -238,16 +238,17 @@ func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKey
 
 // ReadProfileStatus returns the profile status for the given profile name.
 // If no profile name is provided, return the current profile.
-func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
+func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, error) {
 	var err error
-	if profileName == "" {
+	var profileName string
+	if proxyAddressOrProfile == "" {
 		profileName, err = s.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
 		// remove ports from proxy host, because profile name is stored by host name
-		profileName, err = utils.Host(profileName)
+		profileName, err = utils.Host(proxyAddressOrProfile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -265,35 +266,38 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		ClusterName: profile.SiteName,
 		Username:    profile.Username,
 	}
+
+	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),
+	// or read the full profile status, return a partial status.
+	// This is used for some superficial functions `tsh logout` and `tsh status`.
+	partialStatus := &ProfileStatus{
+		Name: profileName,
+		Dir:  profile.Dir,
+		ProxyURL: url.URL{
+			Scheme: "https",
+			Host:   profile.WebProxyAddr,
+		},
+		Username:    profile.Username,
+		Cluster:     profile.SiteName,
+		KubeEnabled: profile.KubeProxyAddr != "",
+		// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
+		ValidUntil:              time.Now(),
+		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		SSOHost:                 profile.SSOHost,
+	}
+
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
-			// If we can't find a keyRing to match the profile, or can't connect to
-			// the keyRing (hardware key), return a partial status. This is used for
-			// some superficial functions `tsh logout` and `tsh status`.
-			return &ProfileStatus{
-				Name: profileName,
-				Dir:  profile.Dir,
-				ProxyURL: url.URL{
-					Scheme: "https",
-					Host:   profile.WebProxyAddr,
-				},
-				Username:    profile.Username,
-				Cluster:     profile.SiteName,
-				KubeEnabled: profile.KubeProxyAddr != "",
-				// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
-				ValidUntil:              time.Now(),
-				GetKeyRingError:         err,
-				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
-				SSOHost:                 profile.SSOHost,
-			}, nil
+			partialStatus.GetKeyRingError = err
+			return partialStatus, nil
 		}
 		return nil, trace.Wrap(err)
 	}
 
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
-	return profileStatusFromKeyRing(keyRing, profileOptions{
+	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
 		ProfileName:             profileName,
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
@@ -307,19 +311,45 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		IsVirtual:               !onDisk,
 		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
 	})
+	if trace.IsNotFound(err) {
+		return partialStatus, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profileStatus, nil
 }
 
-// FullProfileStatus returns the name of the current profile with a
-// a list of all profile statuses.
-func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
-	currentProfileName, err := s.CurrentProfile()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+// FullProfileStatus returns the status of the active profile along with the
+// statuses of all profiles.
+//
+// The active profile status is determined from the provided profile if given;
+// otherwise, it is read from the current profile.
+//
+// The active profile status is nil if there is no active profile.
+func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, []*ProfileStatus, error) {
+	var currentProfileName string
+	if proxyAddressOrProfile == "" {
+		profileName, err := s.CurrentProfile()
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfileName = profileName
+	} else {
+		// Remove ports from proxy host, profile name is stored by host name.
+		profileName, err := utils.Host(proxyAddressOrProfile)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfileName = profileName
 	}
 
-	currentProfile, err := s.ReadProfileStatus(currentProfileName)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	var currentProfile *ProfileStatus
+	if currentProfileName != "" {
+		profileStatus, err := s.ReadProfileStatus(currentProfileName)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfile = profileStatus
 	}
 
 	profileNames, err := s.ListProfiles()

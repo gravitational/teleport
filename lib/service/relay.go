@@ -46,9 +46,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	multiplexergrpc "github.com/gravitational/teleport/lib/multiplexer/grpc"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/relaypeer"
+	"github.com/gravitational/teleport/lib/relaytransport"
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -140,6 +142,20 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer nodeWatcher.Close()
 
+	kubeServerWatcher, err := services.NewKubeServerWatcher(process.ExitContext(), services.KubeServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    teleport.ComponentRelay,
+			Logger:       sublogger("kube_server_watcher"),
+			Client:       accessPoint,
+			MaxStaleness: time.Minute,
+		},
+		KubernetesServerGetter: accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer kubeServerWatcher.Close()
+
 	tunnelServer, err := relaytunnel.NewServer(relaytunnel.ServerConfig{
 		Log: sublogger("tunnel_server"),
 		GetCertificate: func(ctx context.Context) (*tls.Certificate, error) {
@@ -178,6 +194,10 @@ func (process *TeleportProcess) runRelayService() error {
 	relaytunnelv1alpha.RegisterDiscoveryServiceServer(tunnelGRPCServer, &relaytunnel.StaticDiscoverServiceServer{
 		RelayGroup:            process.Config.Relay.RelayGroup,
 		TargetConnectionCount: process.Config.Relay.TargetConnectionCount,
+		SupportedTunnelTypes: []string{
+			string(apitypes.NodeTunnel),
+			string(apitypes.KubeTunnel),
+		},
 	})
 
 	peerServer, err := relaypeer.NewServer(relaypeer.ServerConfig{
@@ -220,6 +240,35 @@ func (process *TeleportProcess) runRelayService() error {
 		return c, nil
 	}
 
+	relayPeerClient, err := relaypeer.NewClient(relaypeer.ClientConfig{
+		HostID:      conn.hostID,
+		ClusterName: conn.clusterName,
+		GroupName:   process.Config.Relay.RelayGroup,
+
+		AccessPoint: accessPoint,
+		Log:         sublogger("peer_client"),
+
+		GetCertificate: conn.ClientGetCertificate,
+		GetPool:        conn.ClientGetPool,
+		Ciphersuites:   process.Config.CipherSuites,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kubeForwarder, err := kuberelay.NewPassiveForwarder(kuberelay.PassiveForwarderConfig{
+		Log:                      sublogger("kube_forwarder"),
+		ClusterName:              conn.clusterName,
+		GroupName:                process.Config.Relay.RelayGroup,
+		GetKubeServersWithFilter: kubeServerWatcher.CurrentResourcesWithFilter,
+		LocalDial:                tunnelServer.Dial,
+		PeerDial:                 relayPeerClient.Dial,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer kubeForwarder.Close()
+
 	var transportCreds credentials.TransportCredentials
 	{
 		tc, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
@@ -235,24 +284,12 @@ func (process *TeleportProcess) runRelayService() error {
 		}
 		transportCreds = tc
 	}
+	transportCreds = &relaytransport.SNIDispatchTransportCredentials{
+		TransportCredentials: transportCreds,
+		DispatchFunc:         kubeForwarder.Dispatch,
+	}
 	if process.Config.Relay.TransportPROXYProtocol {
 		transportCreds = multiplexergrpc.PPV2ServerCredentials{TransportCredentials: transportCreds}
-	}
-
-	relayPeerClient, err := relaypeer.NewClient(relaypeer.ClientConfig{
-		HostID:      conn.hostID,
-		ClusterName: conn.clusterName,
-		GroupName:   process.Config.Relay.RelayGroup,
-
-		AccessPoint: accessPoint,
-		Log:         sublogger("relay_router"),
-
-		GetCertificate: conn.ClientGetCertificate,
-		GetPool:        conn.ClientGetPool,
-		Ciphersuites:   process.Config.CipherSuites,
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	relayRouter, err := proxy.NewRelayRouter(proxy.RelayRouterConfig{
