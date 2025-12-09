@@ -117,7 +117,7 @@ teleport:
         max_connections: 1000
 
     # Auth Service connection configuration.
-    # These settings can be tweaked to control how aggresively the instance will retry to connect. In addition
+    # These settings can be tweaked to control how aggresively the Proxy or Agent instances will retry to connect. In addition
     # each instance will apply jitter.
     # auth_connection_config:
     #     upper_limit_between_retries: "90s"  # Cannot be lower than 10s
