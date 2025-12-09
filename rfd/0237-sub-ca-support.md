@@ -7,8 +7,8 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @rosstimothy
-* Security: (@rosstimothy || @klizhentas)
+* Engineering: @rosstimothy && @espadolini && @greedy52 && @nklaassen
+* Security: (@rob-picard-teleport || @klizhentas)
 * Product: @klizhentas
 
 ## What
