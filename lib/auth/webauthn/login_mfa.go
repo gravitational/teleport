@@ -103,7 +103,7 @@ type LoginFlow struct {
 // Requested challenge extensions will be stored on the stored webauthn challenge
 // record. These extensions indicate additional rules/properties of the webauthn
 // challenge that can be validated in the final login step.
-func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
+func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload) (*wantypes.CredentialAssertion, error) {
 	// Disallow passwordless through here.
 	// lf.begin() does other challengeExtensions checks, including `nil`.
 	if challengeExtensions != nil && challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN {
@@ -118,7 +118,7 @@ func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions 
 		//  the actual challenge scope.
 		sessionData: (*userSessionStorage)(f),
 	}
-	return lf.begin(ctx, user, challengeExtensions)
+	return lf.begin(ctx, user, challengeExtensions, sip)
 }
 
 // Finish is the second and last step of the LoginFlow.

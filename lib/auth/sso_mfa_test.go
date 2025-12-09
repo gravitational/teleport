@@ -281,6 +281,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 					ChallengeExtensions: &mfatypes.ChallengeExtensions{
 						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					},
+					Payload: &mfatypes.SessionIdentifyingPayload{},
 				}, sd)
 			},
 		},
@@ -320,6 +321,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 					ChallengeExtensions: &mfatypes.ChallengeExtensions{
 						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					},
+					Payload: &mfatypes.SessionIdentifyingPayload{},
 				}, sd)
 			},
 		},
