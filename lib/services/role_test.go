@@ -7865,7 +7865,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 				},
 			},
 			errorFunc: func(t *testing.T, err error) {
-				require.ErrorAs(t, trace.Unwrap(err), new(*trace.NotFoundError))
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
 			},
 		},
 		{
