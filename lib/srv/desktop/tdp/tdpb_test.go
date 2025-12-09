@@ -1,6 +1,7 @@
 package tdp
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"net"
@@ -139,8 +140,9 @@ func TestSendRecv(t *testing.T) {
 
 	// Read/Decode message from the other side of the pipe
 	idx := 0
+	rdr := bufio.NewReader(reader)
 	for {
-		msg, err := DecodeTDPB(reader)
+		msg, err := DecodeTDPB(rdr)
 		if err != nil {
 			require.ErrorIs(t, err, io.EOF)
 			break

@@ -26,6 +26,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 
@@ -664,37 +665,40 @@ type desktopPinger struct {
 	ch               chan []byte
 }
 
-func (d desktopPinger) intercept(msg tdp.Message) ([]tdp.Message, error) {
-	var uuid []byte
-	switch m := msg.(type) {
-	case tdp.Ping:
-		uuid = m.UUID[:]
-	case *tdp.TdpbMessage:
-		ping := &tdpbv1.Ping{}
-		if err := m.As(ping); err != nil {
-			if errors.Is(err, tdp.ErrUnexpectedMessageType) {
-				// This simply isn't the message we're looking for
-				return []tdp.Message{msg}, err
-			}
-			// Something else went wrong
-			return nil, trace.Wrap(err)
-		}
-		uuid = ping.Uuid
-	default:
-		// This may be some other legacy TDP message
-		return []tdp.Message{msg}, nil
-	}
+func newPingInterceptor(ch chan []byte, latencySupported bool) func(tdp.Message) ([]tdp.Message, error) {
+	return func(msg tdp.Message) ([]tdp.Message, error) {
 
-	if !d.latencySupported {
-		slog.Warn("received unexpected Ping message from server (this is a bug)")
-		// Swallow the ping message, but there's no need to return an error
-		// (which will probably kill the connection)
+		var uuid []byte
+		switch m := msg.(type) {
+		case tdp.Ping:
+			uuid = m.UUID[:]
+		case tdp.TdpbMessage:
+			ping := &tdpbv1.Ping{}
+			if err := m.As(ping); err != nil {
+				if errors.Is(err, tdp.ErrUnexpectedMessageType) {
+					// This simply isn't the message we're looking for
+					return []tdp.Message{msg}, nil
+				}
+				// Something else went wrong
+				return nil, trace.Wrap(err)
+			}
+			uuid = ping.Uuid
+		default:
+			// This may be some other legacy TDP message
+			return []tdp.Message{msg}, nil
+		}
+
+		if !latencySupported {
+			slog.Warn("received unexpected Ping message from server (this is a bug)")
+			// Swallow the ping message, but there's no need to return an error
+			// (which will probably kill the connection)
+			return nil, nil
+		}
+
+		ch <- uuid
+		// We've handled the ping. Do not pass it along to the proxy.
 		return nil, nil
 	}
-
-	d.ch <- uuid
-	// We've handled the ping. Do not pass it along to the proxy.
-	return nil, nil
 }
 
 func (d desktopPinger) ping(ctx context.Context, msg tdp.Message) error {
@@ -738,10 +742,25 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 	}))
 }
 
+// The client connection needs to implement
+type desktopClientconn interface {
+	ReadMessage() (int, []byte, error)
+	WriteMessage(messageType int, data []byte) error
+	Close() error
+	latency.WebSocket
+}
+
+func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
+	if protocol == protocolTDPB {
+		return tdp.NewConn(rwc, tdp.WithDecoder(tdp.TDPBDecoder))
+	}
+	return tdp.NewConn(rwc)
+}
+
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, version string, clientProtocol, serverProtocol string) error {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, version string, clientProtocol, serverProtocol string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
@@ -754,20 +773,22 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 		return trace.Wrap(err)
 	}
 
-	serverConn := tdp.MessageReadWriteCloser(tdp.NewConn(wds))
-	clientConn := tdp.MessageReadWriteCloser(tdp.NewConn(&WebsocketIO{Conn: ws}))
+	pingChan := make(chan []byte)
 	pinger := desktopPinger{
-		server:           serverConn,
-		client:           clientConn,
+		// The pinger handles translation internally.
+		server:           tdp.NewConn(wds),
+		client:           tdp.NewConn(&WebsocketIO{Conn: ws}),
 		latencySupported: latencySupported,
-		ch:               make(chan []byte),
+		ch:               pingChan,
 	}
 
-	// Translation interceptors will be (optionally) installed in the *write* paths of each connection.
-	// The ping interceptor will be installed in the read path of the server connection. Since this
-	// interceptor is bilingual, it is agnostic to the server's native dialect.
-	serverConn = tdp.NewReadWriteInterceptor(tdp.NewConn(wds), pinger.intercept, nil)
+	// Convert websocket and net.Conn to MessageReadWriteClosers using the correct decoder
+	// for each one's native dialect.
+	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: ws}, clientProtocol))
+	// The ping interceptor is installed on the server connection
+	serverConn := tdp.NewReadWriteInterceptor(newConn(wds, serverProtocol), newPingInterceptor(pingChan, latencySupported), nil)
 
+	// Translation interceptors will be (optionally) installed in the *write* paths of each connection.
 	needTranslation := clientProtocol != serverProtocol
 	if needTranslation {
 		// Translation is needed
@@ -793,15 +814,16 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, 
 	}
 
 	proxy := tdp.NewConnProxy(clientConn, serverConn)
+
 	if latencySupported {
 		// Default to TDPB
 		pingerFunc := pinger.pingTDPB
 		reportFunc := pinger.reportTDPB
 		// Optionally use TDP versions
-		if clientProtocol == protocolTDP {
+		if serverProtocol == protocolTDP {
 			pingerFunc = pinger.pingTDP
 		}
-		if serverProtocol == protocolTDP {
+		if clientProtocol == protocolTDP {
 			reportFunc = pinger.reportTDP
 		}
 

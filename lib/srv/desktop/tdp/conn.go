@@ -54,6 +54,7 @@ type Conn struct {
 	rwc       io.ReadWriteCloser
 	writeMu   sync.Mutex
 	bufr      *bufio.Reader
+	decode    DecoderFunc
 	closeOnce sync.Once
 
 	// OnSend is an optional callback that is invoked when a TDP message
@@ -71,13 +72,29 @@ type Conn struct {
 	remoteAddr net.Addr
 }
 
+// DecoderFunc is a function that
+type DecoderFunc func(byteReader) (Message, error)
+
+type connOption func(c *Conn)
+
+func WithDecoder(d DecoderFunc) connOption {
+	return func(c *Conn) {
+		c.decode = d
+	}
+}
+
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
-func NewConn(rwc io.ReadWriteCloser) *Conn {
+func NewConn(rwc io.ReadWriteCloser, opts ...connOption) *Conn {
 	c := &Conn{
-		rwc:  rwc,
-		bufr: bufio.NewReader(rwc),
+		rwc:    rwc,
+		bufr:   bufio.NewReader(rwc),
+		decode: decode,
+	}
+
+	for _, opt := range opts {
+		opt(c)
 	}
 
 	if tc, ok := rwc.(srvTrackingConn); ok {
@@ -122,7 +139,7 @@ func (c *Conn) NextMessageType() (MessageType, error) {
 
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
-	m, err := decode(c.bufr)
+	m, err := c.decode(c.bufr)
 	if c.OnRecv != nil {
 		c.OnRecv(m)
 	}

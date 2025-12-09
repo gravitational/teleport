@@ -63,7 +63,7 @@ func AsTDPB(msg Message, p proto.Message) error {
 // ToTDPBProto attempts to extract the underlying proto.Message
 // representation of a TDPB message.
 func ToTDPBProto(msg Message) (proto.Message, error) {
-	if m, ok := msg.(*TdpbMessage); ok {
+	if m, ok := msg.(TdpbMessage); ok {
 		source, err := m.Proto()
 		if err != nil {
 			return nil, trace.Wrap(fmt.Errorf("%w: %v", ErrInvalidMessage, err))
@@ -74,7 +74,12 @@ func ToTDPBProto(msg Message) (proto.Message, error) {
 }
 
 // DecodeTDPB decodes a TDPB message
-func DecodeTDPB(rdr io.Reader) (TdpbMessage, error) {
+func DecodeTDPB(rdr byteReader) (TdpbMessage, error) {
+	return globalDecoder.decodeFrom(rdr)
+}
+
+// TODO: consolidate to single TDPB decode function
+func TDPBDecoder(rdr byteReader) (Message, error) {
 	return globalDecoder.decodeFrom(rdr)
 }
 
@@ -170,7 +175,7 @@ func NewTDPBMessage(msg proto.Message) *TdpbMessage {
 	}
 }
 
-func (i *TdpbMessage) Encode() ([]byte, error) {
+func (i TdpbMessage) Encode() ([]byte, error) {
 	switch {
 	case i.msg != nil:
 		return encodeTDPB(i.msg)
@@ -597,7 +602,7 @@ func TranslateToModern(msg Message) ([]Message, error) {
 	//	})
 	case MouseWheel:
 		messages = append(messages, &tdpb.MouseWheel{
-			Axis:  tdpb.MouseWheelAxis(m.Axis - 1),
+			Axis:  tdpb.MouseWheelAxis(m.Axis + 1),
 			Delta: uint32(m.Delta),
 		})
 	case Error:
