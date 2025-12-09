@@ -32,7 +32,6 @@ Set up Teleport with a [High Availability configuration](../../../zero-trust-acc
 
 ### Agent resource requirements
 
-Resource requirements for Teleport Agents vary significantly based on workload, enabled features, and recording configuration.
 The following provides baseline guidance for production deployments.
 
 ### Baseline specifications
@@ -47,19 +46,21 @@ For production agents, we recommend:
 
 Agent resource consumption depends on:
 
-#### Connection volume
+- **Connection volume**
 
-A mostly dormant agent handling infrequent connections requires far fewer resources than an actively used agent with high concurrent session counts.
+A mostly dormant agent handling infrequent, lightweight connections requires far fewer resources than an actively used agent 
+supporting high concurrent sessions, or a smaller number of resource-intensive sessions. Overall you should consider workload 
+intensity driving resource consumption, and not just connection count.
 
-#### Recording mode
+- **Node recording mode**: 
 
-- **Node recording mode**: Requires substantially more disk space (100+ GB) as session recordings are stored locally before upload to the Auth Service.
+Requires substantially more disk space than proxy recording mode, because session recordings are stored locally on the agent before upload to the Auth Service. 
+Actual disk requirements depend on session volume, duration, and retention.
 
-#### Session types
+- **Session types**
 
-- SSH sessions require approximately 100 MB of memory per active session
-- Desktop sessions require significantly more resources (see [Windows Desktop Service](#windows-desktop-service) below)
-- Database and application sessions have varying profiles based on connection patterns
+- SSH sessions require approximately 100 MB of memory per active session. Desktop sessions require significantly more resources (see [Windows Desktop Service](#windows-desktop-service) below). 
+Database and application sessions have varying profiles based on connection patterns
 
 #### Enabled features
 
@@ -70,12 +71,11 @@ or performing dynamic resource discovery.
 
 Increase resources when the agent:
 - Handles high connection volumes (>100 concurrent sessions)
-- Uses node recording mode with frequent or long-running sessions  
 - Provides desktop access
 - Performs auto-discovery of many resources
 
-Monitor CPU, memory, and disk usage to detect when scaling is needed. Consider using [External Audit Storage](../../management/external-audit-storage.mdx) 
-to minimize agent disk requirements by storing recordings in your own cloud storage.
+Monitor CPU, memory, and disk usage to detect when scaling is needed. 
+Consider using external storage to minimize agent disk requirements by storing recordings in your own cloud storage.
 
 ## Auth Service and Proxy Service Configuration
 
