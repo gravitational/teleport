@@ -30,9 +30,9 @@ teleportProxyAddress: ""
 # will be used when issuing SVIDs via the SPIFFE Workload API. You must set
 # either name or labels.
 workloadIdentitySelector:
-  # name(string) -- selects the WorkloadIdentity resource by name.
+  # workloadIdentitySelector.name(string) -- selects the WorkloadIdentity resource by name.
   name: ""
-  # labels(object) -- selects the WorkloadIdentity resource by labels.
+  # workloadIdentitySelector.labels(object) -- selects the WorkloadIdentity resource by labels.
   labels: {}
 
 # tbotConfig(object) -- contains YAML teleport configuration to pass to the
@@ -113,7 +113,7 @@ extraLabels:
   roleBinding: {}
   # extraLabels.config(object) -- are labels to set on the ConfigMap.
   config: {}
-  # extraLabels.deployment(object) -- are labels to set on the DaemonSet.
+  # extraLabels.daemonSet(object) -- are labels to set on the DaemonSet.
   daemonSet: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment or StatefulSet.
