@@ -1,6 +1,7 @@
 ---
 title: Using Teleport Connect
 sidebar_label: Teleport Connect
+sidebar_position: 3
 description: Using Teleport Connect
 tags:
  - conceptual
@@ -10,7 +11,7 @@ tags:
 Teleport Connect provides easy and secure access to SSH servers, databases,
 applications, MCP servers, Windows desktops, and Kubernetes clusters.
 
-![resources tab in Teleport Connect](../../img/use-teleport/connect-cluster@2x.png)
+![resources tab in Teleport Connect](../../../img/use-teleport/connect-cluster@2x.png)
 
 ## Installation & upgrade
 
@@ -62,7 +63,7 @@ automatically handle the migration to a per-machine installation.
 
 ### Managed updates
 
-Teleport Connect supports [Teleport Client Tool Managed Updates](../upgrading/client-tools-managed-updates.mdx).
+Teleport Connect supports [Teleport Client Tool Managed Updates](../../upgrading/client-tools-managed-updates.mdx).
 When enabled in your cluster, the app checks for available updates at login,
 downloads them automatically, and prompts you to restart. On Windows and Linux,
 you may be asked to provide administrator credentials to complete the installation.
@@ -81,7 +82,7 @@ additional actions menu.
 #### Multiple clusters
 
 If you are connected to multiple clusters, Teleport Connect selects the highest client
-version that is compatible across all clusters according to [Teleport component compatibility rules](../upgrading/overview.mdx#component-compatibility).
+version that is compatible across all clusters according to [Teleport component compatibility rules](../../upgrading/overview.mdx#component-compatibility).
 If clusters require incompatible versions, or if you want a different cluster
 to manage updates, you can manually choose the cluster in the
 "Check for Updates…" dialog, available in the additional actions menu.
@@ -143,7 +144,7 @@ For a permanent setup, follow the instructions below:
 
 ## User interface
 
-![user interface of Teleport Connect](../../img/use-teleport/connect-ui-overview@2x.png)
+![user interface of Teleport Connect](../../../img/use-teleport/connect-ui-overview@2x.png)
 
 The top bar of Teleport Connect consists of:
 
@@ -194,7 +195,7 @@ this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER
 Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../zero-trust-access/management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../../zero-trust-access/management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
 
@@ -205,7 +206,7 @@ To switch to a different shell, right-click on a terminal tab (either a local te
 From the menu, choose a predefined shell (on Windows) or provide the path to a custom shell.
 
 The selected shell will be used only for that tab unless you choose to set it as the default.
-![Changing the terminal shell in Teleport Connect on Windows](../../img/use-teleport/connect-shell-switcher@2x.png)
+![Changing the terminal shell in Teleport Connect on Windows](../../../img/use-teleport/connect-shell-switcher@2x.png)
 
 The configuration is stored under `terminal.shell` and `terminal.customShell` config properties.
 For more details, refer to the [Configuration](#configuration) section.
@@ -278,7 +279,7 @@ During a remote session, you can share your clipboard and a local directory, if 
 Teleport Connect supports launching applications in the browser, as well as creating
 authenticated tunnels for web and TCP applications.
 
-When it comes to [cloud APIs secured with Teleport](../enroll-resources/application-access/cloud-apis/cloud-apis.mdx),
+When it comes to [cloud APIs secured with Teleport](../../enroll-resources/application-access/cloud-apis/cloud-apis.mdx),
 Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
 be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
@@ -358,7 +359,7 @@ that tunnel will be authenticated with your credentials.
 
 A new tab will open with a new connection established between your device and the MCP server.
 
-![MCP connection](../../img/use-teleport/connect-mcp-http.png)
+![MCP connection](../../../img/use-teleport/connect-mcp-http.png)
 
 The connection is active while Teleport Connect is running.
 If [the background mode](#background-mode) is on, it remains active even after you close the window.
@@ -407,19 +408,19 @@ the lifecycle of the agent.
 {/* The permission to read and update users is needed during setup but not for regular usage,
 that's why it's not listed in the partial. */}
 - Permissions to read and update user objects in the backend (verbs `read` and `update` for [the
-  `user` resource](../reference/access-controls/roles.mdx)).
+  `user` resource](../../reference/access-controls/roles.mdx)).
 - Permissions to read, update, and create roles in the backend (verbs `read`, `update`, and `create`
-  for [the `role` resource](../reference/access-controls/roles.mdx)).
+  for [the `role` resource](../../reference/access-controls/roles.mdx)).
 
 The agent runs as the current system user, not as root. Some features are thus not available, such
-as logging in as other system users or [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
+as logging in as other system users or [host user creation](../../enroll-resources/server-access/guides/host-user-creation.mdx).
 
 ### Setup and usage
 
 To begin the setup, click on the laptop icon in the top left and select "Connect My Computer". The
 new tab will guide you through an interaction-free setup. Click "Connect" to start the setup.
 
-![Connect My Computer in the top bar](../../img/use-teleport/connect-my-computer-top-bar@2x.png)
+![Connect My Computer in the top bar](../../../img/use-teleport/connect-my-computer-top-bar@2x.png)
 
 The setup creates a new role in the cluster which grants access to your device as the current system
 user. The role is then added to your user object.
@@ -439,13 +440,13 @@ Next, the setup downloads a Teleport Agent for your platform and runs `teleport 
 pointed at the current cluster. Once that is done, Connect My Computer starts the agent and waits
 for it to show up in the cluster as an SSH node.
 
-![Connect My Computer setup](../../img/use-teleport/connect-my-computer-setup@2x.png)
+![Connect My Computer setup](../../../img/use-teleport/connect-my-computer-setup@2x.png)
 
 After the agent joins the cluster, the tab transitions to showing the status of the agent. From
 here, you can connect to the node made available by the agent, stop and start the agent, as well as
 completely remove it. Manually logging out of the cluster will remove the agent as well.
 
-![Connect My Computer status](../../img/use-teleport/connect-my-computer-status@2x.png)
+![Connect My Computer status](../../../img/use-teleport/connect-my-computer-status@2x.png)
 
 Your computer will be shared while Teleport Connect is running.
 If [the background mode](#background-mode) is on, it remains shared even after you close the window.
@@ -526,7 +527,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../../enroll-resources/agents/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -545,7 +546,7 @@ the agent was successfully configured.
 If you wish to prevent cluster users from using Connect My Computer, make sure they don't have
 permissions to create new join tokens. This is controlled by the `create` verb for the `token`
 resource. Either deny this permission explicitly or do not grant it in the first place. See [Access
-Controls Reference Documentation](../reference/access-controls/roles.mdx) for more
+Controls Reference Documentation](../../reference/access-controls/roles.mdx) for more
 details. Denying this permission will hide the icon in the top bar.
 
 Users who already set up agents will still be able to manage those agents, even after the denying
@@ -554,7 +555,7 @@ a user set up an agent and then lock the user out of removing the agent.
 
 To instantly revoke access to agents that have already joined the cluster, look for nodes labeled
 with the `teleport.dev/connect-my-computer/owner` label and then [place
-locks](../identity-governance/locking.mdx) on those nodes.
+locks](../../identity-governance/locking.mdx) on those nodes.
 
 ```code
 $ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != ""'
@@ -600,7 +601,7 @@ installation directory to the `Path` user environment variable.
 
 Teleport Connect supports authenticating with hardware-based keys.
 Keys are generated and stored directly on a hardware device, providing greater security than storing
-them on a file system. For more details, see [Hardware Key Support guide](../zero-trust-access/authentication/hardware-key-support.mdx).
+them on a file system. For more details, see [Hardware Key Support guide](../../zero-trust-access/authentication/hardware-key-support.mdx).
 
 <Admonition type="note" title="PIV support">
   Hardware key support requires users to use a PIV-compatible hardware key.
@@ -610,7 +611,7 @@ them on a file system. For more details, see [Hardware Key Support guide](../zer
 To log in with a hardware key, your role or cluster configuration must enable it.
 Once enforced, Teleport Connect will require you to keep the hardware key plugged in and may also prompt for a tap and/or PIV PIN:
 
-![Logging in with a hardware key](../../img/use-teleport/connect-hardware-keys@2x.png)
+![Logging in with a hardware key](../../../img/use-teleport/connect-hardware-keys@2x.png)
 
 When logging in for the first time, you’ll be prompted to log in again immediately.
 
@@ -693,7 +694,7 @@ Available key codes:
 ### `tsh ssh` environment variables
 
 Under the hood, Teleport Connect uses `tsh ssh` to connect to SSH servers. As a result,
-Teleport Connect will respect many [tsh environment variables](../reference/cli/tsh.mdx#tsh-environment-variables)
+Teleport Connect will respect many [tsh environment variables](../../reference/cli/tsh.mdx#tsh-environment-variables)
 related to `tsh ssh`. This can make it easier to share common settings between `tsh` and Teleport Connect.
 
 Below is a list of environment variables supported by Teleport Connect for SSH connections:
@@ -812,7 +813,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../zero-trust-access/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../../zero-trust-access/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>
