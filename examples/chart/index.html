@@ -89,7 +89,7 @@
         --namespace ${NAMESPACE?} \
         --set teleportProxyAddress="${TELEPORT_ADDR?}" \
         --set clusterName="${CLUSTER_NAME?}" \
-        --set workloadIdentitySelector.name="${WORKLOAD_IDENTITY_NAME}" \
+        --set workloadIdentitySelector.name="${WORKLOAD_IDENTITY_NAME?}" \
         --set token="${TELEPORT_TOKEN?}"</pre>
     <br />
     <h3>Changelog</h3>
