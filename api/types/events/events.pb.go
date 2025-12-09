@@ -3746,7 +3746,7 @@ func (m *ClientDisconnect) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_ClientDisconnect proto.InternalMessageInfo
 
-// AuthAttempt is emitted upon a failed or successfull authentication attempt.
+// AuthAttempt is emitted upon a failed authentication attempt.
 type AuthAttempt struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -3758,7 +3758,7 @@ type AuthAttempt struct {
 	Status `protobuf:"bytes,4,opt,name=Status,proto3,embedded=Status" json:""`
 	// ServerMetadata holds information about the target host server
 	ServerMetadata `protobuf:"bytes,5,opt,name=Server,proto3,embedded=Server" json:""`
-	// App is a common application resource metadata.
+	// App hold information about the target application.
 	AppMetadata          `protobuf:"bytes,6,opt,name=App,proto3,embedded=App" json:""`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

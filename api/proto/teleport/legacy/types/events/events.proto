@@ -2151,7 +2151,7 @@ message ClientDisconnect {
   string Reason = 5 [(gogoproto.jsontag) = "reason"];
 }
 
-// AuthAttempt is emitted upon a failed or successfull authentication attempt.
+// AuthAttempt is emitted upon a failed authentication attempt.
 message AuthAttempt {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -2188,7 +2188,7 @@ message AuthAttempt {
     (gogoproto.jsontag) = ""
   ];
 
-  // App is a common application resource metadata.
+  // App hold information about the target application.
   AppMetadata App = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
