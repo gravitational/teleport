@@ -56,7 +56,7 @@ import (
 const (
 	tdpbQueryParameter = "tdpb"
 	protocolTDPB       = "teleport-tdpb-1.0"
-	protocolTDP        = "tdp"
+	protocolTDP        = "teleport-tdp"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>
@@ -90,17 +90,7 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
-// In summary, we need to:
-//   - Receive initial client message(s)
-//   - Cut certs and handle MFA (if required)
-//   - Connect to Desktop agent and forward initial message(s)
-//   - Proxy the connections (with translation if needed)
-type MessageReadWriter interface {
-	ReadMessage() (tdp.Message, error)
-	WriteMessage(tdp.Message) error
-}
-
-// Implements MessageReadWriter and TDP read writer
+// Implements tdp.MessageReadWriter and TDP read writer
 type wsAdapter struct {
 	Conn *websocket.Conn
 	// Determines how ReadMessage will interpret incoming datagrams
@@ -121,7 +111,7 @@ func (w *wsAdapter) WriteMessage(msg tdp.Message) error {
 }
 
 // Receive screenspec and keyboardlayout
-func readTDPInitialMessages(ctx context.Context, rw MessageReadWriter, log *slog.Logger) (handshakeData, error) {
+func readTDPInitialMessages(ctx context.Context, rw tdp.MessageReadWriter, log *slog.Logger) (handshakeData, error) {
 	msg, err := rw.ReadMessage()
 	if err != nil {
 		return handshakeData{}, trace.Wrap(err)
@@ -160,12 +150,12 @@ func readTDPInitialMessages(ctx context.Context, rw MessageReadWriter, log *slog
 }
 
 type handshakeInitializer struct {
-	clientHandshakeHandler func(ctx context.Context, rw MessageReadWriter, log *slog.Logger) (handshakeData, error)
+	clientHandshakeHandler func(ctx context.Context, rw tdp.MessageReadWriter, log *slog.Logger) (handshakeData, error)
 	promptBuilder          mfaPromptBuilder
 }
 
 // Send upgrade. Ignore messages until Client Hello is received
-func handleTDPUpgrade(ctx context.Context, rw MessageReadWriter, log *slog.Logger) (handshakeData, error) {
+func handleTDPUpgrade(ctx context.Context, rw tdp.MessageReadWriter, log *slog.Logger) (handshakeData, error) {
 	upgrade := tdp.TDPUpgrade{Version: uint8(1)}
 	err := rw.WriteMessage(upgrade)
 	if err != nil {
@@ -251,7 +241,7 @@ func (h *handshakeData) ForwardTDPB(w io.Writer, username string) error {
 	return err
 }
 
-func SendTDPError(w MessageReadWriter, err error) error {
+func SendTDPError(w tdp.MessageReadWriter, err error) error {
 	if err == nil {
 		slog.Warn("SendTDPError called with empty message")
 		err = trace.Errorf("undefined error")
@@ -264,7 +254,7 @@ func SendTDPError(w MessageReadWriter, err error) error {
 	return trace.Wrap(err)
 }
 
-func SendTDPBError(w MessageReadWriter, err error) error {
+func SendTDPBError(w tdp.MessageReadWriter, err error) error {
 	if err != nil {
 		slog.Warn("SendTDPBError called with empty message")
 		err = errors.New("")
@@ -322,7 +312,7 @@ func (h *Handler) createDesktopConnection(
 	// for either a TDP or TDPB client.
 	var init handshakeInitializer
 	var adapter wsAdapter
-	var sendError func(MessageReadWriter, error) error
+	var sendError func(tdp.MessageReadWriter, error) error
 	if clientProtocol == protocolTDPB {
 		log.DebugContext(ctx, "Creating Desktop connection for TDPB capable client")
 		adapter = wsAdapter{Conn: ws, Decoder: func(r *websocket.Conn) (tdp.Message, error) {
@@ -740,14 +730,6 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 	return d.ping(ctx, tdp.NewTDPBMessage(&tdpbv1.Ping{
 		Uuid: uuid[:],
 	}))
-}
-
-// The client connection needs to implement
-type desktopClientconn interface {
-	ReadMessage() (int, []byte, error)
-	WriteMessage(messageType int, data []byte) error
-	Close() error
-	latency.WebSocket
 }
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
