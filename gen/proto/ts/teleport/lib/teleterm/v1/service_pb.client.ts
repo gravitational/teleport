@@ -54,6 +54,8 @@ import type { ReportUsageEventRequest } from "./usage_events_pb";
 import type { FileTransferProgress } from "./service_pb";
 import type { FileTransferRequest } from "./service_pb";
 import type { ServerStreamingCall } from "@protobuf-ts/runtime-rpc";
+import type { ClearStaleClusterClientsResponse } from "./service_pb";
+import type { ClearStaleClusterClientsRequest } from "./service_pb";
 import type { LogoutRequest } from "./service_pb";
 import type { LoginPasswordlessResponse } from "./service_pb";
 import type { LoginPasswordlessRequest } from "./service_pb";
@@ -69,7 +71,6 @@ import type { Gateway } from "./gateway_pb";
 import type { CreateGatewayRequest } from "./service_pb";
 import type { ListGatewaysResponse } from "./service_pb";
 import type { ListGatewaysRequest } from "./service_pb";
-import type { RemoveClusterRequest } from "./service_pb";
 import type { Cluster } from "./cluster_pb";
 import type { AddClusterRequest } from "./service_pb";
 import type { ListKubernetesServersResponse } from "./service_pb";
@@ -235,12 +236,6 @@ export interface ITerminalServiceClient {
      */
     addCluster(input: AddClusterRequest, options?: RpcOptions): UnaryCall<AddClusterRequest, Cluster>;
     /**
-     * RemoveCluster removes a cluster from profile
-     *
-     * @generated from protobuf rpc: RemoveCluster(teleport.lib.teleterm.v1.RemoveClusterRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
-     */
-    removeCluster(input: RemoveClusterRequest, options?: RpcOptions): UnaryCall<RemoveClusterRequest, EmptyResponse>;
-    /**
      * ListGateways lists gateways
      *
      * @generated from protobuf rpc: ListGateways(teleport.lib.teleterm.v1.ListGatewaysRequest) returns (teleport.lib.teleterm.v1.ListGatewaysResponse);
@@ -315,11 +310,19 @@ export interface ITerminalServiceClient {
      */
     loginPasswordless(options?: RpcOptions): DuplexStreamingCall<LoginPasswordlessRequest, LoginPasswordlessResponse>;
     /**
-     * ClusterLogin logs out a user from cluster
+     * Logs the user out of the cluster and cleans up associated resources.
+     * Optionally removes the profile.
+     * This operation is idempotent and can be safely invoked multiple times.
      *
      * @generated from protobuf rpc: Logout(teleport.lib.teleterm.v1.LogoutRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     logout(input: LogoutRequest, options?: RpcOptions): UnaryCall<LogoutRequest, EmptyResponse>;
+    /**
+     * Closes root and leaf cluster clients that use outdated TLS certificates.
+     *
+     * @generated from protobuf rpc: ClearStaleClusterClients(teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest) returns (teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse);
+     */
+    clearStaleClusterClients(input: ClearStaleClusterClientsRequest, options?: RpcOptions): UnaryCall<ClearStaleClusterClientsRequest, ClearStaleClusterClientsResponse>;
     /**
      * TransferFile sends a request to download/upload a file
      *
@@ -617,21 +620,12 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
         return stackIntercept<AddClusterRequest, Cluster>("unary", this._transport, method, opt, input);
     }
     /**
-     * RemoveCluster removes a cluster from profile
-     *
-     * @generated from protobuf rpc: RemoveCluster(teleport.lib.teleterm.v1.RemoveClusterRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
-     */
-    removeCluster(input: RemoveClusterRequest, options?: RpcOptions): UnaryCall<RemoveClusterRequest, EmptyResponse> {
-        const method = this.methods[18], opt = this._transport.mergeOptions(options);
-        return stackIntercept<RemoveClusterRequest, EmptyResponse>("unary", this._transport, method, opt, input);
-    }
-    /**
      * ListGateways lists gateways
      *
      * @generated from protobuf rpc: ListGateways(teleport.lib.teleterm.v1.ListGatewaysRequest) returns (teleport.lib.teleterm.v1.ListGatewaysResponse);
      */
     listGateways(input: ListGatewaysRequest, options?: RpcOptions): UnaryCall<ListGatewaysRequest, ListGatewaysResponse> {
-        const method = this.methods[19], opt = this._transport.mergeOptions(options);
+        const method = this.methods[18], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListGatewaysRequest, ListGatewaysResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -640,7 +634,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: CreateGateway(teleport.lib.teleterm.v1.CreateGatewayRequest) returns (teleport.lib.teleterm.v1.Gateway);
      */
     createGateway(input: CreateGatewayRequest, options?: RpcOptions): UnaryCall<CreateGatewayRequest, Gateway> {
-        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateGatewayRequest, Gateway>("unary", this._transport, method, opt, input);
     }
     /**
@@ -649,7 +643,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: RemoveGateway(teleport.lib.teleterm.v1.RemoveGatewayRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     removeGateway(input: RemoveGatewayRequest, options?: RpcOptions): UnaryCall<RemoveGatewayRequest, EmptyResponse> {
-        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<RemoveGatewayRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -661,7 +655,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: SetGatewayTargetSubresourceName(teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest) returns (teleport.lib.teleterm.v1.Gateway);
      */
     setGatewayTargetSubresourceName(input: SetGatewayTargetSubresourceNameRequest, options?: RpcOptions): UnaryCall<SetGatewayTargetSubresourceNameRequest, Gateway> {
-        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetGatewayTargetSubresourceNameRequest, Gateway>("unary", this._transport, method, opt, input);
     }
     /**
@@ -671,7 +665,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: SetGatewayLocalPort(teleport.lib.teleterm.v1.SetGatewayLocalPortRequest) returns (teleport.lib.teleterm.v1.Gateway);
      */
     setGatewayLocalPort(input: SetGatewayLocalPortRequest, options?: RpcOptions): UnaryCall<SetGatewayLocalPortRequest, Gateway> {
-        const method = this.methods[23], opt = this._transport.mergeOptions(options);
+        const method = this.methods[22], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetGatewayLocalPortRequest, Gateway>("unary", this._transport, method, opt, input);
     }
     /**
@@ -680,7 +674,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetAuthSettings(teleport.lib.teleterm.v1.GetAuthSettingsRequest) returns (teleport.lib.teleterm.v1.AuthSettings);
      */
     getAuthSettings(input: GetAuthSettingsRequest, options?: RpcOptions): UnaryCall<GetAuthSettingsRequest, AuthSettings> {
-        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        const method = this.methods[23], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetAuthSettingsRequest, AuthSettings>("unary", this._transport, method, opt, input);
     }
     /**
@@ -690,7 +684,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: GetCluster(teleport.lib.teleterm.v1.GetClusterRequest) returns (teleport.lib.teleterm.v1.Cluster);
      */
     getCluster(input: GetClusterRequest, options?: RpcOptions): UnaryCall<GetClusterRequest, Cluster> {
-        const method = this.methods[25], opt = this._transport.mergeOptions(options);
+        const method = this.methods[24], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetClusterRequest, Cluster>("unary", this._transport, method, opt, input);
     }
     /**
@@ -699,7 +693,7 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: Login(teleport.lib.teleterm.v1.LoginRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     login(input: LoginRequest, options?: RpcOptions): UnaryCall<LoginRequest, EmptyResponse> {
-        const method = this.methods[26], opt = this._transport.mergeOptions(options);
+        const method = this.methods[25], opt = this._transport.mergeOptions(options);
         return stackIntercept<LoginRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -723,17 +717,28 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
      * @generated from protobuf rpc: LoginPasswordless(stream teleport.lib.teleterm.v1.LoginPasswordlessRequest) returns (stream teleport.lib.teleterm.v1.LoginPasswordlessResponse);
      */
     loginPasswordless(options?: RpcOptions): DuplexStreamingCall<LoginPasswordlessRequest, LoginPasswordlessResponse> {
-        const method = this.methods[27], opt = this._transport.mergeOptions(options);
+        const method = this.methods[26], opt = this._transport.mergeOptions(options);
         return stackIntercept<LoginPasswordlessRequest, LoginPasswordlessResponse>("duplex", this._transport, method, opt);
     }
     /**
-     * ClusterLogin logs out a user from cluster
+     * Logs the user out of the cluster and cleans up associated resources.
+     * Optionally removes the profile.
+     * This operation is idempotent and can be safely invoked multiple times.
      *
      * @generated from protobuf rpc: Logout(teleport.lib.teleterm.v1.LogoutRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     logout(input: LogoutRequest, options?: RpcOptions): UnaryCall<LogoutRequest, EmptyResponse> {
-        const method = this.methods[28], opt = this._transport.mergeOptions(options);
+        const method = this.methods[27], opt = this._transport.mergeOptions(options);
         return stackIntercept<LogoutRequest, EmptyResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * Closes root and leaf cluster clients that use outdated TLS certificates.
+     *
+     * @generated from protobuf rpc: ClearStaleClusterClients(teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest) returns (teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse);
+     */
+    clearStaleClusterClients(input: ClearStaleClusterClientsRequest, options?: RpcOptions): UnaryCall<ClearStaleClusterClientsRequest, ClearStaleClusterClientsResponse> {
+        const method = this.methods[28], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ClearStaleClusterClientsRequest, ClearStaleClusterClientsResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * TransferFile sends a request to download/upload a file

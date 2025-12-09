@@ -24,9 +24,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
-	"os"
 	"runtime/debug"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,8 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/healthcheck"
@@ -103,23 +102,13 @@ func init() {
 	healthchecks.RegisterHealthChecker(dynamodb.NewHealthChecker, defaults.ProtocolDynamoDB)
 	healthchecks.RegisterHealthChecker(elasticsearch.NewHealthChecker, defaults.ProtocolElasticsearch)
 	healthchecks.RegisterHealthChecker(mongodb.NewHealthChecker, defaults.ProtocolMongoDB)
-	if isMySQLHealthCheckEnabled() {
-		healthchecks.RegisterHealthChecker(mysql.NewHealthChecker, defaults.ProtocolMySQL)
-	}
+	healthchecks.RegisterHealthChecker(mysql.NewHealthChecker, defaults.ProtocolMySQL)
 	healthchecks.RegisterHealthChecker(opensearch.NewHealthChecker, defaults.ProtocolOpenSearch)
 	healthchecks.RegisterHealthChecker(postgres.NewHealthChecker, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
 	healthchecks.RegisterHealthChecker(redis.NewHealthChecker, defaults.ProtocolRedis)
 	healthchecks.RegisterHealthChecker(snowflake.NewHealthChecker, defaults.ProtocolSnowflake)
 	healthchecks.RegisterHealthChecker(spanner.NewHealthChecker, defaults.ProtocolSpanner)
 	healthchecks.RegisterHealthChecker(sqlserver.NewHealthChecker, defaults.ProtocolSQLServer)
-}
-
-// isMySQLHealthCheckEnabled returns true if MySQL health checks are enabled.
-// The default MySQL settings will automatically block a host after it dials
-// MySQL without handshaking 100 times, so we make MySQL health checks opt-in.
-func isMySQLHealthCheckEnabled() bool {
-	enabled, err := strconv.ParseBool(os.Getenv("TELEPORT_ENABLE_MYSQL_DB_HEALTH_CHECKS"))
-	return err == nil && enabled
 }
 
 // Config is the configuration for a database proxy server.
@@ -170,9 +159,9 @@ type Config struct {
 	// CADownloader automatically downloads root certs for cloud hosted databases.
 	CADownloader CADownloader
 	// AzureClients provides Azure SDK clients.
-	AzureClients clients.AzureClients
+	AzureClients azure.Clients
 	// GCPClients provides GCP SDK clients.
-	GCPClients clients.GCPClients
+	GCPClients gcp.Clients
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// AWSDatabaseFetcherFactory provides AWS database fetchers
@@ -230,14 +219,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		c.NewAudit = common.NewAudit
 	}
 	if c.AzureClients == nil {
-		azureClients, err := clients.NewAzureClients()
+		azureClients, err := azure.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		c.AzureClients = azureClients
 	}
 	if c.GCPClients == nil {
-		c.GCPClients = clients.NewGCPClients()
+		c.GCPClients = gcp.NewClients()
 	}
 	if c.AWSConfigProvider == nil {
 		provider, err := awsconfig.NewCache()
@@ -537,12 +526,6 @@ func New(ctx context.Context, config Config) (*Server, error) {
 // startDatabase performs initialization actions for the provided database
 // such as starting dynamic labels and initializing CA certificate.
 func (s *Server) startDatabase(ctx context.Context, database types.Database) error {
-	if err := s.startHealthCheck(ctx, database); err != nil && healthchecks.IsRegistered(database) {
-		s.log.DebugContext(ctx, "Failed to start database health checker",
-			"db", database.GetName(),
-			"error", err,
-		)
-	}
 	// For cloud-hosted databases (RDS, Redshift, GCP), try to automatically
 	// download a CA certificate.
 	// TODO(r0mant): This should ideally become a part of cloud metadata service.
@@ -571,6 +554,13 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	if err := fetchMySQLVersion(ctx, database); err != nil {
 		// Log, but do not fail. We will fetch the version later.
 		s.log.WarnContext(ctx, "Failed to fetch the MySQL version.", "db", database.GetName(), "error", err)
+	}
+	// start health check after fetching MySQL version to avoid data race
+	if err := s.startHealthCheck(ctx, database); err != nil && !trace.IsNotImplemented(err) {
+		s.log.DebugContext(ctx, "Failed to start database health checker",
+			"db", database.GetName(),
+			"error", err,
+		)
 	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.

@@ -236,7 +236,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 
-	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
+	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(l.cfg.SNI, cert))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -261,7 +261,7 @@ func (l *LocalProxy) HandleTCPConnector(ctx context.Context, connector func() (n
 		return trace.Wrap(err)
 	}
 
-	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(cert))
+	upstreamConn, err := dialALPNMaybePing(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(l.cfg.SNI, cert))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -299,20 +299,20 @@ func (l *LocalProxy) Close() error {
 	return nil
 }
 
-func (l *LocalProxy) getALPNDialerConfig(certs ...tls.Certificate) client.ALPNDialerConfig {
+func (l *LocalProxy) getALPNDialerConfig(serverName string, certs ...tls.Certificate) client.ALPNDialerConfig {
 	return client.ALPNDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
 		TLSConfig: &tls.Config{
 			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-			ServerName:         l.cfg.SNI,
+			ServerName:         serverName,
 			Certificates:       certs,
 			RootCAs:            l.cfg.RootCAs,
 		},
 	}
 }
 
-func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.ReverseProxy {
+func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certificate) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
 		Director: func(outReq *http.Request) {
 			outReq.URL.Scheme = "https"
@@ -341,7 +341,7 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs ...tls.Certificate) *httputil.Re
 			http.Error(w, http.StatusText(code), code)
 		},
 		Transport: &http.Transport{
-			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(certs...)).DialContext,
+			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, certs...)).DialContext,
 		},
 	}
 }
@@ -404,15 +404,27 @@ func (l *LocalProxy) startHTTPAccessProxy(ctx context.Context) error {
 }
 
 func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request) (*httputil.ReverseProxy, error) {
-	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
-	if trace.IsNotImplemented(err) {
-		return l.makeHTTPReverseProxy(l.getCert()), nil
-	} else if err != nil {
+	serverName, ok, err := l.cfg.HTTPMiddleware.GetServerName(req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if ok {
+		l.cfg.Log.DebugContext(req.Context(), "got SNI from middleware", "server_name", serverName)
+	} else {
+		serverName = l.cfg.SNI
+	}
 
-	l.cfg.Log.DebugContext(req.Context(), "overwrote certs")
-	return l.makeHTTPReverseProxy(certs...), nil
+	certs, ok, err := l.cfg.HTTPMiddleware.GetClientCerts(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ok {
+		l.cfg.Log.DebugContext(req.Context(), "got certs from middleware")
+	} else {
+		certs = []tls.Certificate{l.getCert()}
+	}
+
+	return l.makeHTTPReverseProxy(serverName, certs...), nil
 }
 
 // getCert returns the local proxy's configured TLS certificate.

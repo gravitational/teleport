@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -81,6 +82,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 
 	teleportClusterName := conn.ClusterName()
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
+	relayInfoHolder := new(relaytunnel.InfoHolder)
 
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
@@ -91,6 +93,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	// The listener exposes incoming connections over either mode.
 	var listener net.Listener
 	var agentPool *reversetunnel.AgentPool
+	var relayTunnelClient *relaytunnel.Client
 	switch {
 	// Filter out cases where both listen_addr and tunnel are set or both are
 	// not set.
@@ -151,6 +154,34 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			}
 		}()
 		logger.InfoContext(process.ExitContext(), "Started reverse tunnel client.")
+
+		if cfg.RelayServer != "" {
+			relayTunnelClient, err = relaytunnel.NewClient(relaytunnel.ClientConfig{
+				Log: logger,
+
+				GetCertificate: conn.ClientGetCertificate,
+				GetPool:        conn.ClientGetPool,
+				Ciphersuites:   cfg.CipherSuites,
+
+				TunnelType: types.KubeTunnel,
+				RelayAddr:  cfg.RelayServer,
+
+				HandleConnection: shtl.HandleConnection,
+				RelayInfoSetter:  relayInfoHolder.SetRelayInfo,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := relayTunnelClient.Start(); err != nil {
+				return trace.Wrap(err)
+			}
+			defer func() {
+				if retErr != nil {
+					relayTunnelClient.Close()
+				}
+			}()
+			logger.InfoContext(process.ExitContext(), "Started relay tunnel client.")
+		}
 	}
 
 	var dynLabels *labels.Dynamic
@@ -252,6 +283,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentKube),
 		GetRotation:          process.GetRotation,
 		ConnectedProxyGetter: proxyGetter,
+		RelayInfoGetter:      relayInfoHolder.GetRelayInfo,
 		ResourceMatchers:     cfg.Kube.ResourceMatchers,
 		StaticLabels:         cfg.Kube.StaticLabels,
 		DynamicLabels:        dynLabels,
@@ -298,6 +330,9 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			// Fast shutdown.
 			warnOnErr(process.ExitContext(), kubeServer.Close(), logger)
 			agentPool.Stop()
+		}
+		if relayTunnelClient != nil {
+			relayTunnelClient.Close()
 		}
 		if asyncEmitter != nil {
 			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)

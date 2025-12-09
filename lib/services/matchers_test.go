@@ -139,6 +139,63 @@ func TestMatchResourceLabels(t *testing.T) {
 	}
 }
 
+func TestSimplifyAzureMatchers(t *testing.T) {
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions: []string{"sub-1", types.Wildcard, "sub-1"},
+			Regions:       []string{"eu-west-1", "eu-west-2"},
+			Types:         []string{"mysql", "mysql", "postgres"},
+			ResourceTags:  types.Labels{"env": []string{"prod"}},
+			Params: &types.InstallerParams{
+				JoinMethod: types.JoinMethodAzure,
+				JoinToken:  "token-1",
+				Azure: &types.AzureInstallerParams{
+					ClientID: "client-1",
+				},
+			},
+			Integration: "integration-1",
+		},
+		{
+			ResourceGroups: []string{
+				"rg-1",
+				types.Wildcard,
+				"rg-1",
+			},
+			Types:       []string{"redis"},
+			Integration: "integration-2",
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+
+	want := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Regions:        []string{"eu-west-1", "eu-west-2"},
+			Types:          []string{"mysql", "postgres"},
+			ResourceTags:   types.Labels{"env": []string{"prod"}},
+			Params: &types.InstallerParams{
+				JoinMethod: types.JoinMethodAzure,
+				JoinToken:  "token-1",
+				Azure: &types.AzureInstallerParams{
+					ClientID: "client-1",
+				},
+			},
+			Integration: "integration-1",
+		},
+		{
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Regions:        []string{types.Wildcard},
+			Types:          []string{"redis"},
+			Integration:    "integration-2",
+		},
+	}
+
+	require.Equal(t, want, simplified)
+}
+
 func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 

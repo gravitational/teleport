@@ -20,70 +20,151 @@ package mysql
 
 import (
 	"context"
+	"net"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/healthcheck"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/healthchecks"
+	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 )
 
-// NewHealthChecker creates a new MySQL endpoint health checker.
-func NewHealthChecker(_ context.Context, cfg healthchecks.HealthCheckerConfig) (healthcheck.HealthChecker, error) {
-	resolver, err := newEndpointsResolver(cfg.Database, cfg.GCPClients)
+const (
+	// defaultHealthCheckUser is the user name that the health checker will
+	// attempt to authenticate as. It may be overridden with environment variable.
+	defaultHealthCheckUser = "teleport-healthchecker"
+	// healthCheckUserEnvVar is used to override the default health check user.
+	healthCheckUserEnvVar = "TELEPORT_UNSTABLE_MYSQL_DB_HEALTH_CHECK_DEFAULT_USER"
+)
+
+// getHealthCheckDBUser returns the user name to use for health checks.
+// The name can be sourced from environment variable, database config, or
+// the default health check user.
+func getHealthCheckDBUser(database types.Database) string {
+	user := defaultHealthCheckUser
+	if val := os.Getenv(healthCheckUserEnvVar); val != "" {
+		user = val
+	}
+	if admin := database.GetAdminUser(); admin.Name != "" {
+		user = admin.Name
+	}
+	if database.IsCloudSQL() {
+		return databaseUserToGCPServiceAccount(database, user)
+	}
+	return user
+}
+
+// NewHealthChecker creates a new [HealthChecker].
+func NewHealthChecker(ctx context.Context, cfg healthchecks.HealthCheckerConfig) (healthcheck.HealthChecker, error) {
+	return newHealthChecker(cfg)
+}
+
+func newHealthChecker(cfg healthchecks.HealthCheckerConfig) (*HealthChecker, error) {
+	databaseUser := getHealthCheckDBUser(cfg.Database)
+	cfg.Log = cfg.Log.With(
+		"db", cfg.Database.GetName(),
+		"db_user", databaseUser,
+	)
+	connector, err := newConnector(connectorConfig{
+		auth:         cfg.Auth,
+		authClient:   cfg.AuthClient,
+		clock:        cfg.Clock,
+		gcpClients:   cfg.GCPClients,
+		log:          cfg.Log,
+		database:     cfg.Database,
+		databaseName: "", // no default database is necessary
+		databaseUser: databaseUser,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return healthcheck.NewTargetDialer(resolver.Resolve), nil
+
+	return &HealthChecker{
+		cfg:       cfg,
+		connector: connector,
+	}, nil
 }
 
-// resolverClients are API clients needed to resolve MySQL endpoints.
-type resolverClients interface {
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+// HealthChecker provides health checks for a MySQL database. To avoid MySQL
+// host blocking due to aborted connections this health checker attempts to
+// authenticate as a user, but authentication failure is normal and expected
+// behavior when the health check user does not exist. Any failure after
+// successfully dialing the database endpoint is ignored, because database
+// health checks only check TCP connectivity.
+type HealthChecker struct {
+	cfg       healthchecks.HealthCheckerConfig
+	connector *connector
 }
 
-func newEndpointsResolver(db types.Database, clients resolverClients) (endpoints.Resolver, error) {
-	switch {
-	case db.IsCloudSQL():
-		return newCloudSQLEndpointResolver(db, clients), nil
-	default:
-		return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-			return []string{db.GetURI()}, nil
-		}), nil
+// CheckHealth checks the health of the target database.
+func (h *HealthChecker) CheckHealth(ctx context.Context) ([]string, error) {
+	if err := h.connect(ctx); err != nil {
+		if isDialError(err) {
+			// only return dial errors, because database health checks only
+			// check connectivity to the database endpoint.
+			return []string{h.getTargetAddress(ctx)}, trace.Wrap(err)
+		}
+		h.cfg.Log.DebugContext(ctx, "Failed to connect as health checker", "error", err)
+	}
+	return []string{h.getTargetAddress(ctx)}, nil
+}
+
+func (h *HealthChecker) connect(ctx context.Context) error {
+	// TODO(gavin): implement Teleport and GCP ephemeral client cert caching
+	certExpiry := h.cfg.Clock.Now().Add(time.Hour)
+	conn, err := h.connector.connect(ctx, certExpiry, h.readServerVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_ = conn.Quit()
+	return nil
+}
+
+func (h *HealthChecker) readServerVersion(ctx context.Context, conn net.Conn) {
+	version, err := protocol.ReadMySQLVersion(ctx, conn)
+	if err != nil {
+		h.cfg.Log.WarnContext(ctx, "Failed to fetch the MySQL version",
+			"db", h.cfg.Database.GetName(),
+			"error", err,
+		)
+		return
+	}
+	if err := updateServerVersion(ctx,
+		h.cfg.Log,
+		h.cfg.Database,
+		version,
+		h.cfg.UpdateProxiedDatabase,
+	); err != nil {
+		if trace.IsNotFound(err) {
+			// not found error can occur if we fetch the version before the
+			// database has finished registering - we will retry later, ignore it
+			return
+		}
+		h.cfg.Log.WarnContext(ctx, "Failed to update the MySQL server version",
+			"error", err,
+		)
 	}
 }
 
-func newCloudSQLEndpointResolver(db types.Database, clients resolverClients) endpoints.Resolver {
-	// avoid checking the ssl mode more than once every 15 minutes.
-	sometimes := rate.Sometimes{Interval: 15 * time.Minute}
-	var requireSSL bool
-	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-		var requireSSLErr error
-		sometimes.Do(func() {
-			clt, err := clients.GetGCPSQLAdminClient(ctx)
-			if err != nil {
-				requireSSLErr = trace.Wrap(err)
-				return
-			}
+// GetProtocol returns the network protocol used for checking health.
+// This health checker only reports TCP dialing errors.
+func (h *HealthChecker) GetProtocol() types.TargetHealthProtocol {
+	return types.TargetHealthProtocolTCP
+}
 
-			requireSSL, err = cloud.GetGCPRequireSSL(ctx, db, clt)
-			if err != nil && !trace.IsAccessDenied(err) {
-				requireSSLErr = trace.Wrap(err)
-				return
-			}
-		})
-		if requireSSLErr != nil {
-			return nil, trace.Wrap(requireSSLErr)
+func (h *HealthChecker) getTargetAddress(ctx context.Context) string {
+	if h.cfg.Database.IsCloudSQL() {
+		requireSSL, err := h.connector.gcpAuth.checkSSLRequired(ctx)
+		if err != nil {
+			h.cfg.Log.DebugContext(ctx, "Failed to check database SSL requirement",
+				"error", err,
+			)
+		} else if requireSSL {
+			return getGCPTLSAddress(h.cfg.Database.GetURI())
 		}
-		if requireSSL {
-			return []string{getGCPTLSAddress(db.GetURI())}, nil
-		}
-		return []string{db.GetURI()}, nil
-	})
+	}
+	return h.cfg.Database.GetURI()
 }

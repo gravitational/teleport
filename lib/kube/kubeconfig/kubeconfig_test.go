@@ -188,25 +188,40 @@ func TestUpdate(t *testing.T) {
 
 	wantConfig := initialConfig.DeepCopy()
 	wantConfig.Contexts[wantConfig.CurrentContext].Extensions = map[string]runtime.Object{
-		selectedExtension: nil,
+		extPreviousSelectedContext: nil,
 	}
 	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
 		CertificateAuthorityData: caCertPEM,
 		LocationOfOrigin:         kubeconfigPath,
-		Extensions:               map[string]runtime.Object{},
+		Extensions: map[string]runtime.Object{
+			extTeleClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + clusterName + `"`),
+				ContentType: "application/json",
+			},
+		},
 	}
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
 		ClientKeyData:         creds.TLSPrivateKey.PrivateKeyPEM(),
 		LocationOfOrigin:      kubeconfigPath,
-		Extensions:            map[string]runtime.Object{},
+		Extensions: map[string]runtime.Object{
+			extTeleClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + clusterName + `"`),
+				ContentType: "application/json",
+			},
+		},
 	}
 	wantConfig.Contexts[clusterName] = &clientcmdapi.Context{
 		Cluster:          clusterName,
 		AuthInfo:         clusterName,
 		LocationOfOrigin: kubeconfigPath,
-		Extensions:       map[string]runtime.Object{},
+		Extensions: map[string]runtime.Object{
+			extTeleClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + clusterName + `"`),
+				ContentType: "application/json",
+			},
+		},
 	}
 	wantConfig.CurrentContext = clusterName
 
@@ -293,19 +308,37 @@ func TestUpdateWithExec(t *testing.T) {
 
 			wantConfig := initialConfig.DeepCopy()
 			contextName := ContextName(clusterName, kubeCluster)
-			authInfoName := contextName
 			if tt.overrideContextName != "" {
 				contextName = tt.overrideContextName
 			}
-			wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
+			authAndClusterName := contextName
+			wantConfig.Clusters[authAndClusterName] = &clientcmdapi.Cluster{
 				Server:                   clusterAddr,
 				CertificateAuthorityData: caCertPEM,
 				LocationOfOrigin:         kubeconfigPath,
-				Extensions:               map[string]runtime.Object{},
+				Extensions: map[string]runtime.Object{
+					extTeleClusterName: &runtime.Unknown{
+						Raw:         []byte(`"` + clusterName + `"`),
+						ContentType: "application/json",
+					},
+					extKubeClusterName: &runtime.Unknown{
+						Raw:         []byte(`"` + kubeCluster + `"`),
+						ContentType: "application/json",
+					},
+				},
 			}
-			wantConfig.AuthInfos[authInfoName] = &clientcmdapi.AuthInfo{
-				LocationOfOrigin:  kubeconfigPath,
-				Extensions:        map[string]runtime.Object{},
+			wantConfig.AuthInfos[authAndClusterName] = &clientcmdapi.AuthInfo{
+				LocationOfOrigin: kubeconfigPath,
+				Extensions: map[string]runtime.Object{
+					extTeleClusterName: &runtime.Unknown{
+						Raw:         []byte(`"` + clusterName + `"`),
+						ContentType: "application/json",
+					},
+					extKubeClusterName: &runtime.Unknown{
+						Raw:         []byte(`"` + kubeCluster + `"`),
+						ContentType: "application/json",
+					},
+				},
 				Impersonate:       tt.impersonatedUser,
 				ImpersonateGroups: tt.impersonatedGroups,
 				Exec: &clientcmdapi.ExecConfig{
@@ -321,12 +354,16 @@ func TestUpdateWithExec(t *testing.T) {
 				},
 			}
 			wantConfig.Contexts[contextName] = &clientcmdapi.Context{
-				Cluster:          clusterName,
-				AuthInfo:         authInfoName,
+				Cluster:          contextName,
+				AuthInfo:         contextName,
 				LocationOfOrigin: kubeconfigPath,
 				Extensions: map[string]runtime.Object{
-					teleportKubeClusterNameExtension: &runtime.Unknown{
-						Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
+					extTeleClusterName: &runtime.Unknown{
+						Raw:         []byte(`"` + clusterName + `"`),
+						ContentType: "application/json",
+					},
+					extKubeClusterName: &runtime.Unknown{
+						Raw:         []byte(`"` + kubeCluster + `"`),
 						ContentType: "application/json",
 					},
 				},
@@ -344,7 +381,8 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 	const (
 		clusterName = "teleport-cluster"
 		clusterAddr = "https://1.2.3.6:3080"
-		proxy       = "my-teleport-proxy:3080"
+		proxyHost   = "my-teleport-proxy"
+		proxy       = proxyHost + ":3080"
 		tshPath     = "/path/to/tsh"
 		kubeCluster = "my-cluster"
 		homeEnvVar  = "TELEPORT_HOME"
@@ -370,15 +408,41 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 
 	wantConfig := initialConfig.DeepCopy()
 	contextName := ContextName(clusterName, kubeCluster)
-	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
+	wantConfig.Clusters[contextName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
 		CertificateAuthorityData: caCertPEM,
 		LocationOfOrigin:         kubeconfigPath,
-		Extensions:               map[string]runtime.Object{},
+		Extensions: map[string]runtime.Object{
+			extProfileName: &runtime.Unknown{
+				Raw:         []byte(`"` + proxyHost + `"`),
+				ContentType: "application/json",
+			},
+			extTeleClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + clusterName + `"`),
+				ContentType: "application/json",
+			},
+			extKubeClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + kubeCluster + `"`),
+				ContentType: "application/json",
+			},
+		},
 	}
 	wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 		LocationOfOrigin: kubeconfigPath,
-		Extensions:       map[string]runtime.Object{},
+		Extensions: map[string]runtime.Object{
+			extProfileName: &runtime.Unknown{
+				Raw:         []byte(`"` + proxyHost + `"`),
+				ContentType: "application/json",
+			},
+			extTeleClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + clusterName + `"`),
+				ContentType: "application/json",
+			},
+			extKubeClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + kubeCluster + `"`),
+				ContentType: "application/json",
+			},
+		},
 		Exec: &clientcmdapi.ExecConfig{
 			APIVersion: "client.authentication.k8s.io/v1beta1",
 			Command:    tshPath,
@@ -393,12 +457,20 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		},
 	}
 	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
-		Cluster:          clusterName,
+		Cluster:          contextName,
 		AuthInfo:         contextName,
 		LocationOfOrigin: kubeconfigPath,
 		Extensions: map[string]runtime.Object{
-			teleportKubeClusterNameExtension: &runtime.Unknown{
-				Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
+			extProfileName: &runtime.Unknown{
+				Raw:         []byte(`"` + proxyHost + `"`),
+				ContentType: "application/json",
+			},
+			extTeleClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + clusterName + `"`),
+				ContentType: "application/json",
+			},
+			extKubeClusterName: &runtime.Unknown{
+				Raw:         []byte(`"` + kubeCluster + `"`),
 				ContentType: "application/json",
 			},
 		},
@@ -468,7 +540,7 @@ func TestRemoveByClusterName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Remove those generated entries from kubeconfig.
-	err = RemoveByClusterName(kubeconfigPath, clusterName)
+	err = RemoveByServerAddr(kubeconfigPath, clusterAddr)
 	require.NoError(t, err)
 
 	// Verify that kubeconfig changed back to the initial state.
@@ -489,8 +561,9 @@ func TestRemoveByClusterName(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	// This time, explicitly switch CurrentContext to "prod".
-	// Remove should preserve this CurrentContext!
+	// This time, explicitly switch CurrentContext to "prod" as if the user did
+	// so by editing the config file or with "kubectl config set". Remove should
+	// preserve this CurrentContext!
 	config, err = Load(kubeconfigPath)
 	require.NoError(t, err)
 	config.CurrentContext = "prod"
@@ -498,7 +571,7 @@ func TestRemoveByClusterName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Remove teleport-generated entries from kubeconfig.
-	err = RemoveByClusterName(kubeconfigPath, clusterName)
+	err = RemoveByServerAddr(kubeconfigPath, clusterAddr)
 	require.NoError(t, err)
 
 	wantConfig = initialConfig.DeepCopy()
@@ -506,6 +579,9 @@ func TestRemoveByClusterName(t *testing.T) {
 	// it above and Remove shouldn't touch it unless it matches the cluster
 	// being removed.
 	wantConfig.CurrentContext = "prod"
+	wantConfig.Contexts["dev"].Extensions = map[string]runtime.Object{
+		extPreviousSelectedContext: nil,
+	}
 	config, err = Load(kubeconfigPath)
 	require.NoError(t, err)
 	require.Equal(t, wantConfig, config)
@@ -620,7 +696,7 @@ func TestKubeClusterFromContext(t *testing.T) {
 			name: "context name is {teleport-cluster}-cluster name",
 			args: args{
 				contextName:     "telecluster-cluster1",
-				ctx:             &clientcmdapi.Context{Cluster: "cluster1"},
+				ctx:             &clientcmdapi.Context{Cluster: "telecluster"},
 				teleportCluster: "telecluster",
 			},
 			want: "cluster1",
@@ -641,8 +717,8 @@ func TestKubeClusterFromContext(t *testing.T) {
 				ctx: &clientcmdapi.Context{
 					Cluster: "telecluster",
 					Extensions: map[string]runtime.Object{
-						teleportKubeClusterNameExtension: &runtime.Unknown{
-							Raw: []byte("\"another\""),
+						extKubeClusterName: &runtime.Unknown{
+							Raw: []byte(`"another"`),
 						},
 					},
 				},
