@@ -676,11 +676,6 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/machine-id/manifesto/",
-      "destination": "/machine-workload-identity/introduction/",
-      "permanent": true
-    },
-    {
       "source": "/enroll-resources/machine-id/troubleshooting/",
       "destination": "/machine-workload-identity/troubleshooting/",
       "permanent": true
@@ -2343,11 +2338,6 @@
     {
       "source": "/machine-workload-identity/machine-id/faq/",
       "destination": "/machine-workload-identity/faq/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-workload-identity/machine-id/manifesto/",
-      "destination": "/machine-workload-identity/introduction/",
       "permanent": true
     },
     {
