@@ -1225,9 +1225,10 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	var distinguishedName string
 
 	if !desktop.NonAD() {
-		// Use FnCache to fetch the SID, or load it from cache if we already have it
-		// The cache key is the username and domain combined to handle multi-domain setups
-		cacheKey := fmt.Sprintf("%s@%s", username, desktop.GetDomain())
+		cacheKey := username
+		if !strings.Contains(username, "@") {
+			cacheKey = fmt.Sprintf("%s@%s", username, s.cfg.Domain)
+		}
 		entry, err := utils.FnCacheGet(ctx, s.sidCache, cacheKey, func(ctx context.Context) (entry, error) {
 			tc, err := s.loadTLSConfigForLDAP()
 			if err != nil {

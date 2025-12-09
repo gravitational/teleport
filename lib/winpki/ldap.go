@@ -194,39 +194,50 @@ func (l *LDAPClient) GetActiveDirectorySIDAndDN(ctx context.Context, username st
 
 	followReferrals := domain != l.cfg.Domain
 
-	queries := []func() ([]*ldap.Entry, error){
-		func() ([]*ldap.Entry, error) {
-			//User principal name and configured baseDN
+	queries := []func() (string, []*ldap.Entry, error){
+		func() (string, []*ldap.Entry, error) {
+			// User principal name and configured baseDN
 			filter := fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
-			return l.queryLDAP(ctx, filter, username, DomainDN(l.cfg.Domain), followReferrals)
+			entries, err := l.queryLDAP(ctx, filter, username, DomainDN(l.cfg.Domain), followReferrals)
+			return "UPN and configured baseDN", entries, err
 		},
-		func() ([]*ldap.Entry, error) {
-			//User principal name and baseDN derived from username
+		func() (string, []*ldap.Entry, error) {
+			// User principal name and baseDN derived from username
 			filter := fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain))
-			return l.queryLDAP(ctx, filter, username, DomainDN(domain), followReferrals)
+			entries, err := l.queryLDAP(ctx, filter, username, DomainDN(domain), followReferrals)
+			return "UPN and derived baseDN", entries, err
 		},
-		func() ([]*ldap.Entry, error) {
-			//sAMAccountName and baseDN derived from username
+		func() (string, []*ldap.Entry, error) {
+			// sAMAccountName and baseDN derived from username
+			// Limited to 20 characters by AD schema
+			// https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccountname
 			if len(username) > 20 {
 				l.cfg.Logger.WarnContext(ctx, "username used for querying sAMAccountName is longer than 20 characters, results might be invalid", "username", username)
 				username = username[:20]
 			}
 			filter := fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username))
-			return l.queryLDAP(ctx, filter, username, DomainDN(domain), followReferrals)
+			entries, err := l.queryLDAP(ctx, filter, username, DomainDN(domain), followReferrals)
+			return "sAMAccountName", entries, err
 		},
 	}
 
+	var queryName string
 	var err error
 	var entries []*ldap.Entry
-	for _, query := range queries {
-		entries, err = query()
+	for i, query := range queries {
+		queryName, entries, err = query()
 		if err != nil {
 			return "", "", trace.Wrap(err)
 		}
 		if len(entries) > 0 {
 			break
 		}
-		l.cfg.Logger.DebugContext(ctx, "found 0 entries, trying another query")
+		logger := l.cfg.Logger.With("query", queryName)
+		if i < len(queries)-1 {
+			logger.DebugContext(ctx, "query found 0 entries, trying another one")
+		} else {
+			logger.DebugContext(ctx, "query found 0 entries, no more queries left to check")
+		}
 	}
 	if len(entries) == 0 {
 		return "", "", trace.NotFound("could not find Windows account %q", username)

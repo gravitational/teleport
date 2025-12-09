@@ -1447,6 +1447,9 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"issuer_skid", base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
 	)
 
+	// Go deserializes extra names into Names field, but it uses ExtraNames for serialization,
+	// if we have any then we have to copy them over, or they will get lost during another
+	// serialization in x509.CreateCertificate
 	if len(req.Subject.Names) > 0 {
 		req.Subject.ExtraNames = req.Subject.Names
 	}

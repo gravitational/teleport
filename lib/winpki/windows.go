@@ -65,6 +65,9 @@ func createUsersExtension(groups []string) (pkix.Extension, error) {
 	}, nil
 }
 
+// oids is mapping from distinguished name parts to asn1 object identifiers.
+// It's used for conversion between string representation obtained from LDAP
+// and pkix.Name.ExtraNames list
 var oids = map[string]asn1.ObjectIdentifier{
 	"businesscategory":           {2, 5, 4, 15},
 	"c":                          {2, 5, 4, 6},
@@ -141,25 +144,12 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	if req.AD {
 		name = pkix.Name{CommonName: upn}
 	}
-	if req.DistinguishedName != "" {
-		dn, err := ldap.ParseDN(req.DistinguishedName)
+	distinguishedName := req.DistinguishedName
+	if distinguishedName != "" {
+		name, err = convertDistinguishedName(distinguishedName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		name = pkix.Name{}
-		for _, rdn := range dn.RDNs {
-			for _, attr := range rdn.Attributes {
-				oid, ok := oids[strings.ToLower(attr.Type)]
-				if !ok {
-					continue
-				}
-				name.ExtraNames = append(name.ExtraNames, pkix.AttributeTypeAndValue{
-					Type:  oid,
-					Value: attr.Value,
-				})
-			}
-		}
-		slices.Reverse(name.ExtraNames)
 	}
 
 	csr := &x509.CertificateRequest{
@@ -223,6 +213,29 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	}
 
 	return cr, nil
+}
+
+func convertDistinguishedName(distinguishedName string) (pkix.Name, error) {
+	dn, err := ldap.ParseDN(distinguishedName)
+	if err != nil {
+		return pkix.Name{}, trace.Wrap(err)
+	}
+	name := pkix.Name{}
+	for _, rdn := range dn.RDNs {
+		for _, attr := range rdn.Attributes {
+			oid, ok := oids[strings.ToLower(attr.Type)]
+			if !ok {
+				continue
+			}
+			name.ExtraNames = append(name.ExtraNames, pkix.AttributeTypeAndValue{
+				Type:  oid,
+				Value: attr.Value,
+			})
+		}
+	}
+	// list have to be reversed for Windows to recognize the name's parts in the correct order
+	slices.Reverse(name.ExtraNames)
+	return name, nil
 }
 
 // AuthInterface is a subset of auth.ClientI
