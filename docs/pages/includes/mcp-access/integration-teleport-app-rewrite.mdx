@@ -14,6 +14,9 @@ app_service:
     labels:
       env: dev
       service: {{service}}
+    rewrite:
+      headers:
+      - "{{headerName}}: {{headerValue}}"
 ```
 
 Restart the Application Service.
@@ -31,6 +34,10 @@ metadata:
   labels:
     env: dev
     service: {{service}}
+  rewrite:
+    headers:
+    - name: "{{headerName}}"
+      value: "{{headerValue}}"
 spec:
   uri: "mcp+http://<Var name="MCP_HOST" />:{{port}}/mcp"
 ```
@@ -58,6 +65,12 @@ resource "teleport_app" "grafana" {
 
   spec = {
     uri = "mcp+http://<Var name="MCP_HOST" />:{{port}}/mcp"
+    rewrite = {
+      headers = [{
+        name  = "{{headerName}}"
+        value = "{{headerValue}}"
+      }]
+    }
   }
 }
 ```
