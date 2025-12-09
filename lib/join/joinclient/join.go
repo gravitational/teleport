@@ -42,9 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
