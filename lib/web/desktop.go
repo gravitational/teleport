@@ -655,40 +655,38 @@ type desktopPinger struct {
 	ch               chan []byte
 }
 
-func newPingInterceptor(ch chan []byte, latencySupported bool) func(tdp.Message) ([]tdp.Message, error) {
-	return func(msg tdp.Message) ([]tdp.Message, error) {
-
-		var uuid []byte
-		switch m := msg.(type) {
-		case tdp.Ping:
-			uuid = m.UUID[:]
-		case tdp.TdpbMessage:
-			ping := &tdpbv1.Ping{}
-			if err := m.As(ping); err != nil {
-				if errors.Is(err, tdp.ErrUnexpectedMessageType) {
-					// This simply isn't the message we're looking for
-					return []tdp.Message{msg}, nil
-				}
-				// Something else went wrong
-				return nil, trace.Wrap(err)
+func (d desktopPinger) intercept(msg tdp.Message) ([]tdp.Message, error) {
+	var uuid []byte
+	switch m := msg.(type) {
+	case tdp.Ping:
+		uuid = m.UUID[:]
+	case tdp.TdpbMessage:
+		ping := &tdpbv1.Ping{}
+		if err := m.As(ping); err != nil {
+			if errors.Is(err, tdp.ErrUnexpectedMessageType) {
+				// This simply isn't the message we're looking for
+				return []tdp.Message{msg}, nil
 			}
-			uuid = ping.Uuid
-		default:
-			// This may be some other legacy TDP message
-			return []tdp.Message{msg}, nil
+			// Something else went wrong
+			return nil, trace.Wrap(err)
 		}
+		uuid = ping.Uuid
+	default:
+		// This may be some other legacy TDP message
+		return []tdp.Message{msg}, nil
+	}
 
-		if !latencySupported {
-			slog.Warn("received unexpected Ping message from server (this is a bug)")
-			// Swallow the ping message, but there's no need to return an error
-			// (which will probably kill the connection)
-			return nil, nil
-		}
-
-		ch <- uuid
-		// We've handled the ping. Do not pass it along to the proxy.
+	if !d.latencySupported {
+		slog.Warn("received unexpected Ping message from server (this is a bug)")
+		// Swallow the ping message, but there's no need to return an error
+		// (which will probably kill the connection)
 		return nil, nil
 	}
+
+	d.ch <- uuid
+	// We've handled the ping. Do not pass it along to the proxy.
+	return nil, nil
+
 }
 
 func (d desktopPinger) ping(ctx context.Context, msg tdp.Message) error {
@@ -768,14 +766,14 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 	// for each one's native dialect.
 	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: ws}, clientProtocol))
 	// The ping interceptor is installed on the server connection
-	serverConn := tdp.NewReadWriteInterceptor(newConn(wds, serverProtocol), newPingInterceptor(pingChan, latencySupported), nil)
+	serverConn := tdp.NewReadWriteInterceptor(newConn(wds, serverProtocol), pinger.intercept, nil)
 
 	// Translation interceptors will be (optionally) installed in the *write* paths of each connection.
 	needTranslation := clientProtocol != serverProtocol
 	if needTranslation {
 		// Translation is needed
 		if serverProtocol == protocolTDPB {
-			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", "TDPB", "client_dialect", "TDP")
+			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDPB, "client_dialect", protocolTDP)
 			// Server speaks TDPB
 			// Translate to TDPB when writing to the server. Intercept pings when reading from the server.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdp.TranslateToModern)
@@ -783,7 +781,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 			// Translate to TDP (legacy) when writing to this connection
 			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdp.TranslateToLegacy)
 		} else {
-			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", "TDP", "client_dialect", "TDPB")
+			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", protocolTDPB)
 			// Server speaks TDP
 			// Translate to TDPB when reading from this connection.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdp.TranslateToLegacy)
@@ -792,7 +790,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdp.TranslateToModern)
 		}
 	} else {
-		slog.InfoContext(ctx, "Proxying desktop connection without translation", "server_dialect", "TDP", "client_dialect", "TDPB")
+		slog.InfoContext(ctx, "Proxying desktop connection without translation", "dialect", serverProtocol)
 	}
 
 	proxy := tdp.NewConnProxy(clientConn, serverConn)
