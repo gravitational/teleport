@@ -677,7 +677,7 @@
     },
     {
       "source": "/enroll-resources/machine-id/manifesto/",
-      "destination": "/machine-workload-identity/manifesto/",
+      "destination": "/machine-workload-identity/introduction/",
       "permanent": true
     },
     {
@@ -2347,7 +2347,7 @@
     },
     {
       "source": "/machine-workload-identity/machine-id/manifesto/",
-      "destination": "/machine-workload-identity/manifesto/",
+      "destination": "/machine-workload-identity/introduction/",
       "permanent": true
     },
     {
