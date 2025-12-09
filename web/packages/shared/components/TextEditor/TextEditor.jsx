@@ -60,6 +60,14 @@ class TextEditor extends Component {
       this.editor.setReadOnly(this.props.readOnly);
     }
 
+    // If the data changes, reset the value in each session so changes are
+    // rendered.
+    if (prevProps.data !== this.props.data) {
+      this.props.data.forEach((doc, i) => {
+        this.sessions[i].setValue(doc.content);
+      });
+    }
+
     this.editor.resize();
   }
 
