@@ -467,8 +467,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
-	return nil, trace.BadParameter("PAM not supported by forwarding server")
+func (s *Server) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
@@ -559,6 +559,17 @@ func (s *Server) GetUserAccountingPaths() (string, string, string, string) {
 // GetLockWatcher gets the server's lock watcher.
 func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
+}
+
+// ChildLogConfig returns a noop log configuration since the forwarding server
+// does not spawn child processes.
+func (s *Server) ChildLogConfig() srv.ChildLogConfig {
+	return srv.ChildLogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 func (s *Server) Serve() {

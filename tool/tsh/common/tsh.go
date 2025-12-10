@@ -1373,6 +1373,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("roles", "List requestable roles instead of searching for resources. Mutually exclusive with --kind.").BoolVar(&cf.RequestableRoles)
 	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployments, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
+	reqSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
 		if cf.RequestableRoles && cf.ResourceKind != "" {
 			return trace.BadParameter("only one of --kind and --roles may be specified")
@@ -1449,6 +1450,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 	// SCAN subcommands.
 	scan := newScanCommand(app)
+	// scopes subcommands.
+	scopes := newScopesCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
@@ -1815,6 +1818,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.join.run(&cf)
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
+	case scopes.ls.FullCommand():
+		err = scopes.ls.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case proxyDB.FullCommand():

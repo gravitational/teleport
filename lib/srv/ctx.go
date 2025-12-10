@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -155,7 +156,7 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() (*servicecfg.PAMConfig, error)
+	GetPAM() *servicecfg.PAMConfig
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
@@ -198,6 +199,18 @@ type Server interface {
 
 	// EventMetadata returns [events.ServerMetadata] for this server.
 	EventMetadata() apievents.ServerMetadata
+
+	// ChildLogConfig returns the log configuration for handling logs from
+	// child processes.
+	ChildLogConfig() ChildLogConfig
+}
+
+// ChildLogConfig is the log configuration for handling logs from child processes.
+type ChildLogConfig struct {
+	ExecLogConfig
+
+	// Writer is the output writer to use for the logger. May be nil.
+	Writer io.Writer
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -402,6 +415,9 @@ type ServerContext struct {
 	cmdr *os.File
 	cmdw *os.File
 
+	// logw is used to send logs from the child process to the parent process.
+	logw *os.File
+
 	// cont{r,w} is used to send the continue signal from the parent process
 	// to the child process.
 	contr *os.File
@@ -587,6 +603,34 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.killShellr)
 	child.AddCloser(child.killShellw)
+
+	// If the log writer is a file, we can pass it directly to the child
+	// process to write to. Otherwise, we need to create a pipe to the child
+	// process and stream the logs to the log writer.
+	logCfg := child.srv.ChildLogConfig()
+	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
+		child.logw = fileWriter
+	} else {
+		// Create a pipe so we can pass the writing side as an *os.File to the child process.
+		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+		r, w, err := os.Pipe()
+		if err != nil {
+			childErr := child.Close()
+			return nil, trace.NewAggregate(err, childErr)
+		}
+
+		child.logw = w
+		child.AddCloser(r)
+		child.AddCloser(w)
+
+		// Copy logs from the child process to the parent process over
+		// the pipe until it is closed by the child context.
+		go func() {
+			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+				slog.ErrorContext(child.CancelContext(), "Failed to copy logs over pipe", "error", err)
+			}
+		}()
+	}
 
 	return child, nil
 }
@@ -1019,12 +1063,8 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		return nil, nil
 	}
 
-	localPAMConfig, err := c.srv.GetPAM()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// We use nil/empty to figure out if PAM is disabled later.
+	localPAMConfig := c.srv.GetPAM()
 	if !localPAMConfig.Enabled {
 		return nil, nil
 	}
@@ -1115,6 +1155,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
+		LogConfig:             c.srv.ChildLogConfig().ExecLogConfig,
 		Command:               command,
 		DestinationAddress:    c.DstAddr,
 		Username:              c.Identity.TeleportUser,
@@ -1329,4 +1370,34 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferReques
 	c.approvedFileReq = nil
 
 	return req
+}
+
+// The child does not signal until completing PAM setup, which can take an arbitrary
+// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
+const childReadyWaitTimeout = 3 * time.Minute
+
+// WaitForChild waits for the child process to signal ready through the named pipe.
+func (c *ServerContext) WaitForChild(ctx context.Context) error {
+	bpfService := c.srv.GetBPF()
+	pam := c.srv.GetPAM()
+
+	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
+	// because PAM might inadvertently move the child process to another cgroup
+	// by invoking systemd. If this happens, then the cgroup filter used by BPF
+	// will be looking for events in the wrong cgroup and no events will be captured.
+	// However, unconditionally waiting for the child to be ready results in PAM
+	// deadlocking because stdin/stdout/stderr which it uses to relay details from
+	// PAM auth modules are not properly copied until _after_ the shell request is
+	// replied to.
+	var waitErr error
+	if bpfService.Enabled() && pam.Enabled {
+		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
+			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
+		}
+	}
+
+	closeErr := c.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	c.readyr = nil
+	return trace.NewAggregate(waitErr, closeErr)
 }
