@@ -2984,6 +2984,11 @@
       "source": "/identity-governance/idps/saml-microsoft-entra-external-id/",
       "destination": "/identity-governance/idps/usage/saml-microsoft-entra-external-id/",
       "permanent": true
+    },
+    {
+      "source": "/security/signing-info",
+      "destination": "/reference/public-certificates/",
+      "permanent": true
     }
   ]
 }
