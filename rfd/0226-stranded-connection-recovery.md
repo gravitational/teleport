@@ -185,7 +185,7 @@ is closed.
 3. What if the old connection becomes healthy again? If the old connection becomes
 healthy before we're able to establish a new healthy connection we will stop
 attempting new connections and continue using that old connection. Otherwise it
-will we shutdown.
+will be shutdown.
 
 #### Policy Configuration Discovery
 
