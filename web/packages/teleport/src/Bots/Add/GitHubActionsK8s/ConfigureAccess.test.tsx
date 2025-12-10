@@ -28,11 +28,13 @@ import {
   screen,
   testQueryClient,
   userEvent,
+  within,
 } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 
 import { ConfigureAccess } from './ConfigureAccess';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
@@ -44,6 +46,7 @@ beforeAll(() => {
 
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
+  server.use(fetchUnifiedResourcesSuccess());
 });
 
 afterAll(() => server.close());
@@ -73,6 +76,8 @@ describe('ConfigureAccess', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByLabelText('Kubernetes Groups')).toBeInTheDocument();
+    expect(screen.getByLabelText('Labels')).toBeInTheDocument();
+    expect(screen.getByLabelText('Kubernetes Users')).toBeInTheDocument();
   });
 
   test('navigation', async () => {
@@ -112,6 +117,21 @@ describe('ConfigureAccess', () => {
 
     expect(screen.getByText('system:masters')).toBeInTheDocument();
     expect(screen.getByText('viewers')).toBeInTheDocument();
+  });
+
+  test('input labels', async () => {
+    const { user } = renderComponent();
+
+    const input = screen.getByLabelText('Labels');
+    await user.click(within(input).getByRole('button'));
+
+    const modal = screen.getByTestId('Modal');
+    const manualInput = within(modal).getByPlaceholderText('name: value');
+    await user.type(manualInput, 'foo:bar{enter}');
+    await user.click(within(modal).getByRole('button', { name: 'Done' }));
+
+    expect(modal).not.toBeInTheDocument();
+    expect(screen.getByText('foo: bar')).toBeInTheDocument();
   });
 
   test('input users', async () => {
