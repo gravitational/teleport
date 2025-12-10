@@ -124,7 +124,6 @@ sequenceDiagram
     participant auth1 as Auth Instance 1
     participant auth2 as Auth Instance 2
 
-
     client ->> lb: Constructs the Policy
     rect rgb(200, 200, 255)
         lb ->> pf1: Starts a Pick First Balancer
@@ -139,9 +138,6 @@ sequenceDiagram
         pf1 ->> auth1: Drops connection
     end
 
-
-
-    client ->> lb: Constructs the Policy
     rect rgb(200, 200, 255)
         pf1 ->> auth1: Creates a connection
         lb ->> auth1: Calls GetServiceConfig
@@ -149,14 +145,12 @@ sequenceDiagram
         lb <<-->> auth1: Starts health check watcher
     end
 
-
     client -->> auth: Makes requests
 
     rect rgb(255, 200, 200)
         auth1 ->> lb: Becomes unhealthy
     end
 
-    
     rect rgb(200, 255, 200)
         lb -->> pf2: Creates another Pick First Balancer
         pf2 ->> auth2: Creates a connection
