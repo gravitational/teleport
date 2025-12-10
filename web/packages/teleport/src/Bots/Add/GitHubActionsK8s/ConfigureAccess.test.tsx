@@ -63,6 +63,7 @@ describe('ConfigureAccess', () => {
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: ['viewers'],
+        kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: ['user@example.com'],
       },
     });
@@ -88,6 +89,7 @@ describe('ConfigureAccess', () => {
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
+        kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
       },
     });
