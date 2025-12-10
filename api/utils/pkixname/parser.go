@@ -287,8 +287,11 @@ const (
 	// Transitions to attrType.
 	tokenizeStateNameComponent
 	// attributeType parsing started.
-	// Transitions to stringStart.
+	// Transitions to attrTypeEnd or stringStart.
 	tokenizeStateAttrType
+	// attributeType parsing ended, ignores whitespace.
+	// Transitions to stringStart.
+	tokenizeStateAttrTypeEnd
 	// Wants string, ignores whitespaces.
 	// Transitions to string (without consuming the rune), stringQuote or
 	// nameComponent.
@@ -432,6 +435,7 @@ func tokenize(dn string) (*tokenList, error) {
 		if r == ' ' &&
 			(state == tokenizeStateInit ||
 				state == tokenizeStateNameComponent ||
+				state == tokenizeStateAttrTypeEnd ||
 				state == tokenizeStateStringStart ||
 				state == tokenizeStateStringQuoteEnd) {
 			continue
@@ -495,8 +499,20 @@ func tokenize(dn string) (*tokenList, error) {
 				emitBuffer(tokenAttrType)
 				emit(tokenEqual)
 				state = tokenizeStateStringStart
+			case r == ' ':
+				emitBuffer(tokenAttrType)
+				state = tokenizeStateAttrTypeEnd
 			default:
 				return nil, fmt.Errorf("want attributeType or '=', found %q: %s", r, errTrace(pos))
+			}
+
+		case tokenizeStateAttrTypeEnd:
+			switch r {
+			case '=':
+				emit(tokenEqual)
+				state = tokenizeStateStringStart
+			default:
+				return nil, fmt.Errorf("want '=' attributeValue, found %q: %s", r, errTrace(pos))
 			}
 
 		case tokenizeStateString:
@@ -560,6 +576,8 @@ func tokenize(dn string) (*tokenList, error) {
 		return nil, fmt.Errorf("want attributeType, found EOF")
 	case tokenizeStateAttrType:
 		return nil, fmt.Errorf("want attributeType or '=', found EOF")
+	case tokenizeStateAttrTypeEnd:
+		return nil, fmt.Errorf("want '=' attributeValue, found EOF")
 	case tokenizeStateStringStart, tokenizeStateString, tokenizeStateStringEnd:
 		// OK.
 		emitBuffer(tokenString)

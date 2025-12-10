@@ -148,7 +148,7 @@ func TestParseDistinguishedName(t *testing.T) {
 		},
 		{
 			name: "empty value",
-			in:   "CN=, C= ,O=Llama,OU=",
+			in:   "CN=, C = ,O=Llama,OU=",
 			want: &pkix.Name{
 				Country:            []string{""},
 				Organization:       []string{"Llama"},
@@ -157,11 +157,19 @@ func TestParseDistinguishedName(t *testing.T) {
 		},
 		{
 			name: "empty quoted value",
-			in:   `CN="" , C= "" ,O="Llama",OU=""`,
+			in:   `CN="" , C = "" ,O="Llama",OU=""`,
 			want: &pkix.Name{
 				Country:            []string{""},
 				Organization:       []string{"Llama"},
 				OrganizationalUnit: []string{""},
+			},
+		},
+		{
+			name: "whitespaces",
+			in:   `  CN  =  Llama CA  ,  O  =  "Llama"  +  O  =  Teleport  `,
+			want: &pkix.Name{
+				Organization: []string{"Llama", "Teleport"},
+				CommonName:   "Llama CA",
 			},
 		},
 
@@ -169,6 +177,21 @@ func TestParseDistinguishedName(t *testing.T) {
 			name:    "malformed DN: incomplete ATV",
 			in:      `C`,
 			wantErr: "want attributeType",
+		},
+		{
+			name:    "malformed DN: incomplete ATV 2",
+			in:      `C  `,
+			wantErr: "want '=' attributeValue",
+		},
+		{
+			name:    "malformed DN: incomplete ATV 3",
+			in:      `C,`,
+			wantErr: "want attributeType or '='",
+		},
+		{
+			name:    "malformed DN: incomplete ATV 4",
+			in:      `C  ,`,
+			wantErr: "want '=' attributeValue",
 		},
 		{
 			name:    "malformed DN: invalid start",
