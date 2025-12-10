@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -160,8 +161,27 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 		s.Mode = msg.ClientHandshake.Mode
 	}
 
+	go s.pingTask()
 	go s.readTask()
 	return s, nil
+}
+
+func (s *SessionStream) pingTask() {
+	pingTicker := time.NewTicker(defaults.DefaultIdleTimeout / 3)
+	defer pingTicker.Stop()
+	for {
+		select {
+		case <-s.done:
+			return
+		case <-pingTicker.C:
+			if err := s.write(websocket.PingMessage, nil); err != nil {
+				slog.WarnContext(context.Background(), "Failed to send websocket ping",
+					"is_client", s.isClient,
+					"error", err,
+				)
+			}
+		}
+	}
 }
 
 func (s *SessionStream) readTask() {
