@@ -385,19 +385,12 @@ func IsAccessListMember(
 		}
 	}
 
-	filter, getResult := walkUntilUser(user, clock.Now())
-	// newAccessWalkerConfig provides a cycle-proof way of traversing the nested list hierarchy.
 	cfg := walkConfig{
 		getter: g,
 		root:   accessList,
-		walkFn: filter,
 	}
 
-	if err := walk(ctx, cfg); err != nil {
-		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "walking the access list graph of %q", accessList.GetName())
-	}
-
-	return getResult()
+	return isAccessListMember(ctx, user, cfg, clock.Now())
 }
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.

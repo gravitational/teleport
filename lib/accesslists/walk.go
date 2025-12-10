@@ -38,14 +38,19 @@ var (
 	// They are used to control the graph traversal. Using trace.Errorf() or
 	// other trace errors would cause useless stacktrace captures each time an
 	// error is returned.
+	// nolint:staticcheck // we mimick the Walk err naming, which don't follow the errFoo pattern
 	skipLeg = errors.New("skip this access leg")
+	// nolint:staticcheck // we mimick the Walk err naming, which don't follow the errFoo pattern
 	skipAll = errors.New("skip everything and stop the walk")
 )
 
 // walkFunc is the type of the function called by walk on each
 // access list member and nested access list part of the access graph.
 // The error result returned by the function controls how accessPath continues.
-// If the function returns the special value SkipDir, Walk skips the current directory (path if info.IsDir() is true, otherwise path's parent directory). If the function returns the special value SkipAll, Walk skips all remaining files and directories. Otherwise, if the function returns a non-nil error, Walk stops entirely and returns that error.
+// If the function returns the special value skipLeg, walk skips the accessPath.
+// If the function returns the special value skipAll, walk skips all remaining
+// accessPath. Otherwise, if the function returns a non-nil error, walk stops
+// entirely and returns that error.
 type walkFunc func(path accessPath) error
 
 // walkUntilUser returns a walkFunc that filters out every invalid
@@ -53,21 +58,11 @@ type walkFunc func(path accessPath) error
 // - expired legs
 // - legs granting access to a different user
 // - legs granting access to a list whose requirements are not met by the user
-func walkUntilUser(user types.User, now time.Time) (walkFunc, func() (accesslistv1.AccessListUserAssignmentType, error)) {
-	skipped := make([]skippedAccessPath, 0)
+func isAccessListMember(ctx context.Context, user types.User, cfg walkConfig, now time.Time) (accesslistv1.AccessListUserAssignmentType, error) {
+	var skipped []skippedAccessPath
 	var result accesslistv1.AccessListUserAssignmentType
 
-	getResult := func() (accesslistv1.AccessListUserAssignmentType, error) {
-		if result == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
-			// If we land here, no valid access paths were identified.
-			// To make troubleshooting easier, we optionally return a string
-			// explaining which access paths were filtered out.
-			return result, trace.AccessDenied("User is not member of the access list, directly or via nested list: %s", explainSkipped(skipped))
-		}
-		return result, nil
-	}
-
-	return func(path accessPath) error {
+	walkFn := func(path accessPath) error {
 		// First, skip the path if it  doesn't meet the requirements.
 		// This also prevents the walker from continuing to consider paths
 		// containing this leg, as they would be invalid as well.
@@ -76,9 +71,9 @@ func walkUntilUser(user types.User, now time.Time) (walkFunc, func() (accesslist
 		// we only have to consider the last one.
 		leg := path[len(path)-1]
 		if leg.member != nil {
-			// If the membership is for a user but not the one we are looking for, we skip it.
+			// If the membership is for a user but not the one we are looking for, we do nothing.
 			if leg.member.Spec.MembershipKind == accesslist.MembershipKindUser && leg.member.Spec.Name != user.GetName() {
-				return skipLeg
+				return nil
 			}
 
 			// If the membership is expired, it is invalid and we skip it.
@@ -118,7 +113,19 @@ func walkUntilUser(user types.User, now time.Time) (walkFunc, func() (accesslist
 		// We found at least one valid access path from the root to our user.
 		// No need to look further, we tell the walker to stop.
 		return skipAll
-	}, getResult
+	}
+
+	if err := walk(ctx, cfg, walkFn); err != nil {
+		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err, "walking the access list graph")
+	}
+
+	if result == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
+		// If we land here, no valid access paths were identified.
+		// To make troubleshooting easier, we optionally return a string
+		// explaining which access paths were filtered out.
+		return result, trace.AccessDenied("User is not member of the access list, directly or via nested list: %s", explainSkipped(skipped))
+	}
+	return result, nil
 }
 
 // accessPath represents a path in the access list graph from the start list to
@@ -162,14 +169,13 @@ type skippedAccessPath struct {
 type walkConfig struct {
 	getter AccessListAndMembersGetter
 	// root is from where we start to walk the graph.
-	root   *accesslist.AccessList
-	walkFn walkFunc
+	root *accesslist.AccessList
 }
 
 // check if the walkConfig is valid.
 func (c walkConfig) check() error {
-	if c.walkFn == nil {
-		return trace.BadParameter("walkFn is required (this is a bug)")
+	if c.getter == nil {
+		return trace.BadParameter("getter is required (this is a bug)")
 	}
 
 	if c.root == nil {
@@ -186,7 +192,7 @@ func (c walkConfig) check() error {
 // walk is doing a depth-first traversal of nested lists, but will
 // go through every direct member of an access list before looking into nested
 // lists. This function supports cyclic graphs.
-func walk(ctx context.Context, config walkConfig) error {
+func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 	if err := config.check(); err != nil {
 		return trace.Wrap(err, "checking access list walk config")
 	}
@@ -196,10 +202,10 @@ func walk(ctx context.Context, config walkConfig) error {
 		list: config.root,
 	}
 
-	err := config.walkFn(accessPath{firstLeg})
+	err := walkFn(accessPath{firstLeg})
 	if err != nil {
 		// if the first leg is skipped, we return early
-		if err == skipLeg || err == skipAll {
+		if err == skipLeg || err == skipAll { // nolint:errorlint // error can't be wrapped
 			return nil
 		}
 		return trace.Wrap(err)
@@ -258,8 +264,8 @@ func walk(ctx context.Context, config walkConfig) error {
 
 				// Try to walk the leg.
 				leg = accessLeg{member: member, list: nestedList}
-				if err := config.walkFn(append(path, leg)); err != nil {
-					if err == skipLeg {
+				if err := walkFn(append(path, leg)); err != nil {
+					if err == skipLeg { // nolint:errorlint // error can't be wrapped
 						continue
 					} else if err == skipAll {
 						return nil
@@ -277,10 +283,8 @@ func walk(ctx context.Context, config walkConfig) error {
 			leg = accessLeg{member: member}
 			// This is not a nested list but an individual member.
 			// Check if the member passes the walkFn.
-			if err := config.walkFn(append(path, leg)); err != nil {
-				if err == skipLeg {
-					continue
-				} else if err == skipAll {
+			if err := walkFn(append(path, leg)); err != nil {
+				if err == skipAll { // nolint:errorlint // error can't be wrapped
 					return nil
 				}
 				return trace.Wrap(err, "calling walk function for member %q at %q", member.GetName(), append(path, leg))
