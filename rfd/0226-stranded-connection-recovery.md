@@ -115,6 +115,12 @@ based on service health.
 
 The diagram below shows an example of how a client changes behavior over time.
 
+Initially the client receives the default configuration so it continues to behave
+like a `pick_first` balancer.
+Then after the auth server is restarted it reconnects and discovers a new configuration.
+Then it begins health checking and is able to reconnect when the service becomes
+unhealthy.
+
 ```mermaid
 sequenceDiagram
     participant client as gRPC Client
