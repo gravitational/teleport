@@ -113,7 +113,7 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	for {
 		select {
 		case s := <-j.sessions:
-			if err := j.ingestSession(ctx, s, 0); err != nil {
+			if err := j.ingestSession(ctx, s, 0, nil); err != nil {
 				j.app.log.WarnContext(ctx, "Unable to ingest session event", "error", err)
 			}
 		case <-ctx.Done():
@@ -125,7 +125,7 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	}
 }
 
-func (j *SessionEventsJob) ingestSession(ctx context.Context, s session, attempt int) error {
+func (j *SessionEventsJob) ingestSession(ctx context.Context, s session, attempt int, semaphore chan struct{}) error {
 	log := j.app.log.With(
 		"id", s.ID,
 		"index", s.Index,
@@ -134,14 +134,17 @@ func (j *SessionEventsJob) ingestSession(ctx context.Context, s session, attempt
 		log.DebugContext(ctx, "Starting session ingest")
 	}
 
+	if semaphore == nil {
+		semaphore = j.semaphore
+	}
 	select {
-	case j.semaphore <- struct{}{}:
+	case semaphore <- struct{}{}:
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	}
 
 	go func() {
-		defer func() { <-j.semaphore }()
+		defer func() { <-semaphore }()
 
 		if err := j.processSessionFunc(ctx, s, attempt); err != nil {
 			log.ErrorContext(ctx, "Failed processing session recording", "error", err)
@@ -266,7 +269,9 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 		}
 
 		err := j.app.State.IterateMissingRecordings(func(sess session, attempts int) error {
-			return j.ingestSession(ctx, sess, attempts)
+			semaphore := make(chan struct{}, j.app.Config.Concurrency*2)
+
+			return j.ingestSession(ctx, sess, attempts, semaphore)
 		})
 		if err != nil && !lib.IsCanceled(err) {
 			j.app.log.WarnContext(ctx, "Unable to load previously failed sessions for processing", "error", err)
