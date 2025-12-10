@@ -1,5 +1,5 @@
-{{- if .Values.updater.enabled -}}
-{{- $updater :=  .Values.updater -}}
+{{- if .Values.enabled -}}
+{{- $updater :=  .Values -}}
 {{- if $updater.rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

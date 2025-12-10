@@ -1,4 +1,4 @@
-{{- if .Values.updater.enabled }}
+{{- if .Values.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

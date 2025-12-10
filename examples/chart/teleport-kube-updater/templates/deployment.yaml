@@ -1,5 +1,5 @@
-{{- if .Values.updater.enabled }}
-{{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater -}}
+{{- if .Values.enabled }}
+{{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values -}}
 {{- $versionServerOverride := and $updater.versionServer (ne $updater.versionServer "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel") }}
 apiVersion: apps/v1
 kind: Deployment
@@ -76,8 +76,8 @@ spec:
 {{- if $updater.pullCredentials }}
           - "--pull-credentials={{ $updater.pullCredentials }}"
 {{- end }}
-{{- if .Values.updater.extraArgs }}
-          {{- toYaml .Values.updater.extraArgs | nindent 10 }}
+{{- if .Values.extraArgs }}
+          {{- toYaml .Values.extraArgs | nindent 10 }}
 {{- end }}
 {{- if $updater.securityContext }}
         securityContext: {{- toYaml $updater.securityContext | nindent 10 }}
@@ -108,20 +108,20 @@ spec:
 {{- if $updater.resources }}
         resources: {{- toYaml $updater.resources | nindent 10 }}
 {{- end }}
-{{- if or $updater.tls.existingCASecretName .Values.updater.extraVolumeMounts }}
+{{- if or $updater.tls.existingCASecretName .Values.extraVolumeMounts }}
         volumeMounts:
   {{- if $updater.tls.existingCASecretName }}
           - mountPath: /etc/teleport-tls-ca
             name: "teleport-tls-ca"
             readOnly: true
   {{- end }}
-  {{- if .Values.updater.extraVolumeMounts }}
-          {{- toYaml .Values.updater.extraVolumeMounts | nindent 10 }}
+  {{- if .Values.extraVolumeMounts }}
+          {{- toYaml .Values.extraVolumeMounts | nindent 10 }}
   {{- end }}
 {{- end }}
-{{- if or $updater.tls.existingCASecretName .Values.updater.extraVolumes }}
+{{- if or $updater.tls.existingCASecretName .Values.extraVolumes }}
       volumes:
-  {{- if .Values.updater.extraVolumes }}
+  {{- if .Values.extraVolumes }}
         {{- toYaml $updater.extraVolumes | nindent 8 }}
   {{- end }}
   {{- if $updater.tls.existingCASecretName }}

@@ -3,138 +3,135 @@
 # This is a YAML-formatted file.
 # The default values are documented in the Chart.yaml.
 
-updater:
-  # updater.enabled(bool) -- Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
-  # You can enable this when:
-  #
-  # - using Teleport Cloud and your tenant is enrolled into automatic updates.
-  #   (You can check this through the web UI, choose `Add Kubernetes` and
-  #   `Enroll New Resource of type Kubernetes`, and check if the value is turned
-  #   on.)
-  # - using self-hosted Teleport and you maintain your own version server.
-  #
-  # You must not enable this when:
-  #
-  # - you are a Teleport Cloud customer not enrolled in automatic updates.
-  # - you are a self-hosted Teleport user and have not set up your Teleport cluster to
-  #   support automatic updates.
-  enabled: false
+# enabled(bool) -- Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
+# You can enable this when:
+#
+# - using Teleport Cloud and your tenant is enrolled into automatic updates.
+#   (You can check this through the web UI, choose `Add Kubernetes` and
+#   `Enroll New Resource of type Kubernetes`, and check if the value is turned
+#   on.)
+# - using self-hosted Teleport and you maintain your own version server.
+#
+# You must not enable this when:
+#
+# - you are a Teleport Cloud customer not enrolled in automatic updates.
+# - you are a self-hosted Teleport user and have not set up your Teleport cluster to
+#   support automatic updates.
+enabled: false
 
-  # updater.versionServer(string) -- is the URL of the version server the agent
-  # fetches the target version from. The complete version endpoint is built by
-  # concatenating [`versionServer`](#updaterversionserver) and [`releaseChannel`
-  # ](#updaterreleasechannel).
-  # This field supports gotemplate.
-  #
-  # Setting this field makes the updater fetch the version using the version server protocol.
-  # Setting this field to a custom value disables the webapi update protocol to ensure backward compatibility.
-  versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
+# versionServer(string) -- is the URL of the version server the agent
+# fetches the target version from. The complete version endpoint is built by
+# concatenating [`versionServer`](#versionserver) and [`releaseChannel`
+# ](#releasechannel).
+# This field supports gotemplate.
+#
+# Setting this field makes the updater fetch the version using the version server protocol.
+# Setting this field to a custom value disables the webapi update protocol to ensure backward compatibility.
+versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
 
-  # updater.releaseChannel(string) -- is the release channel the updater
-  # subscribes to.
-  #
-  # The complete version endpoint is built by concatenating
-  # [`versionServer`](#updaterversionserver) and [`releaseChannel`](#updaterreleasechannel).
-  # You must not change the default value if you are a Teleport Cloud user unless
-  # instructed by Teleport support.
-  #
-  # This value is used when the updater is fetching the version using the version server protocol.
-  # It is also used as a failover when fetching the version using the webapi protocol if `updater.group` is unset.
-  releaseChannel: "stable/cloud"
+# releaseChannel(string) -- is the release channel the updater
+# subscribes to.
+#
+# The complete version endpoint is built by concatenating
+# [`versionServer`](#versionserver) and [`releaseChannel`](#releasechannel).
+# You must not change the default value if you are a Teleport Cloud user unless
+# instructed by Teleport support.
+#
+# This value is used when the updater is fetching the version using the version server protocol.
+# It is also used as a failover when fetching the version using the webapi protocol if `group` is unset.
+releaseChannel: "stable/cloud"
 
-  # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
-  # When unset, the group defaults to `update.releaseChannel`.
-  group: ""
+# group(string) -- is the update group used when fetching the version using the webapi protocol.
+# When unset, the group defaults to `update.releaseChannel`.
+group: ""
 
-  # updater.image(string) -- sets the container image used for Teleport updater
-  # pods run when `updater.enabled` is true.
+# image(string) -- sets the container image used for Teleport updater
+# pods run when `enabled` is true.
+#
+# You can override this to use your own Teleport Kube Agent Updater image rather
+# than a Teleport-published image.
+image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+
+# serviceAccount --
+serviceAccount:
+  # serviceAccount.name(string) -- is the updater Kubernetes Service
+  # Account name. When unset, it defaults to `<kube agent sa name>-updater`
+  name: ""
+  create: true
+
+# pullCredentials(string) -- configures how the updater attempts to
+# get the image pull credentials used to validate the image signature.
+#
+# This is not required when pulling images from official public Teleport
+# registries (chart's default).
+#
+# Supported values are `amazon`, `google`, `docker` and `none`.
+pullCredentials: ""
+
+# extraArgs(list) -- contains additional arguments to pass to the updater
+# binary.
+extraArgs: []
+
+# extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
+# See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+# for more details.
+#
+# For example:
+# ```yaml
+# extraVolumes:
+# - name: myvolume
+#   secret:
+#     secretName: testSecret
+# ```
+extraVolumes: []
+
+# extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
+# See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+# for more details.
+#
+# For example:
+# ```yaml
+# extraVolumesMounts:
+# - name: myvolume
+#   mountPath: /path/on/host
+# ```
+extraVolumeMounts: []
+
+# tls -- contains settings for mounting your own TLS material in the agent pod.
+# The agent does not expose a TLS server, so this is only used to trust CAs.
+tls:
+  # tls.existingCASecretName(string) -- sets the `SSL_CERT_FILE` environment
+  # variable to load a trusted CA or bundle in PEM format into Teleport pods.
+  # The injected CA will be used to validate TLS communications, with the Proxy
+  # Service, with upstream applications or databases.
   #
-  # You can override this to use your own Teleport Kube Agent Updater image rather
-  # than a Teleport-published image.
-  image: public.ecr.aws/gravitational/teleport-kube-agent-updater
-
-  # updater.serviceAccount --
-  serviceAccount:
-    # updater.serviceAccount.name(string) -- is the updater Kubernetes Service
-    # Account name. When unset, it defaults to `<kube agent sa name>-updater`
-    name: ""
-    create: true
-
-  # updater.pullCredentials(string) -- configures how the updater attempts to
-  # get the image pull credentials used to validate the image signature.
+  # <Admonition type="note">
+  #   The recommended way to trust a database CA is to do it per-database instead
+  #   of adding the CA to the global Teleport trust store. It allows to trust
+  #   multiple CAs while limiting the trust scope to their specific databases.
+  #   See [the `databases` section](#databases).
+  # </Admonition>
   #
-  # This is not required when pulling images from official public Teleport
-  # registries (chart's default).
+  # You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
   #
-  # Supported values are `amazon`, `google`, `docker` and `none`.
-  pullCredentials: ""
-
-  # updater.extraArgs(list) -- contains additional arguments to pass to the updater
-  # binary.
-  extraArgs: []
-
-  # updater.extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
-  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
-  # for more details.
-  #
-  # For example:
-  # ```yaml
-  # updater:
-  #   extraVolumes:
-  #   - name: myvolume
-  #     secret:
-  #       secretName: testSecret
+  # ```code
+  # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
   # ```
-  extraVolumes: []
-
-  # updater.extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
-  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
-  # for more details.
   #
-  # For example:
-  # ```yaml
-  # updater:
-  #   extraVolumesMounts:
-  #   - name: myvolume
-  #     mountPath: /path/on/host
-  # ```
-  extraVolumeMounts: []
+  # <Admonition type="warning" title="Root CA filename">
+  #   The key containing the root CA in the secret must be `ca.pem`.
+  # </Admonition>
+  existingCASecretName: ""
 
-  # tls -- contains settings for mounting your own TLS material in the agent pod.
-  # The agent does not expose a TLS server, so this is only used to trust CAs.
-  tls:
-    # tls.existingCASecretName(string) -- sets the `SSL_CERT_FILE` environment
-    # variable to load a trusted CA or bundle in PEM format into Teleport pods.
-    # The injected CA will be used to validate TLS communications, with the Proxy
-    # Service, with upstream applications or databases.
-    #
-    # <Admonition type="note">
-    #   The recommended way to trust a database CA is to do it per-database instead
-    #   of adding the CA to the global Teleport trust store. It allows to trust
-    #   multiple CAs while limiting the trust scope to their specific databases.
-    #   See [the `databases` section](#databases).
-    # </Admonition>
-    #
-    # You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
-    #
-    # ```code
-    # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
-    # ```
-    #
-    # <Admonition type="warning" title="Root CA filename">
-    #   The key containing the root CA in the secret must be `ca.pem`.
-    # </Admonition>
-    existingCASecretName: ""
+# Set to true (default) to create Kubernetes ClusterRole and ClusterRoleBinding.
+rbac:
+  # Specifies whether a ClusterRole and ClusterRoleBinding should be created.
+  # Set to false if your cluster level resources are managed separately.
+  create: true
 
-  # Set to true (default) to create Kubernetes ClusterRole and ClusterRoleBinding.
-  rbac:
-    # Specifies whether a ClusterRole and ClusterRoleBinding should be created.
-    # Set to false if your cluster level resources are managed separately.
-    create: true
-
-  extraLabels:
-    # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
-    roleBinding: { }
+extraLabels:
+  # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
+  roleBinding: { }
 
 
 image: public.ecr.aws/gravitational/teleport-kube-agent-updater

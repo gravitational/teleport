@@ -37,8 +37,8 @@ limitations under the License.
 Create the name of the service account to use
 */}}
 {{- define "teleport-kube-updater.serviceAccountName" -}}
-{{- if .Values.updater.serviceAccount.name }}
-{{- .Values.updater.serviceAccount.name }}
+{{- if .Values.serviceAccount.name }}
+{{- .Values.serviceAccount.name }}
 {{- else }}
 {{- printf "%s-updater" (include "teleport-kube-updater.fullname" .) }}
 {{- end }}
