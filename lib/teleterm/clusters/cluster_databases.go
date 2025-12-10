@@ -95,15 +95,6 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.BadParameter("the username must be present")
 	}
 
-	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests,
-	})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
 	result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster:  c.clusterClient.SiteName,
 		RouteToDatabase: client.RouteToDatabaseToProto(routeToDatabase),
