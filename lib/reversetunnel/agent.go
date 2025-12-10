@@ -24,6 +24,7 @@ package reversetunnel
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -36,6 +37,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -90,14 +92,24 @@ type SSHClient interface {
 	GlobalRequests() <-chan *ssh.Request
 	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
 	Reply(*ssh.Request, bool, []byte) error
+
+	// TODO(okraport): DELETE IN v21.0.0 This callback is a temporary workaround during the migration while
+	// older Teleport versions do not support heartbeat responses.
+	EnableWatchdog(timeout time.Duration)
 }
 
 // agentConfig represents an agent configuration.
 type agentConfig struct {
 	// addr is the target address to dial.
 	addr utils.NetAddr
+	// heartbeatTimeout is the timeout used when waiting for server reply to a heartbeat message.
+	// By default [defaults.DefaultIOTimeout].
+	heartbeatTimeout time.Duration
 	// keepAlive is the interval at which the agent will send heartbeats.
 	keepAlive time.Duration
+	// keepAliveCount specifies the amount of missed ping heartbeats
+	// to wait for before declaring the connection as broken.
+	keepAliveCount int
 	// stateCallback is called each time the state changes.
 	stateCallback AgentStateCallback
 	// sshDialer creates a new ssh connection.
@@ -120,6 +132,8 @@ type agentConfig struct {
 	localAuthAddresses []string
 	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
+	// staleConnTimeoutDisabled is true if connection timeouts are disabled.
+	staleConnTimeoutDisabled bool
 }
 
 // checkAndSetDefaults ensures an agentConfig contains required parameters.
@@ -148,6 +162,16 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	if c.logger == nil {
 		c.logger = slog.Default()
 	}
+	if c.keepAliveCount == 0 {
+		c.keepAliveCount = defaults.KeepAliveCountMax
+	}
+	if c.keepAlive == 0 {
+		c.keepAlive = defaults.KeepAliveInterval()
+	}
+	if c.heartbeatTimeout == 0 {
+		c.heartbeatTimeout = defaults.DefaultIOTimeout
+	}
+
 	c.logger = c.logger.With(
 		"lease_id", c.lease.ID(),
 		"target", c.addr.String(),
@@ -172,6 +196,8 @@ type agent struct {
 	doneConnecting chan struct{}
 	// hbChannel is the channel heartbeats are sent over.
 	hbChannel *tracessh.Channel
+	// srvSupportsHbV2 is true if the server supports heartbeat V2.
+	srvSupportsHbV2 bool
 	// discoveryC receives new discovery channels.
 	discoveryC <-chan ssh.NewChannel
 	// transportC receives new tranport channels.
@@ -403,20 +429,98 @@ func (a *agent) connect() error {
 	return nil
 }
 
+// sendHeartbeatWithTimeout sends a ping message to the configured heartbeat channel with a timeout.
+func (a *agent) sendHeartbeatWithTimeout(ctx context.Context, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	errorCh := make(chan error)
+	bytes, _ := a.clock.Now().UTC().MarshalText()
+
+	go func() {
+		defer close(errorCh)
+		_, err := a.hbChannel.SendRequest(ctx, "ping", true, bytes)
+		select {
+		case errorCh <- err:
+		case <-ctx.Done():
+		}
+	}()
+
+	select {
+	case err := <-errorCh:
+		return trace.Wrap(err)
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+}
+
+// sendHeartbeat sends a ping message to the configured heartbeat channel.
+// The agent will wait for server reply if timeout is configured and the server supports it.
+func (a *agent) sendHeartbeat(ctx context.Context) error {
+	if a.srvSupportsHbV2 && !a.staleConnTimeoutDisabled {
+		return trace.Wrap(a.sendHeartbeatWithTimeout(ctx, a.heartbeatTimeout))
+	}
+
+	bytes, _ := a.clock.Now().UTC().MarshalText()
+	_, err := a.hbChannel.SendRequest(ctx, "ping", false, bytes)
+	return trace.Wrap(err)
+}
+
+func (a *agent) probeServerForHBV2(ctx context.Context) (bool, error) {
+	channel, requests, err := a.client.OpenChannel(ctx, chanHeartbeatV2, nil)
+
+	var openErr *ssh.OpenChannelError
+
+	if err != nil {
+		if errors.As(err, &openErr) {
+			switch openErr.Reason {
+			case RejectFeatureSupported:
+				return true, nil
+			default:
+				a.logger.DebugContext(ctx, "heartbeat v2 not supported, timeouts disabled", "error", err)
+				return false, nil
+			}
+		}
+
+		return false, trace.Wrap(err)
+	}
+
+	// This is unexpected as the server should have rejected the channel open request,
+	// but since the channel is open we assume v2 is supported. Clean up and return.
+	sshutils.DiscardChannelData(channel)
+	go ssh.DiscardRequests(requests)
+	channel.Close()
+	return true, nil
+}
+
 // sendFirstHeartbeat opens the heartbeat channel and sends the first
 // heartbeat.
 func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
+	supportsV2, err := a.probeServerForHBV2(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	channel, requests, err := a.client.OpenChannel(ctx, chanHeartbeat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	sshutils.DiscardChannelData(channel)
 	go ssh.DiscardRequests(requests)
 
 	a.hbChannel = channel
+	a.srvSupportsHbV2 = supportsV2
 
-	// Send the first ping right away.
-	if _, err := a.hbChannel.SendRequest(ctx, "ping", false, nil); err != nil {
+	if supportsV2 && !a.staleConnTimeoutDisabled {
+		// If the connection has no activity within [a.keepAliveCount] heartbeat intervals, then the connection
+		// will be terminated and the agentpool will attempt to reconnect.
+		a.client.EnableWatchdog(a.keepAlive * time.Duration(a.keepAliveCount))
+	}
+
+	// Send the first ping right away. Note that when V2 is supported we do not handle a timeout on the first
+	// ping message and will exit if this fails and retry.
+	if err := a.sendHeartbeat(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -525,9 +629,14 @@ func (a *agent) handleDrainChannels(drainWGDone func()) error {
 			if a.drainCtx.Err() != nil {
 				continue
 			}
-			bytes, _ := a.clock.Now().UTC().MarshalText()
-			_, err := a.hbChannel.SendRequest(a.ctx, "ping", false, bytes)
-			if err != nil {
+			if err := a.sendHeartbeat(a.ctx); err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					// The server may be slow to respond, but we want to keep the connection alive, the
+					// actual connection teardown will be handled at net.Conn level if heartbeats keep failing.
+					a.logger.DebugContext(a.ctx, "timeout waiting for response to a ping request")
+					continue
+				}
+
 				a.logger.ErrorContext(a.ctx, "failed to send ping request", "error", err)
 				return trace.Wrap(err)
 			}
@@ -634,6 +743,9 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 const (
+	// TODO(okraport): DELETE IN v21.0.0 This channel is a temporary workaround for feature detection during the migration while
+	// older Teleport versions do not support heartbeat responses. Post migration assume all servers support heartbeat V2.
+	chanHeartbeatV2  = "teleport-heartbeat-v2"
 	chanHeartbeat    = "teleport-heartbeat"
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
