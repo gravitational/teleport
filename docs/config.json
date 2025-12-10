@@ -3014,11 +3014,6 @@
       "source": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
       "destination": "/enroll-resources/agents/argocd-helm/",
       "permanent": true
-    },
-    {
-      "source": "docs/security/signing-info/",
-      "destination": "/reference/public-certificates/",
-      "permanent": true
     }
   ]
 }
