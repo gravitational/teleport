@@ -87,9 +87,9 @@ func anyVisibleFlags(f []*kingpin.FlagModel) bool {
 // provided exposes an environment variable for configuration.
 func anyEnvVarsForCmd(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) bool {
 	return slices.ContainsFunc(args, func(arg *kingpin.ArgModel) bool {
-		return arg.Envar != ""
+		return arg.Envar != "" && !arg.Hidden
 	}) || slices.ContainsFunc(flags, func(flag *kingpin.FlagModel) bool {
-		return flag.Envar != ""
+		return flag.Envar != "" && !flag.Hidden
 	})
 }
 
