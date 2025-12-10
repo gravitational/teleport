@@ -269,7 +269,7 @@ We will also add a `TTL` field to Proxy discovery requests. Agents can
 than use this field in favor of the `DefaultProxyExpiry` when its present to expire
 proxies from their tracker.
 
-```
+```diff
 type Proxy struct {
 	Version  string `json:"version"`
 	Metadata struct {
@@ -278,7 +278,7 @@ type Proxy struct {
 
 	ProxyGroupID         string        `json:"gid,omitempty"`
 	ProxyGroupGeneration uint64        `json:"ggen,omitempty"`
-  TTL                  time.Duration `json:"ttl,omitempty"`
++    TTL                 time.Duration `json:"ttl,omitempty"`
 }
 ```
 
