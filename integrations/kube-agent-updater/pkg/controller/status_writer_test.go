@@ -65,9 +65,9 @@ status:
 				agent.UpdateConfigName: `version: v1
 kind: update_config
 spec:
-    proxy: proxy.example.com
+    proxy: old-proxy.example.com
     path: ""
-    group: test-group
+    group: test-group-old
     enabled: true
     pinned: false
 status:

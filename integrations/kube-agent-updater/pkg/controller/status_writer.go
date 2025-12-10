@@ -82,11 +82,18 @@ func (c *StatusWriter) writeStatus(ctx context.Context, owner metav1.Object, ver
 // generateData generates the data for the configmap based on the provided version and failed flag.
 func (c *StatusWriter) generateData(ctx context.Context, cm *corev1.ConfigMap, version string, failed bool, updateTime time.Time) error {
 	log := ctrllog.FromContext(ctx)
-	var config agent.UpdateConfig
+	spec := agent.UpdateSpec{
+		Enabled: true,
+		Proxy:   c.ProxyAddress,
+		Group:   c.UpdateGroup,
+	}
 
+	var config agent.UpdateConfig
 	switch s := cm.Data[agent.UpdateConfigName]; {
 	case len(s) > 0:
 		err := yaml.Unmarshal([]byte(s), &config)
+		// Update spec to match controller configuration
+		config.Spec = spec
 		if err == nil {
 			break
 		}
@@ -96,11 +103,7 @@ func (c *StatusWriter) generateData(ctx context.Context, cm *corev1.ConfigMap, v
 		config = agent.UpdateConfig{
 			Version: agent.UpdateConfigV1,
 			Kind:    agent.UpdateConfigKind,
-			Spec: agent.UpdateSpec{
-				Enabled: true,
-				Proxy:   c.ProxyAddress,
-				Group:   c.UpdateGroup,
-			},
+			Spec:    spec,
 			Status: agent.UpdateStatus{
 				IDFile: filepath.Join("/etc/updater-config", updaterIDFile),
 				Active: agent.Revision{
