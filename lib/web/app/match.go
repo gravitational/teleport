@@ -81,20 +81,17 @@ func MatchName(name string) Matcher {
 func ResolveFQDN(ctx context.Context, clt Getter, clusterGetter reversetunnelclient.ClusterGetter, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
 	// Try and match FQDN to public address of application within cluster.
 	clusterName, err := clt.GetClusterName(ctx)
-	slog.DebugContext(ctx, "ResolveFQDN", "clusterName", clusterName, "error", err)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	// local client first
 	clusterClient, err := clusterGetter.Cluster(ctx, clusterName.GetClusterName())
-	slog.DebugContext(ctx, "ResolveFQDN", "clusterClient", clusterClient, "error", err)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(fqdn))
-	slog.DebugContext(ctx, "ResolveFQDN", "servers", servers, "error", err)
 	if err == nil && len(servers) > 0 {
 		return servers[rand.N(len(servers))], clusterName.GetClusterName(), nil
 	}
