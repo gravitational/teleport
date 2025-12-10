@@ -1469,8 +1469,8 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 	}, nil
 }
 
-// UserState is a representation of a user's current state.
-type UserState interface {
+// UserAccessState is a representation of a user's current state required for calculating access.
+type UserAccessState interface {
 	// GetName returns the username associated with the user state.
 	GetName() string
 
@@ -1479,6 +1479,11 @@ type UserState interface {
 
 	// GetTraits returns the traits associated with the user's current sate.
 	GetTraits() map[string][]string
+}
+
+// UserState is a representation of a user's current state.
+type UserState interface {
+	UserAccessState
 
 	// GetUserType returns the user type for the user login state.
 	GetUserType() types.UserType
@@ -1499,18 +1504,18 @@ type UserState interface {
 // traits held be the given user state. This should only be used in cases where the
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
-func AccessInfoFromUserState(user UserState) *AccessInfo {
+func AccessInfoFromUserState(user UserAccessState) *AccessInfo {
 	return accessInfoFromUserState(user, user.GetRoles(), nil)
 }
 
 // ScopePinnedAccessInfoFromUserState returns a new AccessInfo populated from the
 // traits held by the user and the provided scope pin. Population/verification of the
 // scope pin must be performed prior to calling this function.
-func ScopePinnedAccessInfoFromUserState(user UserState, pin *scopesv1.Pin) *AccessInfo {
+func ScopePinnedAccessInfoFromUserState(user UserAccessState, pin *scopesv1.Pin) *AccessInfo {
 	return accessInfoFromUserState(user, nil, pin)
 }
 
-func accessInfoFromUserState(user UserState, roles []string, pin *scopesv1.Pin) *AccessInfo {
+func accessInfoFromUserState(user UserAccessState, roles []string, pin *scopesv1.Pin) *AccessInfo {
 	return &AccessInfo{
 		Username: user.GetName(),
 		Roles:    roles,
