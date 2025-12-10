@@ -5793,7 +5793,7 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *servicecf
 	tconf.PollingPeriod = time.Second
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
-	tconf.MaxRetryPeriod = time.Second
+	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(time.Second)
 	return tconf
 }
 
