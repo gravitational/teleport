@@ -3016,7 +3016,7 @@
       "permanent": true
     },
     {
-      "source": "/security/signing-info",
+      "source": "docs/security/signing-info/",
       "destination": "/reference/public-certificates/",
       "permanent": true
     }
