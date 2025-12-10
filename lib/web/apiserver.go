@@ -1032,6 +1032,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/yaml/parse/:kind", h.WithAuth(h.yamlParse))
 	h.POST("/webapi/yaml/stringify/:kind", h.WithAuth(h.yamlStringify))
 
+	// Access Monitoring Rule Terraform
+	h.POST("/webapi/access-monitoring-rule/terraform", h.WithAuth(h.accessMonitoringRuleGenerateTerraform))
+
 	// Desktop access endpoints.
 	h.GET("/webapi/sites/:site/desktops", h.WithClusterAuth(h.clusterDesktopsGet))
 	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))

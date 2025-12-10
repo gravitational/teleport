@@ -546,6 +546,10 @@ const cfg = {
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
+
+    accessMonitoringRule: {
+      terraform: '/v1/webapi/access-monitoring-rule/terraform'
+    },
   },
 
   playable_db_protocols: [],
@@ -1176,6 +1180,10 @@ const cfg = {
 
   getYamlStringifyUrl(kind: YamlSupportedResourceKind) {
     return generatePath(cfg.api.yaml.stringify, { kind });
+  },
+
+  getAccessMonitoringRuleTerraformUrl() {
+    return generatePath(cfg.api.accessMonitoringRule.terraform)
   },
 
   getLocksRoute() {

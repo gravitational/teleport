@@ -41,6 +41,7 @@ import userGroupService from './services/userGroups';
 import { yamlService } from './services/yaml/yaml';
 import { StoreNav, StoreUserContext } from './stores';
 import * as types from './types';
+import { accessMonitoringRuleService } from './services/accessmonitoringrule';
 
 class TeleportContext implements types.Context {
   // stores
@@ -64,6 +65,7 @@ class TeleportContext implements types.Context {
   mfaService = new MfaService();
   notificationService = new NotificationService();
   yamlService = yamlService;
+  accessAutomationService = accessMonitoringRuleService;
 
   notificationContentFactory = notificationContentFactory;
 
