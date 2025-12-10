@@ -1061,8 +1061,6 @@ func auditEventsToParquet(in []apievents.AuditEvent) ([]eventParquet, error) {
 }
 
 type mockS3Getter struct {
-	s3Getter
-
 	mu    sync.Mutex
 	files map[string][]byte
 }
