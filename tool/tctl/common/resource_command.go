@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math"
 	"os"
 	"reflect"
@@ -61,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -121,7 +121,6 @@ Same as above, but using JSON output:
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
 		types.KindTrustedCluster:              rc.createTrustedCluster,
-		types.KindCertAuthority:               rc.createCertAuthority,
 		types.KindClusterMaintenanceConfig:    rc.createClusterMaintenanceConfig,
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
@@ -440,19 +439,6 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 		fmt.Printf("WARNING: trusted cluster resource %q has been renamed to match root cluster name %q. this will become an error in future teleport versions, please update your configuration to use the correct name.\n", name, out.GetName())
 	}
 	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
-	return nil
-}
-
-// createCertAuthority creates certificate authority
-func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := client.UpsertCertAuthority(ctx, certAuthority); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("certificate authority %q has been updated\n", certAuthority.GetName())
 	return nil
 }
 
@@ -919,21 +905,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindCertAuthority:
-		if rc.ref.SubKind == "" || rc.ref.Name == "" {
-			return trace.BadParameter(
-				"full %s path must be specified (e.g. '%s/%s/clustername')",
-				types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
-			)
-		}
-		err := client.DeleteCertAuthority(ctx, types.CertAuthID{
-			Type:       types.CertAuthType(rc.ref.SubKind),
-			DomainName: rc.ref.Name,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
 	case types.KindKubeServer:
 		servers, err := client.GetKubernetesServers(ctx)
 		if err != nil {
@@ -1135,30 +1106,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
-	case types.KindCertAuthority:
-		getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
-		if getAll {
-			var allAuthorities []types.CertAuthority
-			for _, caType := range types.CertAuthTypes {
-				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
-				if err != nil {
-					if trace.IsBadParameter(err) {
-						slog.WarnContext(ctx, "failed to get certificate authority; skipping", "error", err)
-						continue
-					}
-					return nil, trace.Wrap(err)
-				}
-				allAuthorities = append(allAuthorities, authorities...)
-			}
-			return &authorityCollection{cas: allAuthorities}, nil
-		}
-
-		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
-		authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
@@ -1573,21 +1520,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &scopedRoleCollection{items: []*scopedaccessv1.ScopedRole{rsp.Role}}, nil
 		}
 
-		var items []*scopedaccessv1.ScopedRole
-		var cursor string
-		for {
-			rsp, err := client.ScopedAccessServiceClient().ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{
-				PageToken: cursor,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items = append(items, rsp.Roles...)
-			cursor = rsp.NextPageToken
-			if cursor == "" {
-				break
-			}
+		items, err := stream.Collect(scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
@@ -1602,21 +1537,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &scopedRoleAssignmentCollection{items: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
 		}
 
-		var items []*scopedaccessv1.ScopedRoleAssignment
-		var cursor string
-		for {
-			rsp, err := client.ScopedAccessServiceClient().ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{
-				PageToken: cursor,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items = append(items, rsp.Assignments...)
-			cursor = rsp.NextPageToken
-			if cursor == "" {
-				break
-			}
+		items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleAssignmentCollection{items: items}, nil
 	case types.KindRelayServer:

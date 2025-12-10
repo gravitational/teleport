@@ -57,6 +57,7 @@ const insecure =
   (dev && !!env.CONNECT_INSECURE);
 
 export async function getRuntimeSettings(): Promise<RuntimeSettings> {
+  const homeDir = app.getPath('home');
   const userDataDir = app.getPath('userData');
   const sessionDataDir = app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
@@ -106,6 +107,7 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
     tshd,
     sharedProcess,
     tshdEvents,
+    homeDir,
     userDataDir,
     sessionDataDir,
     tempDataDir,

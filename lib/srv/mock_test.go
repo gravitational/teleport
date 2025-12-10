@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -104,6 +105,9 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	require.NoError(t, err)
 
 	scx.cmdr, scx.cmdw, err = os.Pipe()
+	require.NoError(t, err)
+
+	_, scx.logw, err = os.Pipe()
 	require.NoError(t, err)
 
 	scx.contr, scx.contw, err = os.Pipe()
@@ -222,8 +226,8 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() (*servicecfg.PAMConfig, error) {
-	return &servicecfg.PAMConfig{}, nil
+func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 
 // GetClock returns a clock setup for the server
@@ -327,6 +331,16 @@ func (m *mockServer) GetHostSudoers() HostSudoers {
 // GetSELinuxEnabled
 func (m *mockServer) GetSELinuxEnabled() bool {
 	return false
+}
+
+// ChildLogConfig returns a noop log configuration.
+func (m *mockServer) ChildLogConfig() ChildLogConfig {
+	return ChildLogConfig{
+		ExecLogConfig: ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 // Implementation of ssh.Conn interface.
