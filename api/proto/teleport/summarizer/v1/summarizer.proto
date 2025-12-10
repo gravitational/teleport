@@ -334,6 +334,15 @@ message SecurityRecommendation {
   RiskLevel severity = 3;
 }
 
+// NeedsReviewReason represents the reason why a session needs further review.
+enum NeedsReviewReason {
+  // NeedsReviewReasonUnspecified is the default value and indicates that the reason
+  // for needing review is not specified.
+  NEEDS_REVIEW_REASON_UNSPECIFIED = 0;
+  // NeedsReviewReasonTooLarge indicates that the session is too large to be fully analyzed.
+  NEEDS_REVIEW_REASON_TOO_LARGE = 1;
+}
+
 // EnhancedSummary represents an enhanced summary of a session recording,
 // with structured data extracted from the session.
 message EnhancedSummary {
@@ -351,4 +360,6 @@ message EnhancedSummary {
   repeated int32 notable_command_indexes = 6;
   // Commands is a list of command summaries extracted from the session.
   repeated CommandAnalysis commands = 7;
+  // NeedsFurtherReview indicates the reason why the session needs further review.
+  optional NeedsReviewReason needs_further_review = 8;
 }
