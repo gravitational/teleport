@@ -82,7 +82,7 @@ func TestIngestSession(t *testing.T) {
 			return trace.LimitExceeded("Session ingestion exceeded attempt limit")
 		}
 
-		err := j.ingestSession(t.Context(), session{ID: "test"}, 0)
+		err := j.ingestSession(t.Context(), session{ID: "test"}, 0, nil)
 		require.NoError(t, err)
 
 		synctest.Wait()
