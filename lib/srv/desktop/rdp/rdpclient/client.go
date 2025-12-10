@@ -1274,3 +1274,7 @@ func (c *Client) UpdateClientActivity() {
 	c.clientLastActive = time.Now().UTC()
 	c.clientActivityMu.Unlock()
 }
+
+func (c *Client) DisableNLA() {
+	c.cfg.NLA = false
+}

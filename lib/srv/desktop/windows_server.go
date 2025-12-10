@@ -866,6 +866,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		return trace.Wrap(err)
 	}
 
+	// NLA doesn't like mixing user with and without domain, so make sure we have one
+	if nla && !strings.Contains(windowsUser, "@") {
+		windowsUser = windowsUser + "@" + s.cfg.Domain
+	}
+
+	if nla && !strings.HasSuffix(windowsUser, "@"+s.cfg.Domain) {
+		s.cfg.Logger.WarnContext(ctx, "NLA can't work for users from different domain, disabling")
+		rdpc.DisableNLA()
+	}
+
 	// Generate client certificates to be used for the RDP connection.
 	certDER, keyDER, err := s.generateUserCert(ctx, windowsUser, windowsUserCertTTL, desktop, createUsers, groups)
 	if err != nil {
