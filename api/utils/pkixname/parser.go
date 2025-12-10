@@ -290,7 +290,9 @@ const (
 	// Transitions to stringStart.
 	tokenizeStateAttrType
 	// Wants string, ignores whitespaces.
-	// Transitions to string (without consuming the rune) or stringQuote.
+	// Transitions to string (without consuming the rune), stringQuote or
+	// nameComponent.
+	// Is a valid final state.
 	tokenizeStateStringStart
 	// string parsing started.
 	// Transitions to stringEnd, stringEscape or nameComponent.
@@ -442,12 +444,15 @@ func tokenize(dn string) (*tokenList, error) {
 		case tokenizeStateStringStart:
 			switch r {
 			case '+', ',', ';':
-				return nil, fmt.Errorf("want attributeValue, found %q: %s", r, errTrace(pos))
+				// Empty strings are valid.
+				emitBuffer(tokenString)
+				transitionToNameComponent(r)
+				continue
 			case '#':
 				return nil, fmt.Errorf("hexstring not supported: %s", errTrace(pos))
 			case '"':
-				state = tokenizeStateStringQuote
 				// Note that a quoted string may be empty.
+				state = tokenizeStateStringQuote
 				continue
 			default:
 				state = tokenizeStateString
@@ -555,9 +560,7 @@ func tokenize(dn string) (*tokenList, error) {
 		return nil, fmt.Errorf("want attributeType, found EOF")
 	case tokenizeStateAttrType:
 		return nil, fmt.Errorf("want attributeType or '=', found EOF")
-	case tokenizeStateStringStart:
-		return nil, fmt.Errorf("want attributeValue, found EOF")
-	case tokenizeStateString, tokenizeStateStringEnd:
+	case tokenizeStateStringStart, tokenizeStateString, tokenizeStateStringEnd:
 		// OK.
 		emitBuffer(tokenString)
 	case tokenizeStateStringEscape:

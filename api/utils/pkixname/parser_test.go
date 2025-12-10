@@ -148,19 +148,27 @@ func TestParseDistinguishedName(t *testing.T) {
 		},
 		{
 			name: "empty value",
-			in:   `CN=""`, // strange but valid
-			want: &pkix.Name{},
+			in:   "CN=, C= ,O=Llama,OU=",
+			want: &pkix.Name{
+				Country:            []string{""},
+				Organization:       []string{"Llama"},
+				OrganizationalUnit: []string{""},
+			},
+		},
+		{
+			name: "empty quoted value",
+			in:   `CN="" , C= "" ,O="Llama",OU=""`,
+			want: &pkix.Name{
+				Country:            []string{""},
+				Organization:       []string{"Llama"},
+				OrganizationalUnit: []string{""},
+			},
 		},
 
 		{
 			name:    "malformed DN: incomplete ATV",
 			in:      `C`,
 			wantErr: "want attributeType",
-		},
-		{
-			name:    "malformed DN: incomplete ATV2",
-			in:      `C=`,
-			wantErr: "want attributeValue",
 		},
 		{
 			name:    "malformed DN: invalid start",
@@ -183,17 +191,7 @@ func TestParseDistinguishedName(t *testing.T) {
 			wantErr: "special character",
 		},
 		{
-			name:    "malformed DN: invalid attributeValue 2",
-			in:      `C=+`,
-			wantErr: "want attributeValue",
-		},
-		{
-			name:    "malformed DN: invalid attributeValue 3",
-			in:      `C=,`,
-			wantErr: "want attributeValue",
-		},
-		{
-			name:    "malformed DN: ",
+			name:    "malformed DN: missing =",
 			in:      `C+1`,
 			wantErr: "want attributeType or '='",
 		},
@@ -201,6 +199,21 @@ func TestParseDistinguishedName(t *testing.T) {
 			name:    "malformed second DN: trailing ,",
 			in:      `C=1,`,
 			wantErr: "want attributeType, found EOF",
+		},
+		{
+			name:    "malformed second DN: empty string and trailing +",
+			in:      `C=+`,
+			wantErr: "want attributeType",
+		},
+		{
+			name:    "malformed second DN: empty string and trailing ,",
+			in:      `C=,`,
+			wantErr: "want attributeType",
+		},
+		{
+			name:    "malformed second DN: empty string and trailing ;",
+			in:      `C=;`,
+			wantErr: "want attributeType",
 		},
 		{
 			name:    "malformed DN: string extravaganza",
