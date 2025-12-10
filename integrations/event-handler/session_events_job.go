@@ -238,8 +238,9 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 // from session recordings that were previously not found.
 func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 	const (
-		initialProcessingDelay = time.Minute
-		processingInterval     = 3 * time.Minute
+		initialProcessingDelay      = time.Minute
+		processingInterval          = 3 * time.Minute
+		maxNumberOfInflightSessions = 10
 	)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -260,7 +261,7 @@ func (j *SessionEventsJob) processMissingRecordings(ctx context.Context) error {
 		}
 
 		err := j.app.State.IterateMissingRecordings(func(sess session, attempts int) error {
-			semaphore := make(chan struct{}, j.app.Config.Concurrency*2)
+			semaphore := make(chan struct{}, maxNumberOfInflightSessions)
 
 			return j.ingestSession(ctx, sess, attempts, semaphore)
 		})
