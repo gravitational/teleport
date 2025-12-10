@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"gopkg.in/yaml.v3"
 )
 
 // formatThreeColMarkdownTable formats the provided row data into a three-column
@@ -49,7 +50,9 @@ func flagsToRows(f []*kingpin.FlagModel) [][3]string {
 	rows := [][3]string{}
 
 	for _, flag := range f {
-		if flag.Hidden {
+		// Skip hidden flags and flags whose only purpose is to expose
+		// YAML-based default env variables.
+		if flag.Hidden || flag.Name == flag.Envar {
 			continue
 		}
 		flagString := ""
@@ -263,9 +266,91 @@ func updateAppUsageTemplate(r io.Reader, app *kingpin.Application) {
 	app.UsageTemplate(buf.String())
 }
 
+// envVarDefault represents the structure of environment variable defaults in YAML files.
+type envVarDefault struct {
+	Description string `yaml:"description"`
+	Default     string `yaml:"default"`
+	Type        string `yaml:"type"`
+}
+
+// loadDefaultEnvVars loads possible default environment variables defined in a YAML file
+// that matches the application name.
+func loadDefaultEnvVars(appName string) ([][4]string, error) {
+	pathname := filepath.Join("lib", "utils", "docenvdefaults", appName+".yaml")
+	data, err := os.ReadFile(pathname)
+	if err != nil || len(data) == 0 {
+		return nil, nil
+	}
+
+	envDefaults := make(map[string]envVarDefault)
+	if err := yaml.Unmarshal(data, &envDefaults); err != nil {
+		return nil, fmt.Errorf("unable to parse YAML from %s: %w", pathname, err)
+	}
+
+	if len(envDefaults) == 0 {
+		return nil, nil
+	}
+
+	rows := make([][4]string, 0, len(envDefaults))
+	for envVar, def := range envDefaults {
+		if def.Description == "" || def.Default == "" || def.Type == "" {
+			return nil, fmt.Errorf("invalid YAML structure in %s: entry %q is missing one of required fields 'description', 'default' or 'type'", pathname, envVar)
+		}
+		rows = append(rows, [4]string{
+			envVar,
+			strings.Trim(def.Default, "`"),
+			def.Description,
+			def.Type,
+		})
+	}
+
+	slices.SortFunc(rows, func(a, b [4]string) int {
+		return cmp.Compare(a[0], b[0])
+	})
+
+	return rows, nil
+}
+
 // UpdateAppUsageTemplate updates the app usage template to print a reference
 // guide for the CLI application.
 func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
+	defaultEnvVars, err := loadDefaultEnvVars(app.Name)
+	if err != nil {
+		panic(err)
+	}
+
+	existingEnvVars := make(map[string]struct{})
+
+	for _, flag := range app.Model().Flags {
+		if flag.Envar != "" {
+			existingEnvVars[flag.Envar] = struct{}{}
+		}
+	}
+
+	for _, envRow := range defaultEnvVars {
+		envVarName := envRow[0]
+		defaultVal := envRow[1]
+		description := envRow[2]
+		envVarType := envRow[3]
+
+		// Check if the flag already exists in the app model to avoid
+		// duplicate flag errors.
+		if _, flagExists := existingEnvVars[envVarName]; flagExists {
+			continue
+		}
+
+		// If the flag does not exist, create it with the default value
+		// and description from the YAML file.
+		flag := app.Flag(envVarName, description).
+			Envar(envVarName).
+			Default(defaultVal)
+		if envVarType == "bool" {
+			flag.Bool()
+		} else {
+			flag.String()
+		}
+	}
+
 	// Panic when failing to open or read from the docs usage template since
 	// we need to keep the signature of UpdateAppUsageTemplate consistent
 	// with the one included without build tags, i.e., with no return value.
