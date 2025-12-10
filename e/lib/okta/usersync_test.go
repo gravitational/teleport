@@ -138,6 +138,7 @@ func setUserOktaStatus(u types.User, status string) {
 }
 
 func TestListTeleportUsers(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("Empty list is not an error", func(t *testing.T) {
@@ -223,6 +224,7 @@ func setStaticLabel(u types.User, key, value string) {
 }
 
 func TestReconcileUsers(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("new user is created", func(t *testing.T) {
@@ -987,6 +989,7 @@ func mkLockTargetsFor(users ...types.User) []types.LockTarget {
 }
 
 func TestLockUser(t *testing.T) {
+	t.Parallel()
 	mockClock := clockwork.NewFakeClock()
 	mockAccessPoint := &mockReconcilerAP{}
 	targetUser := mkOktaUser(t, "hiro@enzos-pizza.com", "00ub1q9yfsRSfO91a5d7")

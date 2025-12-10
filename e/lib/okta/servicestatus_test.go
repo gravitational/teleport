@@ -68,6 +68,7 @@ func (emitter *mockStatusSink) Emit(ctx context.Context, s types.PluginStatus) e
 }
 
 func TestServiceStatusErrorOverridesCode(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	type errorSetter func(*serviceStatus, error)
@@ -154,6 +155,7 @@ func TestServiceStatusErrorOverridesCode(t *testing.T) {
 // TestServiceStatusHandlesMultipleErrors asserts that the status reported
 // correctly handles multiple error conditions being set and cleared.
 func TestServiceStatusHandlesMultipleErrors(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	services := []struct {
@@ -219,6 +221,7 @@ func TestServiceStatusHandlesMultipleErrors(t *testing.T) {
 }
 
 func TestServiceStatusDetectsTimeout(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	services := []struct {

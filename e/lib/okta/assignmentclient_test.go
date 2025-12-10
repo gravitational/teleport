@@ -37,6 +37,7 @@ func firstVal[T, U any](t T, _ U) T {
 }
 
 func TestAssignmentClient(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	log := slog.With(teleport.ComponentKey, eteleport.ComponentOkta)
 	testGroup := oktaGroupID("test-group")
@@ -341,6 +342,7 @@ func (ts *testAssignmentOktaServer) ServeHTTP(w http.ResponseWriter, r *http.Req
 }
 
 func TestClientGetAssignedAppsGroups(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	const numOfParallelCalls = 20
 

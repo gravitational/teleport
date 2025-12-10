@@ -24,11 +24,8 @@ import (
 	oktaapitest "github.com/gravitational/teleport/e/lib/okta/api/apitest"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
@@ -109,24 +106,11 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 	ap := newTestAccessPoint(t, clockwork.NewFakeClock())
 	emitter := eventstest.NewChannelEmitter(1)
 	stopCh := make(chan struct{}, 1)
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
 
 	_, err := ap.UpsertRole(ctx, services.NewSystemOktaAccessRole())
 	require.NoError(t, err)
 	_, err = ap.UpsertRole(ctx, services.NewSystemOktaRequesterRole())
 	require.NoError(t, err)
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
 
 	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
 
@@ -175,6 +159,7 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 }
 
 func TestAccessListSync(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	owners := []string{"owner1", "owner2"}

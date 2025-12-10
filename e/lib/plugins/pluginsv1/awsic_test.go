@@ -10,6 +10,7 @@ import (
 )
 
 func TestIdentityCenterValidation(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name        string
 		mutate      func(*types.PluginAWSICSettings)
@@ -85,6 +86,7 @@ func TestIdentityCenterValidation(t *testing.T) {
 // TestIdentityCenterUpdatePlugin tests that changes between the old and new
 // plugin resources are valid, and that the plugin status is updated as expected
 func TestIdentityCenterUpdate(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                 string
 		makePlugin           func() *types.PluginV1
@@ -325,6 +327,7 @@ func newIdentityCenterPluginResource() *types.PluginV1 {
 }
 
 func TestFilterEquality(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name   string
 		a      *types.AWSICResourceFilter

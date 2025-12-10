@@ -18,6 +18,7 @@ import (
 )
 
 func TestAssignmentReconciler(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Now())
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clock)

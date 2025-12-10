@@ -104,6 +104,7 @@ func newTestAccessPoint(t testing.TB, clock clockwork.Clock) *testAccessPoint {
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	streamer := events.NewDiscardStreamer()
 
@@ -327,6 +328,7 @@ func newLockWatcher(t *testing.T, ap *testAccessPoint) *services.LockWatcher {
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
 
 	return lockWatcher
 }

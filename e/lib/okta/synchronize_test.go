@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -22,7 +23,9 @@ import (
 
 func TestSynchronizeGroups(t *testing.T) {
 	t.Parallel()
-
+	synctest.Test(t, testSynchronizeGroups)
+}
+func testSynchronizeGroups(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	client := newTestOktaClient()
@@ -331,7 +334,7 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
+		subtest := func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 
@@ -403,13 +406,19 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 				app, _ := svc.apps.Load(appID)
 				assertAppValue(t, app, "App %s", appName)
 			}
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, subtest)
 		})
 	}
 }
 
 func TestSynchronizeApplications(t *testing.T) {
 	t.Parallel()
-
+	synctest.Test(t, testSynchronizeApplications)
+}
+func testSynchronizeApplications(t *testing.T) {
 	ctx := t.Context()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	client := newTestOktaClient()
@@ -511,6 +520,10 @@ func TestSynchronizeApplications(t *testing.T) {
 }
 
 func TestEmitSyncEventsInBatches(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testEmitSyncEventsInBatches)
+}
+func testEmitSyncEventsInBatches(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, emitter := newTestService(t, ap, newTestOktaClient())
@@ -558,6 +571,10 @@ func TestEmitSyncEventsInBatches(t *testing.T) {
 }
 
 func TestTickerUpdates(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testTickerUpdates)
+}
+func testTickerUpdates(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, _ := newTestService(t, ap, newTestOktaClient())
@@ -653,11 +670,12 @@ const entityDescriptor = `
 </md:EntityDescriptor>`
 
 func TestSynchronizeUsers(t *testing.T) {
+	t.Parallel()
+
 	const (
 		samlConnectorName = "upstream-okta"
 		oktaSAMLAppID     = "some-saml-app"
 	)
-	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -777,9 +795,6 @@ func TestSynchronizeUsers(t *testing.T) {
 }
 
 func Test_fetchOktaUsers(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
 	oktaUsers := []*okta.User{
 		{
 			Id: "org-user-00000001",
@@ -932,7 +947,7 @@ func Test_fetchOktaUsers(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		subtest := func(t *testing.T) {
 			ap := newTestAccessPoint(t, clockwork.NewRealClock())
 			client := newTestOktaClient()
 			svc, _ := newTestService(t, ap, client,
@@ -947,7 +962,7 @@ func Test_fetchOktaUsers(t *testing.T) {
 			client.OktaUsers = oktaUsers
 			client.OktaAppUsers = oktaAppUsers
 
-			users, userSyncSource, err := svc.fetchOktaUsers(ctx)
+			users, userSyncSource, err := svc.fetchOktaUsers(t.Context())
 			require.Equal(t, tc.expectedUserSyncSource, userSyncSource)
 			if tc.expectedErr != "" {
 				require.ErrorContains(t, err, tc.expectedErr)
@@ -959,6 +974,10 @@ func Test_fetchOktaUsers(t *testing.T) {
 					require.Contains(t, users, u, "expected user = %q", u)
 				}
 			}
+		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, subtest)
 		})
 	}
 }

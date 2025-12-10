@@ -22,10 +22,7 @@ import (
 	jamftestenv "github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -53,14 +50,7 @@ func withLabel[T types.ResourceWithLabels](key, requiredValue string) func(T) bo
 }
 
 func TestPluginCreateDelete(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	t.Parallel()
 	const validAuthCode = "123456"
 	const invalidAuthCode = "654321"
 	const validRedirectURI = "https://foo.localhost/callback"

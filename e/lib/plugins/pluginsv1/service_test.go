@@ -16,6 +16,7 @@ import (
 )
 
 func TestPluginUpdate(t *testing.T) {
+	t.Parallel()
 	suite := createSuite(t)
 	ctx := context.Background()
 	plugin := &types.PluginV1{
@@ -91,6 +92,7 @@ func TestPluginUpdate(t *testing.T) {
 // TestPluginUpdateHandler tests that the supplied plugin resource gets correctly
 // updated and validated being committed to the back end data store
 func TestPluginUpdateHandler(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 
 	newValidOktaStatus := func() *types.PluginV1 {

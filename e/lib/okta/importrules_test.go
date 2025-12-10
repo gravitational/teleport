@@ -11,6 +11,7 @@ import (
 )
 
 func TestBuildOktaImportRuleMappings(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 
@@ -79,6 +80,8 @@ func TestBuildOktaImportRuleMappings(t *testing.T) {
 }
 
 func TestGetLabels(t *testing.T) {
+	t.Parallel()
+
 	groupID := "group1"
 	groupName := "group1Name"
 	appID := "app1"

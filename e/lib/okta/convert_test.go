@@ -16,6 +16,7 @@ import (
 )
 
 func TestBase36Encode(t *testing.T) {
+	t.Parallel()
 	charset := "0123456789abcdefghijklmnopqrstuvwxyz"
 
 	for i := range 36 {
@@ -26,6 +27,7 @@ func TestBase36Encode(t *testing.T) {
 }
 
 func TestOktaGroupToUserGroup(t *testing.T) {
+	t.Parallel()
 	oktaGroup := &okta.Group{
 		Id: "okta-group-id",
 	}
@@ -81,6 +83,7 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 }
 
 func TestIsGroupValid(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		group            *okta.Group
@@ -133,6 +136,7 @@ func (d *dummyOktaApp) IsApplicationInstance() bool {
 }
 
 func TestOktaAppToApplications(t *testing.T) {
+	t.Parallel()
 	trueBool := true
 	tests := []struct {
 		name             string
@@ -356,6 +360,7 @@ func TestOktaAppToApplications(t *testing.T) {
 }
 
 func TestIsAppValid(t *testing.T) {
+	t.Parallel()
 	trueBool := true
 	falseBool := false
 

@@ -20,6 +20,7 @@ import (
 )
 
 func TestAccessRequestReconciler(t *testing.T) {
+	t.Parallel()
 	ctx, clock, ap, reconciler := setupTestAccessRequestReconciler(t)
 	onReconcileCh := reconciler.onReconcileCh
 	onServiceDisconnectedCh := reconciler.onServiceDisconnectedCh
@@ -181,6 +182,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 }
 
 func TestAccessRequestReconciler_idempotency(t *testing.T) {
+	t.Parallel()
 	ctx, _, ap, reconciler := setupTestAccessRequestReconciler(t)
 	onReconcileCh := reconciler.onReconcileCh
 
@@ -237,6 +239,7 @@ func TestAccessRequestReconciler_idempotency(t *testing.T) {
 }
 
 func TestAccessRequestToOktaAssignment(t *testing.T) {
+	t.Parallel()
 	const accessRequestName = "access_request"
 	const user = "user"
 	clock := clockwork.NewFakeClock()

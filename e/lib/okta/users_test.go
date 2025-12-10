@@ -40,6 +40,7 @@ func (t *testUACAccessPoint) GetUserOrLoginState(ctx context.Context, username s
 }
 
 func TestUserAssignmentCreator(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	suite := initUACSuite(t, ctx, clock)
@@ -451,6 +452,7 @@ func initUACSuite(t testing.TB, ctx context.Context, clock clockwork.Clock) *tes
 }
 
 func TestRemovedUsedTargetsFromOldOldAnOldAssignments(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		usedTargets []types.OktaAssignmentTarget

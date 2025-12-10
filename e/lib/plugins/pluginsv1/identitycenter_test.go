@@ -8,20 +8,10 @@ import (
 
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	ictestenv "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestIdentityCenterResourceCleanup(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	t.Parallel()
 
 	suite := createSuite(t)
 	ctx := context.Background()
