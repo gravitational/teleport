@@ -131,6 +131,15 @@ certificate. Deletes take effect immediately.
 
     ```shell
     $ tctl auth rotate --manual --type=db-client --phase=init
+    > Updated rotation phase to "init". To check status use 'tctl status'
+    >
+    > There are active overrides for CA "db-client". You must either supply an
+    > override for public key "AB:CD:EF:..." or disable the override.
+    >
+    > tctl auth sub-ca create-csr --type=db-client --public-key='AB:CD:EF:...'
+    > or
+    > tctl auth sub-ca disable-override --type=db-client --public-key='AB:CD:EF:...'
+
     $ tctl auth rotate --manual --type=db-client --phase=update_clients
     > ERROR: Found CA overrides for authority "db-client". You must either
     > supply an override for public key "AB:CD:EF:..." or disable the override.
@@ -139,6 +148,10 @@ certificate. Deletes take effect immediately.
     > or
     > tctl auth sub-ca disable-override --type=db-client --public-key='AB:CD:EF:...'
     ```
+
+    Note: the interactive rotation wizard will print similar messages to above.
+    Users must perform the commands in a separate shell and then acknowledge the
+    manual steps, as usual.
 
 1. Alice updates the CA override for "db-client":
 
