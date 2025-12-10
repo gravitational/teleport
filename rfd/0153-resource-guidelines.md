@@ -256,11 +256,13 @@ message GetFooResponse {
 The `List` RPC takes the requested page size and starting point and returns a list of resources that match. If there are
 additional resources, the response MUST also include a token that indicates where the next page of results begins.
 
+`List` RPC can optionally provide a `Filter` message and/or a `SortBy` field where supported.
+
 Most legacy APIs do not provide a paginated way to retrieve resources and instead offer some kind of `GetAllFoos` RPC
 which either returns all `Foo` in a single message or leverages a server side stream to send each `Foo` one at a time.
 Returning all items in a single message causes problems when the number of resources scales beyond gRPC message size
 limits. To provide parity with this legacy API if needed, a helper method should be implemented on the client which
-builds the entire resource set by repeatedly calling `List` until all pages have been consumed.
+builds the entire resource set by repeatedly calling `List` until all pages have been consumed, see the [clientutils][1] package for more details.
 
 ```protobuf
 // Returns a page of Foo and the token to find the next page of items.
@@ -272,6 +274,10 @@ message ListFoosRequest {
   int32 page_size = 1;
   // The next_page_token value returned from a previous List request, if any.
   string page_token = 2;
+  // sort_by specifies the sort order for the results.
+  types.SortBy sort_by = 3;
+  // filter is a collection of fields to filter Foos
+  ListFoosFilter filter = 4;
 }
 
 message ListFoosResponse {
@@ -286,6 +292,47 @@ message ListFoosResponse {
 A listing operation should not abort entirely if a single item cannot be (un)marshalled, it should instead be logged,
 and the rest of the page should be processed. Aborting an entire page when a single entry is invalid causes the cache
 to be permanently unhealthy since it is never able to initialize loading the affected resource.
+
+##### Pagination Stability
+
+As of time of writing 2025-11-24 the backend does not support snapshotting. Meaning every `List` query executed
+against the backend has a potentially different view of the data. It is possible for:
+* Items to be deleted or created between `List` calls.
+* Mutable fields to be modified causing items to be reordered when sorting resulting in duplicate entries.
+
+#### Sorting Support
+
+Note that as of time of writing (2025-11-24), Teleport implements sorting items in Cache only. 
+
+This is achieved via the [sortcache](https://github.com/gravitational/teleport/blob/96f222c00624e3f7ad3cbcd1859936420b438725/lib/utils/sortcache/sortcache.go#L47) package.
+
+Each index requires a key function that returns lexicographically sortable key, for example:
+```go
+func FooTitleIndexKey(f *Foo) string {
+	title := cases.Fold().String(f.Spec.Title)
+	title = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(title))
+	return title + "/" + f.GetName()
+}
+```
+
+This key is then reused as the pagination token.
+
+Compound keys should use "/" as the separator, and must be lexicographically ordered.
+
+##### Page Token contract
+
+The backend only enforces a single contract for the token:
+* Empty token (`""`) indicates no more items.
+* Any other string value indicates further results are available.
+
+If possible the structure of the token should be opaque to the client to prevent tampering and reduce the implicit API surface.
+
+##### Page Size
+
+Clients should make use of [clientutils][1] to automatically adjust the page size when fetching resources:
+```go
+foos, err := clientutils.Resources(ctx, client.ListFoos)
+```
 
 #### Delete
 
@@ -865,3 +912,5 @@ message DeleteFooResponse {}
 ```
 
 </details>
+
+[1]: (https://github.com/gravitational/teleport/blob/ae1c0890bccf304b0bb40b9a2436501b4ec2a966/api/utils/clientutils/resources.go#L19)
