@@ -1464,7 +1464,7 @@ type EnhancedSummary struct {
 	// Commands is a list of command summaries extracted from the session.
 	Commands []*CommandAnalysis `protobuf:"bytes,7,rep,name=commands,proto3" json:"commands,omitempty"`
 	// NeedsFurtherReview indicates the reason why the session needs further review.
-	NeedsFurtherReview NeedsReviewReason `protobuf:"varint,8,opt,name=needs_further_review,json=needsFurtherReview,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"needs_further_review,omitempty"`
+	NeedsFurtherReview *NeedsReviewReason `protobuf:"varint,8,opt,name=needs_further_review,json=needsFurtherReview,proto3,enum=teleport.summarizer.v1.NeedsReviewReason,oneof" json:"needs_further_review,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1549,8 +1549,8 @@ func (x *EnhancedSummary) GetCommands() []*CommandAnalysis {
 }
 
 func (x *EnhancedSummary) GetNeedsFurtherReview() NeedsReviewReason {
-	if x != nil {
-		return x.NeedsFurtherReview
+	if x != nil && x.NeedsFurtherReview != nil {
+		return *x.NeedsFurtherReview
 	}
 	return NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED
 }
@@ -1642,7 +1642,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x16SecurityRecommendation\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12=\n" +
-	"\bseverity\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\"\xf7\x03\n" +
+	"\bseverity\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\"\x95\x04\n" +
 	"\x0fEnhancedSummary\x12+\n" +
 	"\x11short_description\x18\x01 \x01(\tR\x10shortDescription\x121\n" +
 	"\x14detailed_description\x18\x02 \x01(\tR\x13detailedDescription\x12@\n" +
@@ -1651,8 +1651,9 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x15suspicious_activities\x18\x04 \x03(\tR\x14suspiciousActivities\x123\n" +
 	"\x15compromise_indicators\x18\x05 \x01(\bR\x14compromiseIndicators\x126\n" +
 	"\x17notable_command_indexes\x18\x06 \x03(\x05R\x15notableCommandIndexes\x12C\n" +
-	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands\x12[\n" +
-	"\x14needs_further_review\x18\b \x01(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x12needsFurtherReview*|\n" +
+	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands\x12`\n" +
+	"\x14needs_further_review\x18\b \x01(\x0e2).teleport.summarizer.v1.NeedsReviewReasonH\x00R\x12needsFurtherReview\x88\x01\x01B\x17\n" +
+	"\x15_needs_further_review*|\n" +
 	"\fSummaryState\x12\x1d\n" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
@@ -1768,6 +1769,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		(*InferenceModelSpec_Openai)(nil),
 		(*InferenceModelSpec_Bedrock)(nil),
 	}
+	file_teleport_summarizer_v1_summarizer_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
