@@ -6013,3 +6013,18 @@ func (c *Client) DeleteAppAuthConfig(ctx context.Context, name string) error {
 	})
 	return trace.Wrap(err)
 }
+
+// AppAuthConfigSessionsClient returns an [appauthconfigv1.AppAuthConfigSessionsServiceClient].
+func (c *Client) AppAuthConfigSessionsClient() appauthconfigv1.AppAuthConfigSessionsServiceClient {
+	return appauthconfigv1.NewAppAuthConfigSessionsServiceClient(c.conn)
+}
+
+// CreateAppSessionWithJwt creates an app session using JWT token.
+func (c *Client) CreateAppSessionWithJwt(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJwtRequest) (types.WebSession, error) {
+	clt := c.AppAuthConfigSessionsClient()
+	res, err := clt.CreateAppSessionWithJwt(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res.GetSession(), nil
+}

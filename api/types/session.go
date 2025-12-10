@@ -675,3 +675,26 @@ func (f *WebSessionFilter) Match(session WebSession) bool {
 	}
 	return true
 }
+
+type CreateAppSessionForAppAuthRequest struct {
+	// ClusterName is cluster within which the application is running.
+	ClusterName string
+	// Username is the identity of the user requesting the session.
+	Username string
+	// LoginIP is an observed IP of the client, it will be embedded into certificates.
+	LoginIP string
+	// Roles optionally lists additional user roles
+	Roles []string
+	// Traits optionally lists role traits
+	Traits map[string][]string
+	// TTL is the session validity period.
+	TTL time.Duration
+	// SuggestedSessionID is the session ID suggested by the requester.
+	SuggestedSessionID string
+	// AppName is the name of the app.
+	AppName string
+	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	AppURI string
+	// AppPublicAddr is the application public address.
+	AppPublicAddr string
+}

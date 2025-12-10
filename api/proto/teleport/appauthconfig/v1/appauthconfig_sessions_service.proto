@@ -1,0 +1,60 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.appauthconfig.v1;
+
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1";
+
+// AppAuthConfigService provides functions for managing sessions with app auth
+// configs.
+service AppAuthConfigSessionsService {
+  // CreateAppSessionWithJwt creates an app session using JWT token.
+  rpc CreateAppSessionWithJwt(CreateAppSessionWithJwtRequest) returns (CreateAppSessionWithJwtResponse);
+}
+
+// App contains information about the application the new session will access.
+message App {
+  // ClusterName is cluster within which the application is running.
+  string cluster_name = 1;
+  // AppName is the name of the application.
+  string app_name = 2;
+  // Uri is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  string uri = 3;
+  // PublicAddr is the application public address.
+  string public_addr = 4;
+}
+
+// Request for CreateAppSessionWithJwt.
+message CreateAppSessionWithJwtRequest {
+  // ConfigName is the app auth config name used to create the app session.
+  string config_name = 1;
+  // SessionId is ID the new app session will use.
+  string session_id = 2;
+  // App is application the session will access.
+  App app = 3;
+  // Jwt is the JWT token used to create the app session.
+  string jwt = 4;
+  // ClientAddr is a client (user's) address.
+  string client_addr = 5;
+}
+
+// Response for CreateAppSessionWithJwt.
+message CreateAppSessionWithJwtResponse {
+  // Session is the app session.
+  types.WebSessionV2 session = 1;
+}

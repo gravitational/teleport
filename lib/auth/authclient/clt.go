@@ -1615,6 +1615,7 @@ type ClientI interface {
 	services.VnetConfigGetter
 	services.HealthCheckConfig
 	services.AppAuthConfig
+	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
 
