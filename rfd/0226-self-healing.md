@@ -90,82 +90,147 @@ do not meet our use case[^3].
 
 The solution here is to implement our own load balancing policy. The go-grpc library
 conveniently allows you to register custom policies[^2] by implementing the
-balancer interface[^4]. This policy will enable gRPC health checking by default
-and use the streaming API to ensure health checks can scale to a large number of
-clients.
+balancer interface[^4].
 
-To avoid introducing too much new behavior we will base our implementation off of
-the existing `pick_first` policy[^5]. The primary difference will be when the existing
-connection enters the `TRANSIENT_FAILURE` state[^6] new connection attempts will be
-made until either the existing connection returns to `READY` or the new connection
-reaches the `READY` state.
+Our policy will be called `teleport_pick_healthy`.
 
-All connection attempts should use a backoff policy with jitter to avoid a thundering
-heard problem.
+The balancer will behave exactly like a `pick_first`balancer by default. It will
+do this by wrapping a `pick_first`balancer.
 
-If the new connection reaches the `READY` state it will replace the old connection
-and the old connection will be shutdown.
+Once the `pick_first` balancer establishes a connection we will make a `GetServiceConfig`
+request as defined in the section on [Policy Configuration Discovery](#policy-configuration-discovery)
+for more details.
 
-#### Health Failure vs Network Failure
+Then based on this response we will enable the following behavior:
 
-We will differentiate between a connection failing due to the service being unhealthy
-and a connection failing due to a network issue.
+1. Use the gRPC health checking API to determine if a connection is connected
+to an unhealthy service.
 
-A connection failing due to a network issue can simply create a new connection.
+2. Create a new connection if the current connection is unhealthy.
 
-A connection failing due to an unhealthy service should continue to send RPCs to the
-unhealthy service until a new connection to a healthy service can be established.
+3. Shutdown an unhealthy connection when a health connection is established.
 
-This allows for a partially degraded auth service to attempt to service RPCs. This
-preservers todays behavior where all requests get sent to the auth regardless of its
-health.
+It does this by managing underlying `pick_first` balancers and routing requests
+based on service health.
 
-Once a new connection is established the old connection will be drained gracefully
-and new RPCs will be sent over the new connection.
+The diagram below shows an example of how a client changes behavior over time.
 
-Any open RPCs on the old connection will be allowed to run to completion.
+```mermaid
+sequenceDiagram
+    participant client as gRPC Client
+    participant lb as Custom LB Policy
+    participant pf1 as Pick First (default)
+    participant pf2 as Pick First (failover)
+    participant auth1 as Auth Instance 1
+    participant auth2 as Auth Instance 2
+
+
+    client ->> lb: Constructs the Policy
+    rect rgb(200, 200, 255)
+        lb ->> pf1: Starts a Pick First Balancer
+        pf1 ->> auth1: Creates a connection
+        lb ->> auth1: Calls GetServiceConfig
+        auth1 -->> lb: Receives default config
+    end
+    client ->> auth1: Makes requests
+    auth1 ->> auth1: Restarts with updated Service Config
+
+    rect rgb(255, 200, 200)
+        pf1 ->> auth1: Drops connection
+    end
+
+
+
+    client ->> lb: Constructs the Policy
+    rect rgb(200, 200, 255)
+        pf1 ->> auth1: Creates a connection
+        lb ->> auth1: Calls GetServiceConfig
+        auth1 -->> lb: Receives custom service config
+        lb <<-->> auth1: Starts health check watcher
+    end
+
+
+    client -->> auth: Makes requests
+
+    rect rgb(255, 200, 200)
+        auth1 ->> lb: Becomes unhealthy
+    end
+
+    
+    rect rgb(200, 255, 200)
+        lb -->> pf2: Creates another Pick First Balancer
+        pf2 ->> auth2: Creates a connection
+        lb ->> auth2: Calls GetServiceConfig
+        auth2 -->> lb: Receives custom service config
+        lb <<-->> auth2: Starts health check watcher
+    end
+
+    lb -->> pf2: Becomes new default
+    lb -->> pf1: Shutsdown
+    client -->> auth2: Makes requests
+```
+
+There are a few edge cases for managing RPCs and creating new connections that
+are worth calling out. 
+
+1. What do we do with RPCs when we have no healthy connections? RPCs will be sent
+over unhealthy connections. This is already what happens with the default
+`pick_first` policy. This is important since an unhealthy service may still be able
+to handle some RPCs that would otherwise fail immediately client side.
+
+2. What do we do with long running streaming RPCs when shutting down an unhealthy
+connection? These will continue over the unhealthy connection until the stream
+is closed.
+
+3. What if the old connection becomes healthy again? If the old connection becomes
+healthy before we we're able to establish a new healthy connection we will stop
+attempting new connections and continue using that old connection. Otherwise it
+will we shutdown.
 
 #### Policy Configuration Discovery
 
 We will implement a gRPC endpoint which will allow for discovering
 new load balancing policies via the connected auth server. This endpoint will be
-called immediately after connecting and the initial health checking is complete.
+called immediately after connecting.
 
-Configuration changes are processed by the gRPC library by passing configuration
-updates from a [resolver.Resolver][^15] via a [resolver.State][^16] to the
-[resolver.ClientConn][^17].
+For now we will only support reconfiguring the running load balancer policy but
+in the future we may choose to support switching between multiple load balance
+policies.
 
-If a new balancer is configured in the update this will trigger a creation of the
-new balancer and shutdown of the existing balancer. If the same balancer is used
-then the update configuration will be sent to the `balancer.UpdateClientConnState`.
-This allows a balancer to update is behavior based on the configuration in place
-without shutting down.
+A JSON representation of the policy can be configured on an auth server by setting
+the environment variable `TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY` to the JSON.
+When not pecified the configuration will use a default configuration which will
+behave exactly like the `pick_first` balancer policy used today.
 
-The json representation of the configuration will be:
+The default config will use the generated code directly but the JSON
+representation is used here for the sake of comparison.
+
 
 ```json
 {
     "grpc_client_lb_policy": {
-        "loadBalancingConfig": [{"teleport_pick_healthy": {}}],
+        "loadBalancingConfig": [{"teleport_pick_healthy": {
+          "mode": "pick_first",
+        }}]
+    }
+}
+```
+
+Config to enable reconnect behavior:
+
+```json
+{
+    "grpc_client_lb_policy": {
+        "loadBalancingConfig": [{"teleport_pick_healthy": {
+          "mode": "reconnect",
+        }}],
         "healthCheckConfig": {
             "serviceName": ""
         }
     }
 }
-```
 
-This configuration supports adding additional load balancer policies in the future.
-Agents should prefer to use the first known policy listed in the loadBalancingConfig
-array. Currently the `teleport_pick_healthy` configuration is an empty json object but
-fields could be added in the future.
-
-This can be configured on an auth server by setting the environment variable
-`TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY`. When not specified clients will continue
-using the default `pick_first` policy. This will allow us to opt-in to this new
-behavior.
-
-When specified, the following protobufs will be used for discovering configuration
-changes:
+This configuration is then exposed by the service defined below for discovery.
 
 ```proto
 // ServiceConfigDiscoveryService provides the RPC for clients to discover the
@@ -204,18 +269,14 @@ message ServiceConfig {
 // configurations.
 message LoadBalancerConfig {
     oneof config {
-      PickFirstConfig pick_first = 1;
-      TeleportPickHealthyConfig teleport_pick_healthy = 2;
+      TeleportPickHealthyConfig teleport_pick_healthy = 1;
   }
-}
-
-// PickFirstConfig represents the default grpc pick_first load balancing policy.
-message PickFirstConfig {
 }
 
 // TeleportPickHealthyConfig represents the teleport_pick_health load balancing
 // policy.
 message TeleportPickHealthyConfig {
+  string mode = 1;
 }
 
 // HealthCheckConfig represents a gRPC clients health check configuration.
@@ -224,11 +285,6 @@ message HealthCheckConfig {
   string service_name = 1;
 }
 ```
-
-An alternative approach considered here was having policy discovery go through
-the the proxy `webapi/ping` endpoint. This was discarded as it adds a dependency
-on another service/protocol and requires constant polling for changes. Using grpc
-allows us to only check the configuration when we establish a new connection.
 
 ### Proxy Reconnects
 
