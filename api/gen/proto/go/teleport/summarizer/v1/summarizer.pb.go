@@ -1412,9 +1412,11 @@ type EnhancedSummary struct {
 	// NotableCommandIndexes is a list of indexes of commands that are considered notable.
 	NotableCommandIndexes []int32 `protobuf:"varint,6,rep,packed,name=notable_command_indexes,json=notableCommandIndexes,proto3" json:"notable_command_indexes,omitempty"`
 	// Commands is a list of command summaries extracted from the session.
-	Commands      []*CommandAnalysis `protobuf:"bytes,7,rep,name=commands,proto3" json:"commands,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Commands []*CommandAnalysis `protobuf:"bytes,7,rep,name=commands,proto3" json:"commands,omitempty"`
+	// NeedsFurtherReview indicates whether the session needs further review as it could not be fully analyzed.
+	NeedsFurtherReview bool `protobuf:"varint,8,opt,name=needs_further_review,json=needsFurtherReview,proto3" json:"needs_further_review,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *EnhancedSummary) Reset() {
@@ -1494,6 +1496,13 @@ func (x *EnhancedSummary) GetCommands() []*CommandAnalysis {
 		return x.Commands
 	}
 	return nil
+}
+
+func (x *EnhancedSummary) GetNeedsFurtherReview() bool {
+	if x != nil {
+		return x.NeedsFurtherReview
+	}
+	return false
 }
 
 var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
@@ -1583,7 +1592,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x16SecurityRecommendation\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12=\n" +
-	"\bseverity\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\"\x9a\x03\n" +
+	"\bseverity\x18\x03 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\bseverity\"\xcc\x03\n" +
 	"\x0fEnhancedSummary\x12+\n" +
 	"\x11short_description\x18\x01 \x01(\tR\x10shortDescription\x121\n" +
 	"\x14detailed_description\x18\x02 \x01(\tR\x13detailedDescription\x12@\n" +
@@ -1592,7 +1601,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x15suspicious_activities\x18\x04 \x03(\tR\x14suspiciousActivities\x123\n" +
 	"\x15compromise_indicators\x18\x05 \x01(\bR\x14compromiseIndicators\x126\n" +
 	"\x17notable_command_indexes\x18\x06 \x03(\x05R\x15notableCommandIndexes\x12C\n" +
-	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands*|\n" +
+	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands\x120\n" +
+	"\x14needs_further_review\x18\b \x01(\bR\x12needsFurtherReview*|\n" +
 	"\fSummaryState\x12\x1d\n" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +

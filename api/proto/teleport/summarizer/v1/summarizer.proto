@@ -351,4 +351,6 @@ message EnhancedSummary {
   repeated int32 notable_command_indexes = 6;
   // Commands is a list of command summaries extracted from the session.
   repeated CommandAnalysis commands = 7;
+  // NeedsFurtherReview indicates whether the session needs further review as it could not be fully analyzed.
+  bool needs_further_review = 8;
 }
