@@ -141,6 +141,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 											Optional:    true,
 											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
+										"role_name": {
+											Description: "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
 									}),
 									Description: "AssumeRoleARN is the AWS role to assume for database discovery.",
 									Optional:    true,
@@ -219,6 +224,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								},
 								"role_arn": {
 									Description: "RoleARN is the fully specified AWS IAM role ARN.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"role_name": {
+									Description: "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -319,22 +329,6 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 						},
 						"organization": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"iam": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-										"external_id": {
-											Description: "ExternalID is the external ID to use when assuming the role.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-										},
-										"role_name": {
-											Description: "RoleName is the role name to assume in the target account.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-										},
-									}),
-									Description: "IAM contains the AWS IAM configuration to assume roles in target accounts.",
-									Optional:    true,
-								},
 								"organization_id": {
 									Description: "OrganizationID is the AWS Organization ID to match against. Required.",
 									Optional:    true,
@@ -343,12 +337,12 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								"organizational_units": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"exclude": {
-											Description: "Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Only exact matches or wildcard (*) are supported. All excluded OUs, and their children, will be excluded, even if they were included. If empty, no OUs are excluded.",
+											Description: "Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches or wildcard (*) are supported. Optional. If empty, no OUs are excluded.",
 											Optional:    true,
 											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 										},
 										"include": {
-											Description: "Include is a list of AWS Organizational Unit IDs and children OUs to match. Only exact matches or wildcard (*) are supported. Required.",
+											Description: "Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.",
 											Optional:    true,
 											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 										},
@@ -1007,6 +1001,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["role_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.RoleName = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -1475,58 +1486,6 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																									}
 																								}
 																							}
-																						}
-																					}
-																				}
-																			}
-																		}
-																	}
-																}
-																{
-																	a, ok := tf.Attrs["iam"]
-																	if !ok {
-																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Organization.IAM"})
-																	} else {
-																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
-																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.IAM", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
-																		} else {
-																			obj.IAM = nil
-																			if !v.Null && !v.Unknown {
-																				tf := v
-																				obj.IAM = &github_com_gravitational_teleport_api_types.AWSIAMAssumeRole{}
-																				obj := obj.IAM
-																				{
-																					a, ok := tf.Attrs["role_name"]
-																					if !ok {
-																						diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Organization.IAM.RoleName"})
-																					} else {
-																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																						if !ok {
-																							diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.IAM.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						} else {
-																							var t string
-																							if !v.Null && !v.Unknown {
-																								t = string(v.Value)
-																							}
-																							obj.RoleName = t
-																						}
-																					}
-																				}
-																				{
-																					a, ok := tf.Attrs["external_id"]
-																					if !ok {
-																						diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Organization.IAM.ExternalID"})
-																					} else {
-																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																						if !ok {
-																							diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.IAM.ExternalID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						} else {
-																							var t string
-																							if !v.Null && !v.Unknown {
-																								t = string(v.Value)
-																							}
-																							obj.ExternalID = t
 																						}
 																					}
 																				}
@@ -2608,6 +2567,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																						}
 																					}
 																				}
+																				{
+																					a, ok := tf.Attrs["role_name"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.RoleName = t
+																						}
+																					}
+																				}
 																			}
 																		}
 																	}
@@ -3359,6 +3335,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																	tf.Attrs["external_id"] = v
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["role_name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName"})
+																} else {
+																	v, ok := tf.Attrs["role_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.RoleName) == ""
+																	}
+																	v.Value = string(obj.RoleName)
+																	v.Unknown = false
+																	tf.Attrs["role_name"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														tf.Attrs["assume_role"] = v
@@ -4059,82 +4057,6 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																		}
 																		v.Unknown = false
 																		tf.Attrs["organizational_units"] = v
-																	}
-																}
-															}
-															{
-																a, ok := tf.AttrTypes["iam"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Organization.IAM"})
-																} else {
-																	o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-																	if !ok {
-																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.IAM", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
-																	} else {
-																		v, ok := tf.Attrs["iam"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
-																		if !ok {
-																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
-
-																				AttrTypes: o.AttrTypes,
-																				Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
-																			}
-																		} else {
-																			if v.Attrs == nil {
-																				v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
-																			}
-																		}
-																		if obj.IAM == nil {
-																			v.Null = true
-																		} else {
-																			obj := obj.IAM
-																			tf := &v
-																			{
-																				t, ok := tf.AttrTypes["role_name"]
-																				if !ok {
-																					diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Organization.IAM.RoleName"})
-																				} else {
-																					v, ok := tf.Attrs["role_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																					if !ok {
-																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																						if err != nil {
-																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Organization.IAM.RoleName", err})
-																						}
-																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																						if !ok {
-																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.IAM.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
-																						v.Null = string(obj.RoleName) == ""
-																					}
-																					v.Value = string(obj.RoleName)
-																					v.Unknown = false
-																					tf.Attrs["role_name"] = v
-																				}
-																			}
-																			{
-																				t, ok := tf.AttrTypes["external_id"]
-																				if !ok {
-																					diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Organization.IAM.ExternalID"})
-																				} else {
-																					v, ok := tf.Attrs["external_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																					if !ok {
-																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																						if err != nil {
-																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Organization.IAM.ExternalID", err})
-																						}
-																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																						if !ok {
-																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.IAM.ExternalID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																						}
-																						v.Null = string(obj.ExternalID) == ""
-																					}
-																					v.Value = string(obj.ExternalID)
-																					v.Unknown = false
-																					tf.Attrs["external_id"] = v
-																				}
-																			}
-																		}
-																		v.Unknown = false
-																		tf.Attrs["iam"] = v
 																	}
 																}
 															}
@@ -5875,6 +5797,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																					v.Value = string(obj.ExternalID)
 																					v.Unknown = false
 																					tf.Attrs["external_id"] = v
+																				}
+																			}
+																			{
+																				t, ok := tf.AttrTypes["role_name"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName"})
+																				} else {
+																					v, ok := tf.Attrs["role_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.RoleName) == ""
+																					}
+																					v.Value = string(obj.RoleName)
+																					v.Unknown = false
+																					tf.Attrs["role_name"] = v
 																				}
 																			}
 																		}

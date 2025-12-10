@@ -300,11 +300,11 @@ func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
 		return nil
 	}
 
-	if m.Organization.IAM == nil || m.Organization.IAM.RoleName == "" {
-		return trace.BadParameter("organization.iam.role_name is required when organization id is set")
+	if m.AssumeRole == nil || m.AssumeRole.RoleName == "" {
+		return trace.BadParameter("assume role name is required when organization id is set")
 	}
 
-	if err := awsapiutils.IsValidIAMRoleName(m.Organization.IAM.RoleName); err != nil {
+	if err := awsapiutils.IsValidIAMRoleName(m.AssumeRole.RoleName); err != nil {
 		return trace.BadParameter("assume role must be set to the role name (not the arn) when discovering accounts: %v", err)
 	}
 

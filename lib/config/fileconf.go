@@ -1826,6 +1826,8 @@ type AWSMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// AssumeRoleARN is the AWS role to assume for database discovery.
 	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// AssumeRoleName is the AWS role name to assume for discovery.
+	AssumeRoleName string `yaml:"assume_role_name,omitempty"`
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
@@ -1857,17 +1859,6 @@ type AWSOrganizationMatcher struct {
 
 	// OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
 	OrganizationalUnits AWSOrganizationUnitsMatcher `yaml:"organizational_units,omitempty"`
-
-	// IAM contains the AWS IAM configuration to assume roles in target accounts.
-	IAM AWSIAMAssumeRole `yaml:"iam,omitempty"`
-}
-
-// AWSIAMAssumeRole contains the IAM role information to assume roles in an account.
-type AWSIAMAssumeRole struct {
-	// RoleName is the role name to assume in the target account.
-	RoleName string `yaml:"role_name,omitempty"`
-	// ExternalID is the external ID to use when assuming the role.
-	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
