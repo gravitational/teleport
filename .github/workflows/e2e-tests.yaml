@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v6
         with:
           name: build
           path: ${{ github.workspace }}/build/
