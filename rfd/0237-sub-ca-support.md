@@ -45,6 +45,10 @@ the more "visible" Teleport CAs to their own self-managed roots.
     > ...
     > -----END CERTIFICATE REQUEST-----
     ```
+
+    Note: if HSMs are configured then `tctl auth sub-ca create-csr` must be
+    executed locally on each Auth server.
+
 1. Alice sends the CSRs to the parent CA, acquiring the certificates as a
    result.
 
