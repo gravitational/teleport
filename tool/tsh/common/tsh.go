@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -1963,6 +1964,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	if trace.IsNotImplemented(err) {
 		return handleUnimplementedError(ctx, err, cf)
+	}
+
+	// A FIPS build of tsh is attempting to use a non-FIPS key returned by the cluster.
+	var fipsErr *sshutils.FIPSError
+	if moduleCfg.IsBoringBinary() && errors.As(err, &fipsErr) {
+		return trace.Wrap(err,
+			"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster.",
+		)
 	}
 
 	return trace.Wrap(err)
