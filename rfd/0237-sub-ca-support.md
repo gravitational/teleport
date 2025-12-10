@@ -40,7 +40,7 @@ the more "visible" Teleport CAs to their own self-managed roots.
 1. First, Alice issues CSRs for the desired CA / cluster.
 
     ```shell
-    $ tctl auth sub-ca create-csr --type=db-client --cluster=mycluster
+    $ tctl auth sub-ca create-csr --type=db-client
     > -----BEGIN CERTIFICATE REQUEST-----
     > ...
     > -----END CERTIFICATE REQUEST-----
@@ -61,7 +61,7 @@ the more "visible" Teleport CAs to their own self-managed roots.
 Alice begins with the following command, then [continues as the first
 example](#ux1).
 
-`tctl auth sub-ca create-csr --type=windows --cluster=mycluster`
+`tctl auth sub-ca create-csr --type=windows
 
 ### Alice customizes the sub CA Subject
 
@@ -69,7 +69,7 @@ Alice begins with the following command, then [continues as the first
 example](#ux1).
 
 ```shell
-tctl auth sub-ca create-csr --type=db-client --cluster=mycluster \
+tctl auth sub-ca create-csr --type=db-client \
     --subject 'O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA'
 ```
 
@@ -112,14 +112,14 @@ effect immediately.
 
 A disabled override is still considered during CA rotation.
 
-`tctl auth sub-ca disable-override --type=db-client --cluster=mycluster`
+`tctl auth sub-ca disable-override --type=db-client
 
 ### Alice deletes the "db-client" override
 
 Deleting an override removes it completely, making Teleport use its self-signed
 certificate. Deletes take effect immediately.
 
-`tctl auth sub-ca delete-override --type=db-client --cluster=mycluster`
+`tctl auth sub-ca delete-override --type=db-client
 
 ### Alice performs a "db-client" CA rotation
 
