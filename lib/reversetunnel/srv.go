@@ -1261,6 +1261,20 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 		return nil, trace.Wrap(err)
 	}
 	leaf.nodeWatcher = nodeWatcher
+
+	appServerWatcher, err := services.NewAppServersWatcher(closeContext, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: srv.Component,
+			Logger:    srv.Logger,
+			Client:    accessPoint,
+		},
+		AppServersGetter: accessPoint,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leaf.appServerWatcher = appServerWatcher
+
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each cluster (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
