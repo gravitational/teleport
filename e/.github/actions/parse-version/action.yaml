@@ -63,7 +63,7 @@ runs:
   steps:
     - name: Split
       id: split
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       env:
         # Action inputs are not made available as env vars. Do so explicitly with standard naming.
         # https://github.com/actions/runner/issues/665
