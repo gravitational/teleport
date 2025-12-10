@@ -4910,6 +4910,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	appServerWatcher, err := services.NewAppServersWatcher(process.ExitContext(), services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:    accessPoint,
+		},
+		AppServersGetter: accessPoint,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	serverTLSConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5180,6 +5192,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:             lockWatcher,
 				PeerClient:              peerClient,
 				NodeWatcher:             nodeWatcher,
+				AppServerWatcher:        appServerWatcher,
 				GitServerWatcher:        gitServerWatcher,
 				CertAuthorityWatcher:    caWatcher,
 				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
@@ -5360,7 +5373,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			publicAddressMatches := webapp.MatchPublicAddr(publicAddr)
 			for _, a := range allAppServers {
-				if publicAddressMatches(ctx, a) {
+				if publicAddressMatches(a) {
 					return a.GetApp(), nil
 				}
 			}
@@ -5419,6 +5432,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}),
 			PROXYSigner:               proxySigner,
 			NodeWatcher:               nodeWatcher,
+			AppServerWatcher:          appServerWatcher,
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
