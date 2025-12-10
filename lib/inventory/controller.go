@@ -939,7 +939,7 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		handle.sshServer = &heartBeatInfo[*types.ServerV2]{
 			resource: sshServer,
 		}
-	} else if handle.sshServer.keepAliveErrs == 0 && services.CompareServers(handle.sshServer.resource, sshServer) < services.Different {
+	} else if handle.sshServer.keepAliveErrs == 0 && services.CompareServers(handle.sshServer.resource, sshServer) != services.Different {
 		// if we have successfully upserted this exact server the last time
 		// (except for the expiry), we don't need to upsert it again right now
 		return nil
@@ -1078,7 +1078,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 			resource: appServer,
 		}
 		handle.appServers[appKey] = srv
-	} else if srv.keepAliveErrs == 0 && services.CompareServers(srv.resource, appServer) < services.Different {
+	} else if srv.keepAliveErrs == 0 && services.CompareServers(srv.resource, appServer) != services.Different {
 		// if we have successfully upserted this exact server the last time
 		// (except for the expiry), we don't need to upsert it again right now
 		return nil
