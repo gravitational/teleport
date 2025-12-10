@@ -145,7 +145,7 @@ sequenceDiagram
         lb <<-->> auth1: Starts health check watcher
     end
 
-    client -->> auth: Makes requests
+    client -->> auth1: Makes requests
 
     rect rgb(255, 200, 200)
         auth1 ->> lb: Becomes unhealthy
@@ -160,7 +160,7 @@ sequenceDiagram
     end
 
     lb -->> pf2: Becomes new default
-    lb -->> pf1: Shutsdown
+    lb -->> pf1: Starts shutdown
     client -->> auth2: Makes requests
 ```
 
