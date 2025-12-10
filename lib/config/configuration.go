@@ -1570,9 +1570,10 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		var assumeRole *types.AssumeRole
-		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" {
+		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" || matcher.AssumeRoleName != "" {
 			assumeRole = &types.AssumeRole{
 				RoleARN:    matcher.AssumeRoleARN,
+				RoleName:   matcher.AssumeRoleName,
 				ExternalID: matcher.ExternalID,
 			}
 		}
@@ -1599,10 +1600,6 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
 					Include: matcher.Organization.OrganizationalUnits.Include,
 					Exclude: matcher.Organization.OrganizationalUnits.Exclude,
-				},
-				IAM: &types.AWSIAMAssumeRole{
-					RoleName:   matcher.Organization.IAM.RoleName,
-					ExternalID: matcher.Organization.IAM.ExternalID,
 				},
 			}
 		}

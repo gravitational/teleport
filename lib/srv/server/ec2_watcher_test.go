@@ -437,13 +437,13 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
 			SSM:     &types.AWSSSM{},
+			AssumeRole: &types.AssumeRole{
+				RoleName: "MyRole",
+			},
 			Organization: &types.AWSOrganizationMatcher{
 				OrganizationID: organizationID,
 				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
 					Include: []string{types.Wildcard},
-				},
-				IAM: &types.AWSIAMAssumeRole{
-					RoleName: "MyRole",
 				},
 			},
 		},

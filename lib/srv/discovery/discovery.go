@@ -630,6 +630,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		RegionsListerGetter:    s.GetAWSRegionsLister,
 		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
 		PublicProxyAddrGetter:  s.publicProxyAddress,
+		Logger:                 s.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -757,6 +758,7 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
 		DiscoveryConfigName:    discoveryConfigName,
 		PublicProxyAddrGetter:  s.publicProxyAddress,
+		Logger:                 s.Log,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
