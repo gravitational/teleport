@@ -75,13 +75,14 @@ jobs:
       # Success
       - name: Slack Notify Succes
         if: inputs.slack-notify-channel && !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
-        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v1.27.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
-          channel-id: ${{ inputs.slack-notify-channel }}
+          method: chat.postMessage
+          token: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
+          errors: true
           payload: |
             {
+              "channel": "${{ inputs.slack-notify-channel }}",
               "username": "Release Reporter",
               "text": "*Release Report*",
               "mrkdwn": true,
@@ -99,13 +100,14 @@ jobs:
       # Failure
       - name: Slack Notify Failure
         if: inputs.slack-notify-channel && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
-        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v1.27.0
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
         with:
-          channel-id: ${{ inputs.slack-notify-channel }}
+          method: chat.postMessage
+          token: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
+          errors: true
           payload: |
             {
+              "channel": "${{ inputs.slack-notify-channel }}",
               "username": "Release Reporter",
               "text": "*Release Report*",
               "mrkdwn": true,
