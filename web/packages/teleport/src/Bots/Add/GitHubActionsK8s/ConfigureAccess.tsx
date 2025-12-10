@@ -29,7 +29,7 @@ import Validator, { Validation } from 'shared/components/Validation/Validation';
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
-import { CodePanelPlaceholder } from './CodePanel';
+import { CodePanel } from './CodePanel';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
 
 export function ConfigureAccess(props: FlowStepProps) {
@@ -151,7 +151,7 @@ export function ConfigureAccess(props: FlowStepProps) {
       </FormContainer>
 
       <CodeContainer>
-        <CodePanelPlaceholder>Code panel coming soon...</CodePanelPlaceholder>
+        <CodePanel />
       </CodeContainer>
     </Container>
   );

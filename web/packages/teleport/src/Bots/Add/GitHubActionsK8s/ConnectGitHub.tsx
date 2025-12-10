@@ -37,7 +37,7 @@ import {
   requireValidRepository,
 } from '../Shared/github';
 import { FlowStepProps } from '../Shared/GuidedFlow';
-import { CodePanelPlaceholder } from './CodePanel';
+import { CodePanel } from './CodePanel';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
 
 export function ConnectGitHub(props: FlowStepProps) {
@@ -252,7 +252,7 @@ export function ConnectGitHub(props: FlowStepProps) {
       </FormContainer>
 
       <CodeContainer>
-        <CodePanelPlaceholder>Code panel coming soon...</CodePanelPlaceholder>
+        <CodePanel />
       </CodeContainer>
     </Container>
   );

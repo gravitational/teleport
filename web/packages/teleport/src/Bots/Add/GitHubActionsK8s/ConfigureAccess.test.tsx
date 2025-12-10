@@ -17,6 +17,7 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -29,8 +30,23 @@ import {
   userEvent,
 } from 'design/utils/testing';
 
+import { ContextProvider } from 'teleport/index';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+
 import { ConfigureAccess } from './ConfigureAccess';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
+
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+
+  // Basic mock for all tests
+  server.use(genWizardCiCdSuccess());
+});
+
+afterAll(() => server.close());
 
 describe('ConfigureAccess', () => {
   test('renders', async () => {
@@ -128,15 +144,18 @@ function makeWrapper(opts?: {
   initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
 }) {
   const { initialState } = opts ?? {};
+  const ctx = createTeleportContext();
 
   return ({ children }: PropsWithChildren) => {
     return (
       <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
-          <GitHubK8sFlowProvider intitialState={initialState}>
-            {children}
-          </GitHubK8sFlowProvider>
-        </ConfiguredThemeProvider>
+        <ContextProvider ctx={ctx}>
+          <ConfiguredThemeProvider theme={darkTheme}>
+            <GitHubK8sFlowProvider intitialState={initialState}>
+              {children}
+            </GitHubK8sFlowProvider>
+          </ConfiguredThemeProvider>
+        </ContextProvider>
       </QueryClientProvider>
     );
   };
