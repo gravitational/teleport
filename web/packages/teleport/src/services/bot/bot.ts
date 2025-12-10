@@ -302,7 +302,7 @@ export async function generateGhaK8sTemplates(
       enterprise_slug?: string;
       static_jwks?: string;
     };
-    kubernetes: {
+    kubernetes?: {
       labels?: Record<string, string[]>;
       groups?: string[];
       users?: string[];

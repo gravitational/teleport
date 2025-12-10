@@ -32,6 +32,7 @@ import { RefType } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { GITHUB_HOST, parseRepoAddress } from '../Shared/github';
+import { KubernetesLabel } from '../Shared/kubernetes';
 import { makeGhaWorkflow } from './templates';
 
 export function useGitHubK8sFlow() {
@@ -70,7 +71,9 @@ export function GitHubK8sFlowProvider(
   // changes. It's debounced to reduce the number of api calls.
   useEffect(() => {
     const includeKubernetes =
-      state.kubernetesGroups.length > 0 || state.kubernetesUsers.length > 0;
+      state.kubernetesGroups.length > 0 ||
+      state.kubernetesLabels.length > 0 ||
+      state.kubernetesUsers.length > 0;
 
     regenerateTemplates.current({
       github: {
@@ -93,6 +96,18 @@ export function GitHubK8sFlowProvider(
       kubernetes: includeKubernetes
         ? {
             groups: state.kubernetesGroups,
+            labels: state.kubernetesLabels.reduce<Record<string, string[]>>(
+              (acc, cur) => {
+                const existing = acc[cur.name];
+                if (existing) {
+                  existing.push(...cur.values);
+                } else {
+                  acc[cur.name] = cur.values;
+                }
+                return acc;
+              },
+              {}
+            ),
             users: state.kubernetesUsers,
           }
         : undefined,
@@ -106,6 +121,7 @@ export function GitHubK8sFlowProvider(
     state.info?.owner,
     state.info?.repository,
     state.kubernetesGroups,
+    state.kubernetesLabels,
     state.kubernetesUsers,
     state.ref,
     state.refType,
@@ -203,6 +219,11 @@ function reducer(prev: State, action: Action): State {
         ...prev,
         kubernetesGroups: action.value,
       };
+    case 'kubernetes-labels-changed':
+      return {
+        ...prev,
+        kubernetesLabels: action.value,
+      };
     case 'kubernetes-users-changed':
       return {
         ...prev,
@@ -237,6 +258,10 @@ type Action =
   | {
       type: 'kubernetes-groups-changed' | 'kubernetes-users-changed';
       value: string[];
+    }
+  | {
+      type: 'kubernetes-labels-changed';
+      value: KubernetesLabel[];
     };
 
 type State = {
@@ -256,6 +281,7 @@ type State = {
   enterpriseSlug: string;
   enterpriseJwks: string;
   kubernetesGroups: string[];
+  kubernetesLabels: KubernetesLabel[];
   kubernetesUsers: string[];
 };
 
@@ -271,6 +297,7 @@ const defaultState: State = {
   enterpriseSlug: '',
   enterpriseJwks: '',
   kubernetesGroups: [],
+  kubernetesLabels: [{ name: '*', values: ['*'] }],
   kubernetesUsers: [],
 };
 
