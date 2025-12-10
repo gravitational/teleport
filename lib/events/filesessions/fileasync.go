@@ -207,12 +207,15 @@ func (u *Uploader) Serve(ctx context.Context) error {
 		u.mu.Unlock()
 		return nil
 	}
-	u.wg.Add(1)
+	u.wg.Add(2)
 	u.mu.Unlock()
 	defer u.wg.Done()
+	go func() {
+		defer u.wg.Done()
+		u.periodicSpaceMonitor(ctx)
+	}()
 
 	u.log.InfoContext(ctx, "uploader server ready", "scan_dir", u.cfg.ScanDir, "scan_period", u.cfg.ScanPeriod.String())
-	go u.periodicSpaceMonitor(ctx)
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  u.cfg.InitialScanDelay,
 		Step:   u.cfg.ScanPeriod,
@@ -277,7 +280,13 @@ func (u *Uploader) periodicSpaceMonitor(ctx context.Context) {
 			// emit that to prometheus as well.
 			usedPercent, err := utils.PercentUsed(u.cfg.ScanDir)
 			if err != nil {
-				u.log.WarnContext(ctx, "Disk space monitoring failed", "error", err)
+				u.log.WarnContext(
+					ctx,
+					"Failed to determine available disk space for audit log uploads. Check file system permissions and disk health.",
+					"scan_dir", u.cfg.ScanDir,
+					"corrupted_dir", u.cfg.CorruptedDir,
+					"error", err,
+				)
 				continue
 			}
 
