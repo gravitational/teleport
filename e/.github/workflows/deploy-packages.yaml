@@ -210,7 +210,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: "./tooling/os-package-repo-tool/go.mod"
           cache-dependency-path: "./tooling/os-package-repo-tool/go.sum"

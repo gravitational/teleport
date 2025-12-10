@@ -67,7 +67,7 @@ jobs:
           environments-directory: e/.environments
 
       - name: Setup tooling Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: "./e/tooling/plugins/go.mod"
           cache-dependency-path: "./e/tooling/plugins/go.sum"

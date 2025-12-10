@@ -221,7 +221,7 @@ jobs:
           sudo chown -Rf "$(id -u):$(id -g)" "$GOCACHE" "$GOMODCACHE"
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           cache: false
           go-version-file: 'go.mod'
