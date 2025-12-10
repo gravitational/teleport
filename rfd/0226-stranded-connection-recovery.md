@@ -108,7 +108,7 @@ to an unhealthy service.
 
 2. Create a new connection if the current connection is unhealthy.
 
-3. Shutdown an unhealthy connection when a health connection is established.
+3. Shutdown an unhealthy connection when a healthy connection is established.
 
 It does this by managing underlying `pick_first` balancers and routing requests
 based on service health.
@@ -199,7 +199,7 @@ policies.
 
 A JSON representation of the policy can be configured on an auth server by setting
 the environment variable `TELEPORT_UNSTABLE_GRPC_CLIENT_LB_POLICY` to the JSON.
-When not pecified the configuration will use a default configuration which will
+When not specified the configuration will use a default configuration which will
 behave exactly like the `pick_first` balancer policy used today.
 
 The default config will use the generated code directly but the JSON
@@ -348,7 +348,7 @@ The behavior results in a suboptimal rollout where an agent may not connect to a
 newer proxy generation before the older generation is terminated.
 
 We are accepting this behavior as preventing it adds complexity, the chances of it
-occuring are low, and the impact is minimal.
+occurring are low, and the impact is minimal.
 
 #### Reducing Discovery Request Traffic
 
