@@ -114,16 +114,22 @@ Disabling an override makes it inactive, falling back to the corresponding
 Teleport self-signed certificate, but retains the configuration. Disables take
 effect immediately.
 
-A disabled override is still considered during CA rotation.
+`tctl auth sub-ca disable-override --type=db-client`
 
-`tctl auth sub-ca disable-override --type=db-client
+Disables are only allowed for keys in the [AdditionalTrustedKeys set](
+https://github.com/gravitational/teleport/blob/3121f066a27a4c24cb330452416a7261147eb2fa/api/proto/teleport/legacy/types/types.proto#L1398),
+meaning it can only happen for new keys during the "init" CA rotation phase. A
+disable may be forced via the `--force-immediate-disable` flag.
 
 ### Alice deletes the "db-client" override
 
 Deleting an override removes it completely, making Teleport use its self-signed
 certificate. Deletes take effect immediately.
 
-`tctl auth sub-ca delete-override --type=db-client
+`tctl auth sub-ca delete-override --type=db-client`
+
+Deletes are only allowed for keys absent from the CA key sets, as a fallback. A
+delete may be forced with the `--force-immediate-delete` flag.
 
 ### Alice performs a "db-client" CA rotation
 
@@ -170,6 +176,9 @@ certificate. Deletes take effect immediately.
     $ tctl auth rotate --manual --type=db-client --phase=update_clients`
     # OK, all overrides are addressed.
     ```
+
+    Once a private key is removed from a CA, Teleport will also remove its
+    corresponding overrides.
 
 ## Details
 
@@ -474,6 +483,8 @@ message AddCertificateOverrideRequest {
   // Value to add or modify.
   // Patches are always additive.
   CertificateOverride certificate_override = 2;
+
+  bool force_immediate_disable = 3;
 }
 
 message AddCertificateOverrideResponse {
@@ -483,6 +494,8 @@ message AddCertificateOverrideResponse {
 message RemoveCertificateOverrideRequest {
   // Certificate override to delete.
   CertificateOverrideTarget target = 1;
+
+  bool force_immediate_delete = 2;
 }
 
 message RemoveCertificateOverrideResponse {}
