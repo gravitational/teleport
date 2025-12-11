@@ -1,0 +1,73 @@
+---
+title: Installer V1 Reference
+description: Provides a reference of fields within the Installer V1 resource, which you can manage with tctl.
+sidebar_label: Installer V1
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: types/types.pb.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `installer`<br/>
+**Version**: `v1`
+
+Represents an installer script resource. Used to provide a script to install teleport on discovered nodes.
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The resource kind.|string|
+|metadata|The resource metadata.|[Metadata](#metadata)|
+|spec|The resource spec.|[Installer Spec V1](#installer-spec-v1)|
+|sub_kind|An optional resource subkind. Currently unused for this resource.|string|
+|version|The resource version.|string|
+
+## Installer Spec V1
+
+The specification for an Installer
+
+
+Example:
+
+```yaml
+script: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|script|Represents the contents of a installer shell script|string|
+
+## Metadata
+
+Resource metadata
+
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+

@@ -15,10 +15,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"testing"
+	"testing/synctest"
+	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/peterbourgon/diskv/v3"
 	"github.com/stretchr/testify/require"
 
@@ -40,8 +44,52 @@ func TestConsumeSessionNoEventsFound(t *testing.T) {
 		client: &mockClient{},
 		log:    slog.Default(),
 	})
-	_, err := j.consumeSession(context.Background(), session{ID: sessionID})
+	_, err := j.consumeSession(t.Context(), session{ID: sessionID})
 	require.NoError(t, err)
+}
+
+// TestIngestSession tests that the ingestSession method returns without error if a malformed
+// session event is processed.
+func TestIngestSession(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		startTime := time.Now().Add(-time.Minute)
+		out := &bytes.Buffer{}
+		log := slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: slog.LevelError}))
+
+		j := NewSessionEventsJob(&App{
+			Config: &StartCmdConfig{
+				IngestConfig: IngestConfig{
+					StorageDir:       t.TempDir(),
+					Timeout:          time.Second,
+					BatchSize:        100,
+					Concurrency:      5,
+					StartTime:        &startTime,
+					SkipSessionTypes: map[string]struct{}{"print": {}, "desktop.recording": {}},
+					WindowSize:       time.Hour * 24,
+					DryRun:           true,
+				},
+			},
+			State: &State{
+				dv: diskv.New(diskv.Options{
+					BasePath: t.TempDir(),
+				}),
+			},
+			client: &mockClient{},
+			log:    log,
+		})
+
+		j.processSessionFunc = func(ctx context.Context, s session, processingAttempt int) error {
+			return trace.LimitExceeded("Session ingestion exceeded attempt limit")
+		}
+
+		err := j.ingestSession(t.Context(), session{ID: "test"}, 0, nil)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		require.Contains(t, out.String(), "Failed processing session recording")
+		require.Contains(t, out.String(), "Session ingestion exceeded attempt limit")
+	})
 }
 
 type mockClient struct {

@@ -277,6 +277,8 @@ version: v3
 
 </details>
 
+(!docs/pages/includes/sso/username-claim.mdx!)
+
 ### Test the connector
 
 Now test the connector resource by piping the file to `tctl sso test` command:
@@ -286,29 +288,6 @@ $ cat entraid-oidc-connector.yaml | tctl sso test
 ```
 If the configuration test fails, the `tctl sso test` command will print helpful 
 information to debug the issue.
-
-By default, Teleport expects an `email` claim to be present in the OIDC claim. 
-The value from the `email` claim is used as a username in Teleport. If you wish 
-to use another claim to configure username, you can override the 
-default expected `email` claim with the `username_claim` field in the Auth 
-Connector spec. 
-
-The example below shows configuring the `username_claim` field with `preferred_username`
-value. This will configure Teleport to query `preferred_username` claim instead 
-of the `email` claim. 
-```yaml
-kind: oidc
-metadata:
-  name: entra-id
-spec:
-  ... # other fields not displayed for brevity
-  username_claim: preferred_username
-```
-
-<Admonition type="warning" title="Username claim">
-  Ensure that the claim value you use to configure `username_claim` is a uniquely
-  identifiable value for the user. 
-</Admonition>
 
 ### Create the connector
 

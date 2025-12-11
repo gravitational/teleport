@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math"
 	"os"
 	"reflect"
@@ -47,7 +46,6 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
@@ -62,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -122,7 +121,6 @@ Same as above, but using JSON output:
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
 		types.KindTrustedCluster:              rc.createTrustedCluster,
-		types.KindCertAuthority:               rc.createCertAuthority,
 		types.KindClusterMaintenanceConfig:    rc.createClusterMaintenanceConfig,
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
@@ -131,19 +129,15 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindDevice:                      rc.createDevice,
 		types.KindOktaImportRule:              rc.createOktaImportRule,
 		types.KindIntegration:                 rc.createIntegration,
-		types.KindDynamicWindowsDesktop:       rc.createDynamicWindowsDesktop,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindAccessMonitoringRule:        rc.createAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
 		types.KindPlugin:                      rc.createPlugin,
-		types.KindUserTask:                    rc.createUserTask,
 		types.KindHealthCheckConfig:           rc.createHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment: rc.createScopedRoleAssignment,
-		types.KindInferenceModel:              rc.createInferenceModel,
-		types.KindInferenceSecret:             rc.createInferenceSecret,
 		types.KindInferencePolicy:             rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
@@ -151,12 +145,9 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindCrownJewel:                  rc.updateCrownJewel,
 		types.KindVnetConfig:                  rc.updateVnetConfig,
 		types.KindPlugin:                      rc.updatePlugin,
-		types.KindUserTask:                    rc.updateUserTask,
-		types.KindDynamicWindowsDesktop:       rc.updateDynamicWindowsDesktop,
 		types.KindHealthCheckConfig:           rc.updateHealthCheckConfig,
 		scopedaccess.KindScopedRole:           rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment: rc.updateScopedRoleAssignment,
-		types.KindInferenceModel:              rc.updateInferenceModel,
 		types.KindInferencePolicy:             rc.updateInferencePolicy,
 	}
 	rc.config = config
@@ -451,19 +442,6 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	return nil
 }
 
-// createCertAuthority creates certificate authority
-func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	certAuthority, err := services.UnmarshalCertAuthority(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := client.UpsertCertAuthority(ctx, certAuthority); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("certificate authority %q has been updated\n", certAuthority.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	var cmc types.ClusterMaintenanceConfigV1
 	if err := utils.FastUnmarshal(raw.Raw, &cmc); err != nil {
@@ -522,45 +500,6 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 	return nil
 }
 
-func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	dynamicDesktopClient := client.DynamicDesktopClient()
-	if _, err := dynamicDesktopClient.CreateDynamicWindowsDesktop(ctx, wd); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("application %q already exists", wd.GetName())
-			}
-			if _, err := dynamicDesktopClient.UpsertDynamicWindowsDesktop(ctx, wd); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	dynamicDesktopClient := client.DynamicDesktopClient()
-	if _, err := dynamicDesktopClient.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -600,28 +539,6 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown jewel %q has been created\n", crownJewel.GetMetadata().GetName())
-	}
-
-	return nil
-}
-
-func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	resource, err := services.UnmarshalUserTask(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	c := client.UserTasksServiceClient()
-	if rc.force {
-		if _, err := c.UpsertUserTask(ctx, resource); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user task %q has been updated\n", resource.GetMetadata().GetName())
-	} else {
-		if _, err := c.CreateUserTask(ctx, resource); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user task %q has been created\n", resource.GetMetadata().GetName())
 	}
 
 	return nil
@@ -712,18 +629,6 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
-	in, err := services.UnmarshalUserTask(resource.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.UserTasksServiceClient().UpdateUserTask(ctx, in); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("user task %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
 
@@ -1000,26 +905,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindDynamicWindowsDesktop:
-		if err = client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
-	case types.KindCertAuthority:
-		if rc.ref.SubKind == "" || rc.ref.Name == "" {
-			return trace.BadParameter(
-				"full %s path must be specified (e.g. '%s/%s/clustername')",
-				types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
-			)
-		}
-		err := client.DeleteCertAuthority(ctx, types.CertAuthID{
-			Type:       types.CertAuthType(rc.ref.SubKind),
-			DomainName: rc.ref.Name,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, rc.ref.SubKind, rc.ref.Name)
 	case types.KindKubeServer:
 		servers, err := client.GetKubernetesServers(ctx)
 		if err != nil {
@@ -1066,12 +951,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
-
-	case types.KindUserTask:
-		if err := client.UserTasksServiceClient().DeleteUserTask(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
 
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
@@ -1127,10 +1006,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
-	case types.KindInferenceModel:
-		return trace.Wrap(rc.deleteInferenceModel(ctx, client))
-	case types.KindInferenceSecret:
-		return trace.Wrap(rc.deleteInferenceSecret(ctx, client))
 	case types.KindInferencePolicy:
 		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	default:
@@ -1231,30 +1106,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
-	case types.KindCertAuthority:
-		getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
-		if getAll {
-			var allAuthorities []types.CertAuthority
-			for _, caType := range types.CertAuthTypes {
-				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
-				if err != nil {
-					if trace.IsBadParameter(err) {
-						slog.WarnContext(ctx, "failed to get certificate authority; skipping", "error", err)
-						continue
-					}
-					return nil, trace.Wrap(err)
-				}
-				allAuthorities = append(allAuthorities, authorities...)
-			}
-			return &authorityCollection{cas: allAuthorities}, nil
-		}
-
-		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
-		authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
 			// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
@@ -1377,24 +1228,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &crownJewelCollection{items: jewels}, nil
-	case types.KindDynamicWindowsDesktop:
-		dynamicDesktopClient := client.DynamicDesktopClient()
-		if rc.ref.Name != "" {
-			desktop, err := dynamicDesktopClient.GetDynamicWindowsDesktop(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &dynamicWindowsDesktopCollection{
-				desktops: []types.DynamicWindowsDesktop{desktop},
-			}, nil
-		}
-
-		desktops, err := stream.Collect(clientutils.Resources(ctx, dynamicDesktopClient.ListDynamicWindowsDesktops))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name
@@ -1580,23 +1413,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &integrationCollection{integrations: resources}, nil
-	case types.KindUserTask:
-		userTasksClient := client.UserTasksClient()
-		if rc.ref.Name != "" {
-			uit, err := userTasksClient.GetUserTask(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &userTaskCollection{items: []*usertasksv1.UserTask{uit}}, nil
-		}
-
-		tasks, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*usertasksv1.UserTask, string, error) {
-			return userTasksClient.ListUserTasks(ctx, int64(limit), token, &usertasksv1.ListUserTasksFilters{})
-		}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &userTaskCollection{items: tasks}, nil
 	case types.KindAuditQuery:
 		if rc.ref.Name != "" {
 			auditQuery, err := client.SecReportsClient().GetSecurityAuditQuery(ctx, rc.ref.Name)
@@ -1704,21 +1520,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &scopedRoleCollection{items: []*scopedaccessv1.ScopedRole{rsp.Role}}, nil
 		}
 
-		var items []*scopedaccessv1.ScopedRole
-		var cursor string
-		for {
-			rsp, err := client.ScopedAccessServiceClient().ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{
-				PageToken: cursor,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items = append(items, rsp.Roles...)
-			cursor = rsp.NextPageToken
-			if cursor == "" {
-				break
-			}
+		items, err := stream.Collect(scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
@@ -1733,21 +1537,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &scopedRoleAssignmentCollection{items: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
 		}
 
-		var items []*scopedaccessv1.ScopedRoleAssignment
-		var cursor string
-		for {
-			rsp, err := client.ScopedAccessServiceClient().ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{
-				PageToken: cursor,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items = append(items, rsp.Assignments...)
-			cursor = rsp.NextPageToken
-			if cursor == "" {
-				break
-			}
+		items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleAssignmentCollection{items: items}, nil
 	case types.KindRelayServer:
@@ -1766,12 +1558,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			c = append(c, types.ProtoResource153ToLegacy(rs))
 		}
 		return c, nil
-	case types.KindInferenceModel:
-		models, err := rc.getInferenceModels(ctx, client)
-		return models, trace.Wrap(err)
-	case types.KindInferenceSecret:
-		secrets, err := rc.getInferenceSecrets(ctx, client)
-		return secrets, trace.Wrap(err)
 	case types.KindInferencePolicy:
 		policies, err := rc.getInferencePolicies(ctx, client)
 		return policies, trace.Wrap(err)

@@ -644,6 +644,9 @@ type Global struct {
 
 	// DiagAddr is the address to expose a diagnostics HTTP endpoint.
 	DiagAddr string `yaml:"diag_addr"`
+
+	// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+	AuthConnectionConfig AuthConnectionConfig `yaml:"auth_connection_config,omitempty"`
 }
 
 // CachePolicy is used to control  local cache
@@ -677,6 +680,30 @@ func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &out, nil
+}
+
+// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+type AuthConnectionConfig struct {
+	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
+	UpperLimitBetweenRetries time.Duration `yaml:"upper_limit_between_retries,omitempty"`
+	// InitialConnectionDelay is the initial delay before the first retry attempt.
+	// The retry logic will apply jitter to this duration.
+	InitialConnectionDelay time.Duration `yaml:"initial_connection_delay,omitempty"`
+	// BackoffStepDuration is the amount of time added to the retry delay.
+	BackoffStepDuration time.Duration `yaml:"backoff_step_duration,omitempty"`
+}
+
+// Parse parses [servicecfg.AuthConnectionConfig] from Teleport config
+func (c *AuthConnectionConfig) Parse() (*servicecfg.AuthConnectionConfig, error) {
+	out := &servicecfg.AuthConnectionConfig{
+		UpperLimitBetweenRetries: c.UpperLimitBetweenRetries,
+		InitialConnectionDelay:   c.InitialConnectionDelay,
+		BackoffStepDuration:      c.BackoffStepDuration,
+	}
+	if err := out.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err, "failed to parse auth_connection_config")
+	}
+	return out, nil
 }
 
 // Service is a common configuration of a teleport service
@@ -1952,6 +1979,8 @@ type AzureMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// ResourceTags are Azure tags on resources to match.
 	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// Integration is the Azure Integration name.
+	Integration string `yaml:"integration,omitempty"`
 	// InstallParams sets the join method when installing on
 	// discovered Azure nodes.
 	InstallParams *InstallParams `yaml:"install,omitempty"`

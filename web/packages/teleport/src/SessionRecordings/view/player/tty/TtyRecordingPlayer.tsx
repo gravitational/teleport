@@ -27,11 +27,10 @@ import { RecordingPlayer, type RecordingPlayerProps } from '../RecordingPlayer';
 import { decodeTtyEvent } from './decoding';
 import { EventType, type TtyEvent } from './types';
 
-interface TtyRecordingPlayerProps
-  extends Omit<
-    RecordingPlayerProps<TtyEvent>,
-    'decodeEvent' | 'endEventType' | 'player' | 'ws'
-  > {
+interface TtyRecordingPlayerProps extends Omit<
+  RecordingPlayerProps<TtyEvent>,
+  'decodeEvent' | 'endEventType' | 'player' | 'ws'
+> {
   clusterId: string;
   sessionId: string;
   initialCols: number;

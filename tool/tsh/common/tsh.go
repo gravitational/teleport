@@ -190,6 +190,8 @@ type CLIConf struct {
 	AssumeStartTimeRaw string
 	// ResourceKind is the resource kind to search for
 	ResourceKind string
+	// RequestableRoles allows users to search for requestable roles.
+	RequestableRoles bool
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// ExplicitUsername is true if Username was initially set by the end-user
@@ -1367,10 +1369,24 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
-	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).", strings.Join(types.RequestableResourceKinds, ", "))).Required().StringVar(&cf.ResourceKind)
+	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).  Mutually exclusive with --roles.", strings.Join(types.RequestableResourceKinds, ", "))).StringVar(&cf.ResourceKind)
+	reqSearch.Flag("roles", "List requestable roles instead of searching for resources. Mutually exclusive with --kind.").BoolVar(&cf.RequestableRoles)
 	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployments, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
+	reqSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
+		if cf.RequestableRoles && cf.ResourceKind != "" {
+			return trace.BadParameter("only one of --kind and --roles may be specified")
+		}
+		if !cf.RequestableRoles && cf.ResourceKind == "" {
+			return trace.BadParameter("one of --kind and --roles is required")
+		}
+
+		// in --roles mode we don't care about resource kinds or kube flags.
+		if cf.RequestableRoles {
+			return nil
+		}
+
 		// TODO(@creack): DELETE IN v20.0.0. Allow legacy kinds with a warning for now.
 		if slices.Contains(types.LegacyRequestableKubeResourceKinds, cf.ResourceKind) {
 			cf.kubeAPIGroup = types.KubernetesResourcesV7KindGroups[cf.ResourceKind]
@@ -1434,6 +1450,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 	// SCAN subcommands.
 	scan := newScanCommand(app)
+	// scopes subcommands.
+	scopes := newScopesCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
@@ -1800,6 +1818,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.join.run(&cf)
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
+	case scopes.ls.FullCommand():
+		err = scopes.ls.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case proxyDB.FullCommand():
@@ -3142,6 +3162,9 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		}); err != nil {
 			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
 				return trace.BadParameter("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
+			}
+			if strings.Contains(err.Error(), services.CannotRequestRole) {
+				return trace.BadParameter("%s\nHint: run \"tsh request search --roles\" to list requestable roles.", err.Error())
 			}
 			return trace.Wrap(err)
 		}
@@ -6221,7 +6244,8 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	const ignoreRelayFalse = false
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc, ignoreRelayFalse)
 	if err != nil {
 		return trace.Wrap(err)
 	}

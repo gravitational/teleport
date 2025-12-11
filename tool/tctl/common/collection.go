@@ -36,7 +36,6 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -45,7 +44,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -77,43 +75,6 @@ func printMetadataLabels(labels map[string]string) string {
 		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
 	}
 	return strings.Join(pairs, ",")
-}
-
-type authorityCollection struct {
-	cas []types.CertAuthority
-}
-
-func (a *authorityCollection) Resources() (r []types.Resource) {
-	for _, resource := range a.cas {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (a *authorityCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
-	for _, a := range a.cas {
-		for _, key := range a.GetTrustedSSHKeyPairs() {
-			fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
-			if err != nil {
-				fingerprint = fmt.Sprintf("<bad key: %v>", err)
-			}
-			var roles string
-			if a.GetType() == types.HostCA {
-				roles = "N/A"
-			} else {
-				roles = fmt.Sprintf("%v", a.CombinedMapping())
-			}
-			t.AddRow([]string{
-				a.GetClusterName(),
-				string(a.GetType()),
-				fingerprint,
-				roles,
-			})
-		}
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
 }
 
 type reverseTunnelCollection struct {
@@ -338,35 +299,6 @@ func (c *databaseServerCollection) writeJSON(w io.Writer) error {
 
 func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
-}
-
-type dynamicWindowsDesktopCollection struct {
-	desktops []types.DynamicWindowsDesktop
-}
-
-func (c *dynamicWindowsDesktopCollection) Resources() (r []types.Resource) {
-	r = make([]types.Resource, 0, len(c.desktops))
-	for _, resource := range c.desktops {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, d := range c.desktops {
-		labels := common.FormatLabels(d.GetAllLabels(), verbose)
-		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
-	}
-	headers := []string{"Name", "Address", "AD Domain", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
 }
 
 type kubeServerCollection struct {
@@ -828,6 +760,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsEmailAccessPlugin         = "email_access_plugin"
 		settingsAWSIdentityCenter         = "aws_ic"
 		settingsNetIQ                     = "net_iq"
+		settingsMsteams                   = "msteams"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -912,6 +845,8 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsNetIQ:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_NetIq{}
 			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
+		case settingsMsteams:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Msteams{}
 
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
@@ -940,35 +875,6 @@ func (c *pluginCollection) WriteText(w io.Writer, verbose bool) error {
 			plugin.GetStatus().GetCode().String(),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type userTaskCollection struct {
-	items []*usertasksv1.UserTask
-}
-
-func (c *userTaskCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
-	}
-	return r
-}
-
-// writeText formats the user tasks into a table and writes them into w.
-// If verbose is disabled, labels column can be truncated to fit into the console.
-func (c *userTaskCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, item := range c.items {
-		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
-		rows = append(rows, []string{item.Metadata.GetName(), labels, item.Spec.TaskType, item.Spec.IssueType, item.Spec.GetIntegration()})
-	}
-	headers := []string{"Name", "Labels", "TaskType", "IssueType", "Integration"}
-	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

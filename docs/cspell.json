@@ -27,6 +27,7 @@
     "Afax",
     "Agentic",
     "Aqxs",
+    "Authenticode",
     "Authy",
     "BDRVJUSUZ",
     "BSFD",
@@ -90,6 +91,7 @@
     "GHES",
     "GODEBUG",
     "GOMAXPROCS",
+    "GOMEMLIMIT",
     "GSLB",
     "Gbps",
     "Ghostunnel",
@@ -418,6 +420,7 @@
     "clusterroles",
     "cmdkey",
     "cockroachdb",
+    "codesign",
     "codingllama",
     "compat",
     "compinit",
@@ -784,6 +787,7 @@
     "norc",
     "nosql",
     "notifempty",
+    "notionhq",
     "nowait",
     "ntauth",
     "nvme",
@@ -822,6 +826,7 @@
     "pgbouncer",
     "pgpass",
     "pguser",
+    "pipx",
     "pidof",
     "pkill",
     "pkinit",
@@ -1131,9 +1136,10 @@
     "hte"
   ],
   "ignorePaths": [
+    "**/includes/access-monitoring-events.mdx",
+    "**/includes/reference/code-blocks-no-cspell/**",
     "**/reference/infrastructure-as-code/operator-resources/**",
-    "**/reference/infrastructure-as-code/terraform-provider/**",
     "**/reference/infrastructure-as-code/teleport-resources/**",
-    "**/includes/reference/code-blocks-no-cspell/**"
+    "**/reference/infrastructure-as-code/terraform-provider/**"
   ]
 }
