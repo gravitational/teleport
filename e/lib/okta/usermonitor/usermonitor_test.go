@@ -2,6 +2,7 @@ package usermontior
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -76,8 +77,8 @@ func TestReconcile(t *testing.T) {
 				newLock(t, "lock5", types.LockTarget{AccessRequest: "some-access-request-1"}),
 			},
 			expectedStates: []*userloginstate.UserLoginState{
-				newUserLoginState(t, "user1", []string{"role1", "role2"}, []string{"role1", "role2"}, types.UserTypeSSO),
-				newUserLoginState(t, "user2", []string{"role1"}, []string{"role1"}, types.UserTypeSSO),
+				newUserLoginState(t, "user1", []string{"role1", "role2"}, nil, types.UserTypeSSO),
+				newUserLoginState(t, "user2", []string{"role1"}, nil, types.UserTypeSSO),
 			},
 			expectedLocks: map[string]types.LockTarget{
 				"lock1": {User: "some-user1"},
@@ -97,12 +98,12 @@ func TestReconcile(t *testing.T) {
 				newUser(t, "user2", types.UserTypeSSO, "role1"),
 			},
 			states: []*userloginstate.UserLoginState{
-				newUserLoginState(t, "user1", []string{}, []string{"role1", "role2"}, types.UserTypeSSO),
-				newUserLoginState(t, "user2", []string{}, []string{"role1", "role2"}, types.UserTypeSSO),
+				newUserLoginState(t, "user1", nil, []string{"role1", "role2"}, types.UserTypeSSO),
+				newUserLoginState(t, "user2", nil, []string{"role1", "role2"}, types.UserTypeSSO),
 			},
 			expectedStates: []*userloginstate.UserLoginState{
-				newUserLoginState(t, "user1", []string{"role1", "role2"}, []string{"role1", "role2"}, types.UserTypeSSO),
-				newUserLoginState(t, "user2", []string{"role1"}, []string{"role1"}, types.UserTypeSSO),
+				newUserLoginState(t, "user1", []string{"role1", "role2"}, nil, types.UserTypeSSO),
+				newUserLoginState(t, "user2", []string{"role1"}, nil, types.UserTypeSSO),
 			},
 			expectedLocks: map[string]types.LockTarget{},
 		},
@@ -113,12 +114,12 @@ func TestReconcile(t *testing.T) {
 				newRole(t, "role2"),
 			},
 			states: []*userloginstate.UserLoginState{
-				newUserLoginState(t, "user1", []string{"role1", "role2"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
-				newUserLoginState(t, "user2", []string{"role1"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
+				newUserLoginState(t, "user1", []string{"role1", "role2"}, []string{"role3", "role4"}, types.UserTypeSSO),
+				newUserLoginState(t, "user2", []string{"role1"}, []string{"role3", "role4"}, types.UserTypeSSO),
 			},
 			expectedStates: []*userloginstate.UserLoginState{
-				newUserLoginState(t, "user1", []string{"role1", "role2"}, []string{"role1", "role2"}, types.UserTypeSSO),
-				newUserLoginState(t, "user2", []string{"role1"}, []string{"role1"}, types.UserTypeSSO),
+				newUserLoginState(t, "user1", []string{"role1", "role2"}, nil, types.UserTypeSSO),
+				newUserLoginState(t, "user2", []string{"role1"}, nil, types.UserTypeSSO),
 			},
 			expectedLocks: map[string]types.LockTarget{},
 		},
@@ -230,7 +231,7 @@ func TestProcessEvent(t *testing.T) {
 				},
 			},
 			errAssert:     require.NoError,
-			expected:      newUserLoginState(t, userName, []string{"role1", "role4"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
+			expected:      newUserLoginState(t, userName, []string{"role1", "role4"}, []string{"role2", "role3"}, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
@@ -256,7 +257,7 @@ func TestProcessEvent(t *testing.T) {
 				},
 			},
 			errAssert: require.NoError,
-			expected:  newUserLoginState(t, userName, []string{"role1"}, []string{"role1"}, types.UserTypeSSO),
+			expected:  newUserLoginState(t, userName, []string{"role1"}, nil, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{
 				userName: {User: userName},
 			},
@@ -297,7 +298,7 @@ func TestProcessEvent(t *testing.T) {
 				},
 			},
 			errAssert:     require.NoError,
-			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
@@ -347,7 +348,7 @@ func TestProcessEvent(t *testing.T) {
 				},
 			},
 			errAssert:     require.NoError,
-			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
@@ -356,7 +357,7 @@ func TestProcessEvent(t *testing.T) {
 				addUser(t, as, userName, types.UserTypeSSO, "role1")
 				addRoles(t, as, "role2", "role3")
 
-				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO)
+				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO)
 
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 
@@ -398,7 +399,7 @@ func TestProcessEvent(t *testing.T) {
 				},
 			},
 			errAssert:     require.NoError,
-			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{},
 			expectedOktaAssignmentTargets: []types.OktaAssignmentTarget{
 				&types.OktaAssignmentTargetV1{
@@ -414,7 +415,7 @@ func TestProcessEvent(t *testing.T) {
 				addRoles(t, as, "role2", "role3", "role4")
 
 				// User should lose access to role4
-				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO)
+				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role2", "role3", "role4"}, types.UserTypeSSO)
 
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 				addAccessList(t, as, "access-list2", []string{"role4"})
@@ -428,7 +429,7 @@ func TestProcessEvent(t *testing.T) {
 				},
 			},
 			errAssert:     require.NoError,
-			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
@@ -436,7 +437,7 @@ func TestProcessEvent(t *testing.T) {
 			setup: func(t *testing.T, as *auth.Server) {
 				addRoles(t, as, "role1", "role2", "role3", "role4")
 				// User should lose access to role4
-				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO)
+				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role2", "role3", "role4"}, types.UserTypeSSO)
 
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 				addAccessList(t, as, "access-list2", []string{"role4"})
@@ -450,7 +451,7 @@ func TestProcessEvent(t *testing.T) {
 				},
 			},
 			errAssert:     require.NoError,
-			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO),
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
@@ -458,7 +459,7 @@ func TestProcessEvent(t *testing.T) {
 			setup: func(t *testing.T, as *auth.Server) {
 				addRoles(t, as, "role1", "role2", "role3", "role4")
 				// User should gain access to role4
-				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role1", "role2", "role3"}, types.UserTypeSSO)
+				addUserLoginState(t, as, userName, []string{"role1"}, []string{"role2", "role3"}, types.UserTypeSSO)
 
 				addAccessList(t, as, "access-list1", []string{"role2", "role3"}, userName)
 			},
@@ -474,7 +475,7 @@ func TestProcessEvent(t *testing.T) {
 				},
 			},
 			errAssert:     require.NoError,
-			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role1", "role2", "role3", "role4"}, types.UserTypeSSO),
+			expected:      newUserLoginState(t, userName, []string{"role1"}, []string{"role2", "role3", "role4"}, types.UserTypeSSO),
 			expectedLocks: map[string]types.LockTarget{},
 		},
 		{
@@ -750,15 +751,16 @@ func addUserLoginState(t *testing.T, as *auth.Server, name string, originalRoles
 	require.NoError(t, err)
 }
 
-func newUserLoginState(t *testing.T, name string, originalRoles, roles []string, userType types.UserType) *userloginstate.UserLoginState {
+func newUserLoginState(t *testing.T, name string, originalRoles, accessListRoles []string, userType types.UserType) *userloginstate.UserLoginState {
 	t.Helper()
 
 	uls, err := userloginstate.New(header.Metadata{
 		Name: name,
 	}, userloginstate.Spec{
-		OriginalRoles: originalRoles,
-		Roles:         roles,
-		UserType:      userType,
+		OriginalRoles:   originalRoles,
+		Roles:           slices.Concat(originalRoles, accessListRoles),
+		AccessListRoles: accessListRoles,
+		UserType:        userType,
 	})
 	require.NoError(t, err)
 
