@@ -39,20 +39,20 @@ The scope of work proposed by this RFD is:
 
 - A `ScopedToken` resource type and API that is itself guarded by the new
   scoped access rules.
-- Support for provisioning using the "token" join method.
 - Support for static and ephemeral tokens.
+- Support for provisioning hosts using all join methods other than
+  `bound_keypair`.
 - Support for configuring an `assigned_scope` on a scoped token which will
   in turn be assigned to joining nodes at provisioning time.
 - Support for configuring a scoped token with a set of labels that are
   automatically assigned to SSH nodes at provisioning time.
-- Support for single use (oneshot) tokens.
+- Support for single use tokens.
 - New `scoped` variants of the `tctl tokens *` family of sub commands.
 
 Considered out of scope for this RFD:
 
-- Token types other than static and ephemeral tokens or join methods other than
-  "token". Other join methods will almost certainly be implemented in the
-  future but are not part of the immediately planned work.
+- Scoped joining for machine and workload identity. This means the
+  `bound_keypair` join method will not be initially supported.
 
 ### Scoped tokens
 
@@ -97,34 +97,62 @@ to facilitate existing provisioning semantics.
 +  // Supported joining methods for scoped tokens only include 'token'.
 +  string join_method = 3;
 +
-+  // The usage mode of the token. Can be "oneshot" or "unlimited". Oneshot
++  // The usage mode of the token. Can be "single_use" or "unlimited". Single use
 +  // tokens can only be used to provision a single resource. Unlimited tokens
 +  // can be be used to provision any number of resources until it expires.
 +  string mode = 4;
 +
-+  // Immutable labels that should be encoded into the certificate of an
-+  // SSH node provisioned using this token.
-+  map<string, string> ssh_labels = 5;
++  // Immutable labels that should be applied to any resulting resources
++  // provisioned by using this token.
++  ImmutableLabels immutable_labels = 5;
 +}
 +
-+// The usage status of a oneshot token.
-+message OneshotStatus {
-+  // The timestamp representing when a oneshot token was successfully used for
++// A set of configurations for immutable labels.
++message ImmutableLabels {
++  oneof labels {
++    // A map of labels that should be used when a simple, static set of labels
++    // is sufficient.
++    map<string, string> simple = 1;
++  }
++}
++
++// The host certificate parameters that should be cached and leveraged for
++// token reuse
++message HostCertParams {
++  // The host ID generated for the host.
++  string host_id = 1;
++  // The host's name.
++  string node_name = 2;
++  // The system role of the host
++  string role = 3;
++  // The additional principals to include
++  repeated string additional_principals = 4;
++  // The scope to assign the host to.
++  string assigned_scope = 5;
++}
++
++// The usage status of a single use token.
++message SingleUseStatus {
++  // The timestamp representing when a single use token was successfully used for
 +  // provisioning.
 +  google.protobuf.Timestamp used_at = 1;
-+  // The timestamp representing when a oneshot token should no longer be available
++  // The timestamp representing when a single use token should no longer be available
 +  // for idempotent retries.
 +  google.protobuf.Timestamp reusable_until = 2;
-+  // The public key of the host that used the token.
-+  bytes used_by_public_key = 3;
++  // The fingerprint of the public key provided by the host that used the token.
++  bytes used_by_fingerprint = 3;
++  // The relevant host parameters provided while initially using a single use token.
++  // Attempts to reuse the token will apply these same parameters while regenerating
++  // certificates.
++  bytes host_cert_params = 4;
 +}
 +
 +// The status of a scoped token.
 +message ScopedTokenStatus {
 +  // The usage status of the token.
 +  oneof usage {
-+    // The usage status of a oneshot token.
-+    OneshotStatus oneshot = 1;
++    // The usage status of a single use token.
++    SingleUseStatus single_use = 1;
 +  }
 +  // The secret that must be provided along with the token's name in order to
 +  // be used.
@@ -166,37 +194,47 @@ clients' access to the agent itself.
 Scoped tokens should also support automatic assignment of immutable labels to
 any provisioned Teleport SSH agents. This document only proposes support for
 Teleport SSH agents as applying them to other scoped Teleport services (i.e.
-Application, Database, etc.) introduces significant complexity. The
-`ssh_labels` field of a `ScopedToken` will be encoded into the resulting host
-certificates in much the same way as the `assigned_scope`. These labels will be
-extracted while registering the inventory control stream and applied as a new
-`token_labels` field stored in `ServerSpecV2`. Future heartbeats will verify
-`token_labels` just as they do for static labels and command labels.
+Application, Database, etc.) introduces significant complexity. However the
+proposed message structure is intended to allow extension for more complex
+cases. The `immutable_labels` field of a `ScopedToken` will be encoded into the
+resulting host certificates in much the same way as the `assigned_scope`. These
+labels will be extracted while registering the inventory control stream and
+applied as a new `token_labels` field stored in `ServerSpecV2`. Future
+heartbeats will verify `token_labels` just as they do for static labels and
+command labels.
 
 Merging token-assigned labels with static labels was also considered as a way
 to more easily integrate with existing flows surrounding labels, but ultimately
 decided against. Adding a new set of labels eliminates any ambiguity around
 conflict resolution and allows for future security controls that select on
-labels that cannot be maliciously escaped.
+labels that cannot be maliciously escaped. That said, token labels will be
+combined with static labels in contexts that call for it (e.g.
+`ServerV2.GetAllLabels()`). In these cases, the token labels will take ultimate
+precedence and cannot be overridden by either static or dynamic labels.
 
 In order to prevent inflating the weight of the resulting host certificates,
 the `token_labels` will initially be limited to a total size of 2kb. This limit
-will only be enforced when generating the host certificates in order to allow
-future adjustments to sizing without requiring agent upgrades.
+will only be enforced during token creation in order to allow easy adjustments
+to sizing without creating consistency issues if the entire control plane is
+not upgraded at the same time.
 
-### Oneshot tokens
+### Single use tokens
 
-Single use, or oneshot, tokens provide a simple way of enforcing that a given
-token can only be used to provision a single resource. A oneshot token can
-be created by setting the `mode` field of a scoped token's spec to `oneshot`.
-This will be implemented as first-come-first-served by recording the first
-joining host's public key in the `status.used_by_public_key` field of the
-scoped token used. Once a token has recorded a public key it will no longer be
-usable by any other hosts. This could also be controlled by a boolean, but
-using the public key allows for reuse of the oneshot token by the same host as
-long as it provides the same public key. This is useful in cases where the host
-fails to join after credentials have been issued due to some transient error
-receiving or storing those credentials.
+Single use tokens provide a simple way of enforcing that a given token can only
+be used to provision a single node. A single use token can be created by
+setting the `mode` field of a scoped token's spec to `single_use`. This will be
+implemented as first-come-first-served by recording the fingerprint of the
+first joining host's public key in the `status.used_by_fingerprint` field of
+the scoped token used. Once a token has recorded a fingerprint it will no
+longer be usable by any other hosts. This could also be controlled by a
+boolean, but using the fingerprint allows for reuse of the single use token by
+the same host as long as it provides the same public key. This is convenient in
+cases where the host fails to join after credentials have been issued due to
+some transient error receiving or storing those credentials. Some of the fields
+relevant to certificate generation are also included in the
+`status.host_cert_params` field. When a single use token is reused, these
+values should override any values already present in the join attempt when
+regenerating the certificate.
 
 In order to prevent indefinite reuse of a token by a given host, the
 `reusable_until` field will be set with an expiration timestamp representing 30
@@ -220,7 +258,8 @@ access credentials.
 The scoped variant of `tctl token add` will also replace the optional `--value`
 flag with `--name` to better represent what the flag influences. The `--value`
 override will not be implemented as the secret will be automatically generated
-at token creation.
+at token creation. When a name is not explicitly provided, a UUIDv4 will be
+used to more easily differentiate the token's name from the secret.
 
 Below are examples for each of the sub commands that will be implemented as
 part of this RFD.
@@ -241,7 +280,7 @@ $ tctl scoped tokens add \
 ```
 
 ```bash
-# adding a oneshot scoped token that will assign a provisioned resource to the
+# adding a single use scoped token that will assign a provisioned resource to the
 # /staging/west scope and automatically assign labels
 $ tctl scoped tokens add \
   --type=node \
@@ -249,7 +288,7 @@ $ tctl scoped tokens add \
   --assign-scope=/staging/west \
   # --ssh-labels follows the same format as the common --labels flag
   --ssh-labels=env=staging,hello=world \
-  --mode oneshot
+  --mode single_use
 ```
 
 ```bash
@@ -328,4 +367,4 @@ should still be accessible to unscoped identities using the `editor` role.
   - Assigned the correct scope
   - Assigned the token's `--ssh-labels`
   - Assigned a certificate containing their assigned scope and token labels
-- Oneshot Scoped tokens are not usable more than once.
+- Single use scoped tokens are not usable more than once.
