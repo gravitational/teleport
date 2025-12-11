@@ -1,6 +1,5 @@
 locals {
   create                = var.create
-  discover_organization = false # TODO(gavin): impl org discovery
   name_prefix = (
     var.name_prefix != ""
     ? "${trimsuffix(var.name_prefix, "-")}-"
@@ -104,7 +103,6 @@ locals {
     var.teleport_discovery_service_iam_policy_name,
     local.default_aws_resource_name,
   )}"
-  teleport_discovery_service_organization_account_iam_policy = "" # TODO(gavin): impl org discovery
 }
 
 data "aws_iam_policy_document" "teleport_discovery_service_single_account_iam_policy" {
@@ -130,12 +128,8 @@ resource "aws_iam_policy" "teleport_discovery_service" {
   description = "AWS IAM policy that grants the permissions needed for Teleport to discover resources in AWS."
   name        = local.teleport_discovery_service_iam_policy_name
   path        = "/"
-  policy = (
-    local.discover_organization
-    ? local.teleport_discovery_service_organization_account_iam_policy
-    : data.teleport_discovery_service_single_account_iam_policy.json
-  )
-  tags = local.tags
+  policy      = data.teleport_discovery_service_single_account_iam_policy.json
+  tags        = local.tags
 }
 
 resource "aws_iam_role_policy_attachment" "teleport_discovery_service" {
@@ -150,13 +144,8 @@ resource "aws_iam_role_policy_attachment" "teleport_discovery_service" {
 ################################################################################
 
 locals {
-  aws_account_id      = try(data.aws_caller_identity.this[0].account_id, "")
-  aws_organization_id = "" #TODO(gavin): impl org discovery
-  default_teleport_resource_name = (
-    local.discover_organization
-    ? "aws-org-${local.aws_organization_id}"
-    : "aws-account-${local.aws_account_id}"
-  )
+  aws_account_id                 = try(data.aws_caller_identity.this[0].account_id, "")
+  default_teleport_resource_name = "aws-account-${local.aws_account_id}"
 }
 
 data "aws_caller_identity" "this" {
@@ -186,7 +175,6 @@ resource "teleport_provision_token" "aws_iam" {
   }
   spec = {
     allow = [{
-      # TODO(gavin): impl org discovery
       aws_account = local.aws_account_id
     }]
     join_method = "iam"
@@ -230,8 +218,6 @@ resource "teleport_integration" "aws_oidc" {
 
 locals {
   create_teleport_discovery_config_aws = local.create
-  exclude_aws_organizational_units     = "" # TODO(gavin): impl org discovery
-  include_aws_organizational_units     = "" # TODO(gavin): impl org discovery
   match_aws_regions                    = var.match_aws_regions
   match_aws_tags                       = var.match_aws_tags
   match_aws_types                      = ["ec2"]
@@ -270,14 +256,6 @@ resource "teleport_discovery_config" "aws" {
         document_name = "AWS-RunShellScript"
       }
       integration = one(teleport_integration.aws_oidc[*].metadata.name)
-      # TODO(gavin): impl org discovery
-      # organization = {
-      #   organization_id = local.aws_organization_id
-      #   organizational_units = {
-      #     include = local.include_aws_organizational_units
-      #     exclude = local.exclude_aws_organizational_units
-      #   }
-      # }
       tags  = local.match_aws_tags
       types = local.match_aws_types
     }]
