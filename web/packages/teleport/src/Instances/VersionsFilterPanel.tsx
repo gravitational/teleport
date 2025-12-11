@@ -34,12 +34,13 @@ import * as Icons from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { FiltersExistIndicator } from 'shared/components/Controls/MultiselectMenu';
 import Select from 'shared/components/Select';
+import { major, parse } from 'shared/utils/semVer';
 
 export type FilterOption =
   | 'up-to-date'
   | 'patch'
   | 'upgrade'
-  | 'unsupported'
+  | 'incompatible'
   | 'custom';
 
 export type CustomOperator =
@@ -129,8 +130,8 @@ export function VersionsFilterPanel({
 
   const operatorOptions: { value: CustomOperator; label: string }[] = [
     { value: 'equals', label: 'Equals' },
-    { value: 'less-than', label: 'Less than' },
-    { value: 'greater-than', label: 'Greater than' },
+    { value: 'less-than', label: 'Older than' },
+    { value: 'greater-than', label: 'Newer than' },
     { value: 'between', label: 'Between' },
   ];
 
@@ -141,7 +142,7 @@ export function VersionsFilterPanel({
     { value: 'up-to-date', label: 'Up-to-date' },
     { value: 'patch', label: 'Patch available' },
     { value: 'upgrade', label: 'Upgrade available' },
-    { value: 'unsupported', label: 'Unsupported' },
+    { value: 'incompatible', label: 'Incompatible' },
   ];
 
   return (
@@ -357,25 +358,23 @@ export function VersionsFilterPanel({
 }
 
 export function getMajorVersion(version: string): string {
-  const parts = version.split('.');
-  return `${parts[0]}.0.0`;
+  const parsed = parse(version);
+  return `${parsed.major}.0.0`;
 }
 
 export function getMinorVersion(version: string): string {
-  const parts = version.split('.');
-  return `${parts[0]}.${parts[1]}.0`;
+  const parsed = parse(version);
+  return `${parsed.major}.${parsed.minor}.0`;
 }
 
 export function getPreviousMajorVersion(version: string): string {
-  const parts = version.split('.');
-  const major = parseInt(parts[0]);
-  return `${major - 1}.0.0`;
+  const majorNum = major(version);
+  return `${majorNum - 1}.0.0`;
 }
 
 export function getNextMajorVersion(version: string): string {
-  const parts = version.split('.');
-  const major = parseInt(parts[0]);
-  return `${major + 1}.0.0`;
+  const majorNum = major(version);
+  return `${majorNum + 1}.0.0`;
 }
 
 // buildVersionPredicate returns the predicate query corresponding to a given version filter selection.
@@ -399,7 +398,7 @@ export function buildVersionPredicate(
       return `between(version, "${minorVersion}", "${currentVersion}")`;
     case 'upgrade':
       return `between(version, "${prevMajor}", "${minorVersion}")`;
-    case 'unsupported':
+    case 'incompatible':
       return `older_than(version, "${prevMajor}") || newer_than(version, "${nextMajor}")`;
     case 'custom':
       switch (operator) {
@@ -439,7 +438,7 @@ const getFilterDescription = (
       return `between ${minorVersion} & ${currentVersion}`;
     case 'upgrade':
       return `between ${prevMajor} & ${minorVersion}`;
-    case 'unsupported':
+    case 'incompatible':
       return `<${prevMajor} or >${nextMajor}`;
     default:
       return '';

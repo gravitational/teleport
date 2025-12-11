@@ -33,6 +33,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import { ApiError } from 'teleport/services/api/parseError';
 import { fetchInstances } from 'teleport/services/instances';
 import useTeleport from 'teleport/useTeleport';
 
@@ -44,60 +45,12 @@ import {
   VersionsFilterPanel,
 } from './VersionsFilterPanel';
 
-type InstanceType = 'instance' | 'bot_instance';
-
-type ServiceType =
-  | 'App'
-  | 'Db'
-  | 'WindowsDesktop'
-  | 'Kube'
-  | 'Node'
-  | 'Auth'
-  | 'Proxy';
-
-type UpgraderType =
-  | ''
-  | 'kube-updater'
-  | 'unit-updater'
-  | 'systemd-unit-updater';
-
-const typeOptions: { value: InstanceType; label: string }[] = [
-  { value: 'instance', label: 'Instances' },
-  { value: 'bot_instance', label: 'Bot Instances' },
-];
-
-const serviceOptions: { value: ServiceType; label: string }[] = [
-  { value: 'App', label: 'Applications' },
-  { value: 'Db', label: 'Databases' },
-  { value: 'WindowsDesktop', label: 'Desktops' },
-  { value: 'Kube', label: 'Kubernetes Clusters' },
-  { value: 'Node', label: 'SSH Servers' },
-  { value: 'Auth', label: 'Auth' },
-  { value: 'Proxy', label: 'Proxy' },
-];
-
-const upgraderOptions = [
-  { value: '', label: 'None' },
-  { value: 'unit-updater', label: 'Unit Updater (legacy)' },
-  {
-    value: 'systemd-unit-updater',
-    label: 'Systemd Unit Updater',
-  },
-  { value: 'kube-updater', label: 'Kubernetes' },
-];
-
-const sortFields = [
-  { value: 'name', label: 'Name' },
-  { value: 'version', label: 'Version' },
-  { value: 'type', label: 'Type' },
-];
-
 export function Instances() {
   const history = useHistory();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const query = queryParams.get('query') ?? '';
-  const isAdvancedQuery = queryParams.get('is_advanced') ?? '';
+  const isAdvancedQuery = Boolean(queryParams.get('is_advanced'));
   const sortField = queryParams.get('sort') || 'name';
   const sortDir = queryParams.get('sort_dir') || 'ASC';
 
@@ -216,11 +169,9 @@ export function Instances() {
     staleTime: 30_000,
   });
 
-  // Check if the error is due to cache initialization
-  // Keep this error message in sync with the error returned in lib/cache/inventory/inventory_cache.go(ListUnifiedInstances)
-  const isCacheInitializing = error?.message?.includes(
-    'inventory cache is not yet healthy'
-  );
+  // Check if the error is due to cache initialization (HTTP 503)
+  const isCacheInitializing =
+    error instanceof ApiError && error.response.status === 503;
 
   const handleQueryChange = useCallback(
     (query: string, isAdvanced: boolean) => {
@@ -396,16 +347,15 @@ export function Instances() {
         {!hasInstancePermissions && hasBotInstancePermissions && (
           <Alert kind="info" mt={3} mb={3}>
             You do not have permission to view instances. This list will only
-            show bot instances. Missing permissions: <code>instance.list</code>{' '}
-            and/or <code>instance.read</code>.
+            show bot instances. Listing instances requires permissions{' '}
+            <code>instance.list</code> and <code>instance.read</code>.
           </Alert>
         )}
         {hasInstancePermissions && !hasBotInstancePermissions && (
           <Alert kind="info" mt={3} mb={3}>
             You do not have permission to view bot instances. This list will
-            only show instances. Missing permissions:{' '}
-            <code>bot_instance.list</code> and/or <code>bot_instance.read</code>
-            .
+            only show instances. Listing bot instances requires permissions{' '}
+            <code>bot_instance.list</code> and <code>bot_instance.read</code>.
           </Alert>
         )}
         <SearchPanel
@@ -489,3 +439,51 @@ export function Instances() {
 const FiltersRow = styled(Flex)`
   flex-wrap: wrap;
 `;
+
+type InstanceType = 'instance' | 'bot_instance';
+
+type ServiceType =
+  | 'App'
+  | 'Db'
+  | 'WindowsDesktop'
+  | 'Kube'
+  | 'Node'
+  | 'Auth'
+  | 'Proxy';
+
+type UpgraderType =
+  | ''
+  | 'kube-updater'
+  | 'unit-updater'
+  | 'systemd-unit-updater';
+
+const typeOptions: { value: InstanceType; label: string }[] = [
+  { value: 'instance', label: 'Instances' },
+  { value: 'bot_instance', label: 'Bot Instances' },
+];
+
+const serviceOptions: { value: ServiceType; label: string }[] = [
+  { value: 'App', label: 'Applications' },
+  { value: 'Db', label: 'Databases' },
+  { value: 'WindowsDesktop', label: 'Desktops' },
+  { value: 'Kube', label: 'Kubernetes Clusters' },
+  { value: 'Node', label: 'SSH Servers' },
+  { value: 'Auth', label: 'Auth' },
+  { value: 'Proxy', label: 'Proxy' },
+];
+
+const upgraderOptions = [
+  { value: '', label: 'None' },
+  { value: 'unit-updater', label: 'Unit Updater (legacy)' },
+  {
+    value: 'systemd-unit-updater',
+    label: 'Systemd Unit Updater',
+  },
+  { value: 'kube-updater', label: 'Kubernetes' },
+];
+
+const sortFields = [
+  { value: 'name', label: 'Name' },
+  { value: 'version', label: 'Version' },
+  { value: 'type', label: 'Type' },
+];

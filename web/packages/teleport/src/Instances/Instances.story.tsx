@@ -19,13 +19,19 @@
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
-import { delay, http, HttpResponse } from 'msw';
 import { MemoryRouter, Route, Router } from 'react-router';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
+import {
+  listInstancesError,
+  listInstancesLoading,
+  listInstancesSuccess,
+  listOnlyBotInstances,
+  listOnlyRegularInstances,
+} from 'teleport/test/helpers/instances';
 
 import { Instances } from './Instances';
 
@@ -40,112 +46,6 @@ const meta = {
 type Story = StoryObj<typeof meta>;
 
 export default meta;
-
-const regularInstances = [
-  {
-    id: crypto.randomUUID(),
-    type: 'instance',
-    instance: {
-      name: 'ip-10-1-1-100.ec2.internal',
-      version: '18.2.4',
-      services: ['node', 'proxy'],
-      upgrader: {
-        type: 'systemd-unit-updater',
-        group: 'production',
-      },
-    },
-  },
-  {
-    id: crypto.randomUUID(),
-    type: 'instance',
-    instance: {
-      name: 'teleport-auth-01',
-      version: '18.2.3',
-      services: ['auth'],
-      upgrader: {
-        type: 'kube-updater',
-        group: 'staging',
-      },
-    },
-  },
-  {
-    id: crypto.randomUUID(),
-    type: 'instance',
-    instance: {
-      name: 'app-server-prod',
-      version: '18.1.0',
-      services: ['app', 'db'],
-    },
-  },
-];
-
-const botInstances = [
-  {
-    id: crypto.randomUUID(),
-    type: 'bot_instance',
-    botInstance: {
-      name: 'github-actions-bot',
-      version: '18.2.4',
-    },
-  },
-  {
-    id: crypto.randomUUID(),
-    type: 'bot_instance',
-    botInstance: {
-      name: 'ci-cd-bot',
-      version: '18.2.2',
-    },
-  },
-];
-
-const mockInstances = {
-  instances: [...regularInstances, ...botInstances],
-  startKey: '',
-};
-
-const mockOnlyRegularInstances = {
-  instances: regularInstances,
-  startKey: '',
-};
-
-const mockOnlyBotInstances = {
-  instances: botInstances,
-  startKey: '',
-};
-
-const listInstancesSuccess = http.get(
-  '/v1/webapi/sites/:clusterId/instances',
-  () => {
-    return HttpResponse.json(mockInstances);
-  }
-);
-
-const listOnlyRegularInstances = http.get(
-  '/v1/webapi/sites/:clusterId/instances',
-  () => {
-    return HttpResponse.json(mockOnlyRegularInstances);
-  }
-);
-
-const listOnlyBotInstances = http.get(
-  '/v1/webapi/sites/:clusterId/instances',
-  () => {
-    return HttpResponse.json(mockOnlyBotInstances);
-  }
-);
-
-const listInstancesError = (status: number, message: string) =>
-  http.get('/v1/webapi/sites/:clusterId/instances', () => {
-    return HttpResponse.json({ error: { message } }, { status });
-  });
-
-const listInstancesLoading = http.get(
-  '/v1/webapi/sites/:clusterId/instances',
-  async () => {
-    await delay('infinite');
-    return HttpResponse.json(mockInstances);
-  }
-);
 
 export const Loaded: Story = {
   parameters: {

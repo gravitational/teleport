@@ -32,6 +32,13 @@ import { useInfiniteScroll } from 'shared/hooks';
 import cfg from 'teleport/config';
 import { UnifiedInstance } from 'teleport/services/instances/types';
 
+type TableInstance = {
+  name: string;
+  version: string;
+  type: 'instance' | 'bot_instance';
+  original: UnifiedInstance;
+};
+
 export function InstancesList(props: {
   data: UnifiedInstance[];
   isLoading: boolean;
@@ -54,6 +61,20 @@ export function InstancesList(props: {
     onSortChanged,
     onLoadNextPage,
   } = props;
+
+  // Flatten the data
+  const tableData: TableInstance[] = data.map(instance => ({
+    name:
+      instance.type === 'instance'
+        ? instance.instance?.name || instance.id
+        : instance.botInstance?.name || '',
+    version:
+      instance.type === 'instance'
+        ? instance.instance?.version || ''
+        : instance.botInstance?.version || '',
+    type: instance.type,
+    original: instance,
+  }));
 
   const { setTrigger } = useInfiniteScroll({
     fetch: async () => {
@@ -92,52 +113,46 @@ export function InstancesList(props: {
   return (
     <Box>
       <StyledTable
-        data={data}
+        data={tableData}
         columns={[
           {
-            key: 'name' as any,
+            key: 'name',
             headerText: 'Host/Bot Name',
             isSortable: true,
-            render: (instance: UnifiedInstance) => (
-              <NameCell instance={instance} />
+            render: (row: TableInstance) => (
+              <NameCell instance={row.original} />
             ),
           },
           {
-            key: 'version' as any,
+            key: 'version',
             headerText: 'Version',
             isSortable: true,
-            render: (instance: UnifiedInstance) => {
-              const version =
-                instance.type === 'instance'
-                  ? instance.instance?.version
-                  : instance.botInstance?.version;
-              return <Cell>{version || ''}</Cell>;
-            },
+            render: (row: TableInstance) => <Cell>{row.version}</Cell>,
           },
           {
             key: 'type',
             headerText: 'Type',
             isSortable: true,
-            render: (instance: UnifiedInstance) => (
+            render: (row: TableInstance) => (
               <Cell>
-                {instance.type === 'instance' ? 'Instance' : 'Bot Instance'}
+                {row.type === 'instance' ? 'Instance' : 'Bot Instance'}
               </Cell>
             ),
           },
           {
             altKey: 'services',
             headerText: 'Services',
-            render: (instance: UnifiedInstance) => (
-              <ServicesCell instance={instance} />
+            render: (row: TableInstance) => (
+              <ServicesCell instance={row.original} />
             ),
           },
           {
             altKey: 'upgrader',
             headerText: 'Upgrader',
-            render: (instance: UnifiedInstance) => {
+            render: (row: TableInstance) => {
               const upgraderType =
-                instance.type === 'instance'
-                  ? instance.instance?.upgrader?.type
+                row.type === 'instance'
+                  ? row.original.instance?.upgrader?.type
                   : undefined;
               return <UpgraderCell upgrader={upgraderType} />;
             },
@@ -145,10 +160,10 @@ export function InstancesList(props: {
           {
             altKey: 'upgrader-group',
             headerText: 'Upgrader Group',
-            render: (instance: UnifiedInstance) => {
+            render: (row: TableInstance) => {
               const group =
-                instance.type === 'instance'
-                  ? instance.instance?.upgrader?.group
+                row.type === 'instance'
+                  ? row.original.instance?.upgrader?.group
                   : undefined;
               return <Cell>{group || ''}</Cell>;
             },
@@ -191,7 +206,7 @@ function NameCell({ instance }: { instance: UnifiedInstance }) {
       <IdContainer>
         <IdText>{instance.id.substring(0, 7)}</IdText>
         <CopyButtonWrapper>
-          <CopyButton value={instance.id} customTooltip="Copy instance ID" />
+          <CopyButton value={instance.id} tooltip="Copy instance ID" />
         </CopyButtonWrapper>
       </IdContainer>
     </Cell>
