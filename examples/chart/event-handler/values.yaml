@@ -153,6 +153,7 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# Deprecated way to set pod annotations. `annotations.pod` should be preferred.
 podAnnotations: {}
 
 podSecurityContext: {}
