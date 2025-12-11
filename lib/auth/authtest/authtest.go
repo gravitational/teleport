@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -1632,6 +1633,25 @@ func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]b
 // Keep this function in-sync with lib/auth/auth.go:newKeySet().
 // TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+	switch config.Type {
+	case
+		types.HostCA,
+		types.UserCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.OpenSSHCA,
+		types.JWTSigner,
+		types.SAMLIDPCA,
+		types.OIDCIdPCA,
+		types.SPIFFECA,
+		types.OktaCA,
+		types.AWSRACA,
+		types.BoundKeypairCA:
+		// OK, known CA type.
+	default:
+		panic(fmt.Sprintf("Cannot generate new key set for unknown CA type %q", config.Type))
+	}
+
 	var keyPEM []byte
 	var key *keys.PrivateKey
 
