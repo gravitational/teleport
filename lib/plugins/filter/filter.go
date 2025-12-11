@@ -146,10 +146,10 @@ func Matches(filters Filters, param MatchParam) bool {
 // in the Web UI or tctl. Field name matches with the
 // include and exclude fields of PluginSyncFilter proto.
 type Inputs struct {
-	ID               []string `json:"id"`
-	NameRegex        []string `json:"nameRegex"`
-	ExcludeID        []string `json:"excludeId"`
-	ExcludeNameRegex []string `json:"excludeNameRegex"`
+	ID               []string `json:"id,omitempty"`
+	NameRegex        []string `json:"nameRegex,omitempty"`
+	ExcludeID        []string `json:"excludeId,omitempty"`
+	ExcludeNameRegex []string `json:"excludeNameRegex,omitempty"`
 }
 
 // NewFromInputs returns a new [Filters] from [Inputs].
@@ -184,4 +184,26 @@ func NewFromInputs(in Inputs) (Filters, error) {
 	}
 
 	return filters, nil
+}
+
+// ToInputs transforms [types.PluginSyncFilter] to [Inputs].
+func ToInputs(in []*types.PluginSyncFilter) Inputs {
+	var out Inputs
+
+	for _, i := range in {
+		if i.GetId() != "" {
+			out.ID = append(out.ID, i.GetId())
+		}
+		if i.GetNameRegex() != "" {
+			out.NameRegex = append(out.NameRegex, i.GetNameRegex())
+		}
+		if i.GetExcludeId() != "" {
+			out.ExcludeID = append(out.ExcludeID, i.GetExcludeId())
+		}
+		if i.GetExcludeNameRegex() != "" {
+			out.ExcludeNameRegex = append(out.ExcludeNameRegex, i.GetExcludeNameRegex())
+		}
+	}
+
+	return out
 }
