@@ -921,10 +921,12 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = makeTempDir(t)
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
+			supervisor, err := NewSupervisor("process-id", cfg.Logger, cfg.Clock)
+			require.NoError(t, err)
 			process := TeleportProcess{
 				Config: cfg,
 				// Setting Supervisor so that `ExitContext` can be called.
-				Supervisor: NewSupervisor("process-id", cfg.Logger, cfg.Clock),
+				Supervisor: supervisor,
 			}
 			tls, err := process.setupProxyTLSConfig(
 				&Connector{},
@@ -1289,8 +1291,10 @@ func TestProxyGRPCServers(t *testing.T) {
 
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
+	supervisor, err := NewSupervisor(hostID, logtest.NewLogger(), clock)
+	require.NoError(t, err)
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, logtest.NewLogger(), clock),
+		Supervisor: supervisor,
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1632,13 +1636,15 @@ func TestDebugService(t *testing.T) {
 	// In this test we don't want to spin a whole process and have to wait for
 	// every service to report ready (there's an integration test for this).
 	// So we craft a minimal process with only the debug service in it.
+	supervisor, err := NewSupervisor("supervisor-test", log, fakeClock)
+	require.NoError(t, err)
 	process := &TeleportProcess{
 		Config:          cfg,
 		Clock:           fakeClock,
 		logger:          log,
 		metricsRegistry: localRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
-		Supervisor:      NewSupervisor("supervisor-test", log, fakeClock),
+		Supervisor:      supervisor,
 	}
 
 	process.BroadcastEvent(Event{TeleportOKEvent, "dummy"})
@@ -2125,13 +2131,15 @@ func TestDiagnosticsService(t *testing.T) {
 	// In this test we don't want to spin a whole process and have to wait for
 	// every service to report ready (there's an integration test for this).
 	// So we craft a minimal process with only the debug service in it.
+	supervisor, err := NewSupervisor("supervisor-test", log, fakeClock)
+	require.NoError(t, err)
 	process := &TeleportProcess{
 		Config:          cfg,
 		Clock:           fakeClock,
 		logger:          log,
 		metricsRegistry: localRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
-		Supervisor:      NewSupervisor("supervisor-test", log, fakeClock),
+		Supervisor:      supervisor,
 	}
 
 	process.BroadcastEvent(Event{TeleportOKEvent, "dummy"})

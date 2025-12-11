@@ -1175,7 +1175,10 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
-	supervisor := NewSupervisor(processID, cfg.Logger, cfg.Clock)
+	supervisor, err := NewSupervisor(processID, cfg.Logger, cfg.Clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	store, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)

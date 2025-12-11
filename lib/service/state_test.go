@@ -103,8 +103,10 @@ func TestProcessStateStarting(t *testing.T) {
 	log := logtest.NewLogger()
 
 	fakeClock := clockwork.NewFakeClock()
+	supervisor, err := NewSupervisor("test-process-state", log, fakeClock)
+	require.NoError(t, err)
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor("test-process-state", log, fakeClock),
+		Supervisor: supervisor,
 		Clock:      fakeClock,
 		logger:     log,
 	}

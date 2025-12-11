@@ -181,7 +181,12 @@ type LocalSupervisor struct {
 }
 
 // NewSupervisor returns new instance of initialized supervisor
-func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) Supervisor {
+func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) (*LocalSupervisor, error) {
+	// used by processState
+	if err := metrics.RegisterPrometheusCollectors(stateGauge); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx := context.TODO()
 
 	closeContext, cancel := context.WithCancel(ctx)
@@ -217,11 +222,8 @@ func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) Sup
 		clock: clock,
 	}
 
-	// used by processState
-	_ = metrics.RegisterPrometheusCollectors(stateGauge)
-
 	go srv.fanOut()
-	return srv
+	return srv, nil
 }
 
 // Event is a special service event that can be generated
