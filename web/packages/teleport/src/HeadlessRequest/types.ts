@@ -17,3 +17,15 @@ export function getHeadlessAuthTypeLabel(type: number): string {
       return 'unknown';
   }
 }
+
+export function getActionFromAuthType(authType: HeadlessAuthenticationType): string {
+  switch (authType) {
+    case HeadlessAuthenticationType.BROWSER:
+      return 'login';
+    case HeadlessAuthenticationType.HEADLESS:
+    case HeadlessAuthenticationType.SESSION:
+      return 'command';
+    default:
+      return 'unknown';
+  }
+}
