@@ -19,8 +19,6 @@
 #   support automatic updates.
 enabled: false
 
-containerName: "teleport"
-
 # versionServer(string) -- is the URL of the version server the agent
 # fetches the target version from. The complete version endpoint is built by
 # concatenating [`versionServer`](#versionserver) and [`releaseChannel`

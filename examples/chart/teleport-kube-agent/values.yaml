@@ -796,6 +796,9 @@ adminClusterRoleBinding:
 # [`enterpriseImage`](#enterpriseImage) instead.
 image: public.ecr.aws/gravitational/teleport-distroless
 
+# containerName(string) -- sets the name of the main container in the Teleport Kubernetes Agent pod.
+# This value is used to identify the container in Kubernetes and is typically set to "teleport"
+# for the Teleport Kubernetes Agent.
 containerName: "teleport"
 
 # enterpriseImage(string) -- sets the container image used for Teleport Enterprise
