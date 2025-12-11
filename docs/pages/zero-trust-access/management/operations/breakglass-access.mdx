@@ -25,10 +25,14 @@ Below, we'll detail the steps to accomplish the following objectives:
 1. Access the remote server using a Teleport issued cert, even if Teleport is down or unresponsive
 
 <Admonition type="warning">
-You must protect any machine that holds breakglass credentials as configured in steps 4 and 5. Anyone able to access these certificates will
-be able to use them to get access to any machine configured with an out-of-band OpenSSH server (as per insructions in step 1).
+You must protect any machine that holds break-glass credentials as configured in steps 4 and 5. Anyone able to access these certificates will
+be able to use them to get access to any machine configured with an out-of-band OpenSSH server (as per instructions in step 1).
 
-Any use of the `breakglass` user, for any reason, should be a cause for immediate investigation.
+Additionally, any access as the `breakglass` user configured via this guide will be able to bypass Teleport session recordings and
+audit logging. You should only allow use of the `breakglass` user via this process, and this user should never be used for any purpose other
+than emergency break-glass access when the regular Teleport access path is unavailable.
+
+**Any** use of the `breakglass` user, for any reason, should be a cause for immediate investigation.
 </Admonition>
 
 ## Prerequisites
@@ -160,6 +164,10 @@ This step will configure and start a [Teleport Machine ID bot](../../../machine-
 daemon (managed by `systemd`), which will continually generate and refresh a short-lived key and certificate for break-glass access on the machine
 where it runs.
 
+This guide will join the Teleport Machine ID bot to the cluster using a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/concepts.mdx)
+which is a secure, optionally single-use join method based on public key cryptography, providing a strong guarantee of security and protection against
+credential theft.
+
 The configuration below generates a certificate which is valid for 24 hours from the time of issuance, refreshed every 2 hours. This means that
 depending on the exact time of usage, the certificate will be usable for break-glass access for between 22 and 24 hours. This validity period was
 chosen as a sane default to strike a good balance between usability (shorter-lived certificates may be invalid by the time they are needed) and
@@ -186,7 +194,7 @@ spec:
 tctl create -f breakglass-bot.yaml
 ```
 
-3. Create a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/concepts.mdx) to use as a join method for running instances of the bot:
+3. Create a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/bound-keypair.mdx) to use as a join method for running instances of the bot:
 
 Define the join method in a file named `breakglass-token.yaml`:
 
@@ -216,14 +224,14 @@ tctl create -f breakglass-token.yaml
 5. Get the `registration_secret` for the bot using `tctl` - this is needed to create the bot's config file in the next step.
 
 ```bash
-sudo tctl get token/breakglass-bot-join-token --format=json | jq -r '.[0].status.bound_keypair.registration_secret'
+tctl get token/breakglass-bot-join-token --format=json | jq -r '.[0].status.bound_keypair.registration_secret'
 ```
 
 This assumes `jq` is installed. If not, run `tctl get token/breakglass-bot-join-token` and inspect the `.status.bound_keypair.registration_secret` field.
 
 6. Write a config file for the bot.
 
-Define the config in a file named `/etc/tbot-breakglass.yaml`:
+Define the config in a file named `/etc/tbot-teleport-breakglass.yaml`:
 
 ```yaml
 version: v2
@@ -255,16 +263,24 @@ outputs:
 sudo tbot install systemd \
   --write \
   --name tbot-teleport-breakglass \
-  --config /etc/tbot-breakglass.yaml \
-  --user teleport \
-  --group teleport
+  --config /etc/tbot-teleport-breakglass.yaml \
+  --user teleport-breakglass \
+  --group teleport-breakglass
 ```
 
-The user and group you specify here must already exist on the server running the `tbot` service. If you do not already have a `teleport` user and group,
-create one:
+The user and group you specify here must already exist on the server running the `tbot` service. If you do not already have a `teleport-breakglass` user
+and group, create one:
 
 ```bash
-sudo useradd -s /sbin/nologin teleport
+sudo useradd -s /sbin/nologin teleport-breakglass
+```
+
+You must also create the bot's storage and output directories, and give the `teleport-breakglass` user permissions.
+
+```bash
+sudo mkdir -p /var/lib/teleport-breakglass /opt/teleport-breakglass/output
+sudo chown teleport-breakglass:teleport-breakglass /var/lib/teleport-breakglass /opt/teleport-breakglass /opt/teleport-breakglass/output
+sudo chmod 700 /var/lib/teleport-breakglass /opt/teleport-breakglass /opt/teleport-breakglass/output
 ```
 
 8. Reload the systemd configuration:
@@ -291,24 +307,24 @@ $ sudo systemctl status tbot-teleport-breakglass
      Memory: 22.8M (peak: 23.4M)
         CPU: 239ms
      CGroup: /system.slice/tbot-teleport-breakglass.service
-             └─2437534 /usr/local/bin/tbot start -c /etc/tbot-breakglass.yaml
+             └─2437534 /usr/local/bin/tbot start -c /etc/tbot-teleport-breakglass.yaml
 ```
 
 11. Check that the bot has correctly outputted a certificate:
 
 ```bash
-$ ls -l /opt/teleport-breakglass-output/
+$ ls -l /opt/teleport-breakglass/output/
 total 60
--rw------- 1 teleport teleport 5513 Nov 27 10:32 identity
--rw------- 1 teleport teleport  241 Nov 27 10:32 key
--rw------- 1 teleport teleport 1274 Nov 27 10:32 key-cert.pub
--rw------- 1 teleport teleport  161 Nov 27 10:32 key.pub
--rw------- 1 teleport teleport  612 Nov 27 10:32 known_hosts
--rw------- 1 teleport teleport 1379 Nov 27 10:32 ssh_config
--rw------- 1 teleport teleport 1330 Nov 27 10:32 teleport-database-ca.crt
--rw------- 1 teleport teleport 2051 Nov 27 10:32 teleport-host-ca.crt
--rw------- 1 teleport teleport  794 Nov 27 10:32 teleport-user-ca.crt
--rw------- 1 teleport teleport 1375 Nov 27 10:32 tlscert
+-rw------- 1 teleport-breakglass teleport-breakglass 5513 Nov 27 10:32 identity
+-rw------- 1 teleport-breakglass teleport-breakglass  241 Nov 27 10:32 key
+-rw------- 1 teleport-breakglass teleport-breakglass 1274 Nov 27 10:32 key-cert.pub
+-rw------- 1 teleport-breakglass teleport-breakglass  161 Nov 27 10:32 key.pub
+-rw------- 1 teleport-breakglass teleport-breakglass  612 Nov 27 10:32 known_hosts
+-rw------- 1 teleport-breakglass teleport-breakglass 1379 Nov 27 10:32 ssh_config
+-rw------- 1 teleport-breakglass teleport-breakglass 1330 Nov 27 10:32 teleport-database-ca.crt
+-rw------- 1 teleport-breakglass teleport-breakglass 2051 Nov 27 10:32 teleport-host-ca.crt
+-rw------- 1 teleport-breakglass teleport-breakglass  794 Nov 27 10:32 teleport-user-ca.crt
+-rw------- 1 teleport-breakglass teleport-breakglass 1375 Nov 27 10:32 tlscert
 ```
 
 12. Check the validity of the certificate to see that it is valid for ~24 hours from now:
@@ -316,7 +332,7 @@ total 60
 ```bash
 $ date
 Thu Nov 27 10:39:41 AST 2025
-$ sudo ssh-keygen -Lf /opt/teleport-breakglass-output/key-cert.pub | grep Valid
+$ sudo -u -breakglass ssh-keygen -Lf /opt/teleport-breakglass/output/key-cert.pub | grep Valid
         Valid: from 2025-11-27T10:31:24 to 2025-11-28T10:32:24
 ```
 
@@ -327,38 +343,44 @@ $ sudo ssh-keygen -Lf /opt/teleport-breakglass-output/key-cert.pub | grep Valid
 
 1. Create a local SSH config which uses the Teleport-issued break-glass certificate to connect:
 
-Define the config in a file called `breakglass_ssh_config`:
+Define the config in a file called `/opt/teleport-breakglass/breakglass_ssh_config`:
 
 ```bash
 Host *
     User breakglass
-    UserKnownHostsFile /opt/teleport-breakglass-output/known_hosts
-    IdentityFile /opt/teleport-breakglass-output/key
-    CertificateFile /opt/teleport-breakglass-output/key-cert.pub
+    UserKnownHostsFile /opt/teleport-breakglass/output/known_hosts
+    IdentityFile /opt/teleport-breakglass/output/key
+    CertificateFile /opt/teleport-breakglass/output/key-cert.pub
     StrictHostKeyChecking no
+```
+
+Make sure the permissions are set correctly:
+
+```bash
+sudo chown teleport-breakglass:teleport-breakglass /opt/teleport-breakglass/breakglass_ssh_config
 ```
 
 2. Now, use the break-glass SSH config to securely access the Teleport Agent using the `breakglass` user and Teleport-issued certificate:
 
 ```bash
-sudo ssh -F ./breakglass_ssh_config sshd-server
+sudo -u teleport-breakglass ssh -F /opt/teleport-breakglass/breakglass_ssh_config sshd-server
 ```
 
 <Admonition type="note">
-We use `sudo ssh` here because the outputted certificates and files in the `/opt/teleport-breakglass-output` directory are only
-readable by the `teleport` user and `root`, to improve security.
+We use `sudo -u teleport-breakglass ssh` here because the outputted certificates and files in the `/opt/teleport-breakglass-output` directory
+are only readable by the `teleport-breakglass` user and `root`, to improve security.
 </Admonition>
 
 If you do not have DNS resolution available for the hostname you need to connect to, you can use the IP address:
 
 ```bash
-sudo ssh -F ./breakglass_ssh_config 10.11.12.134
+sudo -u teleport-breakglass ssh -F /opt/teleport-breakglass/breakglass_ssh_config 10.11.12.134
 ```
 
 Alternatively, you can provide the IP to use with the `HostName` option to `ssh`:
 
 ```bash
-sudo ssh -F ./breakglass_ssh_config -o "HostName=10.11.12.134" sshd-server
+sudo -u teleport-breakglass ssh -F /opt/teleport-breakglass/breakglass_ssh_config -o "HostName=10.11.12.134" sshd-server
 ```
 
 <Admonition type="important">
