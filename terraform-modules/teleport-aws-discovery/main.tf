@@ -175,7 +175,7 @@ locals {
     var.teleport_provision_token_name,
     local.default_teleport_resource_name,
   )}"
-  teleport_resource_labels      = var.teleport_resource_labels
+  teleport_resource_labels = var.teleport_resource_labels
 }
 
 resource "teleport_provision_token" "aws_iam" {
@@ -232,8 +232,8 @@ resource "teleport_integration" "aws_oidc" {
 
 locals {
   create_teleport_discovery_config_aws = local.create
-  exclude_aws_organizational_units     = var.exclude_aws_organizational_units
-  include_aws_organizational_units     = var.include_aws_organizational_units
+  exclude_aws_organizational_units     = "" # TODO(gavin): impl org discovery
+  include_aws_organizational_units     = "" # TODO(gavin): impl org discovery
   match_aws_regions                    = var.match_aws_regions
   match_aws_tags                       = var.match_aws_tags
   match_aws_types                      = ["ec2"]

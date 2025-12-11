@@ -51,20 +51,6 @@ variable "create" {
   nullable    = false
 }
 
-variable "exclude_aws_organizational_units" {
-  description = "AWS organizational units (OU) to exclude from Teleport discovery. The default does not exclude any OUs."
-  type        = list(string)
-  default     = []
-  nullable    = false
-}
-
-variable "include_aws_organizational_units" {
-  description = "AWS Organizational Units (OU) to include in Teleport AWS Organization discovery. The default matches all AWS OUs."
-  type        = list(string)
-  default     = ["*"]
-  nullable    = false
-}
-
 variable "match_aws_regions" {
   description = "AWS regions to discover. The default matches all AWS regions."
   type        = list(string)
