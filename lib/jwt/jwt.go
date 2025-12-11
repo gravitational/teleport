@@ -55,9 +55,6 @@ type Config struct {
 
 	// PrivateKey is used to sign and verify tokens.
 	PrivateKey crypto.Signer
-
-	// ClusterName is the name of the cluster that will be signing the JWT tokens.
-	ClusterName string
 }
 
 // CheckAndSetDefaults validates the values of a *Config.
@@ -71,9 +68,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.PrivateKey == nil && c.PublicKey == nil {
 		return trace.BadParameter("public or private key is required")
-	}
-	if c.ClusterName == "" {
-		return trace.BadParameter("cluster name is required")
 	}
 
 	return nil
@@ -109,9 +103,6 @@ type SignParams struct {
 	// Expiry is time to live for the token.
 	Expires time.Time
 
-	// URI is the URI of the recipient application.
-	URI string
-
 	// Audience is the Audience for the Token.
 	Audience string
 
@@ -130,7 +121,10 @@ func (p *SignParams) Check() error {
 	if p.Expires.IsZero() {
 		return trace.BadParameter("expires missing")
 	}
-	if p.URI == "" {
+	if p.Issuer == "" {
+		return trace.BadParameter("issuer missing")
+	}
+	if p.Audience == "" {
 		return trace.BadParameter("uri missing")
 	}
 
@@ -221,8 +215,8 @@ func (k *Key) Sign(p SignParams) (string, error) {
 	claims := Claims{
 		Claims: jwt.Claims{
 			Subject:   p.Username,
-			Issuer:    k.config.ClusterName,
-			Audience:  jwt.Audience{p.URI},
+			Issuer:    p.Issuer,
+			Audience:  jwt.Audience{p.Audience},
 			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
 			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
 			Expiry:    jwt.NewNumericDate(p.Expires),
@@ -450,7 +444,7 @@ type PROXYSignParams struct {
 
 const expirationPROXY = time.Second * 60
 
-// SignPROXYJwt will create short lived signed JWT that is used in signed PROXY header
+// SignPROXYJWT will create short-lived signed JWT that is used in signed PROXY header
 func (k *Key) SignPROXYJWT(p PROXYSignParams) (string, error) {
 	claims := Claims{
 		Claims: jwt.Claims{
@@ -467,34 +461,7 @@ func (k *Key) SignPROXYJWT(p PROXYSignParams) (string, error) {
 }
 
 // VerifyParams are the parameters needed to pass the token and data needed to verify.
-type VerifyParams struct {
-	// Username is the Teleport identity.
-	Username string
-
-	// RawToken is the JWT token.
-	RawToken string
-
-	// URI is the URI of the recipient application.
-	URI string
-
-	// Audience is the Audience for the token
-	Audience string
-}
-
-// Check verifies all the values are valid.
-func (p *VerifyParams) Check() error {
-	if p.Username == "" {
-		return trace.BadParameter("username missing")
-	}
-	if p.RawToken == "" {
-		return trace.BadParameter("raw token missing")
-	}
-	if p.URI == "" {
-		return trace.BadParameter("uri missing")
-	}
-
-	return nil
-}
+type VerifyParams = jwt.Expected
 
 type SnowflakeVerifyParams struct {
 	AccountName string
@@ -561,19 +528,11 @@ func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, err
 }
 
 // Verify will validate the passed in JWT token.
-func (k *Key) Verify(p VerifyParams) (*Claims, error) {
-	if err := p.Check(); err != nil {
-		return nil, trace.Wrap(err)
+func (k *Key) Verify(token string, expected VerifyParams) (*Claims, error) {
+	if expected.Time.IsZero() {
+		expected.Time = k.config.Clock.Now()
 	}
-
-	expectedClaims := jwt.Expected{
-		Issuer:   k.config.ClusterName,
-		Subject:  p.Username,
-		Audience: jwt.Audience{p.URI},
-		Time:     k.config.Clock.Now(),
-	}
-
-	return k.verify(p.RawToken, expectedClaims)
+	return k.verify(token, expected)
 }
 
 // AWSOIDCVerifyParams are the params required to verify an AWS OIDC Token.

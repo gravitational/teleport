@@ -33,7 +33,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -259,9 +258,6 @@ func (s *handler) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.A
 	key, err := jwt.New(&jwt.Config{
 		Clock:     s.Clock,
 		PublicKey: pubKey,
-		// TODO(gabrielcorado): use the cluster name. This value must match the
-		// one used by the local proxy middleware.
-		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

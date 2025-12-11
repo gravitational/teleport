@@ -928,9 +928,8 @@ func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, err
 	}
 
 	jwtKey, err := jwt.New(&jwt.Config{
-		Clock:       p.clock,
-		PrivateKey:  signer,
-		ClusterName: p.clusterName,
+		Clock:      p.clock,
+		PrivateKey: signer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -546,9 +546,8 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 
 	// Check JWT using proxy cert's public key
 	jwtVerifier, err := jwt.New(&jwt.Config{
-		Clock:       clock,
-		PublicKey:   signingCert.PublicKey,
-		ClusterName: localClusterName,
+		Clock:     clock,
+		PublicKey: signingCert.PublicKey,
 	})
 	if err != nil {
 		return trace.Wrap(err)
