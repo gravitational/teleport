@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.5.0"
+const Version = "18.5.0-dev.rhammonds.removewasmpackv18"
 
 const VersionMajor = 18
 const VersionMinor = 5
 const VersionPatch = 0
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.rhammonds.removewasmpackv18"
 const VersionMetadata = ""
