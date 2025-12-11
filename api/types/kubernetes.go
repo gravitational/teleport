@@ -82,9 +82,9 @@ type KubeCluster interface {
 	// IsEqual determines if two Kubernetes cluster resources are equivalent.
 	IsEqual(KubeCluster) bool
 	// GetStatus gets the kube cluster status.
-	GetStatus() KubernetesClusterStatus
+	GetStatus() *KubernetesClusterStatus
 	// SetStatus sets the kube cluster status.
-	SetStatus(KubernetesClusterStatus)
+	SetStatus(*KubernetesClusterStatus)
 }
 
 // DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
@@ -349,12 +349,15 @@ func (k *KubernetesClusterV3) Copy() KubeCluster {
 }
 
 // GetStatus gets the kube cluster status.
-func (k *KubernetesClusterV3) GetStatus() KubernetesClusterStatus {
+func (k *KubernetesClusterV3) GetStatus() *KubernetesClusterStatus {
+	if k == nil {
+		return nil
+	}
 	return k.Status
 }
 
 // SetStatus sets the kube cluster status.
-func (k *KubernetesClusterV3) SetStatus(status KubernetesClusterStatus) {
+func (k *KubernetesClusterV3) SetStatus(status *KubernetesClusterStatus) {
 	k.Status = status
 }
 

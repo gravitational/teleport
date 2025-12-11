@@ -417,12 +417,12 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 	// This information is later used during deletion when the cluster no longer
 	// matches the filtering criteria in order to clean up any access that was set up.
 	cluster.SetStatus(
-		types.KubernetesClusterStatus{
+		&types.KubernetesClusterStatus{
 			Discovery: &types.KubernetesClusterDiscoveryStatus{
-				AWS: &types.KubernetesClusterAWSStatus{
-					SetupAccessForARN: a.SetupAccessForARN,
-					Integration:       a.Integration,
-					AssumedRole:       assumedRole,
+				Aws: &types.KubernetesClusterAWSStatus{
+					SetupAccessForArn:    a.SetupAccessForARN,
+					Integration:          a.Integration,
+					DiscoveryAssumedRole: assumedRole,
 				},
 			},
 		},
@@ -860,7 +860,7 @@ func DeleteKubernetesDanglingResources(ctx context.Context, cfg DeleteKubernetes
 
 	// Early return: Skip cleanup if the cluster is not an EKS cluster or lacks AWS discovery status.
 	// This is expected for non-AWS clusters or clusters discovered without AWS integration.
-	if !cluster.IsAWS() || cluster.GetStatus().Discovery == nil || cluster.GetStatus().Discovery.AWS == nil {
+	if !cluster.IsAWS() || cluster.GetStatus() == nil || cluster.GetStatus().Discovery == nil || cluster.GetStatus().Discovery.Aws == nil {
 		return nil
 	}
 
@@ -872,13 +872,13 @@ func DeleteKubernetesDanglingResources(ctx context.Context, cfg DeleteKubernetes
 	// - Which principal ARN had access configured
 	region := cluster.GetAWSConfig().Region
 	clusterName := cluster.GetAWSConfig().Name
-	awsStatus := cluster.GetStatus().Discovery.AWS
+	awsStatus := cluster.GetStatus().Discovery.Aws
 
 	// Reconstruct the AWS configuration used during cluster discovery.
 	// This ensures we use the same credentials/role/integration for cleanup.
 	assumeRole := types.AssumeRole{}
-	if awsStatus.AssumedRole != nil {
-		assumeRole = *awsStatus.AssumedRole
+	if awsStatus.DiscoveryAssumedRole != nil {
+		assumeRole = *awsStatus.DiscoveryAssumedRole
 	}
 
 	awsConfig, err := cfg.ClientGetter.GetConfig(ctx, region, getAWSOpts(assumeRole, awsStatus.Integration)...)
@@ -893,13 +893,13 @@ func DeleteKubernetesDanglingResources(ctx context.Context, cfg DeleteKubernetes
 		"cluster_name", clusterName,
 		"region", region,
 		"aws_account_id", cluster.GetAWSConfig().AccountID,
-		"principal_arn", awsStatus.SetupAccessForARN,
+		"principal_arn", awsStatus.SetupAccessForArn,
 	)
 
 	_, err = convertAWSError(
 		client.DeleteAccessEntry(ctx, &eks.DeleteAccessEntryInput{
 			ClusterName:  aws.String(clusterName),
-			PrincipalArn: aws.String(awsStatus.SetupAccessForARN),
+			PrincipalArn: aws.String(awsStatus.SetupAccessForArn),
 		}),
 	)
 
