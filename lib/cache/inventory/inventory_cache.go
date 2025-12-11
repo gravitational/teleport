@@ -660,6 +660,7 @@ func (ic *InventoryCache) parseFilter(filter *inventoryv1.ListUnifiedInstancesFi
 // fully initialized.
 func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error) {
 	if !ic.IsHealthy() {
+		// Keep this error message in sync with web/Instances.tsx(isCacheInitializing)
 		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy")
 	}
 
