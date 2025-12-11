@@ -60,10 +60,11 @@ export function Aws() {
 
   const [isPollingIntegration, setIsPollingIntegration] = useState(false);
   const [integrationExists, setIntegrationExists] = useState(false);
+  const [terraformConfig, setTerraformConfig] = useState('');
   const toastNotifications = useToastNotifications();
   const abortControllerRef = useRef<AbortController>(null);
-  const intervalRef = useRef<number>(null);
-  const timeoutRef = useRef<number>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const onIntegrationSuccess = () => {
     toastNotifications.add({
@@ -201,37 +202,38 @@ export function Aws() {
               <DeploymentMethodSection
                 deploymentMethod={deploymentMethod}
                 onChange={setDeploymentMethod}
-                integration={integration}
-                onRoleChange={roleArn =>
-                  setIntegration(prev => ({ ...prev, roleArn }))
-                }
+                terraformConfig={terraformConfig}
               />
-              <Box mt={3}>
-                <IntegrationButton
-                  integrationName={integration.name}
-                  integrationKind={IntegrationKind.AwsOidc}
-                  integrationExists={integrationExists}
-                  isPolling={isPollingIntegration}
-                  onClick={() => {
-                    if (validator.validate()) {
-                      pollIntegration();
-                    }
-                  }}
-                />
-                <Text mt={2} color="text.secondary">
-                  or{' '}
-                  <Text as="a" href={cfg.routes.integrations} color="text.main">
-                    view all integrations
-                  </Text>
-                </Text>
-              </Box>
             </Container>
+            <Box mt={3}>
+              <IntegrationButton
+                integrationName={integration.name}
+                integrationKind={IntegrationKind.AwsOidc}
+                integrationExists={integrationExists}
+                isPolling={isPollingIntegration}
+                onClick={() => {
+                  if (validator.validate()) {
+                    pollIntegration();
+                  }
+                }}
+              />
+              <Text mt={2} color="text.secondary">
+                or{' '}
+                <Text as="a" href={cfg.routes.integrations} color="text.main">
+                  view all integrations
+                </Text>
+              </Text>
+            </Box>
           </Box>
           <Box
             width="420px"
             style={{ position: 'sticky', top: 20, alignSelf: 'flex-start' }}
           >
-            <TerraformModule awsConfig={awsConfig} ec2Config={ec2Config} />
+            <TerraformModule
+              awsConfig={awsConfig}
+              ec2Config={ec2Config}
+              onContentChange={setTerraformConfig}
+            />
           </Box>
         </Flex>
       )}

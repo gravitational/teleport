@@ -20,8 +20,8 @@ import { components, ValueContainerProps } from 'react-select';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
-import Select, { Option } from 'shared/components/Select';
 import { HelperTextLine } from 'shared/components/FieldInput/FieldInput';
+import Select, { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 import { Rule } from 'shared/components/Validation/rules';
 

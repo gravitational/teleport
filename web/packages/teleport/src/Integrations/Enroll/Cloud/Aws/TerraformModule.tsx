@@ -25,15 +25,18 @@ import { AwsConfig, AwsLabel, Ec2Config } from './types';
 type TerraformModuleProps = {
   awsConfig: AwsConfig;
   ec2Config: Ec2Config;
+  onContentChange?: (content: string) => void;
 };
 
 export function TerraformModule(props: TerraformModuleProps) {
+  const content = makeTerraform(props);
+  props.onContentChange?.(content);
+
   return (
     <Flex height="600px" width="100%" m={0}>
       <LiveTextEditor
-        data={[{ content: makeTerraform(props), type: 'terraform' }]}
+        data={[{ content, type: 'terraform' }]}
         bg="levels.deep"
-        copyButton
       />
     </Flex>
   );

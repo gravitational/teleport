@@ -48,6 +48,7 @@ export function ResourcesSection({
       <AwsService
         label="EC2 Instances"
         helperText="Teleport will discover EC2 instances and establish SSH access through the Teleport proxy."
+        tooltipText="Filter for EC2 instances by their tags. If no tags are added, Teleport will enroll all EC2 instances."
         config={ec2Config}
         onChange={onEc2Change}
       />
@@ -60,11 +61,18 @@ type ServiceConfig = EksConfig | RdsConfig | Ec2Config;
 type AwsServiceProps = {
   label: string;
   helperText: string;
+  tooltipText: string;
   config: ServiceConfig;
   onChange: (config: ServiceConfig) => void;
 };
 
-function AwsService({ label, helperText, config, onChange }: AwsServiceProps) {
+function AwsService({
+  label,
+  helperText,
+  tooltipText,
+  config,
+  onChange,
+}: AwsServiceProps) {
   const toggle = () => {
     onChange({
       ...config,
@@ -87,7 +95,7 @@ function AwsService({ label, helperText, config, onChange }: AwsServiceProps) {
             <FilterChevron size="small" expanded={config.enabled} />
             Filter by tag
             <IconTooltip kind="info">
-              <Text>Filter resources by AWS tags</Text>
+              <Text>{tooltipText}</Text>
             </IconTooltip>
           </Flex>
         </FilterButton>

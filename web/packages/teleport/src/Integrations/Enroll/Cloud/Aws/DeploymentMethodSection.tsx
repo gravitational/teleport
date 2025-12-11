@@ -18,25 +18,28 @@
 
 import styled from 'styled-components';
 
-import { Box, Flex, H2, Text } from 'design';
+import { Box, ButtonSecondary, Flex, H2, Text } from 'design';
 import { FieldRadio } from 'design/FieldRadio';
+import { Copy } from 'design/Icon';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-
-import { IntegrationConfig } from './types';
+import { useValidation } from 'shared/components/Validation';
 
 type DeploymentMethod = 'terraform' | 'manual';
 
 type DeploymentMethodSectionProps = {
   deploymentMethod: DeploymentMethod;
   onChange: (method: DeploymentMethod) => void;
-  integration: IntegrationConfig;
-  onRoleChange: (roleArn: string) => void;
+  terraformConfig?: string;
 };
 
 export function DeploymentMethodSection({
   deploymentMethod,
   onChange,
+  terraformConfig,
 }: DeploymentMethodSectionProps) {
+  const validator = useValidation();
+
   return (
     <>
       <H2>Deployment Method</H2>
@@ -63,34 +66,44 @@ export function DeploymentMethodSection({
         />
 
         {deploymentMethod === 'terraform' && (
-          <Flex flexDirection="column" ml={5} mb={3} gap={2}>
-            <Text>Add the Teleport module to your Terraform configuration</Text>
+          <Flex flexDirection="column" mb={3} gap={2}>
+            <Text bold={true} fontSize={1}>
+              1. Add the Teleport module to your Terraform configuration
+            </Text>
             <Text>
               Copy the module on the right and paste it into your Terraform
               configuration.
             </Text>
+            <Box>
+              <ButtonSecondary
+                disabled={!terraformConfig}
+                onClick={() => {
+                  if (validator.validate() && terraformConfig) {
+                    copyToClipboard(terraformConfig);
+                  }
+                }}
+                gap={2}
+              >
+                <Copy size="small" />
+                Copy Configuration
+              </ButtonSecondary>
+              {!validator.state.valid && (
+                <Text color="error.main" mt={2} fontSize={1}>
+                  Please complete the required fields
+                </Text>
+              )}
+            </Box>
+            <Text bold={true} fontSize={1}>
+              2. Initialize and apply the configuration
+            </Text>
+            <Text>
+              After the command completes successfully, the integration will be
+              registered automatically and auto-discovery will begin.
+            </Text>
             <TextSelectCopyMulti lines={[{ text: `terraform apply` }]} />
-          </Flex>
-        )}
-        <FieldRadio
-          name="deployment-method"
-          label={
-            <Flex alignItems="center" gap={2}>
-              <RadioLabel selected={deploymentMethod === 'manual'}>
-                Manual
-              </RadioLabel>
-            </Flex>
-          }
-          helperText="Manually create and configure the required IAM roles and policies."
-          value="manual"
-          checked={deploymentMethod === 'manual'}
-          onChange={() => onChange('manual')}
-          mb={3}
-        />
-
-        {deploymentMethod === 'manual' && (
-          <Flex flexDirection="column" ml={5} mb={2} gap={2}>
-            <Text>Manual deployment goes here...</Text>
+            <Text bold={true} fontSize={1}>
+              3. Return to Teleport to verify the integration
+            </Text>
           </Flex>
         )}
       </Box>
