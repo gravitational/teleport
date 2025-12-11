@@ -972,7 +972,7 @@
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
-      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "destination": "/identity-governance/access-lists/terraform/",
       "permanent": true
     },
     {
@@ -3013,6 +3013,16 @@
     {
       "source": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
       "destination": "/enroll-resources/agents/argocd-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/identity-governance/access-lists/terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/",
       "permanent": true
     }
   ]
