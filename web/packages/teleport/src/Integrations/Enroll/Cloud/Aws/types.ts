@@ -45,6 +45,7 @@ export type AwsConfig = {
   integration: IntegrationConfig;
   accountId: string;
   regions: WildcardRegion | Regions[];
+  ec2Config: Ec2Config;
 };
 
 export type AwsLabel = {

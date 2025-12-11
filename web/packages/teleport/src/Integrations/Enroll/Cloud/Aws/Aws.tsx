@@ -47,14 +47,7 @@ const POLLING_INTERVAL_MS = 5000;
 const POLLING_TIMEOUT_MS = 30000;
 
 export function Aws() {
-  const {
-    awsConfig,
-    setAwsConfig,
-    integration,
-    setIntegration,
-    ec2Config,
-    setEc2Config,
-  } = useAws();
+  const { awsConfig, setAwsConfig, setIntegration, setEc2Config } = useAws();
   const [deploymentMethod, setDeploymentMethod] =
     useState<deploymentMethod>('terraform');
 
@@ -65,6 +58,9 @@ export function Aws() {
   const abortControllerRef = useRef<AbortController>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const integration = awsConfig.integration;
+  const ec2Config = awsConfig.ec2Config;
 
   const onIntegrationSuccess = () => {
     toastNotifications.add({

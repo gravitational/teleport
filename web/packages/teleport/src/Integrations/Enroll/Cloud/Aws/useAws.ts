@@ -21,37 +21,38 @@ import { useState } from 'react';
 import {
   AwsConfig,
   Ec2Config,
-  EksConfig,
   IntegrationConfig,
-  RdsConfig,
   WildcardRegion,
 } from './types';
 
-export function useAws() {
-  const [awsConfig, setAwsConfig] = useState<AwsConfig>({
+export function useAws(initialAwsConfig?: Partial<AwsConfig>) {
+  const defaultAwsConfig: AwsConfig = {
     integration: {
       name: '',
       roleArn: '',
     },
     accountId: '',
     regions: ['*'] as WildcardRegion,
-  });
+    ec2Config: {
+      enabled: false,
+      tags: [],
+    },
+  };
 
-  const [ec2Config, setEc2Config] = useState<Ec2Config>({
-    enabled: false,
-    tags: [],
-  });
+  const mergedConfig: AwsConfig = {
+    ...defaultAwsConfig,
+    ...initialAwsConfig,
+    integration: {
+      ...defaultAwsConfig.integration,
+      ...initialAwsConfig?.integration,
+    },
+    ec2Config: {
+      ...defaultAwsConfig.ec2Config,
+      ...initialAwsConfig?.ec2Config,
+    },
+  };
 
-  const [rdsConfig, setRdsConfig] = useState<RdsConfig>({
-    enabled: false,
-    tags: [],
-  });
-
-  const [eksConfig, setEksConfig] = useState<EksConfig>({
-    enabled: false,
-    tags: [],
-    enableAppDiscovery: false,
-  });
+  const [awsConfig, setAwsConfig] = useState<AwsConfig>(mergedConfig);
 
   const setIntegration = (
     updater: (prev: IntegrationConfig) => IntegrationConfig
@@ -62,16 +63,17 @@ export function useAws() {
     }));
   };
 
+  const setEc2Config = (updater: (prev: Ec2Config) => Ec2Config) => {
+    setAwsConfig(prevAwsConfig => ({
+      ...prevAwsConfig,
+      ec2Config: updater(prevAwsConfig.ec2Config),
+    }));
+  };
+
   return {
     awsConfig,
     setAwsConfig,
-    integration: awsConfig.integration,
     setIntegration,
-    ec2Config,
-    rdsConfig,
-    eksConfig,
     setEc2Config,
-    setRdsConfig,
-    setEksConfig,
   };
 }
