@@ -19,17 +19,19 @@
 package webauthnwin
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"syscall"
 	"unsafe"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 
+	"github.com/gravitational/teleport"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -52,27 +54,28 @@ func newNativeImpl() *nativeImpl {
 		hasCompileSupport: true,
 	}
 
+	// Do not hold onto this logger. It is created before tsh has a chance to
+	// initialize it properly.
+	logger := slog.With(teleport.ComponentKey, "WebAuthnWin")
+	ctx := context.Background()
+
 	// Explicitly loading the module avoids a panic when calling DLL functions if
 	// the DLL is missing.
 	// https://github.com/gravitational/teleport/issues/36851
 	if err := modWebAuthn.Load(); err != nil {
-		log.
-			WithError(err).
-			Debug("WebAuthnWin: failed to load WebAuthn.dll (it's likely missing)")
+		logger.DebugContext(ctx, "failed to load WebAuthn.dll (it's likely missing)", "error", err)
 		return n
 	}
 	// Load WebAuthNGetApiVersionNumber explicitly too, it avoids a panic on some
 	// Windows Server 2019 installs.
 	if err := procWebAuthNGetApiVersionNumber.Find(); err != nil {
-		log.
-			WithError(err).
-			Debug("WebAuthnWin: failed to load WebAuthNGetApiVersionNumber")
+		logger.DebugContext(ctx, "failed to load WebAuthNGetApiVersionNumber", "error", err)
 		return n
 	}
 
 	v, err := webAuthNGetApiVersionNumber()
 	if err != nil {
-		log.WithError(err).Debug("WebAuthnWin: failed to check version")
+		logger.DebugContext(ctx, "failed to check version", "error", err)
 		return n
 	}
 	n.webauthnAPIVersion = v
@@ -86,7 +89,7 @@ func newNativeImpl() *nativeImpl {
 	if err != nil {
 		// This should not happen if dll exists, however we are fine with
 		// to proceed without uvPlatform.
-		log.WithError(err).Debug("WebAuthnWin: failed to check isUVPlatformAuthenticatorAvailable")
+		logger.DebugContext(ctx, "failed to check isUVPlatformAuthenticatorAvailable", "error", err)
 	}
 
 	return n
@@ -112,6 +115,21 @@ func (n *nativeImpl) GetAssertion(origin string, in *getAssertionRequest) (*want
 	hwnd, err := getForegroundWindow()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	logger := getPackageLogger()
+	logger.DebugContext(context.Background(), "WebAuthn.dll API version",
+		"version", n.webauthnAPIVersion,
+	)
+
+	if n.webauthnAPIVersion < int(in.opts.dwVersion) {
+		const legacyVersion = 5
+		in.opts.dwVersion = legacyVersion
+		logger.DebugContext(context.Background(),
+			"WebAuthn.dll too old, falling back to legacy version",
+			"api_version", n.webauthnAPIVersion,
+			"legacy_version", in.opts.dwVersion,
+		)
 	}
 
 	var out *webauthnAssertion
