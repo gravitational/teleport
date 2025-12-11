@@ -53,10 +53,10 @@ type Service struct {
 
 // NewService returns a new inventory gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
-	switch {
-	case cfg.Authorizer == nil:
+	if cfg.Authorizer == nil {
 		return nil, trace.BadParameter("authorizer is required")
-	case cfg.InventoryCache == nil:
+	}
+	if cfg.InventoryCache == nil {
 		return nil, trace.BadParameter("inventory cache is required")
 	}
 
