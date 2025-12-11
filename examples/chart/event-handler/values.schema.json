@@ -13,6 +13,10 @@
         "nodeSelector",
         "tolerations",
         "affinity",
+        "extraArgs",
+        "extraEnv",
+        "extraVolumes",
+        "extraVolumeMounts",
         "teleport",
         "fluentd"
     ],
@@ -131,6 +135,26 @@
             },
             "additionalProperties": true
         },
+        "extraArgs": {
+            "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
+        },
+        "extraEnv": {
+            "$id": "#/properties/extraEnv",
+            "type": "array",
+            "default": []
+        },
+        "extraVolumes": {
+            "$id": "#/properties/extraVolumes",
+            "type": "array",
+            "default": []
+        },
+        "extraVolumeMounts": {
+            "$id": "#/properties/extraVolumeMounts",
+            "type": "array",
+            "default": []
+        },
         "resources": {
             "$id": "#/properties/resources",
             "type": "object",
@@ -224,6 +248,27 @@
             "type": "object",
             "default": {},
             "additionalProperties": true
+        },
+        "extraLabels": {
+            "$id": "#/properties/extraLabels",
+            "type": "object",
+            "properties": {
+                "config": {
+                    "$id": "#/properties/extraLabels/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/extraLabels/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/extraLabels/properties/pod",
+                    "type": "object",
+                    "default": {}
+                }
+            }
         },
         "tls": {
             "$id": "#/properties/tls",

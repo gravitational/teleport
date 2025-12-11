@@ -16,3 +16,13 @@ tests:
           keyPath: myclient.key
     asserts:
       - matchSnapshot: {}
+  - it: sets extraLabels when set in values
+    set:
+      extraLabels:
+        config:
+          test-key: test-label-config
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            test-key: test-label-config
