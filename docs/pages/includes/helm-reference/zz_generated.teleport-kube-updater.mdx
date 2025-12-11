@@ -1,0 +1,266 @@
+
+{/* Generated file. Do not edit.*/}
+{/* Generate this file by navigating to examples/chart and running  make render-chart-ref*/}
+## `enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`enabled` Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
+You can enable this when:
+
+- using Teleport Cloud and your tenant is enrolled into automatic updates.
+  (You can check this through the web UI, choose `Add Kubernetes` and
+  `Enroll New Resource of type Kubernetes`, and check if the value is turned
+  on.)
+- using self-hosted Teleport and you maintain your own version server.
+
+You must not enable this when:
+
+- you are a Teleport Cloud customer not enrolled in automatic updates.
+- you are a self-hosted Teleport user and have not set up your Teleport cluster to
+  support automatic updates.
+
+## `versionServer`
+
+| Type | Default |
+|------|---------|
+| `string` | `"https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"` |
+
+`versionServer` is the URL of the version server the agent
+fetches the target version from. The complete version endpoint is built by
+concatenating [`versionServer`](#versionserver) and [`releaseChannel`
+](#releasechannel).
+This field supports gotemplate.
+
+Setting this field makes the updater fetch the version using the version server protocol.
+Setting this field to a custom value disables the webapi update protocol to ensure backward compatibility.
+
+## `releaseChannel`
+
+| Type | Default |
+|------|---------|
+| `string` | `"stable/cloud"` |
+
+`releaseChannel` is the release channel the updater
+subscribes to.
+
+The complete version endpoint is built by concatenating
+[`versionServer`](#versionserver) and [`releaseChannel`](#releasechannel).
+You must not change the default value if you are a Teleport Cloud user unless
+instructed by Teleport support.
+
+This value is used when the updater is fetching the version using the version server protocol.
+It is also used as a failover when fetching the version using the webapi protocol if `group` is unset.
+
+## `group`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`group` is the update group used when fetching the version using the webapi protocol.
+When unset, the group defaults to `update.releaseChannel`.
+
+## `image`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/teleport-kube-agent-updater"` |
+
+`image` sets the container image used for Teleport updater
+pods run when `enabled` is true.
+
+You can override this to use your own Teleport Kube Agent Updater image rather
+than a Teleport-published image.
+
+## `serviceAccount`
+
+### `serviceAccount.name`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`serviceAccount.name` is the updater Kubernetes Service
+Account name. When unset, it defaults to `<kube agent sa name>-updater`
+
+## `pullCredentials`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`pullCredentials` configures how the updater attempts to
+get the image pull credentials used to validate the image signature.
+
+This is not required when pulling images from official public Teleport
+registries (chart's default).
+
+Supported values are `amazon`, `google`, `docker` and `none`.
+
+## `extraArgs`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraArgs` contains additional arguments to pass to the updater
+binary.
+
+## `extraVolumes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraVolumes` contains extra volumes to mount into the Updater pods.
+See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+for more details.
+
+For example:
+```yaml
+extraVolumes:
+- name: myvolume
+  secret:
+    secretName: testSecret
+```
+
+## `extraVolumeMounts`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraVolumeMounts` contains extra volumes mounts for the updater.
+See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+for more details.
+
+For example:
+```yaml
+extraVolumesMounts:
+- name: myvolume
+  mountPath: /path/on/host
+```
+
+## `tls`
+
+`tls` contains settings for mounting your own TLS material in the agent pod.
+The agent does not expose a TLS server, so this is only used to trust CAs.
+
+### `tls.existingCASecretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`tls.existingCASecretName` sets the `SSL_CERT_FILE` environment
+variable to load a trusted CA or bundle in PEM format into Teleport pods.
+The injected CA will be used to validate TLS communications, with the Proxy
+Service, with upstream applications or databases.
+
+<Admonition type="note">
+  The recommended way to trust a database CA is to do it per-database instead
+  of adding the CA to the global Teleport trust store. It allows to trust
+  multiple CAs while limiting the trust scope to their specific databases.
+  See [the `databases` section](#databases).
+</Admonition>
+
+You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
+
+```code
+$ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+<Admonition type="warning" title="Root CA filename">
+  The key containing the root CA in the secret must be `ca.pem`.
+</Admonition>
+
+### `extraLabels.roleBinding`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.roleBinding` are labels to set on the RoleBinding.
+
+## `serviceAccountName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`serviceAccountName` is deprecated and will be removed in a future
+version. Use [`serviceAccount.name`](#serviceaccountname-1) instead.
+
+## `annotations`
+
+`annotations` contains annotations to apply to the different Kubernetes
+objects created by the chart. See [the Kubernetes annotation
+documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+for more details.
+
+### `annotations.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.config` contains the Kubernetes annotations
+put on the `ConfigMap` resource created by the chart.
+
+### `annotations.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.deployment` contains the Kubernetes annotations
+put on the `Deployment` or `StatefulSet` resource created by the chart.
+
+### `annotations.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.pod` contains the Kubernetes annotations
+put on the `Pod` resources created by the chart.
+
+### `annotations.secret`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.secret` contains the Kubernetes annotations
+put on the `Secret` resource created by the chart.
+This has no effect when `joinTokenSecret.create` is `false`.
+
+### `annotations.serviceAccount`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.serviceAccount` contains the Kubernetes annotations
+put on the `ServiceAccount` resource created by the chart.
+
+## `proxyAddr`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`proxyAddr` provides the public-facing Teleport Proxy Service endpoint
+which should be used to join the cluster. This is the same URL used to access
+the web UI of your Teleport cluster. The port used is usually either 3080 or 443.
+
+Here are a few examples:
+
+| Deployment method             | Example `proxy_service.public_addr` |
+|-------------------------------|-------------------------------------|
+| On-prem Teleport cluster      | `teleport.example.com:3080`         |
+| Teleport Cloud cluster        | `example.teleport.sh:443`           |
+| `teleport-cluster` Helm chart | `teleport.example.com:443`          |
