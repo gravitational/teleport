@@ -351,10 +351,7 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 
 // TestInstanceFactory runs registered plugins instance factory to test start and stop events
 func TestInstanceFactory(t *testing.T) {
-	jamfEnv := jamftestenv.NewUsingT(t, &jamftestenv.Opts{
-		DeviceTrustEnv: true,
-	})
-	defer jamfEnv.Close()
+	jamfEnv := jamftestenv.NewUsingT(t, &jamftestenv.Opts{DeviceTrustEnv: true})
 	intuneEnv := intunetestenv.MustNew(t, &intunetestenv.Config{})
 
 	testCases := []struct {
@@ -621,21 +618,18 @@ func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProc
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Clock = options.clock
 	cfg.DataDir = t.TempDir()
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"})
 	cfg.Auth.Enabled = true
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
-	cfg.Proxy.DisableWebInterface = true
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-	})
+	t.Cleanup(func() { require.NoError(t, process.Close()) })
+
 	return process
 }
