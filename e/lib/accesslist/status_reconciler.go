@@ -24,12 +24,6 @@ const (
 
 	// statusReconcilerTimeBetweenRuns is the time between reconciliation loops.
 	statusReconcilerTimeBetweenRuns = 10 * time.Minute
-
-	// statusReconcilerMaxRetries in case of conflicts.
-	statusReconcilerMaxRetries = 3
-
-	// statusReconcilerRetryHalfJitter between retries in case of conflicts.
-	statusReconcilerRetryHalfJitter = 2 * time.Second
 )
 
 type statusReconcilerAccessPoint interface {
@@ -46,6 +40,13 @@ type statusReconcilerAccessPoint interface {
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error)
 	// UpdateAccessListMember conditionally updates an access list member resource.
 	UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
+
+	// CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
+	CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+
+	// EnsureNestedListStatuses goes over all nested owners and nested members of the named access
+	// list and ensures the the nested lists' statuses owner_of/member_of contain the access list name.
+	EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error
 }
 
 // statusReconcilerConfig configuration.
@@ -124,7 +125,7 @@ func (r *statusReconciler) Run(ctx context.Context) error {
 			if err != nil {
 				r.Logger.ErrorContext(ctx, "Error reconciling access_list statuses", "error", trace.Wrap(err))
 			} else {
-				if stats.ownerListsNotFixedDueConflict > 0 {
+				if stats.fixed > 0 {
 					stats.wrapLogger(r.Logger, took, waitTime).WarnContext(ctx,
 						"Finished reconciling access_list statuses, but some weren't fixed due to conflict. Will retry on the next loop")
 				} else {
@@ -147,55 +148,85 @@ func (r *statusReconciler) reconcile(ctx context.Context) (*statusReconcilerStat
 		}
 		stats.processed++
 
-		badOwnerLists, err := r.findBadOwnerLists(ctx, accessList)
+		isStatusDirty, err := r.isAccessListStatusDirty(ctx, accessList)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		badMemberLists, err := r.findBadMemberLists(ctx, accessList)
+		if isStatusDirty {
+			accessList, err = r.AccessPoint.CleanupAccessListStatus(ctx, accessList.GetName())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			stats.fixed++
+		}
+
+		badOwnerListCnt, err := r.getBadOwnerListCnt(ctx, accessList)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		badMemberListCnt, err := r.getBadMemberListCnt(ctx, accessList)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		hadConflicts := false
-		if len(badOwnerLists) > 0 {
-			fixed, attempts, err := r.tryFixOwnersStatusesFor(ctx, accessList)
-			if err != nil {
+		if badOwnerListCnt+badMemberListCnt > 0 {
+			if err := r.AccessPoint.EnsureNestedAccessListStatuses(ctx, accessList.GetName()); err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if fixed {
-				stats.fixedOwnerLists += len(badOwnerLists)
-			} else {
-				stats.ownerListsNotFixedDueConflict += len(badOwnerLists)
-			}
-			hadConflicts = hadConflicts || attempts > 1
-			stats.attemptedRetries += attempts - 1
-		}
-
-		for _, badMember := range badMemberLists {
-			fixed, attempts, err := r.tryFixMemberStatus(ctx, accessList.GetName(), badMember)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if fixed {
-				stats.fixedMemberLists++
-			} else {
-				stats.memberListsNotFixedDueConflict++
-			}
-			hadConflicts = hadConflicts || attempts > 1
-			stats.attemptedRetries += attempts - 1
-		}
-		if hadConflicts {
-			stats.hadConflicts++
+			stats.fixed += badOwnerListCnt + badMemberListCnt
 		}
 	}
 
 	return &stats, nil
 }
 
-// findBadOwnerLists returns names of all the owner access lists (of the provided access list)
-// which don't have the provided access list name in their status.owner_of.
-func (r *statusReconciler) findBadOwnerLists(ctx context.Context, accessList *accesslist.AccessList) ([]string, error) {
-	var badOwnerLists []string
+// isAccessListStatusDirty returns true if the access_list.status.{owner_of,member_of} contains
+// invalid entries. I.e. entries referencing lists that are not owned by this access list, or are
+// not parents of this access list.
+func (r *statusReconciler) isAccessListStatusDirty(ctx context.Context, accessList *accesslist.AccessList) (bool, error) {
+	dirty := false
+
+	for _, ownedListName := range accessList.Status.OwnerOf {
+		ownedList, err := r.AccessPoint.GetAccessList(ctx, ownedListName)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				r.Logger.WarnContext(ctx, "Found access_list with status.owner_of reference to a list that does not exist. It will be cleared",
+					"access_list", accessList.GetName(), "bad_owner_of_entry", ownedListName)
+				dirty = true
+				continue
+			}
+			return false, trace.Wrap(err)
+		}
+		isActualOwner := slices.ContainsFunc(ownedList.Spec.Owners, func(ownedListOwner accesslist.Owner) bool {
+			return ownedListOwner.MembershipKind == accesslist.MembershipKindList && ownedListOwner.Name == accessList.GetName()
+		})
+		if !isActualOwner {
+			r.Logger.WarnContext(ctx, "Found access_list with incorrect status.owner_of entry. It will be cleared",
+				"access_list", accessList.GetName(), "bad_owner_of_entry", ownedListName)
+			dirty = true
+			continue
+		}
+	}
+
+	for _, parentListName := range accessList.Status.MemberOf {
+		if _, err := r.AccessPoint.GetAccessListMember(ctx, parentListName, accessList.GetName()); err != nil {
+			if trace.IsNotFound(err) {
+				r.Logger.WarnContext(ctx, "Found access_list with status.member_of reference to a list that does not exist. It will be cleared",
+					"access_list", accessList.GetName(), "bad_member_of_entry", parentListName)
+				dirty = true
+				continue
+			}
+			return false, trace.Wrap(err)
+		}
+	}
+
+	return dirty, nil
+}
+
+// getBadOwnerListCnt returns a total number of all the owner access lists (of the provided access
+// list) which don't have the provided access list name in their status.owner_of.
+func (r *statusReconciler) getBadOwnerListCnt(ctx context.Context, accessList *accesslist.AccessList) (int, error) {
+	badOwnerListCnt := 0
 	for _, owner := range accessList.Spec.Owners {
 		if owner.MembershipKind != accesslist.MembershipKindList {
 			continue
@@ -207,26 +238,28 @@ func (r *statusReconciler) findBadOwnerLists(ctx context.Context, accessList *ac
 				"originated_access_list", accessList.GetName(), "owner_access_list", owner.Name)
 			continue
 		} else if err != nil {
-			return nil, trace.Wrap(err)
+			return 0, trace.Wrap(err)
 		}
 		if !slices.Contains(ownerList.Status.OwnerOf, accessList.GetName()) {
-			badOwnerLists = append(badOwnerLists, ownerList.GetName())
+			r.Logger.WarnContext(ctx, "Found owner access_list with missing status.owner_of entry. It will be added",
+				"access_list", ownerList.GetName(), "missing_owner_of_entry", accessList.GetName())
+			badOwnerListCnt++
 		}
 	}
-	return badOwnerLists, nil
+	return badOwnerListCnt, nil
 }
 
-// findBadMemberLists returns names of all the member access lists (of the provided access list)
-// which don't have the provided access list name in their status.member_of.
-func (r *statusReconciler) findBadMemberLists(ctx context.Context, accessList *accesslist.AccessList) ([]string, error) {
-	var badMemberLists []string
+// getBadMemberListCnt returns a total number of all the member access lists (of the provided
+// access list) which don't have the provided access list name in their status.member_of.
+func (r *statusReconciler) getBadMemberListCnt(ctx context.Context, accessList *accesslist.AccessList) (int, error) {
+	badMemberListCnt := 0
 	listMembersFn := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 		members, pageToken, err := r.AccessPoint.ListAccessListMembers(ctx, accessList.GetName(), pageSize, pageToken)
 		return members, pageToken, trace.Wrap(err)
 	}
 	for member, err := range clientutils.Resources(ctx, listMembersFn) {
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return 0, trace.Wrap(err)
 		}
 
 		if member.Spec.MembershipKind != accesslist.MembershipKindList {
@@ -239,100 +272,23 @@ func (r *statusReconciler) findBadMemberLists(ctx context.Context, accessList *a
 				"originated_access_list", accessList.GetName(), "member_access_list", member.GetName())
 			continue
 		} else if err != nil {
-			return nil, trace.Wrap(err)
+			return 0, trace.Wrap(err)
 		}
 		if !slices.Contains(memberList.Status.MemberOf, accessList.GetName()) {
-			badMemberLists = append(badMemberLists, memberList.GetName())
+			r.Logger.WarnContext(ctx, "Found member access_list with missing status.member_of entry. It will be added",
+				"access_list", memberList.GetName(), "missing_member_of_entry", accessList.GetName())
+			badMemberListCnt++
 		}
 	}
-	return badMemberLists, nil
-}
-
-// tryFixOwnersStatusesFor makes sure status.owner_of of all the owner lists of the provided access
-// list contains the provided access list's name.
-func (r *statusReconciler) tryFixOwnersStatusesFor(ctx context.Context, accessList *accesslist.AccessList) (fixed bool, attempts int, err error) {
-	accessListName := accessList.GetName()
-	refreshFn := func(ctx context.Context, isRetry bool) (*accesslist.AccessList, error) {
-		attempts++
-		if !isRetry {
-			// If not a retry attempt, do not refresh and return the original list from
-			// pagination.
-			return accessList, nil
-		}
-		refreshed, err := r.AccessPoint.GetAccessList(ctx, accessListName)
-		return refreshed, trace.Wrap(err)
-	}
-	fixFn := func(ctx context.Context, accessList *accesslist.AccessList) error {
-		// UpdateAccessList makes sure accessList name is in all status.owner_of of all the owner lists.
-		_, err := r.AccessPoint.UpdateAccessList(ctx, accessList)
-		return trace.Wrap(err)
-	}
-	err = retryutils.UpdateWithRetry(ctx, r.Clock, refreshFn, fixFn)
-	switch {
-	case trace.IsNotFound(err):
-		r.Logger.DebugContext(ctx, "access_list not found, probably deleted in the meantime",
-			"access_list", accessListName, "error", err.Error())
-		return false, attempts, nil
-	case trace.IsCompareFailed(err):
-		r.Logger.WarnContext(ctx, "access_list owners could not be fixed due to conflicts. Will not retry till the next reconciliation loop",
-			"access_list", accessListName, "error", err.Error())
-		return false, attempts, nil
-	case err != nil:
-		return false, 0, trace.Wrap(err)
-	default:
-		return true, attempts, nil
-	}
-}
-
-// tryFixMemberStatus makes sure status.member_of of the access list nested member contains the
-// access list's name.
-func (r *statusReconciler) tryFixMemberStatus(ctx context.Context, accessList, member string) (fixed bool, attempts int, err error) {
-	refreshFn := func(ctx context.Context, _ bool) (*accesslist.AccessListMember, error) {
-		attempts++
-		refreshed, err := r.AccessPoint.GetAccessListMember(ctx, accessList, member)
-		return refreshed, trace.Wrap(err)
-	}
-	fixFn := func(ctx context.Context, member *accesslist.AccessListMember) error {
-		// UpdateAccessListMember for nested access list member ensures that member's list
-		// status.member_of contains the parent access list name.
-		_, err := r.AccessPoint.UpdateAccessListMember(ctx, member)
-		return trace.Wrap(err)
-	}
-	err = retryutils.UpdateWithRetry(ctx, r.Clock, refreshFn, fixFn)
-	switch {
-	case trace.IsNotFound(err):
-		r.Logger.DebugContext(ctx, "access_list_member not found, probably deleted in the meantime",
-			"access_list_member", accessList+"/"+member, "error", err.Error())
-		return false, attempts, nil
-	case trace.IsCompareFailed(err):
-		r.Logger.WarnContext(ctx, "access_list_member could not be fixed due to conflicts. Will not retry till the next reconciliation loop",
-			"access_list_member", accessList+"/"+member, "error", err.Error())
-		return false, attempts, nil
-	case err != nil:
-		return false, 0, trace.Wrap(err)
-	default:
-		return true, attempts, nil
-	}
+	return badMemberListCnt, nil
 }
 
 // statusReconcilerStats are the statistics for a single reconciliation loop.
 type statusReconcilerStats struct {
 	// processed is the number of access lists processed.
 	processed int
-	// fixedOwnerLists is the number of owner access lists fixed.
-	fixedOwnerLists int
-	// fixedMemberLists is the number of member access lists fixed.
-	fixedMemberLists int
-	// hadConflicts is the number of access lists which had not up-to-date owner or member
-	// lists and some or all of them were not fixed due to conflicts.
-	hadConflicts int
-	// ownerListsNotFixedDueConflict is the number of owner access lists not fixed due to conflicts.
-	ownerListsNotFixedDueConflict int
-	// memberListsNotFixedDueConflict is the number of member access lists not fixed due to conflicts.
-	memberListsNotFixedDueConflict int
-	// attemptedRetries is the number of retries happened due to conflicts. This number bigger
-	// than 0 doesn't mean all lists are not fixed.
-	attemptedRetries int
+	// fixed is the number of access lists that required a fix and were fixed.
+	fixed int
 }
 
 func (s *statusReconcilerStats) wrapLogger(l *slog.Logger, took, waitTime time.Duration) *slog.Logger {
@@ -340,11 +296,6 @@ func (s *statusReconcilerStats) wrapLogger(l *slog.Logger, took, waitTime time.D
 		slog.String("took", took.String()),
 		slog.String("next_run_in", waitTime.String()),
 		slog.Int("processed", s.processed),
-		slog.Int("fixed_owner_lists", s.fixedOwnerLists),
-		slog.Int("fixed_member_lists", s.fixedMemberLists),
-		slog.Int("had_conflicts", s.hadConflicts),
-		slog.Int("owner_lists_not_fixed_due_conflict", s.ownerListsNotFixedDueConflict),
-		slog.Int("member_lists_not_fixed_due_conflict", s.memberListsNotFixedDueConflict),
-		slog.Int("attempted_retries", s.attemptedRetries),
+		slog.Int("fixed", s.fixed),
 	)
 }

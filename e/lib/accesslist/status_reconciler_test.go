@@ -3,7 +3,6 @@ package accesslist
 import (
 	"context"
 	"log/slog"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,9 +37,21 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 	storage, err := local.NewAccessListService(bk, clock, local.WithRunWhileLockedRetryInterval(-1*time.Millisecond))
 	require.NoError(t, err)
 
+	// a1 not a owner nor a member of anything
 	a1 := newAccessList(t, "1", clock)
+	// a2 is a member of a1, but it doesn't have it set in status.member_of
 	a2 := newAccessList(t, "2", clock)
+	// a3 is an owner of a1, but it doesn't have it set in status.owner_of
 	a3 := newAccessList(t, "3", clock)
+	// a4 is not a member of a1 but it has a1 in status.member_of
+	a4 := newAccessList(t, "4", clock)
+	// a5 is not an owner of a1 but it has a1 in status.owner_of
+	a5 := newAccessList(t, "5", clock)
+	// a6 has status.member_of referencing a non-existing list
+	a6 := newAccessList(t, "6", clock)
+	// a7 has status.owner_of referencing a non-existing list
+	a7 := newAccessList(t, "7", clock)
+
 	a1m1 := newAccessListMember(t, a1.GetName(), a2.GetName(), accesslist.MembershipKindList, clock)
 	a1.SetOwners([]accesslist.Owner{
 		{
@@ -48,16 +59,19 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 			MembershipKind: accesslist.MembershipKindList,
 		},
 	})
-	require.NoError(t, upsertAccessList(t.Context(), storage, []*accesslist.AccessList{a3, a2, a1}, []*accesslist.AccessListMember{a1m1}))
+	require.NoError(t, upsertAccessList(t.Context(), storage, []*accesslist.AccessList{a7, a6, a5, a4, a3, a2, a1}, []*accesslist.AccessListMember{a1m1}))
 
-	assertMemberOf(t, ctx, storage, a2.GetName(), []string{a1.GetName()})
-	assertOwnerOf(t, ctx, storage, a3.GetName(), []string{a1.GetName()})
+	const nonExistingList1, nonExistingList2 = "non_existing_list1", "non_existing_list2"
+
+	assertStatusMemberOf(t, ctx, storage, a2.GetName(), []string{a1.GetName()})
+	assertStatusOwnerOf(t, ctx, storage, a3.GetName(), []string{a1.GetName()})
 
 	resetAccessListStatus(t, bk, storage, a2)
 	resetAccessListStatus(t, bk, storage, a3)
-
-	assertMemberOf(t, ctx, storage, a2.GetName(), []string{})
-	assertOwnerOf(t, ctx, storage, a3.GetName(), []string{})
+	setAccessListStatus(t, bk, storage, a4, accesslist.Status{MemberOf: []string{a1.GetName()}})
+	setAccessListStatus(t, bk, storage, a5, accesslist.Status{OwnerOf: []string{a1.GetName()}})
+	setAccessListStatus(t, bk, storage, a6, accesslist.Status{MemberOf: []string{nonExistingList1}})
+	setAccessListStatus(t, bk, storage, a7, accesslist.Status{OwnerOf: []string{nonExistingList2}})
 
 	cfg := statusReconcilerConfig{
 		Logger:      slog.Default(),
@@ -67,13 +81,24 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 	r, err := newStatusReconciler(cfg)
 	require.NoError(t, err)
 
+	assertStatusMemberOf(t, ctx, storage, a2.GetName(), []string{})
+	assertStatusOwnerOf(t, ctx, storage, a3.GetName(), []string{})
+	assertStatusMemberOf(t, ctx, storage, a4.GetName(), []string{a1.GetName()})
+	assertStatusOwnerOf(t, ctx, storage, a5.GetName(), []string{a1.GetName()})
+	assertStatusMemberOf(t, ctx, storage, a6.GetName(), []string{nonExistingList1})
+	assertStatusOwnerOf(t, ctx, storage, a7.GetName(), []string{nonExistingList2})
+
 	go r.Run(ctx)
 	clock.Advance(statusReconcilerStartupSeventhJitter)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		clock.Advance(statusReconcilerStartupSeventhJitter)
-		assertMemberOf(c, ctx, storage, a2.GetName(), []string{a1.GetName()})
-		assertOwnerOf(c, ctx, storage, a3.GetName(), []string{a1.GetName()})
+		assertStatusMemberOf(c, ctx, storage, a2.GetName(), []string{a1.GetName()})
+		assertStatusOwnerOf(c, ctx, storage, a3.GetName(), []string{a1.GetName()})
+		assertStatusMemberOf(c, ctx, storage, a4.GetName(), []string{})
+		assertStatusOwnerOf(c, ctx, storage, a5.GetName(), []string{})
+		assertStatusMemberOf(c, ctx, storage, a6.GetName(), []string{})
+		assertStatusOwnerOf(c, ctx, storage, a7.GetName(), []string{})
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
@@ -161,114 +186,7 @@ func Test_statusReconciler_reconcile_missingOwnerAndMemberLists(t *testing.T) {
 	})
 }
 
-func Test_statusReconciler_reconcile_retriesOnConflict(t *testing.T) {
-	ctx := t.Context()
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{entitlements.Identity: {Enabled: true}},
-		},
-	})
-
-	clock := clockwork.NewFakeClock()
-	bk, err := memory.New(memory.Config{Clock: clock})
-	require.NoError(t, err)
-	storage, err := local.NewAccessListService(bk, clock, local.WithRunWhileLockedRetryInterval(-1*time.Millisecond))
-	require.NoError(t, err)
-
-	a1 := newAccessList(t, "test_list_1", clock)
-	badMember1 := newAccessList(t, "test_bad_member_1", clock)
-	badOwner1 := newAccessList(t, "test_bad_owner_1", clock)
-	a1m1 := newAccessListMember(t, a1.GetName(), badMember1.GetName(), accesslist.MembershipKindList, clock)
-	a1.SetOwners([]accesslist.Owner{
-		{
-			Name:           badOwner1.GetName(),
-			MembershipKind: accesslist.MembershipKindList,
-		},
-	})
-	require.NoError(t, upsertAccessList(t.Context(), storage, []*accesslist.AccessList{badOwner1, badMember1, a1}, []*accesslist.AccessListMember{a1m1}))
-
-	assertMemberOf(t, ctx, storage, badMember1.GetName(), []string{a1.GetName()})
-	assertOwnerOf(t, ctx, storage, badOwner1.GetName(), []string{a1.GetName()})
-
-	cfg := statusReconcilerConfig{
-		Logger:      slog.Default(),
-		Clock:       clock,
-		AccessPoint: storage,
-	}
-	r, err := newStatusReconciler(cfg)
-	require.NoError(t, err)
-
-	// Allow retries.
-	go func(ctx context.Context) {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(10 * time.Millisecond):
-				clock.Advance(statusReconcilerRetryHalfJitter)
-			}
-		}
-	}(ctx)
-
-	t.Run("conflicts below the retry limits", func(t *testing.T) {
-		resetAccessListStatus(t, bk, storage, badOwner1)
-		resetAccessListStatus(t, bk, storage, badMember1)
-		assertMemberOf(t, ctx, storage, badMember1.GetName(), []string{})
-		assertOwnerOf(t, ctx, storage, badOwner1.GetName(), []string{})
-
-		r.AccessPoint = &testStatusReconcilerAccessPoint{
-			statusReconcilerAccessPoint:     storage,
-			updateConflictForTheFirstNTimes: 2,
-		}
-
-		stats, err := r.reconcile(ctx)
-		require.NoError(t, err)
-		require.Equal(t, &statusReconcilerStats{
-			processed:                      3,
-			fixedOwnerLists:                1,
-			fixedMemberLists:               1,
-			hadConflicts:                   1,
-			ownerListsNotFixedDueConflict:  0,
-			memberListsNotFixedDueConflict: 0,
-			attemptedRetries:               4, // 2 conflicts 1 owner and 1 member each
-		}, stats)
-
-		assertMemberOf(t, ctx, storage, badMember1.GetName(), []string{a1.GetName()})
-		assertOwnerOf(t, ctx, storage, badOwner1.GetName(), []string{a1.GetName()})
-	})
-
-	t.Run("conflicts above the retry limits", func(t *testing.T) {
-		resetAccessListStatus(t, bk, storage, badOwner1)
-		resetAccessListStatus(t, bk, storage, badMember1)
-		assertMemberOf(t, ctx, storage, badMember1.GetName(), []string{})
-		assertOwnerOf(t, ctx, storage, badOwner1.GetName(), []string{})
-
-		r.AccessPoint = &testStatusReconcilerAccessPoint{
-			statusReconcilerAccessPoint:     storage,
-			updateConflictForTheFirstNTimes: 1000,
-		}
-
-		stats, err := r.reconcile(ctx)
-		require.NoError(t, err)
-		require.Equal(t, &statusReconcilerStats{
-			processed:                      3,
-			fixedOwnerLists:                0,
-			fixedMemberLists:               0,
-			hadConflicts:                   1,
-			ownerListsNotFixedDueConflict:  1,
-			memberListsNotFixedDueConflict: 1,
-			attemptedRetries:               statusReconcilerMaxRetries * 2, // x2 because it's for the bad owner and member
-		}, stats)
-
-		// Still bad because of conflicts.
-		assertMemberOf(t, ctx, storage, badMember1.GetName(), []string{})
-		assertOwnerOf(t, ctx, storage, badOwner1.GetName(), []string{})
-	})
-}
-
-func assertMemberOf(t require.TestingT, ctx context.Context, svc *local.AccessListService, name string, expected []string) {
+func assertStatusMemberOf(t require.TestingT, ctx context.Context, svc *local.AccessListService, name string, expected []string) {
 	if t, ok := t.(*testing.T); ok {
 		t.Helper()
 	}
@@ -277,7 +195,7 @@ func assertMemberOf(t require.TestingT, ctx context.Context, svc *local.AccessLi
 	require.ElementsMatch(t, expected, item.Status.MemberOf)
 }
 
-func assertOwnerOf(t require.TestingT, ctx context.Context, svc *local.AccessListService, name string, expected []string) {
+func assertStatusOwnerOf(t require.TestingT, ctx context.Context, svc *local.AccessListService, name string, expected []string) {
 	if t, ok := t.(*testing.T); ok {
 		t.Helper()
 	}
@@ -287,12 +205,16 @@ func assertOwnerOf(t require.TestingT, ctx context.Context, svc *local.AccessLis
 }
 
 func resetAccessListStatus(t *testing.T, bk *memory.Memory, storage *local.AccessListService, acl *accesslist.AccessList) {
+	setAccessListStatus(t, bk, storage, acl, accesslist.Status{})
+}
+
+func setAccessListStatus(t *testing.T, bk *memory.Memory, storage *local.AccessListService, acl *accesslist.AccessList, newStatus accesslist.Status) {
 	t.Helper()
 	i, err := bk.Get(t.Context(), backend.NewKey("access_list", acl.GetName()))
 	require.NoError(t, err)
 	v, err := services.UnmarshalAccessList(i.Value)
 	require.NoError(t, err)
-	v.Status = accesslist.Status{}
+	v.Status = newStatus
 	buff, err := services.MarshalAccessList(v)
 	require.NoError(t, err)
 	i.Value = buff
@@ -300,7 +222,7 @@ func resetAccessListStatus(t *testing.T, bk *memory.Memory, storage *local.Acces
 	require.NoError(t, err)
 	v, err = storage.GetAccessList(t.Context(), acl.GetName())
 	require.NoError(t, err)
-	require.Equal(t, accesslist.Status{}, v.Status)
+	require.Equal(t, newStatus, v.Status)
 }
 
 func upsertAccessList(ctx context.Context, s *local.AccessListService, lists []*accesslist.AccessList, members []*accesslist.AccessListMember) error {
@@ -317,30 +239,4 @@ func upsertAccessList(ctx context.Context, s *local.AccessListService, lists []*
 		}
 	}
 	return nil
-}
-
-type testStatusReconcilerAccessPoint struct {
-	statusReconcilerAccessPoint
-
-	updateConflictForTheFirstNTimes uint64
-
-	state struct {
-		UpdateAccessListCnt       uint64
-		UpdateAccessListMemberCnt uint64
-	}
-}
-
-func (ap *testStatusReconcilerAccessPoint) UpdateAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
-	cnt := atomic.AddUint64(&ap.state.UpdateAccessListCnt, 1)
-	if cnt <= ap.updateConflictForTheFirstNTimes {
-		return nil, trace.CompareFailed("%d call to %T.UpdateAccessList", cnt, ap)
-	}
-	return ap.statusReconcilerAccessPoint.UpdateAccessList(ctx, accessList)
-}
-func (ap *testStatusReconcilerAccessPoint) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
-	cnt := atomic.AddUint64(&ap.state.UpdateAccessListMemberCnt, 1)
-	if cnt <= ap.updateConflictForTheFirstNTimes {
-		return nil, trace.CompareFailed("%d call to %T.UpdateAccessListMember", cnt, ap)
-	}
-	return ap.statusReconcilerAccessPoint.UpdateAccessListMember(ctx, member)
 }

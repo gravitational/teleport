@@ -75,7 +75,7 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 
 	// AccessLists is the access list service to use.
-	AccessLists services.AccessLists
+	AccessLists services.AccessListsInternal
 
 	// LockGetter is a getter for locks.
 	LockGetter services.LockGetter
@@ -214,7 +214,7 @@ type Service struct {
 
 	logger            *slog.Logger
 	authorizer        authz.Authorizer
-	accessLists       services.AccessLists
+	accessLists       services.AccessListsInternal
 	accessListReviews services.AccessListReviews
 	plugins           services.Plugins
 	usageEvents       UsageEventsClient
