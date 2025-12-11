@@ -60,31 +60,33 @@ locals {
     var.teleport_discovery_service_iam_role_name,
     local.default_aws_resource_name,
   )}"
-  teleport_discovery_service_iam_role_trust_policy = <<EOF
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "Federated": "${local.aws_iam_oidc_provider_arn}"
-            },
-            "Action": "sts:AssumeRoleWithWebIdentity",
-            "Condition": {
-                "StringEquals": {
-                    "${local.teleport_cluster_name}:aud": "${local.aws_iam_oidc_provider_aud}"
-                }
-            }
-        }
-    ]
 }
-EOF
+
+data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust_policy" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [local.aws_iam_oidc_provider_arn]
+    }
+
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.teleport_cluster_name}:aud"
+      values   = [local.aws_iam_oidc_provider_aud]
+    }
+  }
 }
 
 resource "aws_iam_role" "teleport_discovery_service" {
   count = local.create_teleport_discovery_service_iam_role ? 1 : 0
 
-  assume_role_policy   = local.teleport_discovery_service_iam_role_trust_policy
+  assume_role_policy   = data.aws_iam_policy_document.teleport_discovery_service_iam_role_trust_policy.json
   description          = "AWS IAM role that Teleport Discovery Service will assume."
   max_session_duration = 3600
   name                 = local.teleport_discovery_service_iam_role_name
@@ -102,28 +104,24 @@ locals {
     var.teleport_discovery_service_iam_policy_name,
     local.default_aws_resource_name,
   )}"
-  teleport_discovery_service_single_account_iam_policy       = <<EOF
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "account:ListRegions",
-                "ec2:DescribeInstances",
-                "ssm:DescribeInstanceInformation",
-                "ssm:GetCommandInvocation",
-                "ssm:ListCommandInvocations",
-                "ssm:SendCommand"
-            ],
-            "Resource": [
-                "*"
-            ]
-        }
-    ]
-}
-EOF
   teleport_discovery_service_organization_account_iam_policy = "" # TODO(gavin): impl org discovery
+}
+
+data "aws_iam_policy_document" "teleport_discovery_service_single_account_iam_policy" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "account:ListRegions",
+      "ec2:DescribeInstances",
+      "ssm:DescribeInstanceInformation",
+      "ssm:GetCommandInvocation",
+      "ssm:ListCommandInvocations",
+      "ssm:SendCommand",
+    ]
+
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_policy" "teleport_discovery_service" {
@@ -135,7 +133,7 @@ resource "aws_iam_policy" "teleport_discovery_service" {
   policy = (
     local.discover_organization
     ? local.teleport_discovery_service_organization_account_iam_policy
-    : local.teleport_discovery_service_single_account_iam_policy
+    : data.teleport_discovery_service_single_account_iam_policy.json
   )
   tags = local.tags
 }
