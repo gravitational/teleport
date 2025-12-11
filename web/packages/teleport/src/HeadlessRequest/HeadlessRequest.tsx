@@ -29,7 +29,8 @@ import { CardAccept, CardDenied } from 'teleport/HeadlessRequest/Cards';
 import { shouldShowMfaPrompt, useMfa } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
-import { getHeadlessAuthTypeLabel, HeadlessAuthenticationType } from './types';
+import { getActionFromAuthType, getHeadlessAuthTypeLabel, HeadlessAuthenticationType } from './types';
+import { capitalizeFirstLetter } from 'shared/utils/text';
 
 export function HeadlessRequest() {
   const { requestId } = useParams<{ requestId: string }>();
@@ -39,7 +40,7 @@ export function HeadlessRequest() {
     status: 'pending',
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
-    authType: '',
+    authType: HeadlessAuthenticationType.UNSPECIFIED,
   });
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function HeadlessRequest() {
         ...state,
         status: 'loaded',
         ipAddress: response.clientIpAddress,
-        authType: getHeadlessAuthTypeLabel(response.authType),
+        authType: response.authType,
       });
     };
 
@@ -98,7 +99,7 @@ export function HeadlessRequest() {
 
   if (state.status == 'success') {
     return (
-      <CardAccept title="Command has been approved">
+      <CardAccept title={`${capitalizeFirstLetter(getActionFromAuthType(state.authType))} has been approved`}>
         You can now return to your terminal.
       </CardAccept>
     );
@@ -150,7 +151,7 @@ export function HeadlessRequest() {
                 });
             }}
             errorText={state.errorText}
-            authType={state.authType}
+            action={getActionFromAuthType(state.authType)}
           />
         )
       }
