@@ -265,7 +265,6 @@ func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt)
 		AccessPoint:      ap,
 		Access:           ap,
 		AccessLists:      ap,
-		OnHeartbeat:      func(err error) {},
 		Emitter:          emitter,
 		OktaAPIEndpoint:  "dummy",
 		ConnectorService: ap,

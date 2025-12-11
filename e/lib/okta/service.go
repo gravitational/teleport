@@ -93,9 +93,6 @@ type Config struct {
 	// AccessLists is the service for interacting with access lists.
 	AccessLists services.AccessLists
 
-	// OnHeartbeat is called after every heartbeat. Used to update process state.
-	OnHeartbeat func(error)
-
 	// OktaAPIEndpoint is the API endpoint to use for interacting with Okta.
 	OktaAPIEndpoint string
 
@@ -163,9 +160,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point is missing")
-	}
-	if c.OnHeartbeat == nil {
-		return trace.BadParameter("OnHeartbeat is missing")
 	}
 	if c.OktaAPIEndpoint == "" {
 		return trace.BadParameter("Okta API endpoint is missing")
@@ -247,7 +241,6 @@ type Service struct {
 	// service to interact with the Teleport cluster.
 	accessPoint authclient.OktaAccessPoint
 	accessLists services.AccessLists
-	onHeartbeat func(error)
 	client      oktaapi.Interface
 	emitter     apievents.Emitter
 	orgURL      string
@@ -449,7 +442,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		hostID:                  config.HostID,
 		accessPoint:             config.AccessPoint,
 		accessLists:             config.AccessLists,
-		onHeartbeat:             config.OnHeartbeat,
 		client:                  oktaClient,
 		orgURL:                  strings.TrimSuffix(oktaClient.GetOrgUrl(), "/"),
 		emitter:                 config.Emitter,

@@ -193,7 +193,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		AccessPoint:        accessPoint,
 		Access:             conn.Client,
 		AccessLists:        conn.Client.AccessListClient(),
-		OnHeartbeat:        process.OnHeartbeat(teleport.Okta),
 		OktaAPIEndpoint:    settings.orgUrl,
 		PluginStatusSink:   settings.pluginStatusSink,
 		TimeBetweenSyncs:   timeBetweenImports,
