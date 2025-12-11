@@ -58,3 +58,5 @@ func (c *Client) GetClientLastActive() time.Time {
 
 // UpdateClientActivity updates the client activity timestamp.
 func (c *Client) UpdateClientActivity() {}
+
+func (c *Client) DisableNLA() {}

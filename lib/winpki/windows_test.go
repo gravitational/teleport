@@ -19,7 +19,10 @@
 package winpki
 
 import (
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -88,6 +91,45 @@ func TestCRLDN(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.crlDN, CRLDN(test.clusterName, test.issuerSKID, "test.goteleport.com", test.caType))
+		})
+	}
+}
+
+func TestConvertDistinguishedName(t *testing.T) {
+	tests := []struct {
+		dn   string
+		want pkix.Name
+	}{
+		{
+			"CN=a,DC=b,DC=c,DC=d", pkix.Name{ExtraNames: []pkix.AttributeTypeAndValue{
+				{Type: asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 25}, Value: "d"},
+				{Type: asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 25}, Value: "c"},
+				{Type: asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 25}, Value: "b"},
+				{Type: asn1.ObjectIdentifier{2, 5, 4, 3}, Value: "a"},
+			}},
+		},
+		{
+			"CN=a,OU=b,DC=c", pkix.Name{ExtraNames: []pkix.AttributeTypeAndValue{
+				{Type: asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 25}, Value: "c"},
+				{Type: asn1.ObjectIdentifier{2, 5, 4, 11}, Value: "b"},
+				{Type: asn1.ObjectIdentifier{2, 5, 4, 3}, Value: "a"}},
+			}},
+		{
+			"CN=a,CN=b,OU=c,C=d,DC=e,WRONG=wrong", pkix.Name{ExtraNames: []pkix.AttributeTypeAndValue{
+				{Type: asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 25}, Value: "e"},
+				{Type: asn1.ObjectIdentifier{2, 5, 4, 6}, Value: "d"},
+				{Type: asn1.ObjectIdentifier{2, 5, 4, 11}, Value: "c"},
+				{Type: asn1.ObjectIdentifier{2, 5, 4, 3}, Value: "b"},
+				{Type: asn1.ObjectIdentifier{2, 5, 4, 3}, Value: "a"}},
+			}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.dn, func(t *testing.T) {
+			got, err := convertDistinguishedName(tt.dn)
+			require.NoError(t, err)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("convertDistinguishedName() got = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
