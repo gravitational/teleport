@@ -133,8 +133,14 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 	// Teleport cluster name. So, for instance, CRL for cluster "prod" and User
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
-	containerDN := crlContainerDN(c.cfg.Domain, caType)
-	crlDN := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
+	containerDN, err := crlContainerDN(c.cfg.Domain, caType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	crlDN, err := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	ldapClient, err := DialLDAP(ctx, c.cfg.LC, tc)
 	if err != nil {
