@@ -1,5 +1,5 @@
 {{- if .Values.enabled }}
-{{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values -}}
+{{- $updater := .Values }}
 {{- $versionServerOverride := and $updater.versionServer (ne $updater.versionServer "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel") }}
 apiVersion: apps/v1
 kind: Deployment

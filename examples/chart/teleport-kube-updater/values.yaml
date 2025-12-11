@@ -52,6 +52,10 @@ group: ""
 # than a Teleport-published image.
 image: public.ecr.aws/gravitational/teleport-kube-agent-updater
 
+# containerName(string) -- sets the name of the main container in the Teleport Kube Agent Updater pod.
+# This value is typically left empty and is required to be set during installation.
+containerName: ""
+
 # serviceAccount --
 serviceAccount:
   # serviceAccount.name(string) -- is the updater Kubernetes Service
