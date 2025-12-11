@@ -1176,6 +1176,85 @@ func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Contex
 	return nil
 }
 
+// CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
+func (a *AccessListService) CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error) {
+	return a.runWithGlobalLockAccessList(ctx, accessListName, func() (*accesslist.AccessList, error) {
+		accessList, err := a.service.GetResource(ctx, accessListName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var ownerRefreshErr error
+		accessList.Status.OwnerOf = slices.DeleteFunc(accessList.Status.OwnerOf, func(ownerOf string) bool {
+			ownedList, err := a.service.GetResource(ctx, ownerOf)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return true
+				}
+				ownerRefreshErr = err
+				return false
+			}
+			isActualOwner := slices.ContainsFunc(ownedList.Spec.Owners, func(ownedListOwner accesslist.Owner) bool {
+				return ownedListOwner.MembershipKind == accesslist.MembershipKindList && ownedListOwner.Name == accessList.GetName()
+			})
+			return !isActualOwner
+		})
+		if ownerRefreshErr != nil {
+			return nil, trace.Wrap(ownerRefreshErr)
+		}
+
+		var memberRefreshErr error
+		accessList.Status.MemberOf = slices.DeleteFunc(accessList.Status.MemberOf, func(memberOf string) bool {
+			if _, err := a.memberService.WithPrefix(memberOf).GetResource(ctx, accessList.GetName()); err != nil {
+				if trace.IsNotFound(err) {
+					return true
+				}
+				memberRefreshErr = err
+			}
+			return false
+		})
+		if memberRefreshErr != nil {
+			return nil, trace.Wrap(memberRefreshErr)
+		}
+
+		accessList, err = a.service.UpdateResource(ctx, accessList)
+		return accessList, trace.Wrap(err)
+	})
+}
+
+// EnsureNestedAccessListStatuses goes over all nested owners and nested members of the named
+// access list and ensures nested lists' statuses owner_of/member_of contain the access list name.
+func (a *AccessListService) EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error {
+	return a.runWithGlobalLock(ctx, accessListName, func() error {
+		accessList, err := a.service.GetResource(ctx, accessListName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, owner := range accessList.Spec.Owners {
+			if owner.MembershipKind == accesslist.MembershipKindList {
+				if err := a.updateAccessListOwnerOf(ctx, accessListName, owner.Name, true); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+
+		members, err := a.memberService.WithPrefix(accessListName).GetResources(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, member := range members {
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				if err := a.updateAccessListMemberOf(ctx, accessListName, member.GetName(), true); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+
+		return nil
+	})
+}
+
 // InsertAccessListCollection inserts a complete collection of access lists and their members from a single
 // upstream source (e.g. EntraID) using a batch operation for improved performance.
 //
@@ -1248,4 +1327,22 @@ func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists
 // ListUserAccessLists is not implemented in the local service.
 func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
 	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
+}
+
+func (a *AccessListService) runWithGlobalLock(ctx context.Context, accessListName string, fn func() error) error {
+	return a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName(accessListName), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+			return trace.Wrap(fn())
+		})
+	})
+}
+
+func (a *AccessListService) runWithGlobalLockAccessList(ctx context.Context, accessListName string, fn func() (*accesslist.AccessList, error)) (*accesslist.AccessList, error) {
+	var res *accesslist.AccessList
+	err := a.runWithGlobalLock(ctx, accessListName, func() error {
+		var err error
+		res, err = fn()
+		return trace.Wrap(err)
+	})
+	return res, err
 }

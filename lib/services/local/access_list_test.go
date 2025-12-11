@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendtest"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1792,6 +1793,16 @@ func createAccessList(t *testing.T, service *AccessListService, name string, clo
 	return upserted
 }
 
+func getAccessList(t *testing.T, service *AccessListService, name string) *accesslist.AccessList {
+	t.Helper()
+	ctx := context.Background()
+
+	al, err := service.GetAccessList(ctx, name)
+	require.NoError(t, err)
+
+	return al
+}
+
 type accessListMemberOptions struct {
 	membershipKind string
 	expires        time.Time
@@ -1832,6 +1843,17 @@ func newAccessListMember(t *testing.T, accessList, name string, opts ...accessLi
 	require.NoError(t, err)
 
 	return member
+}
+
+func createAccessListMember(t *testing.T, service *AccessListService, accessList, name string, opts ...accessListMemberOpt) *accesslist.AccessListMember {
+	t.Helper()
+	ctx := t.Context()
+
+	m := newAccessListMember(t, accessList, name, opts...)
+	m, err := service.UpsertAccessListMember(ctx, m)
+	require.NoError(t, err)
+
+	return m
 }
 
 func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Review {
@@ -2228,6 +2250,220 @@ func TestAccessListService_Status_MemberOf(t *testing.T) {
 	})
 }
 
+func TestAccessListService_CleanupAccessListStatus(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	const a1, a2, a3, a4, a5, a6 = "al_1", "al_2", "al_3", "al_4", "al_5", "al_6"
+
+	userOwner := accesslist.Owner{MembershipKind: accesslist.MembershipKindUser, Name: "test_user_1"}
+	a1Owner := accesslist.Owner{MembershipKind: accesslist.MembershipKindList, Name: a1}
+
+	// a1 is the target access list which status will be fixed
+	_ = createAccessList(t, service, a1, clock)
+	// a2 is a list owned by a1
+	_ = createAccessList(t, service, a2, clock,
+		withOwners([]accesslist.Owner{userOwner, a1Owner}))
+	// a3 is an owned list which will be deleted without updating a1 status
+	_ = createAccessList(t, service, a3, clock,
+		withOwners([]accesslist.Owner{userOwner, a1Owner}))
+	// a4 is another owned list by a1, for this one ownership will be removed without updating a1 status
+	a4List := createAccessList(t, service, a4, clock,
+		withOwners([]accesslist.Owner{userOwner, a1Owner}))
+	// a5 is a parent for a1 (a1 is a member of a3)
+	_ = createAccessList(t, service, a5, clock)
+	_ = createAccessListMember(t, service, a5, a1, withMembershipKind(accesslist.MembershipKindList))
+	// a6 is the list of which a1 is a member; the membership will be removed without updating a1 status
+	_ = createAccessList(t, service, a6, clock)
+	_ = createAccessListMember(t, service, a6, a1, withMembershipKind(accesslist.MembershipKindList))
+
+	// Let's verify the a1 status is correct
+	requireStatusOwnerOf(t, service, a1, []string{a2, a3, a4})
+	requireStatusMemberOf(t, service, a1, []string{a5, a6})
+
+	// Let's now break the a1 status, we need to use generic service directly to bypass status
+	// updates
+	service.service.DeleteResource(ctx, a3)
+	a4List.Spec.Owners = []accesslist.Owner{userOwner} // remove a1Owner
+	service.service.UpdateResource(ctx, a4List)
+	service.memberService.WithPrefix(a6).DeleteResource(ctx, a1)
+
+	// Let's check the status remain untouched:
+	// - a3 should be removed from owner_of because it doesn't exist anymore
+	// - a4 should be removed from owner_of because a1 is not an owner anymore
+	requireStatusOwnerOf(t, service, a1, []string{a2, a3, a4})
+	// - a6 should be removed from member_of because a6/a1 membership doesn't exist anymore
+	requireStatusMemberOf(t, service, a1, []string{a5, a6})
+
+	// Run cleanup
+	fixedA1List, err := service.CleanupAccessListStatus(ctx, a1)
+	require.NoError(t, err)
+
+	// Check status of the returned list
+	require.Equal(t, []string{a2}, fixedA1List.Status.OwnerOf)
+	require.Equal(t, []string{a5}, fixedA1List.Status.MemberOf)
+
+	// Also check the status in the storage
+	requireStatusOwnerOf(t, service, a1, []string{a2})
+	requireStatusMemberOf(t, service, a1, []string{a5})
+
+	// Now let's see if CleanupStatus can cope with emptying status completely
+
+	// Let's remove remove a1->a2 ownership and a5->a1 membership using the generic service and
+	// therefore bypassing status update
+	a2List := getAccessList(t, service, a2)
+	a2List.Spec.Owners = []accesslist.Owner{userOwner} // remove a1Owner
+	service.service.UpdateResource(ctx, a2List)
+	service.memberService.WithPrefix(a5).DeleteResource(ctx, a1)
+
+	// Verify the status is broken now as it should be empty
+	requireStatusOwnerOf(t, service, a1, []string{a2})
+	requireStatusMemberOf(t, service, a1, []string{a5})
+
+	// Run cleanup
+	fixedA1List, err = service.CleanupAccessListStatus(ctx, a1)
+	require.NoError(t, err)
+
+	// Check status of the returned list
+	require.Empty(t, fixedA1List.Status.OwnerOf)
+	require.Empty(t, fixedA1List.Status.MemberOf)
+
+	// Also check the status in the storage
+	requireStatusOwnerOf(t, service, a1, []string{})
+	requireStatusMemberOf(t, service, a1, []string{})
+}
+
+func TestAccessListService_CleanupAccessListStatus_does_not_panic(t *testing.T) {
+	for range 10 {
+		ctx := t.Context()
+		clock := clockwork.NewFakeClock()
+
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+		const a1, a2, a3, a4, a5 = "al_1", "al_2", "al_3", "al_4", "al_5"
+
+		a1Owner := accesslist.Owner{MembershipKind: accesslist.MembershipKindList, Name: a1}
+
+		// a1 is owner of a2 and a3 and member of a4 and a5
+		_ = createAccessList(t, service, a1, clock)
+
+		_ = createAccessList(t, service, a2, clock,
+			withOwners([]accesslist.Owner{a1Owner}))
+		_ = createAccessList(t, service, a3, clock,
+			withOwners([]accesslist.Owner{a1Owner}))
+		_ = createAccessList(t, service, a4, clock)
+		_ = createAccessListMember(t, service, a4, a1, withMembershipKind(accesslist.MembershipKindList))
+		_ = createAccessList(t, service, a5, clock)
+		_ = createAccessListMember(t, service, a5, a1, withMembershipKind(accesslist.MembershipKindList))
+
+		// Recreate the service, but with the randomly erroring backend. This is a wrapper so all
+		// the data will be retained.
+		service = newAccessListService(t, backendtest.NewRandomlyErroringBackend(mem), clock, true /* igsEnabled */)
+
+		require.NotPanics(t, func() {
+			_, _ = service.CleanupAccessListStatus(ctx, a1)
+		})
+	}
+}
+
+func TestAccessListService_EnsureNestedAccessListStatuses(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	const a1, a2, a3, a4, a5, a6 = "al_1", "al_2", "al_3", "al_4", "al_5", "al_6"
+	const ghost = "ghost_list"
+
+	a2Owner := accesslist.Owner{MembershipKind: accesslist.MembershipKindList, Name: a2}
+	a3Owner := accesslist.Owner{MembershipKind: accesslist.MembershipKindList, Name: a3}
+
+	// Setup:
+	// - a1 is the list that will be missing from other list status owner_of/member_of
+	// - a2 is the owned list which status.owned_of will be fixed by adding a1
+	// - a3 is the owned list which status.owned_of will be partially fixed by adding a1
+	// - a4 is the member list which status.member_of will be fixed by adding a1
+	// - a5 is the member list which status.member_of will be partially fixed by adding a1
+
+	a2List := createAccessList(t, service, a2, clock)
+	a3List := createAccessList(t, service, a3, clock)
+
+	_ = createAccessList(t, service, a1, clock, withOwners([]accesslist.Owner{a2Owner, a3Owner}))
+
+	a4List := createAccessList(t, service, a4, clock)
+	_ = createAccessListMember(t, service, a1, a4, withMembershipKind(accesslist.MembershipKindList))
+	a5List := createAccessList(t, service, a5, clock)
+	_ = createAccessListMember(t, service, a1, a5, withMembershipKind(accesslist.MembershipKindList))
+
+	// Verify the target statuses
+	requireStatusOwnerOf(t, service, a2, []string{a1})
+	requireStatusOwnerOf(t, service, a3, []string{a1})
+	requireStatusOwnerOf(t, service, a4, []string{})
+	requireStatusOwnerOf(t, service, a5, []string{})
+
+	requireStatusMemberOf(t, service, a2, []string{})
+	requireStatusMemberOf(t, service, a3, []string{})
+	requireStatusMemberOf(t, service, a4, []string{a1})
+	requireStatusMemberOf(t, service, a5, []string{a1})
+
+	// Let's break the statuses
+	a2List.Status.OwnerOf = nil
+	a3List.Status.OwnerOf = []string{ghost}
+	a4List.Status.MemberOf = nil
+	a5List.Status.MemberOf = []string{ghost}
+	for _, al := range []*accesslist.AccessList{a2List, a3List, a4List, a5List} {
+		_, err := service.service.UpdateResource(ctx, al)
+		require.NoError(t, err, "access_list = %q", al.GetName())
+	}
+
+	// Verify the statuses are broken now:
+	requireStatusOwnerOf(t, service, a2, []string{})
+	requireStatusOwnerOf(t, service, a3, []string{ghost})
+	requireStatusOwnerOf(t, service, a4, []string{})
+	requireStatusOwnerOf(t, service, a5, []string{})
+
+	requireStatusMemberOf(t, service, a2, []string{})
+	requireStatusMemberOf(t, service, a3, []string{})
+	requireStatusMemberOf(t, service, a4, []string{})
+	requireStatusMemberOf(t, service, a5, []string{ghost})
+
+	// Ensure a1 is present where it should be (apply the fix)
+	err = service.EnsureNestedAccessListStatuses(ctx, a1)
+	require.NoError(t, err)
+
+	// Verify the statuses are fixed (a1 is added back, but ghost is not removed as we applied
+	// the fix for a1 only):
+	requireStatusOwnerOf(t, service, a2, []string{a1})
+	requireStatusOwnerOf(t, service, a3, []string{ghost, a1})
+	requireStatusOwnerOf(t, service, a4, []string{})
+	requireStatusOwnerOf(t, service, a5, []string{})
+
+	requireStatusMemberOf(t, service, a2, []string{})
+	requireStatusMemberOf(t, service, a3, []string{})
+	requireStatusMemberOf(t, service, a4, []string{a1})
+	requireStatusMemberOf(t, service, a5, []string{ghost, a1})
+}
+
 func requireStatusOwnerOf(t *testing.T, service *AccessListService, accessListName string, ownerOf []string) {
 	t.Helper()
 	ctx := context.Background()
@@ -2248,7 +2484,7 @@ func requireStatusMemberOf(t *testing.T, service *AccessListService, accessListN
 	require.ElementsMatch(t, memberOf, accessList.Status.MemberOf)
 }
 
-func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
+func newAccessListService(t *testing.T, b backend.Backend, clock clockwork.Clock, igsEnabled bool) *AccessListService {
 	t.Helper()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -2260,7 +2496,7 @@ func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Cloc
 		},
 	})
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	service, err := NewAccessListService(backend.NewSanitizer(b), clock)
 	require.NoError(t, err)
 
 	return service
