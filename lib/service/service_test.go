@@ -294,8 +294,11 @@ func TestMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	// this simulates events that happened to be broadcast before the
-	// readyz.monitor started listening for events
+	// process was started
+	process.ExpectService("dummy")
+	process.ExpectService(teleport.ComponentAuth)
 	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
+	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: "dummy"})
 
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {
@@ -921,7 +924,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			process := TeleportProcess{
 				Config: cfg,
 				// Setting Supervisor so that `ExitContext` can be called.
-				Supervisor: NewSupervisor("process-id", cfg.Logger),
+				Supervisor: NewSupervisor("process-id", cfg.Logger, cfg.Clock),
 			}
 			tls, err := process.setupProxyTLSConfig(
 				&Connector{},
@@ -1287,7 +1290,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, logtest.NewLogger()),
+		Supervisor: NewSupervisor(hostID, logtest.NewLogger(), clock),
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1635,13 +1638,10 @@ func TestDebugService(t *testing.T) {
 		logger:          log,
 		metricsRegistry: localRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
-		Supervisor:      NewSupervisor("supervisor-test", log),
+		Supervisor:      NewSupervisor("supervisor-test", log, fakeClock),
 	}
 
-	fakeState, err := newProcessState(process)
-	require.NoError(t, err)
-	fakeState.update(Event{TeleportOKEvent, "dummy"})
-	process.state = fakeState
+	process.BroadcastEvent(Event{TeleportOKEvent, "dummy"})
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -2131,13 +2131,10 @@ func TestDiagnosticsService(t *testing.T) {
 		logger:          log,
 		metricsRegistry: localRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
-		Supervisor:      NewSupervisor("supervisor-test", log),
+		Supervisor:      NewSupervisor("supervisor-test", log, fakeClock),
 	}
 
-	fakeState, err := newProcessState(process)
-	require.NoError(t, err)
-	fakeState.update(Event{TeleportOKEvent, "dummy"})
-	process.state = fakeState
+	process.BroadcastEvent(Event{TeleportOKEvent, "dummy"})
 
 	require.NoError(t, process.initDiagnosticService())
 	require.NoError(t, process.Start())

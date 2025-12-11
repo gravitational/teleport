@@ -21,7 +21,6 @@ import (
 	"net/http"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gravitational/teleport"
@@ -36,10 +35,6 @@ type diagnosticHandlerConfig struct {
 }
 
 func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerConfig, logger *slog.Logger) (http.Handler, error) {
-	if process.state == nil {
-		return nil, trace.BadParameter("teleport process state machine has not yet been initialized (this is a bug)")
-	}
-
 	mux := http.NewServeMux()
 
 	if config.enableMetrics {
@@ -54,7 +49,7 @@ func (process *TeleportProcess) newDiagnosticHandler(config diagnosticHandlerCon
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 			roundtrip.ReplyJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 		})
-		mux.HandleFunc("/readyz", process.state.readinessHandler())
+		mux.HandleFunc("/readyz", process.HandleReadiness)
 	}
 
 	if config.enableLogLeveler {

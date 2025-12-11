@@ -23,11 +23,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
@@ -105,6 +107,9 @@ type Supervisor interface {
 	// GracefulExitContext returns context that will be closed when
 	// a graceful or hard TeleportExitEvent is broadcast.
 	GracefulExitContext() context.Context
+
+	// HandleReadiness is the HTTP handler for "/readyz".
+	HandleReadiness(http.ResponseWriter, *http.Request)
 }
 
 // EventMapping maps a sequence of incoming
@@ -166,10 +171,17 @@ type LocalSupervisor struct {
 
 	// log specifies the logger
 	log *slog.Logger
+
+	// clock is used as a source of time, to support fake clocks in tests.
+	clock clockwork.Clock
+
+	// processState is the process state machine tracking if the process is
+	// healthy or not.
+	processState processState
 }
 
 // NewSupervisor returns new instance of initialized supervisor
-func NewSupervisor(id string, parentLog *slog.Logger) Supervisor {
+func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) Supervisor {
 	ctx := context.TODO()
 
 	closeContext, cancel := context.WithCancel(ctx)
@@ -179,6 +191,10 @@ func NewSupervisor(id string, parentLog *slog.Logger) Supervisor {
 	// graceful exit context is a subcontext of exit context since any work that terminates
 	// in the event of graceful exit must also terminate in the event of an immediate exit.
 	gracefulExitContext, signalGracefulExit := context.WithCancel(exitContext)
+
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 
 	srv := &LocalSupervisor{
 		state:        stateCreated,
@@ -197,7 +213,13 @@ func NewSupervisor(id string, parentLog *slog.Logger) Supervisor {
 		signalGracefulExit:  signalGracefulExit,
 
 		log: parentLog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
+
+		clock: clock,
 	}
+
+	// used by processState
+	_ = metrics.RegisterPrometheusCollectors(stateGauge)
+
 	go srv.fanOut()
 	return srv
 }
@@ -403,13 +425,19 @@ func (s *LocalSupervisor) GracefulExitContext() context.Context {
 	return s.gracefulExitContext
 }
 
+// HandleReadiness implements [Supervisor].
+func (s *LocalSupervisor) HandleReadiness(w http.ResponseWriter, r *http.Request) {
+	s.processState.handleReadiness(w, r)
+}
+
 // BroadcastEvent generates event and broadcasts it to all
 // subscribed parties.
 func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	s.Lock()
 	defer s.Unlock()
 
-	if event.Name == TeleportExitEvent {
+	switch event.Name {
+	case TeleportExitEvent:
 		// if exit event includes a context payload, it is a "graceful" exit, and
 		// we need to hold off closing the supervisor's exit context until after
 		// the graceful context has closed.  If not, it is an immediate exit.
@@ -425,6 +453,13 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 		} else {
 			s.signalExit()
 		}
+	case TeleportDegradedEvent, TeleportOKEvent, TeleportStartingEvent:
+		componentName, ok := event.Payload.(string)
+		if !ok {
+			s.log.ErrorContext(s.closeContext, "Received event broadcast without component name, this is a bug!", "event", event.Name)
+			break
+		}
+		s.processState.update(s.closeContext, s.log, s.clock.Now(), event.Name, componentName)
 	}
 
 	s.events[event.Name] = event
