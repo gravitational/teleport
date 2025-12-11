@@ -12,6 +12,7 @@ clusterName: ""
 
 nameOverride: ""
 fullnameOverride: ""
+containerName: "tbot"
 
 # teleportProxyAddress(string) -- is the teleport Proxy Service address the bot will connect to.
 # This must contain the port number, usually 443 or 3080 for Proxy Service.

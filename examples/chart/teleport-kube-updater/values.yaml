@@ -19,6 +19,8 @@
 #   support automatic updates.
 enabled: false
 
+containerName: "teleport"
+
 # versionServer(string) -- is the URL of the version server the agent
 # fetches the target version from. The complete version endpoint is built by
 # concatenating [`versionServer`](#versionserver) and [`releaseChannel`
@@ -133,8 +135,6 @@ extraLabels:
   # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
   roleBinding: { }
 
-
-image: public.ecr.aws/gravitational/teleport-kube-agent-updater
 
 # serviceAccountName(string) -- is deprecated and will be removed in a future
 # version. Use [`serviceAccount.name`](#serviceaccountname-1) instead.

@@ -51,7 +51,7 @@ spec:
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
     {{- end }}
       containers:
-        - name: tbot
+        - name: {{ .Values.containerName }}
           image: {{ .Values.image }}:{{ template "tbot.version" . }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           args:

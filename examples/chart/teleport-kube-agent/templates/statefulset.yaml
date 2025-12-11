@@ -152,7 +152,7 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       containers:
-      - name: "teleport"
+      - name: {{ .Values.containerName}}
         image: {{ include "teleport-kube-agent.image" . | quote }}
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}

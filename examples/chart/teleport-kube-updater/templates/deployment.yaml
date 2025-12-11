@@ -4,10 +4,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "teleport-kube-updater.fullname" . }}-updater
+  name: {{ template "teleport-kube-updater.fullname" . }}
   namespace: {{ include "teleport-kube-updater.namespace" . }}
   labels:
-    app: {{ include "teleport-kube-updater.name" . }}-updater
+    app: {{ include "teleport-kube-updater.app.fullname" . }}
 {{- if $updater.extraLabels.deployment }}
     {{- toYaml $updater.extraLabels.deployment | nindent 4 }}
 {{- end }}
@@ -18,7 +18,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ include "teleport-kube-updater.name" . }}-updater
+      app: {{ include "teleport-kube-updater.app.fullname" . }}
   template:
     metadata:
       annotations:
@@ -26,7 +26,7 @@ spec:
   {{- toYaml $updater.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ include "teleport-kube-updater.name" . }}-updater
+        app: {{ include "teleport-kube-updater.app.fullname" . }}
 {{- if $updater.extraLabels.pod }}
   {{- toYaml $updater.extraLabels.pod | nindent 8 }}
 {{- end }}
@@ -62,7 +62,9 @@ spec:
         args:
           - "--agent-name={{ include "teleport-kube-updater.app.fullname" . }}"
           - "--agent-namespace={{ include "teleport-kube-updater.namespace" . }}"
-          - "--base-image={{ include "teleport-kube-updater.baseImage" . }}"
+          - "--base-image={{ include "teleport-kube-updater.app.baseImage" . }}"
+          - "--container-name={{ include "teleport-kube-updater.app.containerName" . }}"
+          - "--sync-period=30s"
   {{- if $updater.versionServer}}
           - "--version-server={{ tpl $updater.versionServer . }}"
           - "--version-channel={{ $updater.releaseChannel }}"

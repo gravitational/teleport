@@ -65,7 +65,7 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Get the current and past version
-	currentVersion, err := getWorkloadVersion(obj.Spec.Template.Spec)
+	currentVersion, err := getWorkloadVersion(obj.Spec.Template.Spec, r.containerName)
 	if err != nil {
 		var badParameterError *trace.BadParameterError
 		switch {
@@ -102,7 +102,7 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	log.Info("Updating podSpec with image", "image", image.String())
-	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, teleportContainerName, image.String())
+	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, r.containerName, image.String())
 	if err != nil {
 		log.Error(err, "Unexpected error, not updating.")
 		return requeueLater, nil

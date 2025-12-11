@@ -85,6 +85,7 @@ func main() {
 	var probeAddr string
 	var syncPeriod time.Duration
 	var baseImageName string
+	var containerName string
 	var versionServer string
 	var versionChannel string
 	var insecureNoVerify bool
@@ -108,6 +109,7 @@ func main() {
 	flag.StringVar(&versionServer, "version-server", "https://updates.releases.teleport.dev/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
 	flag.StringVar(&versionChannel, "version-channel", "stable/cloud", "Version channel to get updates from.")
 	flag.StringVar(&baseImageName, "base-image", "public.ecr.aws/gravitational/teleport", "Image reference containing registry and repository.")
+	flag.StringVar(&containerName, "container-name", "teleport", "Name of the container that should be updated.")
 	flag.StringVar(&credSource, "pull-credentials", img.NoCredentialSource,
 		fmt.Sprintf("Where to get registry pull credentials, values are '%s', '%s', '%s', '%s'.",
 			img.DockerCredentialSource, img.GoogleCredentialSource, img.AmazonCredentialSource, img.NoCredentialSource,
@@ -280,6 +282,7 @@ func main() {
 		imageValidators,
 		maintenanceTriggers,
 		baseImage,
+		containerName,
 	)
 
 	// Controller registration

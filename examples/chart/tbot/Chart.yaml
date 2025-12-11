@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev"
+.version: &version "18.4.1"
 
 name: tbot
 apiVersion: v2
@@ -12,3 +12,4 @@ dependencies:
   - name: teleport-kube-updater
     version: *version
     repository: "file://../teleport-kube-updater"
+    alias: updater

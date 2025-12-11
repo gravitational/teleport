@@ -796,6 +796,8 @@ adminClusterRoleBinding:
 # [`enterpriseImage`](#enterpriseImage) instead.
 image: public.ecr.aws/gravitational/teleport-distroless
 
+containerName: "teleport"
+
 # enterpriseImage(string) -- sets the container image used for Teleport Enterprise
 # agent pods created by the chart.
 #
