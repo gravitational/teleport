@@ -436,6 +436,10 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	s.Lock()
 	defer s.Unlock()
 
+	// some events have additional handling here because they affect the
+	// behavior or status of the process as a whole: Exit begins the shutdown by
+	// causing contexts to be closed, and Degraded/OK/Starting update the
+	// process' health.
 	switch event.Name {
 	case TeleportExitEvent:
 		// if exit event includes a context payload, it is a "graceful" exit, and
