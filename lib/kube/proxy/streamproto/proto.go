@@ -169,26 +169,43 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 func (s *SessionStream) pingTask() {
 	pingTicker := time.NewTicker(defaults.DefaultIdleTimeout / 3)
 	defer pingTicker.Stop()
+
 	for {
+		slog.DebugContext(context.Background(), "-----====--- sending KubeSession ping", "time", time.Now().String())
+		if err := s.write(websocket.PingMessage, nil); err != nil {
+			slog.WarnContext(context.Background(), "Failed to send websocket ping",
+				"is_client", s.isClient,
+				"error", err,
+			)
+		}
+
 		select {
 		case <-s.done:
 			return
 		case <-pingTicker.C:
-			if err := s.write(websocket.PingMessage, nil); err != nil {
-				slog.WarnContext(context.Background(), "Failed to send websocket ping",
-					"is_client", s.isClient,
-					"error", err,
-				)
-			}
 		}
 	}
 }
 
 func (s *SessionStream) readTask() {
-	defer s.closeOnce.Do(func() { close(s.done) })
+	defer func() {
+		slog.DebugContext(context.Background(), "SessionStream read loop exiting",
+			"is_client", s.isClient,
+			"remote_addr", s.conn.RemoteAddr().String(),
+			"local_addr", s.conn.LocalAddr().String(),
+			"closed_flag", s.closed.Load(),
+		)
+		s.closeOnce.Do(func() { close(s.done) })
+	}()
 	for {
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
+			slog.WarnContext(context.Background(), "Websocket read loop got error from ReadMessage",
+				"is_client", s.isClient,
+				"error", err,
+				"remote_addr", s.conn.RemoteAddr().String(),
+				"local_addr", s.conn.LocalAddr().String(),
+			)
 			if !errors.Is(err, io.EOF) && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
 				slog.WarnContext(context.Background(), "Failed to read message from websocket", "error", err)
 			}
@@ -234,6 +251,21 @@ func (s *SessionStream) readTask() {
 		}
 
 		if ty == websocket.CloseMessage {
+			var code int
+			var text string
+			if len(data) >= 2 {
+				code = int(data[0])<<8 | int(data[1])
+				if len(data) > 2 {
+					text = string(data[2:])
+				}
+			}
+			slog.DebugContext(context.Background(), "SessionStream received close frame",
+				"is_client", s.isClient,
+				"remote_addr", s.conn.RemoteAddr().String(),
+				"local_addr", s.conn.LocalAddr().String(),
+				"close_code", code,
+				"close_text", text,
+			)
 			s.conn.Close()
 			s.closed.Store(true)
 			return
@@ -303,6 +335,24 @@ func (s *SessionStream) write(messageType int, data []byte) error {
 	s.writeSync.Lock()
 	defer s.writeSync.Unlock()
 
+	if messageType == websocket.CloseMessage {
+		var code int
+		var text string
+		if len(data) >= 2 {
+			code = int(data[0])<<8 | int(data[1])
+		}
+		if len(data) > 2 {
+			text = string(data[2:])
+		}
+		slog.DebugContext(context.Background(), "Sending websocket close frame",
+			"is_client", s.isClient,
+			"remote_addr", s.conn.RemoteAddr().String(),
+			"local_addr", s.conn.LocalAddr().String(),
+			"close_code", code,
+			"close_text", text,
+		)
+	}
+
 	return trace.Wrap(s.conn.WriteMessage(messageType, data))
 }
 
@@ -312,7 +362,15 @@ func (s *SessionStream) Close() error {
 		return nil
 	}
 
-	if err := s.write(websocket.CloseMessage, nil); err != nil {
+	slog.DebugContext(context.Background(), "Closing SessionStream websocket",
+		"is_client", s.isClient,
+		"remote_addr", s.conn.RemoteAddr().String(),
+		"local_addr", s.conn.LocalAddr().String(),
+	)
+
+	// Send a normal closure frame so the peer can log the code/text.
+	closePayload := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+	if err := s.write(websocket.CloseMessage, closePayload); err != nil {
 		slog.WarnContext(context.Background(), "Failed to gracefully close websocket connection", "error", err)
 	}
 
@@ -325,4 +383,24 @@ func (s *SessionStream) Close() error {
 	s.closeOnce.Do(func() { close(s.done) })
 
 	return trace.Wrap(err)
+}
+
+// ConnAddrs returns the local and remote addresses for the underlying websocket connection.
+// Returns empty strings if the connection is nil.
+func (s *SessionStream) ConnAddrs() (localAddr string, remoteAddr string) {
+	if s.conn == nil {
+		return "", ""
+	}
+
+	return s.conn.LocalAddr().String(), s.conn.RemoteAddr().String()
+}
+
+// IsClient reports whether this stream is running on the client side.
+func (s *SessionStream) IsClient() bool {
+	return s.isClient
+}
+
+// Closed reports whether Close has been invoked or a close frame was observed.
+func (s *SessionStream) Closed() bool {
+	return s.closed.Load()
 }

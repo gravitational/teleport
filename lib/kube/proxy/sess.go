@@ -973,6 +973,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 // join attempts to connect a party to the session.
 func (s *session) join(p *party, emitJoinEvent bool) error {
+	s.log.DebugContext(s.forwarder.ctx, "Attempting to join party", "user", p.Ctx.User.GetName(), "session", s.id, "mode", p.Mode)
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		roles := p.Ctx.Checker.Roles()
 
@@ -1225,9 +1226,16 @@ func (s *session) leave(id uuid.UUID) (bool, error) {
 // If the party wasn't found, it returns false, nil.
 // In order to call this function, lock the mutex before.
 func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
+	party, ok := s.parties[id]
+
+	user := "unknown"
+	if ok {
+		user = party.Ctx.User.GetName()
+	}
+	s.log.DebugContext(s.forwarder.ctx, "Attempting to leave party from session", "user", user, "session", s.id, "party_id", id)
+
 	var errs []error
 	stringID := id.String()
-	party := s.parties[id]
 
 	if party == nil {
 		return false, nil

@@ -26,6 +26,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
@@ -108,7 +109,7 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 		}
 
 		if err := ws.Close(); err != nil {
-			log.DebugContext(ctx, "Close stream in response to context termination", "error", err)
+			slog.DebugContext(ctx, "Close stream in response to context termination", "error", err)
 		}
 	}()
 
@@ -119,6 +120,12 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 	}
 
 	context.AfterFunc(ctx, func() {
+		slog.DebugContext(ctx, "KubeSession context canceled, closing stream",
+			"session_id", cfg.Tracker.GetSessionID(),
+			"stream_is_client", stream.IsClient(),
+			"stream_closed_flag", stream.Closed(),
+			"cause", context.Cause(ctx),
+		)
 		_ = stream.Close()
 	})
 
@@ -163,7 +170,7 @@ func kubeSessionNetDialer(ctx context.Context, cfg KubeSessionConfig) client.Con
 
 	return client.NewDialer(
 		ctx,
-		defaults.DefaultIdleTimeout,
+		10*time.Minute, //defaults.DefaultIdleTimeout,
 		defaults.DefaultIOTimeout,
 		dialOpts...,
 	)
@@ -232,15 +239,30 @@ func (s *KubeSession) pipeInOut(ctx context.Context, stdout io.Writer, enableEsc
 	go func() {
 		defer func() {
 			s.wg.Done()
-			s.cancel()
+			slog.DebugContext(ctx, "KubeSession io.Copy loop exiting",
+				"session_id", s.meta.GetSessionID(),
+			)
+			s.cancelWithReason("io.Copy loop finished")
 		}()
-		if _, err := io.Copy(stdout, s.stream); err != nil {
+		if n, err := io.Copy(stdout, s.stream); err != nil {
+			slog.WarnContext(ctx, "io.Copy from remote stream failed in KubeSession",
+				"error", err,
+				"bytes_copied", n,
+				"stream_is_client", s.stream.IsClient(),
+				"stream_closed_flag", s.stream.Closed(),
+			)
 			fmt.Printf("Error while reading remote stream: %v\n\r", err.Error())
+		} else {
+			slog.DebugContext(ctx, "io.Copy from remote stream completed",
+				"bytes_copied", n,
+				"stream_is_client", s.stream.IsClient(),
+				"stream_closed_flag", s.stream.Closed(),
+			)
 		}
 	}()
 
 	go func() {
-		defer s.cancel()
+		defer s.cancelWithReason("input handler loop finished")
 
 		switch mode {
 		case types.SessionPeerMode:
@@ -248,7 +270,7 @@ func (s *KubeSession) pipeInOut(ctx context.Context, stdout io.Writer, enableEsc
 		default:
 			handleNonPeerControls(mode, s.term, func() {
 				if err := s.stream.ForceTerminate(); err != nil {
-					log.DebugContext(ctx, "Error sending force termination request", "error", err)
+					slog.DebugContext(ctx, "Error sending force termination request", "error", err)
 					fmt.Print("\n\rError while sending force termination request\n\r")
 				}
 			})
@@ -260,10 +282,27 @@ func (s *KubeSession) pipeInOut(ctx context.Context, stdout io.Writer, enableEsc
 func (s *KubeSession) Wait() {
 	// Wait for the session to copy everything into stdout
 	s.wg.Wait()
+	localAddr, remoteAddr := s.stream.ConnAddrs()
+	slog.DebugContext(s.ctx, "KubeSession Wait complete",
+		"session_id", s.meta.GetSessionID(),
+		"stream_is_client", s.stream.IsClient(),
+		"stream_closed_flag", s.stream.Closed(),
+		"remote_addr", remoteAddr,
+		"local_addr", localAddr,
+	)
 }
 
 // Close sends a close request to the other end and waits it to gracefully terminate the connection.
 func (s *KubeSession) Close() error {
+	localAddr, remoteAddr := s.stream.ConnAddrs()
+	slog.DebugContext(s.ctx, "KubeSession Close invoked",
+		"session_id", s.meta.GetSessionID(),
+		"stream_is_client", s.stream.IsClient(),
+		"stream_closed_flag", s.stream.Closed(),
+		"remote_addr", remoteAddr,
+		"local_addr", localAddr,
+	)
+
 	if err := s.stream.Close(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,4 +314,12 @@ func (s *KubeSession) Close() error {
 // Detach detaches the terminal from the session. Must be called if Close is not called.
 func (s *KubeSession) Detach() error {
 	return trace.Wrap(s.term.Close())
+}
+
+func (s *KubeSession) cancelWithReason(reason string) {
+	slog.DebugContext(s.ctx, "KubeSession cancel invoked",
+		"session_id", s.meta.GetSessionID(),
+		"reason", reason,
+	)
+	s.cancel()
 }
