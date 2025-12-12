@@ -40,13 +40,13 @@ the more "visible" Teleport CAs to their own self-managed roots.
 1. First, Alice issues CSRs for the desired CA / cluster.
 
     ```shell
-    $ tctl auth sub-ca create-csr --type=db-client
+    $ tctl auth create-override-csr --type=db-client
     > -----BEGIN CERTIFICATE REQUEST-----
     > ...
     > -----END CERTIFICATE REQUEST-----
     ```
 
-    Note: if HSMs are configured then `tctl auth sub-ca create-csr` must be
+    Note: if HSMs are configured then `tctl auth create-override-csr` must be
     executed locally on each Auth server.
 
 1. Alice sends the CSRs to the parent CA, acquiring the certificates as a
@@ -58,14 +58,14 @@ the more "visible" Teleport CAs to their own self-managed roots.
 1. Finally, Alice writes the certificates back to Teleport. The new certificates
    take effect immediately.
 
-    `tctl auth sub-ca create-override --type=db-client cert.pem [chain.pem...]`
+    `tctl auth create-override --type=db-client cert.pem [chain.pem...]`
 
 ### Alice configures "windows" as a sub CA
 
 Alice begins with the following command, then [continues as the first
 example](#ux1).
 
-`tctl auth sub-ca create-csr --type=windows
+`tctl auth create-override-csr --type=windows`
 
 ### Alice customizes the sub CA Subject
 
@@ -73,7 +73,7 @@ Alice begins with the following command, then [continues as the first
 example](#ux1).
 
 ```shell
-tctl auth sub-ca create-csr --type=db-client \
+tctl auth create-override-csr --type=db-client \
     --subject 'O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA'
 ```
 
@@ -114,7 +114,7 @@ Disabling an override makes it inactive, falling back to the corresponding
 Teleport self-signed certificate, but retains the configuration. Disables take
 effect immediately.
 
-`tctl auth sub-ca disable-override --type=db-client`
+`tctl auth disable-override --type=db-client`
 
 Disables are only allowed for keys in the [AdditionalTrustedKeys set](
 https://github.com/gravitational/teleport/blob/3121f066a27a4c24cb330452416a7261147eb2fa/api/proto/teleport/legacy/types/types.proto#L1398),
@@ -126,7 +126,7 @@ disable may be forced via the `--force-immediate-disable` flag.
 Deleting an override removes it completely, making Teleport use its self-signed
 certificate. Deletes take effect immediately.
 
-`tctl auth sub-ca delete-override --type=db-client`
+`tctl auth delete-override --type=db-client`
 
 Deletes are only allowed for keys absent from the CA key sets, as a fallback. A
 delete may be forced with the `--force-immediate-delete` flag.
@@ -142,17 +142,19 @@ delete may be forced with the `--force-immediate-delete` flag.
     > There are active overrides for CA "db-client". You must either supply an
     > override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth sub-ca create-csr --type=db-client --public-key='AB:CD:EF:...'
+    > tctl auth create-override-csr --type=db-client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --type=db-client cert.pem
     > or
-    > tctl auth sub-ca disable-override --type=db-client --public-key='AB:CD:EF:...'
+    > tctl auth disable-override --type=db-client --public-key='AB:CD:EF:...'
 
     $ tctl auth rotate --manual --type=db-client --phase=update_clients
     > ERROR: Found CA overrides for authority "db-client". You must either
     > supply an override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth sub-ca create-csr --type=db-client --public-key='AB:CD:EF:...'
+    > tctl auth create-override-csr --type=db-client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --type=db-client cert.pem
     > or
-    > tctl auth sub-ca disable-override --type=db-client --public-key='AB:CD:EF:...'
+    > tctl auth disable-override --type=db-client --public-key='AB:CD:EF:...'
     ```
 
     Note: the interactive rotation wizard will print similar messages to above.
@@ -162,12 +164,12 @@ delete may be forced with the `--force-immediate-delete` flag.
 1. Alice updates the CA override for "db-client":
 
     ```shell
-    $ tctl auth sub-ca create-csr --type=db-client --public-key='AB:CD:EF:...'
+    $ tctl auth create-override-csr --type=db-client --public-key='AB:CD:EF:...'
     > (CSR PEM)
 
     # Alice issues certificate from CSR.
 
-    tctl auth sub-ca create-override --type=db-client cert.pem [chain.pem...]
+    tctl auth create-override --type=db-client cert.pem [chain.pem...]
     ```
 
 1. Alice advances the rotation to the `update_clients` step:
@@ -417,12 +419,11 @@ service SubCAService {
   rpc UpsertCertAuthorityOverride(UpsertCertAuthorityOverrideRequest)
     returns (UpsertCertAuthorityOverrideResponse);
 
-  // Implementation note: used by `tctl auth sub-ca
-  // create-override|disable-override`.
+  // Implementation note: used by `tctl auth create-override|disable-override`.
   rpc AddCertificateOverride(AddCertificateOverrideRequest)
     returns (AddCertificateOverrideResponse);
 
-  // Implementation note: used by `tctl auth sub-ca delete-override`.
+  // Implementation note: used by `tctl auth delete-override`.
   rpc RemoveCertificateOverride(RemoveCertificateOverrideRequest)
     returns (RemoveCertificateOverrideResponse);
 
@@ -629,9 +630,9 @@ how to mint certificates from the CSR.
 - [ ] Perform a CA rotation, reconfigure trust roots if necessary, and re-verify
      access.
 - [ ] Exercise tctl commands, verify that audit events are issued
-  - [ ] `tctl auth sub-ca create-override`
-  - [ ] `tctl auth sub-ca disable-override`
-  - [ ] `tctl auth sub-ca delete-override`
+  - [ ] `tctl auth create-override`
+  - [ ] `tctl auth disable-override`
+  - [ ] `tctl auth delete-override`
   - [ ] `tctl create` (kind:cert_authority_override)
   - [ ] `tctl edit`   (kind:cert_authority_override)
   - [ ] `tctl delete` (kind:cert_authority_override)
@@ -641,15 +642,15 @@ how to mint certificates from the CSR.
 
 ### Custom CSR payloads
 
-The design offers only Subject customization via the `tctl auth sub-ca
-create-csr`, as that is understood to be sufficient. A CSR signing command could
-be provided to offer a higher degree customization:
+The design offers only Subject customization via the `tctl auth
+create-override-csr`, as that is understood to be sufficient. A CSR signing
+command could be provided to offer a higher degree customization:
 
-`tctl auth sub-ca sign-csr --type=db-client cert-request.pem`
+`tctl auth sign-override-csr --type=db-client cert-request.pem`
 
-The sign-csr command validates the request, similarly to the creation/update of
-a cert_authority_override resource, ensuring it fulfils the requirements of a
-Teleport Sub CA certificate.
+The sign-override-csr command validates the request, similarly to the
+creation/update of a cert_authority_override resource, ensuring it fulfils the
+requirements of a Teleport Sub CA certificate.
 
 ### Internal CA overrides
 
