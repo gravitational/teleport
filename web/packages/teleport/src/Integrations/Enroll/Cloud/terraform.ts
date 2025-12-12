@@ -95,8 +95,12 @@ const renderValue = (value: TFValue, indent: number): string => {
 
 const renderArray = (value: TFValue[], indent: number): string => {
   if (value.length === 0) return '[]';
-  if (value.length === 1 && typeof value[0] !== 'object')
-    return '[' + value.map(v => renderValue(v, indent + 1)) + ']';
+  if (value.every(v => typeof v !== 'object' || v === null)) {
+    const singleLine = '[' + value.map(v => renderValue(v, indent + 1)) + ']';
+    if (singleLine.length <= 30) {
+      return singleLine;
+    }
+  }
 
   const spaces = '  '.repeat(indent + 1);
   const items = value.map(v => renderValue(v, indent + 1));

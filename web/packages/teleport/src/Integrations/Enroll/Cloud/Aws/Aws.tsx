@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
@@ -35,10 +35,11 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 
+import LiveTextEditor from '../LiveTextEditor';
 import { DeploymentMethodSection } from './DeploymentMethodSection';
 import { RegionsSection } from './RegionsSection';
 import { ResourcesSection } from './ResourcesSection';
-import { TerraformModule } from './TerraformModule';
+import { buildTerraformConfig } from './tf_module';
 import { useAws } from './useAws';
 
 type deploymentMethod = 'terraform' | 'manual';
@@ -53,7 +54,10 @@ export function Aws() {
 
   const [isPollingIntegration, setIsPollingIntegration] = useState(false);
   const [integrationExists, setIntegrationExists] = useState(false);
-  const [terraformConfig, setTerraformConfig] = useState('');
+  const terraformConfig = useMemo(
+    () => buildTerraformConfig({ awsConfig }),
+    [awsConfig]
+  );
   const toastNotifications = useToastNotifications();
   const abortControllerRef = useRef<AbortController>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
@@ -225,11 +229,12 @@ export function Aws() {
             width="420px"
             style={{ position: 'sticky', top: 20, alignSelf: 'flex-start' }}
           >
-            <TerraformModule
-              awsConfig={awsConfig}
-              ec2Config={ec2Config}
-              onContentChange={setTerraformConfig}
-            />
+            <Flex height="600px" width="100%" m={0}>
+              <LiveTextEditor
+                data={[{ content: terraformConfig, type: 'terraform' }]}
+                bg="levels.deep"
+              />
+            </Flex>
           </Box>
         </Flex>
       )}
