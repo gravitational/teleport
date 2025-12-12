@@ -127,6 +127,16 @@ class TextEditor extends Component {
     this.session = null;
   }
 
+  handleCopy() {
+    copyToClipboard(this.editor.session.getValue());
+    this.props.onCopy?.();
+  }
+
+  handleDownload() {
+    downloadObject(this.props.downloadFileName, this.editor.session.getValue());
+    this.props.onDownload?.();
+  }
+
   render() {
     const { bg = 'levels.sunken' } = this.props;
     const hasButton = this.props.copyButton || this.props.downloadButton;
@@ -139,7 +149,7 @@ class TextEditor extends Component {
             {this.props.copyButton && (
               <EditorButton
                 title="Copy to clipboard"
-                onClick={() => copyToClipboard(this.editor.session.getValue())}
+                onClick={() => this.handleCopy()}
               >
                 <Copy size="medium" />
               </EditorButton>
@@ -147,12 +157,7 @@ class TextEditor extends Component {
             {this.props.downloadButton && (
               <EditorButton
                 title="Download"
-                onClick={() =>
-                  downloadObject(
-                    this.props.downloadFileName,
-                    this.editor.session.getValue()
-                  )
-                }
+                onClick={() => this.handleDownload()}
               >
                 <Download size="medium" />
               </EditorButton>

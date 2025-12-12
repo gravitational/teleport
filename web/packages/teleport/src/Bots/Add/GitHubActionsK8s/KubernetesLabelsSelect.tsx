@@ -17,7 +17,7 @@
  */
 
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -49,12 +49,17 @@ import { Rule } from 'shared/components/Validation/rules';
 import cfg from 'teleport/config';
 import { ResourceLabel } from 'teleport/services/agents';
 import { Kube } from 'teleport/services/kube';
+import {
+  IntegrationEnrollSection,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
 
 import {
   KubernetesLabel,
   makeKubernetesAccessChecker,
 } from '../Shared/kubernetes';
+import { useTracking } from '../Shared/useTracking';
 
 export function KubernetesLabelsSelect(
   props: {
@@ -153,6 +158,16 @@ function Picker(props: {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
   const hasListPermission = flags.kubernetes;
+
+  const tracking = useTracking();
+
+  // This effect sends a tracking event when the component mounts
+  useEffect(() => {
+    tracking.section(
+      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+      IntegrationEnrollSection.MWIGHAK8SKubernetesLabelPicker
+    );
+  }, [tracking]);
 
   const {
     data,

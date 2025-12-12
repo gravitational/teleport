@@ -24,6 +24,7 @@ import selectEvent from 'react-select-event';
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  act,
   render,
   screen,
   testQueryClient,
@@ -35,7 +36,10 @@ import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
+import { trackingTester } from '../Shared/trackingTester';
+import { TrackingProvider } from '../Shared/useTracking';
 import { ConfigureAccess } from './ConfigureAccess';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
 
@@ -47,9 +51,17 @@ beforeAll(() => {
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
   server.use(fetchUnifiedResourcesSuccess());
+  server.use(userEventCaptureSuccess());
+
+  jest.useFakeTimers();
 });
 
-afterAll(() => server.close());
+afterAll(() => {
+  server.close();
+
+  jest.useRealTimers();
+  jest.resetAllMocks();
+});
 
 describe('ConfigureAccess', () => {
   test('renders', async () => {
@@ -109,6 +121,8 @@ describe('ConfigureAccess', () => {
   });
 
   test('input groups', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Kubernetes Groups');
@@ -117,9 +131,22 @@ describe('ConfigureAccess', () => {
 
     expect(screen.getByText('system:masters')).toBeInTheDocument();
     expect(screen.getByText('viewers')).toBeInTheDocument();
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS'
+    );
   });
 
   test('input labels', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Labels');
@@ -132,9 +159,24 @@ describe('ConfigureAccess', () => {
 
     expect(modal).not.toBeInTheDocument();
     expect(screen.getByText('foo: bar')).toBeInTheDocument();
+
+    // Skip start event
+    tracking.skip();
+    // Skip section event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS'
+    );
   });
 
   test('input users', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Kubernetes Users');
@@ -143,13 +185,27 @@ describe('ConfigureAccess', () => {
 
     expect(screen.getByText('user1@example.com')).toBeInTheDocument();
     expect(screen.getByText('user2@example.com')).toBeInTheDocument();
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS'
+    );
   });
 });
 
 function renderComponent(opts?: {
   initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
+  disableTracking?: boolean;
 }) {
-  const user = userEvent.setup();
+  const user = userEvent.setup({
+    advanceTimers: t => jest.advanceTimersByTime(t),
+  });
   const onNextStep = jest.fn();
   const onPrevStep = jest.fn();
   return {
@@ -164,8 +220,9 @@ function renderComponent(opts?: {
 
 function makeWrapper(opts?: {
   initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
+  disableTracking?: boolean;
 }) {
-  const { initialState } = opts ?? {};
+  const { initialState, disableTracking = false } = opts ?? {};
   const ctx = createTeleportContext();
 
   return ({ children }: PropsWithChildren) => {
@@ -173,9 +230,11 @@ function makeWrapper(opts?: {
       <QueryClientProvider client={testQueryClient}>
         <ContextProvider ctx={ctx}>
           <ConfiguredThemeProvider theme={darkTheme}>
-            <GitHubK8sFlowProvider intitialState={initialState}>
-              {children}
-            </GitHubK8sFlowProvider>
+            <TrackingProvider disabled={disableTracking}>
+              <GitHubK8sFlowProvider intitialState={initialState}>
+                {children}
+              </GitHubK8sFlowProvider>
+            </TrackingProvider>
           </ConfiguredThemeProvider>
         </ContextProvider>
       </QueryClientProvider>

@@ -27,7 +27,9 @@ import { testQueryClient } from 'design/utils/testing';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
+import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
 
 const server = setupServer();
@@ -37,7 +39,9 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  // The API call is debounced, so we'll need to time travel a little.
+  server.use(userEventCaptureSuccess());
+
+  // The templates API call is debounced, so we'll need to time travel a little.
   jest.useFakeTimers();
 });
 
@@ -486,7 +490,9 @@ function Wrapper(props: PropsWithChildren) {
   return (
     <QueryClientProvider client={testQueryClient}>
       <ContextProvider ctx={ctx}>
-        <GitHubK8sFlowProvider>{props.children}</GitHubK8sFlowProvider>
+        <TrackingProvider>
+          <GitHubK8sFlowProvider>{props.children}</GitHubK8sFlowProvider>
+        </TrackingProvider>
       </ContextProvider>
     </QueryClientProvider>
   );

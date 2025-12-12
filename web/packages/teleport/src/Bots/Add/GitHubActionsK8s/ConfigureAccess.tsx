@@ -27,8 +27,15 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect/FieldSelectC
 import Validator, { Validation } from 'shared/components/Validation/Validation';
 
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
+import {
+  IntegrationEnrollField,
+  IntegrationEnrollSection,
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
+import { useTracking } from '../Shared/useTracking';
 import { CodePanel } from './CodePanel';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
@@ -37,11 +44,21 @@ export function ConfigureAccess(props: FlowStepProps) {
   const { nextStep, prevStep } = props;
 
   const { dispatch, state } = useGitHubK8sFlow();
+  const tracking = useTracking();
 
   const handleNext = (validator: Validator) => {
     if (!validator.validate()) {
+      tracking.error(
+        IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+        'validation error'
+      );
       return;
     }
+
+    tracking.step(
+      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+      IntegrationEnrollStatusCode.Success
+    );
 
     nextStep?.();
   };
@@ -68,19 +85,29 @@ export function ConfigureAccess(props: FlowStepProps) {
                 <KubernetesLabelsSelect
                   mt={2}
                   selected={state.kubernetesLabels}
-                  onChange={labels =>
+                  onChange={labels => {
                     dispatch({
                       type: 'kubernetes-labels-changed',
                       value: labels,
-                    })
-                  }
+                    });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                      IntegrationEnrollField.MWIGHAK8SKubernetesLabels
+                    );
+                  }}
                 />
                 <Text mt={3} mb={3}>
                   Your workflow will have access to Kubernetes clusters which
                   satisfy the labels you specify. Visit the{' '}
                   <Link
                     target="_blank"
-                    href="https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/"
+                    href={K8S_RBAC_LINK}
+                    onClick={() => {
+                      tracking.link(
+                        IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                        K8S_RBAC_LINK
+                      );
+                    }}
                   >
                     Teleport Kubernetes Access Controls
                   </Link>{' '}
@@ -101,6 +128,10 @@ export function ConfigureAccess(props: FlowStepProps) {
                       type: 'kubernetes-groups-changed',
                       value: e.map(g => g.value),
                     });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                      IntegrationEnrollField.MWIGHAK8SKubernetesGroups
+                    );
                   }}
                   createOptionPosition="last"
                 />
@@ -109,7 +140,13 @@ export function ConfigureAccess(props: FlowStepProps) {
                   ClusterRoleBinding resources. See the{' '}
                   <Link
                     target="_blank"
-                    href="https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/"
+                    href={K8S_RBAC_LINK}
+                    onClick={() => {
+                      tracking.link(
+                        IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                        K8S_RBAC_LINK
+                      );
+                    }}
                   >
                     Teleport Kubernetes Access Controls
                   </Link>{' '}
@@ -131,6 +168,12 @@ export function ConfigureAccess(props: FlowStepProps) {
                 validation={{
                   valid: true,
                 }}
+                onExpand={() => {
+                  tracking.section(
+                    IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                    IntegrationEnrollSection.MWIGHAK8SKubernetesAdvancedOptions
+                  );
+                }}
               >
                 <FieldSelectCreatable
                   label="Kubernetes Users"
@@ -146,6 +189,10 @@ export function ConfigureAccess(props: FlowStepProps) {
                       type: 'kubernetes-users-changed',
                       value: e.map(g => g.value),
                     });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                      IntegrationEnrollField.MWIGHAK8SKubernetesUsers
+                    );
                   }}
                   createOptionPosition="last"
                 />
@@ -174,7 +221,9 @@ export function ConfigureAccess(props: FlowStepProps) {
       </FormContainer>
 
       <CodeContainer>
-        <CodePanel />
+        <CodePanel
+          trackingStep={IntegrationEnrollStep.MWIGHAK8SConfigureAccess}
+        />
       </CodeContainer>
     </Container>
   );
@@ -198,3 +247,6 @@ const CodeContainer = styled(Flex)`
   flex-direction: column;
   overflow: auto;
 `;
+
+const K8S_RBAC_LINK =
+  'https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/';
