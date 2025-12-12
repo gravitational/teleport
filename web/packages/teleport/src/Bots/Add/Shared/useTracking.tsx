@@ -39,7 +39,13 @@ import {
 import { userEventService } from 'teleport/services/userEvent/userEvent';
 
 export function useTracking() {
-  return useContext(context);
+  const ctx = useContext(context);
+  if (!ctx) {
+    throw new Error(
+      'Tracking not implemented, do you need to add a TrackingProvider?'
+    );
+  }
+  return ctx;
 }
 
 export function TrackingProvider(
@@ -156,7 +162,7 @@ export function TrackingProvider(
         });
       },
     }),
-    []
+    [disabled]
   );
 
   return <context.Provider value={value}>{props.children}</context.Provider>;
@@ -203,19 +209,4 @@ type Context = {
   ) => void;
 };
 
-const notImplemented = () => {
-  throw new Error(
-    'Tracking not implemented, do you need to add a TrackingProvider?'
-  );
-};
-
-const context = createContext<Context>({
-  start: notImplemented,
-  complete: notImplemented,
-  step: notImplemented,
-  error: notImplemented,
-  field: notImplemented,
-  section: notImplemented,
-  link: notImplemented,
-  codeCopy: notImplemented,
-});
+const context = createContext<Context | null>(null);
