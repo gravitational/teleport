@@ -53,7 +53,7 @@ func main() {
 	}
 }
 
-const appHelp = `Teleport Machine & Workload Identity 
+const appHelp = `Teleport Machine & Workload Identity
 
 Machine & Workload Identity issues and renews short-lived certificates so your
 machines can access Teleport protected resources in the same way your engineers do!
@@ -125,6 +125,10 @@ func Run(args []string, stdout io.Writer) error {
 
 		cli.NewCopyBinariesCommand(app, func(cbc *cli.CopyBinariesCommand) error {
 			return onCopyBinariesCommand(ctx, cbc)
+		}),
+
+		cli.NewWaitCommand(app, func(wc *cli.WaitCommand) error {
+			return onWaitCommand(ctx, wc)
 		}),
 
 		// `start` and `configure` commands
