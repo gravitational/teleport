@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -151,5 +152,17 @@ func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster, _ types.KubeClus
 
 func (s *Server) onKubeDelete(ctx context.Context, kubeCluster types.KubeCluster) error {
 	s.Log.DebugContext(ctx, "Deleting kube_cluster", "kube_cluster_name", kubeCluster.GetName())
+	if err := fetchers.DeleteKubernetesDanglingResources(
+		ctx,
+		fetchers.DeleteKubernetesDanglingResourcesConfig{
+			ClientGetter: s.AWSFetchersClients,
+			Cluster:      kubeCluster,
+			Logger:       s.Log,
+		},
+	); err != nil {
+		s.Log.WarnContext(ctx, "Failed to delete dangling resources for kube_cluster",
+			"kube_cluster_name", kubeCluster.GetName(),
+			"error", err)
+	}
 	return trace.Wrap(s.AccessPoint.DeleteKubernetesCluster(ctx, kubeCluster.GetName()))
 }
