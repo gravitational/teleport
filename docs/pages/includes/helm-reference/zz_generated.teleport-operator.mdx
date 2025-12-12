@@ -344,6 +344,15 @@ command such as:
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
+### `tls.existingCASecretKeyName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"ca.pem"` |
+
+`tls.existingCASecretKeyName` determines which key in the CA secret
+will be used as a trusted CA bundle file.
+
 ## `podSecurityContext`
 
 | Type | Default |
