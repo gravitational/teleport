@@ -27,7 +27,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-import { SSOMFADevice } from "../../legacy/types/types_pb";
+import { SSOMFADevice } from "../../legacy/types/mfa_device_pb";
 import { CredentialAssertionResponse } from "../../legacy/types/webauthn/webauthn_pb";
 import { CredentialAssertion } from "../../legacy/types/webauthn/webauthn_pb";
 /**
