@@ -31,6 +31,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import cfg from 'teleport/config';
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
 import {
+  IntegrationEnrollField,
   IntegrationEnrollSection,
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
@@ -95,12 +96,17 @@ export function ConnectGitHub(props: FlowStepProps) {
                 label="Repository URL"
                 placeholder="https://github.com/gravitational/teleport"
                 value={state.gitHubUrl}
-                onChange={e =>
+                onChange={e => {
                   dispatch({
                     type: 'github-url-changed',
                     value: e.target.value,
-                  })
-                }
+                  });
+                  tracking.field(
+                    IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                    IntegrationEnrollField.MWIGHAK8SGitHubRepositoryURL,
+                    !e.target.value.length
+                  );
+                }}
               />
 
               <FieldInput
@@ -113,12 +119,17 @@ export function ConnectGitHub(props: FlowStepProps) {
                 label="Branch"
                 placeholder="main"
                 value={state.branch}
-                onChange={e =>
+                onChange={e => {
                   dispatch({
                     type: 'branch-changed',
                     value: e.target.value,
-                  })
-                }
+                  });
+                  tracking.field(
+                    IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                    IntegrationEnrollField.MWIGHAK8SGitHubBranch,
+                    !e.target.value.length
+                  );
+                }}
               />
               <FieldCheckbox
                 label="Allow any branch"
@@ -162,24 +173,34 @@ export function ConnectGitHub(props: FlowStepProps) {
                   label="Workflow"
                   placeholder="my-workflow"
                   value={state.workflow}
-                  onChange={e =>
+                  onChange={e => {
                     dispatch({
                       type: 'workflow-changed',
                       value: e.target.value,
-                    })
-                  }
+                    });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                      IntegrationEnrollField.MWIGHAK8SGitHubWorkflow,
+                      !e.target.value.length
+                    );
+                  }}
                 />
 
                 <FieldInput
                   label="Environment"
                   placeholder="production"
                   value={state.environment}
-                  onChange={e =>
+                  onChange={e => {
                     dispatch({
                       type: 'environment-changed',
                       value: e.target.value,
-                    })
-                  }
+                    });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                      IntegrationEnrollField.MWIGHAK8SGitHubEnvironment,
+                      !e.target.value.length
+                    );
+                  }}
                 />
 
                 <Flex mb={3} gap={2}>
@@ -188,12 +209,17 @@ export function ConnectGitHub(props: FlowStepProps) {
                     label={'Git Ref'}
                     placeholder="ref/heads/main"
                     value={state.ref}
-                    onChange={e =>
+                    onChange={e => {
                       dispatch({
                         type: 'ref-changed',
                         value: e.target.value,
-                      })
-                    }
+                      });
+                      tracking.field(
+                        IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                        IntegrationEnrollField.MWIGHAK8SGitHubRef,
+                        !e.target.value.length
+                      );
+                    }}
                     borderTopRightRadius={0}
                     borderBottomRightRadius={0}
                   />
@@ -202,12 +228,16 @@ export function ConnectGitHub(props: FlowStepProps) {
                     label="Ref Type"
                     isMulti={false}
                     value={refTypeValue}
-                    onChange={o =>
+                    onChange={o => {
                       dispatch({
                         type: 'ref-type-changed',
                         value: o?.value ?? '',
-                      })
-                    }
+                      });
+                      tracking.field(
+                        IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                        IntegrationEnrollField.MWIGHAK8SGitHubRef
+                      );
+                    }}
                     options={refTypeOptions}
                     menuPlacement="auto"
                   />
@@ -242,12 +272,17 @@ export function ConnectGitHub(props: FlowStepProps) {
                   disabled={cfg.edition !== 'ent'}
                   placeholder="octo-enterprise"
                   value={state.enterpriseSlug}
-                  onChange={e =>
+                  onChange={e => {
                     dispatch({
                       type: 'slug-changed',
                       value: e.target.value,
-                    })
-                  }
+                    });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                      IntegrationEnrollField.MWIGHAK8SGitHubEnterpriseSlug,
+                      !e.target.value.length
+                    );
+                  }}
                 />
 
                 <FieldInput
@@ -255,12 +290,17 @@ export function ConnectGitHub(props: FlowStepProps) {
                   disabled={cfg.edition !== 'ent'}
                   placeholder='{"keys":[ --snip-- ]}'
                   value={state.enterpriseJwks}
-                  onChange={e =>
+                  onChange={e => {
                     dispatch({
                       type: 'jwks-changed',
                       value: e.target.value,
-                    })
-                  }
+                    });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                      IntegrationEnrollField.MWIGHAK8SGitHubEnterpriseStaticJWKS,
+                      !e.target.value.length
+                    );
+                  }}
                 />
               </SectionBox>
 

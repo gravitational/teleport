@@ -28,6 +28,7 @@ import Validator, { Validation } from 'shared/components/Validation/Validation';
 
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
 import {
+  IntegrationEnrollField,
   IntegrationEnrollSection,
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
@@ -84,12 +85,16 @@ export function ConfigureAccess(props: FlowStepProps) {
                 <KubernetesLabelsSelect
                   mt={2}
                   selected={state.kubernetesLabels}
-                  onChange={labels =>
+                  onChange={labels => {
                     dispatch({
                       type: 'kubernetes-labels-changed',
                       value: labels,
-                    })
-                  }
+                    });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                      IntegrationEnrollField.MWIGHAK8SKubernetesLabels
+                    );
+                  }}
                 />
                 <Text mt={3} mb={3}>
                   Your workflow will have access to Kubernetes clusters which
@@ -117,6 +122,10 @@ export function ConfigureAccess(props: FlowStepProps) {
                       type: 'kubernetes-groups-changed',
                       value: e.map(g => g.value),
                     });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                      IntegrationEnrollField.MWIGHAK8SKubernetesGroups
+                    );
                   }}
                   createOptionPosition="last"
                 />
@@ -168,6 +177,10 @@ export function ConfigureAccess(props: FlowStepProps) {
                       type: 'kubernetes-users-changed',
                       value: e.map(g => g.value),
                     });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                      IntegrationEnrollField.MWIGHAK8SKubernetesUsers
+                    );
                   }}
                   createOptionPosition="last"
                 />
