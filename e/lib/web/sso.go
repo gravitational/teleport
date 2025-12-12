@@ -258,6 +258,7 @@ func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprout
 		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
+		SubjectIdentifier: req.LoginHint,
 		ClientLoginIP:     remoteAddr,
 		ClientUserAgent:   r.UserAgent(),
 		ClientVersion:     teleport.Version,

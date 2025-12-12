@@ -1827,6 +1827,127 @@ func TestSAMLPreferredBinding(t *testing.T) {
 	}
 }
 
+func TestSAMLRequestSubjectInjection(t *testing.T) {
+	ctx := t.Context()
+	srv := newTestTLSServer(t, ValidLicense{})
+	_, err := authtest.CreateRole(ctx, srv.Auth(), "test-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"test-user"},
+		},
+	})
+	require.NoError(t, err)
+
+	// helper to decode the SAMLRequest from the Redirect URL
+	decodeSAMLRequest := func(t *testing.T, redirectURL string) string {
+		t.Helper()
+		u, err := url.Parse(redirectURL)
+		require.NoError(t, err)
+
+		samlRequest := u.Query().Get("SAMLRequest")
+		require.NotEmpty(t, samlRequest, "URL must contain SAMLRequest parameter")
+
+		compressed, err := base64.StdEncoding.DecodeString(samlRequest)
+		require.NoError(t, err)
+
+		r := flate.NewReader(bytes.NewReader(compressed))
+		defer r.Close()
+
+		xmlBytes, err := io.ReadAll(r)
+		require.NoError(t, err)
+		return string(xmlBytes)
+	}
+
+	tests := []struct {
+		name                 string
+		includeSubjectConfig bool   // Connector config flag
+		subjectIdentifier    string // User input (email)
+		wantSubject          bool   // Do we expect <saml:Subject> in XML?
+	}{
+		{
+			name:                 "Default_No_Subject",
+			includeSubjectConfig: false,
+			subjectIdentifier:    "user@example.com",
+			wantSubject:          false,
+		},
+		{
+			name:                 "OptIn_Enabled_Include_Subject",
+			includeSubjectConfig: true,
+			subjectIdentifier:    "user@example.com",
+			wantSubject:          true,
+		},
+		{
+			name:                 "OptIn_Enabled_No_Email",
+			includeSubjectConfig: true,
+			subjectIdentifier:    "",
+			wantSubject:          false,
+		},
+		{
+			name:                 "OptIn_Enabled_Invalid_Email",
+			includeSubjectConfig: true,
+			subjectIdentifier:    "@example.com",
+			wantSubject:          false,
+		},
+		{
+			name:                 "OptIn_Enabled_XML_Injection",
+			includeSubjectConfig: true,
+			subjectIdentifier:    "<script>alert(1)</script>@example.com",
+			wantSubject:          false,
+		},
+		{
+			name:                 "OptIn_Enabled_Disallowed_Key_Char",
+			includeSubjectConfig: true,
+			subjectIdentifier:    "ali'ce@example.com",
+			wantSubject:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			connectorName := "conn-" + tt.name
+			spec := newTestConnectorSpec()
+
+			spec.AttributesToRoles = []types.AttributeMapping{
+				{
+					Name:  "foo",
+					Value: "bar",
+					Roles: []string{"test-access"},
+				},
+			}
+
+			spec.IncludeSubject = tt.includeSubjectConfig
+
+			conn, err := types.NewSAMLConnector(connectorName, spec)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().CreateSAMLConnector(ctx, conn)
+			require.NoError(t, err)
+
+			req := types.SAMLAuthRequest{
+				ConnectorID:       connectorName,
+				Type:              constants.SAML,
+				SubjectIdentifier: tt.subjectIdentifier,
+			}
+
+			resp, err := srv.Auth().CreateSAMLAuthRequest(ctx, req)
+			require.NoError(t, err)
+			require.NotEmpty(t, resp.RedirectURL)
+
+			xmlBody := decodeSAMLRequest(t, resp.RedirectURL)
+
+			if tt.wantSubject {
+				assert.Equal(t, 1, strings.Count(xmlBody, "<saml:Subject>"), "XML should contain <saml:Subject> exactly once.")
+				assert.Contains(t, xmlBody, tt.subjectIdentifier, "XML should contain the user email")
+				assert.Contains(t, xmlBody, "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified", "XML should contain the unspecified format")
+			} else {
+				assert.Equal(t, 0, strings.Count(xmlBody, "<saml:Subject>"), "XML should NOT contain <saml:Subject>.")
+				if tt.subjectIdentifier != "" {
+					assert.NotContains(t, xmlBody, tt.subjectIdentifier, "XML should NOT contain the user email")
+				}
+			}
+		})
+	}
+}
+
 // FakeSAMLIdP is a fully-functional SAML IdP that can be used to serve SSO
 // requests and respond with signed assertions in tests.
 type FakeSAMLIdP struct {

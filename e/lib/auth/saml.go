@@ -12,6 +12,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/mail"
 	"slices"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -166,10 +168,68 @@ func (sas *SAMLAuthService) createSAMLAuthRequest(ctx context.Context, req types
 		}
 	}
 
-	doc, err := provider.BuildAuthRequestDocument()
+	doc, err := provider.BuildAuthRequestDocumentNoSig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	authnRequestElement := doc.Root()
+
+	if req.SubjectIdentifier != "" && connector.GetIncludeSubject() {
+		shouldAddSubject := func() bool {
+			// Validate email input by RFC 5322 standards (Section 3.4)
+			_, err := mail.ParseAddress(req.SubjectIdentifier)
+			if err != nil {
+				logger.DebugContext(ctx, "Skipping SAML Subject",
+					"identifier", req.SubjectIdentifier, "error", err)
+				return false
+			}
+
+			// Validate against backend key constraints
+			subjectCheck := backend.NewKey(req.SubjectIdentifier)
+			if !backend.IsKeySafe(subjectCheck) {
+				logger.DebugContext(ctx, "Skipping SAML Subject",
+					"identifier", req.SubjectIdentifier, "error", err)
+				logger.DebugContext(ctx, "Skipping SAML Subject: identifier is not a valid email address:",
+					"identifier", req.SubjectIdentifier)
+				return false
+			}
+
+			return true
+		}()
+
+		if shouldAddSubject {
+			// See https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
+			// for elements and SAML identifier URIs
+			//
+			// Note: According to Section 4.1.4.1 of
+			// https://docs.oasis-open.org/security/saml/v2.0/saml-profiles-2.0-os.pdf
+			// The <Subject> element must not contain any <SubjectConfirmation> elements
+			// in an AuthnRequest. We only include the <saml:NameID> here.
+			subjectElement := etree.NewElement("saml:Subject")
+			nameIDElement := etree.NewElement("saml:NameID")
+			nameIDElement.CreateAttr("Format", "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified")
+			nameIDElement.SetText(req.SubjectIdentifier)
+			subjectElement.AddChild(nameIDElement)
+
+			// The SAML 2.0 specification requires the Subject element (if present)
+			// to follow the Issuer element.
+			// In an unsigned AuthnRequest (from BuildAuthRequestDocumentNoSig):
+			// Index 0 is the <saml:Issuer> element.
+			// Index 1 is where we insert the <saml:Subject> element.
+			//
+			// Since the request is signed (later via provider.SignAuthnRequest),
+			// the <ds:Signature> will be added at index 1, pushing the <saml:Subject>
+			// element further down.
+			authnRequestElement.InsertChildAt(1, subjectElement)
+		}
+	}
+	signedDoc, err := provider.SignAuthnRequest(authnRequestElement)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	doc.SetRoot(signedDoc)
 
 	attr := doc.Root().SelectAttr("ID")
 	if attr == nil || attr.Value == "" {
