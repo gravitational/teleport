@@ -21,6 +21,7 @@ package servicecfg
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -221,9 +223,16 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
+	// LogConfig is the config used to initialize the logger and associated fields below.
+	// We keep the original config for child processes to initialize the same logger.
+	LogConfig logutils.Config
+
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
+
+	// LogWriter is the underlying log writer used by the Logger above.
+	LogWriter io.Writer
 
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
@@ -553,6 +562,10 @@ func ApplyDefaults(cfg *Config) {
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+
+	if cfg.LogWriter == nil {
+		cfg.LogWriter = io.Discard
 	}
 
 	if cfg.LoggerLevel == nil {

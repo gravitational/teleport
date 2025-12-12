@@ -257,6 +257,9 @@ type Server struct {
 
 	// scope is the scope the server is constrained to
 	scope string
+
+	// childLogConfig is the log config for child processes.
+	childLogConfig *srv.ChildLogConfig
 }
 
 // EventMetadata returns metadata about the server.
@@ -348,6 +351,21 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 // support or not.
 func (s *Server) GetSELinuxEnabled() bool {
 	return s.enableSELinux
+}
+
+// ChildLogConfig returns the child log config.
+func (s *Server) ChildLogConfig() srv.ChildLogConfig {
+	if s.childLogConfig != nil {
+		return *s.childLogConfig
+	}
+
+	// return a noop log configuration
+	return srv.ChildLogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 // ServerOption is a functional option passed to the server
@@ -777,7 +795,24 @@ func SetScope(scope string) ServerOption {
 		}
 		s.scope = scope
 		return nil
+	}
+}
 
+// SetChildLogConfig sets the config that will be used to handle logs
+// from child processes.
+func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
+	return func(s *Server) error {
+		s.childLogConfig = &srv.ChildLogConfig{
+			ExecLogConfig: srv.ExecLogConfig{
+				Level:        cfg.LoggerLevel,
+				Format:       strings.ToLower(cfg.LogConfig.Format),
+				ExtraFields:  cfg.LogConfig.ExtraFields,
+				EnableColors: cfg.LogConfig.EnableColors,
+				Padding:      cfg.LogConfig.Padding,
+			},
+			Writer: cfg.LogWriter,
+		}
+		return nil
 	}
 }
 
