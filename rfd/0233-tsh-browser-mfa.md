@@ -77,59 +77,47 @@ flow very closely as it is a proven method that achieves something very similar.
 
 ```mermaid
 sequenceDiagram
-    participant web
+    participant Web Browser
     participant tsh
-    participant proxy
-    participant auth
-    participant backend
+    participant Teleport Proxy
+    participant Teleport Auth
 
-    Note over tsh: tsh login --proxy proxy.example.com --user alice --mfa-mode=browser
-    Note over tsh: Generate code_verifier (random string)
-    Note over tsh: Generate code_challenge = BASE64URL(SHA256(code_verifier))
-    Note over tsh: Print URL proxy.example.com/web/browser/<request_id>
+    Note over tsh: tsh login --proxy proxy.example.com --user alice --auth=browser
+    Note over tsh: print URL proxy.example.com/headless/<request_id>
+    par headless client request
+        tsh->>Teleport Proxy: POST /webapi/login/headless
+        Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate
+        Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
 
-    tsh->>proxy: POST /webapi/login/browser<br/>{request_id, request_type=login, code_challenge, code_challenge_method: S256}
-    proxy->>auth: POST /:version/users/:user/ssh/authenticate<br/>{request_id, request_type, code_challenge}
-    auth->>backend: insert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=pending}
-    auth->>+backend: wait for state change to 'approved'
+    and local client request
+        tsh-->>Web Browser: user copies URL to local browser
+        Note over Web Browser: proxy.example.com/headless/<request_id>
+        opt user is not already logged in locally
+            Web Browser->>Teleport Proxy: user logs in normally e.g. password+MFA
+            Teleport Proxy->>Web Browser:
+        end
+        Web Browser->>Teleport Auth: rpc GetHeadlessAuthentication (request_id)
+        Teleport Auth ->> Backend: insert /headless_authentication/<request_id>
 
-    tsh-->>web: browser opens to URL
-    Note over web: proxy.example.com/web/browser/<request_id>
-    
-    opt user is not already logged in locally
-        web->>proxy: user logs in normally e.g. password+MFA
-        proxy->>web: login success
-    end
+        par headless client request
+            Backend ->>- Teleport Auth: unblock on insert
+            Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login}
+            Teleport Auth ->>+ Backend: wait for state change
+        end
 
-    web->>auth: rpc GetBrowserAuthentication(request_id)
-    auth->>backend: read /browser_authentication/<request_id>
-    auth->>web: Browser Authentication details {request_id, user, ip, request_type}
+        Teleport Auth->>Web Browser: Headless Authentication details
 
-    Note over web: Share request details with user
-    web->>auth: rpc CreateAuthenticateChallenge
-    auth->>web: MFA Challenge
-    Note over web: User auths with biometrics/passkey
-    web->>auth: rpc UpdateBrowserAuthenticationState<br/>with signed MFA challenge response
-    auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice}
-
-    backend->>-auth: unblock on state change
-    auth->>auth: Generate authorization_code
-    auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice, authorization_code}
-    auth->>tsh: Authorization Code
-
-    tsh->>proxy: POST /webapi/login/browser/exchange/<request_id><br/>{authorization_code, code_verifier}
-    proxy->>auth: POST /:version/users/:user/exchange<br/>{request_id, authorization_code, code_verifier}
-    auth->>backend: read /browser_authentication/<request_id> for authorization_code
-    auth->>auth: Verify: SHA256(code_verifier) == code_challenge
-    alt PKCE verification successful
-        auth->>auth: Generate user certificates<br/>(MFA-verified, standard user cert TTL)
-        auth->>proxy: user certificates
-        proxy->>tsh: user certificates
-        Note over tsh: User is logged in successfully
-    else PKCE verification failed
-        auth->>proxy: Error: Invalid code_verifier
-        proxy->>tsh: Error: Authentication failed
-        Note over tsh: Login failed
+        Note over Web Browser: share request details with user
+        Web Browser->>Teleport Auth: rpc CreateAuthenticateChallenge
+        Teleport Auth->>Web Browser: MFA Challenge
+        Note over Web Browser: user taps YubiKey<br/>to sign MFA challenge
+        Web Browser->>Teleport Auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
+        Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login, state=approved, mfaDevice}
+    and headless client request
+        Backend ->>- Teleport Auth: unblock on state change
+        Teleport Auth->>Teleport Proxy: user certificates<br/>(MFA-verified, standard user cert TTL)
+        Teleport Proxy->>tsh: user certificates<br/>(MFA-verified, standard user cert TTL)
+        Note over tsh: User is authenticated
     end
 ```
 
@@ -143,42 +131,38 @@ The flow can be broken down in to three sections:
 ##### `tsh` initiating a browser login flow
 
 When the user performs a `tsh login`, it will check for either an explicit
-`--mfa-mode=browser` flag or it will error if there are no other MFA methods
+`--auth=browser` flag or it will error if there are no other MFA methods
 available. This error will be changed to prompt the user to try browser
-authentication by providing command.
+authentication.
 
-`tsh` will generate a random `code_verifier` string to be used as part of a
-PKCE flow to prove that this client is the original requester. Then, a
-`code_challenge` will be generated by hashing (SHA256) and encoding (Base64) the
-`code_verifier` to send to the proxy. `tsh` will generate a random UUID to be
-used as the Request ID. The Request ID will be used to track this session
-throughout the authentication flow.
-
-`tsh` will send a unauthenticated request to `/webapi/login/browser` that will
-remain open until the request is approved, denied, or times out. The security of
-this unauthenticated endpoint will be discussed in the
+`tsh` will send a unauthenticated request to `POST /webapi/login/headless` that
+will remain open until the request is approved, denied, or times out. It will
+send the client's SSH public key, proxy address, and the authentication type
+etc. The Proxy fowards these details to the Auth server using
+`POST /:version/users/:user/ssh/authenticate`. The security of this
+unauthenticated endpoint will be discussed in the
 [security section](#unauthenticated-webapiloginbrowser-endpoint).
 
 The auth service will store the Request ID on the backend under
 `/browser_authentication/<request_id>`. The record will have a short TTL of 5
-minutes. It will contain the request type, code challenge, user, ip, and the
+minutes. It will contain the authentication type, user, ip, and the
 current state (pending). The auth server waits for a decision from the user by
 using a resource watcher.
 
 ##### The user verifying their MFA through the browser
 
-When `tsh` generates the MFA URL, it will print the URL attempt to open the
+When `tsh` generates the MFA URL, it will print the URL and attempt to open the
 user's default browser.
 
 Once in the browser, their login session will be used to connect to the auth
 server. If the user is not already logged in, they will be prompted to do so.
 
 When authenticated, the browser will make an
-`rpc GetBrowserAuthentication(request_id)` call to obtain the details of the
+`rpc GetHeadlessAuthentication(request_id)` call to obtain the details of the
 request. The user can view the details of the request and either
 approve or deny it. The request details are as follows:
 - user
-- ip (with geo location?)
+- ip
 - request_type (login or per-session MFA)
 - request_id
 
@@ -191,17 +175,12 @@ request is approved, the record is approved on the backend.
 ##### `tsh` receiving certificates
 
 If the browser authentication is successful, the
-`/browser_authentication/<request_id>` object will be upserted with an approved
-state and which MFA device was used. The auth server will unblock the
-request and generate an authorization code that it will send to `tsh`. `tsh`
-will send the authorization code along with the `code_verifier` to the auth
-service, which will verify that `SHA256(code_verifier)` matches the
-`code_challenge` it has stored from the initial request to complete the PKCE
-verification. If successful, certificates with the standard user TTL will be
-generated and returned to `tsh. If verification fails, an error will be
-returned.
+`/headless_authentication/<request_id>` object will be upserted with an approved
+state and which MFA device was used. The auth server will unblock the request
+and certificates with the standard user TTL will be generated and returned to
+`tsh`. If verification fails, an error will be returned.
 
-#### Per-session MFA
+#### Per-session MFA (TBD)
 
 This flow will be followed when a user needs to reauthenticate before accessing
 a protected resource.
