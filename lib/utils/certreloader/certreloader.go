@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package service
+package certreloader
 
 import (
 	"context"
@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-// CertReloaderConfig contains the configuration of the certificate reloader.
-type CertReloaderConfig struct {
+// Config contains the configuration of the certificate reloader.
+type Config struct {
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []servicecfg.KeyPairPath
 	// KeyPairsReloadInterval is the interval between attempts to reload
@@ -46,7 +46,7 @@ type CertReloaderConfig struct {
 type CertReloader struct {
 	logger *slog.Logger
 	// cfg is the certificate reloader configuration.
-	cfg CertReloaderConfig
+	cfg Config
 
 	// certificates is the list of certificates loaded.
 	certificates []tls.Certificate
@@ -54,10 +54,10 @@ type CertReloader struct {
 	mu sync.RWMutex
 }
 
-// NewCertReloader initializes a new certificate reloader.
-func NewCertReloader(cfg CertReloaderConfig) *CertReloader {
+// New initializes a new certificate reloader.
+func New(cfg Config, component string) *CertReloader {
 	return &CertReloader{
-		logger: slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "certreloader")),
+		logger: slog.With(teleport.ComponentKey, teleport.Component(component, "certreloader")),
 		cfg:    cfg,
 	}
 }
@@ -159,4 +159,23 @@ func (c *CertReloader) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Ce
 	}
 	// If nothing matches, return the first certificate.
 	return &c.certificates[0], nil
+}
+
+// GetClientCertificate is compatible with tls.Config.GetClientCertificate, allowing
+// the CertReloader to be a source of certificates for mTLS connections.
+// certificate selection log is the same as the GetClientCertificate in crypto/tls
+// https://github.com/golang/go/blob/f64c2a2ce5dc859315047184e310879dcf747d53/src/crypto/tls/handshake_client.go#L977
+func (c *CertReloader) GetClientCertificate(requestInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, cert := range c.certificates {
+		if err := requestInfo.SupportsCertificate(&cert); err != nil {
+			continue
+		}
+		return &cert, nil
+	}
+
+	// No acceptable certificate found. Don't send a certificate.
+	return new(tls.Certificate), nil
 }
