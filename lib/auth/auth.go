@@ -114,6 +114,7 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/join/circleci"
@@ -600,6 +601,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.AppAuthConfig == nil {
+		cfg.AppAuthConfig, err = local.NewAppAuthConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating AppAuthConfig service")
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -667,6 +675,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
 		ScopedTokenService:              cfg.ScopedTokenService,
+		AppAuthConfig:                   cfg.AppAuthConfig,
 	}
 
 	as = &Server{
@@ -934,6 +943,7 @@ type Services struct {
 	services.WorkloadIdentityX509Overrides
 	services.SigstorePolicies
 	services.HealthCheckConfig
+	services.AppAuthConfig
 	services.BackendInfoService
 	services.VnetConfigService
 	RecordingEncryptionManager
@@ -1329,6 +1339,9 @@ type Server struct {
 	// env0IDTokenValidator is a helper to validate env0 OIDC tokens. Used to
 	// override the implementation used in tests.
 	env0IDTokenValidator join.Env0TokenValidator
+
+	// azureJoinConfig holds configuration for the Azure join method.
+	azureJoinConfig *azurejoin.AzureJoinConfig
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -2726,7 +2739,7 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
-// GetUserOrLoginState will return the given user or the login state associated with the user.
+// GetUserOrLoginState will return the given user login state or if not found, the user itself.
 func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
 	// use Services (real backend instead of cache) to make sure that the GetUserOrLoginState function
 	// return always the up-to-date user state.
@@ -6544,6 +6557,24 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	return lease, nil
 }
 
+// UnconditionalUpdateApplicationServer implements [services.PresenceInternal]
+// by delegating to [Server.Services] and then potentially emitting a
+// [usagereporter] event.
+func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
+	server, err := a.Services.UnconditionalUpdateApplicationServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindAppServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return server, nil
+}
+
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
@@ -7865,6 +7896,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
 			ChallengeScope:      challengeExtensions.Scope.String(),
 			ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 		}); err != nil {
 			a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 		}
@@ -7927,6 +7959,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
 		ChallengeScope:      challengeExtensions.Scope.String(),
 		ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
@@ -8045,6 +8078,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		},
 		UserMetadata:   authz.ClientUserMetadataWithUser(ctx, user),
 		ChallengeScope: requiredExtensions.Scope.String(),
+		FlowType:       apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}
 	if validateErr != nil {
 		auditEvent.Code = events.ValidateMFAAuthResponseFailureCode
@@ -8213,8 +8247,28 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
-// Keep this function in sync with lib/services/suite/suite.go:NewTestCAWithConfig().
+// Keep this function in sync with lib/auth/authcatest.NewTestCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
+	switch caID.Type {
+	case
+		types.HostCA,
+		types.UserCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.OpenSSHCA,
+		types.JWTSigner,
+		types.SAMLIDPCA,
+		types.OIDCIdPCA,
+		types.SPIFFECA,
+		types.OktaCA,
+		types.AWSRACA,
+		types.BoundKeypairCA:
+		// OK, known CA type.
+	default:
+		return types.CAKeySet{}, trace.BadParameter(
+			"cannot generate new key set for unknown CA type %q", caID.Type)
+	}
+
 	var keySet types.CAKeySet
 
 	// Add SSH keys if necessary.
@@ -8245,6 +8299,11 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	}
+
+	// Sanity check that the key set has at least one key.
+	if len(keySet.SSH) == 0 && len(keySet.TLS) == 0 && len(keySet.JWT) == 0 {
+		return types.CAKeySet{}, trace.BadParameter("no keys generated for CA type %q", caID.Type)
 	}
 
 	return keySet, nil

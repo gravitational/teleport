@@ -21,7 +21,6 @@ package auth
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -59,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
-	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1802,13 +1800,21 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	lreq := &proto.ListUnifiedResourcesRequest{
 		Kinds:            []string{types.KindNode},
 		SortBy:           types.SortBy{Field: types.ResourceMetadataName},
-		UseSearchAsRoles: true,
+		UseSearchAsRoles: a.scopedContext == nil, // TODO(fspmarshall/scopes): switch this to always be true once we support search_as_roles with scoped identities
 	}
+
+	// note that we're using a ServerWithRoles level method here rather than some internal method. We are
+	// delegating all RBAC filtering to the lister and then performing additional filtering on top of that.
+	// Until we unify scoped/unscoped resource listing this bifurcation is necessary to ensure that search_as_roles
+	// results are available for unscoped identities.
+	lister := a.ListUnifiedResources
+	if a.scopedContext != nil {
+		lister = a.scopedListUnifiedResources
+	}
+
 	var servers []*types.ServerV2
 	for {
-		// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
-		// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
-		lrsp, err := a.ListUnifiedResources(ctx, lreq)
+		lrsp, err := lister(ctx, lreq)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2414,10 +2420,7 @@ func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
 	}
 
 	if err := a.authorizeAction(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
-		}
-
+		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetAuthServers()
 }
@@ -3529,8 +3532,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// preserved in user login state, where local users may get updated roles
 	// from ConnectMyComputer setup. So here we retrieve additional fields from
 	// user login state. Ideally we should solve this some other way.
-	if err := userloginstate.UpdatePreservedAttributes(ctx, user, a.authServer.Services); err != nil {
-		return nil, trace.Wrap(err, "updating preserved attributes")
+	if githubIdentities := user.GetGithubIdentities(); len(githubIdentities) == 0 {
+		uls, err := a.authServer.Services.GetUserLoginState(ctx, user.GetName())
+		if trace.IsNotFound(err) {
+			// Nothing to do.
+		} else if err != nil {
+			return nil, trace.Wrap(err, "updating GitHub identities")
+		} else if githubIdentities := uls.GetGithubIdentities(); len(githubIdentities) > 0 {
+			user.SetGithubIdentities(githubIdentities)
+		}
 	}
 
 	// Do not allow SSO users to be impersonated.

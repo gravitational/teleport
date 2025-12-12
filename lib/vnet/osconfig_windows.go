@@ -25,7 +25,13 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+)
+
+var (
+	userenv             = windows.NewLazySystemDLL("userenv.dll")
+	procRefreshPolicyEx = userenv.NewProc("RefreshPolicyEx")
 )
 
 // platformOSConfigState holds state about which addresses and routes have
@@ -43,6 +49,14 @@ type platformOSConfigState struct {
 	configuredRanges    []string
 
 	ifaceIndex string
+
+	// configuredDNSZones caches DNS zones so DNS is reconfigured when they change.
+	configuredDNSZones []string
+	// configuredDNSAddrs caches DNS addresses so DNS is reconfigured when they change.
+	configuredDNSAddrs []string
+	// configuredGroupPolicyKey caches existence of the group policy key so DNS is reconfigured when
+	// the key is created or removed.
+	configuredGroupPolicyKey bool
 }
 
 func (p *platformOSConfigState) getIfaceIndex() (string, error) {
@@ -112,8 +126,22 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.configuredV6Address = true
 	}
 
-	if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs); err != nil {
-		return trace.Wrap(err, "configuring DNS")
+	// Configure DNS only if the DNS zones or addresses have changed. This typically happens when the
+	// user logs in or out of a cluster. Otherwise configureDNS would refresh all computer policies
+	// every 10 seconds when platformConfigureOS is called.
+	doesGroupPolicyKeyExist, err := doesKeyPathExist(registry.LOCAL_MACHINE, groupPolicyNRPTParentKey)
+	if err != nil {
+		return trace.Wrap(err, "checking existence of group policy NRPT registry key %s", groupPolicyNRPTParentKey)
+	}
+	if !slices.Equal(cfg.dnsZones, state.configuredDNSZones) ||
+		!slices.Equal(cfg.dnsAddrs, state.configuredDNSAddrs) ||
+		doesGroupPolicyKeyExist != state.configuredGroupPolicyKey {
+		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs, doesGroupPolicyKeyExist); err != nil {
+			return trace.Wrap(err, "configuring DNS")
+		}
+		state.configuredDNSZones = cfg.dnsZones
+		state.configuredDNSAddrs = cfg.dnsAddrs
+		state.configuredGroupPolicyKey = doesGroupPolicyKeyExist
 	}
 
 	return nil
@@ -148,7 +176,7 @@ const (
 	vnetNRPTKeyID = `{ad074e9a-bd1b-447e-9108-14e545bf11a5}`
 )
 
-func configureDNS(ctx context.Context, zones, nameservers []string) error {
+func configureDNS(ctx context.Context, zones, nameservers []string, doesGroupPolicyKeyExist bool) error {
 	// Always configure NRPT rules under the local system NRPT registry key.
 	// This is harmless/innefective if groupPolicyNRPTParentKey exists, but
 	// always writing the rules here means they will be effective if
@@ -162,21 +190,37 @@ func configureDNS(ctx context.Context, zones, nameservers []string) error {
 	// systemNRPTParentKey will be ignored and rules under
 	// groupPolicyNRPTParentKey take precendence, so VNet needs to write rules
 	// under this key as well.
-	groupPolicyKey, err := registry.OpenKey(registry.LOCAL_MACHINE, groupPolicyNRPTParentKey, registry.READ)
-	if err != nil {
-		if !errors.Is(err, registry.ErrNotExist) {
-			return trace.Wrap(err, "opening group policy NRPT registry key %s", groupPolicyNRPTParentKey)
-		}
+	if !doesGroupPolicyKeyExist {
 		// The group policy parent key doesn't exist, no need to write under it.
 		return nil
 	}
-	if err := groupPolicyKey.Close(); err != nil {
-		return trace.Wrap(err, "closing registry key %s", groupPolicyNRPTParentKey)
-	}
 
 	nrptRegKey = groupPolicyNRPTParentKey + `\` + vnetNRPTKeyID
-	return trace.Wrap(configureDNSAtNRPTKey(ctx, nrptRegKey, zones, nameservers),
-		"configuring DNS NRPT at group policy path %s", nrptRegKey)
+	if err := configureDNSAtNRPTKey(ctx, nrptRegKey, zones, nameservers); err != nil {
+		return trace.Wrap(err, "configuring DNS NRPT at group policy path %s", nrptRegKey)
+	}
+	// In some cases, rules under groupPolicyKey don't seem to be picked up by the DNS client service
+	// until the computer refreshes its policies. [1] A force refresh here ensures they're picked up
+	// immediately. See also https://github.com/gravitational/teleport/issues/60468.
+	// 1: https://github.com/tailscale/tailscale/issues/4607#issuecomment-1130586168
+	if err := forceRefreshComputerPolicies(); err != nil {
+		return trace.Wrap(err, "refreshing computer policies")
+	}
+	return nil
+}
+
+func doesKeyPathExist(k registry.Key, path string) (bool, error) {
+	key, err := registry.OpenKey(k, path, registry.READ)
+	if err != nil {
+		if !errors.Is(err, registry.ErrNotExist) {
+			return false, trace.Wrap(err, "opening registry key %s", path)
+		}
+		return false, nil
+	}
+	if err := key.Close(); err != nil {
+		return true, trace.Wrap(err, "closing registry key %s", path)
+	}
+	return true, nil
 }
 
 func configureDNSAtNRPTKey(ctx context.Context, nrptRegKey string, zones, nameservers []string) (err error) {
@@ -184,7 +228,7 @@ func configureDNSAtNRPTKey(ctx context.Context, nrptRegKey string, zones, namese
 		// Can't handle any zones if there are no nameservers.
 		zones = nil
 	}
-	log.InfoContext(ctx, "Configuring DNS.", "zones", zones, "nameservers", nameservers)
+	log.InfoContext(ctx, "Configuring DNS.", "reg_key", nrptRegKey, "zones", zones, "nameservers", nameservers)
 
 	if len(zones) == 0 {
 		// Either we have no zones we want to handle (the user is not
@@ -261,4 +305,23 @@ func deleteRegistryKey(key string) error {
 	}
 	keyHandle.Close()
 	return trace.Wrap(deleteErr, "failed to delete DNS registry key %s", key)
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-refreshpolicyex
+func forceRefreshComputerPolicies() error {
+	// refreshComputerPolicies corresponds to the first argument of RefreshPolicyEx which specifies
+	// whether to refresh computer or user policies.
+	const refreshComputerPolicies = 1
+	// rpForce corresponds to the RP_FORCE flag for RefreshPolicyEx which makes it reapply all
+	// policies even if no policy change was detected.
+	const rpForce = 1
+
+	retVal, _, err := procRefreshPolicyEx.Call(
+		uintptr(refreshComputerPolicies),
+		uintptr(rpForce),
+	)
+	if retVal == 0 {
+		return trace.Wrap(err)
+	}
+	return nil
 }

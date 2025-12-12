@@ -31,7 +31,7 @@ jobs:
         run: sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
 
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Determine Toolchain Versions and cache paths
         run: |
@@ -48,7 +48,7 @@ jobs:
           echo "rust: ${RUST_VERSION}"
 
       - name: Install Node Toolchain
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
@@ -58,7 +58,7 @@ jobs:
           corepack enable pnpm
 
       - name: Install Go Toolchain
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           cache: false
           go-version: ${{ env.GOLANG_VERSION }}

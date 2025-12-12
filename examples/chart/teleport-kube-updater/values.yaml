@@ -55,7 +55,7 @@ versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/chan
 releaseChannel: "stable/cloud"
 
 # group(string) -- is the update group used when fetching the version using the webapi protocol.
-# When unset, the group defaults to `update.releaseChannel`.
+# When unset, the group defaults to `default`.
 group: ""
 
 # image(string) -- sets the container image used for Teleport updater

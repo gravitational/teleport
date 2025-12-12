@@ -23,4 +23,22 @@ rules:
 - apiGroups: ["coordination.k8s.io"]
   resources: ["leases"]
   verbs: ["get", "create", "update", "patch"]
+  # the updater needs to create, get, and update the configmap containing updater state
+- apiGroups:
+    - ""
+  resources:
+    - configmaps
+  verbs:
+    - create
+    - watch
+    - list
+- apiGroups:
+    - ""
+  resources:
+    - configmaps
+  verbs:
+    - get
+    - update
+  resourceNames:
+    - {{ template "teleport-kube-updater.fullname" . }}
 {{- end -}}
