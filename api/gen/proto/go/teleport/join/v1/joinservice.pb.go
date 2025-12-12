@@ -468,7 +468,9 @@ func (*ClientParams_BotParams) isClientParams_Payload() {}
 type TokenInit struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
-	ClientParams  *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
+	ClientParams *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
+	// The secret value that must be provided when using the token join method.
+	Secret        string `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -508,6 +510,13 @@ func (x *TokenInit) GetClientParams() *ClientParams {
 		return x.ClientParams
 	}
 	return nil
+}
+
+func (x *TokenInit) GetSecret() string {
+	if x != nil {
+		return x.Secret
+	}
+	return ""
 }
 
 // OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
@@ -2856,9 +2865,10 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"hostParams\x12<\n" +
 	"\n" +
 	"bot_params\x18\x02 \x01(\v2\x1b.teleport.join.v1.BotParamsH\x00R\tbotParamsB\t\n" +
-	"\apayload\"P\n" +
+	"\apayload\"h\n" +
 	"\tTokenInit\x12C\n" +
-	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\"j\n" +
+	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\x12\x16\n" +
+	"\x06secret\x18\x02 \x01(\tR\x06secret\"j\n" +
 	"\bOIDCInit\x12C\n" +
 	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\x12\x19\n" +
 	"\bid_token\x18\x02 \x01(\fR\aidToken\"\xb7\x01\n" +

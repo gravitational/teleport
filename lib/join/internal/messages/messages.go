@@ -100,6 +100,8 @@ type TokenInit struct {
 
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams ClientParams
+	// Secret holds the token secret required to satisfy the join challenge.
+	Secret string
 }
 
 func (i *TokenInit) Check() error {

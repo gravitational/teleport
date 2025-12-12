@@ -65,6 +65,9 @@ func TestScopedTokenService(t *testing.T) {
 			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
 		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
 	}
 
 	created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
@@ -153,6 +156,9 @@ func TestScopedTokenList(t *testing.T) {
 			Roles: []string{
 				types.RoleNode.String(),
 			},
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
 		},
 	}
 
