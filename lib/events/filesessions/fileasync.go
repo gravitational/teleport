@@ -582,6 +582,9 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 	}
 
 	defer func() {
+		// If we get an error, that signals that the upload goroutine (encrypted or nonencrypted)
+		// failed to start, so we must manually close the upload as the defers in the goroutine will
+		// never be called.
 		if err != nil {
 			if err := upload.Close(); err != nil {
 				log.WarnContext(ctx, "Failed to close upload.", "error", err)
