@@ -107,6 +107,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 				defer wg.Done()
 				defer conn.Close()
 				testCtx := setupTestContext(t, withAdminRole(t), withApp(app), withClientConn(conn))
+				testCtx.sessionID = "test-session-id" // use same session id
 				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
 			}()
 		}
@@ -141,11 +142,11 @@ func Test_handleStreamableHTTP(t *testing.T) {
 				libevents.MCPSessionRequestCode, // "tools/call"
 			}, sliceutils.Map(emitter.Events(), getEventCode))
 		}, 2*time.Second, time.Millisecond*100, "waiting for events")
-
-		// First event must be the start event.
-		startEvent, ok := emitter.Events()[0].(*apievents.MCPSessionStart)
-		require.True(t, ok)
-		require.Equal(t, "app-jwt", startEvent.EgressAuthType)
+		checkSessionStartAndInitializeEvents(t, emitter.Events(),
+			checkSessionStartWithServerInfo("test-server", "1.0.0"),
+			checkSessionStartHasExternalSessionID(),
+			checkSessionStartWithEgressAuthType("app-jwt"),
+		)
 
 		// Close client and wait for end event.
 		require.NoError(t, client.Close())

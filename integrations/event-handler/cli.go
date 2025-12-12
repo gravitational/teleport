@@ -125,8 +125,11 @@ type IngestConfig struct {
 	// BatchSize is a fetch batch size
 	BatchSize int `help:"Fetch batch size" default:"20" env:"FDFWD_BATCH" name:"batch"`
 
-	// Types are event types to log
-	Types []string `help:"Comma-separated list of event types to forward" env:"FDFWD_TYPES"`
+	// TypesRaw are event types to log
+	TypesRaw []string `name:"types" help:"Comma-separated list of event types to forward" env:"FDFWD_TYPES"`
+
+	// Types is a map generated from TypesRaw
+	Types map[string]struct{} `kong:"-"`
 
 	// SkipEventTypesRaw are event types to skip
 	SkipEventTypesRaw []string `name:"skip-event-types" help:"Comma-separated list of audit log event types to skip" env:"FDFWD_SKIP_EVENT_TYPES"`
@@ -239,6 +242,7 @@ func (c *StartCmdConfig) Validate() error {
 	if err := c.TeleportConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
+	c.Types = lib.SliceToAnonymousMap(c.TypesRaw)
 	c.SkipSessionTypes = lib.SliceToAnonymousMap(c.SkipSessionTypesRaw)
 	c.SkipEventTypes = lib.SliceToAnonymousMap(c.SkipEventTypesRaw)
 
