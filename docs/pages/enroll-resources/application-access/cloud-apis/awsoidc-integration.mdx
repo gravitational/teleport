@@ -11,7 +11,7 @@ This guide explains how to set up the Teleport AWS OIDC integration.
 
 With the AWS OIDC integration you will no longer need to deploy Teleport Agents in AWS manually for most use cases.
 The following features use an AWS OIDC integration to interact with AWS:
-- [External Audit Storage](../external-audit-storage.mdx)
+- [External Audit Storage](../../../zero-trust-access/management/external-audit-storage.mdx)
 - [RDS Enrollment](./awsoidc-integration-rds.mdx)
 - EC2 Enrollment
 - [Access Graph AWS Sync](../../../identity-security/integrations/aws-sync.mdx)
@@ -31,7 +31,7 @@ $ curl https://<Var name="teleport.example.com" />/.well-known/openid-configurat
 The integration requires no extra configuration or services to run.
 
 Initially, no policy is added to the IAM role, but users are asked to add them the first time they are trying to use a given feature.
-For example, when setting up [External Audit Storage](../external-audit-storage.mdx), you will be asked to add the required policies to this IAM role.
+For example, when setting up [External Audit Storage](../../../zero-trust-access/management/external-audit-storage.mdx), you will be asked to add the required policies to this IAM role.
 
 AWS resources created by the integration are tagged so that you can search and export them using the [AWS Resource Groups / Tag Editor](https://console.aws.amazon.com/resource-groups/tag-editor/find-resources).
 The following tags are applied:
@@ -147,4 +147,4 @@ After the set up is complete, you can now use the "Enroll New Resource" flow in 
 
 Now that you have an integration, you can use the following features:
 - [Access Graph AWS Sync](../../../identity-security/integrations/aws-sync.mdx)
-- [External Audit Storage](../external-audit-storage.mdx)
+- [External Audit Storage](../../../zero-trust-access/management/external-audit-storage.mdx)
