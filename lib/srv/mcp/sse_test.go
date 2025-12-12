@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
@@ -83,17 +83,14 @@ func Test_handleStdioToSSE(t *testing.T) {
 	// Use a real client. Double check start event has the external MCP session
 	// ID.
 	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
-	var startEvent *apievents.MCPSessionStart
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		var ok bool
-		event := emitter.LastEvent()
-		startEvent, ok = event.(*apievents.MCPSessionStart)
-		assert.True(collect, ok)
-	}, time.Second*5, time.Millisecond*100, "expect session start")
-	require.NotEmpty(t, startEvent.McpSessionId)
 
 	resp := mcptest.MustInitializeClient(t, stdioClient)
 	require.Equal(t, "test-server", resp.ServerInfo.Name)
+	checkSessionStartAndInitializeEvents(t, emitter.Events(),
+		checkSessionStartWithServerInfo("test-server", "1.0.0"),
+		checkSessionStartHasExternalSessionID(),
+		checkSessionStartWithEgressAuthType("app-jwt"),
+	)
 
 	// Make a tools call.
 	mcptest.MustCallServerTool(t, stdioClient)
@@ -105,4 +102,5 @@ func Test_handleStdioToSSE(t *testing.T) {
 		require.Fail(t, "timed out waiting for handler")
 	case <-handleDoneCh:
 	}
+	require.Equal(t, libevents.MCPSessionEndEvent, emitter.LastEvent().GetType())
 }
