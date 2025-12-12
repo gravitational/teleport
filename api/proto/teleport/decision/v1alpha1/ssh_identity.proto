@@ -18,6 +18,7 @@ package teleport.decision.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/decision/v1alpha1/tls_identity.proto";
+import "teleport/legacy/types/resources.proto";
 import "teleport/scopes/v1/scopes.proto";
 import "teleport/trait/v1/trait.proto";
 
@@ -167,6 +168,10 @@ message SSHIdentity {
 
   // The scope associated with a host identity.
   string agent_scope = 36;
+
+  // AllowedResourceAccessIDs lists the resources the user should be able to access,
+  // paired with additional information such as ResourceConstraints.
+  repeated types.ResourceAccessID allowed_resource_access_ids = 37;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type
