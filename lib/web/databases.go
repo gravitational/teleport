@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -351,7 +352,10 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 		return "", trace.BadParameter("invalid token")
 	}
 
-	proxyServers, err := h.GetProxyClient().GetProxies()
+	proxyServers, err := clientutils.CollectWithFallback(r.Context(), h.GetProxyClient().ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return h.GetProxyClient().GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

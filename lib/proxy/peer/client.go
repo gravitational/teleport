@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -676,7 +677,10 @@ func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool,
 	c.metrics.reportTunnelError(errorProxyPeerTunnelNotFound)
 
 	// try to establish new connections otherwise.
-	proxies, err := c.config.AuthClient.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(c.ctx, c.config.AuthClient.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return c.config.AuthClient.GetProxies()
+	})
 	if err != nil {
 		c.metrics.reportTunnelError(errorProxyPeerFetchProxies)
 		return nil, false, trace.Wrap(err)

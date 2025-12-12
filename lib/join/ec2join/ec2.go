@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/services"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -183,8 +184,11 @@ func nodeExists(ctx context.Context, presence services.Presence, hostID string) 
 	}
 }
 
-func proxyExists(_ context.Context, presence services.Presence, hostID string) (bool, error) {
-	proxies, err := presence.GetProxies()
+func proxyExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	proxies, err := clientutils.CollectWithFallback(ctx, presence.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return presence.GetProxies()
+	})
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

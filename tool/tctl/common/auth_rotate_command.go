@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
@@ -135,7 +136,7 @@ func (c *authRotateCommand) runInteractive(ctx context.Context, client *authclie
 	if err != nil {
 		return trace.Wrap(err, "failed to ping cluster")
 	}
-	m := newRotateModel(client, pingResp, types.CertAuthType(c.caType))
+	m := newRotateModel(ctx, client, pingResp, types.CertAuthType(c.caType))
 	p := tea.NewProgram(m, tea.WithContext(ctx))
 	_, err = p.Run()
 	return trace.Wrap(err)
@@ -159,6 +160,7 @@ var authRotateTheme = authRotateStyle{
 }
 
 type rotateModel struct {
+	ctx      context.Context
 	client   *authclient.Client
 	pingResp proto.PingResponse
 
@@ -178,8 +180,9 @@ type rotateModel struct {
 	help                          help.Model
 }
 
-func newRotateModel(client *authclient.Client, pingResp proto.PingResponse, caType types.CertAuthType) *rotateModel {
+func newRotateModel(ctx context.Context, client *authclient.Client, pingResp proto.PingResponse, caType types.CertAuthType) *rotateModel {
 	m := &rotateModel{
+		ctx:               ctx,
 		client:            client,
 		pingResp:          pingResp,
 		logsModel:         newWriterModel(authRotateTheme.normal),
@@ -248,7 +251,7 @@ func (m *rotateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Now that we've got the current phase, init the waitForCurrentPhaseReady
 	// model if we haven't yet and the current phase is not standby.
 	if m.waitForCurrentPhaseReadyModel == nil && m.currentPhaseModel.phase != "standby" {
-		m.waitForCurrentPhaseReadyModel = newWaitForReadyModel(m.client, m.currentPhaseModel.caID, m.currentPhaseModel.phase)
+		m.waitForCurrentPhaseReadyModel = newWaitForReadyModel(m.ctx, m.client, m.currentPhaseModel.caID, m.currentPhaseModel.phase)
 		cmds = append(cmds, m.waitForCurrentPhaseReadyModel.init())
 	}
 	if m.waitForCurrentPhaseReadyModel != nil {
@@ -277,7 +280,7 @@ func (m *rotateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "n", "N":
 				// Go back to the beginning.
-				m = newRotateModel(m.client, m.pingResp, "")
+				m = newRotateModel(m.ctx, m.client, m.pingResp, "")
 				return m, m.Init()
 			case "y", "Y":
 				m.confirmed = true
@@ -303,7 +306,7 @@ func (m *rotateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Now that we've sent the rotate request, init the waitForTargetPhaseReady model if we haven't yet.
 	if m.waitForTargetPhaseReadyModel == nil {
-		m.waitForTargetPhaseReadyModel = newWaitForReadyModel(m.client, m.currentPhaseModel.caID, m.targetPhaseModel.targetPhase)
+		m.waitForTargetPhaseReadyModel = newWaitForReadyModel(m.ctx, m.client, m.currentPhaseModel.caID, m.targetPhaseModel.targetPhase)
 		cmds = append(cmds, m.waitForTargetPhaseReadyModel.init())
 	}
 	cmds = append(cmds, m.waitForTargetPhaseReadyModel.update(msg))
@@ -313,11 +316,11 @@ func (m *rotateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.continueBinding):
-			newModel := newRotateModel(m.client, m.pingResp, m.caTypeModel.caType)
+			newModel := newRotateModel(m.ctx, m.client, m.pingResp, m.caTypeModel.caType)
 			newModel.waitForCurrentPhaseReadyModel = m.waitForTargetPhaseReadyModel
 			return newModel, newModel.Init()
 		case key.Matches(msg, m.newBinding):
-			newModel := newRotateModel(m.client, m.pingResp, "")
+			newModel := newRotateModel(m.ctx, m.client, m.pingResp, "")
 			return newModel, newModel.Init()
 		}
 	}
@@ -759,7 +762,7 @@ type waitForReadyModel struct {
 	help               help.Model
 }
 
-func newWaitForReadyModel(client *authclient.Client, caID types.CertAuthID, targetPhase string) *waitForReadyModel {
+func newWaitForReadyModel(ctx context.Context, client *authclient.Client, caID types.CertAuthID, targetPhase string) *waitForReadyModel {
 	m := &waitForReadyModel{
 		client:             client,
 		targetPhase:        targetPhase,
@@ -774,12 +777,31 @@ func newWaitForReadyModel(client *authclient.Client, caID types.CertAuthID, targ
 	}
 	m.kindReadyModels = []*waitForKindReadyModel{
 		newWaitForKindReadyModel(
-			targetPhase, "auth_servers", adaptServerGetter(client.GetAuthServers)).withMinReady(1),
+			targetPhase, "auth_servers", adaptServerGetter(func() ([]types.Server, error) {
+				return clientutils.CollectWithFallback(
+					ctx,
+					client.ListAuthServers,
+					func(context.Context) ([]types.Server, error) {
+						//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+						return client.GetAuthServers()
+					},
+				)
+			}),
+		).withMinReady(1),
 		newWaitForKindReadyModel(
-			targetPhase, "proxies", adaptServerGetter(client.GetProxies)),
+			targetPhase, "proxies", adaptServerGetter(func() ([]types.Server, error) {
+				return clientutils.CollectWithFallback(
+					ctx,
+					client.ListProxyServers,
+					func(context.Context) ([]types.Server, error) {
+						//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+						return client.GetProxies()
+					},
+				)
+			})),
 		newWaitForKindReadyModel(
 			targetPhase, "nodes", adaptServerGetter(func() ([]types.Server, error) {
-				return apiclient.GetAllResources[types.Server](context.TODO(), client, &proto.ListResourcesRequest{
+				return apiclient.GetAllResources[types.Server](ctx, client, &proto.ListResourcesRequest{
 					ResourceType:        types.KindNode,
 					Namespace:           apidefaults.Namespace,
 					PredicateExpression: `resource.sub_kind == ""`,
@@ -787,15 +809,11 @@ func newWaitForReadyModel(client *authclient.Client, caID types.CertAuthID, targ
 			})),
 		newWaitForKindReadyModel(
 			targetPhase, "app_servers", adaptServerGetter(func() ([]types.AppServer, error) {
-				return client.GetApplicationServers(context.TODO(), apidefaults.Namespace)
+				return client.GetApplicationServers(ctx, apidefaults.Namespace)
 			})),
 		newWaitForKindReadyModel(
 			targetPhase, "db_servers", adaptServerGetter(func() ([]types.DatabaseServer, error) {
-				return client.GetDatabaseServers(context.TODO(), apidefaults.Namespace)
-			})),
-		newWaitForKindReadyModel(
-			targetPhase, "kube_servers", adaptServerGetter(func() ([]types.KubeServer, error) {
-				return client.GetKubernetesServers(context.TODO())
+				return client.GetDatabaseServers(ctx, apidefaults.Namespace)
 			})),
 	}
 	return m

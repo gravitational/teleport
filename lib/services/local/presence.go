@@ -344,9 +344,61 @@ func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (
 	return server, nil
 }
 
+// rangeAuthServers returns auth servers within the range [start, end]
+func (s *PresenceService) rangeAuthServers(ctx context.Context, start, end string) iter.Seq2[types.Server, error] {
+	mapFn := func(item backend.Item) (types.Server, bool) {
+		server, err := services.UnmarshalServer(item.Value, types.KindAuthServer, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Skipping item during ListAuthServers because conversion from backend item failed", "key", item.Key, "error", err)
+			return nil, false
+		}
+		return server, true
+	}
+
+	startKey := backend.NewKey(authServersPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(authServersPrefix))
+	if end != "" {
+		endKey = backend.NewKey(authServersPrefix, end).ExactKey()
+	}
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+}
+
+// rangeProxyServers returns proxy servers within the range [start, end]
+func (s *PresenceService) rangeProxyServers(ctx context.Context, start, end string) iter.Seq2[types.Server, error] {
+	mapFn := func(item backend.Item) (types.Server, bool) {
+		server, err := services.UnmarshalServer(item.Value, types.KindProxy, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Skipping item during ListProxyServers because conversion from backend item failed", "key", item.Key, "error", err)
+			return nil, false
+		}
+		return server, true
+	}
+	startKey := backend.NewKey(proxiesPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(proxiesPrefix))
+	if end != "" {
+		endKey = backend.NewKey(proxiesPrefix, end).ExactKey()
+	}
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+}
+
+func serverToPaginationKey(s types.Server) string {
+	return backend.GetPaginationKey(s)
+}
+
 // GetAuthServers returns a list of registered servers
+//
+// Deprecated: Prefer paginated variant [ListAuthServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
+}
+
+// ListAuthServers returns a paginated list of registered auth servers.
+func (s *PresenceService) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return generic.CollectPageAndCursor(s.rangeAuthServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
@@ -374,8 +426,17 @@ func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) 
 }
 
 // GetProxies returns a list of registered proxies
+//
+// Deprecated: Prefer paginated variant [ListProxyServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
 func (s *PresenceService) GetProxies() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindProxy, proxiesPrefix)
+}
+
+// ListProxyServers returns a paginated list of registered proxy servers.
+func (s *PresenceService) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return generic.CollectPageAndCursor(s.rangeProxyServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
 // DeleteAllProxies deletes all proxies

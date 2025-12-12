@@ -573,6 +573,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Wait for proxy to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := s.proxyClient.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) != 0 {
@@ -8406,6 +8407,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	// Wait for proxies to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) == numProxies {

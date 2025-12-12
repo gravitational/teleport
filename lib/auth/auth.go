@@ -4425,7 +4425,7 @@ func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) 
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := a.newUserToken(tokenReq)
+	token, err := a.newUserToken(ctx, tokenReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4464,7 +4464,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			return nil, trace.BadParameter("all TOTP registrations require a privilege token")
 		}
 
-		otpKey, otpOpts, err := a.newTOTPKey(req.username)
+		otpKey, otpOpts, err := a.newTOTPKey(ctx, req.username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -7489,7 +7489,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		ClusterName:             cn.GetClusterName(),
 		ServerVersion:           teleport.Version,
 		ServerFeatures:          features,
-		ProxyPublicAddr:         a.getProxyPublicAddr(),
+		ProxyPublicAddr:         a.getProxyPublicAddr(ctx),
 		IsBoring:                modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
@@ -8413,8 +8413,10 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
 // finds, or empty otherwise.
-func (a *Server) getProxyPublicAddr() string {
-	if proxies, err := a.GetProxies(); err == nil {
+func (a *Server) getProxyPublicAddr(ctx context.Context) string {
+	if proxies, err := iterstream.Collect(
+		clientutils.Resources(ctx, a.ListProxyServers),
+	); err == nil {
 		for _, p := range proxies {
 			addr := p.GetPublicAddr()
 			if addr == "" {

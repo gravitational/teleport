@@ -438,6 +438,10 @@ func (c *mockClient) GetProxies() ([]types.Server, error) {
 	return c.proxies, nil
 }
 
+func (c *mockClient) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	return c.proxies, "", nil
+}
+
 func (c *mockClient) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }

@@ -981,7 +981,12 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 	}
 
 	// Get list of auth servers. Used to print friendly signup message.
-	authServers, err := in.client.GetAuthServers()
+	authServers, err := clientutils.CollectWithFallback(
+		ctx,
+		in.client.ListAuthServers,
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		func(context.Context) ([]types.Server, error) { return in.client.GetAuthServers() },
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -992,7 +997,10 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 	// Print signup message.
 	switch {
 	case in.roles.Include(types.RoleKube):
-		proxies, err := in.client.GetProxies()
+		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+			return in.client.GetProxies()
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1009,7 +1017,10 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 				"version":     proxies[0].GetTeleportVersion(),
 			})
 	case in.roles.Include(types.RoleApp):
-		proxies, err := in.client.GetProxies()
+		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+			return in.client.GetProxies()
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1029,7 +1040,10 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 				"app_public_addr": appPublicAddr,
 			})
 	case in.roles.Include(types.RoleDatabase):
-		proxies, err := in.client.GetProxies()
+		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+			return in.client.GetProxies()
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1071,7 +1085,10 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		}
 
 		if err == nil && pingResponse.GetServerFeatures().Cloud {
-			proxies, err := in.client.GetProxies()
+			proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+				return in.client.GetProxies()
+			})
 			if err != nil {
 				return trace.Wrap(err)
 			}

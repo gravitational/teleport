@@ -2641,6 +2641,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &collection, nil
 	case types.KindAuthServer:
+		//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
 		servers, err := client.GetAuthServers()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2655,6 +2656,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return nil, trace.NotFound("auth server with ID %q not found", rc.ref.Name)
 	case types.KindProxy:
+		//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
 		servers, err := client.GetProxies()
 		if err != nil {
 			return nil, trace.Wrap(err)

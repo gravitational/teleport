@@ -382,6 +382,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Proxy service.
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, out)
@@ -390,6 +391,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	proxy.Spec.Hostname = "proxy.llama"
 	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
@@ -398,11 +400,13 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, out)
 
 	// Auth service.
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
 	require.Empty(t, out)
@@ -411,6 +415,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	auth.Spec.Hostname = "auth.llama"
 	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
@@ -2158,6 +2163,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				err := s.PresenceS.UpsertProxy(ctx, srv)
 				require.NoError(t, err)
 
+				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 				out, err := s.PresenceS.GetProxies()
 				require.NoError(t, err)
 

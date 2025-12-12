@@ -409,7 +409,10 @@ func NewProxyWatcher(ctx context.Context, cfg ProxyWatcherConfig) (*GenericWatch
 		ResourceKind:          types.KindProxy,
 		ResourceKey:           types.Server.GetName,
 		ResourceGetter: func(ctx context.Context) ([]types.Server, error) {
-			return proxyGetter.GetProxies()
+			return clientutils.CollectWithFallback(ctx, proxyGetter.ListProxyServers, func(context.Context) ([]types.Server, error) {
+				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+				return proxyGetter.GetProxies()
+			})
 		},
 		ResourcesC:                          cfg.ProxiesC,
 		ResourceDiffer:                      cfg.ProxyDiffer,
