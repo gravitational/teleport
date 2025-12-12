@@ -125,13 +125,12 @@ func (r *statusReconciler) Run(ctx context.Context) error {
 			if err != nil {
 				r.Logger.ErrorContext(ctx, "Error reconciling access_list statuses", "error", trace.Wrap(err))
 			} else {
-				if stats.fixed > 0 {
-					stats.wrapLogger(r.Logger, took, waitTime).WarnContext(ctx,
-						"Finished reconciling access_list statuses, but some weren't fixed due to conflict. Will retry on the next loop")
-				} else {
-					stats.wrapLogger(r.Logger, took, waitTime).InfoContext(ctx,
-						"Finished reconciling access_list statuses")
-				}
+				r.Logger.InfoContext(ctx, "Finished reconciling access_list statuses",
+					"took", took.String(),
+					"next_run_in", waitTime.String(),
+					"processed", stats.processed,
+					"fixed", stats.fixed,
+				)
 			}
 		case <-ctx.Done():
 			return ctx.Err()
@@ -289,13 +288,4 @@ type statusReconcilerStats struct {
 	processed int
 	// fixed is the number of access lists that required a fix and were fixed.
 	fixed int
-}
-
-func (s *statusReconcilerStats) wrapLogger(l *slog.Logger, took, waitTime time.Duration) *slog.Logger {
-	return l.With(
-		slog.String("took", took.String()),
-		slog.String("next_run_in", waitTime.String()),
-		slog.Int("processed", s.processed),
-		slog.Int("fixed", s.fixed),
-	)
 }
