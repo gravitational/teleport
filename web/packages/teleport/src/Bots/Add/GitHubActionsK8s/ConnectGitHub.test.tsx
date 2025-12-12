@@ -156,7 +156,7 @@ describe('ConnectGitHub', () => {
     expect(input).toHaveValue('production');
   });
 
-  test('input ref', async () => {
+  test('input ref and type', async () => {
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Git Ref');
@@ -164,13 +164,6 @@ describe('ConnectGitHub', () => {
 
     expect(input).toHaveValue('release-*');
     expect(screen.getByLabelText('Branch')).toHaveValue('release-*');
-  });
-
-  test('input ref type', async () => {
-    const { user } = renderComponent();
-
-    const input = screen.getByLabelText('Git Ref');
-    await user.type(input, 'release-*');
 
     const select = screen.getByLabelText('Ref Type');
     await selectEvent.select(select, ['Tag']);
