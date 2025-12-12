@@ -111,25 +111,6 @@ tests:
           path: spec.template.metadata.labels
           content:
             test-key: test-label-pod
-  - it: sets extraVolumes and extraVolumeMounts when set in values
-    set:
-      extraVolumes:
-        - name: test-volume
-          emptyDir: {}
-      extraVolumeMounts:
-        - name: test-volume
-          mountPath: /test/path
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: test-volume
-            emptyDir: {}
-      - contains:
-          path: spec.template.spec.containers[0].volumeMounts
-          content:
-              name: test-volume
-              mountPath: /test/path
   - it: sets extraArgs when set in values
     set:
       extraArgs:

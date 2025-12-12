@@ -16,8 +16,6 @@
         "affinity",
         "extraArgs",
         "extraEnv",
-        "extraVolumes",
-        "extraVolumeMounts",
         "teleport",
         "fluentd"
     ],
@@ -143,16 +141,6 @@
         },
         "extraEnv": {
             "$id": "#/properties/extraEnv",
-            "type": "array",
-            "default": []
-        },
-        "extraVolumes": {
-            "$id": "#/properties/extraVolumes",
-            "type": "array",
-            "default": []
-        },
-        "extraVolumeMounts": {
-            "$id": "#/properties/extraVolumeMounts",
             "type": "array",
             "default": []
         },

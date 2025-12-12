@@ -244,22 +244,30 @@ tolerations: []
 # for more details.
 affinity: {}
 
-# volumes(list) -- sets the standard volumes mounted into the main event-handler pod.
+# volumes(list) -- sets the volumes mounted into the main event-handler pod.
 # See [the Kubernetes volume
 # documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
 # details.
+#
+# For example:
+# ```yaml
+# - name: storage
+#   persistentVolumeClaim:
+#     claimName: teleport-plugin-event-handler
+# ```
 volumes: []
-  # - name: storage
-  #   persistentVolumeClaim:
-  #     claimName: teleport-plugin-event-handler
 
-# volumeMounts(list) -- sets the standard volume mounts for the main event-handler container.
+# volumeMounts(list) -- sets the volume mounts for the main event-handler container.
 # See [the Kubernetes volume
 # documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
 # details.
+#
+# For example:
+# ```yaml
+# - name: storage
+#   mountPath: "/var/lib/teleport/plugins/event-handler/storage"
+# ```
 volumeMounts: []
-  # - name: storage
-  #   mountPath: "/var/lib/teleport/plugins/event-handler/storage"
 
 # extraArgs(list) -- contains extra arguments to pass to `teleport-plugin start` for
 # the main event-handler container.
@@ -275,30 +283,3 @@ extraArgs: []
 #     value: "http://username:password@my.proxy.host:3128"
 # ```
 extraEnv: []
-
-# extraVolumes(list) -- contains extra volumes to mount into the event-handler pods.
-# See [the Kubernetes volume
-# documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
-# details.
-#
-# For example:
-# ```yaml
-# extraVolumes:
-# - name: myvolume
-#   secret:
-#     secretName: testSecret
-# ```
-extraVolumes: []
-
-# extraVolumeMounts(list) -- contains extra volumes mounts for the main event-handler
-# container. See [the Kubernetes volume
-# documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
-# details.
-#
-# For example:
-# ```yaml
-# extraVolumesMounts:
-# - name: myvolume
-#   mountPath: /path/on/host
-# ```
-extraVolumeMounts: []
