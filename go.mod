@@ -196,7 +196,7 @@ require (
 	github.com/prometheus/client_golang v1.23.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.65.0
-	github.com/quic-go/quic-go v0.55.0
+	github.com/quic-go/quic-go v0.57.0
 	github.com/redis/go-redis/v9 v9.12.1 // replaced
 	github.com/russellhaering/gosaml2 v0.10.0
 	github.com/russellhaering/goxmldsig v1.5.0
@@ -212,7 +212,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spiffe/aws-spiffe-workload-helper v0.0.1-rc.8
 	github.com/spiffe/go-spiffe/v2 v2.5.0
-	github.com/stretchr/testify v1.11.0
+	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.39.0
 	github.com/testcontainers/testcontainers-go/modules/mysql v0.39.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.39.0

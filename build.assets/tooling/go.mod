@@ -13,7 +13,7 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/trace v1.5.1
-	github.com/stretchr/testify v1.11.0
+	github.com/stretchr/testify v1.11.1
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	golang.org/x/mod v0.29.0
 	golang.org/x/oauth2 v0.30.0
