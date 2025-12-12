@@ -648,7 +648,7 @@
     {
       "source": "/enroll-resources/machine-id/deployment/linux-tpm/",
       "destination": "/machine-workload-identity/deployment/linux-tpm/",
-      "permanent": true
+      "permanent"n: true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/linux/",
@@ -702,7 +702,7 @@
     },
     {
       "source": "/enroll-resources/workload-identity/best-practices/",
-      "destination": "/machine-workload-identity/best-practices/",
+      "destination": "/machine-workload-identity/spiffe/best-practices/",
       "permanent": true
     },
     {
@@ -2476,12 +2476,12 @@
     },
     {
       "source": "/machine-workload-identity/workload-identity/aws-oidc-federation/",
-      "destination": "/machine-workload-identity/deployment/aws-oidc-federation/",
+      "destination": "/machine-workload-identity/spiffe/aws-oidc-federation/",
       "permanent": true
     },
     {
       "source": "/machine-workload-identity/workload-identity/aws-roles-anywhere/",
-      "destination": "/machine-workload-identity/deployment/aws-roles-anywhere/",
+      "destination": "/machine-workload-identity/spiffe/aws-roles-anywhere/",
       "permanent": true
     },
     {
