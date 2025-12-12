@@ -38,10 +38,6 @@ func TestWithLeaderLock(t *testing.T) {
 
 	process := testAuthProcess(t, withClock(clock))
 	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
 
 	pluginCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -629,7 +629,10 @@ func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProc
 
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 
 	return process
 }
