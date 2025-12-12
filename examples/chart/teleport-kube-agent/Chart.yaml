@@ -11,5 +11,5 @@ keywords:
 dependencies:
   - name: teleport-kube-updater
     version: *version
-    repository: "file://../teleport-kube-updater"
+    repository: "https://charts.releases.teleport.dev"
     alias: updater
