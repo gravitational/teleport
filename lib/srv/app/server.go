@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -351,6 +352,14 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 		App:      copy,
 		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
 	})
+
+	if server != nil && copy.IsAWSConsole() {
+		server.SetComponentFeatures(&componentfeaturesv1.ComponentFeatures{
+			Features: []componentfeaturesv1.ComponentFeatureID{
+				componentfeaturesv1.ComponentFeatureID_COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_V1,
+			},
+		})
+	}
 
 	return server, trace.Wrap(err)
 }

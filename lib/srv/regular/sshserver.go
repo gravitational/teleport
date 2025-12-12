@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -1187,6 +1188,10 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+
+	if s.proxyMode {
+		srv.SetComponentFeatures(componentfeatures.Join(srv.GetComponentFeatures(), componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)))
+	}
 
 	return srv
 }
