@@ -26,10 +26,10 @@ import Text, { H2 } from 'design/Text';
 import cfg from 'teleport/config';
 import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
 
-import { useGitHubFlow } from './useGitHubFlow';
+import { useGitHubSshFlow } from './useGitHubSshFlow';
 
 export function Finish() {
-  const { createBotRequest } = useGitHubFlow();
+  const { createBotRequest } = useGitHubSshFlow();
 
   return (
     <Flex

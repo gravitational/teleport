@@ -54,7 +54,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'GitHub Actions + SSH',
     description: 'Use Machine ID to power GitHub CI/CD workflows.',
-    link: cfg.getBotsNewRoute(BotFlowType.GitHubActions),
+    link: cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh),
     icon: 'github',
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
     type: 'bot',

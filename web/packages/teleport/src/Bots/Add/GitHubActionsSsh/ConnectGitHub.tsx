@@ -36,29 +36,15 @@ import Validation, { Validator } from 'shared/components/Validation';
 import cfg from 'teleport/config';
 
 import { FlowButtons } from '../Shared/FlowButtons';
-import { FlowStepProps } from '../Shared/GuidedFlow';
 import {
   GITHUB_HOST,
   parseRepoAddress,
   RefTypeOption,
-  Rule,
-  useGitHubFlow,
-} from './useGitHubFlow';
-
-const refTypeOptions: RefTypeOption[] = [
-  {
-    label: 'any',
-    value: '',
-  },
-  {
-    label: 'Branch',
-    value: 'branch',
-  },
-  {
-    label: 'Tag',
-    value: 'tag',
-  },
-];
+  refTypeOptions,
+  requireValidRepository,
+} from '../Shared/github';
+import { FlowStepProps } from '../Shared/GuidedFlow';
+import { Rule, useGitHubSshFlow } from './useGitHubSshFlow';
 
 export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
   const {
@@ -68,7 +54,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
     createBot,
     attempt,
     resetAttempt,
-  } = useGitHubFlow();
+  } = useGitHubSshFlow();
   const isLoading = attempt.status === 'processing';
 
   const [hostError, setHostError] = useState<JSX.Element | null>(null);
@@ -106,7 +92,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
 
     createBot().then(success => {
       if (success) {
-        nextStep();
+        nextStep?.();
       }
     });
   }
@@ -185,7 +171,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                           isDisabled={isLoading}
                           isMulti={false}
                           value={repoRules[i].refType}
-                          onChange={o => handleChange(i, 'refType', o)}
+                          onChange={o => o && handleChange(i, 'refType', o)}
                           options={refTypeOptions}
                           menuPlacement="auto"
                         />
@@ -264,7 +250,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
               nextStep={() => handleNext(validator)}
               prevStep={() => {
                 resetAttempt();
-                prevStep();
+                prevStep?.();
               }}
             />
           </Box>
@@ -300,36 +286,6 @@ const OptionalFieldText = () => (
     (optional)
   </Text>
 );
-
-const requireValidRepository = value => () => {
-  if (!value) {
-    return { valid: false, message: 'Repository is required' };
-  }
-  let repoAddr = value.trim();
-  if (!repoAddr) {
-    return { valid: false, message: 'Repository is required' };
-  }
-
-  // add protocol if user omited it
-  if (!repoAddr.startsWith('http://') && !repoAddr.startsWith('https://')) {
-    repoAddr = `https://${repoAddr}`;
-  }
-
-  try {
-    const { owner, repository } = parseRepoAddress(repoAddr);
-    if (owner.trim() === '' || repository.trim() == '') {
-      return {
-        valid: false,
-        message:
-          'URL expected to be in the format https://<host>/<owner>/<repository>',
-      };
-    }
-
-    return { valid: true };
-  } catch (e) {
-    return { valid: false, message: e?.message };
-  }
-};
 
 const MultipleHostsError = () => {
   return (

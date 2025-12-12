@@ -33,13 +33,13 @@ import useTeleport from 'teleport/useTeleport';
 
 import { FlowButtons } from '../Shared/FlowButtons';
 import { FlowStepProps } from '../Shared/GuidedFlow';
-import { useGitHubFlow } from './useGitHubFlow';
+import { useGitHubSshFlow } from './useGitHubSshFlow';
 
 export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
   const [missingLabels, setMissingLabels] = useState(false);
   const [alreadyExistErr, setAlreadyExistErr] = useState(false);
 
-  const { createBotRequest, setCreateBotRequest } = useGitHubFlow();
+  const { createBotRequest, setCreateBotRequest } = useGitHubSshFlow();
   const { attempt, run } = useAttempt();
   const isLoading = attempt.status === 'processing';
 
@@ -66,7 +66,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
     run(async () => {
       const bot = await getBot({ botName: createBotRequest.botName });
       if (bot === null) {
-        nextStep();
+        nextStep?.();
         return;
       }
       setAlreadyExistErr(true);

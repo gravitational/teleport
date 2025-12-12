@@ -22,7 +22,7 @@ import { AddBotToWorkflow } from './AddBotToWorkflow';
 import { ConfigureBot } from './ConfigureBot';
 import { ConnectGitHub } from './ConnectGitHub';
 import { Finish } from './Finish';
-import { GitHubFlowProvider } from './useGitHubFlow';
+import { GitHubSshFlowProvider } from './useGitHubSshFlow';
 
 const views: View[] = [
   {
@@ -43,15 +43,15 @@ const views: View[] = [
   },
 ];
 
-export function GitHubActions() {
+export function GitHubActionsSsh() {
   return (
-    <GitHubFlowProvider>
+    <GitHubSshFlowProvider>
       <GuidedFlow
         title="GitHub Actions and Machine ID Integration"
         icon={<ResourceIcon name="github" width="20px" />}
         views={views}
-        name="GitHub Actions"
+        name="GitHub Actions + SSH"
       />
-    </GitHubFlowProvider>
+    </GitHubSshFlowProvider>
   );
 }

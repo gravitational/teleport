@@ -21,38 +21,44 @@ import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import { allAccessAcl } from 'teleport/mocks/contexts';
+import cfg from 'teleport/config';
 import TeleportContext from 'teleport/teleportContext';
 
-import { ConfigureBot } from './ConfigureBot';
-import { GitHubFlowProvider } from './useGitHubFlow';
+import { Finish } from './Finish';
+import { GitHubSshFlowProvider, initialBotState } from './useGitHubSshFlow';
 
-describe('addBotToWorkflow Component', () => {
-  const setup = () => {
+describe('finish Component', () => {
+  const setup = ({ botName }) => {
     const ctx = new TeleportContext();
-
-    ctx.storeUser.setState({
-      username: 'joe@example.com',
-      acl: allAccessAcl,
-    });
     render(
       <MemoryRouter>
         <ContextProvider ctx={ctx}>
-          <GitHubFlowProvider>
-            <ConfigureBot />
-          </GitHubFlowProvider>
+          <GitHubSshFlowProvider bot={{ ...initialBotState, botName }}>
+            <Finish />
+          </GitHubSshFlowProvider>
         </ContextProvider>
       </MemoryRouter>
     );
   };
 
-  it('does not display the button to go back', () => {
-    setup();
-    expect(screen.queryByTestId('button-back')).not.toBeInTheDocument();
+  it('renders with dynamic content based on hook', () => {
+    setup({ botName: 'test-bot' });
+    expect(
+      screen.getByText('Your Bot is Added to Teleport')
+    ).toBeInTheDocument();
+    expect(screen.getByText('View Bots')).toBeInTheDocument();
+    expect(screen.getByText('Add Another Bot')).toBeInTheDocument();
   });
 
-  it('displays the button to finish', () => {
-    setup();
-    expect(screen.getByTestId('button-next')).toBeInTheDocument();
+  it('has correct links on buttons', () => {
+    setup({ botName: 'test-bot' });
+    expect(screen.getByText('View Bots').closest('a')).toHaveAttribute(
+      'href',
+      cfg.getBotsRoute()
+    );
+    expect(screen.getByText('Add Another Bot').closest('a')).toHaveAttribute(
+      'href',
+      cfg.getBotsNewRoute()
+    );
   });
 });

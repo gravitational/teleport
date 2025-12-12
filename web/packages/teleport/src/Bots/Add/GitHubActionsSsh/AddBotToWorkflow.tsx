@@ -25,10 +25,10 @@ import useTeleport from 'teleport/useTeleport';
 
 import { FlowButtons } from '../Shared/FlowButtons';
 import { FlowStepProps } from '../Shared/GuidedFlow';
-import { useGitHubFlow } from './useGitHubFlow';
+import { useGitHubSshFlow } from './useGitHubSshFlow';
 
 export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
-  const { tokenName, createBotRequest } = useGitHubFlow();
+  const { tokenName, createBotRequest } = useGitHubSshFlow();
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
