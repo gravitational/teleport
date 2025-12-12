@@ -43,12 +43,12 @@ It's recommended to backup the cluster state database, prior to creating an
 override, in case a Teleport downgrade is ever required.
 
 <a id="ux1"></a>
-### Alice configures "db-client" as a sub CA
+### Alice configures "db_client" as a sub CA
 
 1. First, Alice issues CSRs for the desired CA
 
     ```shell
-    $ tctl auth create-override-csr --type=db-client
+    $ tctl auth create-override-csr --type=db_client
     > -----BEGIN CERTIFICATE REQUEST-----
     > ...
     > -----END CERTIFICATE REQUEST-----
@@ -66,7 +66,7 @@ override, in case a Teleport downgrade is ever required.
 1. Finally, Alice writes the certificates back to Teleport. The new certificates
    take effect immediately.
 
-    `tctl auth create-override --type=db-client cert.pem [chain.pem...]`
+    `tctl auth create-override --type=db_client cert.pem [chain.pem...]`
 
 ### Alice configures "windows" as a sub CA
 
@@ -81,7 +81,7 @@ Alice begins with the following command, then [continues as the first
 example](#ux1).
 
 ```shell
-tctl auth create-override-csr --type=db-client \
+tctl auth create-override-csr --type=db_client \
     --subject 'O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA'
 ```
 
@@ -97,7 +97,7 @@ $ tctl create <<EOF
 type: cert_authority_override
 version: v1
 metadata:
-  name: db-client # matches CA name
+  name: db_client # matches CA name
 spec:
   certificate_overrides:
   - certificate: |-
@@ -112,74 +112,74 @@ spec:
 EOF
 ```
 
-### Alice disables the "db-client" override
+### Alice disables the "db_client" override
 
 Disabling an override makes it inactive, falling back to the corresponding
 Teleport self-signed certificate, but retains the configuration. Disables take
 effect immediately.
 
-`tctl auth disable-override --type=db-client`
+`tctl auth disable-override --type=db_client`
 
 Disables are only allowed for keys in the [AdditionalTrustedKeys set](
 https://github.com/gravitational/teleport/blob/3121f066a27a4c24cb330452416a7261147eb2fa/api/proto/teleport/legacy/types/types.proto#L1398),
 meaning it can only happen for new keys during the "init" CA rotation phase. A
 disable may be forced via the `--force-immediate-disable` flag.
 
-### Alice deletes the "db-client" override
+### Alice deletes the "db_client" override
 
 Deleting an override removes it completely, making Teleport use its self-signed
 certificate. Deletes take effect immediately.
 
-`tctl auth delete-override --type=db-client`
+`tctl auth delete-override --type=db_client`
 
 Deletes are only allowed for keys absent from the CA key sets, as a fallback. A
 delete may be forced with the `--force-immediate-delete` flag.
 
-### Alice performs a "db-client" CA rotation
+### Alice performs a "db_client" CA rotation
 
 1. Alice starts a rotation and attempts to advance to the `update_clients` step:
 
     ```shell
-    $ tctl auth rotate --manual --type=db-client --phase=init
+    $ tctl auth rotate --manual --type=db_client --phase=init
     > Updated rotation phase to "init". To check status use 'tctl status'
     >
-    > There are active overrides for CA "db-client". You must either supply an
+    > There are active overrides for CA "db_client". You must either supply an
     > override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth create-override-csr --type=db-client --public-key='AB:CD:EF:...'
-    > tctl auth create-override --type=db-client cert.pem
+    > tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --type=db_client cert.pem
     > or
-    > tctl auth disable-override --type=db-client --public-key='AB:CD:EF:...'
+    > tctl auth disable-override --type=db_client --public-key='AB:CD:EF:...'
 
-    $ tctl auth rotate --manual --type=db-client --phase=update_clients
-    > ERROR: Found CA overrides for authority "db-client". You must either
+    $ tctl auth rotate --manual --type=db_client --phase=update_clients
+    > ERROR: Found CA overrides for authority "db_client". You must either
     > supply an override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth create-override-csr --type=db-client --public-key='AB:CD:EF:...'
-    > tctl auth create-override --type=db-client cert.pem
+    > tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --type=db_client cert.pem
     > or
-    > tctl auth disable-override --type=db-client --public-key='AB:CD:EF:...'
+    > tctl auth disable-override --type=db_client --public-key='AB:CD:EF:...'
     ```
 
     Note: the interactive rotation wizard will print similar messages to above.
     Users must perform the commands in a separate shell and then acknowledge the
     manual steps, as usual.
 
-1. Alice updates the CA override for "db-client":
+1. Alice updates the CA override for "db_client":
 
     ```shell
-    $ tctl auth create-override-csr --type=db-client --public-key='AB:CD:EF:...'
+    $ tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
     > (CSR PEM)
 
     # Alice issues certificate from CSR.
 
-    tctl auth create-override --type=db-client cert.pem [chain.pem...]
+    tctl auth create-override --type=db_client cert.pem [chain.pem...]
     ```
 
 1. Alice advances the rotation to the `update_clients` step:
 
     ```shell
-    $ tctl auth rotate --manual --type=db-client --phase=update_clients`
+    $ tctl auth rotate --manual --type=db_client --phase=update_clients`
     # OK, all overrides are addressed.
     ```
 
@@ -196,11 +196,11 @@ allows overrides to take effect without a CA rotation.
 
 Unlike RFD 0194, the override is conceptually generic (it may apply to any
 Teleport CA) and works at a more fundamental system layer. For the initial
-release only the "db-client" and "windows" CAs may be targeted, but support
+release only the "db_client" and "windows" CAs may be targeted, but support
 could be seamlessly expanded in the future. It could even be applied to the
 SPIFFE TLS CA, replacing a workload_identity_x509_issuer_override.
 
-Overrides for client facing CAs, like "db-client" and "windows", take effect
+Overrides for client facing CAs, like "db_client" and "windows", take effect
 immediately. The customer holds all necessary certificates before creating the
 override, so they may take the necessary steps (like updating trusted roots).
 
@@ -615,8 +615,8 @@ TODO: Include brief instructions on how to create a self-signed external CA and
 how to mint certificates from the CSR.
 -->
 
-- [ ] Create an override for the "db-client" CA
-  - [ ] "db-client" override works even if the database only knows about the
+- [ ] Create an override for the "db_client" CA
+  - [ ] "db_client" override works even if the database only knows about the
         external root CA (ie, clients correctly pass the TLS chain)
 - [ ] Create an override for the "windows" CA
   - [ ] Verify that overriding the "windows" CA does not affect the "tls-user" CA
@@ -640,7 +640,7 @@ The design offers only Subject customization via the `tctl auth
 create-override-csr`, as that is understood to be sufficient. A CSR signing
 command could be provided to offer a higher degree customization:
 
-`tctl auth sign-override-csr --type=db-client cert-request.pem`
+`tctl auth sign-override-csr --type=db_client cert-request.pem`
 
 The sign-override-csr command validates the request, similarly to the
 creation/update of a cert_authority_override resource, ensuring it fulfils the
