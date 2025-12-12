@@ -27,8 +27,13 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect/FieldSelectC
 import Validator, { Validation } from 'shared/components/Validation/Validation';
 
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
+import { useTracking } from '../Shared/useTracking';
 import { CodePanel } from './CodePanel';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
@@ -37,11 +42,21 @@ export function ConfigureAccess(props: FlowStepProps) {
   const { nextStep, prevStep } = props;
 
   const { dispatch, state } = useGitHubK8sFlow();
+  const tracking = useTracking();
 
   const handleNext = (validator: Validator) => {
     if (!validator.validate()) {
+      tracking.error(
+        IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+        'validation error'
+      );
       return;
     }
+
+    tracking.step(
+      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+      IntegrationEnrollStatusCode.Success
+    );
 
     nextStep?.();
   };

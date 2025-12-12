@@ -30,6 +30,10 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import cfg from 'teleport/config';
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 
 import {
   RefTypeOption,
@@ -37,6 +41,7 @@ import {
   requireValidRepository,
 } from '../Shared/github';
 import { FlowStepProps } from '../Shared/GuidedFlow';
+import { useTracking } from '../Shared/useTracking';
 import { CodePanel } from './CodePanel';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
 
@@ -45,10 +50,22 @@ export function ConnectGitHub(props: FlowStepProps) {
 
   const { dispatch, state } = useGitHubK8sFlow();
 
+  const tracking = useTracking();
+
   const handleNext = (validator: Validator) => {
     if (!validator.validate()) {
+      tracking.error(
+        IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+        'validation error'
+      );
+
       return;
     }
+
+    tracking.step(
+      IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+      IntegrationEnrollStatusCode.Success
+    );
 
     nextStep?.();
   };

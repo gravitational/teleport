@@ -35,8 +35,13 @@ import Link from 'design/Link/Link';
 import Text, { H2, P2 } from 'design/Text/Text';
 
 import cfg from 'teleport/config';
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
+import { useTracking } from '../Shared/useTracking';
 import { CodePanel } from './CodePanel';
 
 export function Finish(props: FlowStepProps) {
@@ -45,8 +50,14 @@ export function Finish(props: FlowStepProps) {
   const [showDoneCheck, setShowDoneCheck] = useState(false);
 
   const history = useHistory();
+  const tracking = useTracking();
 
   const handleDone = () => {
+    tracking.step(
+      IntegrationEnrollStep.MWIGHAK8SSetupWorkflow,
+      IntegrationEnrollStatusCode.Success
+    );
+
     history.replace(cfg.getBotsRoute());
   };
 

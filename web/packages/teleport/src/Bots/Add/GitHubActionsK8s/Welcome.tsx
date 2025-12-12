@@ -26,7 +26,13 @@ import Link from 'design/Link/Link';
 import Text, { H2 } from 'design/Text/Text';
 import { Theme } from 'design/theme/themes/types';
 
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
+
 import { FlowStepProps } from '../Shared/GuidedFlow';
+import { useTracking } from '../Shared/useTracking';
 import welcomeDark from './gha-k8s-welcome-dark.svg';
 import welcomeLight from './gha-k8s-welcome-light.svg';
 
@@ -34,10 +40,20 @@ export function Welcome(props: FlowStepProps) {
   const { nextStep } = props;
 
   const theme = useTheme();
+  const tracking = useTracking();
 
   const welcomeImage: IconSpec = {
     light: welcomeLight,
     dark: welcomeDark,
+  };
+
+  const handleNext = () => {
+    tracking.step(
+      IntegrationEnrollStep.MWIGHAK8SWelcome,
+      IntegrationEnrollStatusCode.Success
+    );
+
+    nextStep?.();
   };
 
   return (
@@ -72,7 +88,7 @@ export function Welcome(props: FlowStepProps) {
         </Text>
 
         <Flex gap={2} pt={5}>
-          <ButtonPrimary onClick={nextStep}>Start</ButtonPrimary>
+          <ButtonPrimary onClick={handleNext}>Start</ButtonPrimary>
         </Flex>
       </Box>
 
