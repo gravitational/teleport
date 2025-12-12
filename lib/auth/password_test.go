@@ -906,12 +906,12 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		OldPassword: pass,
 	}
 
-	err := s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "me.localhost"))
+	err := s.a.UpsertCertAuthority(ctx, authtest.NewCA(types.UserCA, "me.localhost"))
 	if err != nil {
 		return req, err
 	}
 
-	err = s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "me.localhost"))
+	err = s.a.UpsertCertAuthority(ctx, authtest.NewCA(types.HostCA, "me.localhost"))
 	if err != nil {
 		return req, err
 	}

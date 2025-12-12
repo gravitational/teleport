@@ -216,13 +216,13 @@ func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err err
 		return testPack{}, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, authtest.NewCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
 		return testPack{}, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, authtest.NewCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
 		return testPack{}, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, authtest.NewCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
 		return testPack{}, trace.Wrap(err)
 	}
 
@@ -1315,8 +1315,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewCA(types.UserCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewCA(types.HostCA, "test")))
 
 	err = s.a.CreateReverseTunnel(ctx, tc)
 	require.NoError(t, err)
@@ -4047,7 +4047,7 @@ func TestCAGeneration(t *testing.T) {
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
-			testKeySet := authtest.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			testKeySet := authtest.NewCA(caType, clusterName, privKey).Spec.ActiveKeys
 			keySet, err := auth.NewKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 

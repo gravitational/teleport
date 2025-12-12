@@ -23,10 +23,10 @@ import (
 
 // TestCAConfig defines the configuration for generating
 // a test certificate authority
-type TestCAConfig = authcatest.TestCAConfig
+type TestCAConfig = authcatest.CAConfig
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
 func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return authcatest.NewTestCA(caType, clusterName, privateKeys...)
+	return authcatest.NewCA(caType, clusterName, privateKeys...)
 }

@@ -4380,7 +4380,7 @@ func TestEvents(t *testing.T) {
 				LoadSecrets: true,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				ca := authtest.NewCA(types.UserCA, "example.com")
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
 				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), true)
@@ -4401,7 +4401,7 @@ func TestEvents(t *testing.T) {
 				LoadSecrets: false,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := authtest.NewTestCA(types.UserCA, "example.com")
+				ca := authtest.NewCA(types.UserCA, "example.com")
 				require.NoError(t, testSrv.Auth().UpsertCertAuthority(ctx, ca))
 
 				out, err := testSrv.Auth().GetCertAuthority(ctx, *ca.ID(), false)
@@ -5748,10 +5748,10 @@ func TestVerifyPeerCert(t *testing.T) {
 		}
 	)
 
-	localHostCA := authtest.NewTestCA(types.HostCA, localClusterName)
-	remoteHostCA := authtest.NewTestCA(types.HostCA, remoteClusterName)
-	localUserCA := authtest.NewTestCA(types.UserCA, localClusterName)
-	remoteUserCA := authtest.NewTestCA(types.UserCA, remoteClusterName)
+	localHostCA := authtest.NewCA(types.HostCA, localClusterName)
+	remoteHostCA := authtest.NewCA(types.HostCA, remoteClusterName)
+	localUserCA := authtest.NewCA(types.UserCA, localClusterName)
+	remoteUserCA := authtest.NewCA(types.UserCA, remoteClusterName)
 
 	caPool := buildPoolInfo(
 		t,

@@ -250,8 +250,8 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				authtest.NewTestCA(types.HostCA, "rc1"),
-				authtest.NewTestCA(types.HostCA, "rc2"),
+				authtest.NewCA(types.HostCA, "rc1"),
+				authtest.NewCA(types.HostCA, "rc2"),
 			},
 		})
 		require.Error(t, err)
@@ -262,7 +262,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				authtest.NewTestCA(types.UserCA, "rc3"),
+				authtest.NewCA(types.UserCA, "rc3"),
 			},
 		})
 		require.Error(t, err)
@@ -273,7 +273,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				authtest.NewTestCA(types.HostCA, localClusterName),
+				authtest.NewCA(types.HostCA, localClusterName),
 			},
 		})
 		require.Error(t, err)
@@ -292,7 +292,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				authtest.NewTestCA(types.HostCA, trustedCluster.GetName()),
+				authtest.NewCA(types.HostCA, trustedCluster.GetName()),
 			},
 		})
 		require.Error(t, err)
@@ -300,7 +300,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("all CAs are returned when v10+", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(authtest.NewTestCA(types.HostCA, "leafcluster-1"))
+		leafClusterCA := types.CertAuthority(authtest.NewCA(types.HostCA, "leafcluster-1"))
 		resp, err := a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
@@ -375,7 +375,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(authtest.NewTestCA(types.HostCA, "leafcluster-2"))
+		leafClusterCA := types.CertAuthority(authtest.NewCA(types.HostCA, "leafcluster-2"))
 		resp, err := a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
@@ -409,7 +409,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
 			CAs: []types.CertAuthority{
-				authtest.NewTestCAWithConfig(authtest.TestCAConfig{
+				authtest.NewCAWithConfig(authtest.CAConfig{
 					Type:                types.HostCA,
 					ClusterName:         "remoteCluster",
 					SubjectOrganization: "commonName",
@@ -500,7 +500,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)
 	require.NoError(t, err)
 
-	ca := authtest.NewTestCA(types.UserCA, "trustedcluster")
+	ca := authtest.NewCA(types.UserCA, "trustedcluster")
 
 	auth.ConfigureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
 
@@ -639,7 +639,7 @@ func TestUpdateTrustedCluster(t *testing.T) {
 	trustedCluster, err := types.NewTrustedCluster(testClusterName, trustedClusterSpec)
 	require.NoError(t, err)
 
-	ca := authtest.NewTestCA(types.UserCA, testClusterName)
+	ca := authtest.NewCA(types.UserCA, testClusterName)
 
 	auth.ConfigureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
 

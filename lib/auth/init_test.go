@@ -228,7 +228,7 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		}
 		// Pre-generate all CAs to keep tests fast esp. with SoftHSM.
 		for _, caType := range types.CertAuthTypes {
-			cfg.BootstrapResources = append(cfg.BootstrapResources, authtest.NewTestCAWithConfig(authtest.TestCAConfig{
+			cfg.BootstrapResources = append(cfg.BootstrapResources, authtest.NewCAWithConfig(authtest.CAConfig{
 				Type:        caType,
 				ClusterName: cfg.ClusterName.GetClusterName(),
 				Clock:       cfg.Clock,

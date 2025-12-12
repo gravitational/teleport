@@ -21,18 +21,17 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authcatest"
 )
 
-// TestCAConfig defines the configuration for generating
-// a test certificate authority
-type TestCAConfig = authcatest.TestCAConfig
+// CAConfig defines the configuration for generating a test certificate
+// authority.
+type CAConfig = authcatest.CAConfig
 
-// NewTestCA returns new test authority with a test key as a public and
-// signing key
-func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return authcatest.NewTestCA(caType, clusterName, privateKeys...)
+// NewCA returns new test authority with a test key as a public and signing key.
+func NewCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+	return authcatest.NewCA(caType, clusterName, privateKeys...)
 }
 
-// NewTestCAWithConfig generates a new certificate authority with the specified
-// configuration
-func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
-	return authcatest.NewTestCAWithConfig(config)
+// NewCAWithConfig generates a new certificate authority with the specified
+// configuration.
+func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
+	return authcatest.NewCAWithConfig(config)
 }

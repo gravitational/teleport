@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// TestCAConfig defines the configuration for generating
-// a test certificate authority
-type TestCAConfig struct {
+// CAConfig defines the configuration for generating a test certificate
+// authority.
+type CAConfig struct {
 	Type        types.CertAuthType
 	PrivateKeys [][]byte
 	Clock       clockwork.Clock
@@ -44,10 +44,9 @@ type TestCAConfig struct {
 	SubjectOrganization string
 }
 
-// NewTestCA returns new test authority with a test key as a public and
-// signing key
-func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return NewTestCAWithConfig(TestCAConfig{
+// NewCA returns new test authority with a test key as a public and signing key.
+func NewCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+	return NewCAWithConfig(CAConfig{
 		Type:        caType,
 		ClusterName: clusterName,
 		PrivateKeys: privateKeys,
@@ -55,11 +54,11 @@ func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]b
 	})
 }
 
-// NewTestCAWithConfig generates a new certificate authority with the specified
-// configuration
+// NewCAWithConfig generates a new certificate authority with the specified
+// configuration.
+//
 // Keep this function in-sync with lib/auth.newKeySet().
-// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
-func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
 	switch config.Type {
 	case
 		types.HostCA,
