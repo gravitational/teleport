@@ -3452,17 +3452,30 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
+			// Get all (granted ∪ requestable) logins
+			visibleAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			allowedAWSRolesLookup := map[string][]string{
-				r.GetApp().GetName(): allowedAWSRoles,
+
+			var grantedAWSRoles []string
+
+			// If including requestable roles, compute w/ normal accessChecker to
+			// calc difference between sets of requestable and already-granted logins.
+			if req.IncludeRequestable {
+				grantedAWSRoles, err = accessChecker.GetAllowedLoginsForResource(r.GetApp())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				grantedAWSRoles = visibleAWSRoles
 			}
+
+			allowedAWSRolesLookup := map[string][]string{r.GetApp().GetName(): visibleAWSRoles}
+			grantedAWSRolesLookup := map[string][]string{r.GetApp().GetName(): grantedAWSRoles}
 
 			proxyDNSName := h.proxyDNSName()
 			if r.GetApp().GetUseAnyProxyPublicAddr() {
-				// let the current proxy user is connected to override the dns name
 				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
 			}
 
@@ -3471,6 +3484,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				LocalProxyDNSName:     proxyDNSName,
 				AppClusterName:        cluster.GetName(),
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
+				GrantedAWSRolesLookup: grantedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),
 				Logger:                h.logger,
 				RequiresRequest:       enriched.RequiresRequest,
