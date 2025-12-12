@@ -588,6 +588,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 				Error:     err,
 				Created:   u.cfg.Clock.Now().UTC(),
 			})
+			upload.Close()
 			return trace.Wrap(err)
 		}
 	} else {
