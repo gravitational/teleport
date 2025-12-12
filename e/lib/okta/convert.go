@@ -1,6 +1,7 @@
 package okta
 
 import (
+	"context"
 	"crypto"
 	"fmt"
 	"maps"
@@ -69,7 +70,7 @@ type oktaApplicationEmbedLink struct {
 
 // oktaAppToAppServers converts an Okta app object to types.Application objects. This will convert
 // multiple appLinks in an Okta object into multiple app_server resources.
-func (s *Service) oktaAppToAppServers(oktaApplication *oktasdk.Application, groupIDs []string) ([]types.AppServer, error) {
+func (s *Service) oktaAppToAppServers(ctx context.Context, oktaApplication *oktasdk.Application, groupIDs []string) ([]types.AppServer, error) {
 	appIdentifier := fmt.Sprintf("%s (%s)", oktaApplication.Id, oktaApplication.Label)
 
 	// Filter out Okta apps if they're not the kind we want to display to users.
@@ -115,7 +116,7 @@ func (s *Service) oktaAppToAppServers(oktaApplication *oktasdk.Application, grou
 			return nil, trace.Wrap(err)
 		}
 
-		publicAddr, err := app.FindPublicAddr(s.accessPoint, "", appID)
+		publicAddr, err := app.FindPublicAddr(ctx, s.accessPoint, "", appID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
