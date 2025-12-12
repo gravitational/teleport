@@ -169,7 +169,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		// file has been completely converted over.
 		"caPinsOld":               strings.Join(opts.CAPins, " "),
 		"caPins":                  strings.Join(opts.CAPins, ","),
-		"packageName":             opts.InstallOptions.TeleportFlavor,
+		"packageName":             opts.InstallOptions.TeleportArtifact,
 		"repoChannel":             repoChannel,
 		"installUpdater":          opts.InstallOptions.AutoupdateStyle.String(),
 		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion.String()),
