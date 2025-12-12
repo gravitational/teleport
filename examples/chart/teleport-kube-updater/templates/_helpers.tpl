@@ -54,6 +54,14 @@ Create the name of the service account to use
   {{- .Values.containerName | required "containerName must be provided" -}}
 {{- end -}}
 
+{{ define "teleport-kube-updater.app.syncPeriod" -}}
+{{ .Values.syncPeriod }}
+{{- end }}
+
+{{ define "teleport-kube-updater.proxyAddr" -}}
+{{ .Values.proxyAddr | required "proxyAddr must be provided" }}
+{{- end }}
+
 {{- define "teleport-kube-updater.image" -}}
 {{ include "teleport-kube-updater.baseImage" . }}:{{ include "teleport-kube-updater.version" . }}
 {{- end -}}

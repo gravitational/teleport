@@ -22,6 +22,24 @@ You must not enable this when:
 - you are a self-hosted Teleport user and have not set up your Teleport cluster to
   support automatic updates.
 
+## `proxyAddr`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`proxyAddr` provides the public-facing Teleport Proxy Service endpoint
+which should be used to join the cluster. This is the same URL used to access
+the web UI of your Teleport cluster. The port used is usually either 3080 or 443.
+
+Here are a few examples:
+
+| Deployment method             | Example `proxy_service.public_addr` |
+|-------------------------------|-------------------------------------|
+| On-prem Teleport cluster      | `teleport.example.com:3080`         |
+| Teleport Cloud cluster        | `example.teleport.sh:443`           |
+| `teleport-cluster` Helm chart | `teleport.example.com:443`          |
+
 ## `versionServer`
 
 | Type | Default |
@@ -74,6 +92,26 @@ pods run when `enabled` is true.
 
 You can override this to use your own Teleport Kube Agent Updater image rather
 than a Teleport-published image.
+
+## `containerName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`containerName` sets the name of the main container in the Teleport Kube Agent Updater pod.
+This value is typically left empty and is required to be set during installation.
+
+## `syncPeriod`
+
+| Type | Default |
+|------|---------|
+| `string` | `"10h"` |
+
+`syncPeriod` sets the period at which the updater checks for new versions.
+The value is a duration string (e.g., "10h" for 10 hours, "30m" for 30 minutes).
+This value is used to configure how often the updater polls for version updates.
+The default value is "10h".
 
 ## `serviceAccount`
 
@@ -246,21 +284,3 @@ This has no effect when `joinTokenSecret.create` is `false`.
 
 `annotations.serviceAccount` contains the Kubernetes annotations
 put on the `ServiceAccount` resource created by the chart.
-
-## `proxyAddr`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`proxyAddr` provides the public-facing Teleport Proxy Service endpoint
-which should be used to join the cluster. This is the same URL used to access
-the web UI of your Teleport cluster. The port used is usually either 3080 or 443.
-
-Here are a few examples:
-
-| Deployment method             | Example `proxy_service.public_addr` |
-|-------------------------------|-------------------------------------|
-| On-prem Teleport cluster      | `teleport.example.com:3080`         |
-| Teleport Cloud cluster        | `example.teleport.sh:443`           |
-| `teleport-cluster` Helm chart | `teleport.example.com:443`          |

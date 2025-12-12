@@ -64,7 +64,7 @@ spec:
           - "--agent-namespace={{ include "teleport-kube-updater.namespace" . }}"
           - "--base-image={{ include "teleport-kube-updater.app.baseImage" . }}"
           - "--container-name={{ include "teleport-kube-updater.app.containerName" . }}"
-          - "--sync-period=30s"
+          - "--sync-period={{ include "teleport-kube-updater.app.syncPeriod" . }}"
   {{- if $updater.versionServer}}
           - "--version-server={{ tpl $updater.versionServer . }}"
           - "--version-channel={{ $updater.releaseChannel }}"
@@ -72,7 +72,7 @@ spec:
   {{- /* We don't want to enable the RFD-184 update protocol if the user has set a custom versionServer as this
     would be a breaking change when the teleport proxy starts override the explicitly set RFD-109 version server */ -}}
   {{- if and $updater.proxyAddr (not $versionServerOverride)}}
-          - "--proxy-address={{ $updater.proxyAddr }}"
+          - "--proxy-address={{ include "teleport-kube-updater.proxyAddr" . }}"
           - "--update-group={{ default $updater.releaseChannel $updater.group }}"
   {{- end }}
 {{- if $updater.pullCredentials }}

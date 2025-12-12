@@ -4,7 +4,7 @@ name: teleport-kube-updater
 apiVersion: v2
 version: *version
 appVersion: *version
-description: Teleport Kube Agent Updater chart for automatically updating the Teleport Kubernetes agent
+description: Teleport Kube Updater chart for automatically updating the Teleport Kubernetes Deployments
 keywords:
   - Teleport
   - updater
