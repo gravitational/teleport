@@ -76,6 +76,7 @@ func instanceTypeToKind(instanceType inventoryv1.InstanceType) (string, error) {
 	}
 }
 
+// bytestring contains binary data (encoded keys) and is not intended to be printable.
 type bytestring = string
 
 type inventoryIndex string
