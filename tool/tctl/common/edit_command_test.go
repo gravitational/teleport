@@ -50,7 +50,8 @@ import (
 )
 
 func TestEditResources(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
 	log := logtest.NewLogger()
 	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
 	require.NoError(t, err)
