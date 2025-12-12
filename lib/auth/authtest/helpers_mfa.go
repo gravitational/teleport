@@ -48,42 +48,41 @@ type Device struct {
 	passwordless bool
 }
 
-var _ json.Marshaler = (*Device)(nil)
+var (
+	_ json.Marshaler   = (*Device)(nil)
+	_ json.Unmarshaler = (*Device)(nil)
+)
 
 func (d *Device) MarshalJSON() ([]byte, error) {
-	alias := struct {
-		MFA          *types.MFADevice `json:"mfa"`
-		TOTPSecret   string           `json:"totp_secret"`
-		Key          *mocku2f.Key     `json:"key"`
-		Origin       string           `json:"origin"`
-		Passwordless bool             `json:"passwordless"`
+	type Alias Device
+	s := struct {
+		*Alias
+		Origin       string
+		Passwordless bool
 	}{
-		MFA:          d.MFA,
-		TOTPSecret:   d.TOTPSecret,
-		Key:          d.Key,
+		Alias:        (*Alias)(d),
 		Origin:       d.origin,
 		Passwordless: d.passwordless,
 	}
 
-	return json.Marshal(&alias)
+	return json.Marshal(&s)
 }
 
 func (d *Device) UnmarshalJSON(data []byte) error {
-	var alias struct {
-		MFA          *types.MFADevice `json:"mfa"`
-		TOTPSecret   string           `json:"totp_secret"`
-		Key          *mocku2f.Key     `json:"key"`
-		Origin       string           `json:"origin"`
-		Passwordless bool             `json:"passwordless"`
+	type Alias Device
+	var s struct {
+		*Alias
+		Origin       string
+		Passwordless bool
 	}
-	if err := json.Unmarshal(data, &alias); err != nil {
+
+	if err := json.Unmarshal(data, &s); err != nil {
 		return trace.Wrap(err)
 	}
-	d.MFA = alias.MFA
-	d.TOTPSecret = alias.TOTPSecret
-	d.Key = alias.Key
-	d.origin = alias.Origin
-	d.passwordless = alias.Passwordless
+
+	*d = Device(*s.Alias)
+	d.origin = s.Origin
+	d.passwordless = s.Passwordless
 	d.clock = clockwork.NewRealClock()
 	return nil
 }
