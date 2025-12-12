@@ -44,7 +44,7 @@ spec:
               value: "true"
           {{- if .Values.tls.existingCASecretName }}
             - name: SSL_CERT_FILE
-              value: /etc/teleport-tls-ca/ca.pem
+              value: /etc/teleport-tls-ca/{{ .Values.tls.existingCASecretKeyName | default "ca.pem" }}
           {{- end }}
           ports:
             - name: http
